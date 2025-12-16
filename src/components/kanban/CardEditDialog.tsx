@@ -23,6 +23,7 @@ interface CardEditDialogProps {
   onSave: (updates: Partial<Card>) => void;
   onAddLabel: (label: Label) => void;
   onRemoveLabel: (labelId: string) => void;
+  disabled?: boolean;
 }
 
 const labelColors: { color: LabelColor; name: string; className: string }[] = [
@@ -42,6 +43,7 @@ export function CardEditDialog({
   onSave,
   onAddLabel,
   onRemoveLabel,
+  disabled = false,
 }: CardEditDialogProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -206,9 +208,9 @@ export function CardEditDialog({
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {disabled ? 'Close' : 'Cancel'}
           </Button>
-          <Button onClick={handleSave}>Save Changes</Button>
+          {!disabled && <Button onClick={handleSave}>Save Changes</Button>}
         </div>
       </DialogContent>
     </Dialog>

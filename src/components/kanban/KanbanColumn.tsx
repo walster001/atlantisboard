@@ -21,6 +21,7 @@ interface KanbanColumnProps {
   onAddCard: (title: string) => void;
   onEditCard: (card: Card) => void;
   onDeleteCard: (cardId: string) => void;
+  disabled?: boolean;
 }
 
 export function KanbanColumn({
@@ -31,6 +32,7 @@ export function KanbanColumn({
   onAddCard,
   onEditCard,
   onDeleteCard,
+  disabled = false,
 }: KanbanColumnProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(column.title);
@@ -98,23 +100,25 @@ export function KanbanColumn({
                       {column.cards.length}
                     </span>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem onClick={() => setIsEditingTitle(true)}>
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={onDelete} className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {!disabled && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => setIsEditingTitle(true)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </>
               )}
             </div>
@@ -146,48 +150,50 @@ export function KanbanColumn({
             </Droppable>
 
             {/* Add Card */}
-            {isAddingCard ? (
-              <div className="mt-2 animate-fade-in">
-                <Input
-                  value={newCardTitle}
-                  onChange={(e) => setNewCardTitle(e.target.value)}
-                  placeholder="Enter card title..."
-                  className="mb-2"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddCard();
-                    if (e.key === 'Escape') {
-                      setIsAddingCard(false);
-                      setNewCardTitle('');
-                    }
-                  }}
-                />
-                <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={handleAddCard}>
-                    Add Card
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setIsAddingCard(false);
-                      setNewCardTitle('');
+            {!disabled && (
+              isAddingCard ? (
+                <div className="mt-2 animate-fade-in">
+                  <Input
+                    value={newCardTitle}
+                    onChange={(e) => setNewCardTitle(e.target.value)}
+                    placeholder="Enter card title..."
+                    className="mb-2"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddCard();
+                      if (e.key === 'Escape') {
+                        setIsAddingCard(false);
+                        setNewCardTitle('');
+                      }
                     }}
-                  >
-                    Cancel
-                  </Button>
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={handleAddCard}>
+                      Add Card
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setIsAddingCard(false);
+                        setNewCardTitle('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full mt-2 justify-start text-muted-foreground hover:text-foreground"
-                onClick={() => setIsAddingCard(true)}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add a card
-              </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full mt-2 justify-start text-muted-foreground hover:text-foreground"
+                  onClick={() => setIsAddingCard(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add a card
+                </Button>
+              )
             )}
           </div>
         </div>

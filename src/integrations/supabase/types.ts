@@ -240,6 +240,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          is_admin: boolean
           updated_at: string
         }
         Insert: {
@@ -248,6 +249,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          is_admin?: boolean
           updated_at?: string
         }
         Update: {
@@ -256,6 +258,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          is_admin?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -348,6 +351,7 @@ export type Database = {
         Args: { _board_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["board_role"]
       }
+      is_app_admin: { Args: { _user_id: string }; Returns: boolean }
       is_board_member: {
         Args: { _board_id: string; _user_id: string }
         Returns: boolean

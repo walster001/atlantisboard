@@ -58,7 +58,7 @@ interface BoardMember {
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAppAdmin } = useAuth();
   const { toast } = useToast();
 
   const [boardName, setBoardName] = useState('');
@@ -190,8 +190,9 @@ export default function BoardPage() {
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
-  const canEdit = userRole === 'admin';
-  const canManageMembers = userRole === 'admin' || userRole === 'manager';
+  // App admins have full access to all boards
+  const canEdit = userRole === 'admin' || isAppAdmin;
+  const canManageMembers = userRole === 'admin' || userRole === 'manager' || isAppAdmin;
 
   // Convert DB data to component format
   const getColumnCards = (columnId: string): CardType[] => {
@@ -502,7 +503,12 @@ export default function BoardPage() {
                 Members ({boardMembers.length})
               </Button>
             )}
-            {userRole && (
+            {isAppAdmin && (
+              <span className="text-xs text-white bg-primary px-2 py-1 rounded font-medium">
+                App Admin
+              </span>
+            )}
+            {userRole && !isAppAdmin && (
               <span className="text-xs text-white/70 bg-white/20 px-2 py-1 rounded">
                 {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
               </span>

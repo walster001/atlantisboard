@@ -36,7 +36,7 @@ const BOARD_COLORS = [
 ];
 
 export default function Home() {
-  const { user, signOut, loading: authLoading } = useAuth();
+  const { user, signOut, loading: authLoading, isAppAdmin } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -223,6 +223,11 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <LayoutDashboard className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold">KanBoard</h1>
+            {isAppAdmin && (
+              <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-medium">
+                App Admin
+              </span>
+            )}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -355,7 +360,7 @@ export default function Home() {
                           </div>
                         </DialogContent>
                       </Dialog>
-                      {workspace.owner_id === user?.id && (
+                      {(workspace.owner_id === user?.id || isAppAdmin) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">

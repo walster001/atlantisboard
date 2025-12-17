@@ -11,6 +11,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, ArrowLeft, Loader2, Users, LayoutGrid } from 'lucide-react';
 import { Card as CardType, Label, LabelColor } from '@/types/kanban';
 import { BoardMembersDialog } from '@/components/kanban/BoardMembersDialog';
+import { getUserFriendlyError } from '@/lib/errorHandler';
+import { columnSchema, cardSchema } from '@/lib/validators';
+import { z } from 'zod';
 
 interface DbColumn {
   id: string;
@@ -177,12 +180,16 @@ export default function BoardPage() {
 
     } catch (error: any) {
       console.error('Error fetching board:', error);
-      toast({ title: 'Error loading board', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error loading board', description: getUserFriendlyError(error), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
+  // UI-only permission checks for better UX
+  // SECURITY NOTE: These do NOT provide security - all permissions
+  // are enforced server-side via RLS policies. These checks only
+  // hide UI elements to improve user experience.
   const canEdit = userRole === 'admin';
   const canManageMembers = userRole === 'admin' || userRole === 'manager';
 
@@ -213,6 +220,7 @@ export default function BoardPage() {
   };
 
   const onDragEnd = useCallback(async (result: DropResult) => {
+    // Early return for better UX - RLS will reject if user lacks permission
     if (!canEdit) return;
     
     const { destination, source, type, draggableId } = result;
@@ -284,13 +292,17 @@ export default function BoardPage() {
   }, [columns, cards, canEdit]);
 
   const addColumn = async () => {
-    if (!newColumnTitle.trim() || !boardId || !canEdit) return;
+    // Early return for better UX - RLS will reject if user lacks permission
+    if (!boardId || !canEdit) return;
 
     try {
+      // Validate input
+      const validated = columnSchema.parse({ title: newColumnTitle });
+
       const position = columns.length;
       const { data, error } = await supabase
         .from('columns')
-        .insert({ board_id: boardId, title: newColumnTitle.trim(), position })
+        .insert({ board_id: boardId, title: validated.title, position })
         .select()
         .single();
 
@@ -299,53 +311,87 @@ export default function BoardPage() {
       setNewColumnTitle('');
       setIsAddingColumn(false);
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Add column error:', error);
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
     }
   };
 
   const updateColumnTitle = async (columnId: string, title: string) => {
+    // Early return for better UX - RLS will reject if user lacks permission
     if (!canEdit) return;
     try {
-      await supabase.from('columns').update({ title }).eq('id', columnId);
-      setColumns(columns.map(c => c.id === columnId ? { ...c, title } : c));
+      // Validate input
+      const validated = columnSchema.parse({ title });
+      
+      await supabase.from('columns').update({ title: validated.title }).eq('id', columnId);
+      setColumns(columns.map(c => c.id === columnId ? { ...c, title: validated.title } : c));
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Update column error:', error);
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
     }
   };
 
   const deleteColumn = async (columnId: string) => {
+    // Early return for better UX - RLS will reject if user lacks permission
     if (!canEdit) return;
     try {
       await supabase.from('columns').delete().eq('id', columnId);
       setColumns(columns.filter(c => c.id !== columnId));
       setCards(cards.filter(c => c.column_id !== columnId));
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Delete column error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
   };
 
   const addCard = async (columnId: string, title: string) => {
+    // Early return for better UX - RLS will reject if user lacks permission
     if (!canEdit) return;
     try {
+      // Validate input
+      const validated = cardSchema.parse({ title });
+      
       const columnCards = cards.filter(c => c.column_id === columnId);
       const position = columnCards.length;
       
       const { data, error } = await supabase
         .from('cards')
-        .insert({ column_id: columnId, title, position, created_by: user?.id })
+        .insert({ column_id: columnId, title: validated.title, position, created_by: user?.id })
         .select()
         .single();
 
       if (error) throw error;
       setCards([...cards, data]);
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Add card error:', error);
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
     }
   };
 
   const updateCard = async (cardId: string, updates: Partial<CardType>) => {
+    // Early return for better UX - RLS will reject if user lacks permission
     if (!canEdit) return;
     try {
+      // Validate input if title or description provided
+      if (updates.title !== undefined || updates.description !== undefined) {
+        cardSchema.partial().parse({
+          title: updates.title,
+          description: updates.description,
+        });
+      }
+      
       const dbUpdates: any = {};
       if (updates.title !== undefined) dbUpdates.title = updates.title;
       if (updates.description !== undefined) dbUpdates.description = updates.description;
@@ -354,22 +400,30 @@ export default function BoardPage() {
       await supabase.from('cards').update(dbUpdates).eq('id', cardId);
       setCards(cards.map(c => c.id === cardId ? { ...c, ...dbUpdates } : c));
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Update card error:', error);
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
     }
   };
 
   const deleteCard = async (cardId: string) => {
+    // Early return for better UX - RLS will reject if user lacks permission
     if (!canEdit) return;
     try {
       await supabase.from('cards').delete().eq('id', cardId);
       setCards(cards.filter(c => c.id !== cardId));
       setCardLabels(cardLabels.filter(cl => cl.card_id !== cardId));
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Delete card error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
   };
 
   const addLabelToCard = async (cardId: string, label: Label) => {
+    // Early return for better UX - RLS will reject if user lacks permission
     if (!canEdit || !boardId) return;
     try {
       // Check if label exists or create new one
@@ -397,17 +451,20 @@ export default function BoardPage() {
       
       setCardLabels([...cardLabels, { card_id: cardId, label_id: labelId }]);
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Add label error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
   };
 
   const removeLabelFromCard = async (cardId: string, labelId: string) => {
+    // Early return for better UX - RLS will reject if user lacks permission
     if (!canEdit) return;
     try {
       await supabase.from('card_labels').delete().eq('card_id', cardId).eq('label_id', labelId);
       setCardLabels(cardLabels.filter(cl => !(cl.card_id === cardId && cl.label_id === labelId)));
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Remove label error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
   };
 
@@ -494,6 +551,7 @@ export default function BoardPage() {
                           placeholder="Enter list title..."
                           className="mb-2"
                           autoFocus
+                          maxLength={100}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') addColumn();
                             if (e.key === 'Escape') {

@@ -11,6 +11,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/hooks/use-toast';
 import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getUserFriendlyError } from '@/lib/errorHandler';
+import { workspaceSchema, boardSchema } from '@/lib/validators';
+import { z } from 'zod';
 
 interface Workspace {
   id: string;
@@ -88,14 +91,20 @@ export default function Home() {
   };
 
   const createWorkspace = async () => {
-    if (!newWorkspaceName.trim() || !user) return;
+    if (!user) return;
 
     try {
+      // Validate input
+      const validated = workspaceSchema.parse({
+        name: newWorkspaceName,
+        description: newWorkspaceDesc || null,
+      });
+
       const { data: workspace, error } = await supabase
         .from('workspaces')
         .insert({
-          name: newWorkspaceName.trim(),
-          description: newWorkspaceDesc.trim() || null,
+          name: validated.name,
+          description: validated.description,
           owner_id: user.id,
         })
         .select()
@@ -115,7 +124,12 @@ export default function Home() {
       setWorkspaceDialogOpen(false);
       toast({ title: 'Workspace created!' });
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Create workspace error:', error);
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
     }
   };
 
@@ -127,20 +141,27 @@ export default function Home() {
       setBoards(boards.filter((b) => b.workspace_id !== id));
       toast({ title: 'Workspace deleted' });
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Delete workspace error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
   };
 
   const createBoard = async () => {
-    if (!newBoardName.trim() || !selectedWorkspaceId || !user) return;
+    if (!selectedWorkspaceId || !user) return;
 
     try {
+      // Validate input
+      const validated = boardSchema.parse({
+        name: newBoardName,
+        background_color: newBoardColor,
+      });
+
       const { data: board, error } = await supabase
         .from('boards')
         .insert({
           workspace_id: selectedWorkspaceId,
-          name: newBoardName.trim(),
-          background_color: newBoardColor,
+          name: validated.name,
+          background_color: validated.background_color,
         })
         .select()
         .single();
@@ -160,7 +181,12 @@ export default function Home() {
       setBoardDialogOpen(false);
       toast({ title: 'Board created!' });
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Create board error:', error);
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
     }
   };
 
@@ -171,7 +197,8 @@ export default function Home() {
       setBoards(boards.filter((b) => b.id !== id));
       toast({ title: 'Board deleted' });
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Delete board error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
   };
 
@@ -242,6 +269,7 @@ export default function Home() {
                       value={newWorkspaceName}
                       onChange={(e) => setNewWorkspaceName(e.target.value)}
                       placeholder="My Workspace"
+                      maxLength={100}
                     />
                   </div>
                   <div className="space-y-2">
@@ -250,6 +278,7 @@ export default function Home() {
                       value={newWorkspaceDesc}
                       onChange={(e) => setNewWorkspaceDesc(e.target.value)}
                       placeholder="Team projects and tasks"
+                      maxLength={500}
                     />
                   </div>
                   <Button onClick={createWorkspace} className="w-full">
@@ -302,6 +331,7 @@ export default function Home() {
                                 value={newBoardName}
                                 onChange={(e) => setNewBoardName(e.target.value)}
                                 placeholder="Project Board"
+                                maxLength={100}
                               />
                             </div>
                             <div className="space-y-2">

@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, UserPlus, User } from 'lucide-react';
+import { getUserFriendlyError } from '@/lib/errorHandler';
+import { emailSchema } from '@/lib/validators';
+import { z } from 'zod';
 
 interface BoardMember {
   user_id: string;
@@ -42,19 +45,25 @@ export function BoardMembersDialog({
   const [role, setRole] = useState<'admin' | 'manager' | 'viewer'>('viewer');
   const [isAdding, setIsAdding] = useState(false);
 
+  // UI-only permission checks for better UX
+  // SECURITY NOTE: These do NOT provide security - all permissions
+  // are enforced server-side via RLS policies. These checks only
+  // hide UI elements to improve user experience.
   const canChangeRoles = userRole === 'admin';
   const canAddRemove = userRole === 'admin' || userRole === 'manager';
 
   const addMember = async () => {
-    if (!email.trim()) return;
     setIsAdding(true);
 
     try {
+      // Validate email format
+      const validEmail = emailSchema.parse(email);
+
       // Find user by email
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id')
-        .eq('email', email.trim())
+        .eq('email', validEmail)
         .maybeSingle();
 
       if (profileError) throw profileError;
@@ -87,7 +96,12 @@ export function BoardMembersDialog({
       setEmail('');
       onMembersChange();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Add member error:', error);
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Invalid Email', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
     } finally {
       setIsAdding(false);
     }
@@ -105,11 +119,14 @@ export function BoardMembersDialog({
       toast({ title: 'Member removed' });
       onMembersChange();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Remove member error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
   };
 
   const updateRole = async (userId: string, newRole: 'admin' | 'manager' | 'viewer') => {
+    // Early return for better UX (don't show loading states)
+    // Server-side RLS will reject if user lacks permission
     if (!canChangeRoles) return;
     try {
       const { error } = await supabase
@@ -122,7 +139,8 @@ export function BoardMembersDialog({
       toast({ title: 'Role updated' });
       onMembersChange();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Update role error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
   };
 
@@ -141,6 +159,7 @@ export function BoardMembersDialog({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addMember()}
+                maxLength={255}
               />
               {canChangeRoles && (
                 <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'manager' | 'viewer')}>

@@ -73,23 +73,25 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kanban-bg via-background to-kanban-bg p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
+      <Card className="w-full max-w-lg">
+        <CardHeader className="text-center space-y-4">
           {showCustomLogo && (
-            <div className="mb-2">
+            <div className="flex justify-center">
               <img
                 src={settings.custom_login_logo_url!}
                 alt="Logo"
-                className="max-h-16 mx-auto object-contain"
+                className="w-[300px] h-[300px] object-contain"
               />
             </div>
           )}
-          <CardTitle className="text-2xl font-bold">
-            {showCustomAppName ? settings.custom_app_name : 'KanBoard'}
-          </CardTitle>
-          <CardDescription>
-            {showCustomTagline ? settings.custom_tagline : 'Sign in to manage your boards'}
-          </CardDescription>
+          <div>
+            <CardTitle className="text-2xl font-bold">
+              {showCustomAppName ? settings.custom_app_name : 'KanBoard'}
+            </CardTitle>
+            <CardDescription className="mt-2">
+              {showCustomTagline ? settings.custom_tagline : 'Sign in to manage your boards'}
+            </CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <Button

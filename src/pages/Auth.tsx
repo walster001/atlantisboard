@@ -100,9 +100,9 @@ export default function Auth() {
               />
             </div>
           )}
-          <div>
-            <CardTitle className="font-bold" style={{ fontSize: `${appNameSize}px` }}>{appName}</CardTitle>
-            <CardDescription className="mt-2" style={{ fontSize: `${taglineSize}px` }}>{tagline}</CardDescription>
+          <div className="space-y-2">
+            <h1 className="font-bold text-foreground" style={{ fontSize: `${appNameSize}px` }}>{appName}</h1>
+            <p className="text-muted-foreground" style={{ fontSize: `${taglineSize}px` }}>{tagline}</p>
           </div>
         </CardHeader>
         <CardContent>

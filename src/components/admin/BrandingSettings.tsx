@@ -416,24 +416,33 @@ export function BrandingSettings() {
           {appNameInput.trim() && (
             <div className="border-t pt-4">
               <Label className="text-sm font-medium mb-3 block">Text Size</Label>
-              <Select
-                value={settings.custom_app_name_size.toString()}
-                onValueChange={(size) => setSettings(prev => ({ ...prev, custom_app_name_size: parseInt(size, 10) }))}
-                disabled={saving}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue placeholder="Select size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <ScrollArea className="h-[200px]">
-                    {textSizes.map((size) => (
-                      <SelectItem key={size} value={size.toString()}>
-                        {size}px
-                      </SelectItem>
-                    ))}
-                  </ScrollArea>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-4">
+                <Select
+                  value={settings.custom_app_name_size.toString()}
+                  onValueChange={(size) => setSettings(prev => ({ ...prev, custom_app_name_size: parseInt(size, 10) }))}
+                  disabled={saving}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue placeholder="Select size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <ScrollArea className="h-[200px]">
+                      {textSizes.map((size) => (
+                        <SelectItem key={size} value={size.toString()}>
+                          {size}px
+                        </SelectItem>
+                      ))}
+                    </ScrollArea>
+                  </SelectContent>
+                </Select>
+                <span 
+                  className="text-foreground font-bold truncate max-w-[200px]" 
+                  style={{ fontSize: `${settings.custom_app_name_size}px`, lineHeight: 1.2 }}
+                  title={appNameInput}
+                >
+                  {appNameInput}
+                </span>
+              </div>
             </div>
           )}
         </CardContent>
@@ -480,24 +489,33 @@ export function BrandingSettings() {
           {taglineInput.trim() && (
             <div className="border-t pt-4">
               <Label className="text-sm font-medium mb-3 block">Text Size</Label>
-              <Select
-                value={settings.custom_tagline_size.toString()}
-                onValueChange={(size) => setSettings(prev => ({ ...prev, custom_tagline_size: parseInt(size, 10) }))}
-                disabled={saving}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue placeholder="Select size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <ScrollArea className="h-[200px]">
-                    {textSizes.map((size) => (
-                      <SelectItem key={size} value={size.toString()}>
-                        {size}px
-                      </SelectItem>
-                    ))}
-                  </ScrollArea>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-4">
+                <Select
+                  value={settings.custom_tagline_size.toString()}
+                  onValueChange={(size) => setSettings(prev => ({ ...prev, custom_tagline_size: parseInt(size, 10) }))}
+                  disabled={saving}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue placeholder="Select size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <ScrollArea className="h-[200px]">
+                      {textSizes.map((size) => (
+                        <SelectItem key={size} value={size.toString()}>
+                          {size}px
+                        </SelectItem>
+                      ))}
+                    </ScrollArea>
+                  </SelectContent>
+                </Select>
+                <span 
+                  className="text-muted-foreground truncate max-w-[200px]" 
+                  style={{ fontSize: `${settings.custom_tagline_size}px`, lineHeight: 1.2 }}
+                  title={taglineInput}
+                >
+                  {taglineInput}
+                </span>
+              </div>
             </div>
           )}
         </CardContent>

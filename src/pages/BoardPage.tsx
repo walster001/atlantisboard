@@ -481,9 +481,9 @@ export default function BoardPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: sanitizeColor(boardColor) }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: sanitizeColor(boardColor) }}>
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-black/20 backdrop-blur-sm">
+      <header className="flex-shrink-0 z-10 bg-black/20 backdrop-blur-sm">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-white hover:bg-white/20">
@@ -549,14 +549,14 @@ export default function BoardPage() {
       </header>
 
       {/* Board */}
-      <div className="p-6 overflow-x-auto scrollbar-thin">
+      <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-thin">
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="board" type="column" direction="horizontal">
             {(provided) => (
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className="flex items-start gap-4"
+                className="flex items-start gap-4 p-6 min-h-full"
               >
                 {columns.map((column, index) => (
                   <KanbanColumn

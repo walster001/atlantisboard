@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, Loader2, Settings, Palette, Wrench, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BrandingSettings } from '@/components/admin/BrandingSettings';
 
 // Placeholder settings data structure
 const tabConfig = {
@@ -163,11 +164,17 @@ export default function AdminConfig() {
   );
 }
 
-// Placeholder settings content component
+// Settings content component
 function SettingsContent({ mainTab, subTab }: { mainTab: MainTab; subTab: string }) {
   const currentConfig = tabConfig[mainTab];
   const currentSubTab = currentConfig.subTabs.find(s => s.id === subTab);
 
+  // Render specific settings based on tab
+  if (mainTab === 'customisation' && subTab === 'branding') {
+    return <BrandingSettings />;
+  }
+
+  // Placeholder for other settings
   return (
     <div className="space-y-6">
       <div>
@@ -177,41 +184,16 @@ function SettingsContent({ mainTab, subTab }: { mainTab: MainTab; subTab: string
         </p>
       </div>
 
-      {/* Placeholder Settings Cards */}
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Setting 1</CardTitle>
+            <CardTitle className="text-base">Coming Soon</CardTitle>
             <CardDescription>
-              This is a placeholder setting. Configure it as needed.
+              Settings for {currentSubTab?.label} will be available here.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-10 bg-muted rounded-md animate-pulse" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Setting 2</CardTitle>
-            <CardDescription>
-              Another placeholder setting for {mainTab} → {subTab}.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-10 bg-muted rounded-md animate-pulse" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Setting 3</CardTitle>
-            <CardDescription>
-              Additional configuration options will appear here.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-20 bg-muted rounded-md animate-pulse" />
           </CardContent>
         </Card>
       </div>

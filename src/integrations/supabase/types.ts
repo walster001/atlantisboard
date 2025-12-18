@@ -18,12 +18,14 @@ export type Database = {
         Row: {
           created_at: string
           custom_app_name: string | null
+          custom_app_name_color: string
           custom_app_name_enabled: boolean
           custom_app_name_size: number
           custom_login_logo_enabled: boolean
           custom_login_logo_size: string
           custom_login_logo_url: string | null
           custom_tagline: string | null
+          custom_tagline_color: string
           custom_tagline_enabled: boolean
           custom_tagline_size: number
           id: string
@@ -32,12 +34,14 @@ export type Database = {
         Insert: {
           created_at?: string
           custom_app_name?: string | null
+          custom_app_name_color?: string
           custom_app_name_enabled?: boolean
           custom_app_name_size?: number
           custom_login_logo_enabled?: boolean
           custom_login_logo_size?: string
           custom_login_logo_url?: string | null
           custom_tagline?: string | null
+          custom_tagline_color?: string
           custom_tagline_enabled?: boolean
           custom_tagline_size?: number
           id?: string
@@ -46,12 +50,14 @@ export type Database = {
         Update: {
           created_at?: string
           custom_app_name?: string | null
+          custom_app_name_color?: string
           custom_app_name_enabled?: boolean
           custom_app_name_size?: number
           custom_login_logo_enabled?: boolean
           custom_login_logo_size?: string
           custom_login_logo_url?: string | null
           custom_tagline?: string | null
+          custom_tagline_color?: string
           custom_tagline_enabled?: boolean
           custom_tagline_size?: number
           id?: string

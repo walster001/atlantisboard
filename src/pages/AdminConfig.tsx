@@ -49,24 +49,34 @@ export default function AdminConfig() {
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('theme');
   const [activeSubTab, setActiveSubTab] = useState<string>('colors');
 
+  // Check if we're in preview/development mode
+  const isPreviewMode = window.location.hostname.includes('lovableproject.com') || 
+                        window.location.hostname === 'localhost';
+
   useEffect(() => {
+    // Skip auth redirect in preview mode
+    if (isPreviewMode) return;
+    
     if (!authLoading && !user) {
       navigate('/auth');
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, isPreviewMode]);
 
   useEffect(() => {
+    // Skip admin check in preview mode
+    if (isPreviewMode) return;
+    
     if (!authLoading && user && !isAppAdmin) {
       navigate('/');
     }
-  }, [user, authLoading, isAppAdmin, navigate]);
+  }, [user, authLoading, isAppAdmin, navigate, isPreviewMode]);
 
   // Reset sub-tab when main tab changes
   useEffect(() => {
     setActiveSubTab(tabConfig[activeMainTab].subTabs[0].id);
   }, [activeMainTab]);
 
-  if (authLoading) {
+  if (authLoading && !isPreviewMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -74,7 +84,7 @@ export default function AdminConfig() {
     );
   }
 
-  if (!isAppAdmin) {
+  if (!isAppAdmin && !isPreviewMode) {
     return null;
   }
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
@@ -14,9 +14,11 @@ interface AppSettings {
   custom_app_name_enabled: boolean;
   custom_app_name: string | null;
   custom_app_name_size: number;
+  custom_app_name_color: string;
   custom_tagline_enabled: boolean;
   custom_tagline: string | null;
   custom_tagline_size: number;
+  custom_tagline_color: string;
 }
 
 const logoSizeMap: Record<string, string> = {
@@ -45,7 +47,7 @@ export default function Auth() {
     try {
       const { data } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_tagline_enabled, custom_tagline, custom_tagline_size')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_app_name_color, custom_tagline_enabled, custom_tagline, custom_tagline_size, custom_tagline_color')
         .eq('id', 'default')
         .single();
 
@@ -85,7 +87,9 @@ export default function Auth() {
   const appName = showCustomAppName ? settings.custom_app_name : 'KanBoard';
   const tagline = showCustomTagline ? settings.custom_tagline : 'Sign in to manage your boards';
   const appNameSize = settings?.custom_app_name_size || 24;
+  const appNameColor = settings?.custom_app_name_color || '#000000';
   const taglineSize = settings?.custom_tagline_size || 14;
+  const taglineColor = settings?.custom_tagline_color || '#6b7280';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kanban-bg via-background to-kanban-bg p-4">
@@ -101,8 +105,18 @@ export default function Auth() {
             </div>
           )}
           <div className="space-y-2">
-            <h1 className="font-bold text-foreground" style={{ fontSize: `${appNameSize}px` }}>{appName}</h1>
-            <p className="text-muted-foreground" style={{ fontSize: `${taglineSize}px` }}>{tagline}</p>
+            <h1 
+              className="font-bold text-center" 
+              style={{ fontSize: `${appNameSize}px`, color: appNameColor }}
+            >
+              {appName}
+            </h1>
+            <p 
+              className="text-center max-w-md mx-auto leading-relaxed" 
+              style={{ fontSize: `${taglineSize}px`, color: taglineColor }}
+            >
+              {tagline}
+            </p>
           </div>
         </CardHeader>
         <CardContent>

@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Loader2, Image as ImageIcon, Palette } from 'lucide-react';
 
 type LogoSize = 'small' | 'medium' | 'large';
 
@@ -19,9 +20,11 @@ interface AppSettings {
   custom_app_name_enabled: boolean;
   custom_app_name: string | null;
   custom_app_name_size: number;
+  custom_app_name_color: string;
   custom_tagline_enabled: boolean;
   custom_tagline: string | null;
   custom_tagline_size: number;
+  custom_tagline_color: string;
 }
 
 // Generate array of sizes from 1 to 72
@@ -35,9 +38,11 @@ export function BrandingSettings() {
     custom_app_name_enabled: false,
     custom_app_name: null,
     custom_app_name_size: 24,
+    custom_app_name_color: '#000000',
     custom_tagline_enabled: false,
     custom_tagline: null,
     custom_tagline_size: 14,
+    custom_tagline_color: '#6b7280',
   });
   const [savedSettings, setSavedSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +61,7 @@ export function BrandingSettings() {
     try {
       const { data, error } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_tagline_enabled, custom_tagline, custom_tagline_size')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_app_name_color, custom_tagline_enabled, custom_tagline, custom_tagline_size, custom_tagline_color')
         .eq('id', 'default')
         .single();
 
@@ -69,9 +74,11 @@ export function BrandingSettings() {
           custom_app_name_enabled: data.custom_app_name_enabled,
           custom_app_name: data.custom_app_name,
           custom_app_name_size: data.custom_app_name_size || 24,
+          custom_app_name_color: data.custom_app_name_color || '#000000',
           custom_tagline_enabled: data.custom_tagline_enabled,
           custom_tagline: data.custom_tagline,
           custom_tagline_size: data.custom_tagline_size || 14,
+          custom_tagline_color: data.custom_tagline_color || '#6b7280',
         };
         setSettings(loadedSettings);
         setSavedSettings(loadedSettings);
@@ -93,24 +100,28 @@ export function BrandingSettings() {
       settings.custom_app_name_enabled !== savedSettings.custom_app_name_enabled ||
       appNameInput.trim() !== (savedSettings.custom_app_name || '') ||
       settings.custom_app_name_size !== savedSettings.custom_app_name_size ||
+      settings.custom_app_name_color !== savedSettings.custom_app_name_color ||
       settings.custom_tagline_enabled !== savedSettings.custom_tagline_enabled ||
       taglineInput.trim() !== (savedSettings.custom_tagline || '') ||
-      settings.custom_tagline_size !== savedSettings.custom_tagline_size
+      settings.custom_tagline_size !== savedSettings.custom_tagline_size ||
+      settings.custom_tagline_color !== savedSettings.custom_tagline_color
     );
   };
 
   const handleSaveAll = async () => {
     setSaving(true);
     try {
-      const updates: Partial<AppSettings> = {
+      const updates = {
         custom_login_logo_enabled: settings.custom_login_logo_enabled,
         custom_login_logo_size: settings.custom_login_logo_size,
         custom_app_name_enabled: settings.custom_app_name_enabled,
         custom_app_name: appNameInput.trim() || null,
         custom_app_name_size: settings.custom_app_name_size,
+        custom_app_name_color: settings.custom_app_name_color,
         custom_tagline_enabled: settings.custom_tagline_enabled,
         custom_tagline: taglineInput.trim() || null,
         custom_tagline_size: settings.custom_tagline_size,
+        custom_tagline_color: settings.custom_tagline_color,
       };
 
       const { error } = await supabase
@@ -183,7 +194,6 @@ export function BrandingSettings() {
         .from('branding')
         .getPublicUrl(fileName);
 
-      // Update both local state and save to DB immediately for logo URL
       const { error } = await supabase
         .from('app_settings')
         .update({ custom_login_logo_url: urlData.publicUrl })
@@ -414,34 +424,69 @@ export function BrandingSettings() {
           )}
 
           {appNameInput.trim() && (
-            <div className="border-t pt-4">
-              <Label className="text-sm font-medium mb-3 block">Text Size</Label>
-              <div className="flex items-center gap-4">
-                <Select
-                  value={settings.custom_app_name_size.toString()}
-                  onValueChange={(size) => setSettings(prev => ({ ...prev, custom_app_name_size: parseInt(size, 10) }))}
-                  disabled={saving}
-                >
-                  <SelectTrigger className="w-20">
-                    <SelectValue placeholder="Select size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="h-[200px]">
-                      {textSizes.map((size) => (
-                        <SelectItem key={size} value={size.toString()}>
-                          {size}px
-                        </SelectItem>
-                      ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
-                <span 
-                  className="text-foreground font-bold truncate max-w-[200px]" 
-                  style={{ fontSize: `${settings.custom_app_name_size}px`, lineHeight: 1.2 }}
-                  title={appNameInput}
-                >
-                  {appNameInput}
-                </span>
+            <div className="border-t pt-4 space-y-4">
+              <div>
+                <Label className="text-sm font-medium mb-3 block">Text Size & Color</Label>
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={settings.custom_app_name_size.toString()}
+                    onValueChange={(size) => setSettings(prev => ({ ...prev, custom_app_name_size: parseInt(size, 10) }))}
+                    disabled={saving}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue placeholder="Select size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <ScrollArea className="h-[200px]">
+                        {textSizes.map((size) => (
+                          <SelectItem key={size} value={size.toString()}>
+                            {size}px
+                          </SelectItem>
+                        ))}
+                      </ScrollArea>
+                    </SelectContent>
+                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="shrink-0">
+                        <div 
+                          className="w-4 h-4 rounded-sm border" 
+                          style={{ backgroundColor: settings.custom_app_name_color }}
+                        />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-3" align="start">
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Pick a color</Label>
+                        <input
+                          type="color"
+                          value={settings.custom_app_name_color}
+                          onChange={(e) => setSettings(prev => ({ ...prev, custom_app_name_color: e.target.value }))}
+                          className="w-full h-10 cursor-pointer rounded border-0"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={settings.custom_app_name_color}
+                            onChange={(e) => setSettings(prev => ({ ...prev, custom_app_name_color: e.target.value }))}
+                            className="font-mono text-sm"
+                            placeholder="#000000"
+                          />
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <span 
+                    className="font-bold truncate max-w-[200px]" 
+                    style={{ 
+                      fontSize: `${settings.custom_app_name_size}px`, 
+                      lineHeight: 1.2,
+                      color: settings.custom_app_name_color 
+                    }}
+                    title={appNameInput}
+                  >
+                    {appNameInput}
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -487,34 +532,69 @@ export function BrandingSettings() {
           )}
 
           {taglineInput.trim() && (
-            <div className="border-t pt-4">
-              <Label className="text-sm font-medium mb-3 block">Text Size</Label>
-              <div className="flex items-center gap-4">
-                <Select
-                  value={settings.custom_tagline_size.toString()}
-                  onValueChange={(size) => setSettings(prev => ({ ...prev, custom_tagline_size: parseInt(size, 10) }))}
-                  disabled={saving}
-                >
-                  <SelectTrigger className="w-20">
-                    <SelectValue placeholder="Select size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="h-[200px]">
-                      {textSizes.map((size) => (
-                        <SelectItem key={size} value={size.toString()}>
-                          {size}px
-                        </SelectItem>
-                      ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
-                <span 
-                  className="text-muted-foreground truncate max-w-[200px]" 
-                  style={{ fontSize: `${settings.custom_tagline_size}px`, lineHeight: 1.2 }}
-                  title={taglineInput}
-                >
-                  {taglineInput}
-                </span>
+            <div className="border-t pt-4 space-y-4">
+              <div>
+                <Label className="text-sm font-medium mb-3 block">Text Size & Color</Label>
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={settings.custom_tagline_size.toString()}
+                    onValueChange={(size) => setSettings(prev => ({ ...prev, custom_tagline_size: parseInt(size, 10) }))}
+                    disabled={saving}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue placeholder="Select size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <ScrollArea className="h-[200px]">
+                        {textSizes.map((size) => (
+                          <SelectItem key={size} value={size.toString()}>
+                            {size}px
+                          </SelectItem>
+                        ))}
+                      </ScrollArea>
+                    </SelectContent>
+                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="shrink-0">
+                        <div 
+                          className="w-4 h-4 rounded-sm border" 
+                          style={{ backgroundColor: settings.custom_tagline_color }}
+                        />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-3" align="start">
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Pick a color</Label>
+                        <input
+                          type="color"
+                          value={settings.custom_tagline_color}
+                          onChange={(e) => setSettings(prev => ({ ...prev, custom_tagline_color: e.target.value }))}
+                          className="w-full h-10 cursor-pointer rounded border-0"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={settings.custom_tagline_color}
+                            onChange={(e) => setSettings(prev => ({ ...prev, custom_tagline_color: e.target.value }))}
+                            className="font-mono text-sm"
+                            placeholder="#6b7280"
+                          />
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <span 
+                    className="truncate max-w-[200px]" 
+                    style={{ 
+                      fontSize: `${settings.custom_tagline_size}px`, 
+                      lineHeight: 1.2,
+                      color: settings.custom_tagline_color 
+                    }}
+                    title={taglineInput}
+                  >
+                    {taglineInput}
+                  </span>
+                </div>
               </div>
             </div>
           )}

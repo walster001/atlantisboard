@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, X, Loader2, Image as ImageIcon, Palette } from 'lucide-react';
+import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 
 type LogoSize = 'small' | 'medium' | 'large';
 
@@ -21,10 +21,18 @@ interface AppSettings {
   custom_app_name: string | null;
   custom_app_name_size: number;
   custom_app_name_color: string;
+  custom_app_name_font: string;
   custom_tagline_enabled: boolean;
   custom_tagline: string | null;
   custom_tagline_size: number;
   custom_tagline_color: string;
+  custom_tagline_font: string;
+}
+
+interface CustomFont {
+  id: string;
+  name: string;
+  font_url: string;
 }
 
 // Generate array of sizes from 1 to 72
@@ -39,12 +47,15 @@ export function BrandingSettings() {
     custom_app_name: null,
     custom_app_name_size: 24,
     custom_app_name_color: '#000000',
+    custom_app_name_font: 'default',
     custom_tagline_enabled: false,
     custom_tagline: null,
     custom_tagline_size: 14,
     custom_tagline_color: '#6b7280',
+    custom_tagline_font: 'default',
   });
   const [savedSettings, setSavedSettings] = useState<AppSettings | null>(null);
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -55,13 +66,35 @@ export function BrandingSettings() {
 
   useEffect(() => {
     fetchSettings();
+    fetchCustomFonts();
   }, []);
+
+  // Load custom font CSS
+  useEffect(() => {
+    customFonts.forEach((font) => {
+      const fontId = `custom-font-${font.id}`;
+      if (!document.getElementById(fontId)) {
+        const style = document.createElement('style');
+        style.id = fontId;
+        style.textContent = `
+          @font-face {
+            font-family: '${font.name}';
+            src: url('${font.font_url}') format('woff2'), url('${font.font_url}') format('woff'), url('${font.font_url}') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    });
+  }, [customFonts]);
 
   const fetchSettings = async () => {
     try {
       const { data, error } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_app_name_color, custom_tagline_enabled, custom_tagline, custom_tagline_size, custom_tagline_color')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_app_name_color, custom_app_name_font, custom_tagline_enabled, custom_tagline, custom_tagline_size, custom_tagline_color, custom_tagline_font')
         .eq('id', 'default')
         .single();
 
@@ -75,10 +108,12 @@ export function BrandingSettings() {
           custom_app_name: data.custom_app_name,
           custom_app_name_size: data.custom_app_name_size || 24,
           custom_app_name_color: data.custom_app_name_color || '#000000',
+          custom_app_name_font: data.custom_app_name_font || 'default',
           custom_tagline_enabled: data.custom_tagline_enabled,
           custom_tagline: data.custom_tagline,
           custom_tagline_size: data.custom_tagline_size || 14,
           custom_tagline_color: data.custom_tagline_color || '#6b7280',
+          custom_tagline_font: data.custom_tagline_font || 'default',
         };
         setSettings(loadedSettings);
         setSavedSettings(loadedSettings);
@@ -92,6 +127,26 @@ export function BrandingSettings() {
     }
   };
 
+  const fetchCustomFonts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('custom_fonts')
+        .select('id, name, font_url')
+        .order('name');
+
+      if (error) throw error;
+      setCustomFonts(data || []);
+    } catch (error) {
+      console.error('Error fetching fonts:', error);
+    }
+  };
+
+  const getFontFamily = (fontKey: string) => {
+    if (fontKey === 'default') return 'Inter, sans-serif';
+    const font = customFonts.find(f => f.id === fontKey);
+    return font ? `'${font.name}', sans-serif` : 'Inter, sans-serif';
+  };
+
   const hasUnsavedChanges = () => {
     if (!savedSettings) return false;
     return (
@@ -101,10 +156,12 @@ export function BrandingSettings() {
       appNameInput.trim() !== (savedSettings.custom_app_name || '') ||
       settings.custom_app_name_size !== savedSettings.custom_app_name_size ||
       settings.custom_app_name_color !== savedSettings.custom_app_name_color ||
+      settings.custom_app_name_font !== savedSettings.custom_app_name_font ||
       settings.custom_tagline_enabled !== savedSettings.custom_tagline_enabled ||
       taglineInput.trim() !== (savedSettings.custom_tagline || '') ||
       settings.custom_tagline_size !== savedSettings.custom_tagline_size ||
-      settings.custom_tagline_color !== savedSettings.custom_tagline_color
+      settings.custom_tagline_color !== savedSettings.custom_tagline_color ||
+      settings.custom_tagline_font !== savedSettings.custom_tagline_font
     );
   };
 
@@ -118,10 +175,12 @@ export function BrandingSettings() {
         custom_app_name: appNameInput.trim() || null,
         custom_app_name_size: settings.custom_app_name_size,
         custom_app_name_color: settings.custom_app_name_color,
+        custom_app_name_font: settings.custom_app_name_font,
         custom_tagline_enabled: settings.custom_tagline_enabled,
         custom_tagline: taglineInput.trim() || null,
         custom_tagline_size: settings.custom_tagline_size,
         custom_tagline_color: settings.custom_tagline_color,
+        custom_tagline_font: settings.custom_tagline_font,
       };
 
       const { error } = await supabase
@@ -426,15 +485,32 @@ export function BrandingSettings() {
           {appNameInput.trim() && (
             <div className="border-t pt-4 space-y-4">
               <div>
-                <Label className="text-sm font-medium mb-3 block">Text Size & Color</Label>
-                <div className="flex items-center gap-3">
+                <Label className="text-sm font-medium mb-3 block">Font, Size & Color</Label>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Select
+                    value={settings.custom_app_name_font}
+                    onValueChange={(font) => setSettings(prev => ({ ...prev, custom_app_name_font: font }))}
+                    disabled={saving}
+                  >
+                    <SelectTrigger className="w-36">
+                      <SelectValue placeholder="Select font" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Inter (Default)</SelectItem>
+                      {customFonts.map((font) => (
+                        <SelectItem key={font.id} value={font.id}>
+                          {font.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Select
                     value={settings.custom_app_name_size.toString()}
                     onValueChange={(size) => setSettings(prev => ({ ...prev, custom_app_name_size: parseInt(size, 10) }))}
                     disabled={saving}
                   >
                     <SelectTrigger className="w-20">
-                      <SelectValue placeholder="Select size" />
+                      <SelectValue placeholder="Size" />
                     </SelectTrigger>
                     <SelectContent>
                       <ScrollArea className="h-[200px]">
@@ -475,12 +551,15 @@ export function BrandingSettings() {
                       </div>
                     </PopoverContent>
                   </Popover>
+                </div>
+                <div className="mt-3 p-3 border rounded-lg bg-muted/30">
                   <span 
-                    className="font-bold truncate max-w-[200px]" 
+                    className="font-bold truncate block" 
                     style={{ 
-                      fontSize: `${settings.custom_app_name_size}px`, 
+                      fontSize: `${Math.min(settings.custom_app_name_size, 32)}px`, 
                       lineHeight: 1.2,
-                      color: settings.custom_app_name_color 
+                      color: settings.custom_app_name_color,
+                      fontFamily: getFontFamily(settings.custom_app_name_font),
                     }}
                     title={appNameInput}
                   >
@@ -534,15 +613,32 @@ export function BrandingSettings() {
           {taglineInput.trim() && (
             <div className="border-t pt-4 space-y-4">
               <div>
-                <Label className="text-sm font-medium mb-3 block">Text Size & Color</Label>
-                <div className="flex items-center gap-3">
+                <Label className="text-sm font-medium mb-3 block">Font, Size & Color</Label>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Select
+                    value={settings.custom_tagline_font}
+                    onValueChange={(font) => setSettings(prev => ({ ...prev, custom_tagline_font: font }))}
+                    disabled={saving}
+                  >
+                    <SelectTrigger className="w-36">
+                      <SelectValue placeholder="Select font" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Inter (Default)</SelectItem>
+                      {customFonts.map((font) => (
+                        <SelectItem key={font.id} value={font.id}>
+                          {font.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Select
                     value={settings.custom_tagline_size.toString()}
                     onValueChange={(size) => setSettings(prev => ({ ...prev, custom_tagline_size: parseInt(size, 10) }))}
                     disabled={saving}
                   >
                     <SelectTrigger className="w-20">
-                      <SelectValue placeholder="Select size" />
+                      <SelectValue placeholder="Size" />
                     </SelectTrigger>
                     <SelectContent>
                       <ScrollArea className="h-[200px]">
@@ -583,12 +679,15 @@ export function BrandingSettings() {
                       </div>
                     </PopoverContent>
                   </Popover>
+                </div>
+                <div className="mt-3 p-3 border rounded-lg bg-muted/30">
                   <span 
-                    className="truncate max-w-[200px]" 
+                    className="truncate block" 
                     style={{ 
-                      fontSize: `${settings.custom_tagline_size}px`, 
-                      lineHeight: 1.2,
-                      color: settings.custom_tagline_color 
+                      fontSize: `${Math.min(settings.custom_tagline_size, 24)}px`, 
+                      lineHeight: 1.4,
+                      color: settings.custom_tagline_color,
+                      fontFamily: getFontFamily(settings.custom_tagline_font),
                     }}
                     title={taglineInput}
                   >

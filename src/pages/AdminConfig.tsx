@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, Loader2, Settings, Wrench, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrandingSettings } from '@/components/admin/BrandingSettings';
+import { CustomFontsSettings } from '@/components/admin/CustomFontsSettings';
 
 // Placeholder settings data structure
 const tabConfig = {
@@ -25,7 +26,7 @@ const tabConfig = {
     label: 'Customisation',
     subTabs: [
       { id: 'branding', label: 'Branding' },
-      { id: 'labels', label: 'Labels' },
+      { id: 'fonts', label: 'Custom Fonts' },
       { id: 'workflows', label: 'Workflows' },
       { id: 'templates', label: 'Templates' },
     ],
@@ -162,6 +163,10 @@ function SettingsContent({ mainTab, subTab }: { mainTab: MainTab; subTab: string
   // Render specific settings based on tab
   if (mainTab === 'customisation' && subTab === 'branding') {
     return <BrandingSettings />;
+  }
+
+  if (mainTab === 'customisation' && subTab === 'fonts') {
+    return <CustomFontsSettings />;
   }
 
   // Placeholder for other settings

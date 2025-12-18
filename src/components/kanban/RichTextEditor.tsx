@@ -193,7 +193,7 @@ export function RichTextEditor({ content, onChange, placeholder, className }: Ri
         <div className="w-px h-6 bg-border mx-1" />
 
         {/* Text Color */}
-        <Popover>
+        <Popover modal={true}>
           <PopoverTrigger asChild>
             <Button
               type="button"

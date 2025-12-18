@@ -5,8 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText } from 'lucide-react';
@@ -60,6 +62,8 @@ export default function Home() {
   const [editBoardDesc, setEditBoardDesc] = useState('');
   const [renameBoardDialogOpen, setRenameBoardDialogOpen] = useState(false);
   const [editDescDialogOpen, setEditDescDialogOpen] = useState(false);
+  const [deleteBoardId, setDeleteBoardId] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -514,7 +518,8 @@ export default function Home() {
                                     className="text-destructive"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      deleteBoard(board.id);
+                                      setDeleteBoardId(board.id);
+                                      setDeleteConfirmOpen(true);
                                     }}
                                   >
                                     <Trash2 className="h-4 w-4 mr-2" />
@@ -566,11 +571,12 @@ export default function Home() {
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label>Description</Label>
-              <Input
+              <Textarea
                 value={editBoardDesc}
                 onChange={(e) => setEditBoardDesc(e.target.value)}
                 placeholder="Board description (optional)"
                 maxLength={500}
+                rows={4}
               />
             </div>
             <Button onClick={updateBoardDescription} className="w-full">
@@ -579,6 +585,32 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Board</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this board? This action cannot be undone and all cards and data will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteBoardId) {
+                  deleteBoard(deleteBoardId);
+                  setDeleteBoardId(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyle } from '@tiptap/extension-text-style';
@@ -17,10 +18,13 @@ import {
   Quote,
   Minus,
   Type,
-  Palette
+  Palette,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 interface RichTextEditorProps {
@@ -30,19 +34,14 @@ interface RichTextEditorProps {
   className?: string;
 }
 
-const textColors = [
-  { name: 'Default', color: null },
-  { name: 'Gray', color: '#6b7280' },
-  { name: 'Red', color: '#ef4444' },
-  { name: 'Orange', color: '#f97316' },
-  { name: 'Yellow', color: '#eab308' },
-  { name: 'Green', color: '#22c55e' },
-  { name: 'Blue', color: '#3b82f6' },
-  { name: 'Purple', color: '#a855f7' },
-  { name: 'Pink', color: '#ec4899' },
+const presetColors = [
+  '#000000', '#6b7280', '#ef4444', '#f97316', '#eab308',
+  '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#ffffff',
 ];
 
 export function RichTextEditor({ content, onChange, placeholder, className }: RichTextEditorProps) {
+  const [customColor, setCustomColor] = useState('#3b82f6');
+  
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -200,32 +199,84 @@ export function RichTextEditor({ content, onChange, placeholder, className }: Ri
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 relative"
               title="Text Color"
             >
               <Palette className="h-4 w-4" />
+              <div 
+                className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-4 h-1 rounded-full"
+                style={{ backgroundColor: customColor }}
+              />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-2" align="start">
-            <div className="grid grid-cols-5 gap-1">
-              {textColors.map((tc) => (
-                <button
-                  key={tc.name}
-                  onClick={() => {
-                    if (tc.color) {
-                      editor.chain().focus().setColor(tc.color).run();
-                    } else {
-                      editor.chain().focus().unsetColor().run();
-                    }
-                  }}
-                  className={cn(
-                    "h-6 w-6 rounded border border-border hover:scale-110 transition-transform",
-                    !tc.color && "bg-foreground"
-                  )}
-                  style={{ backgroundColor: tc.color || undefined }}
-                  title={tc.name}
-                />
-              ))}
+          <PopoverContent className="w-64 p-3" align="start">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Text Color</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => editor.chain().focus().unsetColor().run()}
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Reset
+                </Button>
+              </div>
+              
+              {/* Color picker input */}
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={customColor}
+                    onChange={(e) => {
+                      setCustomColor(e.target.value);
+                      editor.chain().focus().setColor(e.target.value).run();
+                    }}
+                    className="w-10 h-10 rounded-lg cursor-pointer border border-border"
+                  />
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="text"
+                    value={customColor}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomColor(val);
+                      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                        editor.chain().focus().setColor(val).run();
+                      }
+                    }}
+                    placeholder="#000000"
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Preset colors */}
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">Presets</Label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {presetColors.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => {
+                        setCustomColor(color);
+                        editor.chain().focus().setColor(color).run();
+                      }}
+                      className={cn(
+                        "h-6 w-6 rounded border hover:scale-110 transition-transform",
+                        color === '#ffffff' ? 'border-border' : 'border-transparent'
+                      )}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </PopoverContent>
         </Popover>

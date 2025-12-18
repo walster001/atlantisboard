@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
@@ -53,6 +53,13 @@ export default function Home() {
   const [newBoardColor, setNewBoardColor] = useState(BOARD_COLORS[0]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
+
+  // Edit board state
+  const [editBoardId, setEditBoardId] = useState<string | null>(null);
+  const [editBoardName, setEditBoardName] = useState('');
+  const [editBoardDesc, setEditBoardDesc] = useState('');
+  const [renameBoardDialogOpen, setRenameBoardDialogOpen] = useState(false);
+  const [editDescDialogOpen, setEditDescDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -215,6 +222,47 @@ export default function Home() {
       toast({ title: 'Board deleted' });
     } catch (error: any) {
       console.error('Delete board error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    }
+  };
+
+  const renameBoard = async () => {
+    if (!editBoardId) return;
+    try {
+      const validated = boardSchema.parse({ name: editBoardName, background_color: '#0079bf' });
+      const { error } = await supabase
+        .from('boards')
+        .update({ name: validated.name })
+        .eq('id', editBoardId);
+      if (error) throw error;
+      setBoards(boards.map((b) => (b.id === editBoardId ? { ...b, name: validated.name } : b)));
+      setRenameBoardDialogOpen(false);
+      setEditBoardId(null);
+      toast({ title: 'Board renamed' });
+    } catch (error: any) {
+      console.error('Rename board error:', error);
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
+    }
+  };
+
+  const updateBoardDescription = async () => {
+    if (!editBoardId) return;
+    try {
+      const { error } = await supabase
+        .from('boards')
+        .update({ description: editBoardDesc || null })
+        .eq('id', editBoardId);
+      if (error) throw error;
+      setBoards(boards.map((b) => (b.id === editBoardId ? { ...b, description: editBoardDesc || null } : b)));
+      setEditDescDialogOpen(false);
+      setEditBoardId(null);
+      toast({ title: 'Description updated' });
+    } catch (error: any) {
+      console.error('Update description error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
   };
@@ -441,6 +489,28 @@ export default function Home() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditBoardId(board.id);
+                                      setEditBoardName(board.name);
+                                      setRenameBoardDialogOpen(true);
+                                    }}
+                                  >
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Rename Board
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditBoardId(board.id);
+                                      setEditBoardDesc(board.description || '');
+                                      setEditDescDialogOpen(true);
+                                    }}
+                                  >
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Edit Description
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
                                     className="text-destructive"
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -463,6 +533,52 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* Rename Board Dialog */}
+      <Dialog open={renameBoardDialogOpen} onOpenChange={setRenameBoardDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Board</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Board Name</Label>
+              <Input
+                value={editBoardName}
+                onChange={(e) => setEditBoardName(e.target.value)}
+                placeholder="Board name"
+                maxLength={100}
+              />
+            </div>
+            <Button onClick={renameBoard} className="w-full">
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Description Dialog */}
+      <Dialog open={editDescDialogOpen} onOpenChange={setEditDescDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Description</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input
+                value={editBoardDesc}
+                onChange={(e) => setEditBoardDesc(e.target.value)}
+                placeholder="Board description (optional)"
+                maxLength={500}
+              />
+            </div>
+            <Button onClick={updateBoardDescription} className="w-full">
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

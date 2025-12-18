@@ -262,48 +262,50 @@ export default function Home() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-semibold">Your Workspaces</h2>
-            <Dialog open={workspaceDialogOpen} onOpenChange={setWorkspaceDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Workspace
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create Workspace</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Name</Label>
-                    <Input
-                      value={newWorkspaceName}
-                      onChange={(e) => setNewWorkspaceName(e.target.value)}
-                      placeholder="My Workspace"
-                      maxLength={100}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Description (optional)</Label>
-                    <Input
-                      value={newWorkspaceDesc}
-                      onChange={(e) => setNewWorkspaceDesc(e.target.value)}
-                      placeholder="Team projects and tasks"
-                      maxLength={500}
-                    />
-                  </div>
-                  <Button onClick={createWorkspace} className="w-full">
-                    Create Workspace
+            {isAppAdmin && (
+              <Dialog open={workspaceDialogOpen} onOpenChange={setWorkspaceDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Workspace
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Workspace</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label>Name</Label>
+                      <Input
+                        value={newWorkspaceName}
+                        onChange={(e) => setNewWorkspaceName(e.target.value)}
+                        placeholder="My Workspace"
+                        maxLength={100}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Description (optional)</Label>
+                      <Input
+                        value={newWorkspaceDesc}
+                        onChange={(e) => setNewWorkspaceDesc(e.target.value)}
+                        placeholder="Team projects and tasks"
+                        maxLength={500}
+                      />
+                    </div>
+                    <Button onClick={createWorkspace} className="w-full">
+                      Create Workspace
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           {workspaces.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="py-8 text-center text-muted-foreground">
-                <p>No workspaces yet. Create one to get started!</p>
+                <p>{isAppAdmin ? 'No workspaces yet. Create one to get started!' : 'No workspaces available. Contact an admin to get access.'}</p>
               </CardContent>
             </Card>
           ) : (
@@ -318,54 +320,56 @@ export default function Home() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Dialog
-                        open={boardDialogOpen && selectedWorkspaceId === workspace.id}
-                        onOpenChange={(open) => {
-                          setBoardDialogOpen(open);
-                          if (open) setSelectedWorkspaceId(workspace.id);
-                        }}
-                      >
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add Board
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Create Board</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4 pt-4">
-                            <div className="space-y-2">
-                              <Label>Board Name</Label>
-                              <Input
-                                value={newBoardName}
-                                onChange={(e) => setNewBoardName(e.target.value)}
-                                placeholder="Project Board"
-                                maxLength={100}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Background Color</Label>
-                              <div className="flex gap-2 flex-wrap">
-                                {BOARD_COLORS.map((color) => (
-                                  <button
-                                    key={color}
-                                    className={`w-8 h-8 rounded-md transition-all ${
-                                      newBoardColor === color ? 'ring-2 ring-primary ring-offset-2' : ''
-                                    }`}
-                                    style={{ backgroundColor: color }}
-                                    onClick={() => setNewBoardColor(color)}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                            <Button onClick={createBoard} className="w-full">
-                              Create Board
+                      {(workspace.owner_id === user?.id || isAppAdmin) && (
+                        <Dialog
+                          open={boardDialogOpen && selectedWorkspaceId === workspace.id}
+                          onOpenChange={(open) => {
+                            setBoardDialogOpen(open);
+                            if (open) setSelectedWorkspaceId(workspace.id);
+                          }}
+                        >
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Board
                             </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Create Board</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 pt-4">
+                              <div className="space-y-2">
+                                <Label>Board Name</Label>
+                                <Input
+                                  value={newBoardName}
+                                  onChange={(e) => setNewBoardName(e.target.value)}
+                                  placeholder="Project Board"
+                                  maxLength={100}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Background Color</Label>
+                                <div className="flex gap-2 flex-wrap">
+                                  {BOARD_COLORS.map((color) => (
+                                    <button
+                                      key={color}
+                                      className={`w-8 h-8 rounded-md transition-all ${
+                                        newBoardColor === color ? 'ring-2 ring-primary ring-offset-2' : ''
+                                      }`}
+                                      style={{ backgroundColor: color }}
+                                      onClick={() => setNewBoardColor(color)}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              <Button onClick={createBoard} className="w-full">
+                                Create Board
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      )}
                       {(workspace.owner_id === user?.id || isAppAdmin) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

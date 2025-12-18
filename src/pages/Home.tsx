@@ -42,6 +42,7 @@ export default function Home() {
   
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [boards, setBoards] = useState<Board[]>([]);
+  const [boardRoles, setBoardRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
   const [loading, setLoading] = useState(true);
   
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
@@ -83,6 +84,22 @@ export default function Home() {
 
       if (boardsError) throw boardsError;
       setBoards(boardsData || []);
+
+      // Fetch user's roles for all boards they're a member of
+      if (user) {
+        const { data: rolesData, error: rolesError } = await supabase
+          .from('board_members')
+          .select('board_id, role')
+          .eq('user_id', user.id);
+
+        if (!rolesError && rolesData) {
+          const roles: Record<string, 'admin' | 'manager' | 'viewer'> = {};
+          rolesData.forEach((r) => {
+            roles[r.board_id] = r.role as 'admin' | 'manager' | 'viewer';
+          });
+          setBoardRoles(roles);
+        }
+      }
     } catch (error: any) {
       console.error('Error fetching data:', error);
     } finally {
@@ -413,32 +430,34 @@ export default function Home() {
                             <span className="text-sm text-muted-foreground">
                               {board.description || 'No description'}
                             </span>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                asChild
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            {(boardRoles[board.id] === 'admin' || isAppAdmin) && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  asChild
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteBoard(board.id);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete Board
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteBoard(board.id);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Board
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </CardContent>
                         </Card>
                       ))}

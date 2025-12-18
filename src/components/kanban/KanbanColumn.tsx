@@ -142,6 +142,7 @@ export function KanbanColumn({
                       columnId={column.id}
                       onEdit={() => onEditCard(card)}
                       onDelete={() => onDeleteCard(card.id)}
+                      disabled={disabled}
                     />
                   ))}
                   {provided.placeholder}

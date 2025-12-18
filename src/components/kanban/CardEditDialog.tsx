@@ -85,7 +85,7 @@ export function CardEditDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit Card</DialogTitle>
+          <DialogTitle>{disabled ? 'View Card' : 'Edit Card'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -97,6 +97,8 @@ export function CardEditDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Card title"
+              readOnly={disabled}
+              className={disabled ? 'cursor-default bg-muted' : ''}
             />
           </div>
 
@@ -107,8 +109,10 @@ export function CardEditDialog({
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add a more detailed description..."
+              placeholder={disabled ? 'No description' : 'Add a more detailed description...'}
               rows={4}
+              readOnly={disabled}
+              className={disabled ? 'cursor-default bg-muted' : ''}
             />
           </div>
 
@@ -125,45 +129,49 @@ export function CardEditDialog({
                   )}
                 >
                   {label.text || label.color}
-                  <button
-                    onClick={() => onRemoveLabel(label.id)}
-                    className="hover:bg-white/20 rounded-full p-0.5"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+                  {!disabled && (
+                    <button
+                      onClick={() => onRemoveLabel(label.id)}
+                      className="hover:bg-white/20 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                 </span>
               ))}
-              <Popover open={showLabelPicker} onOpenChange={setShowLabelPicker}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-7">
-                    <Tag className="h-3 w-3 mr-1" />
-                    Add Label
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64" align="start">
-                  <div className="space-y-3">
-                    <Input
-                      value={newLabelText}
-                      onChange={(e) => setNewLabelText(e.target.value)}
-                      placeholder="Label text (optional)"
-                      className="h-8"
-                    />
-                    <div className="grid grid-cols-7 gap-1">
-                      {labelColors.map((label) => (
-                        <button
-                          key={label.color}
-                          onClick={() => handleAddLabel(label.color)}
-                          className={cn(
-                            'h-6 w-full rounded hover:ring-2 hover:ring-offset-1 hover:ring-foreground/20 transition-all',
-                            label.className
-                          )}
-                          title={label.name}
-                        />
-                      ))}
+              {!disabled && (
+                <Popover open={showLabelPicker} onOpenChange={setShowLabelPicker}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-7">
+                      <Tag className="h-3 w-3 mr-1" />
+                      Add Label
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64" align="start">
+                    <div className="space-y-3">
+                      <Input
+                        value={newLabelText}
+                        onChange={(e) => setNewLabelText(e.target.value)}
+                        placeholder="Label text (optional)"
+                        className="h-8"
+                      />
+                      <div className="grid grid-cols-7 gap-1">
+                        {labelColors.map((label) => (
+                          <button
+                            key={label.color}
+                            onClick={() => handleAddLabel(label.color)}
+                            className={cn(
+                              'h-6 w-full rounded hover:ring-2 hover:ring-offset-1 hover:ring-foreground/20 transition-all',
+                              label.className
+                            )}
+                            title={label.name}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
           </div>
 
@@ -171,36 +179,48 @@ export function CardEditDialog({
           <div className="space-y-2">
             <UILabel>Due Date</UILabel>
             <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'justify-start text-left font-normal',
-                      !dueDate && 'text-muted-foreground'
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dueDate ? format(dueDate, 'PPP') : 'Pick a date'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dueDate}
-                    onSelect={setDueDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              {dueDate && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDueDate(undefined)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+              {disabled ? (
+                <div className={cn(
+                  'flex items-center px-3 py-2 text-sm border rounded-md bg-muted',
+                  !dueDate && 'text-muted-foreground'
+                )}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dueDate ? format(dueDate, 'PPP') : 'No due date'}
+                </div>
+              ) : (
+                <>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'justify-start text-left font-normal',
+                          !dueDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dueDate ? format(dueDate, 'PPP') : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dueDate}
+                        onSelect={setDueDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {dueDate && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDueDate(undefined)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </div>

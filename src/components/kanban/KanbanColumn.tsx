@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Draggable, Droppable } from '@hello-pangea/dnd';
 import { Column, Card } from '@/types/kanban';
 import { KanbanCard } from './KanbanCard';
@@ -24,7 +24,7 @@ interface KanbanColumnProps {
   disabled?: boolean;
 }
 
-export function KanbanColumn({
+export const KanbanColumn = memo(function KanbanColumn({
   column,
   index,
   onUpdateTitle,
@@ -201,4 +201,4 @@ export function KanbanColumn({
       )}
     </Draggable>
   );
-}
+});

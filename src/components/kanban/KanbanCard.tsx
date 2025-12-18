@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Card, Label } from '@/types/kanban';
 import { Calendar, MoreHorizontal, Trash2 } from 'lucide-react';
@@ -30,7 +31,7 @@ const labelColorClasses: Record<Label['color'], string> = {
   pink: 'bg-label-pink',
 };
 
-export function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled = false }: KanbanCardProps) {
+export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled = false }: KanbanCardProps) {
   const dueDate = card.dueDate ? new Date(card.dueDate) : null;
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
   const isDueToday = dueDate && isToday(dueDate);
@@ -133,4 +134,4 @@ export function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled =
       )}
     </Draggable>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,11 +92,14 @@ export default function BoardPage() {
     }
   }, [user, boardId]);
 
+  // Memoize column IDs to prevent unnecessary subscription recreation
+  const columnIds = useMemo(() => columns.map(c => c.id), [columns]);
+  const columnIdsRef = useRef<string[]>([]);
+  columnIdsRef.current = columnIds;
+
   // Realtime subscription for cards - updates UI instantly without refresh
   useEffect(() => {
-    if (!boardId || !columns.length) return;
-
-    const columnIds = columns.map(c => c.id);
+    if (!boardId || !columnIds.length) return;
     
     const channel = supabase
       .channel(`board-${boardId}-cards-realtime`)
@@ -109,7 +112,8 @@ export default function BoardPage() {
         },
         (payload) => {
           const newCard = payload.new as DbCard;
-          if (columnIds.includes(newCard.column_id)) {
+          // Use ref to get latest columnIds without re-subscribing
+          if (columnIdsRef.current.includes(newCard.column_id)) {
             setCards(prev => {
               if (prev.some(c => c.id === newCard.id)) return prev;
               return [...prev, newCard];
@@ -126,9 +130,21 @@ export default function BoardPage() {
         },
         (payload) => {
           const updatedCard = payload.new as DbCard;
-          // Only process if card belongs to this board
-          if (columnIds.includes(updatedCard.column_id)) {
-            setCards(prev => prev.map(c => c.id === updatedCard.id ? updatedCard : c));
+          // Use ref to get latest columnIds without re-subscribing
+          if (columnIdsRef.current.includes(updatedCard.column_id)) {
+            setCards(prev => {
+              // Only update if card actually changed
+              const existingCard = prev.find(c => c.id === updatedCard.id);
+              if (existingCard && 
+                  existingCard.title === updatedCard.title &&
+                  existingCard.description === updatedCard.description &&
+                  existingCard.due_date === updatedCard.due_date &&
+                  existingCard.position === updatedCard.position &&
+                  existingCard.column_id === updatedCard.column_id) {
+                return prev; // No change, don't trigger re-render
+              }
+              return prev.map(c => c.id === updatedCard.id ? updatedCard : c);
+            });
             // Update editing card modal if it's the one being edited by another user
             setEditingCard(prev => {
               if (prev && prev.card.id === updatedCard.id) {
@@ -166,14 +182,12 @@ export default function BoardPage() {
           });
         }
       )
-      .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, columns]);
+  }, [boardId]); // Only re-subscribe when boardId changes
 
   const fetchBoardData = async () => {
     if (!boardId || !user) return;

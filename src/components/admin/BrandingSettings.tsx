@@ -5,12 +5,16 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
+
+type LogoSize = 'small' | 'medium' | 'large';
 
 interface AppSettings {
   custom_login_logo_enabled: boolean;
   custom_login_logo_url: string | null;
+  custom_login_logo_size: LogoSize;
   custom_app_name_enabled: boolean;
   custom_app_name: string | null;
   custom_tagline_enabled: boolean;
@@ -21,6 +25,7 @@ export function BrandingSettings() {
   const [settings, setSettings] = useState<AppSettings>({
     custom_login_logo_enabled: false,
     custom_login_logo_url: null,
+    custom_login_logo_size: 'medium',
     custom_app_name_enabled: false,
     custom_app_name: null,
     custom_tagline_enabled: false,
@@ -42,7 +47,7 @@ export function BrandingSettings() {
     try {
       const { data, error } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_app_name_enabled, custom_app_name, custom_tagline_enabled, custom_tagline')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_tagline_enabled, custom_tagline')
         .eq('id', 'default')
         .single();
 
@@ -51,6 +56,7 @@ export function BrandingSettings() {
         setSettings({
           custom_login_logo_enabled: data.custom_login_logo_enabled,
           custom_login_logo_url: data.custom_login_logo_url,
+          custom_login_logo_size: (data.custom_login_logo_size as LogoSize) || 'medium',
           custom_app_name_enabled: data.custom_app_name_enabled,
           custom_app_name: data.custom_app_name,
           custom_tagline_enabled: data.custom_tagline_enabled,
@@ -94,6 +100,10 @@ export function BrandingSettings() {
 
   const handleLogoToggle = (enabled: boolean) => {
     updateSettings({ custom_login_logo_enabled: enabled });
+  };
+
+  const handleLogoSizeChange = (size: LogoSize) => {
+    updateSettings({ custom_login_logo_size: size });
   };
 
   const handleAppNameToggle = (enabled: boolean) => {
@@ -306,6 +316,26 @@ export function BrandingSettings() {
               onChange={handleFileSelect}
             />
           </div>
+
+          {settings.custom_login_logo_url && (
+            <div className="border-t pt-4">
+              <Label className="text-sm font-medium mb-3 block">Logo Size</Label>
+              <Select
+                value={settings.custom_login_logo_size}
+                onValueChange={(value) => handleLogoSizeChange(value as LogoSize)}
+                disabled={saving}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="small">Small (100px)</SelectItem>
+                  <SelectItem value="medium">Medium (200px)</SelectItem>
+                  <SelectItem value="large">Large (300px)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {!settings.custom_login_logo_url && (
             <p className="text-xs text-muted-foreground">

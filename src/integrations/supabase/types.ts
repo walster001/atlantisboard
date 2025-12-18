@@ -20,6 +20,7 @@ export type Database = {
           custom_app_name: string | null
           custom_app_name_enabled: boolean
           custom_login_logo_enabled: boolean
+          custom_login_logo_size: string
           custom_login_logo_url: string | null
           custom_tagline: string | null
           custom_tagline_enabled: boolean
@@ -31,6 +32,7 @@ export type Database = {
           custom_app_name?: string | null
           custom_app_name_enabled?: boolean
           custom_login_logo_enabled?: boolean
+          custom_login_logo_size?: string
           custom_login_logo_url?: string | null
           custom_tagline?: string | null
           custom_tagline_enabled?: boolean
@@ -42,6 +44,7 @@ export type Database = {
           custom_app_name?: string | null
           custom_app_name_enabled?: boolean
           custom_login_logo_enabled?: boolean
+          custom_login_logo_size?: string
           custom_login_logo_url?: string | null
           custom_tagline?: string | null
           custom_tagline_enabled?: boolean

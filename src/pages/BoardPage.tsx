@@ -92,6 +92,63 @@ export default function BoardPage() {
     }
   }, [user, boardId]);
 
+  // Realtime subscription for cards
+  useEffect(() => {
+    if (!boardId || !columns.length) return;
+
+    const columnIds = columns.map(c => c.id);
+    
+    const channel = supabase
+      .channel(`board-${boardId}-cards`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cards',
+        },
+        (payload) => {
+          const { eventType, new: newRecord, old: oldRecord } = payload;
+          
+          if (eventType === 'INSERT') {
+            const newCard = newRecord as DbCard;
+            if (columnIds.includes(newCard.column_id)) {
+              setCards(prev => {
+                if (prev.some(c => c.id === newCard.id)) return prev;
+                return [...prev, newCard];
+              });
+            }
+          } else if (eventType === 'UPDATE') {
+            const updatedCard = newRecord as DbCard;
+            setCards(prev => prev.map(c => c.id === updatedCard.id ? updatedCard : c));
+            // Update editing card if it's the one being edited
+            setEditingCard(prev => {
+              if (prev && prev.card.id === updatedCard.id) {
+                return {
+                  ...prev,
+                  card: {
+                    ...prev.card,
+                    title: updatedCard.title,
+                    description: updatedCard.description || undefined,
+                    dueDate: updatedCard.due_date || undefined,
+                  }
+                };
+              }
+              return prev;
+            });
+          } else if (eventType === 'DELETE') {
+            const deletedCard = oldRecord as DbCard;
+            setCards(prev => prev.filter(c => c.id !== deletedCard.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [boardId, columns]);
+
   const fetchBoardData = async () => {
     if (!boardId) return;
     setLoading(true);

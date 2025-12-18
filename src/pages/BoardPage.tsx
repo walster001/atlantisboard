@@ -505,7 +505,7 @@ export default function BoardPage() {
                 onClick={() => setMembersDialogOpen(true)}
               >
                 <Users className="h-4 w-4 mr-2" />
-                Members
+                Members ({boardMembers.length})
               </Button>
             )}
             <DropdownMenu>

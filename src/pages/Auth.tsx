@@ -10,6 +10,8 @@ import { Loader2 } from 'lucide-react';
 interface AppSettings {
   custom_login_logo_enabled: boolean;
   custom_login_logo_url: string | null;
+  custom_app_name_enabled: boolean;
+  custom_app_name: string | null;
 }
 
 export default function Auth() {
@@ -32,7 +34,7 @@ export default function Auth() {
     try {
       const { data } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_app_name_enabled, custom_app_name')
         .eq('id', 'default')
         .single();
 
@@ -64,12 +66,13 @@ export default function Auth() {
   }
 
   const showCustomLogo = settings?.custom_login_logo_enabled && settings?.custom_login_logo_url;
+  const showCustomAppName = settings?.custom_app_name_enabled && settings?.custom_app_name;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kanban-bg via-background to-kanban-bg p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          {showCustomLogo ? (
+          {showCustomLogo && (
             <div className="mb-2">
               <img
                 src={settings.custom_login_logo_url!}
@@ -77,9 +80,10 @@ export default function Auth() {
                 className="max-h-16 mx-auto object-contain"
               />
             </div>
-          ) : (
-            <CardTitle className="text-2xl font-bold">KanBoard</CardTitle>
           )}
+          <CardTitle className="text-2xl font-bold">
+            {showCustomAppName ? settings.custom_app_name : 'KanBoard'}
+          </CardTitle>
           <CardDescription>Sign in to manage your boards</CardDescription>
         </CardHeader>
         <CardContent>

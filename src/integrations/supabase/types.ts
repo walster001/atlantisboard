@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          created_at: string
+          custom_login_logo_enabled: boolean
+          custom_login_logo_url: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custom_login_logo_enabled?: boolean
+          custom_login_logo_url?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custom_login_logo_enabled?: boolean
+          custom_login_logo_url?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       board_members: {
         Row: {
           board_id: string

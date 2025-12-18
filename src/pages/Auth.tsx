@@ -1,21 +1,48 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
+interface AppSettings {
+  custom_login_logo_enabled: boolean;
+  custom_login_logo_url: string | null;
+}
+
 export default function Auth() {
   const { user, loading, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
 
   useEffect(() => {
     if (!loading && user) {
       navigate('/');
     }
   }, [user, loading, navigate]);
+
+  const fetchSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('app_settings')
+        .select('custom_login_logo_enabled, custom_login_logo_url')
+        .eq('id', 'default')
+        .single();
+
+      if (data) {
+        setSettings(data);
+      }
+    } catch (error) {
+      // Settings not found, use defaults
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     const { error } = await signInWithGoogle();
@@ -36,11 +63,23 @@ export default function Auth() {
     );
   }
 
+  const showCustomLogo = settings?.custom_login_logo_enabled && settings?.custom_login_logo_url;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kanban-bg via-background to-kanban-bg p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">KanBoard</CardTitle>
+          {showCustomLogo ? (
+            <div className="mb-2">
+              <img
+                src={settings.custom_login_logo_url!}
+                alt="Logo"
+                className="max-h-16 mx-auto object-contain"
+              />
+            </div>
+          ) : (
+            <CardTitle className="text-2xl font-bold">KanBoard</CardTitle>
+          )}
           <CardDescription>Sign in to manage your boards</CardDescription>
         </CardHeader>
         <CardContent>

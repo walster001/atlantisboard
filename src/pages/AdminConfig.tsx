@@ -1,13 +1,53 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2, Settings, Palette, Shield } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ArrowLeft, Loader2, Settings, Palette, Wrench, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// Placeholder settings data structure
+const tabConfig = {
+  theme: {
+    icon: Palette,
+    label: 'Theme',
+    subTabs: [
+      { id: 'colors', label: 'Colors' },
+      { id: 'typography', label: 'Typography' },
+      { id: 'spacing', label: 'Spacing' },
+      { id: 'dark-mode', label: 'Dark Mode' },
+    ],
+  },
+  configuration: {
+    icon: Wrench,
+    label: 'Configuration',
+    subTabs: [
+      { id: 'general', label: 'General' },
+      { id: 'security', label: 'Security' },
+      { id: 'permissions', label: 'Permissions' },
+      { id: 'integrations', label: 'Integrations' },
+    ],
+  },
+  customisation: {
+    icon: Sparkles,
+    label: 'Customisation',
+    subTabs: [
+      { id: 'branding', label: 'Branding' },
+      { id: 'labels', label: 'Labels' },
+      { id: 'workflows', label: 'Workflows' },
+      { id: 'templates', label: 'Templates' },
+    ],
+  },
+};
+
+type MainTab = keyof typeof tabConfig;
 
 export default function AdminConfig() {
   const { user, loading: authLoading, isAppAdmin } = useAuth();
   const navigate = useNavigate();
+  const [activeMainTab, setActiveMainTab] = useState<MainTab>('theme');
+  const [activeSubTab, setActiveSubTab] = useState<string>('colors');
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -16,11 +56,15 @@ export default function AdminConfig() {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    // Redirect non-admins back to home
     if (!authLoading && user && !isAppAdmin) {
       navigate('/');
     }
   }, [user, authLoading, isAppAdmin, navigate]);
+
+  // Reset sub-tab when main tab changes
+  useEffect(() => {
+    setActiveSubTab(tabConfig[activeMainTab].subTabs[0].id);
+  }, [activeMainTab]);
 
   if (authLoading) {
     return (
@@ -31,14 +75,16 @@ export default function AdminConfig() {
   }
 
   if (!isAppAdmin) {
-    return null; // Will redirect via useEffect
+    return null;
   }
 
+  const currentConfig = tabConfig[activeMainTab];
+
   return (
-    <div className="min-h-screen bg-kanban-bg">
+    <div className="min-h-screen bg-kanban-bg flex flex-col">
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -49,63 +95,116 @@ export default function AdminConfig() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="space-y-6">
-          {/* Theme Configuration Section */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Palette className="h-5 w-5 text-primary" />
-                <CardTitle>Theme Settings</CardTitle>
-              </div>
-              <CardDescription>
-                Customize the appearance of the application
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Theme configuration options coming soon. You'll be able to customize colors, fonts, and branding.
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Security Settings Section */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-primary" />
-                <CardTitle>Security Settings</CardTitle>
-              </div>
-              <CardDescription>
-                Configure security and access control options
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Security configuration options coming soon. You'll be able to manage authentication settings and access policies.
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Application Settings Section */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-primary" />
-                <CardTitle>Application Settings</CardTitle>
-              </div>
-              <CardDescription>
-                General application configuration
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Application settings coming soon. You'll be able to configure default behaviors and system preferences.
-              </p>
-            </CardContent>
-          </Card>
+      {/* Horizontal Tab Navigation */}
+      <div className="bg-card border-b border-border">
+        <div className="max-w-7xl mx-auto px-4">
+          <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as MainTab)}>
+            <TabsList className="h-12 bg-transparent gap-2 p-0">
+              {(Object.keys(tabConfig) as MainTab[]).map((tabKey) => {
+                const tab = tabConfig[tabKey];
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger
+                    key={tabKey}
+                    value={tabKey}
+                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-4 py-2 gap-2"
+                  >
+                    <Icon className="h-4 w-4" />
+                    {tab.label}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
         </div>
-      </main>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex max-w-7xl mx-auto w-full">
+        {/* Vertical Sub-Navigation */}
+        <aside className="w-56 bg-card border-r border-border p-4 shrink-0">
+          <nav className="space-y-1">
+            {currentConfig.subTabs.map((subTab) => (
+              <button
+                key={subTab.id}
+                onClick={() => setActiveSubTab(subTab.id)}
+                className={cn(
+                  "w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  activeSubTab === subTab.id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                {subTab.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        {/* Settings Content */}
+        <main className="flex-1 p-6 overflow-auto">
+          <SettingsContent 
+            mainTab={activeMainTab} 
+            subTab={activeSubTab} 
+          />
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// Placeholder settings content component
+function SettingsContent({ mainTab, subTab }: { mainTab: MainTab; subTab: string }) {
+  const currentConfig = tabConfig[mainTab];
+  const currentSubTab = currentConfig.subTabs.find(s => s.id === subTab);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold">{currentSubTab?.label}</h2>
+        <p className="text-muted-foreground">
+          Configure {currentSubTab?.label.toLowerCase()} settings for your application.
+        </p>
+      </div>
+
+      {/* Placeholder Settings Cards */}
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Setting 1</CardTitle>
+            <CardDescription>
+              This is a placeholder setting. Configure it as needed.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-10 bg-muted rounded-md animate-pulse" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Setting 2</CardTitle>
+            <CardDescription>
+              Another placeholder setting for {mainTab} → {subTab}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-10 bg-muted rounded-md animate-pulse" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Setting 3</CardTitle>
+            <CardDescription>
+              Additional configuration options will appear here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-20 bg-muted rounded-md animate-pulse" />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

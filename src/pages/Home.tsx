@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
-import { workspaceSchema, boardSchema } from '@/lib/validators';
+import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
 
 interface Workspace {
@@ -403,7 +403,7 @@ export default function Home() {
                         >
                           <div
                             className="h-24 flex items-end p-3"
-                            style={{ backgroundColor: board.background_color }}
+                            style={{ backgroundColor: sanitizeColor(board.background_color) }}
                           >
                             <CardTitle className="text-white text-lg drop-shadow-md">
                               {board.name}

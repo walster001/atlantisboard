@@ -43,3 +43,17 @@ export const emailSchema = z.string()
   .trim()
   .email('Invalid email format')
   .toLowerCase();
+
+// Color validation regex
+const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+
+/**
+ * Sanitizes a color value to prevent CSS injection.
+ * Returns the color if valid hex format, otherwise returns the fallback.
+ */
+export function sanitizeColor(color: string | null | undefined, fallback: string = '#0079bf'): string {
+  if (!color || typeof color !== 'string') {
+    return fallback;
+  }
+  return HEX_COLOR_REGEX.test(color) ? color : fallback;
+}

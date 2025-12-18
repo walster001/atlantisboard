@@ -150,92 +150,57 @@ export default function BoardPage() {
   }, [boardId, columns]);
 
   const fetchBoardData = async () => {
-    if (!boardId) return;
+    if (!boardId || !user) return;
     setLoading(true);
 
     try {
-      // Fetch board details
-      const { data: board, error: boardError } = await supabase
-        .from('boards')
-        .select('*')
-        .eq('id', boardId)
-        .maybeSingle();
+      // Single server-side call to get all board data
+      const { data, error } = await supabase.rpc('get_board_data', {
+        _board_id: boardId,
+        _user_id: user.id
+      });
 
-      if (boardError) throw boardError;
-      if (!board) {
-        toast({ title: 'Board not found', variant: 'destructive' });
-        navigate('/');
-        return;
-      }
-
-      setBoardName(board.name);
-      setBoardColor(board.background_color || '#0079bf');
-
-      // Fetch user's role on this board
-      const { data: memberData } = await supabase
-        .from('board_members')
-        .select('role')
-        .eq('board_id', boardId)
-        .eq('user_id', user?.id)
-        .maybeSingle();
-
-      setUserRole(memberData?.role as 'admin' | 'manager' | 'viewer' | null);
-
-      // Fetch columns
-      const { data: columnsData, error: colError } = await supabase
-        .from('columns')
-        .select('*')
-        .eq('board_id', boardId)
-        .order('position');
-
-      if (colError) throw colError;
-      setColumns(columnsData || []);
-
-      // Fetch cards
-      const { data: cardsData, error: cardsError } = await supabase
-        .from('cards')
-        .select('*')
-        .in('column_id', columnsData?.map(c => c.id) || [])
-        .order('position');
-
-      if (cardsError) throw cardsError;
-      setCards(cardsData || []);
-
-      // Fetch labels
-      const { data: labelsData, error: labelsError } = await supabase
-        .from('labels')
-        .select('*')
-        .eq('board_id', boardId);
-
-      if (labelsError) throw labelsError;
-      setLabels(labelsData || []);
-
-      // Fetch card labels
-      if (cardsData && cardsData.length > 0) {
-        const { data: cardLabelsData, error: clError } = await supabase
-          .from('card_labels')
-          .select('*')
-          .in('card_id', cardsData.map(c => c.id));
-
-        if (clError) throw clError;
-        setCardLabels(cardLabelsData || []);
-      }
-
-      // Fetch board members using secure function (masks email for non-admins)
-      const { data: membersData, error: membersError } = await supabase
-        .rpc('get_board_member_profiles', { _board_id: boardId });
-
-      if (membersError) throw membersError;
+      if (error) throw error;
       
-      // Transform RPC result to BoardMember format
-      const transformedMembers: BoardMember[] = (membersData || []).map((m: any) => ({
+      // Cast JSON response to typed object
+      const result = data as {
+        error?: string;
+        board?: { id: string; name: string; description: string | null; background_color: string | null; workspace_id: string };
+        user_role?: string | null;
+        columns?: DbColumn[];
+        cards?: DbCard[];
+        labels?: DbLabel[];
+        card_labels?: DbCardLabel[];
+        members?: Array<{ user_id: string; role: string; profiles: { id: string; email: string | null; full_name: string | null; avatar_url: string | null } }>;
+      };
+      
+      if (result?.error) {
+        if (result.error === 'Board not found') {
+          toast({ title: 'Board not found', variant: 'destructive' });
+          navigate('/');
+          return;
+        }
+        throw new Error(result.error);
+      }
+
+      // Set all state from single response
+      setBoardName(result.board?.name || '');
+      setBoardColor(result.board?.background_color || '#0079bf');
+      setUserRole(result.user_role as 'admin' | 'manager' | 'viewer' | null);
+      setColumns(result.columns || []);
+      setCards(result.cards || []);
+      setLabels(result.labels || []);
+      setCardLabels(result.card_labels || []);
+      
+      // Transform members to expected format
+      const transformedMembers: BoardMember[] = (result.members || []).map((m) => ({
         user_id: m.user_id,
         role: m.role as 'admin' | 'manager' | 'viewer',
         profiles: {
-          id: m.id,
-          email: m.email || '',
-          full_name: m.full_name,
-          avatar_url: m.avatar_url,
+          id: m.profiles.id,
+          email: m.profiles.email || '',
+          full_name: m.profiles.full_name,
+          avatar_url: m.profiles.avatar_url,
         }
       }));
       setBoardMembers(transformedMembers);
@@ -284,7 +249,7 @@ export default function BoardPage() {
 
   const onDragEnd = useCallback(async (result: DropResult) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit) return;
+    if (!canEdit || !user || !boardId) return;
     
     const { destination, source, type, draggableId } = result;
     if (!destination) return;
@@ -295,14 +260,17 @@ export default function BoardPage() {
       const [removed] = newColumns.splice(source.index, 1);
       newColumns.splice(destination.index, 0, removed);
 
-      // Update positions locally
+      // Update positions locally (optimistic)
       const updatedColumns = newColumns.map((col, idx) => ({ ...col, position: idx }));
       setColumns(updatedColumns);
 
-      // Update in database
-      for (const col of updatedColumns) {
-        await supabase.from('columns').update({ position: col.position }).eq('id', col.id);
-      }
+      // Batch update in database (single server call)
+      const updates = updatedColumns.map(col => ({ id: col.id, position: col.position }));
+      await supabase.rpc('batch_update_column_positions', {
+        _user_id: user.id,
+        _board_id: boardId,
+        _updates: updates
+      });
       return;
     }
 
@@ -326,33 +294,31 @@ export default function BoardPage() {
     const updatedCard = { ...draggedCard, column_id: destination.droppableId };
     newDestCards.splice(destination.index, 0, updatedCard);
 
-    // Update positions
-    const allUpdates: DbCard[] = [];
-    newSourceCards.forEach((c, idx) => allUpdates.push({ ...c, position: idx }));
-    if (source.droppableId !== destination.droppableId) {
-      newDestCards.forEach((c, idx) => allUpdates.push({ ...c, position: idx }));
-    } else {
-      newDestCards.forEach((c, idx) => allUpdates.push({ ...c, position: idx }));
-    }
+    // Build update list
+    const allUpdates: { id: string; column_id: string; position: number }[] = [];
+    newSourceCards.forEach((c, idx) => allUpdates.push({ id: c.id, column_id: c.column_id, position: idx }));
+    newDestCards.forEach((c, idx) => allUpdates.push({ id: c.id, column_id: destination.droppableId, position: idx }));
+    
+    // Deduplicate
+    const uniqueUpdates = allUpdates.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
 
-    // Update local state
+    // Update local state (optimistic)
     setCards(prev => {
       const others = prev.filter(c => 
         c.column_id !== source.droppableId && c.column_id !== destination.droppableId
       );
-      return [...others, ...allUpdates.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i)];
+      return [...others, ...uniqueUpdates.map(u => {
+        const original = prev.find(c => c.id === u.id);
+        return original ? { ...original, column_id: u.column_id, position: u.position } : null;
+      }).filter((c): c is DbCard => c !== null)];
     });
 
-    // Update in database
-    await supabase.from('cards').update({ column_id: destination.droppableId, position: destination.index }).eq('id', draggableId);
-    
-    // Update positions for other cards
-    for (const card of allUpdates) {
-      if (card.id !== draggableId) {
-        await supabase.from('cards').update({ position: card.position }).eq('id', card.id);
-      }
-    }
-  }, [columns, cards, canEdit]);
+    // Batch update in database (single server call)
+    await supabase.rpc('batch_update_card_positions', {
+      _user_id: user.id,
+      _updates: uniqueUpdates
+    });
+  }, [columns, cards, canEdit, user, boardId]);
 
   const addColumn = async () => {
     // Early return for better UX - RLS will reject if user lacks permission

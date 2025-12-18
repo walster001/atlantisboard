@@ -78,39 +78,26 @@ export default function Home() {
   }, [user]);
 
   const fetchData = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const { data: workspacesData, error: workspacesError } = await supabase
-        .from('workspaces')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Single server-side call to get all home data
+      const { data, error } = await supabase.rpc('get_home_data', {
+        _user_id: user.id
+      });
 
-      if (workspacesError) throw workspacesError;
-      setWorkspaces(workspacesData || []);
+      if (error) throw error;
 
-      const { data: boardsData, error: boardsError } = await supabase
-        .from('boards')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Cast JSON response to typed object
+      const result = data as {
+        workspaces?: Workspace[];
+        boards?: Board[];
+        board_roles?: Record<string, 'admin' | 'manager' | 'viewer'>;
+      };
 
-      if (boardsError) throw boardsError;
-      setBoards(boardsData || []);
-
-      // Fetch user's roles for all boards they're a member of
-      if (user) {
-        const { data: rolesData, error: rolesError } = await supabase
-          .from('board_members')
-          .select('board_id, role')
-          .eq('user_id', user.id);
-
-        if (!rolesError && rolesData) {
-          const roles: Record<string, 'admin' | 'manager' | 'viewer'> = {};
-          rolesData.forEach((r) => {
-            roles[r.board_id] = r.role as 'admin' | 'manager' | 'viewer';
-          });
-          setBoardRoles(roles);
-        }
-      }
+      setWorkspaces(result?.workspaces || []);
+      setBoards(result?.boards || []);
+      setBoardRoles(result?.board_roles || {});
     } catch (error: any) {
       console.error('Error fetching data:', error);
     } finally {

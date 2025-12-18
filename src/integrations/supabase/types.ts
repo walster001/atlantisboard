@@ -339,6 +339,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      batch_update_card_positions: {
+        Args: { _updates: Json; _user_id: string }
+        Returns: Json
+      }
+      batch_update_column_positions: {
+        Args: { _board_id: string; _updates: Json; _user_id: string }
+        Returns: Json
+      }
       can_edit_board: {
         Args: { _board_id: string; _user_id: string }
         Returns: boolean
@@ -356,6 +364,10 @@ export type Database = {
           id: string
         }[]
       }
+      get_board_data: {
+        Args: { _board_id: string; _user_id: string }
+        Returns: Json
+      }
       get_board_member_profiles: {
         Args: { _board_id: string }
         Returns: {
@@ -371,6 +383,7 @@ export type Database = {
         Args: { _board_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["board_role"]
       }
+      get_home_data: { Args: { _user_id: string }; Returns: Json }
       is_app_admin: { Args: { _user_id: string }; Returns: boolean }
       is_board_member: {
         Args: { _board_id: string; _user_id: string }

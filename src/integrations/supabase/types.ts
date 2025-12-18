@@ -17,6 +17,8 @@ export type Database = {
       app_settings: {
         Row: {
           created_at: string
+          custom_app_name: string | null
+          custom_app_name_enabled: boolean
           custom_login_logo_enabled: boolean
           custom_login_logo_url: string | null
           id: string
@@ -24,6 +26,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_app_name?: string | null
+          custom_app_name_enabled?: boolean
           custom_login_logo_enabled?: boolean
           custom_login_logo_url?: string | null
           id?: string
@@ -31,6 +35,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_app_name?: string | null
+          custom_app_name_enabled?: boolean
           custom_login_logo_enabled?: boolean
           custom_login_logo_url?: string | null
           id?: string

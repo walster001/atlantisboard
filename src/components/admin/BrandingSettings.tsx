@@ -4,22 +4,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 
 interface AppSettings {
   custom_login_logo_enabled: boolean;
   custom_login_logo_url: string | null;
+  custom_app_name_enabled: boolean;
+  custom_app_name: string | null;
 }
 
 export function BrandingSettings() {
   const [settings, setSettings] = useState<AppSettings>({
     custom_login_logo_enabled: false,
     custom_login_logo_url: null,
+    custom_app_name_enabled: false,
+    custom_app_name: null,
   });
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [appNameInput, setAppNameInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -31,7 +37,7 @@ export function BrandingSettings() {
     try {
       const { data, error } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_app_name_enabled, custom_app_name')
         .eq('id', 'default')
         .single();
 
@@ -40,7 +46,10 @@ export function BrandingSettings() {
         setSettings({
           custom_login_logo_enabled: data.custom_login_logo_enabled,
           custom_login_logo_url: data.custom_login_logo_url,
+          custom_app_name_enabled: data.custom_app_name_enabled,
+          custom_app_name: data.custom_app_name,
         });
+        setAppNameInput(data.custom_app_name || '');
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -75,15 +84,24 @@ export function BrandingSettings() {
     }
   };
 
-  const handleToggle = (enabled: boolean) => {
+  const handleLogoToggle = (enabled: boolean) => {
     updateSettings({ custom_login_logo_enabled: enabled });
+  };
+
+  const handleAppNameToggle = (enabled: boolean) => {
+    updateSettings({ custom_app_name_enabled: enabled });
+  };
+
+  const handleAppNameSave = () => {
+    if (appNameInput.trim()) {
+      updateSettings({ custom_app_name: appNameInput.trim() });
+    }
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Invalid file type',
@@ -93,7 +111,6 @@ export function BrandingSettings() {
       return;
     }
 
-    // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       toast({
         title: 'File too large',
@@ -105,7 +122,6 @@ export function BrandingSettings() {
 
     setUploading(true);
     try {
-      // Delete old logo if exists
       if (settings.custom_login_logo_url) {
         const oldPath = settings.custom_login_logo_url.split('/branding/')[1];
         if (oldPath) {
@@ -113,7 +129,6 @@ export function BrandingSettings() {
         }
       }
 
-      // Upload new logo
       const fileExt = file.name.split('.').pop();
       const fileName = `login-logo-${Date.now()}.${fileExt}`;
       
@@ -123,12 +138,10 @@ export function BrandingSettings() {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: urlData } = supabase.storage
         .from('branding')
         .getPublicUrl(fileName);
 
-      // Update settings with new URL
       await updateSettings({ custom_login_logo_url: urlData.publicUrl });
 
       toast({
@@ -154,13 +167,11 @@ export function BrandingSettings() {
 
     setSaving(true);
     try {
-      // Delete from storage
       const path = settings.custom_login_logo_url.split('/branding/')[1];
       if (path) {
         await supabase.storage.from('branding').remove([path]);
       }
 
-      // Update settings
       await updateSettings({ 
         custom_login_logo_url: null,
         custom_login_logo_enabled: false 
@@ -208,7 +219,7 @@ export function BrandingSettings() {
             <Switch
               id="logo-toggle"
               checked={settings.custom_login_logo_enabled}
-              onCheckedChange={handleToggle}
+              onCheckedChange={handleLogoToggle}
               disabled={saving || !settings.custom_login_logo_url}
             />
           </div>
@@ -281,6 +292,55 @@ export function BrandingSettings() {
           {!settings.custom_login_logo_url && (
             <p className="text-xs text-muted-foreground">
               Upload a logo to enable the custom login logo feature.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Custom App Name</CardTitle>
+          <CardDescription>
+            Display a custom application name below the logo on the sign-in screen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="appname-toggle" className="font-medium">
+              Enable custom app name
+            </Label>
+            <Switch
+              id="appname-toggle"
+              checked={settings.custom_app_name_enabled}
+              onCheckedChange={handleAppNameToggle}
+              disabled={saving || !settings.custom_app_name}
+            />
+          </div>
+
+          <div className="border-t pt-4">
+            <Label htmlFor="app-name-input" className="text-sm font-medium mb-3 block">
+              Application Name
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="app-name-input"
+                placeholder="Enter your application name"
+                value={appNameInput}
+                onChange={(e) => setAppNameInput(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleAppNameSave}
+                disabled={saving || !appNameInput.trim() || appNameInput.trim() === settings.custom_app_name}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+              </Button>
+            </div>
+          </div>
+
+          {!settings.custom_app_name && (
+            <p className="text-xs text-muted-foreground">
+              Enter an app name to enable this feature.
             </p>
           )}
         </CardContent>

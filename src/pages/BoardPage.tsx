@@ -8,7 +8,9 @@ import { CardEditDialog } from '@/components/kanban/CardEditDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, ArrowLeft, Loader2, Users, LayoutGrid } from 'lucide-react';
+import { Plus, ArrowLeft, Loader2, Users, LayoutGrid, LogOut, User, Settings } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card as CardType, Label, LabelColor } from '@/types/kanban';
 import { BoardMembersDialog } from '@/components/kanban/BoardMembersDialog';
 import { getUserFriendlyError } from '@/lib/errorHandler';
@@ -58,7 +60,7 @@ interface BoardMember {
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
-  const { user, loading: authLoading, isAppAdmin } = useAuth();
+  const { user, loading: authLoading, isAppAdmin, signOut } = useAuth();
   const { toast } = useToast();
 
   const [boardName, setBoardName] = useState('');
@@ -514,6 +516,34 @@ export default function BoardPage() {
                 {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
               </span>
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="gap-2 text-white hover:bg-white/20">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user?.user_metadata?.avatar_url} />
+                    <AvatarFallback className="bg-white/20">
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="hidden sm:inline">{user?.user_metadata?.full_name || user?.email}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-popover">
+                {isAppAdmin && (
+                  <DropdownMenuItem onClick={() => navigate('/admin/config')}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Admin Settings
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={async () => {
+                  await signOut();
+                  navigate('/auth');
+                }}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>

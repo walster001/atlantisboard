@@ -411,7 +411,7 @@ export default function BoardPage() {
 
   const updateCard = async (cardId: string, updates: Partial<CardType>) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit) return;
+    if (!canEdit || !user) return;
     try {
       // Validate input if title or description provided
       if (updates.title !== undefined || updates.description !== undefined) {
@@ -421,13 +421,27 @@ export default function BoardPage() {
         });
       }
       
-      const dbUpdates: any = {};
-      if (updates.title !== undefined) dbUpdates.title = updates.title;
-      if (updates.description !== undefined) dbUpdates.description = updates.description;
-      if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate || null;
+      // Use server-side function for update (triggers realtime for all users)
+      const { data, error } = await supabase.rpc('update_card', {
+        _user_id: user.id,
+        _card_id: cardId,
+        _title: updates.title || null,
+        _description: updates.description || null,
+        _due_date: updates.dueDate || null,
+        _clear_due_date: updates.dueDate === undefined ? false : !updates.dueDate
+      });
 
-      await supabase.from('cards').update(dbUpdates).eq('id', cardId);
-      setCards(cards.map(c => c.id === cardId ? { ...c, ...dbUpdates } : c));
+      if (error) throw error;
+      
+      const result = data as { error?: string; success?: boolean; card?: DbCard };
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      // Optimistic update (realtime will sync other users)
+      if (result?.card) {
+        setCards(cards.map(c => c.id === cardId ? result.card! : c));
+      }
     } catch (error: any) {
       console.error('Update card error:', error);
       if (error instanceof z.ZodError) {

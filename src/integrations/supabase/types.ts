@@ -405,6 +405,17 @@ export type Database = {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
+      update_card: {
+        Args: {
+          _card_id: string
+          _clear_due_date?: boolean
+          _description?: string
+          _due_date?: string
+          _title?: string
+          _user_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       board_role: "admin" | "manager" | "viewer"

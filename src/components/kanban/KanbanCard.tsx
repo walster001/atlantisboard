@@ -17,6 +17,7 @@ interface KanbanCardProps {
   columnId: string;
   onEdit: () => void;
   onDelete: () => void;
+  disabled?: boolean;
 }
 
 const labelColorClasses: Record<Label['color'], string> = {
@@ -29,7 +30,7 @@ const labelColorClasses: Record<Label['color'], string> = {
   pink: 'bg-label-pink',
 };
 
-export function KanbanCard({ card, index, columnId, onEdit, onDelete }: KanbanCardProps) {
+export function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled = false }: KanbanCardProps) {
   const dueDate = card.dueDate ? new Date(card.dueDate) : null;
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
   const isDueToday = dueDate && isToday(dueDate);
@@ -68,30 +69,35 @@ export function KanbanCard({ card, index, columnId, onEdit, onDelete }: KanbanCa
 
           {/* Title & Menu */}
           <div className="flex items-start justify-between gap-2">
-            <h4 className="text-sm font-medium text-card-foreground leading-snug flex-1">
+            <h4 
+              className="text-sm font-medium text-card-foreground leading-snug flex-1 cursor-pointer"
+              onClick={onEdit}
+            >
               {card.title}
             </h4>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={onEdit}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onDelete} className="text-destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!disabled && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={onEdit}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
 
           {/* Description preview */}

@@ -78,7 +78,7 @@ export default function BoardPage() {
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
-  const { ref: dragScrollRef, isDragging } = useDragScroll<HTMLDivElement>();
+  const { ref: dragScrollRef, isDragging, isSpaceHeld } = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -553,7 +553,9 @@ export default function BoardPage() {
       {/* Board */}
       <div 
         ref={dragScrollRef} 
-        className={`flex-1 min-h-0 overflow-x-auto overflow-y-auto scrollbar-thin ${isDragging ? 'cursor-grabbing' : 'cursor-default'}`}
+        className={`flex-1 min-h-0 overflow-x-auto overflow-y-auto scrollbar-thin ${
+          isDragging ? 'cursor-grabbing' : isSpaceHeld ? 'cursor-grab' : 'cursor-default'
+        }`}
       >
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="board" type="column" direction="horizontal">
@@ -561,7 +563,7 @@ export default function BoardPage() {
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className="drag-scroll-area flex items-start gap-4 p-6 min-h-full"
+                className="drag-scroll-area flex items-start gap-4 p-6 min-h-full min-w-max"
               >
                 {columns.map((column, index) => (
                   <KanbanColumn

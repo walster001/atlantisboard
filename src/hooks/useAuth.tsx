@@ -97,7 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      // Session might already be invalid - clear local state anyway
+      console.log('Sign out error (session may already be invalid):', error);
+    }
+    // Always clear local state
+    setSession(null);
+    setUser(null);
     setIsAppAdmin(false);
   };
 

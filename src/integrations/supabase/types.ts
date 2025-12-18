@@ -442,6 +442,7 @@ export type Database = {
           id: string
         }[]
       }
+      get_auth_page_data: { Args: never; Returns: Json }
       get_board_data: {
         Args: { _board_id: string; _user_id: string }
         Returns: Json

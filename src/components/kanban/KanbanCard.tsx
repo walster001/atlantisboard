@@ -111,7 +111,7 @@ export function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled =
           {/* Description preview */}
           {card.description && (
             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-              {card.description}
+              {card.description.replace(/<[^>]*>/g, '')}
             </p>
           )}
 

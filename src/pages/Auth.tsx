@@ -10,11 +10,18 @@ import { Loader2 } from 'lucide-react';
 interface AppSettings {
   custom_login_logo_enabled: boolean;
   custom_login_logo_url: string | null;
+  custom_login_logo_size: string;
   custom_app_name_enabled: boolean;
   custom_app_name: string | null;
   custom_tagline_enabled: boolean;
   custom_tagline: string | null;
 }
+
+const logoSizeMap: Record<string, string> = {
+  small: 'w-[100px] h-[100px]',
+  medium: 'w-[200px] h-[200px]',
+  large: 'w-[300px] h-[300px]',
+};
 
 export default function Auth() {
   const { user, loading, signInWithGoogle } = useAuth();
@@ -36,7 +43,7 @@ export default function Auth() {
     try {
       const { data } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_app_name_enabled, custom_app_name, custom_tagline_enabled, custom_tagline')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_tagline_enabled, custom_tagline')
         .eq('id', 'default')
         .single();
 
@@ -70,6 +77,11 @@ export default function Auth() {
   const showCustomLogo = settings?.custom_login_logo_enabled && settings?.custom_login_logo_url;
   const showCustomAppName = settings?.custom_app_name_enabled && settings?.custom_app_name;
   const showCustomTagline = settings?.custom_tagline_enabled && settings?.custom_tagline;
+  const logoSize = logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium;
+
+  // Determine what app name to show - always show app name (custom or default)
+  const appName = showCustomAppName ? settings.custom_app_name : 'KanBoard';
+  const tagline = showCustomTagline ? settings.custom_tagline : 'Sign in to manage your boards';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kanban-bg via-background to-kanban-bg p-4">
@@ -80,17 +92,13 @@ export default function Auth() {
               <img
                 src={settings.custom_login_logo_url!}
                 alt="Logo"
-                className="w-[300px] h-[300px] object-contain"
+                className={`${logoSize} object-contain`}
               />
             </div>
           )}
           <div>
-            <CardTitle className="text-2xl font-bold">
-              {showCustomAppName ? settings.custom_app_name : 'KanBoard'}
-            </CardTitle>
-            <CardDescription className="mt-2">
-              {showCustomTagline ? settings.custom_tagline : 'Sign in to manage your boards'}
-            </CardDescription>
+            <CardTitle className="text-2xl font-bold">{appName}</CardTitle>
+            <CardDescription className="mt-2">{tagline}</CardDescription>
           </div>
         </CardHeader>
         <CardContent>

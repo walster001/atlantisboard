@@ -22,6 +22,13 @@ export type Database = {
           custom_app_name_enabled: boolean
           custom_app_name_font: string | null
           custom_app_name_size: number
+          custom_google_button_background_color: string
+          custom_google_button_text_color: string
+          custom_login_background_color: string
+          custom_login_background_enabled: boolean
+          custom_login_background_image_url: string | null
+          custom_login_background_type: string
+          custom_login_box_background_color: string
           custom_login_logo_enabled: boolean
           custom_login_logo_size: string
           custom_login_logo_url: string | null
@@ -40,6 +47,13 @@ export type Database = {
           custom_app_name_enabled?: boolean
           custom_app_name_font?: string | null
           custom_app_name_size?: number
+          custom_google_button_background_color?: string
+          custom_google_button_text_color?: string
+          custom_login_background_color?: string
+          custom_login_background_enabled?: boolean
+          custom_login_background_image_url?: string | null
+          custom_login_background_type?: string
+          custom_login_box_background_color?: string
           custom_login_logo_enabled?: boolean
           custom_login_logo_size?: string
           custom_login_logo_url?: string | null
@@ -58,6 +72,13 @@ export type Database = {
           custom_app_name_enabled?: boolean
           custom_app_name_font?: string | null
           custom_app_name_size?: number
+          custom_google_button_background_color?: string
+          custom_google_button_text_color?: string
+          custom_login_background_color?: string
+          custom_login_background_enabled?: boolean
+          custom_login_background_image_url?: string | null
+          custom_login_background_type?: string
+          custom_login_box_background_color?: string
           custom_login_logo_enabled?: boolean
           custom_login_logo_size?: string
           custom_login_logo_url?: string | null

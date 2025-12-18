@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 
@@ -17,9 +18,14 @@ interface AppSettings {
   custom_login_logo_size: LogoSize;
   custom_app_name_enabled: boolean;
   custom_app_name: string | null;
+  custom_app_name_size: number;
   custom_tagline_enabled: boolean;
   custom_tagline: string | null;
+  custom_tagline_size: number;
 }
+
+// Generate array of sizes from 1 to 72
+const textSizes = Array.from({ length: 72 }, (_, i) => i + 1);
 
 export function BrandingSettings() {
   const [settings, setSettings] = useState<AppSettings>({
@@ -28,8 +34,10 @@ export function BrandingSettings() {
     custom_login_logo_size: 'medium',
     custom_app_name_enabled: false,
     custom_app_name: null,
+    custom_app_name_size: 24,
     custom_tagline_enabled: false,
     custom_tagline: null,
+    custom_tagline_size: 14,
   });
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -47,7 +55,7 @@ export function BrandingSettings() {
     try {
       const { data, error } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_tagline_enabled, custom_tagline')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_tagline_enabled, custom_tagline, custom_tagline_size')
         .eq('id', 'default')
         .single();
 
@@ -59,8 +67,10 @@ export function BrandingSettings() {
           custom_login_logo_size: (data.custom_login_logo_size as LogoSize) || 'medium',
           custom_app_name_enabled: data.custom_app_name_enabled,
           custom_app_name: data.custom_app_name,
+          custom_app_name_size: data.custom_app_name_size || 24,
           custom_tagline_enabled: data.custom_tagline_enabled,
           custom_tagline: data.custom_tagline,
+          custom_tagline_size: data.custom_tagline_size || 14,
         });
         setAppNameInput(data.custom_app_name || '');
         setTaglineInput(data.custom_tagline || '');
@@ -116,6 +126,10 @@ export function BrandingSettings() {
     }
   };
 
+  const handleAppNameSizeChange = (size: string) => {
+    updateSettings({ custom_app_name_size: parseInt(size, 10) });
+  };
+
   const handleTaglineToggle = (enabled: boolean) => {
     updateSettings({ custom_tagline_enabled: enabled });
   };
@@ -124,6 +138,10 @@ export function BrandingSettings() {
     if (taglineInput.trim()) {
       updateSettings({ custom_tagline: taglineInput.trim() });
     }
+  };
+
+  const handleTaglineSizeChange = (size: string) => {
+    updateSettings({ custom_tagline_size: parseInt(size, 10) });
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -391,6 +409,30 @@ export function BrandingSettings() {
               Enter an app name to enable this feature.
             </p>
           )}
+
+          {settings.custom_app_name && (
+            <div className="border-t pt-4">
+              <Label className="text-sm font-medium mb-3 block">Text Size</Label>
+              <Select
+                value={settings.custom_app_name_size.toString()}
+                onValueChange={handleAppNameSizeChange}
+                disabled={saving}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <ScrollArea className="h-[200px]">
+                    {textSizes.map((size) => (
+                      <SelectItem key={size} value={size.toString()}>
+                        {size}px
+                      </SelectItem>
+                    ))}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -439,6 +481,30 @@ export function BrandingSettings() {
             <p className="text-xs text-muted-foreground">
               Enter a tagline to enable this feature.
             </p>
+          )}
+
+          {settings.custom_tagline && (
+            <div className="border-t pt-4">
+              <Label className="text-sm font-medium mb-3 block">Text Size</Label>
+              <Select
+                value={settings.custom_tagline_size.toString()}
+                onValueChange={handleTaglineSizeChange}
+                disabled={saving}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <ScrollArea className="h-[200px]">
+                    {textSizes.map((size) => (
+                      <SelectItem key={size} value={size.toString()}>
+                        {size}px
+                      </SelectItem>
+                    ))}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </CardContent>
       </Card>

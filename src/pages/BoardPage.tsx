@@ -78,7 +78,7 @@ export default function BoardPage() {
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
-  const dragScrollRef = useDragScroll<HTMLDivElement>();
+  const { ref: dragScrollRef, isDragging } = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -551,7 +551,10 @@ export default function BoardPage() {
       </header>
 
       {/* Board */}
-      <div ref={dragScrollRef} className="flex-1 min-h-0 overflow-x-auto overflow-y-auto scrollbar-thin cursor-grab active:cursor-grabbing">
+      <div 
+        ref={dragScrollRef} 
+        className={`flex-1 min-h-0 overflow-x-auto overflow-y-auto scrollbar-thin ${isDragging ? 'cursor-grabbing' : 'cursor-default'}`}
+      >
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="board" type="column" direction="horizontal">
             {(provided) => (

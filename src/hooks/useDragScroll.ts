@@ -1,66 +1,59 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 
 export function useDragScroll<T extends HTMLElement>() {
   const ref = useRef<T>(null);
-  const isDragging = useRef(false);
-  const startX = useRef(0);
-  const startY = useRef(0);
-  const scrollLeft = useRef(0);
-  const scrollTop = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startPos = useRef({ x: 0, y: 0 });
+  const scrollPos = useRef({ left: 0, top: 0 });
+
+  const isInteractiveElement = (target: HTMLElement): boolean => {
+    // Check if clicked on an interactive element or draggable card/column
+    const interactiveSelectors = [
+      'button', 'input', 'textarea', 'select', 'a',
+      '[data-rbd-draggable-id]', // hello-pangea draggable
+      '[data-rbd-drag-handle-draggable-id]', // drag handles
+      '.bg-column', // column cards area
+      '[role="button"]',
+    ];
+    
+    return interactiveSelectors.some(selector => 
+      target.closest(selector) !== null
+    );
+  };
 
   const handleMouseDown = useCallback((e: MouseEvent) => {
     const element = ref.current;
     if (!element) return;
     
-    // Only start drag scroll on middle mouse button or when clicking on the background
-    // Avoid interfering with drag-and-drop of cards/columns
     const target = e.target as HTMLElement;
-    const isBackground = target === element || target.classList.contains('drag-scroll-area');
     
-    if (e.button === 1 || (e.button === 0 && isBackground)) {
-      isDragging.current = true;
-      startX.current = e.pageX - element.offsetLeft;
-      startY.current = e.pageY - element.offsetTop;
-      scrollLeft.current = element.scrollLeft;
-      scrollTop.current = element.scrollTop;
-      element.style.cursor = 'grabbing';
-      element.style.userSelect = 'none';
-      e.preventDefault();
-    }
+    // Don't start drag scroll if clicking on interactive elements
+    if (isInteractiveElement(target)) return;
+    
+    // Only left mouse button
+    if (e.button !== 0) return;
+
+    setIsDragging(true);
+    startPos.current = { x: e.clientX, y: e.clientY };
+    scrollPos.current = { left: element.scrollLeft, top: element.scrollTop };
+    
+    e.preventDefault();
   }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging.current) return;
+    if (!isDragging) return;
     const element = ref.current;
     if (!element) return;
 
-    e.preventDefault();
-    const x = e.pageX - element.offsetLeft;
-    const y = e.pageY - element.offsetTop;
-    const walkX = (x - startX.current) * 1.5; // Scroll speed multiplier
-    const walkY = (y - startY.current) * 1.5;
-    element.scrollLeft = scrollLeft.current - walkX;
-    element.scrollTop = scrollTop.current - walkY;
-  }, []);
+    const dx = e.clientX - startPos.current.x;
+    const dy = e.clientY - startPos.current.y;
+    
+    element.scrollLeft = scrollPos.current.left - dx;
+    element.scrollTop = scrollPos.current.top - dy;
+  }, [isDragging]);
 
   const handleMouseUp = useCallback(() => {
-    isDragging.current = false;
-    const element = ref.current;
-    if (element) {
-      element.style.cursor = '';
-      element.style.userSelect = '';
-    }
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    if (isDragging.current) {
-      isDragging.current = false;
-      const element = ref.current;
-      if (element) {
-        element.style.cursor = '';
-        element.style.userSelect = '';
-      }
-    }
+    setIsDragging(false);
   }, []);
 
   useEffect(() => {
@@ -68,17 +61,15 @@ export function useDragScroll<T extends HTMLElement>() {
     if (!element) return;
 
     element.addEventListener('mousedown', handleMouseDown);
-    element.addEventListener('mousemove', handleMouseMove);
-    element.addEventListener('mouseup', handleMouseUp);
-    element.addEventListener('mouseleave', handleMouseLeave);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
 
     return () => {
       element.removeEventListener('mousedown', handleMouseDown);
-      element.removeEventListener('mousemove', handleMouseMove);
-      element.removeEventListener('mouseup', handleMouseUp);
-      element.removeEventListener('mouseleave', handleMouseLeave);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave]);
+  }, [handleMouseDown, handleMouseMove, handleMouseUp]);
 
-  return ref;
+  return { ref, isDragging };
 }

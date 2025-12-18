@@ -347,6 +347,15 @@ export type Database = {
         Args: { _board_id: string; _user_id: string }
         Returns: boolean
       }
+      find_user_by_email: {
+        Args: { _board_id: string; _email: string }
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          id: string
+        }[]
+      }
       get_board_role: {
         Args: { _board_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["board_role"]
@@ -358,6 +367,14 @@ export type Database = {
       }
       is_workspace_member: {
         Args: { _user_id: string; _workspace_id: string }
+        Returns: boolean
+      }
+      shares_board_with: {
+        Args: { _profile_id: string; _viewer_id: string }
+        Returns: boolean
+      }
+      shares_workspace_with: {
+        Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
     }

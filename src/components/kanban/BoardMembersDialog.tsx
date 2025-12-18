@@ -59,19 +59,18 @@ export function BoardMembersDialog({
       // Validate email format
       const validEmail = emailSchema.parse(email);
 
-      // Find user by email
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', validEmail)
-        .maybeSingle();
+      // Find user by email using secure RPC function
+      const { data: profiles, error: profileError } = await supabase
+        .rpc('find_user_by_email', { _email: validEmail, _board_id: boardId });
 
       if (profileError) throw profileError;
-      if (!profile) {
+      if (!profiles || profiles.length === 0) {
         toast({ title: 'User not found', description: 'No user with that email exists.', variant: 'destructive' });
         setIsAdding(false);
         return;
       }
+      
+      const profile = profiles[0];
 
       // Check if already a member
       const existing = members.find(m => m.user_id === profile.id);

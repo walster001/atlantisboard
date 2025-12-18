@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +29,11 @@ interface CustomFont {
   font_url: string;
 }
 
+interface AuthPageData {
+  settings: AppSettings | null;
+  fonts: CustomFont[];
+}
+
 const logoSizeMap: Record<string, string> = {
   small: 'w-[100px] h-[100px]',
   medium: 'w-[200px] h-[200px]',
@@ -39,13 +44,26 @@ export default function Auth() {
   const { user, loading, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [pageData, setPageData] = useState<AuthPageData | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
+  // Single server-side call for all auth page data
   useEffect(() => {
-    fetchSettings();
-    fetchCustomFonts();
+    const fetchPageData = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_auth_page_data');
+        if (error) throw error;
+        const result = data as unknown as AuthPageData;
+        setPageData(result);
+      } catch (error) {
+        // Use defaults on error
+        setPageData({ settings: null, fonts: [] });
+      } finally {
+        setDataLoading(false);
+      }
+    };
+    fetchPageData();
   }, []);
 
   useEffect(() => {
@@ -54,15 +72,15 @@ export default function Auth() {
     }
   }, [user, loading, navigate]);
 
-  // Load custom font CSS
+  // Load custom fonts
   useEffect(() => {
-    if (customFonts.length === 0) {
+    const fonts = pageData?.fonts || [];
+    if (fonts.length === 0) {
       setFontsLoaded(true);
       return;
     }
 
-    let loadedCount = 0;
-    customFonts.forEach((font) => {
+    fonts.forEach((font) => {
       const fontId = `custom-font-${font.id}`;
       if (!document.getElementById(fontId)) {
         const style = document.createElement('style');
@@ -78,51 +96,18 @@ export default function Auth() {
         `;
         document.head.appendChild(style);
       }
-      loadedCount++;
-      if (loadedCount === customFonts.length) {
-        // Small delay to allow fonts to load
-        setTimeout(() => setFontsLoaded(true), 100);
-      }
     });
-  }, [customFonts]);
+    // Allow fonts to load
+    requestAnimationFrame(() => setFontsLoaded(true));
+  }, [pageData?.fonts]);
 
-  const fetchSettings = async () => {
-    try {
-      const { data } = await supabase
-        .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_app_name_color, custom_app_name_font, custom_tagline_enabled, custom_tagline, custom_tagline_size, custom_tagline_color, custom_tagline_font')
-        .eq('id', 'default')
-        .single();
-
-      if (data) {
-        setSettings(data);
-      }
-    } catch (error) {
-      // Settings not found, use defaults
-    }
-  };
-
-  const fetchCustomFonts = async () => {
-    try {
-      const { data } = await supabase
-        .from('custom_fonts')
-        .select('id, name, font_url');
-
-      if (data) {
-        setCustomFonts(data);
-      }
-    } catch (error) {
-      // Fonts not found, use defaults
-    }
-  };
-
-  const getFontFamily = (fontKey: string | undefined) => {
+  const getFontFamily = useCallback((fontKey: string | undefined) => {
     if (!fontKey || fontKey === 'default') return 'Inter, sans-serif';
-    const font = customFonts.find(f => f.id === fontKey);
+    const font = pageData?.fonts?.find(f => f.id === fontKey);
     return font ? `'${font.name}', sans-serif` : 'Inter, sans-serif';
-  };
+  }, [pageData?.fonts]);
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = useCallback(async () => {
     const { error } = await signInWithGoogle();
     if (error) {
       toast({
@@ -131,9 +116,31 @@ export default function Auth() {
         variant: 'destructive',
       });
     }
-  };
+  }, [signInWithGoogle, toast]);
 
-  if (loading) {
+  // Memoize computed values
+  const brandingConfig = useMemo(() => {
+    const settings = pageData?.settings;
+    const showCustomLogo = settings?.custom_login_logo_enabled && settings?.custom_login_logo_url;
+    const showCustomAppName = settings?.custom_app_name_enabled && settings?.custom_app_name;
+    const showCustomTagline = settings?.custom_tagline_enabled && settings?.custom_tagline;
+    
+    return {
+      showCustomLogo,
+      logoUrl: settings?.custom_login_logo_url,
+      logoSize: logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium,
+      appName: showCustomAppName ? settings!.custom_app_name : 'KanBoard',
+      tagline: showCustomTagline ? settings!.custom_tagline : 'Sign in to manage your boards',
+      appNameSize: settings?.custom_app_name_size || 24,
+      appNameColor: settings?.custom_app_name_color || '#000000',
+      appNameFont: getFontFamily(settings?.custom_app_name_font),
+      taglineSize: settings?.custom_tagline_size || 14,
+      taglineColor: settings?.custom_tagline_color || '#6b7280',
+      taglineFont: getFontFamily(settings?.custom_tagline_font),
+    };
+  }, [pageData?.settings, getFontFamily]);
+
+  if (loading || dataLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -141,31 +148,16 @@ export default function Auth() {
     );
   }
 
-  const showCustomLogo = settings?.custom_login_logo_enabled && settings?.custom_login_logo_url;
-  const showCustomAppName = settings?.custom_app_name_enabled && settings?.custom_app_name;
-  const showCustomTagline = settings?.custom_tagline_enabled && settings?.custom_tagline;
-  const logoSize = logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium;
-
-  // Determine what app name to show - always show app name (custom or default)
-  const appName = showCustomAppName ? settings.custom_app_name : 'KanBoard';
-  const tagline = showCustomTagline ? settings.custom_tagline : 'Sign in to manage your boards';
-  const appNameSize = settings?.custom_app_name_size || 24;
-  const appNameColor = settings?.custom_app_name_color || '#000000';
-  const appNameFont = getFontFamily(settings?.custom_app_name_font);
-  const taglineSize = settings?.custom_tagline_size || 14;
-  const taglineColor = settings?.custom_tagline_color || '#6b7280';
-  const taglineFont = getFontFamily(settings?.custom_tagline_font);
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kanban-bg via-background to-kanban-bg p-4">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center space-y-4">
-          {showCustomLogo && (
+          {brandingConfig.showCustomLogo && (
             <div className="flex justify-center">
               <img
-                src={settings.custom_login_logo_url!}
+                src={brandingConfig.logoUrl!}
                 alt="Logo"
-                className={`${logoSize} object-contain`}
+                className={`${brandingConfig.logoSize} object-contain`}
               />
             </div>
           )}
@@ -173,22 +165,22 @@ export default function Auth() {
             <h1 
               className="font-bold text-center" 
               style={{ 
-                fontSize: `${appNameSize}px`, 
-                color: appNameColor,
-                fontFamily: appNameFont,
+                fontSize: `${brandingConfig.appNameSize}px`, 
+                color: brandingConfig.appNameColor,
+                fontFamily: brandingConfig.appNameFont,
               }}
             >
-              {appName}
+              {brandingConfig.appName}
             </h1>
             <p 
               className="text-center max-w-md mx-auto leading-relaxed" 
               style={{ 
-                fontSize: `${taglineSize}px`, 
-                color: taglineColor,
-                fontFamily: taglineFont,
+                fontSize: `${brandingConfig.taglineSize}px`, 
+                color: brandingConfig.taglineColor,
+                fontFamily: brandingConfig.taglineFont,
               }}
             >
-              {tagline}
+              {brandingConfig.tagline}
             </p>
           </div>
         </CardHeader>

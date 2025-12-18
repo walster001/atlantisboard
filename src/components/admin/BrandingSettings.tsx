@@ -13,6 +13,8 @@ interface AppSettings {
   custom_login_logo_url: string | null;
   custom_app_name_enabled: boolean;
   custom_app_name: string | null;
+  custom_tagline_enabled: boolean;
+  custom_tagline: string | null;
 }
 
 export function BrandingSettings() {
@@ -21,11 +23,14 @@ export function BrandingSettings() {
     custom_login_logo_url: null,
     custom_app_name_enabled: false,
     custom_app_name: null,
+    custom_tagline_enabled: false,
+    custom_tagline: null,
   });
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [appNameInput, setAppNameInput] = useState('');
+  const [taglineInput, setTaglineInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -37,7 +42,7 @@ export function BrandingSettings() {
     try {
       const { data, error } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_app_name_enabled, custom_app_name')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_app_name_enabled, custom_app_name, custom_tagline_enabled, custom_tagline')
         .eq('id', 'default')
         .single();
 
@@ -48,8 +53,11 @@ export function BrandingSettings() {
           custom_login_logo_url: data.custom_login_logo_url,
           custom_app_name_enabled: data.custom_app_name_enabled,
           custom_app_name: data.custom_app_name,
+          custom_tagline_enabled: data.custom_tagline_enabled,
+          custom_tagline: data.custom_tagline,
         });
         setAppNameInput(data.custom_app_name || '');
+        setTaglineInput(data.custom_tagline || '');
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -95,6 +103,16 @@ export function BrandingSettings() {
   const handleAppNameSave = () => {
     if (appNameInput.trim()) {
       updateSettings({ custom_app_name: appNameInput.trim() });
+    }
+  };
+
+  const handleTaglineToggle = (enabled: boolean) => {
+    updateSettings({ custom_tagline_enabled: enabled });
+  };
+
+  const handleTaglineSave = () => {
+    if (taglineInput.trim()) {
+      updateSettings({ custom_tagline: taglineInput.trim() });
     }
   };
 
@@ -341,6 +359,55 @@ export function BrandingSettings() {
           {!settings.custom_app_name && (
             <p className="text-xs text-muted-foreground">
               Enter an app name to enable this feature.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Custom Tagline</CardTitle>
+          <CardDescription>
+            Display a custom tagline below the app name on the sign-in screen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="tagline-toggle" className="font-medium">
+              Enable custom tagline
+            </Label>
+            <Switch
+              id="tagline-toggle"
+              checked={settings.custom_tagline_enabled}
+              onCheckedChange={handleTaglineToggle}
+              disabled={saving || !settings.custom_tagline}
+            />
+          </div>
+
+          <div className="border-t pt-4">
+            <Label htmlFor="tagline-input" className="text-sm font-medium mb-3 block">
+              Tagline Text
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="tagline-input"
+                placeholder="Enter your tagline"
+                value={taglineInput}
+                onChange={(e) => setTaglineInput(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleTaglineSave}
+                disabled={saving || !taglineInput.trim() || taglineInput.trim() === settings.custom_tagline}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+              </Button>
+            </div>
+          </div>
+
+          {!settings.custom_tagline && (
+            <p className="text-xs text-muted-foreground">
+              Enter a tagline to enable this feature.
             </p>
           )}
         </CardContent>

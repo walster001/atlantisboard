@@ -12,6 +12,8 @@ interface AppSettings {
   custom_login_logo_url: string | null;
   custom_app_name_enabled: boolean;
   custom_app_name: string | null;
+  custom_tagline_enabled: boolean;
+  custom_tagline: string | null;
 }
 
 export default function Auth() {
@@ -34,7 +36,7 @@ export default function Auth() {
     try {
       const { data } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_app_name_enabled, custom_app_name')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_app_name_enabled, custom_app_name, custom_tagline_enabled, custom_tagline')
         .eq('id', 'default')
         .single();
 
@@ -67,6 +69,7 @@ export default function Auth() {
 
   const showCustomLogo = settings?.custom_login_logo_enabled && settings?.custom_login_logo_url;
   const showCustomAppName = settings?.custom_app_name_enabled && settings?.custom_app_name;
+  const showCustomTagline = settings?.custom_tagline_enabled && settings?.custom_tagline;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kanban-bg via-background to-kanban-bg p-4">
@@ -84,7 +87,9 @@ export default function Auth() {
           <CardTitle className="text-2xl font-bold">
             {showCustomAppName ? settings.custom_app_name : 'KanBoard'}
           </CardTitle>
-          <CardDescription>Sign in to manage your boards</CardDescription>
+          <CardDescription>
+            {showCustomTagline ? settings.custom_tagline : 'Sign in to manage your boards'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Button

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +15,7 @@ import { Card as CardType, Label, LabelColor } from '@/types/kanban';
 import { BoardMembersDialog } from '@/components/kanban/BoardMembersDialog';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
+import { useDragScroll } from '@/hooks/useDragScroll';
 import { z } from 'zod';
 
 interface DbColumn {
@@ -77,6 +78,7 @@ export default function BoardPage() {
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+  const dragScrollRef = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -549,14 +551,14 @@ export default function BoardPage() {
       </header>
 
       {/* Board */}
-      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto scrollbar-thin">
+      <div ref={dragScrollRef} className="flex-1 min-h-0 overflow-x-auto overflow-y-auto scrollbar-thin cursor-grab active:cursor-grabbing">
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="board" type="column" direction="horizontal">
             {(provided) => (
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className="flex items-start gap-4 p-6 min-h-full"
+                className="drag-scroll-area flex items-start gap-4 p-6 min-h-full"
               >
                 {columns.map((column, index) => (
                   <KanbanColumn

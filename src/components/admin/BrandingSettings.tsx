@@ -774,7 +774,7 @@ export function BrandingSettings() {
                   style={previewBgStyles.style}
                 >
                   <div 
-                    className="w-full max-w-[280px] rounded-lg border shadow-sm"
+                    className="w-full max-w-[280px] rounded-lg shadow-lg"
                     style={{ backgroundColor: settings.custom_login_box_background_color }}
                   >
                     <div className="p-4 text-center space-y-3">

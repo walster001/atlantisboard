@@ -92,36 +92,44 @@ export default function BoardPage() {
     }
   }, [user, boardId]);
 
-  // Realtime subscription for cards
+  // Realtime subscription for cards - updates UI instantly without refresh
   useEffect(() => {
     if (!boardId || !columns.length) return;
 
     const columnIds = columns.map(c => c.id);
     
     const channel = supabase
-      .channel(`board-${boardId}-cards`)
+      .channel(`board-${boardId}-cards-realtime`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'cards',
         },
         (payload) => {
-          const { eventType, new: newRecord, old: oldRecord } = payload;
-          
-          if (eventType === 'INSERT') {
-            const newCard = newRecord as DbCard;
-            if (columnIds.includes(newCard.column_id)) {
-              setCards(prev => {
-                if (prev.some(c => c.id === newCard.id)) return prev;
-                return [...prev, newCard];
-              });
-            }
-          } else if (eventType === 'UPDATE') {
-            const updatedCard = newRecord as DbCard;
+          const newCard = payload.new as DbCard;
+          if (columnIds.includes(newCard.column_id)) {
+            setCards(prev => {
+              if (prev.some(c => c.id === newCard.id)) return prev;
+              return [...prev, newCard];
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'cards',
+        },
+        (payload) => {
+          const updatedCard = payload.new as DbCard;
+          // Only process if card belongs to this board
+          if (columnIds.includes(updatedCard.column_id)) {
             setCards(prev => prev.map(c => c.id === updatedCard.id ? updatedCard : c));
-            // Update editing card if it's the one being edited
+            // Update editing card modal if it's the one being edited by another user
             setEditingCard(prev => {
               if (prev && prev.card.id === updatedCard.id) {
                 return {
@@ -136,13 +144,31 @@ export default function BoardPage() {
               }
               return prev;
             });
-          } else if (eventType === 'DELETE') {
-            const deletedCard = oldRecord as DbCard;
-            setCards(prev => prev.filter(c => c.id !== deletedCard.id));
           }
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'cards',
+        },
+        (payload) => {
+          const deletedCard = payload.old as DbCard;
+          setCards(prev => prev.filter(c => c.id !== deletedCard.id));
+          // Close modal if the deleted card was being edited
+          setEditingCard(prev => {
+            if (prev && prev.card.id === deletedCard.id) {
+              return null;
+            }
+            return prev;
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

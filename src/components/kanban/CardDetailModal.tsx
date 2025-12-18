@@ -4,7 +4,6 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
@@ -20,6 +19,7 @@ import {
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { RichTextEditor } from './RichTextEditor';
 
 interface CardDetailModalProps {
   card: Card | null;
@@ -204,13 +204,10 @@ export function CardDetailModal({
           
           {isEditingDescription && !disabled ? (
             <div className="space-y-2">
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+              <RichTextEditor
+                content={description}
+                onChange={setDescription}
                 placeholder="Add a more detailed description..."
-                rows={6}
-                className="resize-none"
-                autoFocus
               />
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={handleSaveDescription}>
@@ -231,13 +228,14 @@ export function CardDetailModal({
           ) : (
             <div 
               className={cn(
-                "min-h-[80px] p-3 rounded-lg bg-muted/50 text-sm",
+                "min-h-[80px] p-3 rounded-lg bg-muted/50 text-sm prose prose-sm dark:prose-invert max-w-none",
                 !description && "text-muted-foreground italic",
                 !disabled && "cursor-pointer hover:bg-muted transition-colors"
               )}
               onClick={() => !disabled && setIsEditingDescription(true)}
+              dangerouslySetInnerHTML={description ? { __html: description } : undefined}
             >
-              {description || (disabled ? 'No description' : 'Click to add a description...')}
+              {!description && (disabled ? 'No description' : 'Click to add a description...')}
             </div>
           )}
         </div>

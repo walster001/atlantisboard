@@ -5,8 +5,9 @@
 @tailwind utilities;
 
 @layer base {
-#lovable-badge {
+  #lovable-badge {
     display: none !important;
+  }
   :root {
     --background: 210 20% 98%;
     --foreground: 222 47% 11%;
@@ -114,7 +115,7 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: "Inter", system-ui, sans-serif;
   }
 }
 

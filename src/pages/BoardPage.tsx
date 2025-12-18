@@ -99,7 +99,7 @@ export default function BoardPage() {
 
   // Realtime subscription for cards - updates UI instantly without refresh
   useEffect(() => {
-    if (!boardId) return;
+    if (!boardId || !user) return;
     
     const channel = supabase
       .channel(`board-${boardId}-cards-realtime`)
@@ -181,12 +181,16 @@ export default function BoardPage() {
           });
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (err) {
+          console.error('Realtime subscription error:', err);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId]);
+  }, [boardId, user]);
 
   const fetchBoardData = async () => {
     if (!boardId || !user) return;

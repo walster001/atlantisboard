@@ -233,9 +233,12 @@ export function CardDetailModal({
                 !disabled && "cursor-pointer hover:bg-muted transition-colors"
               )}
               onClick={() => !disabled && setIsEditingDescription(true)}
-              dangerouslySetInnerHTML={description ? { __html: description } : undefined}
             >
-              {!description && (disabled ? 'No description' : 'Click to add a description...')}
+              {description ? (
+                <div dangerouslySetInnerHTML={{ __html: description }} />
+              ) : (
+                disabled ? 'No description' : 'Click to add a description...'
+              )}
             </div>
           )}
         </div>

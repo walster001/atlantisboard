@@ -13,8 +13,10 @@ interface AppSettings {
   custom_login_logo_size: string;
   custom_app_name_enabled: boolean;
   custom_app_name: string | null;
+  custom_app_name_size: number;
   custom_tagline_enabled: boolean;
   custom_tagline: string | null;
+  custom_tagline_size: number;
 }
 
 const logoSizeMap: Record<string, string> = {
@@ -43,7 +45,7 @@ export default function Auth() {
     try {
       const { data } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_tagline_enabled, custom_tagline')
+        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_tagline_enabled, custom_tagline, custom_tagline_size')
         .eq('id', 'default')
         .single();
 
@@ -82,6 +84,8 @@ export default function Auth() {
   // Determine what app name to show - always show app name (custom or default)
   const appName = showCustomAppName ? settings.custom_app_name : 'KanBoard';
   const tagline = showCustomTagline ? settings.custom_tagline : 'Sign in to manage your boards';
+  const appNameSize = settings?.custom_app_name_size || 24;
+  const taglineSize = settings?.custom_tagline_size || 14;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kanban-bg via-background to-kanban-bg p-4">
@@ -97,8 +101,8 @@ export default function Auth() {
             </div>
           )}
           <div>
-            <CardTitle className="text-2xl font-bold">{appName}</CardTitle>
-            <CardDescription className="mt-2">{tagline}</CardDescription>
+            <CardTitle className="font-bold" style={{ fontSize: `${appNameSize}px` }}>{appName}</CardTitle>
+            <CardDescription className="mt-2" style={{ fontSize: `${taglineSize}px` }}>{tagline}</CardDescription>
           </div>
         </CardHeader>
         <CardContent>

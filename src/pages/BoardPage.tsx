@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card as CardType, Label, LabelColor } from '@/types/kanban';
 import { BoardMembersDialog } from '@/components/kanban/BoardMembersDialog';
 import { getUserFriendlyError } from '@/lib/errorHandler';
-import { columnSchema, cardSchema } from '@/lib/validators';
+import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
 
 interface DbColumn {
@@ -481,7 +481,7 @@ export default function BoardPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: boardColor }}>
+    <div className="min-h-screen" style={{ backgroundColor: sanitizeColor(boardColor) }}>
       {/* Header */}
       <header className="sticky top-0 z-10 bg-black/20 backdrop-blur-sm">
         <div className="px-4 py-3 flex items-center justify-between">

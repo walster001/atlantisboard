@@ -1,0 +1,389 @@
+import { useState, useEffect } from 'react';
+import { Card, Label, LabelColor } from '@/types/kanban';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { 
+  Calendar as CalendarIcon, 
+  X, 
+  Tag, 
+  Pencil, 
+  AlignLeft, 
+  Clock,
+  Check,
+  Trash2
+} from 'lucide-react';
+import { format, isPast, isToday } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
+
+interface CardDetailModalProps {
+  card: Card | null;
+  open: boolean;
+  onClose: () => void;
+  onSave: (updates: Partial<Card>) => void;
+  onAddLabel: (label: Label) => void;
+  onRemoveLabel: (labelId: string) => void;
+  onDelete?: () => void;
+  disabled?: boolean;
+}
+
+const labelColors: { color: LabelColor; name: string; className: string }[] = [
+  { color: 'red', name: 'Red', className: 'bg-label-red' },
+  { color: 'orange', name: 'Orange', className: 'bg-label-orange' },
+  { color: 'yellow', name: 'Yellow', className: 'bg-label-yellow' },
+  { color: 'green', name: 'Green', className: 'bg-label-green' },
+  { color: 'blue', name: 'Blue', className: 'bg-label-blue' },
+  { color: 'purple', name: 'Purple', className: 'bg-label-purple' },
+  { color: 'pink', name: 'Pink', className: 'bg-label-pink' },
+];
+
+export function CardDetailModal({
+  card,
+  open,
+  onClose,
+  onSave,
+  onAddLabel,
+  onRemoveLabel,
+  onDelete,
+  disabled = false,
+}: CardDetailModalProps) {
+  const isMobile = useIsMobile();
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState<Date | undefined>();
+  const [showLabelPicker, setShowLabelPicker] = useState(false);
+  const [newLabelText, setNewLabelText] = useState('');
+
+  useEffect(() => {
+    if (card) {
+      setTitle(card.title);
+      setDescription(card.description || '');
+      setDueDate(card.dueDate ? new Date(card.dueDate) : undefined);
+      setIsEditingTitle(false);
+      setIsEditingDescription(false);
+    }
+  }, [card]);
+
+  const handleSaveTitle = () => {
+    if (title.trim()) {
+      onSave({ title: title.trim() });
+      setIsEditingTitle(false);
+    }
+  };
+
+  const handleSaveDescription = () => {
+    onSave({ description: description || undefined });
+    setIsEditingDescription(false);
+  };
+
+  const handleSaveDueDate = (date: Date | undefined) => {
+    setDueDate(date);
+    onSave({ dueDate: date?.toISOString() });
+  };
+
+  const handleAddLabel = (color: LabelColor) => {
+    const newLabel: Label = {
+      id: Math.random().toString(36).substr(2, 9),
+      color,
+      text: newLabelText || undefined,
+    };
+    onAddLabel(newLabel);
+    setNewLabelText('');
+    setShowLabelPicker(false);
+  };
+
+  if (!card) return null;
+
+  const dueDateStatus = dueDate ? {
+    isOverdue: isPast(dueDate) && !isToday(dueDate),
+    isDueToday: isToday(dueDate),
+  } : null;
+
+  const content = (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-start justify-between p-4 md:p-6 border-b">
+        <div className="flex-1 min-w-0">
+          {/* Labels */}
+          {card.labels.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {card.labels.map((label) => (
+                <span
+                  key={label.id}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium text-white',
+                    labelColors.find((l) => l.color === label.color)?.className
+                  )}
+                >
+                  {label.text || label.color}
+                  {!disabled && (
+                    <button
+                      onClick={() => onRemoveLabel(label.id)}
+                      className="hover:bg-white/20 rounded-full p-0.5 ml-1"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Title */}
+          {isEditingTitle && !disabled ? (
+            <div className="flex items-center gap-2">
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="text-xl font-semibold"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveTitle();
+                  if (e.key === 'Escape') {
+                    setTitle(card.title);
+                    setIsEditingTitle(false);
+                  }
+                }}
+              />
+              <Button size="icon" variant="ghost" onClick={handleSaveTitle}>
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => {
+                setTitle(card.title);
+                setIsEditingTitle(false);
+              }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <h2 
+              className={cn(
+                "text-xl md:text-2xl font-semibold text-foreground",
+                !disabled && "cursor-pointer hover:text-primary transition-colors"
+              )}
+              onClick={() => !disabled && setIsEditingTitle(true)}
+            >
+              {title}
+            </h2>
+          )}
+        </div>
+        
+        <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 ml-2">
+          <X className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        {/* Description Section */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <AlignLeft className="h-4 w-4" />
+              <span className="text-sm font-medium">Description</span>
+            </div>
+            {!disabled && !isEditingDescription && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditingDescription(true)}
+                className="h-8"
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                Edit
+              </Button>
+            )}
+          </div>
+          
+          {isEditingDescription && !disabled ? (
+            <div className="space-y-2">
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add a more detailed description..."
+                rows={6}
+                className="resize-none"
+                autoFocus
+              />
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={handleSaveDescription}>
+                  Save
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  onClick={() => {
+                    setDescription(card.description || '');
+                    setIsEditingDescription(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div 
+              className={cn(
+                "min-h-[80px] p-3 rounded-lg bg-muted/50 text-sm",
+                !description && "text-muted-foreground italic",
+                !disabled && "cursor-pointer hover:bg-muted transition-colors"
+              )}
+              onClick={() => !disabled && setIsEditingDescription(true)}
+            >
+              {description || (disabled ? 'No description' : 'Click to add a description...')}
+            </div>
+          )}
+        </div>
+
+        {/* Due Date Section */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            <span className="text-sm font-medium">Due Date</span>
+          </div>
+          
+          {disabled ? (
+            <div className={cn(
+              'flex items-center gap-2 px-3 py-2 rounded-lg text-sm',
+              dueDateStatus?.isOverdue && 'bg-destructive/10 text-destructive',
+              dueDateStatus?.isDueToday && 'bg-label-orange/10 text-label-orange',
+              !dueDateStatus && 'bg-muted text-muted-foreground',
+              dueDate && !dueDateStatus?.isOverdue && !dueDateStatus?.isDueToday && 'bg-muted'
+            )}>
+              <CalendarIcon className="h-4 w-4" />
+              {dueDate ? format(dueDate, 'PPP') : 'No due date'}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      'justify-start text-left font-normal',
+                      !dueDate && 'text-muted-foreground',
+                      dueDateStatus?.isOverdue && 'border-destructive text-destructive',
+                      dueDateStatus?.isDueToday && 'border-label-orange text-label-orange'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dueDate ? format(dueDate, 'PPP') : 'Set due date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dueDate}
+                    onSelect={handleSaveDueDate}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              {dueDate && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleSaveDueDate(undefined)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Labels Section */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Tag className="h-4 w-4" />
+            <span className="text-sm font-medium">Labels</span>
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            {card.labels.length === 0 && disabled && (
+              <span className="text-sm text-muted-foreground italic">No labels</span>
+            )}
+            {!disabled && (
+              <Popover open={showLabelPicker} onOpenChange={setShowLabelPicker}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Tag className="h-3.5 w-3.5 mr-1.5" />
+                    Add Label
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72" align="start">
+                  <div className="space-y-3">
+                    <Input
+                      value={newLabelText}
+                      onChange={(e) => setNewLabelText(e.target.value)}
+                      placeholder="Label text (optional)"
+                      className="h-9"
+                    />
+                    <div className="grid grid-cols-7 gap-2">
+                      {labelColors.map((label) => (
+                        <button
+                          key={label.color}
+                          onClick={() => handleAddLabel(label.color)}
+                          className={cn(
+                            'h-8 w-full rounded-md hover:ring-2 hover:ring-offset-2 hover:ring-foreground/20 transition-all',
+                            label.className
+                          )}
+                          title={label.name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer Actions */}
+      {!disabled && onDelete && (
+        <div className="border-t p-4 md:p-6">
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={() => {
+              onDelete();
+              onClose();
+            }}
+            className="w-full sm:w-auto"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Card
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
+  // Use Sheet on mobile, Dialog on desktop
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={onClose}>
+        <SheetContent side="bottom" className="h-[90vh] p-0 rounded-t-2xl" hideCloseButton>
+          {content}
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] p-0 overflow-hidden">
+        {content}
+      </DialogContent>
+    </Dialog>
+  );
+}

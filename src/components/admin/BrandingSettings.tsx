@@ -39,6 +39,7 @@ export function BrandingSettings() {
     custom_tagline: null,
     custom_tagline_size: 14,
   });
+  const [savedSettings, setSavedSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -61,7 +62,7 @@ export function BrandingSettings() {
 
       if (error) throw error;
       if (data) {
-        setSettings({
+        const loadedSettings: AppSettings = {
           custom_login_logo_enabled: data.custom_login_logo_enabled,
           custom_login_logo_url: data.custom_login_logo_url,
           custom_login_logo_size: (data.custom_login_logo_size as LogoSize) || 'medium',
@@ -71,7 +72,9 @@ export function BrandingSettings() {
           custom_tagline_enabled: data.custom_tagline_enabled,
           custom_tagline: data.custom_tagline,
           custom_tagline_size: data.custom_tagline_size || 14,
-        });
+        };
+        setSettings(loadedSettings);
+        setSavedSettings(loadedSettings);
         setAppNameInput(data.custom_app_name || '');
         setTaglineInput(data.custom_tagline || '');
       }
@@ -82,9 +85,34 @@ export function BrandingSettings() {
     }
   };
 
-  const updateSettings = async (updates: Partial<AppSettings>) => {
+  const hasUnsavedChanges = () => {
+    if (!savedSettings) return false;
+    return (
+      settings.custom_login_logo_enabled !== savedSettings.custom_login_logo_enabled ||
+      settings.custom_login_logo_size !== savedSettings.custom_login_logo_size ||
+      settings.custom_app_name_enabled !== savedSettings.custom_app_name_enabled ||
+      appNameInput.trim() !== (savedSettings.custom_app_name || '') ||
+      settings.custom_app_name_size !== savedSettings.custom_app_name_size ||
+      settings.custom_tagline_enabled !== savedSettings.custom_tagline_enabled ||
+      taglineInput.trim() !== (savedSettings.custom_tagline || '') ||
+      settings.custom_tagline_size !== savedSettings.custom_tagline_size
+    );
+  };
+
+  const handleSaveAll = async () => {
     setSaving(true);
     try {
+      const updates: Partial<AppSettings> = {
+        custom_login_logo_enabled: settings.custom_login_logo_enabled,
+        custom_login_logo_size: settings.custom_login_logo_size,
+        custom_app_name_enabled: settings.custom_app_name_enabled,
+        custom_app_name: appNameInput.trim() || null,
+        custom_app_name_size: settings.custom_app_name_size,
+        custom_tagline_enabled: settings.custom_tagline_enabled,
+        custom_tagline: taglineInput.trim() || null,
+        custom_tagline_size: settings.custom_tagline_size,
+      };
+
       const { error } = await supabase
         .from('app_settings')
         .update(updates)
@@ -92,7 +120,10 @@ export function BrandingSettings() {
 
       if (error) throw error;
 
-      setSettings(prev => ({ ...prev, ...updates }));
+      const newSettings = { ...settings, ...updates };
+      setSettings(newSettings);
+      setSavedSettings(newSettings);
+      
       toast({
         title: 'Settings saved',
         description: 'Branding settings have been updated.',
@@ -106,42 +137,6 @@ export function BrandingSettings() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleLogoToggle = (enabled: boolean) => {
-    updateSettings({ custom_login_logo_enabled: enabled });
-  };
-
-  const handleLogoSizeChange = (size: LogoSize) => {
-    updateSettings({ custom_login_logo_size: size });
-  };
-
-  const handleAppNameToggle = (enabled: boolean) => {
-    updateSettings({ custom_app_name_enabled: enabled });
-  };
-
-  const handleAppNameSave = () => {
-    if (appNameInput.trim()) {
-      updateSettings({ custom_app_name: appNameInput.trim() });
-    }
-  };
-
-  const handleAppNameSizeChange = (size: string) => {
-    updateSettings({ custom_app_name_size: parseInt(size, 10) });
-  };
-
-  const handleTaglineToggle = (enabled: boolean) => {
-    updateSettings({ custom_tagline_enabled: enabled });
-  };
-
-  const handleTaglineSave = () => {
-    if (taglineInput.trim()) {
-      updateSettings({ custom_tagline: taglineInput.trim() });
-    }
-  };
-
-  const handleTaglineSizeChange = (size: string) => {
-    updateSettings({ custom_tagline_size: parseInt(size, 10) });
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,7 +183,16 @@ export function BrandingSettings() {
         .from('branding')
         .getPublicUrl(fileName);
 
-      await updateSettings({ custom_login_logo_url: urlData.publicUrl });
+      // Update both local state and save to DB immediately for logo URL
+      const { error } = await supabase
+        .from('app_settings')
+        .update({ custom_login_logo_url: urlData.publicUrl })
+        .eq('id', 'default');
+
+      if (error) throw error;
+
+      setSettings(prev => ({ ...prev, custom_login_logo_url: urlData.publicUrl }));
+      setSavedSettings(prev => prev ? { ...prev, custom_login_logo_url: urlData.publicUrl } : prev);
 
       toast({
         title: 'Logo uploaded',
@@ -218,10 +222,18 @@ export function BrandingSettings() {
         await supabase.storage.from('branding').remove([path]);
       }
 
-      await updateSettings({ 
-        custom_login_logo_url: null,
-        custom_login_logo_enabled: false 
-      });
+      const { error } = await supabase
+        .from('app_settings')
+        .update({ 
+          custom_login_logo_url: null,
+          custom_login_logo_enabled: false 
+        })
+        .eq('id', 'default');
+
+      if (error) throw error;
+
+      setSettings(prev => ({ ...prev, custom_login_logo_url: null, custom_login_logo_enabled: false }));
+      setSavedSettings(prev => prev ? { ...prev, custom_login_logo_url: null, custom_login_logo_enabled: false } : prev);
     } catch (error: any) {
       toast({
         title: 'Error removing logo',
@@ -265,7 +277,7 @@ export function BrandingSettings() {
             <Switch
               id="logo-toggle"
               checked={settings.custom_login_logo_enabled}
-              onCheckedChange={handleLogoToggle}
+              onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, custom_login_logo_enabled: enabled }))}
               disabled={saving || !settings.custom_login_logo_url}
             />
           </div>
@@ -340,7 +352,7 @@ export function BrandingSettings() {
               <Label className="text-sm font-medium mb-3 block">Logo Size</Label>
               <Select
                 value={settings.custom_login_logo_size}
-                onValueChange={(value) => handleLogoSizeChange(value as LogoSize)}
+                onValueChange={(value) => setSettings(prev => ({ ...prev, custom_login_logo_size: value as LogoSize }))}
                 disabled={saving}
               >
                 <SelectTrigger className="w-full">
@@ -378,8 +390,8 @@ export function BrandingSettings() {
             <Switch
               id="appname-toggle"
               checked={settings.custom_app_name_enabled}
-              onCheckedChange={handleAppNameToggle}
-              disabled={saving || !settings.custom_app_name}
+              onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, custom_app_name_enabled: enabled }))}
+              disabled={saving || !appNameInput.trim()}
             />
           </div>
 
@@ -387,35 +399,26 @@ export function BrandingSettings() {
             <Label htmlFor="app-name-input" className="text-sm font-medium mb-3 block">
               Application Name
             </Label>
-            <div className="flex gap-2">
-              <Input
-                id="app-name-input"
-                placeholder="Enter your application name"
-                value={appNameInput}
-                onChange={(e) => setAppNameInput(e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                onClick={handleAppNameSave}
-                disabled={saving || !appNameInput.trim() || appNameInput.trim() === settings.custom_app_name}
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
-              </Button>
-            </div>
+            <Input
+              id="app-name-input"
+              placeholder="Enter your application name"
+              value={appNameInput}
+              onChange={(e) => setAppNameInput(e.target.value)}
+            />
           </div>
 
-          {!settings.custom_app_name && (
+          {!appNameInput.trim() && (
             <p className="text-xs text-muted-foreground">
               Enter an app name to enable this feature.
             </p>
           )}
 
-          {settings.custom_app_name && (
+          {appNameInput.trim() && (
             <div className="border-t pt-4">
               <Label className="text-sm font-medium mb-3 block">Text Size</Label>
               <Select
                 value={settings.custom_app_name_size.toString()}
-                onValueChange={handleAppNameSizeChange}
+                onValueChange={(size) => setSettings(prev => ({ ...prev, custom_app_name_size: parseInt(size, 10) }))}
                 disabled={saving}
               >
                 <SelectTrigger className="w-20">
@@ -451,8 +454,8 @@ export function BrandingSettings() {
             <Switch
               id="tagline-toggle"
               checked={settings.custom_tagline_enabled}
-              onCheckedChange={handleTaglineToggle}
-              disabled={saving || !settings.custom_tagline}
+              onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, custom_tagline_enabled: enabled }))}
+              disabled={saving || !taglineInput.trim()}
             />
           </div>
 
@@ -460,35 +463,26 @@ export function BrandingSettings() {
             <Label htmlFor="tagline-input" className="text-sm font-medium mb-3 block">
               Tagline Text
             </Label>
-            <div className="flex gap-2">
-              <Input
-                id="tagline-input"
-                placeholder="Enter your tagline"
-                value={taglineInput}
-                onChange={(e) => setTaglineInput(e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                onClick={handleTaglineSave}
-                disabled={saving || !taglineInput.trim() || taglineInput.trim() === settings.custom_tagline}
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
-              </Button>
-            </div>
+            <Input
+              id="tagline-input"
+              placeholder="Enter your tagline"
+              value={taglineInput}
+              onChange={(e) => setTaglineInput(e.target.value)}
+            />
           </div>
 
-          {!settings.custom_tagline && (
+          {!taglineInput.trim() && (
             <p className="text-xs text-muted-foreground">
               Enter a tagline to enable this feature.
             </p>
           )}
 
-          {settings.custom_tagline && (
+          {taglineInput.trim() && (
             <div className="border-t pt-4">
               <Label className="text-sm font-medium mb-3 block">Text Size</Label>
               <Select
                 value={settings.custom_tagline_size.toString()}
-                onValueChange={handleTaglineSizeChange}
+                onValueChange={(size) => setSettings(prev => ({ ...prev, custom_tagline_size: parseInt(size, 10) }))}
                 disabled={saving}
               >
                 <SelectTrigger className="w-20">
@@ -508,6 +502,17 @@ export function BrandingSettings() {
           )}
         </CardContent>
       </Card>
+
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSaveAll}
+          disabled={saving || !hasUnsavedChanges()}
+          size="lg"
+        >
+          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+          Save Changes
+        </Button>
+      </div>
     </div>
   );
 }

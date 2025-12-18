@@ -418,7 +418,7 @@ export function BrandingSettings() {
                 onValueChange={handleAppNameSizeChange}
                 disabled={saving}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-20">
                   <SelectValue placeholder="Select size" />
                 </SelectTrigger>
                 <SelectContent>
@@ -491,7 +491,7 @@ export function BrandingSettings() {
                 onValueChange={handleTaglineSizeChange}
                 disabled={saving}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-20">
                   <SelectValue placeholder="Select size" />
                 </SelectTrigger>
                 <SelectContent>

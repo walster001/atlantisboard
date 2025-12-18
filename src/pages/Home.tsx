@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema } from '@/lib/validators';
@@ -242,6 +242,12 @@ export default function Home() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {isAppAdmin && (
+                <DropdownMenuItem onClick={() => navigate('/admin/config')}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Admin Settings
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign Out

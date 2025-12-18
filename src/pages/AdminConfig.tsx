@@ -4,22 +4,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Settings, Palette, Wrench, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2, Settings, Wrench, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrandingSettings } from '@/components/admin/BrandingSettings';
 
 // Placeholder settings data structure
 const tabConfig = {
-  theme: {
-    icon: Palette,
-    label: 'Theme',
-    subTabs: [
-      { id: 'colors', label: 'Colors' },
-      { id: 'typography', label: 'Typography' },
-      { id: 'spacing', label: 'Spacing' },
-      { id: 'dark-mode', label: 'Dark Mode' },
-    ],
-  },
   configuration: {
     icon: Wrench,
     label: 'Configuration',
@@ -47,8 +37,8 @@ type MainTab = keyof typeof tabConfig;
 export default function AdminConfig() {
   const { user, loading: authLoading, isAppAdmin } = useAuth();
   const navigate = useNavigate();
-  const [activeMainTab, setActiveMainTab] = useState<MainTab>('theme');
-  const [activeSubTab, setActiveSubTab] = useState<string>('colors');
+  const [activeMainTab, setActiveMainTab] = useState<MainTab>('configuration');
+  const [activeSubTab, setActiveSubTab] = useState<string>('general');
 
   // Check if we're in preview/development mode
   const isPreviewMode = window.location.hostname.includes('lovableproject.com') || 

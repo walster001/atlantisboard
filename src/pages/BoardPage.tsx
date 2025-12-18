@@ -99,7 +99,7 @@ export default function BoardPage() {
 
   // Realtime subscription for cards - updates UI instantly without refresh
   useEffect(() => {
-    if (!boardId || !columnIds.length) return;
+    if (!boardId) return;
     
     const channel = supabase
       .channel(`board-${boardId}-cards-realtime`)
@@ -112,8 +112,8 @@ export default function BoardPage() {
         },
         (payload) => {
           const newCard = payload.new as DbCard;
-          // Use ref to get latest columnIds without re-subscribing
-          if (columnIdsRef.current.includes(newCard.column_id)) {
+          // Use ref to get latest columnIds
+          if (columnIdsRef.current.length === 0 || columnIdsRef.current.includes(newCard.column_id)) {
             setCards(prev => {
               if (prev.some(c => c.id === newCard.id)) return prev;
               return [...prev, newCard];
@@ -130,37 +130,36 @@ export default function BoardPage() {
         },
         (payload) => {
           const updatedCard = payload.new as DbCard;
-          // Use ref to get latest columnIds without re-subscribing
-          if (columnIdsRef.current.includes(updatedCard.column_id)) {
-            setCards(prev => {
-              // Only update if card actually changed
-              const existingCard = prev.find(c => c.id === updatedCard.id);
-              if (existingCard && 
-                  existingCard.title === updatedCard.title &&
-                  existingCard.description === updatedCard.description &&
-                  existingCard.due_date === updatedCard.due_date &&
-                  existingCard.position === updatedCard.position &&
-                  existingCard.column_id === updatedCard.column_id) {
-                return prev; // No change, don't trigger re-render
-              }
-              return prev.map(c => c.id === updatedCard.id ? updatedCard : c);
-            });
-            // Update editing card modal if it's the one being edited by another user
-            setEditingCard(prev => {
-              if (prev && prev.card.id === updatedCard.id) {
-                return {
-                  ...prev,
-                  card: {
-                    ...prev.card,
-                    title: updatedCard.title,
-                    description: updatedCard.description || undefined,
-                    dueDate: updatedCard.due_date || undefined,
-                  }
-                };
-              }
-              return prev;
-            });
-          }
+          setCards(prev => {
+            // Check if card exists in our list
+            const existingCard = prev.find(c => c.id === updatedCard.id);
+            if (!existingCard) return prev;
+            
+            // Only update if card actually changed
+            if (existingCard.title === updatedCard.title &&
+                existingCard.description === updatedCard.description &&
+                existingCard.due_date === updatedCard.due_date &&
+                existingCard.position === updatedCard.position &&
+                existingCard.column_id === updatedCard.column_id) {
+              return prev; // No change, don't trigger re-render
+            }
+            return prev.map(c => c.id === updatedCard.id ? updatedCard : c);
+          });
+          // Update editing card modal if it's the one being edited by another user
+          setEditingCard(prev => {
+            if (prev && prev.card.id === updatedCard.id) {
+              return {
+                ...prev,
+                card: {
+                  ...prev.card,
+                  title: updatedCard.title,
+                  description: updatedCard.description || undefined,
+                  dueDate: updatedCard.due_date || undefined,
+                }
+              };
+            }
+            return prev;
+          });
         }
       )
       .on(
@@ -187,7 +186,7 @@ export default function BoardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId]); // Only re-subscribe when boardId changes
+  }, [boardId]);
 
   const fetchBoardData = async () => {
     if (!boardId || !user) return;

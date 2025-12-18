@@ -160,23 +160,24 @@ export default function BoardPage() {
         setCardLabels(cardLabelsData || []);
       }
 
-      // Fetch board members
+      // Fetch board members using secure function (masks email for non-admins)
       const { data: membersData, error: membersError } = await supabase
-        .from('board_members')
-        .select(`
-          user_id,
-          role,
-          profiles (
-            id,
-            email,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('board_id', boardId);
+        .rpc('get_board_member_profiles', { _board_id: boardId });
 
       if (membersError) throw membersError;
-      setBoardMembers(membersData as unknown as BoardMember[] || []);
+      
+      // Transform RPC result to BoardMember format
+      const transformedMembers: BoardMember[] = (membersData || []).map((m: any) => ({
+        user_id: m.user_id,
+        role: m.role as 'admin' | 'manager' | 'viewer',
+        profiles: {
+          id: m.id,
+          email: m.email || '',
+          full_name: m.full_name,
+          avatar_url: m.avatar_url,
+        }
+      }));
+      setBoardMembers(transformedMembers);
 
     } catch (error: any) {
       console.error('Error fetching board:', error);

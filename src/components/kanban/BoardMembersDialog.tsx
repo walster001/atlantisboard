@@ -201,9 +201,11 @@ export function BoardMembersDialog({
                   </Avatar>
                   <div>
                     <p className="text-sm font-medium">
-                      {member.profiles.full_name || member.profiles.email}
+                      {member.profiles.full_name || member.profiles.email || 'Unknown User'}
                     </p>
-                    <p className="text-xs text-muted-foreground">{member.profiles.email}</p>
+                    {member.profiles.email && (
+                      <p className="text-xs text-muted-foreground">{member.profiles.email}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

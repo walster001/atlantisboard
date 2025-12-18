@@ -356,6 +356,17 @@ export type Database = {
           id: string
         }[]
       }
+      get_board_member_profiles: {
+        Args: { _board_id: string }
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          id: string
+          role: string
+          user_id: string
+        }[]
+      }
       get_board_role: {
         Args: { _board_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["board_role"]

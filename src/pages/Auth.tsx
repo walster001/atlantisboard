@@ -193,7 +193,7 @@ export default function Auth() {
       style={backgroundStyles}
     >
       <Card 
-        className="w-full max-w-lg"
+        className="w-full max-w-lg border-0 shadow-lg"
         style={{ backgroundColor: brandingConfig.boxBackgroundColor }}
       >
         <CardHeader className="text-center space-y-4">

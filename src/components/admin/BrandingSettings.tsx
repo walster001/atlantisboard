@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 
 type LogoSize = 'small' | 'medium' | 'large';
+type BackgroundType = 'color' | 'image';
 
 interface AppSettings {
   custom_login_logo_enabled: boolean;
@@ -27,6 +28,14 @@ interface AppSettings {
   custom_tagline_size: number;
   custom_tagline_color: string;
   custom_tagline_font: string;
+  // New background settings
+  custom_login_background_enabled: boolean;
+  custom_login_background_type: BackgroundType;
+  custom_login_background_color: string;
+  custom_login_background_image_url: string | null;
+  custom_login_box_background_color: string;
+  custom_google_button_background_color: string;
+  custom_google_button_text_color: string;
 }
 
 interface CustomFont {
@@ -53,15 +62,25 @@ export function BrandingSettings() {
     custom_tagline_size: 14,
     custom_tagline_color: '#6b7280',
     custom_tagline_font: 'default',
+    // New defaults
+    custom_login_background_enabled: false,
+    custom_login_background_type: 'color',
+    custom_login_background_color: '#f3f4f6',
+    custom_login_background_image_url: null,
+    custom_login_box_background_color: '#ffffff',
+    custom_google_button_background_color: '#ffffff',
+    custom_google_button_text_color: '#000000',
   });
   const [savedSettings, setSavedSettings] = useState<AppSettings | null>(null);
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadingBgImage, setUploadingBgImage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [appNameInput, setAppNameInput] = useState('');
   const [taglineInput, setTaglineInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bgImageInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -94,7 +113,7 @@ export function BrandingSettings() {
     try {
       const { data, error } = await supabase
         .from('app_settings')
-        .select('custom_login_logo_enabled, custom_login_logo_url, custom_login_logo_size, custom_app_name_enabled, custom_app_name, custom_app_name_size, custom_app_name_color, custom_app_name_font, custom_tagline_enabled, custom_tagline, custom_tagline_size, custom_tagline_color, custom_tagline_font')
+        .select('*')
         .eq('id', 'default')
         .single();
 
@@ -114,6 +133,14 @@ export function BrandingSettings() {
           custom_tagline_size: data.custom_tagline_size || 14,
           custom_tagline_color: data.custom_tagline_color || '#6b7280',
           custom_tagline_font: data.custom_tagline_font || 'default',
+          // New settings
+          custom_login_background_enabled: data.custom_login_background_enabled ?? false,
+          custom_login_background_type: (data.custom_login_background_type as BackgroundType) || 'color',
+          custom_login_background_color: data.custom_login_background_color || '#f3f4f6',
+          custom_login_background_image_url: data.custom_login_background_image_url,
+          custom_login_box_background_color: data.custom_login_box_background_color || '#ffffff',
+          custom_google_button_background_color: data.custom_google_button_background_color || '#ffffff',
+          custom_google_button_text_color: data.custom_google_button_text_color || '#000000',
         };
         setSettings(loadedSettings);
         setSavedSettings(loadedSettings);
@@ -161,7 +188,14 @@ export function BrandingSettings() {
       taglineInput.trim() !== (savedSettings.custom_tagline || '') ||
       settings.custom_tagline_size !== savedSettings.custom_tagline_size ||
       settings.custom_tagline_color !== savedSettings.custom_tagline_color ||
-      settings.custom_tagline_font !== savedSettings.custom_tagline_font
+      settings.custom_tagline_font !== savedSettings.custom_tagline_font ||
+      // New settings
+      settings.custom_login_background_enabled !== savedSettings.custom_login_background_enabled ||
+      settings.custom_login_background_type !== savedSettings.custom_login_background_type ||
+      settings.custom_login_background_color !== savedSettings.custom_login_background_color ||
+      settings.custom_login_box_background_color !== savedSettings.custom_login_box_background_color ||
+      settings.custom_google_button_background_color !== savedSettings.custom_google_button_background_color ||
+      settings.custom_google_button_text_color !== savedSettings.custom_google_button_text_color
     );
   };
 
@@ -181,6 +215,13 @@ export function BrandingSettings() {
         custom_tagline_size: settings.custom_tagline_size,
         custom_tagline_color: settings.custom_tagline_color,
         custom_tagline_font: settings.custom_tagline_font,
+        // New settings
+        custom_login_background_enabled: settings.custom_login_background_enabled,
+        custom_login_background_type: settings.custom_login_background_type,
+        custom_login_background_color: settings.custom_login_background_color,
+        custom_login_box_background_color: settings.custom_login_box_background_color,
+        custom_google_button_background_color: settings.custom_google_button_background_color,
+        custom_google_button_text_color: settings.custom_google_button_text_color,
       };
 
       const { error } = await supabase
@@ -314,6 +355,130 @@ export function BrandingSettings() {
     }
   };
 
+  const handleBgImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please select an image file.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please select an image smaller than 5MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingBgImage(true);
+    try {
+      if (settings.custom_login_background_image_url) {
+        const oldPath = settings.custom_login_background_image_url.split('/branding/')[1];
+        if (oldPath) {
+          await supabase.storage.from('branding').remove([oldPath]);
+        }
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `login-bg-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('branding')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('branding')
+        .getPublicUrl(fileName);
+
+      const { error } = await supabase
+        .from('app_settings')
+        .update({ custom_login_background_image_url: urlData.publicUrl })
+        .eq('id', 'default');
+
+      if (error) throw error;
+
+      setSettings(prev => ({ ...prev, custom_login_background_image_url: urlData.publicUrl }));
+      setSavedSettings(prev => prev ? { ...prev, custom_login_background_image_url: urlData.publicUrl } : prev);
+
+      toast({
+        title: 'Background image uploaded',
+        description: 'Your custom background image has been uploaded.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Upload failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingBgImage(false);
+      if (bgImageInputRef.current) {
+        bgImageInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveBgImage = async () => {
+    if (!settings.custom_login_background_image_url) return;
+
+    setSaving(true);
+    try {
+      const path = settings.custom_login_background_image_url.split('/branding/')[1];
+      if (path) {
+        await supabase.storage.from('branding').remove([path]);
+      }
+
+      const { error } = await supabase
+        .from('app_settings')
+        .update({ custom_login_background_image_url: null })
+        .eq('id', 'default');
+
+      if (error) throw error;
+
+      setSettings(prev => ({ ...prev, custom_login_background_image_url: null }));
+      setSavedSettings(prev => prev ? { ...prev, custom_login_background_image_url: null } : prev);
+    } catch (error: any) {
+      toast({
+        title: 'Error removing background',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Compute preview background styles
+  const getPreviewBackgroundStyles = () => {
+    if (!settings.custom_login_background_enabled) {
+      return { className: 'bg-gradient-to-br from-muted via-background to-muted' };
+    }
+    
+    if (settings.custom_login_background_type === 'image' && settings.custom_login_background_image_url) {
+      return {
+        style: {
+          backgroundImage: `url(${settings.custom_login_background_image_url})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }
+      };
+    }
+    
+    return {
+      style: { backgroundColor: settings.custom_login_background_color }
+    };
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -321,6 +486,8 @@ export function BrandingSettings() {
       </div>
     );
   }
+
+  const previewBgStyles = getPreviewBackgroundStyles();
 
   return (
     <div className="space-y-6">
@@ -330,6 +497,286 @@ export function BrandingSettings() {
           Customize the appearance of your application.
         </p>
       </div>
+
+      {/* Custom Login Background */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Custom Login Background</CardTitle>
+          <CardDescription>
+            Customize the background of the login page with a color or image.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="bg-toggle" className="font-medium">
+              Enable custom background
+            </Label>
+            <Switch
+              id="bg-toggle"
+              checked={settings.custom_login_background_enabled}
+              onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, custom_login_background_enabled: enabled }))}
+              disabled={saving}
+            />
+          </div>
+
+          {settings.custom_login_background_enabled && (
+            <>
+              <div className="border-t pt-4">
+                <Label className="text-sm font-medium mb-3 block">Background Type</Label>
+                <Select
+                  value={settings.custom_login_background_type}
+                  onValueChange={(value) => setSettings(prev => ({ ...prev, custom_login_background_type: value as BackgroundType }))}
+                  disabled={saving}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="color">Solid Color</SelectItem>
+                    <SelectItem value="image">Background Image</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {settings.custom_login_background_type === 'color' && (
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-medium mb-3 block">Background Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="icon" className="shrink-0">
+                          <div 
+                            className="w-4 h-4 rounded-sm border" 
+                            style={{ backgroundColor: settings.custom_login_background_color }}
+                          />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="start">
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium">Pick a color</Label>
+                          <input
+                            type="color"
+                            value={settings.custom_login_background_color}
+                            onChange={(e) => setSettings(prev => ({ ...prev, custom_login_background_color: e.target.value }))}
+                            className="w-full h-10 cursor-pointer rounded border-0"
+                          />
+                          <Input
+                            value={settings.custom_login_background_color}
+                            onChange={(e) => setSettings(prev => ({ ...prev, custom_login_background_color: e.target.value }))}
+                            className="font-mono text-sm"
+                            placeholder="#f3f4f6"
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <Input
+                      value={settings.custom_login_background_color}
+                      onChange={(e) => setSettings(prev => ({ ...prev, custom_login_background_color: e.target.value }))}
+                      className="font-mono text-sm"
+                      placeholder="#f3f4f6"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {settings.custom_login_background_type === 'image' && (
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-medium mb-3 block">Background Image</Label>
+                  
+                  {settings.custom_login_background_image_url ? (
+                    <div className="space-y-3">
+                      <div className="relative inline-block">
+                        <img
+                          src={settings.custom_login_background_image_url}
+                          alt="Background preview"
+                          className="max-h-32 max-w-full rounded-md border bg-muted object-cover"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6"
+                          onClick={handleRemoveBgImage}
+                          disabled={saving}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => bgImageInputRef.current?.click()}
+                          disabled={uploadingBgImage}
+                        >
+                          {uploadingBgImage ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4 mr-2" />
+                          )}
+                          Replace Image
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => bgImageInputRef.current?.click()}
+                      className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
+                    >
+                      {uploadingBgImage ? (
+                        <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin text-muted-foreground" />
+                      ) : (
+                        <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        {uploadingBgImage ? 'Uploading...' : 'Click to upload a background image'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PNG, JPG (max 5MB)
+                      </p>
+                    </div>
+                  )}
+
+                  <input
+                    ref={bgImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleBgImageSelect}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Login Box Background Color */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Login Box Styling</CardTitle>
+          <CardDescription>
+            Customize the appearance of the login card and Google button.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-sm font-medium mb-3 block">Login Box Background Color</Label>
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="shrink-0">
+                    <div 
+                      className="w-4 h-4 rounded-sm border" 
+                      style={{ backgroundColor: settings.custom_login_box_background_color }}
+                    />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3" align="start">
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Pick a color</Label>
+                    <input
+                      type="color"
+                      value={settings.custom_login_box_background_color}
+                      onChange={(e) => setSettings(prev => ({ ...prev, custom_login_box_background_color: e.target.value }))}
+                      className="w-full h-10 cursor-pointer rounded border-0"
+                    />
+                    <Input
+                      value={settings.custom_login_box_background_color}
+                      onChange={(e) => setSettings(prev => ({ ...prev, custom_login_box_background_color: e.target.value }))}
+                      className="font-mono text-sm"
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Input
+                value={settings.custom_login_box_background_color}
+                onChange={(e) => setSettings(prev => ({ ...prev, custom_login_box_background_color: e.target.value }))}
+                className="font-mono text-sm"
+                placeholder="#ffffff"
+              />
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <Label className="text-sm font-medium mb-3 block">Google Button Background Color</Label>
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="shrink-0">
+                    <div 
+                      className="w-4 h-4 rounded-sm border" 
+                      style={{ backgroundColor: settings.custom_google_button_background_color }}
+                    />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3" align="start">
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Pick a color</Label>
+                    <input
+                      type="color"
+                      value={settings.custom_google_button_background_color}
+                      onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_background_color: e.target.value }))}
+                      className="w-full h-10 cursor-pointer rounded border-0"
+                    />
+                    <Input
+                      value={settings.custom_google_button_background_color}
+                      onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_background_color: e.target.value }))}
+                      className="font-mono text-sm"
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Input
+                value={settings.custom_google_button_background_color}
+                onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_background_color: e.target.value }))}
+                className="font-mono text-sm"
+                placeholder="#ffffff"
+              />
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <Label className="text-sm font-medium mb-3 block">Google Button Text Color</Label>
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="shrink-0">
+                    <div 
+                      className="w-4 h-4 rounded-sm border" 
+                      style={{ backgroundColor: settings.custom_google_button_text_color }}
+                    />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3" align="start">
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Pick a color</Label>
+                    <input
+                      type="color"
+                      value={settings.custom_google_button_text_color}
+                      onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_text_color: e.target.value }))}
+                      className="w-full h-10 cursor-pointer rounded border-0"
+                    />
+                    <Input
+                      value={settings.custom_google_button_text_color}
+                      onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_text_color: e.target.value }))}
+                      className="font-mono text-sm"
+                      placeholder="#000000"
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Input
+                value={settings.custom_google_button_text_color}
+                onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_text_color: e.target.value }))}
+                className="font-mono text-sm"
+                placeholder="#000000"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -485,31 +932,35 @@ export function BrandingSettings() {
           {appNameInput.trim() && (
             <div className="border-t pt-4 space-y-4">
               <div>
-                <Label className="text-sm font-medium mb-3 block">Font, Size & Color</Label>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Select
-                    value={settings.custom_app_name_font}
-                    onValueChange={(font) => setSettings(prev => ({ ...prev, custom_app_name_font: font }))}
-                    disabled={saving}
-                  >
-                    <SelectTrigger className="w-36">
-                      <SelectValue placeholder="Select font" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">Inter (Default)</SelectItem>
-                      {customFonts.map((font) => (
-                        <SelectItem key={font.id} value={font.id}>
-                          {font.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <Label className="text-sm font-medium mb-3 block">Font</Label>
+                <Select
+                  value={settings.custom_app_name_font}
+                  onValueChange={(value) => setSettings(prev => ({ ...prev, custom_app_name_font: value }))}
+                  disabled={saving}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select font" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default (Inter)</SelectItem>
+                    {customFonts.map((font) => (
+                      <SelectItem key={font.id} value={font.id}>
+                        {font.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium mb-3 block">Text Size & Color</Label>
+                <div className="flex items-center gap-2">
                   <Select
                     value={settings.custom_app_name_size.toString()}
-                    onValueChange={(size) => setSettings(prev => ({ ...prev, custom_app_name_size: parseInt(size, 10) }))}
+                    onValueChange={(value) => setSettings(prev => ({ ...prev, custom_app_name_size: parseInt(value) }))}
                     disabled={saving}
                   >
-                    <SelectTrigger className="w-20">
+                    <SelectTrigger className="w-[100px]">
                       <SelectValue placeholder="Size" />
                     </SelectTrigger>
                     <SelectContent>
@@ -554,7 +1005,7 @@ export function BrandingSettings() {
                 </div>
                 <div className="mt-3 p-3 border rounded-lg bg-muted/30">
                   <span 
-                    className="font-bold truncate block" 
+                    className="truncate block font-bold" 
                     style={{ 
                       fontSize: `${Math.min(settings.custom_app_name_size, 32)}px`, 
                       lineHeight: 1.2,
@@ -576,7 +1027,7 @@ export function BrandingSettings() {
         <CardHeader>
           <CardTitle className="text-base">Custom Tagline</CardTitle>
           <CardDescription>
-            Display a custom tagline below the app name on the sign-in screen.
+            Display a custom tagline or description below the app name.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -613,31 +1064,35 @@ export function BrandingSettings() {
           {taglineInput.trim() && (
             <div className="border-t pt-4 space-y-4">
               <div>
-                <Label className="text-sm font-medium mb-3 block">Font, Size & Color</Label>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Select
-                    value={settings.custom_tagline_font}
-                    onValueChange={(font) => setSettings(prev => ({ ...prev, custom_tagline_font: font }))}
-                    disabled={saving}
-                  >
-                    <SelectTrigger className="w-36">
-                      <SelectValue placeholder="Select font" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">Inter (Default)</SelectItem>
-                      {customFonts.map((font) => (
-                        <SelectItem key={font.id} value={font.id}>
-                          {font.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <Label className="text-sm font-medium mb-3 block">Font</Label>
+                <Select
+                  value={settings.custom_tagline_font}
+                  onValueChange={(value) => setSettings(prev => ({ ...prev, custom_tagline_font: value }))}
+                  disabled={saving}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select font" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default (Inter)</SelectItem>
+                    {customFonts.map((font) => (
+                      <SelectItem key={font.id} value={font.id}>
+                        {font.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium mb-3 block">Text Size & Color</Label>
+                <div className="flex items-center gap-2">
                   <Select
                     value={settings.custom_tagline_size.toString()}
-                    onValueChange={(size) => setSettings(prev => ({ ...prev, custom_tagline_size: parseInt(size, 10) }))}
+                    onValueChange={(value) => setSettings(prev => ({ ...prev, custom_tagline_size: parseInt(value) }))}
                     disabled={saving}
                   >
-                    <SelectTrigger className="w-20">
+                    <SelectTrigger className="w-[100px]">
                       <SelectValue placeholder="Size" />
                     </SelectTrigger>
                     <SelectContent>
@@ -709,8 +1164,14 @@ export function BrandingSettings() {
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg overflow-hidden">
-            <div className="bg-gradient-to-br from-muted via-background to-muted p-8 flex items-center justify-center min-h-[400px]">
-              <div className="w-full max-w-md bg-card rounded-lg border shadow-sm">
+            <div 
+              className={`p-8 flex items-center justify-center min-h-[400px] ${previewBgStyles.className || ''}`}
+              style={previewBgStyles.style}
+            >
+              <div 
+                className="w-full max-w-md rounded-lg border shadow-sm"
+                style={{ backgroundColor: settings.custom_login_box_background_color }}
+              >
                 <div className="p-6 text-center space-y-4">
                   {settings.custom_login_logo_enabled && settings.custom_login_logo_url && (
                     <div className="flex justify-center">
@@ -751,7 +1212,13 @@ export function BrandingSettings() {
                   </div>
                 </div>
                 <div className="p-6 pt-0">
-                  <button className="w-full h-12 text-base border rounded-md flex items-center justify-center gap-2 bg-background hover:bg-accent transition-colors">
+                  <button 
+                    className="w-full h-12 text-base border rounded-md flex items-center justify-center gap-2 transition-colors"
+                    style={{
+                      backgroundColor: settings.custom_google_button_background_color,
+                      color: settings.custom_google_button_text_color,
+                    }}
+                  >
                     <svg className="h-5 w-5" viewBox="0 0 24 24">
                       <path
                         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"

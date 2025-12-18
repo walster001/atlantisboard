@@ -21,6 +21,13 @@ interface AppSettings {
   custom_tagline_size: number;
   custom_tagline_color: string;
   custom_tagline_font: string;
+  custom_login_background_enabled: boolean;
+  custom_login_background_type: string;
+  custom_login_background_color: string;
+  custom_login_background_image_url: string | null;
+  custom_login_box_background_color: string;
+  custom_google_button_background_color: string;
+  custom_google_button_text_color: string;
 }
 
 interface CustomFont {
@@ -124,6 +131,7 @@ export default function Auth() {
     const showCustomLogo = settings?.custom_login_logo_enabled && settings?.custom_login_logo_url;
     const showCustomAppName = settings?.custom_app_name_enabled && settings?.custom_app_name;
     const showCustomTagline = settings?.custom_tagline_enabled && settings?.custom_tagline;
+    const useCustomBackground = settings?.custom_login_background_enabled;
     
     return {
       showCustomLogo,
@@ -137,8 +145,37 @@ export default function Auth() {
       taglineSize: settings?.custom_tagline_size || 14,
       taglineColor: settings?.custom_tagline_color || '#6b7280',
       taglineFont: getFontFamily(settings?.custom_tagline_font),
+      // Background settings
+      useCustomBackground,
+      backgroundType: settings?.custom_login_background_type || 'color',
+      backgroundColor: settings?.custom_login_background_color || '#f3f4f6',
+      backgroundImageUrl: settings?.custom_login_background_image_url,
+      // Box and button settings
+      boxBackgroundColor: settings?.custom_login_box_background_color || '#ffffff',
+      googleButtonBackgroundColor: settings?.custom_google_button_background_color || '#ffffff',
+      googleButtonTextColor: settings?.custom_google_button_text_color || '#000000',
     };
   }, [pageData?.settings, getFontFamily]);
+
+  // Compute background styles
+  const backgroundStyles = useMemo(() => {
+    if (!brandingConfig.useCustomBackground) {
+      return {};
+    }
+    
+    if (brandingConfig.backgroundType === 'image' && brandingConfig.backgroundImageUrl) {
+      return {
+        backgroundImage: `url(${brandingConfig.backgroundImageUrl})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      };
+    }
+    
+    return {
+      backgroundColor: brandingConfig.backgroundColor,
+    };
+  }, [brandingConfig]);
 
   if (loading || dataLoading) {
     return (
@@ -149,8 +186,16 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-kanban-bg via-background to-kanban-bg p-4">
-      <Card className="w-full max-w-lg">
+    <div 
+      className={`min-h-screen flex items-center justify-center p-4 ${
+        !brandingConfig.useCustomBackground ? 'bg-gradient-to-br from-kanban-bg via-background to-kanban-bg' : ''
+      }`}
+      style={backgroundStyles}
+    >
+      <Card 
+        className="w-full max-w-lg"
+        style={{ backgroundColor: brandingConfig.boxBackgroundColor }}
+      >
         <CardHeader className="text-center space-y-4">
           {brandingConfig.showCustomLogo && (
             <div className="flex justify-center">
@@ -187,7 +232,11 @@ export default function Auth() {
         <CardContent>
           <Button
             variant="outline"
-            className="w-full h-12 text-base"
+            className="w-full h-12 text-base border"
+            style={{
+              backgroundColor: brandingConfig.googleButtonBackgroundColor,
+              color: brandingConfig.googleButtonTextColor,
+            }}
             onClick={handleGoogleSignIn}
           >
             <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">

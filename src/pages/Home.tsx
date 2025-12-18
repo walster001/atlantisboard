@@ -240,11 +240,6 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <LayoutDashboard className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold">KanBoard</h1>
-            {isAppAdmin && (
-              <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-medium">
-                App Admin
-              </span>
-            )}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -508,16 +508,6 @@ export default function BoardPage() {
                 Members ({boardMembers.length})
               </Button>
             )}
-            {isAppAdmin && (
-              <span className="text-xs text-white bg-primary px-2 py-1 rounded font-medium">
-                App Admin
-              </span>
-            )}
-            {userRole && !isAppAdmin && (
-              <span className="text-xs text-white/70 bg-white/20 px-2 py-1 rounded">
-                {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
-              </span>
-            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2 text-white hover:bg-white/20">

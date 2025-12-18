@@ -1,6 +1,6 @@
 import { Draggable } from '@hello-pangea/dnd';
 import { Card, Label } from '@/types/kanban';
-import { Calendar, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Calendar, MoreHorizontal, Trash2 } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
@@ -35,6 +35,15 @@ export function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled =
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
   const isDueToday = dueDate && isToday(dueDate);
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't open card if clicking on dropdown menu
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-dropdown-menu]') || target.closest('button')) {
+      return;
+    }
+    onEdit();
+  };
+
   return (
     <Draggable draggableId={card.id} index={index}>
       {(provided, snapshot) => (
@@ -42,11 +51,12 @@ export function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled =
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
+          onClick={handleCardClick}
           className={cn(
-            'group bg-card rounded-lg p-3 mb-2 cursor-grab active:cursor-grabbing transition-all duration-200',
+            'kanban-card group bg-card rounded-lg p-3 mb-2 cursor-pointer transition-all duration-200',
             snapshot.isDragging
-              ? 'shadow-card-dragging rotate-2 scale-105'
-              : 'shadow-card hover:shadow-card-hover'
+              ? 'shadow-card-dragging rotate-2 scale-105 cursor-grabbing'
+              : 'shadow-card hover:shadow-card-hover hover:bg-card/80'
           )}
         >
           {/* Labels */}
@@ -69,10 +79,7 @@ export function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled =
 
           {/* Title & Menu */}
           <div className="flex items-start justify-between gap-2">
-            <h4 
-              className="text-sm font-medium text-card-foreground leading-snug flex-1 cursor-pointer"
-              onClick={onEdit}
-            >
+            <h4 className="text-sm font-medium text-card-foreground leading-snug flex-1">
               {card.title}
             </h4>
             {!disabled && (
@@ -81,17 +88,18 @@ export function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled =
                   <Button
                     variant="ghost"
                     size="icon"
+                    data-dropdown-menu
                     className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem onClick={onEdit}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }} className="text-destructive">
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete
                   </DropdownMenuItem>

@@ -4,7 +4,7 @@ import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { KanbanColumn } from '@/components/kanban/KanbanColumn';
-import { CardEditDialog } from '@/components/kanban/CardEditDialog';
+import { CardDetailModal } from '@/components/kanban/CardDetailModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -629,15 +629,22 @@ export default function BoardPage() {
         </DragDropContext>
       </div>
 
-      {/* Card Edit Dialog */}
-      <CardEditDialog
+      {/* Card Detail Modal */}
+      <CardDetailModal
         card={editingCard?.card || null}
         open={!!editingCard}
         onClose={() => setEditingCard(null)}
         onSave={(updates) => {
           if (editingCard) {
             updateCard(editingCard.card.id, updates);
-            setEditingCard(null);
+            // Update local state for immediate feedback
+            setEditingCard({
+              ...editingCard,
+              card: {
+                ...editingCard.card,
+                ...updates,
+              },
+            });
           }
         }}
         onAddLabel={(label) => {
@@ -662,6 +669,11 @@ export default function BoardPage() {
                 labels: editingCard.card.labels.filter((l) => l.id !== labelId),
               },
             });
+          }
+        }}
+        onDelete={() => {
+          if (editingCard) {
+            deleteCard(editingCard.card.id);
           }
         }}
         disabled={!canEdit}

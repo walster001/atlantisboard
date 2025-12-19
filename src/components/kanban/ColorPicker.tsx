@@ -14,9 +14,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Palette, Check, Pipette } from 'lucide-react';
+import { Palette, Check, Pipette, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+
+const RECENT_COLORS_KEY = 'kanban-recent-colors';
+const MAX_RECENT_COLORS = 5;
 
 const PRESET_COLORS = [
   '#ef4444', // red
@@ -50,6 +53,30 @@ function rgbToHex(r: number, g: number, b: number): string {
   }).join('');
 }
 
+function getRecentColors(): string[] {
+  try {
+    const stored = localStorage.getItem(RECENT_COLORS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function addRecentColor(color: string): string[] {
+  if (!color || color === '#ffffff') return getRecentColors();
+  
+  const recent = getRecentColors().filter(c => c.toLowerCase() !== color.toLowerCase());
+  const updated = [color, ...recent].slice(0, MAX_RECENT_COLORS);
+  
+  try {
+    localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(updated));
+  } catch {
+    // localStorage might be full or unavailable
+  }
+  
+  return updated;
+}
+
 interface ColorPickerProps {
   currentColor: string | null;
   onApply: (color: string | null) => void;
@@ -70,7 +97,13 @@ export function ColorPicker({
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [rgb, setRgb] = useState({ r: 0, g: 0, b: 0 });
   const [hexInput, setHexInput] = useState(currentColor || '#000000');
+  const [recentColors, setRecentColors] = useState<string[]>([]);
   const { toast } = useToast();
+
+  // Load recent colors on mount
+  useEffect(() => {
+    setRecentColors(getRecentColors());
+  }, []);
 
   // Sync RGB values when selectedColor changes
   useEffect(() => {
@@ -126,7 +159,11 @@ export function ColorPicker({
   };
 
   const handleApply = () => {
-    onApply(selectedColor === '#ffffff' ? null : selectedColor);
+    const colorToApply = selectedColor === '#ffffff' ? null : selectedColor;
+    if (selectedColor && selectedColor !== '#ffffff') {
+      setRecentColors(addRecentColor(selectedColor));
+    }
+    onApply(colorToApply);
     setOpen(false);
   };
 
@@ -135,7 +172,11 @@ export function ColorPicker({
   };
 
   const handleConfirmApplyToAll = () => {
-    onApplyToAll(selectedColor === '#ffffff' ? null : selectedColor);
+    const colorToApply = selectedColor === '#ffffff' ? null : selectedColor;
+    if (selectedColor && selectedColor !== '#ffffff') {
+      setRecentColors(addRecentColor(selectedColor));
+    }
+    onApplyToAll(colorToApply);
     setConfirmDialogOpen(false);
     setOpen(false);
   };
@@ -190,6 +231,38 @@ export function ColorPicker({
                   </button>
                 ))}
               </div>
+              
+              {/* Recent colors */}
+              {recentColors.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    <span>Recent</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {recentColors.map((color, index) => (
+                      <button
+                        key={`${color}-${index}`}
+                        onClick={() => {
+                          setSelectedColor(color);
+                          setHexInput(color);
+                          const { r, g, b } = hexToRgb(color);
+                          setRgb({ r, g, b });
+                        }}
+                        className={cn(
+                          'h-8 w-8 rounded-md border-2 transition-all hover:scale-110',
+                          selectedColor === color ? 'border-primary ring-2 ring-primary/20' : 'border-transparent'
+                        )}
+                        style={{ backgroundColor: color }}
+                      >
+                        {selectedColor === color && (
+                          <Check className="h-4 w-4 mx-auto text-white" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </TabsContent>
             
             <TabsContent value="custom" className="space-y-3">

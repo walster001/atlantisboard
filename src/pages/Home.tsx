@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload, Users, Paperclip } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload, Users, Paperclip, GripVertical } from 'lucide-react';
 import { BoardImportDialog } from '@/components/import/BoardImportDialog';
 import { AssigneeMappingDialog } from '@/components/import/AssigneeMappingDialog';
 import { ImportAttachmentDialog } from '@/components/import/ImportAttachmentDialog';
@@ -33,6 +34,7 @@ interface Board {
   name: string;
   description: string | null;
   background_color: string;
+  position: number;
 }
 
 const BOARD_COLORS = [
@@ -277,6 +279,93 @@ export default function Home() {
     navigate('/auth');
   };
 
+  // Handle board drag and drop
+  const onDragEnd = useCallback(async (result: DropResult) => {
+    if (!user) return;
+    
+    const { destination, source, draggableId } = result;
+    
+    // Dropped outside a droppable area
+    if (!destination) return;
+    
+    // Dropped in same position
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
+    const sourceWorkspaceId = source.droppableId;
+    const destWorkspaceId = destination.droppableId;
+    const boardId = draggableId;
+
+    // Check if user can edit this board
+    if (boardRoles[boardId] !== 'admin' && !isAppAdmin) {
+      toast({ title: 'Permission denied', description: 'You must be a board admin to move this board.', variant: 'destructive' });
+      return;
+    }
+
+    // Get boards in source and destination workspaces
+    const sourceBoards = boards
+      .filter(b => b.workspace_id === sourceWorkspaceId)
+      .sort((a, b) => a.position - b.position);
+    const destBoards = sourceWorkspaceId === destWorkspaceId
+      ? sourceBoards
+      : boards.filter(b => b.workspace_id === destWorkspaceId).sort((a, b) => a.position - b.position);
+
+    const draggedBoard = boards.find(b => b.id === boardId);
+    if (!draggedBoard) return;
+
+    // Optimistically update local state
+    if (sourceWorkspaceId === destWorkspaceId) {
+      // Same workspace reordering
+      const newBoards = Array.from(sourceBoards);
+      const [removed] = newBoards.splice(source.index, 1);
+      newBoards.splice(destination.index, 0, removed);
+      
+      const updatedBoards = newBoards.map((b, idx) => ({ ...b, position: idx }));
+      
+      setBoards(prev => {
+        const others = prev.filter(b => b.workspace_id !== sourceWorkspaceId);
+        return [...others, ...updatedBoards];
+      });
+
+      // Update database
+      await supabase.rpc('batch_update_board_positions', {
+        _user_id: user.id,
+        _workspace_id: sourceWorkspaceId,
+        _updates: updatedBoards.map(b => ({ id: b.id, position: b.position }))
+      });
+    } else {
+      // Moving between workspaces
+      const newSourceBoards = sourceBoards.filter(b => b.id !== boardId);
+      const newDestBoards = [...destBoards];
+      const updatedBoard = { ...draggedBoard, workspace_id: destWorkspaceId, position: destination.index };
+      newDestBoards.splice(destination.index, 0, updatedBoard);
+
+      // Update positions
+      const updatedSourceBoards = newSourceBoards.map((b, idx) => ({ ...b, position: idx }));
+      const updatedDestBoards = newDestBoards.map((b, idx) => ({ ...b, position: idx }));
+
+      setBoards(prev => {
+        const others = prev.filter(b => b.workspace_id !== sourceWorkspaceId && b.workspace_id !== destWorkspaceId);
+        return [...others, ...updatedSourceBoards, ...updatedDestBoards];
+      });
+
+      // Update database
+      const { data, error } = await supabase.rpc('move_board_to_workspace', {
+        _user_id: user.id,
+        _board_id: boardId,
+        _new_workspace_id: destWorkspaceId,
+        _new_position: destination.index
+      });
+
+      if (error || (data as any)?.error) {
+        toast({ title: 'Error moving board', description: (data as any)?.error || getUserFriendlyError(error), variant: 'destructive' });
+        // Revert by refetching
+        fetchData();
+      } else {
+        toast({ title: 'Board moved successfully' });
+      }
+    }
+  }, [boards, boardRoles, user, isAppAdmin, toast, fetchData]);
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -393,168 +482,206 @@ export default function Home() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-6">
-              {workspaces.map((workspace) => (
-                <div key={workspace.id} className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-medium">{workspace.name}</h3>
-                      {workspace.description && (
-                        <p className="text-sm text-muted-foreground">{workspace.description}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {(workspace.owner_id === user?.id || isAppAdmin) && (
-                        <Dialog
-                          open={boardDialogOpen && selectedWorkspaceId === workspace.id}
-                          onOpenChange={(open) => {
-                            setBoardDialogOpen(open);
-                            if (open) setSelectedWorkspaceId(workspace.id);
-                          }}
-                        >
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Plus className="h-4 w-4 mr-1" />
-                              Add Board
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Create Board</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-4 pt-4">
-                              <div className="space-y-2">
-                                <Label>Board Name</Label>
-                                <Input
-                                  value={newBoardName}
-                                  onChange={(e) => setNewBoardName(e.target.value)}
-                                  placeholder="Project Board"
-                                  maxLength={100}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Background Color</Label>
-                                <div className="flex gap-2 flex-wrap">
-                                  {BOARD_COLORS.map((color) => (
-                                    <button
-                                      key={color}
-                                      className={`w-8 h-8 rounded-md transition-all ${
-                                        newBoardColor === color ? 'ring-2 ring-primary ring-offset-2' : ''
-                                      }`}
-                                      style={{ backgroundColor: color }}
-                                      onClick={() => setNewBoardColor(color)}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                              <Button onClick={createBoard} className="w-full">
-                                Create Board
-                              </Button>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      )}
-                      {(workspace.owner_id === user?.id || isAppAdmin) && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => deleteWorkspace(workspace.id)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Workspace
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Boards Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {boards
-                      .filter((b) => b.workspace_id === workspace.id)
-                      .map((board) => (
-                        <Card
-                          key={board.id}
-                          className="group cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-                          onClick={() => navigate(`/board/${board.id}`)}
-                        >
-                          <div
-                            className="h-24 flex items-end p-3"
-                            style={{ backgroundColor: sanitizeColor(board.background_color) }}
+            <DragDropContext onDragEnd={onDragEnd}>
+              <div className="space-y-6">
+                {workspaces.map((workspace) => (
+                  <div key={workspace.id} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-medium">{workspace.name}</h3>
+                        {workspace.description && (
+                          <p className="text-sm text-muted-foreground">{workspace.description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {(workspace.owner_id === user?.id || isAppAdmin) && (
+                          <Dialog
+                            open={boardDialogOpen && selectedWorkspaceId === workspace.id}
+                            onOpenChange={(open) => {
+                              setBoardDialogOpen(open);
+                              if (open) setSelectedWorkspaceId(workspace.id);
+                            }}
                           >
-                            <CardTitle className="text-white text-lg drop-shadow-md">
-                              {board.name}
-                            </CardTitle>
-                          </div>
-                          <CardContent className="p-3 flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">
-                              {board.description || 'No description'}
-                            </span>
-                            {(boardRoles[board.id] === 'admin' || isAppAdmin) && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger
-                                  asChild
-                                  onClick={(e) => e.stopPropagation()}
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add Board
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Create Board</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4 pt-4">
+                                <div className="space-y-2">
+                                  <Label>Board Name</Label>
+                                  <Input
+                                    value={newBoardName}
+                                    onChange={(e) => setNewBoardName(e.target.value)}
+                                    placeholder="Project Board"
+                                    maxLength={100}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Background Color</Label>
+                                  <div className="flex gap-2 flex-wrap">
+                                    {BOARD_COLORS.map((color) => (
+                                      <button
+                                        key={color}
+                                        className={`w-8 h-8 rounded-md transition-all ${
+                                          newBoardColor === color ? 'ring-2 ring-primary ring-offset-2' : ''
+                                        }`}
+                                        style={{ backgroundColor: color }}
+                                        onClick={() => setNewBoardColor(color)}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                                <Button onClick={createBoard} className="w-full">
+                                  Create Board
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                        {(workspace.owner_id === user?.id || isAppAdmin) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => deleteWorkspace(workspace.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Workspace
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Boards Grid - Droppable */}
+                    <Droppable droppableId={workspace.id} direction="horizontal">
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 min-h-[120px] rounded-lg transition-colors ${
+                            snapshot.isDraggingOver ? 'bg-primary/5 ring-2 ring-primary/20 ring-dashed' : ''
+                          }`}
+                        >
+                          {boards
+                            .filter((b) => b.workspace_id === workspace.id)
+                            .sort((a, b) => a.position - b.position)
+                            .map((board, index) => {
+                              const canDrag = boardRoles[board.id] === 'admin' || isAppAdmin;
+                              return (
+                                <Draggable 
+                                  key={board.id} 
+                                  draggableId={board.id} 
+                                  index={index}
+                                  isDragDisabled={!canDrag}
                                 >
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditBoardId(board.id);
-                                      setEditBoardName(board.name);
-                                      setRenameBoardDialogOpen(true);
-                                    }}
-                                  >
-                                    <Pencil className="h-4 w-4 mr-2" />
-                                    Rename Board
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditBoardId(board.id);
-                                      setEditBoardDesc(board.description || '');
-                                      setEditDescDialogOpen(true);
-                                    }}
-                                  >
-                                    <FileText className="h-4 w-4 mr-2" />
-                                    Edit Description
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDeleteBoardId(board.id);
-                                      setDeleteConfirmOpen(true);
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete Board
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
+                                  {(provided, snapshot) => (
+                                    <Card
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                      className={`group cursor-pointer hover:shadow-lg transition-all overflow-hidden ${
+                                        snapshot.isDragging ? 'shadow-xl rotate-2 scale-105' : ''
+                                      }`}
+                                      onClick={() => !snapshot.isDragging && navigate(`/board/${board.id}`)}
+                                    >
+                                      <div
+                                        className="h-24 flex items-end p-3 relative"
+                                        style={{ backgroundColor: sanitizeColor(board.background_color) }}
+                                      >
+                                        {canDrag && (
+                                          <div
+                                            {...provided.dragHandleProps}
+                                            className="absolute top-2 left-2 p-1 rounded bg-black/20 hover:bg-black/40 transition-colors cursor-grab active:cursor-grabbing"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <GripVertical className="h-4 w-4 text-white" />
+                                          </div>
+                                        )}
+                                        <CardTitle className="text-white text-lg drop-shadow-md">
+                                          {board.name}
+                                        </CardTitle>
+                                      </div>
+                                      <CardContent className="p-3 flex justify-between items-center">
+                                        <span className="text-sm text-muted-foreground">
+                                          {board.description || 'No description'}
+                                        </span>
+                                        {canDrag && (
+                                          <DropdownMenu>
+                                            <DropdownMenuTrigger
+                                              asChild
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                              >
+                                                <MoreHorizontal className="h-4 w-4" />
+                                              </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                              <DropdownMenuItem
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setEditBoardId(board.id);
+                                                  setEditBoardName(board.name);
+                                                  setRenameBoardDialogOpen(true);
+                                                }}
+                                              >
+                                                <Pencil className="h-4 w-4 mr-2" />
+                                                Rename Board
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setEditBoardId(board.id);
+                                                  setEditBoardDesc(board.description || '');
+                                                  setEditDescDialogOpen(true);
+                                                }}
+                                              >
+                                                <FileText className="h-4 w-4 mr-2" />
+                                                Edit Description
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem
+                                                className="text-destructive"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setDeleteBoardId(board.id);
+                                                  setDeleteConfirmOpen(true);
+                                                }}
+                                              >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Delete Board
+                                              </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
+                                        )}
+                                      </CardContent>
+                                    </Card>
+                                  )}
+                                </Draggable>
+                              );
+                            })}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </DragDropContext>
           )}
         </div>
       </main>

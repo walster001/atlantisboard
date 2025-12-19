@@ -208,6 +208,97 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     return baseProgress;
   };
 
+  const importWekanWithStreaming = async (
+    wekanData: any,
+    onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void
+  ): Promise<ImportResult> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          reject(new Error('Not authenticated'));
+          return;
+        }
+
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/import-wekan-board?stream=true`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ wekanData }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            reject(new Error(errorJson.errors?.[0] || 'Import failed'));
+          } catch {
+            reject(new Error(`Import failed: ${response.status}`));
+          }
+          return;
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+          reject(new Error('No response body'));
+          return;
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                if (data.type === 'progress') {
+                  // Map server stages to client stages
+                  const stageMap: Record<string, ImportStage> = {
+                    'parsing': 'parsing',
+                    'workspace': 'workspace',
+                    'board': 'board',
+                    'labels': 'labels',
+                    'columns': 'columns',
+                    'cards': 'cards',
+                    'subtasks': 'subtasks',
+                    'attachments': 'attachments',
+                    'complete': 'complete',
+                  };
+                  const stage = stageMap[data.stage] || 'parsing';
+                  onProgress(stage, data.current, data.total, data.detail);
+                } else if (data.type === 'result') {
+                  resolve(data as ImportResult);
+                  return;
+                }
+              } catch (e) {
+                console.error('Error parsing SSE data:', e, line);
+              }
+            }
+          }
+        }
+
+        // If we get here without a result, something went wrong
+        reject(new Error('Stream ended without result'));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -581,13 +672,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       if (importSource === 'trello') {
         result = await importTrelloBoard(jsonData as TrelloBoard, updateProgress);
       } else {
-        // For Wekan, simulate stage progress since it's server-side
-        updateProgress('workspace', 0, 0, 'Sending to server...');
-        const { data, error } = await supabase.functions.invoke('import-wekan-board', {
-          body: { wekanData: jsonData },
-        });
-        if (error) throw error;
-        result = data as ImportResult;
+        // For Wekan, use streaming SSE to get real-time progress
+        result = await importWekanWithStreaming(jsonData, updateProgress);
       }
 
       updateProgress('complete');

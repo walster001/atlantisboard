@@ -60,9 +60,9 @@ export const KanbanColumn = memo(function KanbanColumn({
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
-          className="w-72 shrink-0"
+          className="w-72 shrink-0 flex flex-col max-h-[calc(100vh-12rem)]"
         >
-          <div className="bg-column rounded-xl p-3">
+          <div className="bg-column rounded-xl p-3 flex flex-col max-h-full">
             {/* Header */}
             <div
               {...provided.dragHandleProps}
@@ -130,7 +130,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                   ref={provided.innerRef}
                   {...provided.droppableProps}
                   className={cn(
-                    'min-h-[2rem] transition-colors duration-200 rounded-lg',
+                    'min-h-[2rem] transition-colors duration-200 rounded-lg flex-1 overflow-y-auto scrollbar-thin',
                     snapshot.isDraggingOver && 'bg-primary/5'
                   )}
                 >

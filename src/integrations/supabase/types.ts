@@ -454,6 +454,77 @@ export type Database = {
         }
         Relationships: []
       }
+      import_pending_assignees: {
+        Row: {
+          board_id: string
+          card_id: string
+          created_at: string
+          id: string
+          import_source: string
+          mapped_user_id: string | null
+          original_member_id: string | null
+          original_member_name: string
+          original_username: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+        }
+        Insert: {
+          board_id: string
+          card_id: string
+          created_at?: string
+          id?: string
+          import_source?: string
+          mapped_user_id?: string | null
+          original_member_id?: string | null
+          original_member_name: string
+          original_username?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Update: {
+          board_id?: string
+          card_id?: string
+          created_at?: string
+          id?: string
+          import_source?: string
+          mapped_user_id?: string | null
+          original_member_id?: string | null
+          original_member_name?: string
+          original_username?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_pending_assignees_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_pending_assignees_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_pending_assignees_mapped_user_id_fkey"
+            columns: ["mapped_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_pending_assignees_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       labels: {
         Row: {
           board_id: string

@@ -18,6 +18,7 @@ interface ImportResult {
   labels_created: number;
   subtasks_created: number;
   attachments_noted: number;
+  assignees_pending: number;
   errors: string[];
   warnings: string[];
 }
@@ -60,6 +61,12 @@ interface TrelloAttachment {
   date: string;
 }
 
+interface TrelloMember {
+  id: string;
+  fullName: string;
+  username: string;
+}
+
 interface TrelloCard {
   id: string;
   name: string;
@@ -90,7 +97,7 @@ interface TrelloBoard {
   cards: TrelloCard[];
   labels: TrelloLabel[];
   checklists: TrelloChecklist[];
-  members?: { id: string; fullName: string; username: string }[];
+  members?: TrelloMember[];
 }
 
 // Color mapping from Trello to hex
@@ -162,6 +169,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       labels_created: 0,
       subtasks_created: 0,
       attachments_noted: 0,
+      assignees_pending: 0,
       errors: [],
       warnings: [],
     };
@@ -178,6 +186,12 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       if (!user) {
         result.errors.push('User not authenticated');
         return result;
+      }
+
+      // Build member map for assignee names
+      const memberMap = new Map<string, TrelloMember>();
+      for (const member of (trelloData.members || [])) {
+        memberMap.set(member.id, member);
       }
 
       // Create workspace for the imported board
@@ -228,7 +242,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       const trelloLabels = trelloData.labels || [];
       
       for (const label of trelloLabels) {
-        if (!label.name && !label.color) continue; // Skip empty labels
+        if (!label.name && !label.color) continue;
         
         const labelColor = label.color ? (trelloColorMap[label.color] || '#6b7280') : '#6b7280';
         const labelName = label.name || label.color || 'Unnamed';
@@ -285,12 +299,11 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         checklistMap.set(checklist.idCard, existing);
       }
 
-      // Create cards
+      // Group cards by list
       const sortedCards = [...(trelloData.cards || [])]
         .filter(card => !card.closed)
         .sort((a, b) => a.pos - b.pos);
 
-      // Group cards by list for position assignment
       const cardsByList = new Map<string, TrelloCard[]>();
       for (const card of sortedCards) {
         const existing = cardsByList.get(card.idList) || [];
@@ -308,8 +321,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         for (let i = 0; i < cards.length; i++) {
           const card = cards[i];
           
-          // Map priority based on labels or default to none
-          // Trello doesn't have native priority, so we'll check for priority-like labels
+          // Map priority based on labels
           let priority = 'none';
           const cardLabelNames = (trelloData.labels || [])
             .filter(l => card.idLabels.includes(l.id))
@@ -380,38 +392,44 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             }
           }
 
-          // Note attachments (actual files need manual upload)
+          // Note attachments
           const attachments = card.attachments || [];
           if (attachments.length > 0) {
             result.attachments_noted += attachments.length;
             
-            // Store attachment references as notes
             for (const attachment of attachments) {
-              const { error: attachmentError } = await supabase
-                .from('card_attachments')
-                .insert({
-                  card_id: newCard.id,
-                  file_name: attachment.name,
-                  file_url: attachment.url,
-                  file_size: attachment.bytes,
-                  file_type: attachment.mimeType,
-                  uploaded_by: user.id,
-                });
-
-              if (attachmentError) {
-                result.warnings.push(`Failed to note attachment "${attachment.name}": ${attachmentError.message}`);
-              }
+              await supabase.from('card_attachments').insert({
+                card_id: newCard.id,
+                file_name: attachment.name,
+                file_url: attachment.url,
+                file_size: attachment.bytes,
+                file_type: attachment.mimeType,
+                uploaded_by: user.id,
+              });
             }
           }
 
-          // Note assignees (Trello members can't be auto-mapped)
+          // Create pending assignee mappings
           if (card.idMembers && card.idMembers.length > 0) {
-            const memberNames = (trelloData.members || [])
-              .filter(m => card.idMembers.includes(m.id))
-              .map(m => m.fullName || m.username);
-            
-            if (memberNames.length > 0) {
-              result.warnings.push(`Card "${card.name}" had assignees: ${memberNames.join(', ')} - assign manually`);
+            for (const memberId of card.idMembers) {
+              const member = memberMap.get(memberId);
+              const memberName = member?.fullName || member?.username || `Unknown (${memberId})`;
+              const username = member?.username || null;
+
+              const { error: pendingError } = await supabase
+                .from('import_pending_assignees')
+                .insert({
+                  board_id: board.id,
+                  card_id: newCard.id,
+                  original_member_id: memberId,
+                  original_member_name: memberName,
+                  original_username: username,
+                  import_source: 'trello',
+                });
+
+              if (!pendingError) {
+                result.assignees_pending++;
+              }
             }
           }
         }
@@ -456,7 +474,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       } catch {
         toast({
           title: 'Invalid JSON',
-          description: 'The file contains invalid JSON. Please check the file format.',
+          description: 'The file contains invalid JSON.',
           variant: 'destructive',
         });
         setImporting(false);
@@ -468,11 +486,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       if (importSource === 'trello') {
         result = await importTrelloBoard(jsonData as TrelloBoard);
       } else {
-        // Wekan import via edge function
         const { data, error } = await supabase.functions.invoke('import-wekan-board', {
           body: { wekanData: jsonData },
         });
-
         if (error) throw error;
         result = data as ImportResult;
       }
@@ -482,7 +498,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       if (result.success) {
         toast({
           title: 'Import completed',
-          description: `Successfully imported ${result.boards_created} board(s) with ${result.cards_created} card(s).`,
+          description: `Imported ${result.boards_created} board(s) with ${result.cards_created} card(s).`,
         });
         onImportComplete();
       } else {
@@ -496,7 +512,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       console.error('Import error:', error);
       toast({
         title: 'Import failed',
-        description: error.message || 'An unexpected error occurred during import.',
+        description: error.message || 'An unexpected error occurred.',
         variant: 'destructive',
       });
     } finally {
@@ -514,9 +530,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   };
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      resetDialog();
-    }
+    if (!newOpen) resetDialog();
     onOpenChange(newOpen);
   };
 
@@ -534,7 +548,6 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         </DialogHeader>
 
         <div className="space-y-4 pt-4">
-          {/* Import Source Selection */}
           <div className="space-y-2">
             <Label>Import Source</Label>
             <Select value={importSource} onValueChange={(v) => setImportSource(v as ImportSource)}>
@@ -563,19 +576,16 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             </Select>
           </div>
 
-          {/* File Upload */}
           {(importSource === 'wekan' || importSource === 'trello') && (
             <div className="space-y-2">
               <Label>{importSource === 'wekan' ? 'Wekan' : 'Trello'} Export File</Label>
-              <div className="flex gap-2">
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileSelect}
-                  className="cursor-pointer"
-                />
-              </div>
+              <Input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleFileSelect}
+                className="cursor-pointer"
+              />
               {selectedFile && (
                 <p className="text-sm text-muted-foreground">
                   Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
@@ -584,52 +594,41 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             </div>
           )}
 
-          {/* Import Mapping Info - Wekan */}
           {importSource === 'wekan' && (
             <div className="rounded-md border p-3 bg-muted/50">
               <h4 className="font-medium text-sm mb-2">Import Mapping:</h4>
               <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• Wekan Boards → KanBoard Boards (new workspace created)</li>
+                <li>• Wekan Boards → KanBoard Boards</li>
                 <li>• Wekan Lists → KanBoard Columns</li>
-                <li>• Wekan Cards → KanBoard Cards (title, description, due date)</li>
+                <li>• Wekan Cards → KanBoard Cards</li>
                 <li>• Wekan Labels → KanBoard Labels</li>
                 <li>• Wekan Checklists → KanBoard Subtasks</li>
-                <li>• Wekan Attachments → Noted (files need manual upload)</li>
-                <li>• Wekan Members → Placeholder (assign manually after import)</li>
+                <li>• Wekan Members → Pending (use Assignee Mapping)</li>
                 <li className="text-amber-600">• Comments are ignored</li>
               </ul>
             </div>
           )}
 
-          {/* Import Mapping Info - Trello */}
           {importSource === 'trello' && (
             <div className="rounded-md border p-3 bg-muted/50">
               <h4 className="font-medium text-sm mb-2">Import Mapping:</h4>
               <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• Trello Board → KanBoard Board (new workspace created)</li>
+                <li>• Trello Board → KanBoard Board</li>
                 <li>• Trello Lists → KanBoard Columns</li>
-                <li>• Trello Cards → KanBoard Cards (title, description, due date)</li>
-                <li>• Trello Labels → KanBoard Labels (colors mapped)</li>
+                <li>• Trello Cards → KanBoard Cards</li>
+                <li>• Trello Labels → KanBoard Labels</li>
                 <li>• Trello Checklists → KanBoard Subtasks</li>
-                <li>• Trello Attachments → Stored as references (URLs preserved)</li>
-                <li>• Trello Members → Noted in warnings (assign manually)</li>
-                <li>• Priority inferred from label names (high/medium/low)</li>
-                <li className="text-amber-600">• Comments and activity are ignored</li>
-                <li className="text-amber-600">• Archived lists/cards are skipped</li>
+                <li>• Trello Members → Pending (use Assignee Mapping)</li>
+                <li className="text-amber-600">• Comments ignored, archived items skipped</li>
               </ul>
             </div>
           )}
 
-          {/* Import Results */}
           {importResult && (
             <ScrollArea className="h-[200px] rounded-md border p-3">
               <div className="space-y-2">
                 <div className={`flex items-center gap-2 ${importResult.success ? 'text-green-600' : 'text-destructive'}`}>
-                  {importResult.success ? (
-                    <CheckCircle className="h-5 w-5" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5" />
-                  )}
+                  {importResult.success ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
                   <span className="font-medium">
                     {importResult.success ? 'Import Successful' : 'Import Failed'}
                   </span>
@@ -637,16 +636,17 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
                 {importResult.success && (
                   <div className="text-sm space-y-1">
-                    <p>✓ Workspaces created: {importResult.workspaces_created}</p>
-                    <p>✓ Boards created: {importResult.boards_created}</p>
-                    <p>✓ Columns created: {importResult.columns_created}</p>
-                    <p>✓ Cards created: {importResult.cards_created}</p>
-                    <p>✓ Labels created: {importResult.labels_created}</p>
-                    <p>✓ Subtasks created: {importResult.subtasks_created}</p>
+                    <p>✓ Workspaces: {importResult.workspaces_created}</p>
+                    <p>✓ Boards: {importResult.boards_created}</p>
+                    <p>✓ Columns: {importResult.columns_created}</p>
+                    <p>✓ Cards: {importResult.cards_created}</p>
+                    <p>✓ Labels: {importResult.labels_created}</p>
+                    <p>✓ Subtasks: {importResult.subtasks_created}</p>
                     {importResult.attachments_noted > 0 && (
-                      <p className="text-amber-600">
-                        ⚠ {importResult.attachments_noted} attachments referenced (URLs preserved)
-                      </p>
+                      <p className="text-amber-600">⚠ {importResult.attachments_noted} attachments</p>
+                    )}
+                    {importResult.assignees_pending > 0 && (
+                      <p className="text-blue-600">ℹ {importResult.assignees_pending} assignees pending mapping</p>
                     )}
                   </div>
                 )}
@@ -654,9 +654,12 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                 {importResult.warnings.length > 0 && (
                   <div className="text-sm text-amber-600 space-y-1">
                     <p className="font-medium">Warnings:</p>
-                    {importResult.warnings.map((w, i) => (
+                    {importResult.warnings.slice(0, 5).map((w, i) => (
                       <p key={i}>• {w}</p>
                     ))}
+                    {importResult.warnings.length > 5 && (
+                      <p>... +{importResult.warnings.length - 5} more</p>
+                    )}
                   </div>
                 )}
 
@@ -672,7 +675,6 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             </ScrollArea>
           )}
 
-          {/* Actions */}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => handleOpenChange(false)}>
               {importResult?.success ? 'Close' : 'Cancel'}

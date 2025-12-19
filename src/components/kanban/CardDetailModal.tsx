@@ -224,6 +224,7 @@ export function CardDetailModal({
                 content={description}
                 onChange={setDescription}
                 placeholder="Add a more detailed description..."
+                autoSize
               />
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={handleSaveDescription}>
@@ -244,14 +245,18 @@ export function CardDetailModal({
           ) : (
             <div 
               className={cn(
-                "min-h-[80px] p-3 rounded-lg bg-muted/50 text-sm prose prose-sm dark:prose-invert max-w-none",
-                !description && "text-muted-foreground italic",
+                "p-3 rounded-lg bg-muted/50 text-sm",
+                !description && "min-h-[60px] text-muted-foreground italic flex items-center",
+                description && "prose prose-sm dark:prose-invert max-w-none prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2 prose-code:text-xs prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
                 !disabled && "cursor-pointer hover:bg-muted transition-colors"
               )}
               onClick={() => !disabled && setIsEditingDescription(true)}
             >
               {description ? (
-                <div dangerouslySetInnerHTML={{ __html: description }} />
+                <div 
+                  dangerouslySetInnerHTML={{ __html: description }} 
+                  className="[&>pre]:bg-muted [&>pre]:p-3 [&>pre]:rounded-md [&>pre]:overflow-x-auto [&>pre]:font-mono [&>pre]:text-xs [&_code]:bg-muted/70 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&>pre_code]:bg-transparent [&>pre_code]:p-0"
+                />
               ) : (
                 disabled ? 'No description' : 'Click to add a description...'
               )}

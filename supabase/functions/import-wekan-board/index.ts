@@ -1,4 +1,48 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { marked } from 'https://esm.sh/marked@15.0.4';
+
+// Configure marked for safe HTML output
+marked.setOptions({
+  breaks: true, // Convert \n to <br>
+  gfm: true, // GitHub Flavored Markdown
+});
+
+/**
+ * Convert Markdown to HTML, preserving existing HTML
+ */
+function markdownToHtml(markdown: string | null | undefined): string | null {
+  if (!markdown) return null;
+  
+  const trimmed = markdown.trim();
+  
+  // Check if content is already HTML
+  if (trimmed.startsWith('<') && (
+    trimmed.startsWith('<p>') || 
+    trimmed.startsWith('<h') || 
+    trimmed.startsWith('<ul>') || 
+    trimmed.startsWith('<ol>') || 
+    trimmed.startsWith('<div>') ||
+    trimmed.startsWith('<blockquote>') ||
+    trimmed.startsWith('<pre>')
+  )) {
+    return markdown;
+  }
+  
+  try {
+    let html = marked.parse(markdown, { async: false }) as string;
+    
+    // Convert Wekan color format: {color:red}text{color}
+    html = html.replace(
+      /\{color:([^}]+)\}([^{]*)\{color\}/g, 
+      '<span style="color: $1">$2</span>'
+    );
+    
+    return html;
+  } catch (error) {
+    console.error('Error parsing markdown:', error);
+    return `<p>${markdown.replace(/\n/g, '</p><p>')}</p>`;
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -348,7 +392,7 @@ Deno.serve(async (req) => {
               .insert({
                 column_id: columnId,
                 title: wekanCard.title.substring(0, 200),
-                description: wekanCard.description || null,
+                description: markdownToHtml(wekanCard.description),
                 position: i,
                 due_date: dueDate,
                 created_by: user.id,

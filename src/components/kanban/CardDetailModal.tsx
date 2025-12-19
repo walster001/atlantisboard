@@ -21,6 +21,12 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { RichTextEditor } from './RichTextEditor';
 import { CardAttachmentSection } from './CardAttachmentSection';
+import { markdownToHtml } from '@/lib/markdownToHtml';
+
+// Strip HTML tags from text for plain display
+function stripHtmlTags(text: string): string {
+  return text.replace(/<[^>]*>/g, '').trim();
+}
 
 interface Attachment {
   id: string;
@@ -79,8 +85,10 @@ export function CardDetailModal({
 
   useEffect(() => {
     if (card) {
-      setTitle(card.title);
-      setDescription(card.description || '');
+      // Strip HTML tags from title for plain text display
+      setTitle(stripHtmlTags(card.title));
+      // Convert markdown to HTML for description
+      setDescription(markdownToHtml(card.description) || '');
       setDueDate(card.dueDate ? new Date(card.dueDate) : undefined);
       setIsEditingTitle(false);
       setIsEditingDescription(false);

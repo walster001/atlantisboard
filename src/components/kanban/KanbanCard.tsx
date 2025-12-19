@@ -12,6 +12,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 
+// Strip HTML tags from text for plain display
+function stripHtmlTags(text: string): string {
+  return text.replace(/<[^>]*>/g, '').trim();
+}
+
 interface KanbanCardProps {
   card: Card;
   index: number;
@@ -81,7 +86,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
           {/* Title & Menu */}
           <div className="flex items-start justify-between gap-2">
             <h4 className="text-sm font-medium text-card-foreground leading-snug flex-1">
-              {card.title}
+              {stripHtmlTags(card.title)}
             </h4>
             {!disabled && (
               <DropdownMenu>

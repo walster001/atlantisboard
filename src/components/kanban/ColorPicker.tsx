@@ -92,7 +92,7 @@ export function ColorPicker({
   onApplyToAll, 
   applyToAllLabel,
   trigger,
-  onClose 
+  onClose
 }: ColorPickerProps) {
   const [selectedColor, setSelectedColor] = useState<string | null>(currentColor);
   const [open, setOpen] = useState(false);
@@ -185,9 +185,16 @@ export function ColorPicker({
     onClose?.();
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      onClose?.();
+    }
+  };
+
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen} modal={true}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           {trigger || (
             <Button variant="ghost" size="sm" className="w-full justify-start">
@@ -200,7 +207,6 @@ export function ColorPicker({
           className="w-72 p-0 z-[9999]" 
           align="start" 
           side="bottom"
-          onInteractOutside={(e) => e.preventDefault()}
         >
           <div 
             className="p-3"

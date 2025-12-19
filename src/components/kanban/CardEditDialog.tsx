@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Label, LabelColor } from '@/types/kanban';
+import { Card, Label, LABEL_COLORS, LabelColorName, getLabelHexColor } from '@/types/kanban';
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,35 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label as UILabel } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon, X, Tag } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Slider } from '@/components/ui/slider';
+import { Calendar as CalendarIcon, X, Tag, Pipette } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+
+// Helper functions for color conversion
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+const PRESET_LABEL_COLORS: { name: LabelColorName; hex: string }[] = [
+  { name: 'red', hex: LABEL_COLORS.red },
+  { name: 'orange', hex: LABEL_COLORS.orange },
+  { name: 'yellow', hex: LABEL_COLORS.yellow },
+  { name: 'green', hex: LABEL_COLORS.green },
+  { name: 'blue', hex: LABEL_COLORS.blue },
+  { name: 'purple', hex: LABEL_COLORS.purple },
+  { name: 'pink', hex: LABEL_COLORS.pink },
+];
 
 interface CardEditDialogProps {
   card: Card | null;
@@ -25,16 +51,6 @@ interface CardEditDialogProps {
   onRemoveLabel: (labelId: string) => void;
   disabled?: boolean;
 }
-
-const labelColors: { color: LabelColor; name: string; className: string }[] = [
-  { color: 'red', name: 'Red', className: 'bg-label-red' },
-  { color: 'orange', name: 'Orange', className: 'bg-label-orange' },
-  { color: 'yellow', name: 'Yellow', className: 'bg-label-yellow' },
-  { color: 'green', name: 'Green', className: 'bg-label-green' },
-  { color: 'blue', name: 'Blue', className: 'bg-label-blue' },
-  { color: 'purple', name: 'Purple', className: 'bg-label-purple' },
-  { color: 'pink', name: 'Pink', className: 'bg-label-pink' },
-];
 
 export function CardEditDialog({
   card,
@@ -50,6 +66,9 @@ export function CardEditDialog({
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [newLabelText, setNewLabelText] = useState('');
+  const [selectedLabelColor, setSelectedLabelColor] = useState<string>(LABEL_COLORS.blue);
+  const [customRgb, setCustomRgb] = useState({ r: 59, g: 130, b: 246 });
+  const [customHex, setCustomHex] = useState<string>('#3b82f6');
 
   useEffect(() => {
     if (card) {
@@ -68,7 +87,7 @@ export function CardEditDialog({
     onClose();
   };
 
-  const handleAddLabel = (color: LabelColor) => {
+  const handleAddLabel = (color: string) => {
     const newLabel: Label = {
       id: Math.random().toString(36).substr(2, 9),
       color,
@@ -77,6 +96,35 @@ export function CardEditDialog({
     onAddLabel(newLabel);
     setNewLabelText('');
     setShowLabelPicker(false);
+  };
+
+  const handleCustomRgbChange = (channel: 'r' | 'g' | 'b', value: number) => {
+    const newRgb = { ...customRgb, [channel]: value };
+    setCustomRgb(newRgb);
+    const hex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+    setCustomHex(hex);
+    setSelectedLabelColor(hex);
+  };
+
+  const handleCustomHexChange = (hex: string) => {
+    setCustomHex(hex);
+    const rgb = hexToRgb(hex);
+    if (rgb) {
+      setCustomRgb(rgb);
+      setSelectedLabelColor(hex);
+    }
+  };
+
+  const handleEyedropper = async () => {
+    if ('EyeDropper' in window) {
+      try {
+        const eyeDropper = new (window as any).EyeDropper();
+        const result = await eyeDropper.open();
+        handleCustomHexChange(result.sRGBHex);
+      } catch (e) {
+        // User cancelled
+      }
+    }
   };
 
   if (!card) return null;
@@ -123,10 +171,8 @@ export function CardEditDialog({
               {card.labels.map((label) => (
                 <span
                   key={label.id}
-                  className={cn(
-                    'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-white',
-                    labelColors.find((l) => l.color === label.color)?.className
-                  )}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-white"
+                  style={{ backgroundColor: getLabelHexColor(label.color) }}
                 >
                   {label.text || label.color}
                   {!disabled && (
@@ -147,7 +193,7 @@ export function CardEditDialog({
                       Add Label
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-64" align="start">
+                  <PopoverContent className="w-80" align="start">
                     <div className="space-y-3">
                       <Input
                         value={newLabelText}
@@ -155,19 +201,73 @@ export function CardEditDialog({
                         placeholder="Label text (optional)"
                         className="h-8"
                       />
-                      <div className="grid grid-cols-7 gap-1">
-                        {labelColors.map((label) => (
-                          <button
-                            key={label.color}
-                            onClick={() => handleAddLabel(label.color)}
-                            className={cn(
-                              'h-6 w-full rounded hover:ring-2 hover:ring-offset-1 hover:ring-foreground/20 transition-all',
-                              label.className
-                            )}
-                            title={label.name}
-                          />
-                        ))}
-                      </div>
+                      <Tabs defaultValue="presets" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 h-8">
+                          <TabsTrigger value="presets" className="text-xs">Presets</TabsTrigger>
+                          <TabsTrigger value="custom" className="text-xs">Custom</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="presets" className="mt-2">
+                          <div className="grid grid-cols-7 gap-1">
+                            {PRESET_LABEL_COLORS.map((label) => (
+                              <button
+                                key={label.name}
+                                onClick={() => handleAddLabel(label.hex)}
+                                className="h-6 w-full rounded hover:ring-2 hover:ring-offset-1 hover:ring-foreground/20 transition-all"
+                                style={{ backgroundColor: label.hex }}
+                                title={label.name}
+                              />
+                            ))}
+                          </div>
+                        </TabsContent>
+                        <TabsContent value="custom" className="mt-2 space-y-3">
+                          <div className="flex gap-2">
+                            <div
+                              className="w-10 h-10 rounded-md border shrink-0"
+                              style={{ backgroundColor: selectedLabelColor }}
+                            />
+                            <div className="flex-1 flex gap-2">
+                              <Input
+                                value={customHex}
+                                onChange={(e) => handleCustomHexChange(e.target.value)}
+                                className="h-8 text-xs font-mono"
+                                placeholder="#000000"
+                                maxLength={7}
+                              />
+                              {'EyeDropper' in window && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 shrink-0"
+                                  onClick={handleEyedropper}
+                                >
+                                  <Pipette className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs w-3">R</span>
+                              <Slider value={[customRgb.r]} onValueChange={([v]) => handleCustomRgbChange('r', v)} max={255} step={1} className="flex-1" />
+                              <span className="text-xs w-6 text-right">{customRgb.r}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs w-3">G</span>
+                              <Slider value={[customRgb.g]} onValueChange={([v]) => handleCustomRgbChange('g', v)} max={255} step={1} className="flex-1" />
+                              <span className="text-xs w-6 text-right">{customRgb.g}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs w-3">B</span>
+                              <Slider value={[customRgb.b]} onValueChange={([v]) => handleCustomRgbChange('b', v)} max={255} step={1} className="flex-1" />
+                              <span className="text-xs w-6 text-right">{customRgb.b}</span>
+                            </div>
+                          </div>
+                          <Button size="sm" className="w-full" onClick={() => handleAddLabel(selectedLabelColor)}>
+                            Add Custom Label
+                          </Button>
+                        </TabsContent>
+                      </Tabs>
                     </div>
                   </PopoverContent>
                 </Popover>

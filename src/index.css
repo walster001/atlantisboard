@@ -168,4 +168,38 @@
   .drag-placeholder {
     @apply bg-muted/50 border-2 border-dashed border-muted-foreground/30 rounded-lg;
   }
+
+  /* Ghost placeholder indicator */
+  .ghost-placeholder {
+    @apply bg-primary/20 border-2 border-dashed border-primary/50 rounded-lg;
+    animation: ghost-pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes ghost-pulse {
+    0%, 100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* Settle animation for cards */
+  .card-settle {
+    animation: card-settle 0.2s ease-out;
+  }
+
+  @keyframes card-settle {
+    0% {
+      transform: scale(1.02);
+      opacity: 0.8;
+    }
+    50% {
+      transform: scale(0.98);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
 }

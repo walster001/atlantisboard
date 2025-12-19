@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -7,6 +7,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAppAdmin: boolean;
+  verificationError: string | null;
+  clearVerificationError: () => void;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
@@ -20,23 +22,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAppAdmin, setIsAppAdmin] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [verificationPending, setVerificationPending] = useState(false);
+
+  const clearVerificationError = useCallback(() => {
+    setVerificationError(null);
+  }, []);
+
+  // Check if user needs database verification
+  const verifyUserInDatabase = useCallback(async (email: string): Promise<{ verified: boolean; message?: string }> => {
+    try {
+      const response = await supabase.functions.invoke('verify-user-email', {
+        body: { email },
+      });
+
+      if (response.error) {
+        console.error('Verification function error:', response.error);
+        return { verified: false, message: 'Verification service unavailable' };
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Verification error:', error);
+      return { verified: false, message: 'Verification failed' };
+    }
+  }, []);
+
+  // Handle auth state changes with verification
+  const handleAuthStateChange = useCallback(async (event: string, newSession: Session | null) => {
+    console.log('Auth state change:', event, newSession?.user?.email);
+    
+    // If signing in and verification is pending, check database
+    if (event === 'SIGNED_IN' && newSession?.user && verificationPending) {
+      setVerificationPending(false);
+      
+      // Check login style
+      const { data: settings } = await supabase
+        .from('app_settings')
+        .select('login_style')
+        .eq('id', 'default')
+        .maybeSingle();
+
+      if (settings?.login_style === 'google_verified') {
+        console.log('Checking database verification for:', newSession.user.email);
+        const result = await verifyUserInDatabase(newSession.user.email!);
+        
+        if (!result.verified) {
+          console.log('User not verified, signing out');
+          setVerificationError(result.message || 'User does not exist in database');
+          await supabase.auth.signOut();
+          return;
+        }
+        console.log('User verified successfully');
+      }
+    }
+
+    setSession(newSession);
+    setUser(newSession?.user ?? null);
+    setLoading(false);
+    
+    // Fetch admin status after auth state change
+    if (newSession?.user) {
+      setTimeout(() => {
+        fetchAdminStatus(newSession.user.id);
+      }, 0);
+    } else {
+      setIsAppAdmin(false);
+    }
+  }, [verificationPending, verifyUserInDatabase]);
 
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-        
-        // Fetch admin status after auth state change
-        if (session?.user) {
-          setTimeout(() => {
-            fetchAdminStatus(session.user.id);
-          }, 0);
-        } else {
-          setIsAppAdmin(false);
-        }
+        handleAuthStateChange(event, session);
       }
     );
 
@@ -52,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [handleAuthStateChange]);
 
   const fetchAdminStatus = async (userId: string) => {
     const { data } = await supabase
@@ -65,12 +124,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
+    // Set pending flag before initiating OAuth
+    setVerificationPending(true);
+    setVerificationError(null);
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/`,
       },
     });
+    
+    if (error) {
+      setVerificationPending(false);
+    }
+    
     return { error };
   };
 
@@ -107,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setUser(null);
     setIsAppAdmin(false);
+    setVerificationError(null);
   };
 
   return (
@@ -116,6 +185,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         loading,
         isAppAdmin,
+        verificationError,
+        clearVerificationError,
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,

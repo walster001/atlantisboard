@@ -1,1 +1,7 @@
 project_id = "xuzhmzzvjufkjeypddlr"
+
+[functions.save-mysql-config]
+verify_jwt = false
+
+[functions.verify-user-email]
+verify_jwt = false

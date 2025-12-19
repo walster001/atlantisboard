@@ -26,9 +26,9 @@ const tabConfig = {
     icon: Sparkles,
     label: 'Customisation',
     subTabs: [
-      { id: 'branding', label: 'Branding' },
+      { id: 'branding', label: 'Login Branding' },
+      { id: 'app-branding', label: 'App Branding' },
       { id: 'fonts', label: 'Custom Fonts' },
-      { id: 'workflows', label: 'Workflows' },
       { id: 'templates', label: 'Templates' },
     ],
   },

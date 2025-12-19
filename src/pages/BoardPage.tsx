@@ -199,6 +199,78 @@ export default function BoardPage() {
     };
   }, [boardId, user]);
 
+  // Realtime subscription for columns - syncs column changes including color
+  useEffect(() => {
+    if (!boardId || !user) return;
+    
+    const channel = supabase
+      .channel(`board-${boardId}-columns-realtime`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'columns',
+          filter: `board_id=eq.${boardId}`,
+        },
+        (payload) => {
+          const newColumn = payload.new as DbColumn;
+          setColumns(prev => {
+            if (prev.some(c => c.id === newColumn.id)) return prev;
+            return [...prev, newColumn];
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'columns',
+          filter: `board_id=eq.${boardId}`,
+        },
+        (payload) => {
+          const updatedColumn = payload.new as DbColumn;
+          setColumns(prev => {
+            const existingColumn = prev.find(c => c.id === updatedColumn.id);
+            if (!existingColumn) return prev;
+            
+            // Only update if column actually changed
+            if (existingColumn.title === updatedColumn.title &&
+                existingColumn.position === updatedColumn.position &&
+                existingColumn.color === updatedColumn.color) {
+              return prev;
+            }
+            return prev.map(c => c.id === updatedColumn.id ? updatedColumn : c);
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'columns',
+          filter: `board_id=eq.${boardId}`,
+        },
+        (payload) => {
+          const deletedColumn = payload.old as DbColumn;
+          setColumns(prev => prev.filter(c => c.id !== deletedColumn.id));
+          // Also remove cards from the deleted column
+          setCards(prev => prev.filter(c => c.column_id !== deletedColumn.id));
+        }
+      )
+      .subscribe((status, err) => {
+        if (err) {
+          console.error('Column realtime subscription error:', err);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [boardId, user]);
+
   const fetchBoardData = async () => {
     if (!boardId || !user) return;
     setLoading(true);

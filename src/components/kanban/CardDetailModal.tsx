@@ -244,7 +244,7 @@ export function CardDetailModal({
           ) : (
             <div 
               className={cn(
-                "min-h-[80px] max-h-[300px] overflow-y-auto p-3 rounded-lg bg-muted/50 text-sm prose prose-sm dark:prose-invert max-w-none scrollbar-thin",
+                "min-h-[80px] p-3 rounded-lg bg-muted/50 text-sm prose prose-sm dark:prose-invert max-w-none",
                 !description && "text-muted-foreground italic",
                 !disabled && "cursor-pointer hover:bg-muted transition-colors"
               )}

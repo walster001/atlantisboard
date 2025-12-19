@@ -130,7 +130,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                   ref={provided.innerRef}
                   {...provided.droppableProps}
                   className={cn(
-                    'min-h-[2rem] transition-colors duration-200 rounded-lg flex-1 overflow-y-scroll scrollbar-none hover:scrollbar-thin',
+                    'min-h-[2rem] transition-colors duration-200 rounded-lg flex-1 overflow-y-auto scrollbar-thin',
                     snapshot.isDraggingOver && 'bg-primary/5'
                   )}
                 >

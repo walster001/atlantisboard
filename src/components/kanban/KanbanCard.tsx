@@ -54,9 +54,9 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
       wasDraggingRef.current = false;
       return;
     }
-    // Don't open card if clicking on dropdown menu
+    // Don't open card if clicking on dropdown menu or popover content
     const target = e.target as HTMLElement;
-    if (target.closest('[data-dropdown-menu]') || target.closest('button')) {
+    if (target.closest('[data-dropdown-menu]') || target.closest('button') || target.closest('[data-radix-popper-content-wrapper]')) {
       return;
     }
     onEdit();
@@ -133,7 +133,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
                     variant="ghost"
                     size="icon"
                     data-dropdown-menu
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    className="h-6 w-6 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity shrink-0"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <MoreHorizontal className="h-4 w-4" />

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload, Users, Paperclip, GripVertical } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload, Users, Paperclip } from 'lucide-react';
 import { BoardImportDialog } from '@/components/import/BoardImportDialog';
 import { AssigneeMappingDialog } from '@/components/import/AssigneeMappingDialog';
 import { ImportAttachmentDialog } from '@/components/import/ImportAttachmentDialog';
@@ -591,24 +591,16 @@ export default function Home() {
                                     <Card
                                       ref={provided.innerRef}
                                       {...provided.draggableProps}
-                                      className={`group cursor-pointer hover:shadow-lg transition-all overflow-hidden ${
+                                      {...provided.dragHandleProps}
+                                      className={`group hover:shadow-lg transition-all overflow-hidden ${
                                         snapshot.isDragging ? 'shadow-xl rotate-2 scale-105' : ''
-                                      }`}
+                                      } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
                                       onClick={() => !snapshot.isDragging && navigate(`/board/${board.id}`)}
                                     >
                                       <div
-                                        className="h-24 flex items-end p-3 relative"
+                                        className="h-24 flex items-end p-3"
                                         style={{ backgroundColor: sanitizeColor(board.background_color) }}
                                       >
-                                        {canDrag && (
-                                          <div
-                                            {...provided.dragHandleProps}
-                                            className="absolute top-2 left-2 p-1 rounded bg-black/20 hover:bg-black/40 transition-colors cursor-grab active:cursor-grabbing"
-                                            onClick={(e) => e.stopPropagation()}
-                                          >
-                                            <GripVertical className="h-4 w-4 text-white" />
-                                          </div>
-                                        )}
                                         <CardTitle className="text-white text-lg drop-shadow-md">
                                           {board.name}
                                         </CardTitle>

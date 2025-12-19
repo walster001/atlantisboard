@@ -4,8 +4,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+
+type LoginStyle = 'local_accounts' | 'google_only' | 'google_verified';
 
 interface AppSettings {
   custom_login_logo_enabled: boolean;
@@ -28,6 +32,7 @@ interface AppSettings {
   custom_login_box_background_color: string;
   custom_google_button_background_color: string;
   custom_google_button_text_color: string;
+  login_style: LoginStyle;
 }
 
 interface CustomFont {
@@ -48,12 +53,19 @@ const logoSizeMap: Record<string, string> = {
 };
 
 export default function Auth() {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [pageData, setPageData] = useState<AuthPageData | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [fontsLoaded, setFontsLoaded] = useState(false);
+  
+  // Local auth state
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
 
   // Single server-side call for all auth page data
   useEffect(() => {
@@ -124,6 +136,52 @@ export default function Auth() {
       });
     }
   }, [signInWithGoogle, toast]);
+
+  const handleEmailAuth = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    
+    try {
+      if (isSignUp) {
+        const { error } = await signUpWithEmail(email, password, fullName);
+        if (error) {
+          if (error.message.includes('already registered')) {
+            toast({
+              title: 'Account exists',
+              description: 'An account with this email already exists. Please sign in instead.',
+              variant: 'destructive',
+            });
+          } else {
+            toast({
+              title: 'Sign up failed',
+              description: error.message,
+              variant: 'destructive',
+            });
+          }
+        } else {
+          toast({
+            title: 'Account created',
+            description: 'Please check your email to confirm your account.',
+          });
+        }
+      } else {
+        const { error } = await signInWithEmail(email, password);
+        if (error) {
+          toast({
+            title: 'Sign in failed',
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [email, password, fullName, isSignUp, signInWithEmail, signUpWithEmail, toast]);
+
+  // Get login style from settings
+  const loginStyle = pageData?.settings?.login_style || 'google_only';
+  const showLocalAuth = loginStyle === 'local_accounts';
 
   // Memoize computed values
   const brandingConfig = useMemo(() => {
@@ -229,7 +287,82 @@ export default function Auth() {
             </p>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Local Auth Form - only shown when login_style is 'local_accounts' */}
+          {showLocalAuth && (
+            <>
+              <form onSubmit={handleEmailAuth} className="space-y-4">
+                {isSignUp && (
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full h-12" 
+                  disabled={authLoading}
+                >
+                  {authLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  {isSignUp ? 'Create Account' : 'Sign In'}
+                </Button>
+              </form>
+              
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+                </button>
+              </div>
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground" style={{ backgroundColor: brandingConfig.boxBackgroundColor }}>
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+          
+          {/* Google Sign In Button - always shown */}
           <Button
             variant="outline"
             className="w-full h-12 text-base border"

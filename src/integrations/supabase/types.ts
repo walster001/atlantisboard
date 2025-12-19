@@ -38,6 +38,7 @@ export type Database = {
           custom_tagline_font: string | null
           custom_tagline_size: number
           id: string
+          login_style: string
           updated_at: string
         }
         Insert: {
@@ -63,6 +64,7 @@ export type Database = {
           custom_tagline_font?: string | null
           custom_tagline_size?: number
           id?: string
+          login_style?: string
           updated_at?: string
         }
         Update: {
@@ -88,6 +90,7 @@ export type Database = {
           custom_tagline_font?: string | null
           custom_tagline_size?: number
           id?: string
+          login_style?: string
           updated_at?: string
         }
         Relationships: []

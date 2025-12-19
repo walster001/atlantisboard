@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
+import Link from '@tiptap/extension-link';
+import CodeBlock from '@tiptap/extension-code-block';
 import { 
   Bold, 
   Italic, 
@@ -19,7 +21,10 @@ import {
   Minus,
   Type,
   Palette,
-  RotateCcw
+  RotateCcw,
+  Link as LinkIcon,
+  Code,
+  Unlink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -32,6 +37,7 @@ interface RichTextEditorProps {
   onChange: (content: string) => void;
   placeholder?: string;
   className?: string;
+  autoSize?: boolean;
 }
 
 const presetColors = [
@@ -39,8 +45,10 @@ const presetColors = [
   '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#ffffff',
 ];
 
-export function RichTextEditor({ content, onChange, placeholder, className }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, placeholder, className, autoSize = false }: RichTextEditorProps) {
   const [customColor, setCustomColor] = useState('#3b82f6');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [showLinkPopover, setShowLinkPopover] = useState(false);
   
   const editor = useEditor({
     extensions: [
@@ -48,11 +56,23 @@ export function RichTextEditor({ content, onChange, placeholder, className }: Ri
         heading: {
           levels: [1, 2, 3],
         },
+        codeBlock: false, // We use the separate extension
       }),
       TextStyle,
       Color,
       Placeholder.configure({
         placeholder: placeholder || 'Start typing...',
+      }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-primary underline hover:text-primary/80',
+        },
+      }),
+      CodeBlock.configure({
+        HTMLAttributes: {
+          class: 'bg-muted rounded-md p-3 font-mono text-sm overflow-x-auto',
+        },
       }),
     ],
     content,
@@ -61,14 +81,37 @@ export function RichTextEditor({ content, onChange, placeholder, className }: Ri
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[120px] px-3 py-2',
+        class: cn(
+          'prose prose-sm dark:prose-invert max-w-none focus:outline-none px-3 py-2',
+          autoSize ? 'min-h-[80px]' : 'min-h-[120px]'
+        ),
       },
     },
   });
 
+  // Sync external content changes
+  useEffect(() => {
+    if (editor && content !== editor.getHTML()) {
+      editor.commands.setContent(content, { emitUpdate: false });
+    }
+  }, [content, editor]);
+
   if (!editor) {
     return null;
   }
+
+  const handleSetLink = () => {
+    if (linkUrl) {
+      const url = linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`;
+      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    }
+    setLinkUrl('');
+    setShowLinkPopover(false);
+  };
+
+  const handleUnsetLink = () => {
+    editor.chain().focus().unsetLink().run();
+  };
 
   const ToolbarButton = ({ 
     onClick, 
@@ -104,14 +147,14 @@ export function RichTextEditor({ content, onChange, placeholder, className }: Ri
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive('bold')}
-          title="Bold"
+          title="Bold (Ctrl+B)"
         >
           <Bold className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
           isActive={editor.isActive('italic')}
-          title="Italic"
+          title="Italic (Ctrl+I)"
         >
           <Italic className="h-4 w-4" />
         </ToolbarButton>
@@ -175,7 +218,7 @@ export function RichTextEditor({ content, onChange, placeholder, className }: Ri
 
         <div className="w-px h-6 bg-border mx-1" />
 
-        {/* Quote & Divider */}
+        {/* Quote, Code & Divider */}
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           isActive={editor.isActive('blockquote')}
@@ -184,11 +227,58 @@ export function RichTextEditor({ content, onChange, placeholder, className }: Ri
           <Quote className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          isActive={editor.isActive('codeBlock')}
+          title="Code Block"
+        >
+          <Code className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
           title="Horizontal Rule"
         >
           <Minus className="h-4 w-4" />
         </ToolbarButton>
+
+        <div className="w-px h-6 bg-border mx-1" />
+
+        {/* Link */}
+        <Popover open={showLinkPopover} onOpenChange={setShowLinkPopover}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn("h-8 w-8 p-0", editor.isActive('link') && "bg-muted text-primary")}
+              title="Add Link"
+            >
+              <LinkIcon className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-3" align="start">
+            <div className="space-y-3">
+              <Label className="text-xs font-medium">Link URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="h-8 text-sm"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSetLink()}
+                />
+                <Button size="sm" onClick={handleSetLink}>
+                  Add
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+        
+        {editor.isActive('link') && (
+          <ToolbarButton onClick={handleUnsetLink} title="Remove Link">
+            <Unlink className="h-4 w-4" />
+          </ToolbarButton>
+        )}
 
         <div className="w-px h-6 bg-border mx-1" />
 
@@ -348,6 +438,33 @@ export function RichTextEditor({ content, onChange, placeholder, className }: Ri
         }
         .ProseMirror p {
           margin: 0.25rem 0;
+        }
+        .ProseMirror pre {
+          background: hsl(var(--muted));
+          border-radius: 0.375rem;
+          padding: 0.75rem;
+          font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 0.875rem;
+          overflow-x: auto;
+          margin: 0.5rem 0;
+        }
+        .ProseMirror code {
+          background: hsl(var(--muted));
+          padding: 0.125rem 0.25rem;
+          border-radius: 0.25rem;
+          font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 0.875em;
+        }
+        .ProseMirror pre code {
+          background: none;
+          padding: 0;
+        }
+        .ProseMirror a {
+          color: hsl(var(--primary));
+          text-decoration: underline;
+        }
+        .ProseMirror a:hover {
+          color: hsl(var(--primary) / 0.8);
         }
       `}</style>
     </div>

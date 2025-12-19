@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileJson, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
+import { markdownToHtml } from '@/lib/markdownToHtml';
 interface ImportResult {
   success: boolean;
   workspaces_created: number;
@@ -342,7 +342,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             .insert({
               column_id: columnId,
               title: card.name,
-              description: card.desc || null,
+              description: markdownToHtml(card.desc),
               due_date: card.due || null,
               position: i,
               priority,

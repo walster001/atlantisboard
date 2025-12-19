@@ -55,7 +55,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   };
 
   return (
-    <Draggable draggableId={column.id} index={index}>
+    <Draggable draggableId={column.id} index={index} isDragDisabled={disabled}>
       {(provided) => (
         <div
           ref={provided.innerRef}

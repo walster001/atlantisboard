@@ -51,7 +51,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
   };
 
   return (
-    <Draggable draggableId={card.id} index={index}>
+    <Draggable draggableId={card.id} index={index} isDragDisabled={disabled}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}

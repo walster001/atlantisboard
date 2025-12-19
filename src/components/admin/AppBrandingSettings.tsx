@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAppSettings } from '@/hooks/useAppSettings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ interface AppBrandingState {
 }
 
 export function AppBrandingSettings() {
+  const { refreshSettings } = useAppSettings();
   const [settings, setSettings] = useState<AppBrandingState>({
     custom_home_logo_enabled: false,
     custom_home_logo_url: null,
@@ -111,6 +113,9 @@ export function AppBrandingSettings() {
       setSettings(newSettings);
       setSavedSettings(newSettings);
 
+      // Refresh global app settings context
+      await refreshSettings();
+
       toast({ title: 'Settings saved', description: 'App branding settings have been updated.' });
     } catch (error: any) {
       toast({ title: 'Error saving settings', description: error.message, variant: 'destructive' });
@@ -155,6 +160,7 @@ export function AppBrandingSettings() {
 
       setSettings(prev => ({ ...prev, [urlKey]: urlData.publicUrl }));
       setSavedSettings(prev => prev ? { ...prev, [urlKey]: urlData.publicUrl } : prev);
+      await refreshSettings();
       toast({ title: 'Logo uploaded', description: `Your custom ${type} logo has been uploaded.` });
     } catch (error: any) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
@@ -177,6 +183,7 @@ export function AppBrandingSettings() {
       if (error) throw error;
       setSettings(prev => ({ ...prev, [urlKey]: null, [enabledKey]: false }));
       setSavedSettings(prev => prev ? { ...prev, [urlKey]: null, [enabledKey]: false } : prev);
+      await refreshSettings();
     } catch (error: any) {
       toast({ title: 'Error removing logo', description: error.message, variant: 'destructive' });
     } finally {

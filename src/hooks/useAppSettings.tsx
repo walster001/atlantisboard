@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AppSettings {
@@ -17,7 +17,6 @@ interface AppSettingsContextType {
   loading: boolean;
   appName: string;
   refreshSettings: () => Promise<void>;
-  ensureLoaded: () => Promise<void>;
 }
 
 const defaultAppName = 'KanBoard';
@@ -27,16 +26,17 @@ const AppSettingsContext = createContext<AppSettingsContextType>({
   loading: false,
   appName: defaultAppName,
   refreshSettings: async () => {},
-  ensureLoaded: async () => {},
 });
 
 export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
+  const fetchedRef = useRef(false);
+  const fetchingRef = useRef(false);
 
   const fetchSettings = useCallback(async () => {
-    if (loading) return;
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -47,28 +47,35 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
       setSettings(data);
-      setHasFetched(true);
+      fetchedRef.current = true;
     } catch (error) {
       console.error('Error fetching app settings:', error);
-      setHasFetched(true);
+      fetchedRef.current = true;
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
-  }, [loading]);
+  }, []);
 
-  // Lazy load - only fetch when explicitly requested
-  const ensureLoaded = useCallback(async () => {
-    if (!hasFetched && !loading) {
-      await fetchSettings();
+  // Force refresh (for admin updates)
+  const refreshSettings = useCallback(async () => {
+    fetchedRef.current = false;
+    await fetchSettings();
+  }, [fetchSettings]);
+
+  // Fetch on first render for authenticated pages
+  useEffect(() => {
+    if (!fetchedRef.current && !fetchingRef.current) {
+      fetchSettings();
     }
-  }, [hasFetched, loading, fetchSettings]);
+  }, [fetchSettings]);
 
   const appName = settings?.custom_global_app_name_enabled && settings?.custom_global_app_name
     ? settings.custom_global_app_name
     : defaultAppName;
 
   return (
-    <AppSettingsContext.Provider value={{ settings, loading, appName, refreshSettings: fetchSettings, ensureLoaded }}>
+    <AppSettingsContext.Provider value={{ settings, loading, appName, refreshSettings }}>
       {children}
     </AppSettingsContext.Provider>
   );

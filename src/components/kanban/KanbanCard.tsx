@@ -43,6 +43,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
   const [menuOpen, setMenuOpen] = useState(false);
   const [justDropped, setJustDropped] = useState(false);
   const wasDraggingRef = useRef(false);
+  const prevDraggingRef = useRef(false);
   const dueDate = card.dueDate ? new Date(card.dueDate) : null;
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
   const isDueToday = dueDate && isToday(dueDate);
@@ -64,16 +65,21 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
   return (
     <Draggable draggableId={card.id} index={index} isDragDisabled={disabled}>
       {(provided, snapshot) => {
-        // Track when dragging ends to prevent click from opening card and trigger settle animation
-        if (snapshot.isDragging) {
-          wasDraggingRef.current = true;
-        } else if (wasDraggingRef.current && !snapshot.isDragging) {
+        // Track drag state changes using effect-like pattern
+        const isDragging = snapshot.isDragging;
+        
+        // Use useEffect-like pattern via refs to handle settle animation
+        if (prevDraggingRef.current && !isDragging) {
           // Just finished dragging - trigger settle animation
+          wasDraggingRef.current = true;
           if (!justDropped) {
-            setJustDropped(true);
-            setTimeout(() => setJustDropped(false), 200);
+            setTimeout(() => {
+              setJustDropped(true);
+              setTimeout(() => setJustDropped(false), 200);
+            }, 0);
           }
         }
+        prevDraggingRef.current = isDragging;
         
         return (
           <div

@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload, Users } from 'lucide-react';
 import { BoardImportDialog } from '@/components/import/BoardImportDialog';
+import { AssigneeMappingDialog } from '@/components/import/AssigneeMappingDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
@@ -66,6 +67,7 @@ export default function Home() {
   const [deleteBoardId, setDeleteBoardId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [assigneeMappingOpen, setAssigneeMappingOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -317,6 +319,10 @@ export default function Home() {
             <h2 className="text-2xl font-semibold">Your Workspaces</h2>
             {isAppAdmin && (
               <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setAssigneeMappingOpen(true)}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Map Assignees
+                </Button>
                 <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
                   <Upload className="h-4 w-4 mr-2" />
                   Import
@@ -612,6 +618,13 @@ export default function Home() {
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
         onImportComplete={fetchData}
+      />
+
+      {/* Assignee Mapping Dialog */}
+      <AssigneeMappingDialog
+        open={assigneeMappingOpen}
+        onOpenChange={setAssigneeMappingOpen}
+        onMappingComplete={fetchData}
       />
     </div>
   );

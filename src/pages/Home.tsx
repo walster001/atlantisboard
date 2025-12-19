@@ -45,7 +45,7 @@ const BOARD_COLORS = [
 
 export default function Home() {
   const { user, signOut, loading: authLoading, isAppAdmin } = useAuth();
-  const { settings: appSettings, appName } = useAppSettings();
+  const { settings: appSettings, appName, ensureLoaded } = useAppSettings();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -85,8 +85,9 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       fetchData();
+      ensureLoaded(); // Load app settings when home page mounts
     }
-  }, [user]);
+  }, [user, ensureLoaded]);
 
   const fetchData = async () => {
     if (!user) return;

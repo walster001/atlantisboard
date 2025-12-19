@@ -77,11 +77,14 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
             className={cn(
               'kanban-card group rounded-lg p-3 mb-2 cursor-pointer transition-all duration-200 overflow-hidden',
               snapshot.isDragging
-                ? 'shadow-card-dragging rotate-2 scale-105 cursor-grabbing'
+                ? 'shadow-card-dragging rotate-1 scale-[1.02] cursor-grabbing ring-2 ring-primary/50 opacity-95'
                 : 'shadow-card hover:shadow-card-hover',
               !card.color && 'bg-card hover:bg-card/80'
             )}
-            style={card.color ? { backgroundColor: card.color } : undefined}
+            style={{
+              ...(card.color ? { backgroundColor: card.color } : {}),
+              ...(snapshot.isDragging ? { zIndex: 9999 } : {})
+            }}
           >
           {/* Labels */}
           {card.labels.length > 0 && (

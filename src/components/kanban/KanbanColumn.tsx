@@ -177,8 +177,8 @@ export const KanbanColumn = memo(function KanbanColumn({
                   ref={provided.innerRef}
                   {...provided.droppableProps}
                   className={cn(
-                    'min-h-[2rem] transition-colors duration-200 rounded-lg flex-1 overflow-y-auto scrollbar-thin',
-                    snapshot.isDraggingOver && 'bg-primary/5'
+                    'min-h-[2rem] transition-all duration-200 rounded-lg flex-1 overflow-y-auto scrollbar-thin p-1 -m-1',
+                    snapshot.isDraggingOver && 'drop-zone-active'
                   )}
                 >
                   {column.cards.map((card, cardIndex) => (

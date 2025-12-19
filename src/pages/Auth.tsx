@@ -53,7 +53,7 @@ const logoSizeMap: Record<string, string> = {
 };
 
 export default function Auth() {
-  const { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, verificationError, clearVerificationError } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [pageData, setPageData] = useState<AuthPageData | null>(null);
@@ -66,6 +66,18 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+
+  // Show verification error as toast
+  useEffect(() => {
+    if (verificationError) {
+      toast({
+        title: 'Access Denied',
+        description: verificationError,
+        variant: 'destructive',
+      });
+      clearVerificationError();
+    }
+  }, [verificationError, clearVerificationError, toast]);
 
   // Single server-side call for all auth page data
   useEffect(() => {

@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.test-mysql-connection]
 verify_jwt = false
+
+[functions.import-wekan-board]
+verify_jwt = false

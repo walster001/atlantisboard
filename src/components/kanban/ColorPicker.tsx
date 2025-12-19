@@ -194,7 +194,7 @@ export function ColorPicker({
 
   return (
     <>
-      <Popover open={open} onOpenChange={handleOpenChange}>
+      <Popover open={open} onOpenChange={handleOpenChange} modal={true}>
         <PopoverTrigger asChild>
           {trigger || (
             <Button variant="ghost" size="sm" className="w-full justify-start">
@@ -207,6 +207,7 @@ export function ColorPicker({
           className="w-72 p-0 z-[9999]" 
           align="start" 
           side="bottom"
+          onFocusOutside={(e) => e.preventDefault()}
         >
           <div 
             className="p-3"

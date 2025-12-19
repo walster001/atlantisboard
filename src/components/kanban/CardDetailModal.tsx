@@ -197,7 +197,7 @@ export function CardDetailModal({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-thin">
         {/* Description Section */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -406,7 +406,7 @@ export function CardDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] p-0 overflow-hidden" hideCloseButton>
+      <DialogContent className="max-w-2xl max-h-[85vh] p-0 flex flex-col overflow-hidden" hideCloseButton>
         {content}
       </DialogContent>
     </Dialog>

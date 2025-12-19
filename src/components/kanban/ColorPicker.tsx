@@ -200,16 +200,11 @@ export function ColorPicker({
           className="w-72 p-0 z-[9999]" 
           align="start" 
           side="bottom"
-          onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
-          onFocusOutside={(e) => e.preventDefault()}
         >
           <div 
             className="p-3"
             onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
           >
           <Tabs defaultValue="presets" className="w-full">
             <TabsList className="w-full grid grid-cols-2 mb-3">

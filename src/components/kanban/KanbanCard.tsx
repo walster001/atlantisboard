@@ -59,7 +59,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
           {...provided.dragHandleProps}
           onClick={handleCardClick}
           className={cn(
-            'kanban-card group bg-card rounded-lg p-3 mb-2 cursor-pointer transition-all duration-200',
+            'kanban-card group bg-card rounded-lg p-3 mb-2 cursor-pointer transition-all duration-200 overflow-hidden',
             snapshot.isDragging
               ? 'shadow-card-dragging rotate-2 scale-105 cursor-grabbing'
               : 'shadow-card hover:shadow-card-hover hover:bg-card/80'
@@ -85,7 +85,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
 
           {/* Title & Menu */}
           <div className="flex items-start justify-between gap-2">
-            <h4 className="text-sm font-medium text-card-foreground leading-snug flex-1">
+            <h4 className="text-sm font-medium text-card-foreground leading-snug flex-1 break-words min-w-0">
               {stripHtmlTags(card.title)}
             </h4>
             {!disabled && (
@@ -116,7 +116,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
 
           {/* Description preview */}
           {card.description && (
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2 break-words">
               {card.description.replace(/<[^>]*>/g, '').split('\n')[0]}
             </p>
           )}

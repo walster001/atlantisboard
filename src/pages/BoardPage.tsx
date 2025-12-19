@@ -634,7 +634,7 @@ export default function BoardPage() {
       {/* Board */}
       <div 
         ref={dragScrollRef} 
-        className={`flex-1 min-h-0 overflow-x-auto overflow-y-auto scrollbar-thin ${
+        className={`flex-1 min-h-0 overflow-x-auto overflow-y-hidden scrollbar-thin ${
           isDragging ? 'cursor-grabbing' : isSpaceHeld ? 'cursor-grab' : 'cursor-default'
         }`}
       >

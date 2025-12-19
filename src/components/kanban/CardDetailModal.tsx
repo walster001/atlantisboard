@@ -20,6 +20,18 @@ import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { RichTextEditor } from './RichTextEditor';
+import { CardAttachmentSection } from './CardAttachmentSection';
+
+interface Attachment {
+  id: string;
+  card_id: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
+  file_type: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
 
 interface CardDetailModalProps {
   card: Card | null;
@@ -30,6 +42,8 @@ interface CardDetailModalProps {
   onRemoveLabel: (labelId: string) => void;
   onDelete?: () => void;
   disabled?: boolean;
+  attachments?: Attachment[];
+  onAttachmentsChange?: () => void;
 }
 
 const labelColors: { color: LabelColor; name: string; className: string }[] = [
@@ -51,6 +65,8 @@ export function CardDetailModal({
   onRemoveLabel,
   onDelete,
   disabled = false,
+  attachments = [],
+  onAttachmentsChange,
 }: CardDetailModalProps) {
   const isMobile = useIsMobile();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -347,6 +363,14 @@ export function CardDetailModal({
             )}
           </div>
         </div>
+
+        {/* Attachments Section */}
+        <CardAttachmentSection
+          cardId={card.id}
+          attachments={attachments}
+          onAttachmentsChange={onAttachmentsChange || (() => {})}
+          disabled={disabled}
+        />
       </div>
 
       {/* Footer Actions */}

@@ -525,6 +525,69 @@ export type Database = {
           },
         ]
       }
+      import_pending_attachments: {
+        Row: {
+          board_id: string
+          card_id: string
+          created_at: string
+          id: string
+          import_source: string
+          original_attachment_id: string | null
+          original_name: string
+          original_size: number | null
+          original_type: string | null
+          original_url: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          uploaded_file_url: string | null
+        }
+        Insert: {
+          board_id: string
+          card_id: string
+          created_at?: string
+          id?: string
+          import_source?: string
+          original_attachment_id?: string | null
+          original_name: string
+          original_size?: number | null
+          original_type?: string | null
+          original_url?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          uploaded_file_url?: string | null
+        }
+        Update: {
+          board_id?: string
+          card_id?: string
+          created_at?: string
+          id?: string
+          import_source?: string
+          original_attachment_id?: string | null
+          original_name?: string
+          original_size?: number | null
+          original_type?: string | null
+          original_url?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          uploaded_file_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_pending_attachments_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_pending_attachments_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       labels: {
         Row: {
           board_id: string

@@ -70,6 +70,7 @@ export default function BoardPage() {
   const [cards, setCards] = useState<DbCard[]>([]);
   const [labels, setLabels] = useState<DbLabel[]>([]);
   const [cardLabels, setCardLabels] = useState<DbCardLabel[]>([]);
+  const [cardAttachments, setCardAttachments] = useState<{ id: string; card_id: string; file_name: string; file_url: string; file_size: number | null; file_type: string | null; uploaded_by: string | null; created_at: string }[]>([]);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
   const [loading, setLoading] = useState(true);
@@ -234,6 +235,16 @@ export default function BoardPage() {
       setCards(result.cards || []);
       setLabels(result.labels || []);
       setCardLabels(result.card_labels || []);
+
+      // Fetch card attachments
+      const cardIds = (result.cards || []).map((c: DbCard) => c.id);
+      if (cardIds.length > 0) {
+        const { data: attachments } = await supabase
+          .from('card_attachments')
+          .select('*')
+          .in('card_id', cardIds);
+        setCardAttachments(attachments || []);
+      }
       
       // Transform members to expected format
       const transformedMembers: BoardMember[] = (result.members || []).map((m) => ({

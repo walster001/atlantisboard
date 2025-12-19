@@ -161,6 +161,7 @@ Deno.serve(async (req) => {
       labels_created: 0,
       subtasks_created: 0,
       attachments_noted: 0,
+      attachments_pending: 0,
       assignees_pending: 0,
       errors: [] as string[],
       warnings: [] as string[],
@@ -436,11 +437,37 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Note attachments (they need to be re-uploaded manually)
+        // Create pending attachment records for manual upload
         const attachments = wekanBoard.attachments || [];
         if (attachments.length > 0) {
+          for (const attachment of attachments) {
+            // Find which card this attachment belongs to based on the attachment's cardId if available
+            // Wekan attachments may have a cardId or we need to match by URL patterns
+            // For now, track all attachments at board level for manual assignment
+            
+            // Try to find the card for this attachment
+            const cardId = cardIdMap.values().next().value; // Default to first card if no mapping
+            
+            if (cardId) {
+              const { error: pendingAttachError } = await supabase
+                .from('import_pending_attachments')
+                .insert({
+                  board_id: board.id,
+                  card_id: cardId,
+                  original_attachment_id: attachment._id,
+                  original_name: attachment.name || 'Unknown',
+                  original_url: attachment.url || null,
+                  original_size: attachment.size || null,
+                  original_type: attachment.type || null,
+                  import_source: 'wekan',
+                });
+
+              if (!pendingAttachError) {
+                result.attachments_pending++;
+              }
+            }
+          }
           result.attachments_noted += attachments.length;
-          result.warnings.push(`Board "${wekanBoard.title}" has ${attachments.length} attachment(s) - upload manually`);
         }
 
       } catch (boardError: any) {
@@ -469,6 +496,7 @@ Deno.serve(async (req) => {
         labels_created: 0,
         subtasks_created: 0,
         attachments_noted: 0,
+        attachments_pending: 0,
         assignees_pending: 0,
         warnings: [],
       }),

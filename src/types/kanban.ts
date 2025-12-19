@@ -13,12 +13,14 @@ export interface Card {
   labels: Label[];
   dueDate?: string;
   createdAt: string;
+  color?: string | null;
 }
 
 export interface Column {
   id: string;
   title: string;
   cards: Card[];
+  color?: string | null;
 }
 
 export interface Board {

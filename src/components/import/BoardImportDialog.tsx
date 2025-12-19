@@ -6,11 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Upload, FileJson, Loader2, CheckCircle, AlertCircle, Palette, X } from 'lucide-react';
+import { Upload, FileJson, Loader2, CheckCircle, AlertCircle, Palette, X, Check } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { markdownToHtml } from '@/lib/markdownToHtml';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 interface ImportResult {
   success: boolean;
@@ -155,6 +156,25 @@ const DEFAULT_CARD_COLORS = [
   { value: '#ec4899', label: 'Pink', color: '#ec4899' },
 ];
 
+// Helper functions for color conversion
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : { r: 0, g: 0, b: 0 };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map(x => {
+    const hex = Math.max(0, Math.min(255, Math.round(x))).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }).join('');
+}
+
 type ImportStage = 'idle' | 'parsing' | 'validating' | 'workspace' | 'board' | 'members' | 'labels' | 'columns' | 'cards' | 'card_labels' | 'subtasks' | 'attachments' | 'assignees' | 'finalizing' | 'complete';
 
 interface ProgressState {
@@ -211,6 +231,34 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const [progress, setProgress] = useState<ProgressState>({ stage: 'idle', current: 0, total: 0 });
   const [defaultCardColor, setDefaultCardColor] = useState<string | null>(null);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [customRgb, setCustomRgb] = useState({ r: 59, g: 130, b: 246 }); // Default blue
+  const [customHex, setCustomHex] = useState('#3b82f6');
+
+  // Handle RGB slider changes
+  const handleRgbChange = (channel: 'r' | 'g' | 'b', value: string) => {
+    const numValue = Math.max(0, Math.min(255, parseInt(value) || 0));
+    const newRgb = { ...customRgb, [channel]: numValue };
+    setCustomRgb(newRgb);
+    const hex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+    setCustomHex(hex);
+  };
+
+  // Handle hex input changes
+  const handleHexChange = (value: string) => {
+    setCustomHex(value);
+    if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+      const { r, g, b } = hexToRgb(value);
+      setCustomRgb({ r, g, b });
+    }
+  };
+
+  // Apply custom color
+  const applyCustomColor = () => {
+    if (/^#[0-9A-Fa-f]{6}$/.test(customHex)) {
+      setDefaultCardColor(customHex);
+      setColorPickerOpen(false);
+    }
+  };
 
   const updateProgress = (stage: ImportStage, current = 0, total = 0, detail?: string) => {
     setProgress({ stage, current, total, detail });
@@ -865,37 +913,129 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-64 p-3" align="start">
-                    <div className="space-y-3">
-                      <p className="text-sm font-medium">Select default colour</p>
-                      <div className="grid grid-cols-5 gap-2">
-                        {DEFAULT_CARD_COLORS.map((colorOption) => (
-                          <button
-                            key={colorOption.label}
-                            onClick={() => {
-                              setDefaultCardColor(colorOption.value);
-                              setColorPickerOpen(false);
-                            }}
-                            className={cn(
-                              'h-8 w-8 rounded-md border-2 transition-all hover:scale-110 flex items-center justify-center',
-                              defaultCardColor === colorOption.value
-                                ? 'border-primary ring-2 ring-primary/20'
-                                : 'border-border',
-                              colorOption.value === null && 'bg-background'
-                            )}
-                            style={colorOption.value ? { backgroundColor: colorOption.value } : undefined}
-                            title={colorOption.label}
-                          >
-                            {colorOption.value === null && (
-                              <X className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Cards that already have a colour in the source will keep their original colour.
-                      </p>
-                    </div>
+                  <PopoverContent className="w-72 p-0" align="start">
+                    <Tabs defaultValue="presets" className="w-full">
+                      <TabsList className="w-full grid grid-cols-2 rounded-b-none">
+                        <TabsTrigger value="presets">Presets</TabsTrigger>
+                        <TabsTrigger value="custom">Custom</TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="presets" className="p-3 space-y-3">
+                        <div className="grid grid-cols-5 gap-2">
+                          {DEFAULT_CARD_COLORS.map((colorOption) => (
+                            <button
+                              key={colorOption.label}
+                              onClick={() => {
+                                setDefaultCardColor(colorOption.value);
+                                setColorPickerOpen(false);
+                              }}
+                              className={cn(
+                                'h-8 w-8 rounded-md border-2 transition-all hover:scale-110 flex items-center justify-center',
+                                defaultCardColor === colorOption.value
+                                  ? 'border-primary ring-2 ring-primary/20'
+                                  : 'border-border',
+                                colorOption.value === null && 'bg-background'
+                              )}
+                              style={colorOption.value ? { backgroundColor: colorOption.value } : undefined}
+                              title={colorOption.label}
+                            >
+                              {colorOption.value === null && (
+                                <X className="h-4 w-4 text-muted-foreground" />
+                              )}
+                              {colorOption.value && defaultCardColor === colorOption.value && (
+                                <Check className="h-4 w-4 text-white" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Cards with existing colours keep their original colour.
+                        </p>
+                      </TabsContent>
+                      
+                      <TabsContent value="custom" className="p-3 space-y-3">
+                        {/* Color preview */}
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="h-12 w-12 rounded-lg border-2 border-border shrink-0"
+                            style={{ backgroundColor: customHex }}
+                          />
+                          <div className="flex-1">
+                            <Input
+                              value={customHex}
+                              onChange={(e) => handleHexChange(e.target.value)}
+                              placeholder="#000000"
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        {/* RGB sliders */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Label className="w-6 text-xs text-red-500 font-medium">R</Label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="255"
+                              value={customRgb.r}
+                              onChange={(e) => handleRgbChange('r', e.target.value)}
+                              className="flex-1 h-2 appearance-none bg-gradient-to-r from-black via-red-500 to-red-500 rounded-lg cursor-pointer"
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              max="255"
+                              value={customRgb.r}
+                              onChange={(e) => handleRgbChange('r', e.target.value)}
+                              className="w-14 h-7 text-xs text-center"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label className="w-6 text-xs text-green-500 font-medium">G</Label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="255"
+                              value={customRgb.g}
+                              onChange={(e) => handleRgbChange('g', e.target.value)}
+                              className="flex-1 h-2 appearance-none bg-gradient-to-r from-black via-green-500 to-green-500 rounded-lg cursor-pointer"
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              max="255"
+                              value={customRgb.g}
+                              onChange={(e) => handleRgbChange('g', e.target.value)}
+                              className="w-14 h-7 text-xs text-center"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label className="w-6 text-xs text-blue-500 font-medium">B</Label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="255"
+                              value={customRgb.b}
+                              onChange={(e) => handleRgbChange('b', e.target.value)}
+                              className="flex-1 h-2 appearance-none bg-gradient-to-r from-black via-blue-500 to-blue-500 rounded-lg cursor-pointer"
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              max="255"
+                              value={customRgb.b}
+                              onChange={(e) => handleRgbChange('b', e.target.value)}
+                              className="w-14 h-7 text-xs text-center"
+                            />
+                          </div>
+                        </div>
+
+                        <Button size="sm" className="w-full" onClick={applyCustomColor}>
+                          Apply Colour
+                        </Button>
+                      </TabsContent>
+                    </Tabs>
                   </PopoverContent>
                 </Popover>
                 {defaultCardColor && (

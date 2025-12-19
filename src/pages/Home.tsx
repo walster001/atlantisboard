@@ -70,6 +70,7 @@ export default function Home() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [assigneeMappingOpen, setAssigneeMappingOpen] = useState(false);
   const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
+  const [pendingAttachmentCount, setPendingAttachmentCount] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -104,6 +105,13 @@ export default function Home() {
       setWorkspaces(result?.workspaces || []);
       setBoards(result?.boards || []);
       setBoardRoles(result?.board_roles || {});
+
+      // Fetch pending attachment count for admins
+      const { count } = await supabase
+        .from('import_pending_attachments')
+        .select('*', { count: 'exact', head: true })
+        .is('resolved_at', null);
+      setPendingAttachmentCount(count || 0);
     } catch (error: any) {
       console.error('Error fetching data:', error);
     } finally {
@@ -321,9 +329,14 @@ export default function Home() {
             <h2 className="text-2xl font-semibold">Your Workspaces</h2>
             {isAppAdmin && (
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => setAttachmentDialogOpen(true)}>
+                <Button variant="outline" onClick={() => setAttachmentDialogOpen(true)} className="relative">
                   <Paperclip className="h-4 w-4 mr-2" />
                   Attachments
+                  {pendingAttachmentCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-xs font-medium rounded-full h-5 min-w-5 flex items-center justify-center px-1">
+                      {pendingAttachmentCount > 99 ? '99+' : pendingAttachmentCount}
+                    </span>
+                  )}
                 </Button>
                 <Button variant="outline" onClick={() => setAssigneeMappingOpen(true)}>
                   <Users className="h-4 w-4 mr-2" />

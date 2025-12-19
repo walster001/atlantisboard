@@ -88,7 +88,9 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
             {...provided.dragHandleProps}
             onClick={handleCardClick}
             className={cn(
-              'kanban-card group rounded-lg p-3 mb-2 cursor-pointer transition-all duration-200 overflow-hidden',
+              'kanban-card group rounded-lg p-3 mb-2 cursor-pointer overflow-hidden',
+              // Use specific transitions, NOT transition-all (breaks drag-and-drop)
+              'transition-shadow transition-colors duration-200',
               snapshot.isDragging
                 ? 'shadow-card-dragging rotate-1 scale-[1.02] cursor-grabbing ring-2 ring-primary/50 opacity-95'
                 : 'shadow-card hover:shadow-card-hover',
@@ -96,6 +98,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
               justDropped && 'card-settle'
             )}
             style={{
+              ...provided.draggableProps.style,
               ...(card.color ? { backgroundColor: card.color } : {}),
               ...(snapshot.isDragging ? { zIndex: 9999 } : {})
             }}

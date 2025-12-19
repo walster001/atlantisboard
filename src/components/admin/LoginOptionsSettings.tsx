@@ -217,6 +217,7 @@ export function LoginOptionsSettings() {
           db_name: mysqlConfig.db_name.trim(),
           db_user: mysqlConfig.db_user.trim(),
           db_password: mysqlConfig.db_password,
+          verification_query: mysqlConfig.verification_query.trim(),
         },
       });
 

@@ -57,7 +57,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { db_host, db_name, db_user, db_password } = await req.json();
+    const { db_host, db_name, db_user, db_password, verification_query } = await req.json();
 
     if (!db_host || !db_name || !db_user || !db_password) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -93,13 +93,50 @@ serve(async (req) => {
       // Simple query to verify connection
       await client.execute('SELECT 1');
       
-      await client.close();
-      
       console.log('MySQL connection test successful');
       
+      // If verification query is provided, test it too
+      let queryTestResult = null;
+      if (verification_query) {
+        try {
+          // Replace ? with a test email to validate query syntax
+          const testQuery = verification_query.replace('?', "'test@example.com'");
+          console.log('Testing verification query:', testQuery);
+          await client.execute(testQuery);
+          queryTestResult = { success: true, message: 'Verification query executed successfully.' };
+        } catch (queryError) {
+          console.error('Verification query error:', queryError);
+          const queryErrorStr = String(queryError);
+          let queryErrorMsg = 'Verification query failed';
+          
+          if (queryErrorStr.includes("doesn't exist")) {
+            queryErrorMsg = 'Table or column in query does not exist.';
+          } else if (queryErrorStr.includes('syntax')) {
+            queryErrorMsg = 'SQL syntax error in verification query.';
+          } else {
+            queryErrorMsg = `Query error: ${queryErrorStr.substring(0, 100)}`;
+          }
+          queryTestResult = { success: false, message: queryErrorMsg };
+        }
+      }
+      
+      await client.close();
+      
+      // Build response message
+      let message = 'Connection successful! Database is reachable.';
+      if (queryTestResult) {
+        if (queryTestResult.success) {
+          message += ' Verification query is valid.';
+        } else {
+          message = `Connection successful, but verification query failed: ${queryTestResult.message}`;
+        }
+      }
+      
       return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'Connection successful! Database is reachable.' 
+        success: queryTestResult ? queryTestResult.success : true,
+        connection_success: true,
+        query_success: queryTestResult?.success ?? null,
+        message,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

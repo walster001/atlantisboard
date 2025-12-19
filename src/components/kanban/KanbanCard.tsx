@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, useRef } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Card, Label } from '@/types/kanban';
 import { Calendar, MoreHorizontal, Trash2, Palette, XCircle } from 'lucide-react';
@@ -40,13 +40,18 @@ const labelColorClasses: Record<Label['color'], string> = {
 };
 
 export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEdit, onDelete, onUpdateColor, onApplyColorToAll, disabled = false }: KanbanCardProps) {
-  const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const wasDraggingRef = useRef(false);
   const dueDate = card.dueDate ? new Date(card.dueDate) : null;
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
   const isDueToday = dueDate && isToday(dueDate);
 
   const handleCardClick = (e: React.MouseEvent) => {
+    // Don't open card if we just finished dragging
+    if (wasDraggingRef.current) {
+      wasDraggingRef.current = false;
+      return;
+    }
     // Don't open card if clicking on dropdown menu
     const target = e.target as HTMLElement;
     if (target.closest('[data-dropdown-menu]') || target.closest('button')) {
@@ -57,21 +62,27 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
 
   return (
     <Draggable draggableId={card.id} index={index} isDragDisabled={disabled}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          onClick={handleCardClick}
-          className={cn(
-            'kanban-card group rounded-lg p-3 mb-2 cursor-pointer transition-all duration-200 overflow-hidden',
-            snapshot.isDragging
-              ? 'shadow-card-dragging rotate-2 scale-105 cursor-grabbing'
-              : 'shadow-card hover:shadow-card-hover',
-            !card.color && 'bg-card hover:bg-card/80'
-          )}
-          style={card.color ? { backgroundColor: card.color } : undefined}
-        >
+      {(provided, snapshot) => {
+        // Track when dragging ends to prevent click from opening card
+        if (snapshot.isDragging) {
+          wasDraggingRef.current = true;
+        }
+        
+        return (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            onClick={handleCardClick}
+            className={cn(
+              'kanban-card group rounded-lg p-3 mb-2 cursor-pointer transition-all duration-200 overflow-hidden',
+              snapshot.isDragging
+                ? 'shadow-card-dragging rotate-2 scale-105 cursor-grabbing'
+                : 'shadow-card hover:shadow-card-hover',
+              !card.color && 'bg-card hover:bg-card/80'
+            )}
+            style={card.color ? { backgroundColor: card.color } : undefined}
+          >
           {/* Labels */}
           {card.labels.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-2">
@@ -177,7 +188,8 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
             </div>
           )}
         </div>
-      )}
+        );
+      }}
     </Draggable>
   );
 });

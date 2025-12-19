@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Card, Label } from '@/types/kanban';
+import { Card, Label, getLabelHexColor } from '@/types/kanban';
 import { Calendar, MoreHorizontal, Trash2, Palette, XCircle } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -28,16 +28,6 @@ interface KanbanCardProps {
   onApplyColorToAll: (color: string | null) => void;
   disabled?: boolean;
 }
-
-const labelColorClasses: Record<Label['color'], string> = {
-  red: 'bg-label-red',
-  orange: 'bg-label-orange',
-  yellow: 'bg-label-yellow',
-  green: 'bg-label-green',
-  blue: 'bg-label-blue',
-  purple: 'bg-label-purple',
-  pink: 'bg-label-pink',
-};
 
 export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEdit, onDelete, onUpdateColor, onApplyColorToAll, disabled = false }: KanbanCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -111,9 +101,9 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
                   key={label.id}
                   className={cn(
                     'h-2 rounded-full transition-all duration-200',
-                    labelColorClasses[label.color],
                     label.text ? 'px-2 py-0.5 h-auto text-[10px] font-medium text-white' : 'w-10'
                   )}
+                  style={{ backgroundColor: getLabelHexColor(label.color) }}
                 >
                   {label.text}
                 </span>

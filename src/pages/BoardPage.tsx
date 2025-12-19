@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, ArrowLeft, Loader2, Users, LayoutGrid, LogOut, User, Settings } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card as CardType, Label, LabelColor } from '@/types/kanban';
+import { Card as CardType, Label } from '@/types/kanban';
 import { BoardMembersDialog } from '@/components/kanban/BoardMembersDialog';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
@@ -482,7 +482,7 @@ export default function BoardPage() {
             if (!label) return null;
             return { 
               id: label.id, 
-              color: hexToLabelColor(label.color), 
+              color: label.color, 
               text: label.name || undefined 
             } as Label;
           })

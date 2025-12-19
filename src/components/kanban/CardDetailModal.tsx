@@ -123,7 +123,7 @@ export function CardDetailModal({
   } : null;
 
   const content = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full max-h-[85vh] md:max-h-[85vh]">
       {/* Header */}
       <div className="flex items-start justify-between p-4 md:p-6 border-b">
         <div className="flex-1 min-w-0">
@@ -411,7 +411,7 @@ export function CardDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] p-0 overflow-hidden" hideCloseButton>
+      <DialogContent className="max-w-2xl max-h-[85vh] p-0 flex flex-col overflow-hidden" hideCloseButton>
         {content}
       </DialogContent>
     </Dialog>

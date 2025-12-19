@@ -116,6 +116,16 @@ export function LoginOptionsSettings() {
   };
 
   const handleSave = async () => {
+    // Prevent saving google_verified without configured database
+    if (settings.login_style === 'google_verified' && !mysqlConfigured) {
+      toast({
+        title: 'Database not configured',
+        description: 'You must configure and save the external database connection before enabling Google + Database Verification login.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const { error } = await supabase

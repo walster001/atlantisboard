@@ -139,7 +139,10 @@ export const KanbanColumn = memo(function KanbanColumn({
                           onApplyToAll={onApplyColumnColorToAll}
                           applyToAllLabel="Apply to All Columns"
                           trigger={
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                            <DropdownMenuItem 
+                              onSelect={(e) => e.preventDefault()}
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <Palette className="h-4 w-4 mr-2" />
                               Column Colour
                             </DropdownMenuItem>

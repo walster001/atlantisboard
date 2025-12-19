@@ -57,6 +57,12 @@ interface WekanList {
   archived?: boolean;
 }
 
+interface WekanMember {
+  _id: string;
+  username?: string;
+  fullname?: string;
+}
+
 interface WekanBoard {
   _id: string;
   title: string;
@@ -67,6 +73,7 @@ interface WekanBoard {
   cards?: WekanCard[];
   checklists?: WekanChecklist[];
   attachments?: WekanAttachment[];
+  members?: WekanMember[];
   createdAt?: string;
   modifiedAt?: string;
 }
@@ -154,6 +161,7 @@ Deno.serve(async (req) => {
       labels_created: 0,
       subtasks_created: 0,
       attachments_noted: 0,
+      assignees_pending: 0,
       errors: [] as string[],
       warnings: [] as string[],
     };
@@ -237,6 +245,12 @@ Deno.serve(async (req) => {
         const labelIdMap = new Map<string, string>();
         const columnIdMap = new Map<string, string>();
         const cardIdMap = new Map<string, string>();
+
+        // Build member map for assignee names
+        const memberMap = new Map<string, WekanMember>();
+        for (const member of (wekanBoard.members || [])) {
+          memberMap.set(member._id, member);
+        }
 
         // Create labels
         if (wekanBoard.labels && wekanBoard.labels.length > 0) {
@@ -364,10 +378,29 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Note about members/assignees
-            const memberCount = (wekanCard.members?.length || 0) + (wekanCard.assignees?.length || 0);
-            if (memberCount > 0) {
-              result.warnings.push(`Card "${wekanCard.title}" had ${memberCount} assignee(s) - assign manually`);
+            // Create pending assignee mappings
+            const allAssignees = [...(wekanCard.members || []), ...(wekanCard.assignees || [])];
+            if (allAssignees.length > 0) {
+              for (const memberId of allAssignees) {
+                const member = memberMap.get(memberId);
+                const memberName = member?.fullname || member?.username || `Unknown (${memberId})`;
+                const username = member?.username || null;
+
+                const { error: pendingError } = await supabase
+                  .from('import_pending_assignees')
+                  .insert({
+                    board_id: board.id,
+                    card_id: card.id,
+                    original_member_id: memberId,
+                    original_member_name: memberName,
+                    original_username: username,
+                    import_source: 'wekan',
+                  });
+
+                if (!pendingError) {
+                  result.assignees_pending++;
+                }
+              }
             }
           }
         }
@@ -436,6 +469,7 @@ Deno.serve(async (req) => {
         labels_created: 0,
         subtasks_created: 0,
         attachments_noted: 0,
+        assignees_pending: 0,
         warnings: [],
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

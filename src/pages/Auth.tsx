@@ -46,10 +46,10 @@ interface AuthPageData {
   fonts: CustomFont[];
 }
 
-const logoSizeMap: Record<string, string> = {
-  small: 'w-[100px] h-[100px]',
-  medium: 'w-[200px] h-[200px]',
-  large: 'w-[300px] h-[300px]',
+const logoSizeMap: Record<string, { className: string; width: number; height: number }> = {
+  small: { className: 'w-[100px] h-[100px]', width: 100, height: 100 },
+  medium: { className: 'w-[200px] h-[200px]', width: 200, height: 200 },
+  large: { className: 'w-[300px] h-[300px]', width: 300, height: 300 },
 };
 
 export default function Auth() {
@@ -207,6 +207,9 @@ export default function Auth() {
       showCustomLogo,
       logoUrl: settings?.custom_login_logo_url,
       logoSize: logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium,
+      logoSizeClass: (logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium).className,
+      logoWidth: (logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium).width,
+      logoHeight: (logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium).height,
       appName: showCustomAppName ? settings!.custom_app_name : 'KanBoard',
       tagline: showCustomTagline ? settings!.custom_tagline : 'Sign in to manage your boards',
       appNameSize: settings?.custom_app_name_size || 24,
@@ -272,7 +275,11 @@ export default function Auth() {
               <img
                 src={brandingConfig.logoUrl!}
                 alt="Logo"
-                className={`${brandingConfig.logoSize} object-contain`}
+                width={brandingConfig.logoWidth}
+                height={brandingConfig.logoHeight}
+                fetchPriority="high"
+                loading="eager"
+                className={`${brandingConfig.logoSizeClass} object-contain`}
               />
             </div>
           )}

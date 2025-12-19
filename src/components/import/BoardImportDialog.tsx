@@ -507,10 +507,29 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             priority = 'low';
           }
 
-          // Determine card color from cover
-          let cardColor = null;
+          // Determine card color from cover - accept any color format
+          let cardColor: string | null = null;
           if (card.cover?.color) {
-            cardColor = trelloColorMap[card.cover.color] || null;
+            if (trelloColorMap[card.cover.color]) {
+              // Known Trello color
+              cardColor = trelloColorMap[card.cover.color];
+            } else if (card.cover.color.startsWith('#')) {
+              // Already a hex color
+              cardColor = card.cover.color;
+            } else if (card.cover.color.startsWith('rgb')) {
+              // RGB format - keep as is
+              cardColor = card.cover.color;
+            } else {
+              // Unknown color - try CSS color name mapping
+              const cssColorMap: Record<string, string> = {
+                red: '#ff0000', green: '#008000', blue: '#0000ff', yellow: '#ffff00',
+                orange: '#ffa500', purple: '#800080', pink: '#ffc0cb', black: '#000000',
+                white: '#ffffff', gray: '#808080', grey: '#808080', cyan: '#00ffff',
+                magenta: '#ff00ff', lime: '#00ff00', navy: '#000080', teal: '#008080',
+                maroon: '#800000', olive: '#808000', aqua: '#00ffff', silver: '#c0c0c0',
+              };
+              cardColor = cssColorMap[card.cover.color.toLowerCase()] || card.cover.color;
+            }
           }
 
           const { data: newCard, error: cardError } = await supabase

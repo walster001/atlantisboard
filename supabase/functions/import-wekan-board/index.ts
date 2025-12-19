@@ -607,12 +607,30 @@ async function runImport(
             }
           }
 
-          // Determine card color
+          // Determine card color - accept any color format
           let cardColor = null;
-          if (wekanCard.color && wekanColorMap[wekanCard.color]) {
-            cardColor = wekanColorMap[wekanCard.color];
-          } else if (wekanCard.color && wekanCard.color.startsWith('#')) {
-            cardColor = wekanCard.color;
+          if (wekanCard.color) {
+            if (wekanColorMap[wekanCard.color]) {
+              // Known named color
+              cardColor = wekanColorMap[wekanCard.color];
+            } else if (wekanCard.color.startsWith('#')) {
+              // Already a hex color
+              cardColor = wekanCard.color;
+            } else if (wekanCard.color.startsWith('rgb')) {
+              // RGB format - keep as is, can be edited later
+              cardColor = wekanCard.color;
+            } else {
+              // Unknown named color - try to use it as-is (might be a CSS color name)
+              // Convert common CSS color names to hex for consistency
+              const cssColorMap: Record<string, string> = {
+                red: '#ff0000', green: '#008000', blue: '#0000ff', yellow: '#ffff00',
+                orange: '#ffa500', purple: '#800080', pink: '#ffc0cb', black: '#000000',
+                white: '#ffffff', gray: '#808080', grey: '#808080', cyan: '#00ffff',
+                magenta: '#ff00ff', lime: '#00ff00', navy: '#000080', teal: '#008080',
+                maroon: '#800000', olive: '#808000', aqua: '#00ffff', silver: '#c0c0c0',
+              };
+              cardColor = cssColorMap[wekanCard.color.toLowerCase()] || wekanCard.color;
+            }
           }
 
           const { data: card, error: cardError } = await supabase

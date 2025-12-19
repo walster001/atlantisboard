@@ -335,6 +335,45 @@ export type Database = {
           },
         ]
       }
+      mysql_config: {
+        Row: {
+          created_at: string | null
+          db_host_encrypted: string | null
+          db_name_encrypted: string | null
+          db_password_encrypted: string | null
+          db_user_encrypted: string | null
+          id: string
+          is_configured: boolean | null
+          iv: string | null
+          updated_at: string | null
+          verification_query: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          db_host_encrypted?: string | null
+          db_name_encrypted?: string | null
+          db_password_encrypted?: string | null
+          db_user_encrypted?: string | null
+          id?: string
+          is_configured?: boolean | null
+          iv?: string | null
+          updated_at?: string | null
+          verification_query?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          db_host_encrypted?: string | null
+          db_name_encrypted?: string | null
+          db_password_encrypted?: string | null
+          db_user_encrypted?: string | null
+          id?: string
+          is_configured?: boolean | null
+          iv?: string | null
+          updated_at?: string | null
+          verification_query?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

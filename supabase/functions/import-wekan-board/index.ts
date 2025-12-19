@@ -137,6 +137,7 @@ interface WekanCard {
   modifiedAt?: string;
   sort?: number;
   archived?: boolean;
+  color?: string; // Card background color
 }
 
 interface WekanList {
@@ -606,6 +607,14 @@ async function runImport(
             }
           }
 
+          // Determine card color
+          let cardColor = null;
+          if (wekanCard.color && wekanColorMap[wekanCard.color]) {
+            cardColor = wekanColorMap[wekanCard.color];
+          } else if (wekanCard.color && wekanCard.color.startsWith('#')) {
+            cardColor = wekanCard.color;
+          }
+
           const { data: card, error: cardError } = await supabase
             .from('cards')
             .insert({
@@ -616,6 +625,7 @@ async function runImport(
               due_date: dueDate,
               created_by: userId,
               priority: 'none',
+              color: cardColor,
             })
             .select()
             .single();

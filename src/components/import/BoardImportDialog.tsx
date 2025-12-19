@@ -82,6 +82,10 @@ interface TrelloCard {
   dateLastActivity: string;
   attachments?: TrelloAttachment[];
   closed: boolean;
+  cover?: {
+    color?: string | null;
+    brightness?: string;
+  };
 }
 
 interface TrelloList {
@@ -503,6 +507,12 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             priority = 'low';
           }
 
+          // Determine card color from cover
+          let cardColor = null;
+          if (card.cover?.color) {
+            cardColor = trelloColorMap[card.cover.color] || null;
+          }
+
           const { data: newCard, error: cardError } = await supabase
             .from('cards')
             .insert({
@@ -513,6 +523,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
               position: i,
               priority,
               created_by: user.id,
+              color: cardColor,
             })
             .select()
             .single();

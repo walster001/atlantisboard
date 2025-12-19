@@ -145,7 +145,8 @@ export default function BoardPage() {
                 existingCard.description === updatedCard.description &&
                 existingCard.due_date === updatedCard.due_date &&
                 existingCard.position === updatedCard.position &&
-                existingCard.column_id === updatedCard.column_id) {
+                existingCard.column_id === updatedCard.column_id &&
+                existingCard.color === updatedCard.color) {
               return prev; // No change, don't trigger re-render
             }
             return prev.map(c => c.id === updatedCard.id ? updatedCard : c);
@@ -160,6 +161,7 @@ export default function BoardPage() {
                   title: updatedCard.title,
                   description: updatedCard.description || undefined,
                   dueDate: updatedCard.due_date || undefined,
+                  color: updatedCard.color,
                 }
               };
             }

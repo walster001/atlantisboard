@@ -62,7 +62,7 @@ export const KanbanColumn = memo(function KanbanColumn({
           {...provided.draggableProps}
           className="w-72 shrink-0 flex flex-col max-h-[calc(100vh-12rem)]"
         >
-          <div className="bg-column rounded-xl p-3 flex flex-col max-h-full">
+          <div className="bg-column rounded-xl p-3 flex flex-col max-h-full overflow-hidden">
             {/* Header */}
             <div
               {...provided.dragHandleProps}

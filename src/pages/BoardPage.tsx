@@ -644,7 +644,7 @@ export default function BoardPage() {
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className="drag-scroll-area flex items-start gap-4 p-6 min-h-full min-w-max"
+                className="drag-scroll-area flex items-start gap-4 px-6 pt-6 pb-6 min-h-full min-w-max"
               >
                 {columns.map((column, index) => (
                   <KanbanColumn

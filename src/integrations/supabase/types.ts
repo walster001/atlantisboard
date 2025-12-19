@@ -376,6 +376,7 @@ export type Database = {
       }
       cards: {
         Row: {
+          color: string | null
           column_id: string
           created_at: string
           created_by: string | null
@@ -388,6 +389,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          color?: string | null
           column_id: string
           created_at?: string
           created_by?: string | null
@@ -400,6 +402,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          color?: string | null
           column_id?: string
           created_at?: string
           created_by?: string | null
@@ -431,6 +434,7 @@ export type Database = {
       columns: {
         Row: {
           board_id: string
+          color: string | null
           created_at: string
           id: string
           position: number
@@ -438,6 +442,7 @@ export type Database = {
         }
         Insert: {
           board_id: string
+          color?: string | null
           created_at?: string
           id?: string
           position?: number
@@ -445,6 +450,7 @@ export type Database = {
         }
         Update: {
           board_id?: string
+          color?: string | null
           created_at?: string
           id?: string
           position?: number

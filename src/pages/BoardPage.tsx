@@ -24,6 +24,7 @@ interface DbColumn {
   board_id: string;
   title: string;
   position: number;
+  color: string | null;
 }
 
 interface DbCard {
@@ -34,6 +35,7 @@ interface DbCard {
   position: number;
   due_date: string | null;
   created_by: string | null;
+  color: string | null;
 }
 
 interface DbLabel {
@@ -300,7 +302,57 @@ export default function BoardPage() {
           .filter((l): l is Label => l !== null),
         dueDate: c.due_date || undefined,
         createdAt: '',
+        color: c.color,
       }));
+  };
+
+  // Color update functions
+  const updateCardColor = async (cardId: string, color: string | null) => {
+    if (!canEdit) return;
+    try {
+      await supabase.from('cards').update({ color }).eq('id', cardId);
+      setCards(prev => prev.map(c => c.id === cardId ? { ...c, color } : c));
+    } catch (error: any) {
+      console.error('Update card color error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    }
+  };
+
+  const applyCardColorToAll = async (color: string | null) => {
+    if (!canEdit || !boardId) return;
+    try {
+      const cardIds = cards.map(c => c.id);
+      await supabase.from('cards').update({ color }).in('id', cardIds);
+      setCards(prev => prev.map(c => ({ ...c, color })));
+      toast({ title: 'Success', description: 'Applied colour to all cards' });
+    } catch (error: any) {
+      console.error('Apply card color to all error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    }
+  };
+
+  const updateColumnColor = async (columnId: string, color: string | null) => {
+    if (!canEdit) return;
+    try {
+      await supabase.from('columns').update({ color }).eq('id', columnId);
+      setColumns(prev => prev.map(c => c.id === columnId ? { ...c, color } : c));
+    } catch (error: any) {
+      console.error('Update column color error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    }
+  };
+
+  const applyColumnColorToAll = async (color: string | null) => {
+    if (!canEdit || !boardId) return;
+    try {
+      const columnIds = columns.map(c => c.id);
+      await supabase.from('columns').update({ color }).in('id', columnIds);
+      setColumns(prev => prev.map(c => ({ ...c, color })));
+      toast({ title: 'Success', description: 'Applied colour to all columns' });
+    } catch (error: any) {
+      console.error('Apply column color to all error:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    }
   };
 
   const onDragEnd = useCallback(async (result: DropResult) => {
@@ -664,6 +716,7 @@ export default function BoardPage() {
                       id: column.id,
                       title: column.title,
                       cards: getColumnCards(column.id),
+                      color: column.color,
                     }}
                     index={index}
                     onUpdateTitle={(title) => updateColumnTitle(column.id, title)}
@@ -671,6 +724,10 @@ export default function BoardPage() {
                     onAddCard={(title) => addCard(column.id, title)}
                     onEditCard={(card) => setEditingCard({ card, columnId: column.id })}
                     onDeleteCard={(cardId) => deleteCard(cardId)}
+                    onUpdateColumnColor={(color) => updateColumnColor(column.id, color)}
+                    onApplyColumnColorToAll={applyColumnColorToAll}
+                    onUpdateCardColor={updateCardColor}
+                    onApplyCardColorToAll={applyCardColorToAll}
                     disabled={!canEdit}
                   />
                 ))}

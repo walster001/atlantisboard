@@ -2,7 +2,8 @@ import { useState, memo } from 'react';
 import { Draggable, Droppable } from '@hello-pangea/dnd';
 import { Column, Card } from '@/types/kanban';
 import { KanbanCard } from './KanbanCard';
-import { MoreHorizontal, Plus, Trash2, Pencil, X, Check } from 'lucide-react';
+import { ColorPicker } from './ColorPicker';
+import { MoreHorizontal, Plus, Trash2, Pencil, X, Check, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,6 +22,10 @@ interface KanbanColumnProps {
   onAddCard: (title: string) => void;
   onEditCard: (card: Card) => void;
   onDeleteCard: (cardId: string) => void;
+  onUpdateColumnColor: (color: string | null) => void;
+  onApplyColumnColorToAll: (color: string | null) => void;
+  onUpdateCardColor: (cardId: string, color: string | null) => void;
+  onApplyCardColorToAll: (color: string | null) => void;
   disabled?: boolean;
 }
 
@@ -32,6 +37,10 @@ export const KanbanColumn = memo(function KanbanColumn({
   onAddCard,
   onEditCard,
   onDeleteCard,
+  onUpdateColumnColor,
+  onApplyColumnColorToAll,
+  onUpdateCardColor,
+  onApplyCardColorToAll,
   disabled = false,
 }: KanbanColumnProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -62,7 +71,13 @@ export const KanbanColumn = memo(function KanbanColumn({
           {...provided.draggableProps}
           className="w-72 shrink-0 flex flex-col max-h-[calc(100vh-6rem)] sm:max-h-[calc(100vh-6.5rem)] md:max-h-[calc(100vh-7rem)]"
         >
-          <div className="bg-column rounded-xl p-3 flex flex-col max-h-full overflow-hidden">
+          <div 
+            className={cn(
+              "rounded-xl p-3 flex flex-col max-h-full overflow-hidden",
+              !column.color && "bg-column"
+            )}
+            style={column.color ? { backgroundColor: column.color } : undefined}
+          >
             {/* Header */}
             <div
               {...provided.dragHandleProps}
@@ -95,8 +110,14 @@ export const KanbanColumn = memo(function KanbanColumn({
               ) : (
                 <>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-column-header text-sm">{column.title}</h3>
-                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                    <h3 className={cn(
+                      "font-semibold text-sm",
+                      column.color ? 'text-white drop-shadow-sm' : 'text-column-header'
+                    )}>{column.title}</h3>
+                    <span className={cn(
+                      "text-xs px-1.5 py-0.5 rounded-full",
+                      column.color ? 'bg-black/20 text-white' : 'text-muted-foreground bg-muted'
+                    )}>
                       {column.cards.length}
                     </span>
                   </div>
@@ -107,11 +128,23 @@ export const KanbanColumn = memo(function KanbanColumn({
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuContent align="end" className="w-48 bg-popover">
                         <DropdownMenuItem onClick={() => setIsEditingTitle(true)}>
                           <Pencil className="h-4 w-4 mr-2" />
                           Rename
                         </DropdownMenuItem>
+                        <ColorPicker
+                          currentColor={column.color || null}
+                          onApply={onUpdateColumnColor}
+                          onApplyToAll={onApplyColumnColorToAll}
+                          applyToAllLabel="Apply to All Columns"
+                          trigger={
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                              <Palette className="h-4 w-4 mr-2" />
+                              Column Colour
+                            </DropdownMenuItem>
+                          }
+                        />
                         <DropdownMenuItem onClick={onDelete} className="text-destructive">
                           <Trash2 className="h-4 w-4 mr-2" />
                           Delete
@@ -142,6 +175,8 @@ export const KanbanColumn = memo(function KanbanColumn({
                       columnId={column.id}
                       onEdit={() => onEditCard(card)}
                       onDelete={() => onDeleteCard(card.id)}
+                      onUpdateColor={(color) => onUpdateCardColor(card.id, color)}
+                      onApplyColorToAll={onApplyCardColorToAll}
                       disabled={disabled}
                     />
                   ))}

@@ -1,7 +1,7 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Card, Label } from '@/types/kanban';
-import { Calendar, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Calendar, MoreHorizontal, Trash2, Palette } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { ColorPicker } from './ColorPicker';
 
 // Strip HTML tags from text for plain display
 function stripHtmlTags(text: string): string {
@@ -23,6 +24,8 @@ interface KanbanCardProps {
   columnId: string;
   onEdit: () => void;
   onDelete: () => void;
+  onUpdateColor: (color: string | null) => void;
+  onApplyColorToAll: (color: string | null) => void;
   disabled?: boolean;
 }
 
@@ -36,7 +39,8 @@ const labelColorClasses: Record<Label['color'], string> = {
   pink: 'bg-label-pink',
 };
 
-export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEdit, onDelete, disabled = false }: KanbanCardProps) {
+export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEdit, onDelete, onUpdateColor, onApplyColorToAll, disabled = false }: KanbanCardProps) {
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const dueDate = card.dueDate ? new Date(card.dueDate) : null;
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
   const isDueToday = dueDate && isToday(dueDate);
@@ -59,11 +63,13 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
           {...provided.dragHandleProps}
           onClick={handleCardClick}
           className={cn(
-            'kanban-card group bg-card rounded-lg p-3 mb-2 cursor-pointer transition-all duration-200 overflow-hidden',
+            'kanban-card group rounded-lg p-3 mb-2 cursor-pointer transition-all duration-200 overflow-hidden',
             snapshot.isDragging
               ? 'shadow-card-dragging rotate-2 scale-105 cursor-grabbing'
-              : 'shadow-card hover:shadow-card-hover hover:bg-card/80'
+              : 'shadow-card hover:shadow-card-hover',
+            !card.color && 'bg-card hover:bg-card/80'
           )}
+          style={card.color ? { backgroundColor: card.color } : undefined}
         >
           {/* Labels */}
           {card.labels.length > 0 && (
@@ -85,7 +91,10 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
 
           {/* Title & Menu */}
           <div className="flex items-start justify-between gap-2">
-            <h4 className="text-sm font-medium text-card-foreground leading-snug flex-1 break-words min-w-0">
+            <h4 className={cn(
+              "text-sm font-medium leading-snug flex-1 break-words min-w-0",
+              card.color ? 'text-white drop-shadow-sm' : 'text-card-foreground'
+            )}>
               {stripHtmlTags(card.title)}
             </h4>
             {!disabled && (
@@ -101,7 +110,19 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuContent align="end" className="w-48 bg-popover">
+                  <ColorPicker
+                    currentColor={card.color || null}
+                    onApply={onUpdateColor}
+                    onApplyToAll={onApplyColorToAll}
+                    applyToAllLabel="Apply to All Cards"
+                    trigger={
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <Palette className="h-4 w-4 mr-2" />
+                        Card Colour
+                      </DropdownMenuItem>
+                    }
+                  />
                   <DropdownMenuItem onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
@@ -116,7 +137,10 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
 
           {/* Description preview */}
           {card.description && (
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-2 break-words">
+            <p className={cn(
+              "text-xs mt-1 line-clamp-2 break-words",
+              card.color ? 'text-white/80' : 'text-muted-foreground'
+            )}>
               {card.description.replace(/<[^>]*>/g, '').split('\n')[0]}
             </p>
           )}
@@ -126,9 +150,11 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
             <div
               className={cn(
                 'flex items-center gap-1 mt-2 text-xs font-medium rounded px-1.5 py-0.5 w-fit',
-                isOverdue && 'bg-destructive/10 text-destructive',
-                isDueToday && 'bg-label-orange/10 text-label-orange',
-                !isOverdue && !isDueToday && 'bg-muted text-muted-foreground'
+                card.color ? 'bg-black/20 text-white' : (
+                  isOverdue ? 'bg-destructive/10 text-destructive' :
+                  isDueToday ? 'bg-label-orange/10 text-label-orange' :
+                  'bg-muted text-muted-foreground'
+                )
               )}
             >
               <Calendar className="h-3 w-3" />

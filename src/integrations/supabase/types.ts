@@ -22,8 +22,16 @@ export type Database = {
           custom_app_name_enabled: boolean
           custom_app_name_font: string | null
           custom_app_name_size: number
+          custom_board_logo_enabled: boolean
+          custom_board_logo_size: number
+          custom_board_logo_url: string | null
+          custom_global_app_name: string | null
+          custom_global_app_name_enabled: boolean
           custom_google_button_background_color: string
           custom_google_button_text_color: string
+          custom_home_logo_enabled: boolean
+          custom_home_logo_size: number
+          custom_home_logo_url: string | null
           custom_login_background_color: string
           custom_login_background_enabled: boolean
           custom_login_background_image_url: string | null
@@ -48,8 +56,16 @@ export type Database = {
           custom_app_name_enabled?: boolean
           custom_app_name_font?: string | null
           custom_app_name_size?: number
+          custom_board_logo_enabled?: boolean
+          custom_board_logo_size?: number
+          custom_board_logo_url?: string | null
+          custom_global_app_name?: string | null
+          custom_global_app_name_enabled?: boolean
           custom_google_button_background_color?: string
           custom_google_button_text_color?: string
+          custom_home_logo_enabled?: boolean
+          custom_home_logo_size?: number
+          custom_home_logo_url?: string | null
           custom_login_background_color?: string
           custom_login_background_enabled?: boolean
           custom_login_background_image_url?: string | null
@@ -74,8 +90,16 @@ export type Database = {
           custom_app_name_enabled?: boolean
           custom_app_name_font?: string | null
           custom_app_name_size?: number
+          custom_board_logo_enabled?: boolean
+          custom_board_logo_size?: number
+          custom_board_logo_url?: string | null
+          custom_global_app_name?: string | null
+          custom_global_app_name_enabled?: boolean
           custom_google_button_background_color?: string
           custom_google_button_text_color?: string
+          custom_home_logo_enabled?: boolean
+          custom_home_logo_size?: number
+          custom_home_logo_url?: string | null
           custom_login_background_color?: string
           custom_login_background_enabled?: boolean
           custom_login_background_image_url?: string | null

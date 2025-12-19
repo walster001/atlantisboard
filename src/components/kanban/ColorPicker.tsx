@@ -193,14 +193,20 @@ export function ColorPicker({
           )}
         </PopoverTrigger>
         <PopoverContent 
-          className="w-72 p-3 z-[100]" 
+          className="w-72 p-0 z-[9999]" 
           align="start" 
           side="bottom"
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
+          onFocusOutside={(e) => e.preventDefault()}
         >
+          <div 
+            className="p-3"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
           <Tabs defaultValue="presets" className="w-full">
             <TabsList className="w-full grid grid-cols-2 mb-3">
               <TabsTrigger value="presets">Presets</TabsTrigger>
@@ -365,6 +371,7 @@ export function ColorPicker({
             <Button size="sm" variant="outline" onClick={handleApplyToAllClick}>
               {applyToAllLabel}
             </Button>
+          </div>
           </div>
         </PopoverContent>
       </Popover>

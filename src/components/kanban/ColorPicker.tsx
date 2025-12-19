@@ -194,7 +194,7 @@ export function ColorPicker({
 
   return (
     <>
-      <Popover open={open} onOpenChange={handleOpenChange} modal={true}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           {trigger || (
             <Button variant="ghost" size="sm" className="w-full justify-start">

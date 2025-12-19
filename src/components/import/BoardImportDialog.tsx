@@ -136,31 +136,48 @@ const trelloColorMap: Record<string, string> = {
   black_light: '#c1c7d0',
 };
 
-type ImportStage = 'idle' | 'parsing' | 'workspace' | 'board' | 'labels' | 'columns' | 'cards' | 'subtasks' | 'attachments' | 'complete';
+type ImportStage = 'idle' | 'parsing' | 'validating' | 'workspace' | 'board' | 'members' | 'labels' | 'columns' | 'cards' | 'card_labels' | 'subtasks' | 'attachments' | 'assignees' | 'finalizing' | 'complete';
+
+interface ProgressState {
+  stage: ImportStage;
+  current: number;
+  total: number;
+  detail?: string;
+}
 
 const stageLabels: Record<ImportStage, string> = {
   idle: 'Ready',
-  parsing: 'Parsing file...',
+  parsing: 'Parsing JSON file...',
+  validating: 'Validating data structure...',
   workspace: 'Creating workspace...',
   board: 'Creating board...',
-  labels: 'Importing labels...',
+  members: 'Setting up board members...',
+  labels: 'Creating labels...',
   columns: 'Creating columns...',
   cards: 'Importing cards...',
-  subtasks: 'Processing subtasks...',
+  card_labels: 'Applying card labels...',
+  subtasks: 'Creating subtasks...',
   attachments: 'Recording attachments...',
+  assignees: 'Recording assignee mappings...',
+  finalizing: 'Finalizing import...',
   complete: 'Import complete!',
 };
 
-const stageProgress: Record<ImportStage, number> = {
+const stageWeights: Record<ImportStage, number> = {
   idle: 0,
-  parsing: 10,
-  workspace: 20,
-  board: 30,
-  labels: 40,
-  columns: 50,
-  cards: 70,
-  subtasks: 85,
-  attachments: 95,
+  parsing: 5,
+  validating: 8,
+  workspace: 12,
+  board: 18,
+  members: 22,
+  labels: 30,
+  columns: 40,
+  cards: 75,
+  card_labels: 80,
+  subtasks: 88,
+  attachments: 93,
+  assignees: 97,
+  finalizing: 99,
   complete: 100,
 };
 
@@ -172,7 +189,24 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const [importStage, setImportStage] = useState<ImportStage>('idle');
+  const [progress, setProgress] = useState<ProgressState>({ stage: 'idle', current: 0, total: 0 });
+
+  const updateProgress = (stage: ImportStage, current = 0, total = 0, detail?: string) => {
+    setProgress({ stage, current, total, detail });
+  };
+
+  const calculateProgress = (): number => {
+    const baseProgress = stageWeights[progress.stage];
+    const nextStageKey = Object.keys(stageWeights)[Object.keys(stageWeights).indexOf(progress.stage) + 1] as ImportStage;
+    const nextProgress = nextStageKey ? stageWeights[nextStageKey] : 100;
+    
+    if (progress.total > 0 && progress.current > 0) {
+      const stageRange = nextProgress - baseProgress;
+      const stageProgress = (progress.current / progress.total) * stageRange;
+      return Math.min(baseProgress + stageProgress, nextProgress - 1);
+    }
+    return baseProgress;
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -190,7 +224,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     }
   };
 
-  const importTrelloBoard = async (trelloData: TrelloBoard, setStage: (stage: ImportStage) => void): Promise<ImportResult> => {
+  const importTrelloBoard = async (trelloData: TrelloBoard, onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void): Promise<ImportResult> => {
     const result: ImportResult = {
       success: false,
       workspaces_created: 0,
@@ -220,7 +254,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         return result;
       }
 
-      setStage('workspace');
+      onProgress('workspace', 0, 0, 'Setting up workspace...');
       const memberMap = new Map<string, TrelloMember>();
       for (const member of (trelloData.members || [])) {
         memberMap.set(member.id, member);
@@ -244,7 +278,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       }
       result.workspaces_created = 1;
 
-      setStage('board');
+      onProgress('board', 0, 0, 'Creating board...');
       // Create board
       const { data: board, error: boardError } = await supabase
         .from('boards')
@@ -270,14 +304,16 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         role: 'admin',
       });
 
-      setStage('labels');
+      const trelloLabels = trelloData.labels || [];
+      onProgress('labels', 0, trelloLabels.length, `Creating ${trelloLabels.length} labels...`);
       // Create labels and build mapping
       const labelMap = new Map<string, string>();
-      const trelloLabels = trelloData.labels || [];
       
-      for (const label of trelloLabels) {
+      for (let labelIdx = 0; labelIdx < trelloLabels.length; labelIdx++) {
+        const label = trelloLabels[labelIdx];
         if (!label.name && !label.color) continue;
         
+        onProgress('labels', labelIdx + 1, trelloLabels.length, `Label ${labelIdx + 1}/${trelloLabels.length}`);
         const labelColor = label.color ? (trelloColorMap[label.color] || '#6b7280') : '#6b7280';
         const labelName = label.name || label.color || 'Unnamed';
         
@@ -299,15 +335,16 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         }
       }
 
-      setStage('columns');
-      // Create columns (lists) and build mapping
-      const columnMap = new Map<string, string>();
       const sortedLists = [...(trelloData.lists || [])]
         .filter(list => !list.closed)
         .sort((a, b) => a.pos - b.pos);
+      onProgress('columns', 0, sortedLists.length, `Creating ${sortedLists.length} columns...`);
+      // Create columns (lists) and build mapping
+      const columnMap = new Map<string, string>();
 
       for (let i = 0; i < sortedLists.length; i++) {
         const list = sortedLists[i];
+        onProgress('columns', i + 1, sortedLists.length, `Column ${i + 1}/${sortedLists.length}: ${list.name}`);
         const { data: column, error: columnError } = await supabase
           .from('columns')
           .insert({
@@ -334,11 +371,11 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         checklistMap.set(checklist.idCard, existing);
       }
 
-      setStage('cards');
       // Group cards by list
       const sortedCards = [...(trelloData.cards || [])]
         .filter(card => !card.closed)
         .sort((a, b) => a.pos - b.pos);
+      onProgress('cards', 0, sortedCards.length, `Importing ${sortedCards.length} cards...`);
 
       const cardsByList = new Map<string, TrelloCard[]>();
       for (const card of sortedCards) {
@@ -347,15 +384,19 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         cardsByList.set(card.idList, existing);
       }
 
+      let cardIndex = 0;
       for (const [listId, cards] of cardsByList) {
         const columnId = columnMap.get(listId);
         if (!columnId) {
           result.warnings.push(`Skipped ${cards.length} cards from archived/missing list`);
+          cardIndex += cards.length;
           continue;
         }
 
         for (let i = 0; i < cards.length; i++) {
+          cardIndex++;
           const card = cards[i];
+          onProgress('cards', cardIndex, sortedCards.length, `Card ${cardIndex}/${sortedCards.length}: ${card.name.substring(0, 30)}${card.name.length > 30 ? '...' : ''}`);
           
           // Map priority based on labels
           let priority = 'none';
@@ -404,6 +445,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
           // Create subtasks from checklists
           const cardChecklists = checklistMap.get(card.id) || [];
+          if (cardChecklists.length > 0) {
+            onProgress('subtasks', 0, 0, `Processing checklists for "${card.name.substring(0, 20)}..."`);
+          }
           let subtaskPosition = 0;
           
           for (const checklist of cardChecklists) {
@@ -431,6 +475,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           // Create pending attachment records
           const attachments = card.attachments || [];
           if (attachments.length > 0) {
+            onProgress('attachments', 0, attachments.length, `Recording ${attachments.length} attachments...`);
             result.attachments_noted += attachments.length;
             
             for (const attachment of attachments) {
@@ -456,6 +501,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
           // Create pending assignee mappings
           if (card.idMembers && card.idMembers.length > 0) {
+            onProgress('assignees', 0, card.idMembers.length, `Recording ${card.idMembers.length} assignees...`);
             for (const memberId of card.idMembers) {
               const member = memberMap.get(memberId);
               const memberName = member?.fullName || member?.username || `Unknown (${memberId})`;
@@ -480,6 +526,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         }
       }
 
+      onProgress('finalizing', 0, 0, 'Finalizing import...');
       result.success = true;
     } catch (error: any) {
       result.errors.push(`Unexpected error: ${error.message}`);
@@ -509,10 +556,11 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
     setImporting(true);
     setImportResult(null);
-    setImportStage('parsing');
+    updateProgress('parsing');
 
     try {
       const fileContent = await selectedFile.text();
+      updateProgress('validating');
       let jsonData;
       
       try {
@@ -524,17 +572,17 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           variant: 'destructive',
         });
         setImporting(false);
-        setImportStage('idle');
+        updateProgress('idle');
         return;
       }
 
       let result: ImportResult;
 
       if (importSource === 'trello') {
-        result = await importTrelloBoard(jsonData as TrelloBoard, setImportStage);
+        result = await importTrelloBoard(jsonData as TrelloBoard, updateProgress);
       } else {
         // For Wekan, simulate stage progress since it's server-side
-        setImportStage('workspace');
+        updateProgress('workspace', 0, 0, 'Sending to server...');
         const { data, error } = await supabase.functions.invoke('import-wekan-board', {
           body: { wekanData: jsonData },
         });
@@ -542,7 +590,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         result = data as ImportResult;
       }
 
-      setImportStage('complete');
+      updateProgress('complete');
       setImportResult(result);
 
       if (result.success) {
@@ -561,7 +609,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           description: result.errors.join(', '),
           variant: 'destructive',
         });
-        setImportStage('idle');
+        updateProgress('idle');
       }
     } catch (error: any) {
       console.error('Import error:', error);
@@ -570,7 +618,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         description: error.message || 'An unexpected error occurred.',
         variant: 'destructive',
       });
-      setImportStage('idle');
+      updateProgress('idle');
     } finally {
       setImporting(false);
     }
@@ -580,7 +628,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     setSelectedFile(null);
     setImportResult(null);
     setImportSource('wekan');
-    setImportStage('idle');
+    updateProgress('idle');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -685,10 +733,18 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           {importing && (
             <div className="space-y-2 rounded-md border p-3 bg-muted/30">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{stageLabels[importStage]}</span>
-                <span className="text-muted-foreground">{stageProgress[importStage]}%</span>
+                <span className="font-medium">{stageLabels[progress.stage]}</span>
+                <span className="text-muted-foreground">{Math.round(calculateProgress())}%</span>
               </div>
-              <Progress value={stageProgress[importStage]} className="h-2" />
+              <Progress value={calculateProgress()} className="h-2" />
+              {progress.detail && (
+                <p className="text-xs text-muted-foreground">{progress.detail}</p>
+              )}
+              {progress.total > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {progress.current} / {progress.total}
+                </p>
+              )}
             </div>
           )}
 

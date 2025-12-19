@@ -196,6 +196,8 @@ export function ColorPicker({
           className="w-72 p-3 z-[100]" 
           align="start" 
           side="bottom"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
         >

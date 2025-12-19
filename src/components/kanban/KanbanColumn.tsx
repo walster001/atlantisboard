@@ -194,7 +194,13 @@ export const KanbanColumn = memo(function KanbanColumn({
                       disabled={disabled}
                     />
                   ))}
-                  {provided.placeholder}
+                  {/* Styled placeholder showing drop position */}
+                  <div className={cn(
+                    'transition-all duration-200',
+                    snapshot.isDraggingOver && 'ghost-placeholder min-h-[60px] mb-2'
+                  )}>
+                    {provided.placeholder}
+                  </div>
                 </div>
               )}
             </Droppable>

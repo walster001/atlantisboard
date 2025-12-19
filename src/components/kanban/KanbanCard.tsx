@@ -1,4 +1,4 @@
-import { memo, useState, useRef } from 'react';
+import { memo, useState, useRef, useEffect } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Card, Label } from '@/types/kanban';
 import { Calendar, MoreHorizontal, Trash2, Palette, XCircle } from 'lucide-react';
@@ -41,6 +41,7 @@ const labelColorClasses: Record<Label['color'], string> = {
 
 export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEdit, onDelete, onUpdateColor, onApplyColorToAll, disabled = false }: KanbanCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [justDropped, setJustDropped] = useState(false);
   const wasDraggingRef = useRef(false);
   const dueDate = card.dueDate ? new Date(card.dueDate) : null;
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
@@ -63,9 +64,15 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
   return (
     <Draggable draggableId={card.id} index={index} isDragDisabled={disabled}>
       {(provided, snapshot) => {
-        // Track when dragging ends to prevent click from opening card
+        // Track when dragging ends to prevent click from opening card and trigger settle animation
         if (snapshot.isDragging) {
           wasDraggingRef.current = true;
+        } else if (wasDraggingRef.current && !snapshot.isDragging) {
+          // Just finished dragging - trigger settle animation
+          if (!justDropped) {
+            setJustDropped(true);
+            setTimeout(() => setJustDropped(false), 200);
+          }
         }
         
         return (
@@ -79,7 +86,8 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
               snapshot.isDragging
                 ? 'shadow-card-dragging rotate-1 scale-[1.02] cursor-grabbing ring-2 ring-primary/50 opacity-95'
                 : 'shadow-card hover:shadow-card-hover',
-              !card.color && 'bg-card hover:bg-card/80'
+              !card.color && 'bg-card hover:bg-card/80',
+              justDropped && 'card-settle'
             )}
             style={{
               ...(card.color ? { backgroundColor: card.color } : {}),

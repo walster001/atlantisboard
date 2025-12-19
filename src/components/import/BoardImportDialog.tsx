@@ -18,6 +18,7 @@ interface ImportResult {
   labels_created: number;
   subtasks_created: number;
   attachments_noted: number;
+  attachments_pending: number;
   assignees_pending: number;
   errors: string[];
   warnings: string[];
@@ -169,6 +170,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       labels_created: 0,
       subtasks_created: 0,
       attachments_noted: 0,
+      attachments_pending: 0,
       assignees_pending: 0,
       errors: [],
       warnings: [],
@@ -392,20 +394,29 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             }
           }
 
-          // Note attachments
+          // Create pending attachment records
           const attachments = card.attachments || [];
           if (attachments.length > 0) {
             result.attachments_noted += attachments.length;
             
             for (const attachment of attachments) {
-              await supabase.from('card_attachments').insert({
-                card_id: newCard.id,
-                file_name: attachment.name,
-                file_url: attachment.url,
-                file_size: attachment.bytes,
-                file_type: attachment.mimeType,
-                uploaded_by: user.id,
-              });
+              // Create pending attachment for tracking
+              const { error: pendingAttachError } = await supabase
+                .from('import_pending_attachments')
+                .insert({
+                  board_id: board.id,
+                  card_id: newCard.id,
+                  original_attachment_id: attachment.id,
+                  original_name: attachment.name,
+                  original_url: attachment.url,
+                  original_size: attachment.bytes,
+                  original_type: attachment.mimeType,
+                  import_source: 'trello',
+                });
+
+              if (!pendingAttachError) {
+                result.attachments_pending++;
+              }
             }
           }
 

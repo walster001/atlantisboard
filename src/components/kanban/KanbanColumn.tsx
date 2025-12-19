@@ -3,7 +3,7 @@ import { Draggable, Droppable } from '@hello-pangea/dnd';
 import { Column, Card } from '@/types/kanban';
 import { KanbanCard } from './KanbanCard';
 import { ColorPicker } from './ColorPicker';
-import { MoreHorizontal, Plus, Trash2, Pencil, X, Check, Palette } from 'lucide-react';
+import { MoreHorizontal, Plus, Trash2, Pencil, X, Check, Palette, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -150,6 +150,15 @@ export const KanbanColumn = memo(function KanbanColumn({
                             </DropdownMenuItem>
                           }
                         />
+                        {column.color && (
+                          <DropdownMenuItem onClick={() => {
+                            onUpdateColumnColor(null);
+                            setMenuOpen(false);
+                          }}>
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Clear Colour
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={onDelete} className="text-destructive">
                           <Trash2 className="h-4 w-4 mr-2" />
                           Delete

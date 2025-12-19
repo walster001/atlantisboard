@@ -1,7 +1,7 @@
 import { memo, useState } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Card, Label } from '@/types/kanban';
-import { Calendar, MoreHorizontal, Trash2, Palette } from 'lucide-react';
+import { Calendar, MoreHorizontal, Trash2, Palette, XCircle } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
@@ -128,6 +128,16 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
                       </DropdownMenuItem>
                     }
                   />
+                  {card.color && (
+                    <DropdownMenuItem onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdateColor(null);
+                      setMenuOpen(false);
+                    }}>
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Clear Colour
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={(e) => {
                     e.stopPropagation();
                     onDelete();

@@ -63,7 +63,7 @@ export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
   const { user, loading: authLoading, isAppAdmin, signOut } = useAuth();
-  const { settings: appSettings } = useAppSettings();
+  const { settings: appSettings, ensureLoaded } = useAppSettings();
   const { toast } = useToast();
 
   const [boardName, setBoardName] = useState('');
@@ -92,8 +92,9 @@ export default function BoardPage() {
   useEffect(() => {
     if (user && boardId) {
       fetchBoardData();
+      ensureLoaded(); // Load app settings when board page mounts
     }
-  }, [user, boardId]);
+  }, [user, boardId, ensureLoaded]);
 
   // Memoize column IDs to prevent unnecessary subscription recreation
   const columnIds = useMemo(() => columns.map(c => c.id), [columns]);

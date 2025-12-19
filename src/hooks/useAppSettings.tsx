@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AppSettings {
@@ -17,22 +17,27 @@ interface AppSettingsContextType {
   loading: boolean;
   appName: string;
   refreshSettings: () => Promise<void>;
+  ensureLoaded: () => Promise<void>;
 }
 
 const defaultAppName = 'KanBoard';
 
 const AppSettingsContext = createContext<AppSettingsContextType>({
   settings: null,
-  loading: true,
+  loading: false,
   appName: defaultAppName,
   refreshSettings: async () => {},
+  ensureLoaded: async () => {},
 });
 
 export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('app_settings')
@@ -42,23 +47,28 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
       setSettings(data);
+      setHasFetched(true);
     } catch (error) {
       console.error('Error fetching app settings:', error);
+      setHasFetched(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading]);
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
+  // Lazy load - only fetch when explicitly requested
+  const ensureLoaded = useCallback(async () => {
+    if (!hasFetched && !loading) {
+      await fetchSettings();
+    }
+  }, [hasFetched, loading, fetchSettings]);
 
   const appName = settings?.custom_global_app_name_enabled && settings?.custom_global_app_name
     ? settings.custom_global_app_name
     : defaultAppName;
 
   return (
-    <AppSettingsContext.Provider value={{ settings, loading, appName, refreshSettings: fetchSettings }}>
+    <AppSettingsContext.Provider value={{ settings, loading, appName, refreshSettings: fetchSettings, ensureLoaded }}>
       {children}
     </AppSettingsContext.Provider>
   );

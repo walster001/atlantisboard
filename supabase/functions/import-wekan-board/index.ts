@@ -196,32 +196,54 @@ Deno.serve(async (req) => {
   try {
     // Get auth header
     const authHeader = req.headers.get('Authorization');
+    console.log('Auth header present:', !!authHeader);
+    
     if (!authHeader) {
+      console.error('Missing authorization header');
       return new Response(
         JSON.stringify({ success: false, errors: ['Missing authorization header'] }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Create Supabase client
+    // Extract token
+    const token = authHeader.replace('Bearer ', '');
+    console.log('Token extracted, length:', token.length);
+
+    // Create Supabase client with anon key first to verify the user token
+    const supabaseAnon = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      {
+        global: {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      }
+    );
+
+    // Get the user from the token
+    const { data: { user }, error: authError } = await supabaseAnon.auth.getUser();
+    
+    console.log('Auth result - user:', user?.id, 'error:', authError?.message);
+    
+    if (authError || !user) {
+      console.error('Auth failed:', authError?.message || 'No user found');
+      return new Response(
+        JSON.stringify({ success: false, errors: [`Invalid authorization: ${authError?.message || 'No user found'}`] }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create service role client for admin operations
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Verify user is app admin
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, errors: ['Invalid authorization'] }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Check if user is app admin
-    const { data: isAdmin } = await supabase.rpc('is_app_admin', { _user_id: user.id });
+    const { data: isAdmin, error: adminError } = await supabase.rpc('is_app_admin', { _user_id: user.id });
+    console.log('Is admin check:', isAdmin, 'error:', adminError?.message);
+    
     if (!isAdmin) {
       return new Response(
         JSON.stringify({ success: false, errors: ['Only app admins can import boards'] }),

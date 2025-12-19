@@ -83,6 +83,7 @@ interface ColorPickerProps {
   onApplyToAll: (color: string | null) => void;
   applyToAllLabel: string;
   trigger?: React.ReactNode;
+  onClose?: () => void;
 }
 
 export function ColorPicker({ 
@@ -90,7 +91,8 @@ export function ColorPicker({
   onApply, 
   onApplyToAll, 
   applyToAllLabel,
-  trigger 
+  trigger,
+  onClose 
 }: ColorPickerProps) {
   const [selectedColor, setSelectedColor] = useState<string | null>(currentColor);
   const [open, setOpen] = useState(false);
@@ -165,6 +167,7 @@ export function ColorPicker({
     }
     onApply(colorToApply);
     setOpen(false);
+    onClose?.();
   };
 
   const handleApplyToAllClick = () => {
@@ -179,6 +182,7 @@ export function ColorPicker({
     onApplyToAll(colorToApply);
     setConfirmDialogOpen(false);
     setOpen(false);
+    onClose?.();
   };
 
   return (

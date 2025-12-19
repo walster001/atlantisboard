@@ -47,6 +47,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   const [editedTitle, setEditedTitle] = useState(column.title);
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleSaveTitle = () => {
     if (editedTitle.trim()) {
@@ -122,7 +123,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                     </span>
                   </div>
                   {!disabled && (
-                    <DropdownMenu>
+                    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-7 w-7">
                           <MoreHorizontal className="h-4 w-4" />
@@ -138,6 +139,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                           onApply={onUpdateColumnColor}
                           onApplyToAll={onApplyColumnColorToAll}
                           applyToAllLabel="Apply to All Columns"
+                          onClose={() => setMenuOpen(false)}
                           trigger={
                             <DropdownMenuItem 
                               onSelect={(e) => e.preventDefault()}

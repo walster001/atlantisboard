@@ -41,6 +41,7 @@ const labelColorClasses: Record<Label['color'], string> = {
 
 export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEdit, onDelete, onUpdateColor, onApplyColorToAll, disabled = false }: KanbanCardProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const dueDate = card.dueDate ? new Date(card.dueDate) : null;
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
   const isDueToday = dueDate && isToday(dueDate);
@@ -98,7 +99,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
               {stripHtmlTags(card.title)}
             </h4>
             {!disabled && (
-              <DropdownMenu>
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -116,6 +117,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
                     onApply={onUpdateColor}
                     onApplyToAll={onApplyColorToAll}
                     applyToAllLabel="Apply to All Cards"
+                    onClose={() => setMenuOpen(false)}
                     trigger={
                       <DropdownMenuItem 
                         onSelect={(e) => e.preventDefault()}

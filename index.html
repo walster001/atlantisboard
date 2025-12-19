@@ -8,8 +8,9 @@
     <link rel="preconnect" href="https://xuzhmzzvjufkjeypddlr.supabase.co" crossorigin />
     <link rel="dns-prefetch" href="https://xuzhmzzvjufkjeypddlr.supabase.co" />
     
-    <!-- Load self-hosted fonts for faster loading (no external dependency) -->
-    <link rel="stylesheet" href="/fonts/inter.css" />
+    <!-- Load self-hosted fonts asynchronously to avoid render-blocking -->
+    <link rel="preload" href="/fonts/inter.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="/fonts/inter.css" /></noscript>
     
     <!-- TODO: Set the document title to the name of your application -->
     <title>Atlantisboard 2.0</title>

@@ -123,7 +123,7 @@ export function CardDetailModal({
   } : null;
 
   const content = (
-    <div className="flex flex-col h-full max-h-[85vh] md:max-h-[85vh]">
+    <div className="flex flex-col overflow-hidden" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
       {/* Header */}
       <div className="flex items-start justify-between p-4 md:p-6 border-b">
         <div className="flex-1 min-w-0">
@@ -197,7 +197,7 @@ export function CardDetailModal({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-6">
         {/* Description Section */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">

@@ -142,7 +142,7 @@ export function ColorPicker({
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} modal={true}>
         <PopoverTrigger asChild>
           {trigger || (
             <Button variant="ghost" size="sm" className="w-full justify-start">
@@ -151,7 +151,13 @@ export function ColorPicker({
             </Button>
           )}
         </PopoverTrigger>
-        <PopoverContent className="w-72 p-3" align="start" side="bottom">
+        <PopoverContent 
+          className="w-72 p-3 z-[100]" 
+          align="start" 
+          side="bottom"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <Tabs defaultValue="presets" className="w-full">
             <TabsList className="w-full grid grid-cols-2 mb-3">
               <TabsTrigger value="presets">Presets</TabsTrigger>

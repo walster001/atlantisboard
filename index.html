@@ -8,6 +8,9 @@
     <link rel="preconnect" href="https://xuzhmzzvjufkjeypddlr.supabase.co" crossorigin />
     <link rel="dns-prefetch" href="https://xuzhmzzvjufkjeypddlr.supabase.co" />
     
+    <!-- Preload font file to break dependency chain (font loads in parallel with CSS) -->
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+    
     <!-- Load self-hosted fonts asynchronously to avoid render-blocking -->
     <link rel="preload" href="/fonts/inter.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
     <noscript><link rel="stylesheet" href="/fonts/inter.css" /></noscript>

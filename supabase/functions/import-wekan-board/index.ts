@@ -1,10 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
-import { marked } from 'https://esm.sh/marked@15.0.4';
+import { Marked } from 'https://esm.sh/marked@15.0.4';
 
-// Configure marked for safe HTML output
-marked.setOptions({
-  breaks: true, // Convert \n to <br>
-  gfm: true, // GitHub Flavored Markdown
+// Create marked instance with options
+const marked = new Marked({
+  breaks: true,
+  gfm: true,
 });
 
 /**

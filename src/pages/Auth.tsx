@@ -259,7 +259,7 @@ export default function Auth() {
   }
 
   return (
-    <div 
+    <main 
       className={`min-h-screen flex items-center justify-center p-4 ${
         !brandingConfig.useCustomBackground ? 'bg-gradient-to-br from-kanban-bg via-background to-kanban-bg' : ''
       }`}
@@ -413,6 +413,6 @@ export default function Auth() {
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

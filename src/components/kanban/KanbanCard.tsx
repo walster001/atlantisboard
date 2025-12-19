@@ -117,7 +117,10 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
                     onApplyToAll={onApplyColorToAll}
                     applyToAllLabel="Apply to All Cards"
                     trigger={
-                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      <DropdownMenuItem 
+                        onSelect={(e) => e.preventDefault()}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <Palette className="h-4 w-4 mr-2" />
                         Card Colour
                       </DropdownMenuItem>

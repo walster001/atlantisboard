@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Settings, Wrench, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrandingSettings } from '@/components/admin/BrandingSettings';
 import { CustomFontsSettings } from '@/components/admin/CustomFontsSettings';
+import { LoginOptionsSettings } from '@/components/admin/LoginOptionsSettings';
 
 // Placeholder settings data structure
 const tabConfig = {
@@ -16,7 +17,7 @@ const tabConfig = {
     label: 'Configuration',
     subTabs: [
       { id: 'general', label: 'General' },
-      { id: 'security', label: 'Security' },
+      { id: 'login-options', label: 'Login Options' },
       { id: 'permissions', label: 'Permissions' },
       { id: 'integrations', label: 'Integrations' },
     ],
@@ -161,6 +162,10 @@ function SettingsContent({ mainTab, subTab }: { mainTab: MainTab; subTab: string
   const currentSubTab = currentConfig.subTabs.find(s => s.id === subTab);
 
   // Render specific settings based on tab
+  if (mainTab === 'configuration' && subTab === 'login-options') {
+    return <LoginOptionsSettings />;
+  }
+
   if (mainTab === 'customisation' && subTab === 'branding') {
     return <BrandingSettings />;
   }

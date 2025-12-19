@@ -50,6 +50,119 @@ interface DbCardLabel {
   label_id: string;
 }
 
+// Map hex colors to the closest named LabelColor for display
+// This is needed because imported labels use hex colors but UI expects named colors
+function hexToLabelColor(hexColor: string): LabelColor {
+  // Normalize to lowercase
+  const hex = hexColor.toLowerCase();
+  
+  // Direct name matches (in case color is stored as name)
+  if (['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'].includes(hex)) {
+    return hex as LabelColor;
+  }
+  
+  // Map common hex colors to named colors
+  const hexMap: Record<string, LabelColor> = {
+    // Reds
+    '#eb5a46': 'red',
+    '#ef4444': 'red',
+    '#ff0000': 'red',
+    '#b04632': 'red',
+    '#f5aca9': 'red',
+    '#800000': 'red',
+    // Oranges
+    '#ff9f1a': 'orange',
+    '#f97316': 'orange',
+    '#ffa500': 'orange',
+    '#cd8313': 'orange',
+    '#fad29c': 'orange',
+    // Yellows
+    '#f2d600': 'yellow',
+    '#eab308': 'yellow',
+    '#ffff00': 'yellow',
+    '#d9b51c': 'yellow',
+    '#f5ea92': 'yellow',
+    // Greens
+    '#61bd4f': 'green',
+    '#22c55e': 'green',
+    '#008000': 'green',
+    '#519839': 'green',
+    '#51e898': 'green',
+    '#49852e': 'green',
+    '#00ff00': 'green',
+    '#b3f1b0': 'green',
+    '#b3f1d0': 'green',
+    // Blues
+    '#0079bf': 'blue',
+    '#3b82f6': 'blue',
+    '#0000ff': 'blue',
+    '#00c2e0': 'blue',
+    '#055a8c': 'blue',
+    '#026aa7': 'blue',
+    '#094c72': 'blue',
+    '#2980b9': 'blue',
+    '#8bbdd9': 'blue',
+    '#8fdfeb': 'blue',
+    '#06b6d4': 'blue',
+    '#000080': 'blue',
+    '#008080': 'blue',
+    '#00ffff': 'blue',
+    // Purples
+    '#c377e0': 'purple',
+    '#8b5cf6': 'purple',
+    '#800080': 'purple',
+    '#89609e': 'purple',
+    '#dfc0eb': 'purple',
+    '#ff00ff': 'purple',
+    // Pinks
+    '#ff78cb': 'pink',
+    '#ec4899': 'pink',
+    '#ffc0cb': 'pink',
+    '#c75488': 'pink',
+    '#f9c2e4': 'pink',
+  };
+  
+  if (hexMap[hex]) {
+    return hexMap[hex];
+  }
+  
+  // For unknown colors, try to determine based on RGB values
+  // Parse hex to RGB
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (result) {
+    const r = parseInt(result[1], 16);
+    const g = parseInt(result[2], 16);
+    const b = parseInt(result[3], 16);
+    
+    // Simple heuristic based on dominant channels
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    
+    // If it's a grayscale/dark color, default to blue
+    if (max - min < 50) {
+      return 'blue';
+    }
+    
+    // Determine based on which channel dominates
+    if (r > g && r > b) {
+      if (g > b && g > 100) return 'orange';
+      if (b > 100) return 'pink';
+      return 'red';
+    }
+    if (g > r && g > b) {
+      return 'green';
+    }
+    if (b > r && b > g) {
+      if (r > 100) return 'purple';
+      return 'blue';
+    }
+    if (r > 200 && g > 200) return 'yellow';
+  }
+  
+  // Default fallback
+  return 'blue';
+}
+
 interface BoardMember {
   user_id: string;
   role: 'admin' | 'manager' | 'viewer';
@@ -369,7 +482,7 @@ export default function BoardPage() {
             if (!label) return null;
             return { 
               id: label.id, 
-              color: label.color as LabelColor, 
+              color: hexToLabelColor(label.color), 
               text: label.name || undefined 
             } as Label;
           })

@@ -146,4 +146,26 @@
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.5);
   }
+
+  /* Drag and drop feedback */
+  .drop-zone-active {
+    @apply bg-primary/10 border-2 border-dashed border-primary/40 rounded-lg;
+    animation: drop-zone-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes drop-zone-pulse {
+    0%, 100% {
+      border-color: hsl(var(--primary) / 0.4);
+      background-color: hsl(var(--primary) / 0.1);
+    }
+    50% {
+      border-color: hsl(var(--primary) / 0.6);
+      background-color: hsl(var(--primary) / 0.15);
+    }
+  }
+
+  /* Placeholder styling for dragged items */
+  .drag-placeholder {
+    @apply bg-muted/50 border-2 border-dashed border-muted-foreground/30 rounded-lg;
+  }
 }

@@ -141,6 +141,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          position: number
           updated_at: string
           workspace_id: string
         }
@@ -150,6 +151,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          position?: number
           updated_at?: string
           workspace_id: string
         }
@@ -159,6 +161,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          position?: number
           updated_at?: string
           workspace_id?: string
         }
@@ -762,6 +765,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      batch_update_board_positions: {
+        Args: { _updates: Json; _user_id: string; _workspace_id: string }
+        Returns: Json
+      }
       batch_update_card_positions: {
         Args: { _updates: Json; _user_id: string }
         Returns: Json
@@ -820,6 +827,15 @@ export type Database = {
       is_workspace_member: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
+      }
+      move_board_to_workspace: {
+        Args: {
+          _board_id: string
+          _new_position: number
+          _new_workspace_id: string
+          _user_id: string
+        }
+        Returns: Json
       }
       shares_board_with: {
         Args: { _profile_id: string; _viewer_id: string }

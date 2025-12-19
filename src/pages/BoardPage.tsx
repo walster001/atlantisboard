@@ -758,6 +758,19 @@ export default function BoardPage() {
           }
         }}
         disabled={!canEdit}
+        attachments={editingCard ? cardAttachments.filter(a => a.card_id === editingCard.card.id) : []}
+        onAttachmentsChange={async () => {
+          if (editingCard) {
+            const { data } = await supabase
+              .from('card_attachments')
+              .select('*')
+              .eq('card_id', editingCard.card.id);
+            setCardAttachments(prev => [
+              ...prev.filter(a => a.card_id !== editingCard.card.id),
+              ...(data || [])
+            ]);
+          }
+        }}
       />
 
       {/* Members Dialog */}

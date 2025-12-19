@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppSettings } from '@/hooks/useAppSettings';
 import { KanbanColumn } from '@/components/kanban/KanbanColumn';
 import { CardDetailModal } from '@/components/kanban/CardDetailModal';
 import { Button } from '@/components/ui/button';
@@ -62,6 +63,7 @@ export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
   const { user, loading: authLoading, isAppAdmin, signOut } = useAuth();
+  const { settings: appSettings } = useAppSettings();
   const { toast } = useToast();
 
   const [boardName, setBoardName] = useState('');
@@ -583,7 +585,16 @@ export default function BoardPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-2">
-              <LayoutGrid className="h-5 w-5 text-white" />
+              {appSettings?.custom_board_logo_enabled && appSettings?.custom_board_logo_url ? (
+                <img
+                  src={appSettings.custom_board_logo_url}
+                  alt="Logo"
+                  style={{ width: appSettings.custom_board_logo_size, height: appSettings.custom_board_logo_size }}
+                  className="object-contain"
+                />
+              ) : (
+                <LayoutGrid className="h-5 w-5 text-white" />
+              )}
               <h1 className="text-xl font-bold text-white">{boardName}</h1>
             </div>
           </div>

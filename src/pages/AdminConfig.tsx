@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Settings, Wrench, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrandingSettings } from '@/components/admin/BrandingSettings';
 import { CustomFontsSettings } from '@/components/admin/CustomFontsSettings';
+import { AppBrandingSettings } from '@/components/admin/AppBrandingSettings';
 import { LoginOptionsSettings } from '@/components/admin/LoginOptionsSettings';
 
 // Placeholder settings data structure
@@ -168,6 +169,10 @@ function SettingsContent({ mainTab, subTab }: { mainTab: MainTab; subTab: string
 
   if (mainTab === 'customisation' && subTab === 'branding') {
     return <BrandingSettings />;
+  }
+
+  if (mainTab === 'customisation' && subTab === 'app-branding') {
+    return <AppBrandingSettings />;
   }
 
   if (mainTab === 'customisation' && subTab === 'fonts') {

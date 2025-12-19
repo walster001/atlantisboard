@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppSettings } from '@/hooks/useAppSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,6 +45,7 @@ const BOARD_COLORS = [
 
 export default function Home() {
   const { user, signOut, loading: authLoading, isAppAdmin } = useAuth();
+  const { settings: appSettings, appName } = useAppSettings();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -380,8 +382,17 @@ export default function Home() {
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <LayoutDashboard className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold">KanBoard</h1>
+            {appSettings?.custom_home_logo_enabled && appSettings?.custom_home_logo_url ? (
+              <img
+                src={appSettings.custom_home_logo_url}
+                alt="Logo"
+                style={{ width: appSettings.custom_home_logo_size, height: appSettings.custom_home_logo_size }}
+                className="object-contain"
+              />
+            ) : (
+              <LayoutDashboard className="h-6 w-6 text-primary" />
+            )}
+            <h1 className="text-xl font-bold">{appName}</h1>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

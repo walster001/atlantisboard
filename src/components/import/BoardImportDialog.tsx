@@ -6,10 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Upload, FileJson, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileJson, Loader2, CheckCircle, AlertCircle, Palette, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { markdownToHtml } from '@/lib/markdownToHtml';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 interface ImportResult {
   success: boolean;
   workspaces_created: number;
@@ -140,6 +142,19 @@ const trelloColorMap: Record<string, string> = {
   black_light: '#c1c7d0',
 };
 
+// Preset colors for default card color picker
+const DEFAULT_CARD_COLORS = [
+  { value: null, label: 'No color', color: 'transparent' },
+  { value: '#ef4444', label: 'Red', color: '#ef4444' },
+  { value: '#f97316', label: 'Orange', color: '#f97316' },
+  { value: '#eab308', label: 'Yellow', color: '#eab308' },
+  { value: '#22c55e', label: 'Green', color: '#22c55e' },
+  { value: '#06b6d4', label: 'Cyan', color: '#06b6d4' },
+  { value: '#3b82f6', label: 'Blue', color: '#3b82f6' },
+  { value: '#8b5cf6', label: 'Purple', color: '#8b5cf6' },
+  { value: '#ec4899', label: 'Pink', color: '#ec4899' },
+];
+
 type ImportStage = 'idle' | 'parsing' | 'validating' | 'workspace' | 'board' | 'members' | 'labels' | 'columns' | 'cards' | 'card_labels' | 'subtasks' | 'attachments' | 'assignees' | 'finalizing' | 'complete';
 
 interface ProgressState {
@@ -194,6 +209,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [progress, setProgress] = useState<ProgressState>({ stage: 'idle', current: 0, total: 0 });
+  const [defaultCardColor, setDefaultCardColor] = useState<string | null>(null);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
 
   const updateProgress = (stage: ImportStage, current = 0, total = 0, detail?: string) => {
     setProgress({ stage, current, total, detail });
@@ -214,7 +231,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
   const importWekanWithStreaming = async (
     wekanData: any,
-    onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void
+    onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void,
+    defaultColor: string | null
   ): Promise<ImportResult> => {
     return new Promise(async (resolve, reject) => {
       try {
@@ -233,7 +251,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({ wekanData }),
+            body: JSON.stringify({ wekanData, defaultCardColor: defaultColor }),
           }
         );
 
@@ -319,7 +337,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     }
   };
 
-  const importTrelloBoard = async (trelloData: TrelloBoard, onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void): Promise<ImportResult> => {
+  const importTrelloBoard = async (trelloData: TrelloBoard, onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void, defaultColor: string | null): Promise<ImportResult> => {
     const result: ImportResult = {
       success: false,
       workspaces_created: 0,
@@ -532,6 +550,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             }
           }
 
+          // Use default color if card has no color assigned
+          const finalCardColor = cardColor || defaultColor;
+
           const { data: newCard, error: cardError } = await supabase
             .from('cards')
             .insert({
@@ -542,7 +563,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
               position: i,
               priority,
               created_by: user.id,
-              color: cardColor,
+              color: finalCardColor,
             })
             .select()
             .single();
@@ -700,10 +721,10 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       let result: ImportResult;
 
       if (importSource === 'trello') {
-        result = await importTrelloBoard(jsonData as TrelloBoard, updateProgress);
+        result = await importTrelloBoard(jsonData as TrelloBoard, updateProgress, defaultCardColor);
       } else {
         // For Wekan, use streaming SSE to get real-time progress
-        result = await importWekanWithStreaming(jsonData, updateProgress);
+        result = await importWekanWithStreaming(jsonData, updateProgress, defaultCardColor);
       }
 
       updateProgress('complete');
@@ -744,6 +765,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     setSelectedFile(null);
     setImportResult(null);
     setImportSource('wekan');
+    setDefaultCardColor(null);
+    setColorPickerOpen(false);
     updateProgress('idle');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -812,6 +835,81 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                   Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Default Card Color Picker */}
+          {(importSource === 'wekan' || importSource === 'trello') && (
+            <div className="space-y-2">
+              <Label>Default Colour for Uncoloured Cards</Label>
+              <div className="flex items-center gap-2">
+                <Popover open={colorPickerOpen} onOpenChange={setColorPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                    >
+                      {defaultCardColor ? (
+                        <>
+                          <div
+                            className="h-4 w-4 rounded border border-border"
+                            style={{ backgroundColor: defaultCardColor }}
+                          />
+                          <span>{DEFAULT_CARD_COLORS.find(c => c.value === defaultCardColor)?.label || defaultCardColor}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Palette className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">No default colour</span>
+                        </>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-3" align="start">
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium">Select default colour</p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {DEFAULT_CARD_COLORS.map((colorOption) => (
+                          <button
+                            key={colorOption.label}
+                            onClick={() => {
+                              setDefaultCardColor(colorOption.value);
+                              setColorPickerOpen(false);
+                            }}
+                            className={cn(
+                              'h-8 w-8 rounded-md border-2 transition-all hover:scale-110 flex items-center justify-center',
+                              defaultCardColor === colorOption.value
+                                ? 'border-primary ring-2 ring-primary/20'
+                                : 'border-border',
+                              colorOption.value === null && 'bg-background'
+                            )}
+                            style={colorOption.value ? { backgroundColor: colorOption.value } : undefined}
+                            title={colorOption.label}
+                          >
+                            {colorOption.value === null && (
+                              <X className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Cards that already have a colour in the source will keep their original colour.
+                      </p>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {defaultCardColor && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={() => setDefaultCardColor(null)}
+                    title="Clear default colour"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 

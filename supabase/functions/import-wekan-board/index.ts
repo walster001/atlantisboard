@@ -280,7 +280,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { wekanData } = await req.json();
+    const { wekanData, defaultCardColor } = await req.json();
 
     // Validate Wekan data structure
     if (!wekanData) {
@@ -309,7 +309,7 @@ Deno.serve(async (req) => {
           };
 
           try {
-            await runImport(supabase, user.id, wekanData, sendProgress, sendResult);
+            await runImport(supabase, user.id, wekanData, defaultCardColor, sendProgress, sendResult);
           } catch (error: any) {
             console.error('Import error:', error);
             sendResult({
@@ -342,7 +342,7 @@ Deno.serve(async (req) => {
     }
 
     // Non-streaming fallback
-    const result = await runImportNonStreaming(supabase, user.id, wekanData);
+    const result = await runImportNonStreaming(supabase, user.id, wekanData, defaultCardColor);
     return new Response(
       JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -375,6 +375,7 @@ async function runImport(
   supabase: any,
   userId: string,
   wekanData: any,
+  defaultCardColor: string | null,
   sendProgress: (stage: string, current: number, total: number, detail?: string) => void,
   sendResult: (result: ImportResult) => void
 ) {
@@ -633,6 +634,9 @@ async function runImport(
             }
           }
 
+          // Use default color if card has no color assigned
+          const finalCardColor = cardColor || defaultCardColor;
+
           const { data: card, error: cardError } = await supabase
             .from('cards')
             .insert({
@@ -643,7 +647,7 @@ async function runImport(
               due_date: dueDate,
               created_by: userId,
               priority: 'none',
-              color: cardColor,
+              color: finalCardColor,
             })
             .select()
             .single();
@@ -777,13 +781,15 @@ async function runImport(
 async function runImportNonStreaming(
   supabase: any,
   userId: string,
-  wekanData: any
+  wekanData: any,
+  defaultCardColor: string | null
 ): Promise<ImportResult> {
   return new Promise((resolve) => {
     runImport(
       supabase,
       userId,
       wekanData,
+      defaultCardColor,
       () => {}, // No-op progress
       (result) => resolve(result)
     );

@@ -109,6 +109,7 @@ export function ToastUIMarkdownEditor({
   const isSyncing = useRef(false);
   const isInitialized = useRef(false);
   const lastContentRef = useRef(content);
+  const isInternalChange = useRef(false); // Track if change originated from editor
   
   /**
    * Strip Toast UI's internal widget markers from markdown content.
@@ -137,6 +138,7 @@ export function ToastUIMarkdownEditor({
     
     if (markdown !== lastContentRef.current) {
       lastContentRef.current = markdown;
+      isInternalChange.current = true; // Mark as internal change
       onChange(markdown);
     }
   }, [onChange, cleanWidgetMarkers]);
@@ -156,10 +158,16 @@ export function ToastUIMarkdownEditor({
     
     return () => clearTimeout(timeoutId);
   }, [content]);
-  
-  // Sync external content changes
+  // Sync external content changes - only when content prop changes from outside
   useEffect(() => {
-    if (!isInitialized.current || content === lastContentRef.current) return;
+    // Skip if not initialized or if this is our own change
+    if (!isInitialized.current || isInternalChange.current) {
+      isInternalChange.current = false;
+      return;
+    }
+    
+    // Only sync if content actually differs from what we last set
+    if (content === lastContentRef.current) return;
     
     const editor = editorRef.current?.getInstance();
     if (!editor) return;

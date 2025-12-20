@@ -367,22 +367,41 @@ export function CardDetailModal({
           ) : description ? (
             <div 
               className={cn(
-                "p-3 rounded-lg bg-muted/50 text-sm prose prose-sm dark:prose-invert max-w-none prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2 prose-code:text-xs prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
-                !disabled && "cursor-pointer hover:bg-muted transition-colors"
+                "p-3 rounded-lg text-sm prose prose-sm max-w-none prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2 prose-code:text-xs prose-a:no-underline hover:prose-a:underline",
+                !themeCardWindowColor && "bg-muted/50 dark:prose-invert prose-a:text-primary",
+                !disabled && !themeCardWindowColor && "cursor-pointer hover:bg-muted transition-colors",
+                !disabled && themeCardWindowColor && "cursor-pointer transition-opacity hover:opacity-80"
               )}
+              style={themeCardWindowColor ? { 
+                backgroundColor: `${effectiveTextColor}10`,
+                color: effectiveTextColor 
+              } : undefined}
               onClick={() => !disabled && setIsEditingDescription(true)}
             >
               <div 
                 dangerouslySetInnerHTML={{ __html: description }} 
-                className="[&>pre]:bg-muted [&>pre]:p-3 [&>pre]:rounded-md [&>pre]:overflow-x-auto [&>pre]:font-mono [&>pre]:text-xs [&_code]:bg-muted/70 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&>pre_code]:bg-transparent [&>pre_code]:p-0"
+                className={cn(
+                  "[&>pre]:p-3 [&>pre]:rounded-md [&>pre]:overflow-x-auto [&>pre]:font-mono [&>pre]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&>pre_code]:bg-transparent [&>pre_code]:p-0",
+                  !themeCardWindowColor && "[&>pre]:bg-muted [&_code]:bg-muted/70"
+                )}
+                style={themeCardWindowColor ? {
+                  color: effectiveTextColor,
+                } : undefined}
               />
             </div>
           ) : (
             <div 
               className={cn(
-                "p-3 rounded-lg bg-muted/50 text-sm min-h-[60px] text-muted-foreground italic flex items-center",
-                !disabled && "cursor-pointer hover:bg-muted transition-colors"
+                "p-3 rounded-lg text-sm min-h-[60px] italic flex items-center",
+                !themeCardWindowColor && "bg-muted/50 text-muted-foreground",
+                !disabled && !themeCardWindowColor && "cursor-pointer hover:bg-muted transition-colors",
+                !disabled && themeCardWindowColor && "cursor-pointer transition-opacity hover:opacity-80"
               )}
+              style={themeCardWindowColor ? { 
+                backgroundColor: `${effectiveTextColor}10`,
+                color: effectiveTextColor,
+                opacity: 0.7
+              } : undefined}
               onClick={() => !disabled && setIsEditingDescription(true)}
             >
               {disabled ? 'No description' : 'Click to add a description...'}

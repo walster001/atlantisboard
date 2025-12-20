@@ -206,46 +206,35 @@ export function ToastUIMarkdownEditor({
     if (!container) return;
 
     const fixToolbar = () => {
-      // Get the toolbar element
+      // Get the toolbar element and force it to show all items
       const toolbar = container.querySelector('.toastui-editor-toolbar');
       if (toolbar instanceof HTMLElement) {
-        // Set a large min-width to trick ToastUI into thinking there's enough space
-        toolbar.style.minWidth = '2000px';
-        toolbar.style.width = 'auto';
-        toolbar.style.maxWidth = 'none';
+        toolbar.style.minWidth = '0';
+        toolbar.style.width = '100%';
         toolbar.style.overflow = 'visible';
       }
 
-      // Force hide only the specific more button (not elements that just contain "more" in class)
+      // Hide the more button
       const moreButton = container.querySelector('.toastui-editor-more-button');
       if (moreButton instanceof HTMLElement) {
-        moreButton.style.display = 'none';
+        moreButton.style.cssText = 'display:none!important;width:0!important;height:0!important;';
       }
       
+      // Hide the dropdown toolbar
       const dropdownToolbar = container.querySelector('.toastui-editor-dropdown-toolbar');
       if (dropdownToolbar instanceof HTMLElement) {
-        // Move any items from dropdown back to the main toolbar before hiding
-        const mainToolbar = container.querySelector('.toastui-editor-toolbar');
-        if (mainToolbar) {
-          const items = dropdownToolbar.querySelectorAll('.toastui-editor-toolbar-icons, .toastui-editor-toolbar-group');
-          items.forEach(item => {
-            if (item instanceof HTMLElement) {
-              mainToolbar.appendChild(item.cloneNode(true));
-            }
-          });
-        }
-        dropdownToolbar.style.display = 'none';
+        dropdownToolbar.style.cssText = 'display:none!important;';
       }
 
-      // Ensure all toolbar groups and icons are visible
+      // Force all toolbar groups to be visible and flex
       const groups = container.querySelectorAll('.toastui-editor-toolbar-group');
       groups.forEach(group => {
         if (group instanceof HTMLElement) {
-          group.style.display = 'inline-flex';
-          group.style.visibility = 'visible';
+          group.style.cssText = 'display:flex!important;flex:1 1 100%!important;flex-wrap:wrap!important;justify-content:space-evenly!important;visibility:visible!important;';
         }
       });
 
+      // Ensure all toolbar icons are visible
       const icons = container.querySelectorAll('.toastui-editor-toolbar-icons');
       icons.forEach(icon => {
         if (icon instanceof HTMLElement) {
@@ -257,12 +246,14 @@ export function ToastUIMarkdownEditor({
     };
 
     // Run multiple times to ensure ToastUI's internal logic doesn't override
-    const timeouts = [50, 100, 200, 500, 1000].map(delay => 
+    const timeouts = [50, 100, 200, 300, 500, 800, 1000].map(delay => 
       setTimeout(fixToolbar, delay)
     );
 
     // Also observe for any DOM changes that might revert our fixes
-    const observer = new MutationObserver(fixToolbar);
+    const observer = new MutationObserver(() => {
+      setTimeout(fixToolbar, 10);
+    });
     const editorEl = container.querySelector('.toastui-editor-defaultUI');
     if (editorEl) {
       observer.observe(editorEl, { childList: true, subtree: true, attributes: true });
@@ -796,17 +787,13 @@ export function ToastUIMarkdownEditor({
           [
             { el: undoButton(), tooltip: 'Undo', name: 'undo' },
             { el: redoButton(), tooltip: 'Redo', name: 'redo' },
-          ],
-          ['heading', 'bold', 'italic', 'strike'],
-          ['hr', 'quote'],
-          ['ul', 'ol', 'task'],
-          [
+            'heading', 'bold', 'italic', 'strike',
+            'hr', 'quote',
+            'ul', 'ol', 'task',
             { el: indentButton(), tooltip: 'Indent', name: 'indent' },
             { el: outdentButton(), tooltip: 'Outdent', name: 'outdent' },
-          ],
-          ['table', 'link'],
-          ['code', 'codeblock'],
-          [
+            'table', 'link',
+            'code', 'codeblock',
             { el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' },
             { el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' },
           ],
@@ -837,7 +824,7 @@ export function ToastUIMarkdownEditor({
         }
         .toastui-editor-wrapper .toastui-editor-defaultUI-toolbar {
           flex-shrink: 0;
-          padding: 4px 8px !important;
+          padding: 6px 4px !important;
           background: transparent !important;
           width: 100% !important;
           overflow: visible !important;
@@ -845,29 +832,31 @@ export function ToastUIMarkdownEditor({
         .toastui-editor-wrapper .toastui-editor-toolbar {
           display: flex !important;
           flex-wrap: wrap !important;
-          gap: 4px !important;
-          justify-content: space-between !important;
+          gap: 0 !important;
+          justify-content: flex-start !important;
           align-items: center !important;
           background: transparent !important;
           width: 100% !important;
+          min-width: 0 !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-group {
-          display: inline-flex !important;
-          flex: 1 1 auto !important;
-          gap: 2px !important;
+          display: flex !important;
+          flex: 1 1 100% !important;
+          flex-wrap: wrap !important;
+          gap: 0 !important;
           align-items: center !important;
-          justify-content: center !important;
+          justify-content: space-evenly !important;
           margin: 0 !important;
           padding: 0 !important;
           visibility: visible !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons {
           flex: 0 0 auto !important;
-          width: 28px !important;
-          height: 28px !important;
-          min-width: 28px !important;
-          margin: 0 !important;
-          padding: 4px !important;
+          width: 30px !important;
+          height: 30px !important;
+          min-width: 30px !important;
+          margin: 1px !important;
+          padding: 5px !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
@@ -880,25 +869,24 @@ export function ToastUIMarkdownEditor({
           background-color: var(--editor-muted, hsl(var(--muted))) !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons::before {
-          transform: scale(0.85) !important;
+          transform: scale(1) !important;
         }
         .toastui-editor-wrapper .custom-toolbar-btn svg {
-          width: 16px !important;
-          height: 16px !important;
+          width: 18px !important;
+          height: 18px !important;
         }
-        /* Hide only specific overflow menu elements */
+        /* Hide overflow menu elements */
         .toastui-editor-wrapper .toastui-editor-more-button,
         .toastui-editor-wrapper .toastui-editor-toolbar-more,
         .toastui-editor-wrapper .toastui-editor-dropdown-toolbar {
           display: none !important;
           visibility: hidden !important;
+          width: 0 !important;
+          height: 0 !important;
+          overflow: hidden !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-divider {
-          width: 1px !important;
-          height: 20px !important;
-          background: var(--editor-border, hsl(var(--border))) !important;
-          margin: 0 4px !important;
-          flex-shrink: 0 !important;
+          display: none !important;
         }
         .toastui-editor-wrapper .toastui-editor-main-container {
           flex: 1;

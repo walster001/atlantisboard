@@ -209,6 +209,7 @@ const wekanColorMap: Record<string, string> = {
   brown: '#8b4513',
   grey: '#808080',
   gray: '#808080',
+  slateblue: '#6a5acd',
   // Fallback
   default: '#838c91',
 };

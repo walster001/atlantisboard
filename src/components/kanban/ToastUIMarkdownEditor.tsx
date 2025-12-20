@@ -2,12 +2,13 @@
  * ToastUIMarkdownEditor.tsx
  * 
  * A WYSIWYG Markdown editor using Toast UI Editor.
- * Simpler integration that handles raw HTML inline buttons properly.
+ * Handles markdown content and inline buttons properly.
  */
 
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
+import { marked } from 'marked';
 import { cn } from '@/lib/utils';
 import { InlineButtonEditor, InlineButtonData, parseInlineButtonFromDataAttr } from './InlineButtonEditor';
 
@@ -17,6 +18,12 @@ interface ToastUIMarkdownEditorProps {
   placeholder?: string;
   className?: string;
 }
+
+// Configure marked for consistent output
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
 
 /**
  * Transform legacy Wekan inline buttons to our editable format.
@@ -69,23 +76,60 @@ function serializeInlineButtonHtml(data: InlineButtonData): string {
 }
 
 /**
- * Convert content to HTML for the editor, handling our inline button format.
+ * Convert content to HTML for the editor.
+ * Handles:
+ * 1. [INLINE_BUTTON:...] markdown format -> HTML spans
+ * 2. Markdown syntax -> HTML (using marked)
+ * 3. Legacy Wekan inline buttons -> HTML spans
  */
 function prepareContentForEditor(content: string): string {
   if (!content?.trim()) return '';
   
   let result = content;
   
-  // Convert [INLINE_BUTTON:...] markdown format to HTML
+  // Step 1: Protect inline button markers by temporarily replacing them
+  const buttonPlaceholders: Map<string, string> = new Map();
+  let buttonIndex = 0;
+  
   result = result.replace(/\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g, (_match, dataAttr) => {
     const data = parseInlineButtonFromDataAttr(dataAttr);
     if (data) {
-      return serializeInlineButtonHtml(data);
+      const token = `INLINEBTNPLACEHOLDER${buttonIndex++}`;
+      buttonPlaceholders.set(token, serializeInlineButtonHtml(data));
+      return token;
     }
     return '';
   });
   
-  // Transform legacy Wekan buttons
+  // Step 2: Check if content is already HTML or needs markdown parsing
+  const trimmed = result.trim();
+  const startsWithHtml = trimmed.startsWith('<') && (
+    trimmed.startsWith('<p>') ||
+    trimmed.startsWith('<p ') ||
+    trimmed.startsWith('<h') ||
+    trimmed.startsWith('<ul') ||
+    trimmed.startsWith('<ol') ||
+    trimmed.startsWith('<div') ||
+    trimmed.startsWith('<blockquote') ||
+    trimmed.startsWith('<pre')
+  );
+  
+  // Check for markdown syntax
+  const hasMarkdownSyntax = /^(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\*\*|__|```|\[.+\]\(.+\))/m.test(result);
+  
+  if (!startsWithHtml || hasMarkdownSyntax) {
+    // Parse as markdown
+    result = marked.parse(result, { async: false }) as string;
+  }
+  
+  // Step 3: Restore button placeholders
+  for (const [token, html] of buttonPlaceholders) {
+    // Replace token wherever it appears (might be wrapped in <p> or other tags)
+    const tokenRegex = new RegExp(`(<p>)?\\s*${token}\\s*(<\\/p>)?`, 'g');
+    result = result.replace(tokenRegex, html);
+  }
+  
+  // Step 4: Transform any legacy Wekan buttons still in HTML
   result = transformLegacyInlineButtons(result);
   
   return result;
@@ -99,11 +143,55 @@ function convertToMarkdown(html: string): string {
   
   let result = html;
   
-  // Convert inline button HTML to our markdown format
+  // Convert inline button HTML to our markdown format FIRST
   const buttonPattern = /<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*data-inline-button="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi;
   result = result.replace(buttonPattern, (_match, dataAttr) => {
     return `[INLINE_BUTTON:${dataAttr}]`;
   });
+  
+  // Convert basic HTML back to markdown
+  // Headers
+  result = result.replace(/<h1[^>]*>([^<]*)<\/h1>/gi, '# $1\n');
+  result = result.replace(/<h2[^>]*>([^<]*)<\/h2>/gi, '## $1\n');
+  result = result.replace(/<h3[^>]*>([^<]*)<\/h3>/gi, '### $1\n');
+  result = result.replace(/<h4[^>]*>([^<]*)<\/h4>/gi, '#### $1\n');
+  result = result.replace(/<h5[^>]*>([^<]*)<\/h5>/gi, '##### $1\n');
+  result = result.replace(/<h6[^>]*>([^<]*)<\/h6>/gi, '###### $1\n');
+  
+  // Bold and italic
+  result = result.replace(/<strong>([^<]*)<\/strong>/gi, '**$1**');
+  result = result.replace(/<b>([^<]*)<\/b>/gi, '**$1**');
+  result = result.replace(/<em>([^<]*)<\/em>/gi, '*$1*');
+  result = result.replace(/<i>([^<]*)<\/i>/gi, '*$1*');
+  result = result.replace(/<s>([^<]*)<\/s>/gi, '~~$1~~');
+  result = result.replace(/<strike>([^<]*)<\/strike>/gi, '~~$1~~');
+  result = result.replace(/<del>([^<]*)<\/del>/gi, '~~$1~~');
+  
+  // Code
+  result = result.replace(/<code>([^<]*)<\/code>/gi, '`$1`');
+  result = result.replace(/<pre><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```');
+  
+  // Links
+  result = result.replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '[$2]($1)');
+  
+  // Lists
+  result = result.replace(/<li>([^<]*)<\/li>/gi, '- $1\n');
+  result = result.replace(/<\/?[uo]l[^>]*>/gi, '\n');
+  
+  // Blockquotes
+  result = result.replace(/<blockquote>([^<]*)<\/blockquote>/gi, '> $1\n');
+  
+  // Horizontal rules
+  result = result.replace(/<hr\s*\/?>/gi, '---\n');
+  
+  // Paragraphs and breaks
+  result = result.replace(/<br\s*\/?>/gi, '\n');
+  result = result.replace(/<\/p>\s*<p>/gi, '\n\n');
+  result = result.replace(/<\/?p[^>]*>/gi, '');
+  
+  // Clean up extra whitespace
+  result = result.replace(/\n{3,}/g, '\n\n');
+  result = result.trim();
   
   return result;
 }

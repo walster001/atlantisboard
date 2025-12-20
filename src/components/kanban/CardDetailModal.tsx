@@ -598,7 +598,7 @@ export function CardDetailModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent 
-        className="w-[50vw] max-w-none h-[calc(100vh-20px)] max-h-[calc(100vh-20px)] p-0 flex flex-col overflow-hidden" 
+        className="!w-[50vw] !max-w-none !h-[calc(100vh-20px)] !max-h-none p-0 flex flex-col overflow-hidden" 
         hideCloseButton
       >
         {content}

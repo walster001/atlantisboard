@@ -27,6 +27,10 @@ interface KanbanColumnProps {
   onUpdateCardColor: (cardId: string, color: string | null) => void;
   onApplyCardColorToAll: (color: string | null) => void;
   disabled?: boolean;
+  themeColumnColor?: string;
+  themeCardColor?: string | null;
+  themeScrollbarColor?: string;
+  themeScrollbarTrackColor?: string;
 }
 
 export const KanbanColumn = memo(function KanbanColumn({
@@ -42,12 +46,19 @@ export const KanbanColumn = memo(function KanbanColumn({
   onUpdateCardColor,
   onApplyCardColorToAll,
   disabled = false,
+  themeColumnColor,
+  themeCardColor,
+  themeScrollbarColor,
+  themeScrollbarTrackColor,
 }: KanbanColumnProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(column.title);
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Effective column color: per-column override > theme > default
+  const effectiveColumnColor = column.color || themeColumnColor || undefined;
 
   const handleSaveTitle = () => {
     if (editedTitle.trim()) {
@@ -75,9 +86,9 @@ export const KanbanColumn = memo(function KanbanColumn({
           <div 
             className={cn(
               "rounded-xl p-3 flex flex-col max-h-full overflow-hidden",
-              !column.color && "bg-column"
+              !effectiveColumnColor && "bg-column"
             )}
-            style={column.color ? { backgroundColor: column.color } : undefined}
+            style={effectiveColumnColor ? { backgroundColor: effectiveColumnColor } : undefined}
           >
             {/* Header */}
             <div
@@ -109,15 +120,15 @@ export const KanbanColumn = memo(function KanbanColumn({
                   </Button>
                 </div>
               ) : (
-                <>
+              <>
                   <div className="flex items-center gap-2">
                     <h3 className={cn(
                       "font-semibold text-sm",
-                      column.color ? 'text-white drop-shadow-sm' : 'text-column-header'
+                      effectiveColumnColor ? 'text-white drop-shadow-sm' : 'text-column-header'
                     )}>{column.title}</h3>
                     <span className={cn(
                       "text-xs px-1.5 py-0.5 rounded-full",
-                      column.color ? 'bg-black/20 text-white' : 'text-muted-foreground bg-muted'
+                      effectiveColumnColor ? 'bg-black/20 text-white' : 'text-muted-foreground bg-muted'
                     )}>
                       {column.cards.length}
                     </span>
@@ -170,16 +181,23 @@ export const KanbanColumn = memo(function KanbanColumn({
               )}
             </div>
 
-            {/* Cards */}
+            {/* Cards - apply theme scrollbar colors */}
             <Droppable droppableId={column.id} type="card">
               {(provided, snapshot) => (
                 <div
                   ref={provided.innerRef}
                   {...provided.droppableProps}
                   className={cn(
-                    'min-h-[2rem] transition-all duration-200 rounded-lg flex-1 overflow-y-auto scrollbar-thin p-1 -m-1',
-                    snapshot.isDraggingOver && 'drop-zone-active'
+                    'min-h-[2rem] transition-all duration-200 rounded-lg flex-1 overflow-y-auto p-1 -m-1',
+                    snapshot.isDraggingOver && 'drop-zone-active',
+                    !themeScrollbarColor && 'scrollbar-thin'
                   )}
+                  style={{
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: themeScrollbarColor && themeScrollbarTrackColor 
+                      ? `${themeScrollbarColor} ${themeScrollbarTrackColor}` 
+                      : undefined,
+                  }}
                 >
                   {column.cards.map((card, cardIndex) => (
                     <KanbanCard
@@ -192,6 +210,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                       onUpdateColor={(color) => onUpdateCardColor(card.id, color)}
                       onApplyColorToAll={onApplyCardColorToAll}
                       disabled={disabled}
+                      themeCardColor={themeCardColor}
                     />
                   ))}
                   {/* Styled placeholder showing drop position */}

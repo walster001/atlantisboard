@@ -400,6 +400,51 @@ export default function BoardPage() {
     }
   };
 
+  // Lightweight theme refresh - updates theme without triggering loading state
+  const refreshBoardTheme = async () => {
+    if (!boardId) return;
+    try {
+      const { data: boardData } = await supabase
+        .from('boards')
+        .select('theme_id, background_color')
+        .eq('id', boardId)
+        .single();
+      
+      const themeId = boardData?.theme_id || null;
+      setBoardThemeId(themeId);
+      setBoardColor(boardData?.background_color || '#0079bf');
+      
+      if (themeId) {
+        const { data: themeData } = await supabase
+          .from('board_themes')
+          .select('*')
+          .eq('id', themeId)
+          .single();
+        setBoardTheme(themeData as BoardTheme | null);
+      } else {
+        setBoardTheme(null);
+      }
+    } catch (error: any) {
+      console.error('Error refreshing theme:', error);
+    }
+  };
+
+  // Lightweight background refresh - updates background without triggering loading state
+  const refreshBoardBackground = async () => {
+    if (!boardId) return;
+    try {
+      const { data: boardData } = await supabase
+        .from('boards')
+        .select('background_color')
+        .eq('id', boardId)
+        .single();
+      
+      setBoardColor(boardData?.background_color || '#0079bf');
+    } catch (error: any) {
+      console.error('Error refreshing background:', error);
+    }
+  };
+
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
@@ -1022,8 +1067,8 @@ export default function BoardPage() {
           currentBackgroundColor={isImageBackground ? '#0079bf' : boardColor}
           currentBackgroundImageUrl={isImageBackground ? boardColor : null}
           onMembersChange={refreshBoardMembers}
-          onThemeChange={fetchBoardData}
-          onBackgroundChange={fetchBoardData}
+          onThemeChange={refreshBoardTheme}
+          onBackgroundChange={refreshBoardBackground}
         />
       )}
     </div>

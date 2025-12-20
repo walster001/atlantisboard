@@ -43,10 +43,18 @@ export function BoardBackgroundSettings({
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Get default background color - uses theme navbar color or fallback to #0079bf
+  const getDefaultBackgroundColor = () => {
+    if (currentTheme?.navbar_color) {
+      return currentTheme.navbar_color;
+    }
+    return '#0079bf';
+  };
+
   const [backgroundType, setBackgroundType] = useState<BackgroundType>(
     currentBackgroundImageUrl ? 'image' : 'color'
   );
-  const [backgroundColor, setBackgroundColor] = useState(currentBackgroundColor || '#0079bf');
+  const [backgroundColor, setBackgroundColor] = useState(currentBackgroundColor || getDefaultBackgroundColor());
   const [imageUrl, setImageUrl] = useState(currentBackgroundImageUrl || '');
   const [imageSize, setImageSize] = useState<'cover' | 'contain' | 'manual'>('cover');
   const [manualWidth, setManualWidth] = useState(100);
@@ -58,10 +66,10 @@ export function BoardBackgroundSettings({
 
   // Sync local state when props change
   useEffect(() => {
-    setBackgroundColor(currentBackgroundColor || '#0079bf');
+    setBackgroundColor(currentBackgroundColor || getDefaultBackgroundColor());
     setImageUrl(currentBackgroundImageUrl || '');
     setBackgroundType(currentBackgroundImageUrl ? 'image' : 'color');
-  }, [currentBackgroundColor, currentBackgroundImageUrl]);
+  }, [currentBackgroundColor, currentBackgroundImageUrl, currentTheme]);
 
   const handleSaveColor = async () => {
     if (!canEdit) return;
@@ -88,8 +96,8 @@ export function BoardBackgroundSettings({
 
   const handleFollowTheme = async () => {
     if (!canEdit || !currentTheme) return;
-    // There's no specific "background_color" in theme, so we use homepage_board_color as reference
-    const themeColor = currentTheme.homepage_board_color || '#0079bf';
+    // Use navbar_color as it complements the board header
+    const themeColor = currentTheme.navbar_color || '#0079bf';
     setBackgroundColor(themeColor);
     setBackgroundType('color');
     
@@ -179,11 +187,12 @@ export function BoardBackgroundSettings({
     if (!canEdit) return;
     setSaving(true);
     try {
-      // Reset to default colour
+      // Reset to theme navbar color or default
+      const defaultColor = getDefaultBackgroundColor();
       const { error } = await supabase
         .from('boards')
         .update({ 
-          background_color: '#0079bf',
+          background_color: defaultColor,
         })
         .eq('id', boardId);
 
@@ -191,7 +200,7 @@ export function BoardBackgroundSettings({
       
       setImageUrl('');
       setBackgroundType('color');
-      setBackgroundColor('#0079bf');
+      setBackgroundColor(defaultColor);
       toast({ title: 'Background image removed' });
       onBackgroundChange();
     } catch (error: any) {
@@ -260,7 +269,7 @@ export function BoardBackgroundSettings({
                 Use Theme Colour
               </Button>
               <span className="text-xs text-muted-foreground">
-                ({currentTheme.homepage_board_color})
+                ({currentTheme.navbar_color})
               </span>
             </div>
           )}

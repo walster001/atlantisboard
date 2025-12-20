@@ -121,13 +121,11 @@ export function ToastUIMarkdownEditor({
   const [editingButtonData, setEditingButtonData] = useState<InlineButtonData | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isSyncing = useRef(false);
-  
-  // Initialize with prepared content
-  const initialContent = useRef(prepareContentForEditor(content));
+  const isInitialized = useRef(false);
   
   // Handle editor changes
   const handleChange = useCallback(() => {
-    if (isSyncing.current) return;
+    if (isSyncing.current || !isInitialized.current) return;
     
     const editorInstance = editorRef.current?.getInstance();
     if (!editorInstance) return;
@@ -137,6 +135,25 @@ export function ToastUIMarkdownEditor({
     const markdown = convertToMarkdown(html);
     onChange(markdown);
   }, [onChange]);
+  
+  // Initialize editor with HTML content after mount
+  useEffect(() => {
+    const editorInstance = editorRef.current?.getInstance();
+    if (!editorInstance || isInitialized.current) return;
+    
+    // Small delay to ensure editor is fully mounted
+    const timeoutId = setTimeout(() => {
+      const htmlContent = prepareContentForEditor(content);
+      if (htmlContent) {
+        isSyncing.current = true;
+        editorInstance.setHTML(htmlContent);
+        isSyncing.current = false;
+      }
+      isInitialized.current = true;
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [content]);
   
   // Handle clicking on inline buttons
   useEffect(() => {
@@ -166,8 +183,10 @@ export function ToastUIMarkdownEditor({
     }
   }, []);
   
-  // Sync external content changes
+  // Sync external content changes (after initial load)
   useEffect(() => {
+    if (!isInitialized.current) return;
+    
     const editorInstance = editorRef.current?.getInstance();
     if (!editorInstance) return;
     
@@ -196,8 +215,15 @@ export function ToastUIMarkdownEditor({
       currentHtml = currentHtml.replace(pattern, html);
       editorInstance.setHTML(currentHtml);
     } else {
-      // Insert new button at cursor
-      editorInstance.insertText(html);
+      // Insert new button at cursor using exec command
+      const wwEditor = editorInstance.getCurrentModeEditor();
+      if (wwEditor && typeof wwEditor.replaceSelection === 'function') {
+        wwEditor.replaceSelection(html);
+      } else {
+        // Fallback: append to content
+        const currentHtml = editorInstance.getHTML();
+        editorInstance.setHTML(currentHtml + html);
+      }
     }
     
     setEditingButtonData(null);
@@ -245,7 +271,7 @@ export function ToastUIMarkdownEditor({
       
       <Editor
         ref={editorRef}
-        initialValue={initialContent.current}
+        initialValue=""
         initialEditType="wysiwyg"
         previewStyle="vertical"
         height="300px"

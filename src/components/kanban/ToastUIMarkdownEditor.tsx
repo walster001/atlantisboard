@@ -56,7 +56,6 @@ const DEFAULT_BORDER_RADIUS = 4;
 
 /**
  * Create the widget DOM element for an inline button.
- * This is called by Toast UI's widgetRules when it encounters the pattern.
  */
 function createButtonWidget(encodedData: string): HTMLElement {
   const data = parseInlineButtonFromDataAttr(encodedData);
@@ -108,7 +107,7 @@ function createButtonWidget(encodedData: string): HTMLElement {
 }
 
 /**
- * Widget rules for Toast UI Editor - renders [INLINE_BUTTON:...] as styled buttons
+ * Widget rules for Toast UI Editor
  */
 const widgetRules = [
   {
@@ -132,14 +131,12 @@ export function ToastUIMarkdownEditor({
   className,
   themeBackgroundColor,
   themeTextColor,
-  useIntelligentContrast,
 }: ToastUIMarkdownEditorProps) {
-  // Determine if dark mode based on background color using intelligent contrast
   const isDark = useMemo(() => {
     if (themeBackgroundColor) {
       return isDarkBackground(themeBackgroundColor);
     }
-    return false; // Default to light mode
+    return false;
   }, [themeBackgroundColor]);
 
   const editorRef = useRef<Editor>(null);
@@ -150,23 +147,15 @@ export function ToastUIMarkdownEditor({
   const isSyncing = useRef(false);
   const isInitialized = useRef(false);
   const lastContentRef = useRef(content);
-  const isInternalChange = useRef(false); // Track if change originated from editor
+  const isInternalChange = useRef(false);
   
-  /**
-   * Strip Toast UI's internal widget markers from markdown content.
-   * Toast UI wraps widgets with $$widget[n] ... $$ markers that we need to remove.
-   */
   const cleanWidgetMarkers = useCallback((text: string): string => {
-    // Remove $$widget[n] prefix markers
     let cleaned = text.replace(/\$\$widget\d+\s*/g, '');
-    // Remove trailing $$ markers that aren't part of our button format
     cleaned = cleaned.replace(/\$\$(?!\[INLINE_BUTTON)/g, '');
-    // Clean up any orphaned $$ markers
     cleaned = cleaned.replace(/\s*\$\$\s*$/gm, '');
     return cleaned;
   }, []);
 
-  // Handle editor changes
   const handleChange = useCallback(() => {
     if (isSyncing.current || !isInitialized.current) return;
     
@@ -174,12 +163,11 @@ export function ToastUIMarkdownEditor({
     if (!editor) return;
     
     let markdown = editor.getMarkdown();
-    // Clean widget markers before saving
     markdown = cleanWidgetMarkers(markdown);
     
     if (markdown !== lastContentRef.current) {
       lastContentRef.current = markdown;
-      isInternalChange.current = true; // Mark as internal change
+      isInternalChange.current = true;
       onChange(markdown);
     }
   }, [onChange, cleanWidgetMarkers]);
@@ -200,80 +188,13 @@ export function ToastUIMarkdownEditor({
     return () => clearTimeout(timeoutId);
   }, [content]);
 
-  // Force all toolbar items visible by patching ToastUI's internal toolbar after mount
+  // Sync external content changes
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const fixToolbar = () => {
-      // Get the toolbar element and force it to show all items
-      const toolbar = container.querySelector('.toastui-editor-toolbar');
-      if (toolbar instanceof HTMLElement) {
-        toolbar.style.minWidth = '0';
-        toolbar.style.width = '100%';
-        toolbar.style.overflow = 'visible';
-      }
-
-      // Hide the more button
-      const moreButton = container.querySelector('.toastui-editor-more-button');
-      if (moreButton instanceof HTMLElement) {
-        moreButton.style.cssText = 'display:none!important;width:0!important;height:0!important;';
-      }
-      
-      // Hide the dropdown toolbar
-      const dropdownToolbar = container.querySelector('.toastui-editor-dropdown-toolbar');
-      if (dropdownToolbar instanceof HTMLElement) {
-        dropdownToolbar.style.cssText = 'display:none!important;';
-      }
-
-      // Force all toolbar groups to be visible and flex
-      const groups = container.querySelectorAll('.toastui-editor-toolbar-group');
-      groups.forEach(group => {
-        if (group instanceof HTMLElement) {
-          group.style.cssText = 'display:flex!important;flex:1 1 100%!important;flex-wrap:wrap!important;justify-content:space-evenly!important;visibility:visible!important;';
-        }
-      });
-
-      // Ensure all toolbar icons are visible
-      const icons = container.querySelectorAll('.toastui-editor-toolbar-icons');
-      icons.forEach(icon => {
-        if (icon instanceof HTMLElement) {
-          icon.style.display = 'flex';
-          icon.style.visibility = 'visible';
-          icon.style.opacity = '1';
-        }
-      });
-    };
-
-    // Run multiple times to ensure ToastUI's internal logic doesn't override
-    const timeouts = [50, 100, 200, 300, 500, 800, 1000].map(delay => 
-      setTimeout(fixToolbar, delay)
-    );
-
-    // Also observe for any DOM changes that might revert our fixes
-    const observer = new MutationObserver(() => {
-      setTimeout(fixToolbar, 10);
-    });
-    const editorEl = container.querySelector('.toastui-editor-defaultUI');
-    if (editorEl) {
-      observer.observe(editorEl, { childList: true, subtree: true, attributes: true });
-    }
-
-    return () => {
-      timeouts.forEach(clearTimeout);
-      observer.disconnect();
-    };
-  }, []);
-
-  // Sync external content changes - only when content prop changes from outside
-  useEffect(() => {
-    // Skip if not initialized or if this is our own change
     if (!isInitialized.current || isInternalChange.current) {
       isInternalChange.current = false;
       return;
     }
     
-    // Only sync if content actually differs from what we last set
     if (content === lastContentRef.current) return;
     
     const editor = editorRef.current?.getInstance();
@@ -285,7 +206,7 @@ export function ToastUIMarkdownEditor({
     isSyncing.current = false;
   }, [content]);
   
-  // Handle clicks on inline button widgets - edit in place
+  // Handle clicks on inline button widgets
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -314,7 +235,6 @@ export function ToastUIMarkdownEditor({
     return () => container.removeEventListener('click', handleClick);
   }, []);
   
-  // Save button (new or edited)
   const handleSaveButton = useCallback((data: InlineButtonData) => {
     const editor = editorRef.current?.getInstance();
     if (!editor) return;
@@ -323,13 +243,11 @@ export function ToastUIMarkdownEditor({
     const newButtonMarkdown = `[INLINE_BUTTON:${newEncodedData}]`;
     
     if (editingEncodedData) {
-      // Replace existing button using the original encoded data
       let markdown = editor.getMarkdown();
       const oldMarker = `[INLINE_BUTTON:${editingEncodedData}]`;
       markdown = markdown.replace(oldMarker, newButtonMarkdown);
       editor.setMarkdown(markdown);
     } else {
-      // Insert new button at cursor
       editor.insertText(newButtonMarkdown);
     }
     
@@ -338,7 +256,6 @@ export function ToastUIMarkdownEditor({
     setTimeout(handleChange, 10);
   }, [editingEncodedData, handleChange]);
   
-  // Delete button
   const handleDeleteButton = useCallback(() => {
     if (!editingEncodedData) return;
     
@@ -356,101 +273,26 @@ export function ToastUIMarkdownEditor({
     handleChange();
   }, [editingEncodedData, handleChange]);
   
-  // Add new button
   const handleAddButton = useCallback(() => {
     setEditingButton(null);
     setEditingEncodedData(null);
     setShowButtonEditor(true);
   }, []);
-  
-  // Undo button
-  const undoButton = useCallback(() => {
-    const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:4px;flex-shrink:0;';
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>';
-    btn.title = 'Undo';
-    btn.type = 'button';
-    btn.onclick = (e) => {
-      e.preventDefault();
-      const editor = editorRef.current?.getInstance();
-      if (editor) {
-        const wwEditor = (editor as any).wwEditor;
-        if (wwEditor?.commands?.undo) {
-          wwEditor.commands.undo();
-        }
-      }
-    };
-    return btn;
-  }, []);
 
-  // Redo button
-  const redoButton = useCallback(() => {
+  // Create INB (Inline Button) toolbar button
+  const createInlineButtonToolbarItem = useCallback(() => {
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:4px;flex-shrink:0;';
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>';
-    btn.title = 'Redo';
+    btn.className = 'toastui-editor-toolbar-icons';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:11px;font-weight:700;font-family:monospace;padding:0;width:24px;height:24px;';
+    btn.innerHTML = 'INB';
+    btn.title = 'Insert Inline Button';
     btn.type = 'button';
-    btn.onclick = (e) => {
-      e.preventDefault();
-      const editor = editorRef.current?.getInstance();
-      if (editor) {
-        const wwEditor = (editor as any).wwEditor;
-        if (wwEditor?.commands?.redo) {
-          wwEditor.commands.redo();
-        }
-      }
-    };
+    btn.onclick = (e) => { e.preventDefault(); handleAddButton(); };
     return btn;
-  }, []);
+  }, [handleAddButton]);
 
-  // Indent button
-  const indentButton = useCallback(() => {
-    const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:4px;flex-shrink:0;';
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="9 4 13 8 9 12"/></svg>';
-    btn.title = 'Indent';
-    btn.type = 'button';
-    btn.onclick = (e) => {
-      e.preventDefault();
-      const editor = editorRef.current?.getInstance();
-      if (editor) {
-        try {
-          (editor as any).exec('indent');
-        } catch {
-          editor.insertText('    ');
-        }
-      }
-    };
-    return btn;
-  }, []);
-
-  // Outdent button
-  const outdentButton = useCallback(() => {
-    const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:4px;flex-shrink:0;';
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="13 4 9 8 13 12"/></svg>';
-    btn.title = 'Outdent';
-    btn.type = 'button';
-    btn.onclick = (e) => {
-      e.preventDefault();
-      const editor = editorRef.current?.getInstance();
-      if (editor) {
-        try {
-          (editor as any).exec('outdent');
-        } catch {
-          // No fallback for outdent
-        }
-      }
-    };
-    return btn;
-  }, []);
-
-  // Emoji picker button with categories
-  const emojiButton = useCallback(() => {
+  // Create Emoji picker toolbar button
+  const createEmojiToolbarItem = useCallback(() => {
     const RECENT_EMOJIS_KEY = 'toastui-recent-emojis';
     const MAX_RECENT = 20;
     
@@ -468,49 +310,39 @@ export function ToastUIMarkdownEditor({
         let recent = getRecentEmojis();
         recent = [emoji, ...recent.filter(e => e !== emoji)].slice(0, MAX_RECENT);
         localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(recent));
-      } catch {
-        // Ignore localStorage errors
-      }
+      } catch {}
     };
     
     const emojiCategories: Record<string, { icon: string; emojis: string[] }> = {
       'Smileys': { icon: '😀', emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '☺️', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐'] },
       'Gestures': { icon: '👍', emojis: ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄'] },
       'Hearts': { icon: '❤️', emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '♥️', '💋', '💌', '💐', '🌹', '🥀', '🌺', '🌸', '🌷', '🌻', '🌼'] },
-      'Objects': { icon: '💡', emojis: ['💡', '🔦', '🏮', '🪔', '📱', '💻', '🖥️', '🖨️', '⌨️', '🖱️', '💾', '💿', '📀', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️', '⏲️', '⏰', '🕰️', '⌚', '📡', '🔋', '🔌', '💸', '💵', '💴', '💶', '💷', '🪙', '💰', '💳', '💎', '⚖️', '🪜', '🧰', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪'] },
-      'Symbols': { icon: '✅', emojis: ['✅', '❌', '⭐', '🌟', '💫', '✨', '⚡', '🔥', '💥', '❗', '❓', '❕', '❔', '‼️', '⁉️', '💯', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲', '🏁', '🚩', '🎌', '🏴', '🏳️', '➕', '➖', '➗', '✖️', '♾️', '💲', '💱', '™️', '©️', '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔝', '🔜', '☑️', '🔘', '🔃', '🔄', '🔀', '🔁', '🔂', '▶️', '⏩', '⏭️', '⏯️', '◀️', '⏪', '⏮️', '🔼', '⏫', '🔽', '⏬', '⏸️', '⏹️', '⏺️', '⏏️', '🔈', '🔉', '🔊', '🔇', '📢', '📣'] },
-      'Activities': { icon: '🎉', emojis: ['🎉', '🎊', '🎈', '🎁', '🎀', '🎄', '🎃', '🎗️', '🎟️', '🎫', '🎖️', '🏆', '🥇', '🥈', '🥉', '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '🤺', '⛹️', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚴', '🚵', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🪘', '🎷', '🎺', '🪗', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩'] },
-      'Nature': { icon: '🌿', emojis: ['🌵', '🎄', '🌲', '🌳', '🌴', '🪵', '🌱', '🌿', '☘️', '🍀', '🎍', '🪴', '🎋', '🍃', '🍂', '🍁', '🍄', '🐚', '🪨', '🌾', '💐', '🌷', '🌹', '🥀', '🌺', '🌸', '🌼', '🌻', '🌞', '🌝', '🌛', '🌜', '🌚', '🌕', '🌖', '🌗', '🌘', '🌑', '🌒', '🌓', '🌔', '🌙', '🌎', '🌍', '🌏', '🪐', '💫', '⭐', '🌟', '✨', '⚡', '☄️', '💥', '🔥', '🌪️', '🌈', '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '💧', '💦', '☔', '☂️', '🌊', '🌫️'] },
-      'Food': { icon: '🍕', emojis: ['🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏', '🍐', '🍑', '🍒', '🍓', '🫐', '🥝', '🍅', '🫒', '🥥', '🥑', '🍆', '🥔', '🥕', '🌽', '🌶️', '🫑', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜', '🫘', '🌰', '🍞', '🥐', '🥖', '🫓', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🫔', '🥙', '🧆', '🥚', '🍳', '🥘', '🍲', '🫕', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦀', '🦞', '🦐', '🦑', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍼', '🥛', '☕', '🫖', '🍵', '🍶', '🍾', '🍷', '🍸', '🍹', '🍺', '🍻', '🥂', '🥃', '🫗', '🥤', '🧋', '🧃', '🧉', '🧊'] },
-      'Animals': { icon: '🐱', emojis: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🦟', '🦗', '🕷️', '🕸️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🦣', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🪶', '🐓', '🦃', '🦤', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦫', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔'] },
+      'Objects': { icon: '💡', emojis: ['💡', '🔦', '🏮', '🪔', '📱', '💻', '🖥️', '🖨️', '⌨️', '🖱️', '💾', '💿', '📀', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️', '⏲️', '⏰', '🕰️', '⌚', '📡', '🔋', '🔌', '💸', '💵', '💴', '💶', '💷', '🪙', '💰', '💳', '💎', '⚖️', '🪜', '🧰', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️'] },
+      'Symbols': { icon: '✅', emojis: ['✅', '❌', '⭐', '🌟', '💫', '✨', '⚡', '🔥', '💥', '❗', '❓', '❕', '❔', '‼️', '⁉️', '💯', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲', '🏁', '🚩', '🎌', '🏴', '🏳️', '➕', '➖', '➗', '✖️', '♾️', '💲', '💱', '™️', '©️', '®️'] },
+      'Activities': { icon: '🎉', emojis: ['🎉', '🎊', '🎈', '🎁', '🎀', '🎄', '🎃', '🎗️', '🎟️', '🎫', '🎖️', '🏆', '🥇', '🥈', '🥉', '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂'] },
     };
     
-    // All emojis for search
     const allEmojis: { emoji: string; category: string }[] = [];
     Object.entries(emojiCategories).forEach(([category, data]) => {
-      data.emojis.forEach(emoji => {
-        allEmojis.push({ emoji, category });
-      });
+      data.emojis.forEach(emoji => allEmojis.push({ emoji, category }));
     });
     
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'position:relative;display:inline-flex;';
     
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:16px;margin:0;padding:4px;flex-shrink:0;';
+    btn.className = 'toastui-editor-toolbar-icons';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:16px;padding:0;width:24px;height:24px;';
     btn.innerHTML = '😀';
     btn.title = 'Insert Emoji';
     btn.type = 'button';
     
-    // Create dropdown and append to body for proper z-index layering
     const dropdown = document.createElement('div');
-    dropdown.style.cssText = 'position:fixed;z-index:99999;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:380px;height:480px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
+    dropdown.style.cssText = 'position:fixed;z-index:99999;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:400px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
     document.body.appendChild(dropdown);
     
-    // Search input container
     const searchContainer = document.createElement('div');
-    searchContainer.style.cssText = 'padding:12px;border-bottom:1px solid #3d444d;';
+    searchContainer.style.cssText = 'padding:10px;border-bottom:1px solid #3d444d;';
     
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
@@ -520,30 +352,21 @@ export function ToastUIMarkdownEditor({
     searchInput.onblur = () => { searchInput.style.borderColor = '#3d444d'; };
     searchContainer.appendChild(searchInput);
     
-    // Header with category label
     const header = document.createElement('div');
-    header.style.cssText = 'padding:8px 16px 4px;font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;';
+    header.style.cssText = 'padding:6px 12px;font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;';
     header.textContent = 'Recent';
     
-    // Category tabs - horizontal scrollable
     const tabsWrapper = document.createElement('div');
-    tabsWrapper.style.cssText = 'padding:0 12px 8px;border-bottom:1px solid #3d444d;flex-shrink:0;';
+    tabsWrapper.style.cssText = 'padding:0 10px 6px;border-bottom:1px solid #3d444d;';
     
     const tabsContainer = document.createElement('div');
-    tabsContainer.style.cssText = 'display:flex;gap:4px;overflow-x:auto;';
-    // Hide scrollbar
-    const style = document.createElement('style');
-    style.textContent = '.emoji-tabs::-webkit-scrollbar{display:none}';
-    document.head.appendChild(style);
-    tabsContainer.className = 'emoji-tabs';
+    tabsContainer.style.cssText = 'display:flex;gap:2px;overflow-x:auto;';
     
-    // Emoji grid scroll container
     const emojiScrollContainer = document.createElement('div');
     emojiScrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;';
     
-    // Emoji grid
     const emojiGrid = document.createElement('div');
-    emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(9,1fr);gap:4px;padding:12px;';
+    emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:10px;';
     
     const categoryNames = Object.keys(emojiCategories);
     let activeCategory: string | null = 'recent';
@@ -552,20 +375,11 @@ export function ToastUIMarkdownEditor({
     const createEmojiButton = (emoji: string): HTMLButtonElement => {
       const emojiBtn = document.createElement('button');
       emojiBtn.type = 'button';
-      emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:24px;padding:4px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:36px;height:36px;';
+      emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:22px;padding:4px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:34px;height:34px;';
       emojiBtn.textContent = emoji;
-      emojiBtn.onmouseenter = () => { 
-        emojiBtn.style.background = '#3d444d'; 
-        emojiBtn.style.transform = 'scale(1.15)';
-      };
-      emojiBtn.onmouseleave = () => { 
-        emojiBtn.style.background = 'none'; 
-        emojiBtn.style.transform = 'scale(1)';
-      };
-      emojiBtn.onmousedown = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      };
+      emojiBtn.onmouseenter = () => { emojiBtn.style.background = '#3d444d'; emojiBtn.style.transform = 'scale(1.15)'; };
+      emojiBtn.onmouseleave = () => { emojiBtn.style.background = 'none'; emojiBtn.style.transform = 'scale(1)'; };
+      emojiBtn.onmousedown = (e) => { e.preventDefault(); e.stopPropagation(); };
       emojiBtn.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -584,13 +398,11 @@ export function ToastUIMarkdownEditor({
       header.textContent = label;
       if (emojis.length === 0) {
         const noResults = document.createElement('div');
-        noResults.style.cssText = 'grid-column:1/-1;text-align:center;color:#8b949e;padding:24px;font-size:14px;';
+        noResults.style.cssText = 'grid-column:1/-1;text-align:center;color:#8b949e;padding:20px;font-size:14px;';
         noResults.textContent = label === 'Recent' ? 'No recent emojis yet' : 'No emojis found';
         emojiGrid.appendChild(noResults);
       } else {
-        emojis.forEach(emoji => {
-          emojiGrid.appendChild(createEmojiButton(emoji));
-        });
+        emojis.forEach(emoji => emojiGrid.appendChild(createEmojiButton(emoji)));
       }
     };
     
@@ -606,55 +418,30 @@ export function ToastUIMarkdownEditor({
     const updateTabStyles = () => {
       tabButtons.forEach((tabBtn, i) => {
         const cat = i === 0 ? 'recent' : categoryNames[i - 1];
-        const isActive = cat === activeCategory;
-        tabBtn.style.background = isActive ? '#3d444d' : 'none';
+        tabBtn.style.background = cat === activeCategory ? '#3d444d' : 'none';
       });
     };
     
-    // Recent tab
     const recentTab = document.createElement('button');
     recentTab.type = 'button';
-    recentTab.style.cssText = 'background:#3d444d;border:none;cursor:pointer;font-size:16px;padding:6px 8px;border-radius:6px;transition:background 0.15s;flex-shrink:0;';
+    recentTab.style.cssText = 'background:#3d444d;border:none;cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;';
     recentTab.textContent = '🕐';
     recentTab.title = 'Recent';
-    recentTab.onmouseenter = () => { if (activeCategory !== 'recent') recentTab.style.background = '#2d343d'; };
-    recentTab.onmouseleave = () => { if (activeCategory !== 'recent') recentTab.style.background = 'none'; };
-    recentTab.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      activeCategory = 'recent';
-      searchInput.value = '';
-      updateTabStyles();
-      renderCategory('recent');
-    };
+    recentTab.onclick = (e) => { e.preventDefault(); e.stopPropagation(); activeCategory = 'recent'; searchInput.value = ''; updateTabStyles(); renderCategory('recent'); };
     tabButtons.push(recentTab);
     tabsContainer.appendChild(recentTab);
     
     categoryNames.forEach((category) => {
       const tabBtn = document.createElement('button');
       tabBtn.type = 'button';
-      tabBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;padding:6px 8px;border-radius:6px;transition:background 0.15s;flex-shrink:0;';
+      tabBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;';
       tabBtn.textContent = emojiCategories[category].icon;
       tabBtn.title = category;
-      tabBtn.onmouseenter = () => { 
-        if (activeCategory !== category) tabBtn.style.background = '#2d343d'; 
-      };
-      tabBtn.onmouseleave = () => { 
-        if (activeCategory !== category) tabBtn.style.background = 'none'; 
-      };
-      tabBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        activeCategory = category;
-        searchInput.value = '';
-        updateTabStyles();
-        renderCategory(category);
-      };
+      tabBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); activeCategory = category; searchInput.value = ''; updateTabStyles(); renderCategory(category); };
       tabButtons.push(tabBtn);
       tabsContainer.appendChild(tabBtn);
     });
     
-    // Search functionality
     searchInput.oninput = () => {
       const query = searchInput.value.toLowerCase().trim();
       if (query === '') {
@@ -678,21 +465,17 @@ export function ToastUIMarkdownEditor({
     
     const positionDropdown = () => {
       const btnRect = btn.getBoundingClientRect();
-      const dropdownHeight = 480;
-      const dropdownWidth = 380;
+      const dropdownHeight = 400;
+      const dropdownWidth = 340;
       const viewportHeight = window.innerHeight;
       const viewportWidth = window.innerWidth;
       
       let top = btnRect.bottom + 4;
-      if (top + dropdownHeight > viewportHeight - 10) {
-        top = btnRect.top - dropdownHeight - 4;
-      }
+      if (top + dropdownHeight > viewportHeight - 10) top = btnRect.top - dropdownHeight - 4;
       
       let left = btnRect.right - dropdownWidth;
       if (left < 10) left = 10;
-      if (left + dropdownWidth > viewportWidth - 10) {
-        left = viewportWidth - dropdownWidth - 10;
-      }
+      if (left + dropdownWidth > viewportWidth - 10) left = viewportWidth - dropdownWidth - 10;
       
       dropdown.style.top = `${Math.max(10, top)}px`;
       dropdown.style.left = `${left}px`;
@@ -715,12 +498,8 @@ export function ToastUIMarkdownEditor({
       }
     };
     
-    // Prevent dropdown from closing when interacting with it
-    dropdown.onmousedown = (e) => {
-      e.stopPropagation();
-    };
+    dropdown.onmousedown = (e) => e.stopPropagation();
     
-    // Close on outside click
     const handleOutsideClick = (e: MouseEvent) => {
       if (!wrapper.contains(e.target as Node) && !dropdown.contains(e.target as Node)) {
         dropdown.style.display = 'none';
@@ -728,7 +507,6 @@ export function ToastUIMarkdownEditor({
     };
     document.addEventListener('mousedown', handleOutsideClick);
     
-    // Cleanup dropdown from body when wrapper is removed
     const observer = new MutationObserver(() => {
       if (!document.body.contains(wrapper)) {
         dropdown.remove();
@@ -742,17 +520,6 @@ export function ToastUIMarkdownEditor({
     return wrapper;
   }, []);
 
-  // Create toolbar button for inserting new buttons (styled like codeblock)
-  const toolbarButton = useCallback(() => {
-    const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:10px;font-weight:600;font-family:monospace;margin:0;padding:4px 6px;flex-shrink:0;';
-    btn.innerHTML = 'INB';
-    btn.title = 'Insert Inline Button';
-    btn.type = 'button';
-    btn.onclick = (e) => { e.preventDefault(); handleAddButton(); };
-    return btn;
-  }, [handleAddButton]);
   // Generate inline styles based on theme colors
   const containerStyle: React.CSSProperties = themeBackgroundColor ? {
     '--editor-bg': themeBackgroundColor,
@@ -784,18 +551,14 @@ export function ToastUIMarkdownEditor({
         onChange={handleChange}
         widgetRules={widgetRules}
         toolbarItems={[
+          ['heading', 'bold', 'italic', 'strike'],
+          ['hr', 'quote'],
+          ['ul', 'ol', 'task', 'indent', 'outdent'],
+          ['table', 'link'],
+          ['code', 'codeblock'],
           [
-            { el: undoButton(), tooltip: 'Undo', name: 'undo' },
-            { el: redoButton(), tooltip: 'Redo', name: 'redo' },
-            'heading', 'bold', 'italic', 'strike',
-            'hr', 'quote',
-            'ul', 'ol', 'task',
-            { el: indentButton(), tooltip: 'Indent', name: 'indent' },
-            { el: outdentButton(), tooltip: 'Outdent', name: 'outdent' },
-            'table', 'link',
-            'code', 'codeblock',
-            { el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' },
-            { el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' },
+            { el: createInlineButtonToolbarItem(), tooltip: 'Insert Inline Button', name: 'inlineButton' },
+            { el: createEmojiToolbarItem(), tooltip: 'Insert Emoji', name: 'emoji' },
           ],
         ]}
       />
@@ -817,84 +580,7 @@ export function ToastUIMarkdownEditor({
           transform: translateY(-1px);
         }
         .toastui-editor-wrapper .toastui-editor-defaultUI {
-          display: flex;
-          flex-direction: column;
-          min-height: 150px;
           border: none !important;
-        }
-        .toastui-editor-wrapper .toastui-editor-defaultUI-toolbar {
-          flex-shrink: 0;
-          padding: 6px 4px !important;
-          background: transparent !important;
-          width: 100% !important;
-          overflow: visible !important;
-        }
-        .toastui-editor-wrapper .toastui-editor-toolbar {
-          display: flex !important;
-          flex-wrap: wrap !important;
-          gap: 0 !important;
-          justify-content: flex-start !important;
-          align-items: center !important;
-          background: transparent !important;
-          width: 100% !important;
-          min-width: 0 !important;
-        }
-        .toastui-editor-wrapper .toastui-editor-toolbar-group {
-          display: flex !important;
-          flex: 1 1 100% !important;
-          flex-wrap: wrap !important;
-          gap: 0 !important;
-          align-items: center !important;
-          justify-content: space-evenly !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          visibility: visible !important;
-        }
-        .toastui-editor-wrapper .toastui-editor-toolbar-icons {
-          flex: 0 0 auto !important;
-          width: 30px !important;
-          height: 30px !important;
-          min-width: 30px !important;
-          margin: 1px !important;
-          padding: 5px !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          border-radius: 4px !important;
-          transition: background-color 0.15s ease !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
-        .toastui-editor-wrapper .toastui-editor-toolbar-icons:hover {
-          background-color: var(--editor-muted, hsl(var(--muted))) !important;
-        }
-        .toastui-editor-wrapper .toastui-editor-toolbar-icons::before {
-          transform: scale(1) !important;
-        }
-        .toastui-editor-wrapper .custom-toolbar-btn svg {
-          width: 18px !important;
-          height: 18px !important;
-        }
-        /* Hide overflow menu elements */
-        .toastui-editor-wrapper .toastui-editor-more-button,
-        .toastui-editor-wrapper .toastui-editor-toolbar-more,
-        .toastui-editor-wrapper .toastui-editor-dropdown-toolbar {
-          display: none !important;
-          visibility: hidden !important;
-          width: 0 !important;
-          height: 0 !important;
-          overflow: hidden !important;
-        }
-        .toastui-editor-wrapper .toastui-editor-toolbar-divider {
-          display: none !important;
-        }
-        .toastui-editor-wrapper .toastui-editor-main-container {
-          flex: 1;
-          min-height: 0;
-          overflow: hidden;
-        }
-        .toastui-editor-wrapper .toastui-editor-ww-container {
-          height: 100%;
         }
         .toastui-editor-wrapper .toastui-editor-ww-mode .ProseMirror {
           min-height: 100px;
@@ -902,7 +588,7 @@ export function ToastUIMarkdownEditor({
           overflow-y: auto;
         }
         
-        /* Themed editor styles - uses CSS custom properties from inline style */
+        /* Themed editor styles */
         .toastui-themed .toastui-editor-defaultUI {
           background: var(--editor-bg) !important;
         }

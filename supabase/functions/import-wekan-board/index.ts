@@ -411,10 +411,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { wekanData, defaultCardColor } = await req.json();
+    let wekanData: any;
+    let defaultCardColor: string | null = null;
+    
+    try {
+      const body = await req.json();
+      wekanData = body.wekanData;
+      defaultCardColor = body.defaultCardColor || null;
+      console.log('Request body parsed, wekanData present:', !!wekanData, 'type:', typeof wekanData);
+    } catch (parseError: any) {
+      console.error('Failed to parse request body:', parseError.message);
+      return new Response(
+        JSON.stringify({ type: 'result', success: false, errors: ['Failed to parse request body: ' + parseError.message] }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Validate Wekan data structure
     if (!wekanData) {
+      console.error('No wekanData in request body');
       return new Response(
         JSON.stringify({ type: 'result', success: false, errors: ['No Wekan data provided'] }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

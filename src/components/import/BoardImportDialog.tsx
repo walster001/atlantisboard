@@ -263,6 +263,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const [detectedInlineButtons, setDetectedInlineButtons] = useState<DetectedInlineButton[]>([]);
   const [showInlineButtonDialog, setShowInlineButtonDialog] = useState(false);
   const [iconReplacements, setIconReplacements] = useState<Map<string, string>>(new Map());
+  
+  // Abort controller for cancelling import
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Handle RGB slider changes
   const handleRgbChange = (channel: 'r' | 'g' | 'b', value: string) => {
@@ -333,7 +336,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const importWekanWithStreaming = async (
     wekanData: any,
     onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void,
-    defaultColor: string | null
+    defaultColor: string | null,
+    signal?: AbortSignal
   ): Promise<ImportResult> => {
     return new Promise(async (resolve, reject) => {
       try {
@@ -353,6 +357,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
               'Authorization': `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({ wekanData, defaultCardColor: defaultColor }),
+            signal,
           }
         );
 
@@ -802,8 +807,25 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     }
   };
 
+  // Cancel ongoing import
+  const handleCancelImport = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setImporting(false);
+    updateProgress('idle');
+    toast({
+      title: 'Import cancelled',
+      description: 'The import operation was cancelled. Note: Any data already imported will remain in the database.',
+    });
+  };
+
   // Proceed with the actual import
   const proceedWithImport = async (jsonData: any, replacements: Map<string, string>) => {
+    // Create new abort controller for this import
+    abortControllerRef.current = new AbortController();
+    
     setImporting(true);
     setImportResult(null);
     updateProgress('parsing');
@@ -817,7 +839,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         // Apply icon replacements to Wekan data before import
         const modifiedData = applyIconReplacements(jsonData, replacements);
         // For Wekan, use streaming SSE to get real-time progress
-        result = await importWekanWithStreaming(modifiedData, updateProgress, defaultCardColor);
+        result = await importWekanWithStreaming(modifiedData, updateProgress, defaultCardColor, abortControllerRef.current.signal);
       }
 
       updateProgress('complete');
@@ -842,6 +864,10 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         updateProgress('idle');
       }
     } catch (error: any) {
+      // Don't show error toast if it was an abort
+      if (error.name === 'AbortError') {
+        return;
+      }
       console.error('Import error:', error);
       toast({
         title: 'Import failed',
@@ -851,6 +877,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       updateProgress('idle');
     } finally {
       setImporting(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -1274,7 +1301,16 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           )}
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                if (importing) {
+                  handleCancelImport();
+                } else {
+                  handleOpenChange(false);
+                }
+              }}
+            >
               {importResult?.success ? 'Close' : 'Cancel'}
             </Button>
             {!importResult?.success && (

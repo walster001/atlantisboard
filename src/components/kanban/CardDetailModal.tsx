@@ -376,7 +376,7 @@ export function CardDetailModal({
               className={cn(
                 "p-3 rounded-lg text-sm min-h-[60px] italic flex items-center",
                 !themeCardWindowColor && "bg-muted/50 text-muted-foreground",
-                !disabled && "cursor-pointer hover:opacity-80 transition-opacity"
+                !disabled && "cursor-pointer"
               )}
               style={themeCardWindowColor ? { 
                 backgroundColor: `${effectiveTextColor}10`,

@@ -790,7 +790,15 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
     // Continue with import using the parsed and modified data
     if (parsedWekanData) {
+      console.log('Proceeding with import, data present:', !!parsedWekanData);
       proceedWithImport(parsedWekanData, replacements);
+    } else {
+      console.error('parsedWekanData is null, cannot proceed with import');
+      toast({
+        title: 'Import failed',
+        description: 'No Wekan data available. Please try selecting the file again.',
+        variant: 'destructive',
+      });
     }
   };
 

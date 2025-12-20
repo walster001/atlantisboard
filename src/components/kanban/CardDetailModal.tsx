@@ -234,8 +234,11 @@ export function CardDetailModal({
     maxHeight: 'calc(85vh - 2rem)',
   };
 
-  // Button styles
-  const buttonStyle: React.CSSProperties = themeCardWindowButtonColor ? {
+  // Check if custom button colors are provided
+  const hasCustomButtonColors = !!themeCardWindowButtonColor;
+  
+  // Button styles - use inline styles with custom properties to override tailwind classes
+  const buttonStyle: React.CSSProperties = hasCustomButtonColors ? {
     backgroundColor: themeCardWindowButtonColor,
     color: themeCardWindowButtonTextColor || '#ffffff',
     borderColor: themeCardWindowButtonColor,
@@ -397,14 +400,14 @@ export function CardDetailModal({
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
-                    variant="outline"
+                    variant={hasCustomButtonColors && !dueDateStatus?.isOverdue && !dueDateStatus?.isDueToday ? "default" : "outline"}
                     className={cn(
                       'justify-start text-left font-normal',
-                      !dueDate && !themeCardWindowButtonColor && 'text-muted-foreground',
-                      dueDateStatus?.isOverdue && 'border-destructive text-destructive',
-                      dueDateStatus?.isDueToday && 'border-label-orange text-label-orange'
+                      !dueDate && !hasCustomButtonColors && 'text-muted-foreground',
+                      dueDateStatus?.isOverdue && 'border-destructive text-destructive bg-transparent',
+                      dueDateStatus?.isDueToday && 'border-label-orange text-label-orange bg-transparent'
                     )}
-                    style={!dueDateStatus?.isOverdue && !dueDateStatus?.isDueToday && themeCardWindowButtonColor ? buttonStyle : undefined}
+                    style={!dueDateStatus?.isOverdue && !dueDateStatus?.isDueToday && hasCustomButtonColors ? buttonStyle : undefined}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dueDate ? format(dueDate, 'PPP') : 'Set due date'}
@@ -474,9 +477,9 @@ export function CardDetailModal({
             <Popover open={showLabelPicker} onOpenChange={setShowLabelPicker}>
               <PopoverTrigger asChild>
                 <Button 
-                  variant="outline" 
+                  variant={hasCustomButtonColors ? "default" : "outline"} 
                   size="sm"
-                  style={themeCardWindowButtonColor ? buttonStyle : undefined}
+                  style={hasCustomButtonColors ? buttonStyle : undefined}
                 >
                   <Tag className="h-3.5 w-3.5 mr-1.5" />
                   Add Label

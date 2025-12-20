@@ -465,6 +465,21 @@ export function ToastUIMarkdownEditor({
     searchInput.onblur = () => { searchInput.style.borderColor = '#3d444d'; };
     searchContainer.appendChild(searchInput);
     
+    // Preview bar showing hovered emoji
+    const previewBar = document.createElement('div');
+    previewBar.style.cssText = 'padding:8px 12px;border-bottom:1px solid #3d444d;display:flex;align-items:center;gap:10px;min-height:44px;';
+    
+    const previewEmoji = document.createElement('span');
+    previewEmoji.style.cssText = 'font-size:28px;width:36px;text-align:center;';
+    previewEmoji.textContent = '';
+    
+    const previewText = document.createElement('span');
+    previewText.style.cssText = 'font-size:13px;color:#8b949e;';
+    previewText.textContent = 'Hover over an emoji to preview';
+    
+    previewBar.appendChild(previewEmoji);
+    previewBar.appendChild(previewText);
+    
     const header = document.createElement('div');
     header.style.cssText = 'padding:6px 12px;font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;';
     header.textContent = 'Recent';
@@ -480,6 +495,9 @@ export function ToastUIMarkdownEditor({
     
     const emojiGrid = document.createElement('div');
     emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:10px;';
+    
+    // Track currently hovered emoji for accurate insertion
+    let hoveredEmoji: string | null = null;
     
     const categoryNames = Object.keys(emojiCategories);
     let activeCategory: string | null = 'recent';
@@ -499,24 +517,39 @@ export function ToastUIMarkdownEditor({
     const createEmojiButton = (emoji: string): HTMLButtonElement => {
       const emojiBtn = document.createElement('button');
       emojiBtn.type = 'button';
+      emojiBtn.dataset.emoji = emoji; // Store emoji in data attribute for accurate retrieval
       emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:22px;padding:4px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:34px;height:34px;';
       emojiBtn.textContent = emoji;
-      emojiBtn.onmouseenter = () => { emojiBtn.style.background = '#3d444d'; emojiBtn.style.transform = 'scale(1.15)'; };
-      emojiBtn.onmouseleave = () => { emojiBtn.style.background = 'none'; emojiBtn.style.transform = 'scale(1)'; };
+      emojiBtn.onmouseenter = () => { 
+        emojiBtn.style.background = '#3d444d'; 
+        emojiBtn.style.transform = 'scale(1.15)';
+        hoveredEmoji = emoji;
+        previewEmoji.textContent = emoji;
+        previewText.textContent = 'Click to insert';
+        previewText.style.color = '#e6edf3';
+      };
+      emojiBtn.onmouseleave = () => { 
+        emojiBtn.style.background = 'none'; 
+        emojiBtn.style.transform = 'scale(1)';
+        hoveredEmoji = null;
+        previewEmoji.textContent = '';
+        previewText.textContent = 'Hover over an emoji to preview';
+        previewText.style.color = '#8b949e';
+      };
       emojiBtn.onmousedown = (e) => { e.preventDefault(); e.stopPropagation(); };
       emojiBtn.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
+        // Use the data attribute to ensure correct emoji is inserted
+        const emojiToInsert = emojiBtn.dataset.emoji || emoji;
         const editor = editorRef.current?.getInstance();
         if (editor) {
-          // Restore focus to editor first
           editor.focus();
-          // Restore selection if we have it
           if (savedSelection) {
             editor.setSelection(savedSelection.start, savedSelection.end);
           }
-          editor.insertText(emoji);
-          addRecentEmoji(emoji);
+          editor.insertText(emojiToInsert);
+          addRecentEmoji(emojiToInsert);
         }
         dropdown.style.display = 'none';
       };
@@ -589,6 +622,7 @@ export function ToastUIMarkdownEditor({
     tabsWrapper.appendChild(tabsContainer);
     emojiScrollContainer.appendChild(emojiGrid);
     dropdown.appendChild(searchContainer);
+    dropdown.appendChild(previewBar);
     dropdown.appendChild(tabsWrapper);
     dropdown.appendChild(header);
     dropdown.appendChild(emojiScrollContainer);

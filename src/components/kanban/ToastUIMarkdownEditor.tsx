@@ -172,7 +172,7 @@ export function ToastUIMarkdownEditor({
     }
   }, [onChange, cleanWidgetMarkers]);
   
-  // Initialize editor with content and register custom commands
+  // Initialize editor with content
   useEffect(() => {
     const editor = editorRef.current?.getInstance();
     if (!editor || isInitialized.current) return;
@@ -183,79 +183,55 @@ export function ToastUIMarkdownEditor({
       isSyncing.current = false;
       lastContentRef.current = content;
       isInitialized.current = true;
-      
-      // Register custom indent command
-      editor.addCommand('wysiwyg', 'customIndent', () => {
-        const wwEditor = editor.getCurrentModeEditor();
-        if (wwEditor && wwEditor.view) {
-          const { state, dispatch } = wwEditor.view;
-          const { selection, doc } = state;
-          const { from, to } = selection;
-          
-          // Get all lines in the selection
-          const lines: { start: number; end: number }[] = [];
-          doc.nodesBetween(from, to, (node, pos) => {
-            if (node.isBlock && node.type.name === 'paragraph') {
-              lines.push({ start: pos + 1, end: pos + node.nodeSize - 1 });
-            }
-          });
-          
-          if (lines.length > 0) {
-            let tr = state.tr;
-            let offset = 0;
-            lines.forEach(line => {
-              tr = tr.insertText('  ', line.start + offset);
-              offset += 2;
-            });
-            dispatch(tr);
-            return true;
-          }
-        }
-        return false;
-      });
-      
-      // Register custom outdent command
-      editor.addCommand('wysiwyg', 'customOutdent', () => {
-        const wwEditor = editor.getCurrentModeEditor();
-        if (wwEditor && wwEditor.view) {
-          const { state, dispatch } = wwEditor.view;
-          const { selection, doc } = state;
-          const { from, to } = selection;
-          
-          // Get all lines in the selection
-          const lines: { start: number; textStart: string }[] = [];
-          doc.nodesBetween(from, to, (node, pos) => {
-            if (node.isBlock && node.type.name === 'paragraph' && node.textContent) {
-              lines.push({ start: pos + 1, textStart: node.textContent.substring(0, 2) });
-            }
-          });
-          
-          if (lines.length > 0) {
-            let tr = state.tr;
-            let offset = 0;
-            lines.forEach(line => {
-              // Check for leading spaces/tabs and remove them
-              if (line.textStart.startsWith('  ')) {
-                tr = tr.delete(line.start + offset, line.start + offset + 2);
-                offset -= 2;
-              } else if (line.textStart.startsWith('\t')) {
-                tr = tr.delete(line.start + offset, line.start + offset + 1);
-                offset -= 1;
-              } else if (line.textStart.startsWith(' ')) {
-                tr = tr.delete(line.start + offset, line.start + offset + 1);
-                offset -= 1;
-              }
-            });
-            dispatch(tr);
-            return true;
-          }
-        }
-        return false;
-      });
     }, 50);
     
     return () => clearTimeout(timeoutId);
   }, [content]);
+
+  // Handle codeblock deletion with backspace
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+      
+      const editor = editorRef.current?.getInstance();
+      if (!editor) return;
+      
+      const wwEditor = editor.getCurrentModeEditor();
+      if (!wwEditor?.view) return;
+      
+      const { state, dispatch } = wwEditor.view;
+      const { selection } = state;
+      const { $from, empty } = selection;
+      
+      // Check if we're in or near a codeBlock
+      const codeBlock = $from.parent.type.name === 'codeBlock' ? $from.parent : null;
+      const nodeBeforeCursor = $from.nodeBefore;
+      
+      // If cursor is at start of empty codeblock, delete it
+      if (codeBlock && empty && $from.parentOffset === 0 && codeBlock.textContent === '') {
+        e.preventDefault();
+        const pos = $from.before($from.depth);
+        const tr = state.tr.delete(pos, pos + codeBlock.nodeSize);
+        dispatch(tr);
+        return;
+      }
+      
+      // If cursor is right after a codeblock and we press backspace
+      if (e.key === 'Backspace' && nodeBeforeCursor?.type.name === 'codeBlock') {
+        e.preventDefault();
+        const pos = $from.pos - nodeBeforeCursor.nodeSize;
+        const tr = state.tr.delete(pos, $from.pos);
+        dispatch(tr);
+        return;
+      }
+    };
+    
+    container.addEventListener('keydown', handleKeyDown, true);
+    return () => container.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
 
   // Sync external content changes
   useEffect(() => {
@@ -348,6 +324,46 @@ export function ToastUIMarkdownEditor({
     setShowButtonEditor(true);
   }, []);
 
+  // Handle indent action
+  const handleIndent = useCallback(() => {
+    const editor = editorRef.current?.getInstance();
+    if (!editor) return;
+    
+    const wwEditor = editor.getCurrentModeEditor();
+    if (wwEditor?.view) {
+      const { state, dispatch } = wwEditor.view;
+      const { selection } = state;
+      const tr = state.tr.insertText('  ', selection.from);
+      dispatch(tr);
+    }
+  }, []);
+
+  // Handle outdent action
+  const handleOutdent = useCallback(() => {
+    const editor = editorRef.current?.getInstance();
+    if (!editor) return;
+    
+    const wwEditor = editor.getCurrentModeEditor();
+    if (wwEditor?.view) {
+      const { state, dispatch } = wwEditor.view;
+      const { $from } = state.selection;
+      const lineStart = $from.start();
+      const textBefore = state.doc.textBetween(lineStart, $from.pos);
+      
+      // Check for leading whitespace
+      if (textBefore.startsWith('  ')) {
+        const tr = state.tr.delete(lineStart, lineStart + 2);
+        dispatch(tr);
+      } else if (textBefore.startsWith('\t')) {
+        const tr = state.tr.delete(lineStart, lineStart + 1);
+        dispatch(tr);
+      } else if (textBefore.startsWith(' ')) {
+        const tr = state.tr.delete(lineStart, lineStart + 1);
+        dispatch(tr);
+      }
+    }
+  }, []);
+
   // Create custom indent toolbar button with SVG icon
   const createIndentToolbarItem = useCallback(() => {
     const btn = document.createElement('button');
@@ -357,10 +373,10 @@ export function ToastUIMarkdownEditor({
     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="18" x2="11" y2="18"/><polyline points="3 8 7 12 3 16"/></svg>`;
     btn.onclick = (e) => { 
       e.preventDefault(); 
-      editorRef.current?.getInstance()?.exec('customIndent');
+      handleIndent();
     };
     return btn;
-  }, []);
+  }, [handleIndent]);
 
   // Create custom outdent toolbar button with SVG icon
   const createOutdentToolbarItem = useCallback(() => {
@@ -371,10 +387,10 @@ export function ToastUIMarkdownEditor({
     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="18" x2="11" y2="18"/><polyline points="7 8 3 12 7 16"/></svg>`;
     btn.onclick = (e) => { 
       e.preventDefault(); 
-      editorRef.current?.getInstance()?.exec('customOutdent');
+      handleOutdent();
     };
     return btn;
-  }, []);
+  }, [handleOutdent]);
 
   // Create INB (Inline Button) toolbar button
   const createInlineButtonToolbarItem = useCallback(() => {

@@ -77,6 +77,8 @@ interface CardDetailModalProps {
   disabled?: boolean;
   attachments?: Attachment[];
   onAttachmentsChange?: () => void;
+  themeCardWindowColor?: string;
+  themeCardWindowTextColor?: string;
 }
 
 export function CardDetailModal({
@@ -90,6 +92,8 @@ export function CardDetailModal({
   disabled = false,
   attachments = [],
   onAttachmentsChange,
+  themeCardWindowColor,
+  themeCardWindowTextColor,
 }: CardDetailModalProps) {
   const isMobile = useIsMobile();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -190,10 +194,22 @@ export function CardDetailModal({
     isDueToday: isToday(dueDate),
   } : null;
 
+  // Apply theme colors - use CSS custom properties for text color inheritance
+  const contentStyle: React.CSSProperties = themeCardWindowColor ? {
+    maxHeight: 'calc(85vh - 2rem)',
+    backgroundColor: themeCardWindowColor,
+    color: themeCardWindowTextColor || undefined,
+  } : {
+    maxHeight: 'calc(85vh - 2rem)',
+  };
+
   const content = (
-    <div className="flex flex-col overflow-hidden" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
+    <div className="flex flex-col overflow-hidden" style={contentStyle}>
       {/* Header */}
-      <div className="flex items-start justify-between p-4 md:p-6 border-b">
+      <div 
+        className="flex items-start justify-between p-4 md:p-6 border-b"
+        style={themeCardWindowColor ? { borderColor: themeCardWindowTextColor ? `${themeCardWindowTextColor}20` : undefined } : undefined}
+      >
         <div className="flex-1 min-w-0">
 
           {/* Title */}
@@ -225,9 +241,11 @@ export function CardDetailModal({
           ) : (
             <h2 
               className={cn(
-                "text-xl md:text-2xl font-semibold text-foreground",
-                !disabled && "cursor-pointer hover:text-primary transition-colors"
+                "text-xl md:text-2xl font-semibold",
+                !themeCardWindowTextColor && "text-foreground",
+                !disabled && "cursor-pointer hover:opacity-70 transition-opacity"
               )}
+              style={themeCardWindowTextColor ? { color: themeCardWindowTextColor } : undefined}
               onClick={() => !disabled && setIsEditingTitle(true)}
             >
               {title}
@@ -245,7 +263,10 @@ export function CardDetailModal({
         {/* Description Section */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-muted-foreground">
+            <div 
+              className={cn("flex items-center gap-2", !themeCardWindowTextColor && "text-muted-foreground")}
+              style={themeCardWindowTextColor ? { color: themeCardWindowTextColor, opacity: 0.7 } : undefined}
+            >
               <AlignLeft className="h-4 w-4" />
               <span className="text-sm font-medium">Description</span>
             </div>
@@ -310,7 +331,10 @@ export function CardDetailModal({
 
         {/* Due Date Section */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-muted-foreground">
+          <div 
+            className={cn("flex items-center gap-2", !themeCardWindowTextColor && "text-muted-foreground")}
+            style={themeCardWindowTextColor ? { color: themeCardWindowTextColor, opacity: 0.7 } : undefined}
+          >
             <Clock className="h-4 w-4" />
             <span className="text-sm font-medium">Due Date</span>
           </div>
@@ -368,7 +392,10 @@ export function CardDetailModal({
 
         {/* Labels Section */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-muted-foreground">
+          <div 
+            className={cn("flex items-center gap-2", !themeCardWindowTextColor && "text-muted-foreground")}
+            style={themeCardWindowTextColor ? { color: themeCardWindowTextColor, opacity: 0.7 } : undefined}
+          >
             <Tag className="h-4 w-4" />
             <span className="text-sm font-medium">Labels</span>
           </div>
@@ -544,7 +571,10 @@ export function CardDetailModal({
 
       {/* Footer Actions */}
       {!disabled && onDelete && (
-        <div className="border-t p-4 md:p-6">
+        <div 
+          className="border-t p-4 md:p-6"
+          style={themeCardWindowColor ? { borderColor: themeCardWindowTextColor ? `${themeCardWindowTextColor}20` : undefined } : undefined}
+        >
           <Button 
             variant="destructive" 
             size="sm"

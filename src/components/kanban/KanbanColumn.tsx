@@ -22,7 +22,7 @@ interface KanbanColumnProps {
   onAddCard: (title: string) => void;
   onEditCard: (card: Card) => void;
   onDeleteCard: (cardId: string) => void;
-  onUpdateColumnColor: (color: string | null) => void;
+  onUpdateColumnColor: (color: string | null, isClearing?: boolean) => void;
   onApplyColumnColorToAll: (color: string | null) => void;
   onUpdateCardColor: (cardId: string, color: string | null) => void;
   onApplyCardColorToAll: (color: string | null) => void;
@@ -58,7 +58,13 @@ export const KanbanColumn = memo(function KanbanColumn({
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Effective column color: per-column override > theme > default
-  const effectiveColumnColor = column.color || themeColumnColor || undefined;
+  // Empty string or 'transparent' means transparent (no color)
+  const isColumnTransparent = column.color === '' || column.color === 'transparent';
+  const isThemeTransparent = themeColumnColor === '' || themeColumnColor === 'transparent';
+  // If column has explicit transparent, use that; else if column has color, use it; else check theme
+  const effectiveColumnColor = isColumnTransparent 
+    ? null 
+    : (column.color || (isThemeTransparent ? null : themeColumnColor) || undefined);
 
   const handleSaveTitle = () => {
     if (editedTitle.trim()) {
@@ -162,9 +168,9 @@ export const KanbanColumn = memo(function KanbanColumn({
                             </DropdownMenuItem>
                           }
                         />
-                        {column.color && (
+                        {(column.color && column.color !== '' && column.color !== 'transparent') && (
                           <DropdownMenuItem onClick={() => {
-                            onUpdateColumnColor(null);
+                            onUpdateColumnColor(null, true); // isClearing = true
                             setMenuOpen(false);
                           }}>
                             <XCircle className="h-4 w-4 mr-2" />

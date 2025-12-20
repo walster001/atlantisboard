@@ -65,7 +65,8 @@ export function ThemeEditorModal({
       if (sourceTheme) {
         setThemeName(duplicatingTheme ? `${sourceTheme.name} (Copy)` : sourceTheme.name);
         setNavbarColor(sourceTheme.navbar_color);
-        setColumnColor(sourceTheme.column_color);
+        // Empty string means transparent, convert to null for state
+        setColumnColor(sourceTheme.column_color === '' ? null : sourceTheme.column_color);
         setDefaultCardColor(sourceTheme.default_card_color);
         setCardWindowColor(sourceTheme.card_window_color);
         setCardWindowTextColor(sourceTheme.card_window_text_color);

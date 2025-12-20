@@ -1282,13 +1282,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       {/* Inline Button Icon Replacement Dialog */}
       <InlineButtonIconDialog
         open={showInlineButtonDialog}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShowInlineButtonDialog(false);
-            setParsedWekanData(null);
-            setDetectedInlineButtons([]);
-          }
-        }}
+        onOpenChange={setShowInlineButtonDialog}
         detectedButtons={detectedInlineButtons}
         onComplete={handleInlineButtonsComplete}
       />

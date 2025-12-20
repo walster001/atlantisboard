@@ -173,30 +173,16 @@ function markdownToHtml(markdown: string): string {
   try {
     let content = markdown;
     
-    // Preserve [INLINE_BUTTON:...] placeholders during markdown parsing
-    // by replacing them with unique tokens
-    const buttonPlaceholders: Map<string, string> = new Map();
-    let buttonIndex = 0;
-    
+    // First, directly convert [INLINE_BUTTON:...] to HTML spans
     content = content.replace(/\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g, (_match, dataAttr) => {
-      const token = `___INLINE_BTN_${buttonIndex++}___`;
       const data = parseInlineButtonFromDataAttr(dataAttr);
       if (data) {
-        buttonPlaceholders.set(token, serializeInlineButtonHtml(data));
-      } else {
-        buttonPlaceholders.set(token, '');
+        return serializeInlineButtonHtml(data);
       }
-      return token;
+      return '';
     });
     
-    // Also preserve existing inline button HTML spans
-    content = content.replace(/<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*>[\s\S]*?<\/span>/gi, (match) => {
-      const token = `___INLINE_BTN_${buttonIndex++}___`;
-      buttonPlaceholders.set(token, match);
-      return token;
-    });
-    
-    // Transform legacy Wekan inline buttons before markdown processing
+    // Transform any legacy Wekan inline buttons
     content = transformLegacyInlineButtons(content);
     
     // Check if content is pure HTML (no markdown syntax)
@@ -213,7 +199,7 @@ function markdownToHtml(markdown: string): string {
     );
     
     // Check for markdown syntax that indicates we should parse as markdown
-    const hasMarkdownSyntax = /^(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\*\*|__|```|\[.+\]\(.+\))/m.test(content);
+    const hasMarkdownSyntax = /^(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\*\*|__|```)/m.test(content);
     
     let result: string;
     
@@ -221,15 +207,30 @@ function markdownToHtml(markdown: string): string {
       // Pure HTML content
       result = content;
     } else {
-      // Parse as markdown (handles mixed content well)
-      result = marked.parse(content, { async: false }) as string;
-    }
-    
-    // Restore button placeholders
-    for (const [token, html] of buttonPlaceholders) {
-      result = result.replace(token, html);
-      // Also handle case where marked wrapped the token in <p> tags
-      result = result.replace(`<p>${token}</p>`, html);
+      // For markdown content with inline buttons, we need to protect the buttons
+      // by temporarily replacing them with placeholders
+      const buttonPlaceholders: Map<string, string> = new Map();
+      let buttonIndex = 0;
+      
+      // Extract all inline button spans before markdown parsing
+      let contentToProcess = content.replace(
+        /<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*>[\s\S]*?<\/span>/gi,
+        (match) => {
+          const token = `INLINEBTNPLACEHOLDER${buttonIndex++}`;
+          buttonPlaceholders.set(token, match);
+          return token;
+        }
+      );
+      
+      // Parse as markdown
+      result = marked.parse(contentToProcess, { async: false }) as string;
+      
+      // Restore button placeholders using regex to handle all occurrences
+      for (const [token, html] of buttonPlaceholders) {
+        // Replace token wherever it appears (might be wrapped in <p> or other tags)
+        const tokenRegex = new RegExp(`(<p>)?${token}(<\\/p>)?`, 'g');
+        result = result.replace(tokenRegex, html);
+      }
     }
     
     // Final cleanup pass

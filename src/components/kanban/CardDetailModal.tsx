@@ -367,14 +367,15 @@ export function CardDetailModal({
           ) : description ? (
             <div 
               className={cn(
-                "p-3 rounded-lg text-sm prose prose-sm max-w-none prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2 prose-code:text-xs prose-a:no-underline hover:prose-a:underline",
-                !themeCardWindowColor && "bg-muted/50 dark:prose-invert prose-a:text-primary",
+                "p-3 rounded-lg text-sm max-w-none",
+                // Only use prose classes when no theme color is applied
+                !themeCardWindowColor && "prose prose-sm dark:prose-invert prose-a:text-primary bg-muted/50 prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2 prose-code:text-xs prose-a:no-underline hover:prose-a:underline",
                 !disabled && !themeCardWindowColor && "cursor-pointer hover:bg-muted transition-colors",
                 !disabled && themeCardWindowColor && "cursor-pointer transition-opacity hover:opacity-80"
               )}
               style={themeCardWindowColor ? { 
                 backgroundColor: `${effectiveTextColor}10`,
-                color: effectiveTextColor 
+                color: effectiveTextColor,
               } : undefined}
               onClick={() => !disabled && setIsEditingDescription(true)}
             >
@@ -382,7 +383,9 @@ export function CardDetailModal({
                 dangerouslySetInnerHTML={{ __html: description }} 
                 className={cn(
                   "[&>pre]:p-3 [&>pre]:rounded-md [&>pre]:overflow-x-auto [&>pre]:font-mono [&>pre]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&>pre_code]:bg-transparent [&>pre_code]:p-0",
-                  !themeCardWindowColor && "[&>pre]:bg-muted [&_code]:bg-muted/70"
+                  !themeCardWindowColor && "[&>pre]:bg-muted [&_code]:bg-muted/70",
+                  // When theme color is applied, force inherit color on all text elements
+                  themeCardWindowColor && "[&_*]:!text-inherit [&_h1]:!text-inherit [&_h2]:!text-inherit [&_h3]:!text-inherit [&_h4]:!text-inherit [&_h5]:!text-inherit [&_h6]:!text-inherit [&_p]:!text-inherit [&_li]:!text-inherit [&_strong]:!text-inherit [&_em]:!text-inherit [&_a]:!text-inherit [&_a]:underline [&_blockquote]:!text-inherit [&_blockquote]:opacity-80 [&>pre]:bg-black/10 [&_code]:bg-black/10"
                 )}
                 style={themeCardWindowColor ? {
                   color: effectiveTextColor,

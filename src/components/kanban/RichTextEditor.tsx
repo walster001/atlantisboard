@@ -562,12 +562,34 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
         }
         /* Editable inline button styling in editor */
         .ProseMirror .editable-inline-button {
+          display: inline-flex !important;
+          align-items: center;
+          gap: 4px;
+          padding: 3px 8px;
+          border-radius: 4px;
+          border: 1px solid #3d444d;
+          white-space: nowrap;
           cursor: pointer;
           user-select: none;
           transition: opacity 0.15s ease;
+          vertical-align: middle;
+          position: relative;
         }
         .ProseMirror .editable-inline-button:hover {
-          opacity: 0.8;
+          opacity: 0.85;
+        }
+        .ProseMirror .editable-inline-button img {
+          flex-shrink: 0;
+          object-fit: contain;
+        }
+        .ProseMirror .editable-inline-button .inline-button-text {
+          text-decoration: none !important;
+          white-space: nowrap;
+          line-height: 1.4;
+        }
+        /* Legacy support for <a> tags inside buttons */
+        .ProseMirror .editable-inline-button a {
+          text-decoration: none !important;
         }
         .ProseMirror .editable-inline-button::after {
           content: "";

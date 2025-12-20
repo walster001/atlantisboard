@@ -772,12 +772,18 @@ async function runImport(
           // Use default color if card has no color assigned
           const finalCardColor = cardColor || defaultCardColor;
 
+          // Process description: convert Wekan inline buttons but store raw content
+          // MarkdownRenderer handles full conversion at render time
+          const processedDescription = wekanCard.description 
+            ? convertWekanInlineButtons(wekanCard.description)
+            : null;
+          
           const { data: card, error: cardError } = await supabase
             .from('cards')
             .insert({
               column_id: columnId,
               title: wekanCard.title.substring(0, 200),
-              description: markdownToHtml(wekanCard.description),
+              description: processedDescription,
               position: i,
               due_date: dueDate,
               created_by: userId,

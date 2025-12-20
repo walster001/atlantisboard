@@ -9,7 +9,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileJson, Loader2, CheckCircle, AlertCircle, Palette, X, Check, Pipette } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
-import { markdownToHtml } from '@/lib/markdownToHtml';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -672,7 +671,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             .insert({
               column_id: columnId,
               title: card.name,
-              description: markdownToHtml(card.desc),
+              // Store raw description - MarkdownRenderer handles conversion at render time
+              description: card.desc || null,
               due_date: card.due || null,
               position: i,
               priority,

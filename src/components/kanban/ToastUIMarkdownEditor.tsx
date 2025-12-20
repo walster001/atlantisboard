@@ -630,19 +630,26 @@ export function ToastUIMarkdownEditor({
       }
     };
     
+    // Prevent clicks inside dropdown from bubbling
+    dropdown.onclick = (e) => e.stopPropagation();
     dropdown.onmousedown = (e) => e.stopPropagation();
+    dropdown.onmouseup = (e) => e.stopPropagation();
     
     const handleOutsideClick = (e: MouseEvent) => {
-      if (!wrapper.contains(e.target as Node) && !dropdown.contains(e.target as Node)) {
-        dropdown.style.display = 'none';
+      const target = e.target as Node;
+      // Check if click is inside dropdown or button
+      if (dropdown.contains(target) || wrapper.contains(target)) {
+        return;
       }
+      dropdown.style.display = 'none';
     };
-    document.addEventListener('mousedown', handleOutsideClick);
+    // Use setTimeout to defer adding listener, preventing immediate close
+    document.addEventListener('click', handleOutsideClick, true);
     
     const observer = new MutationObserver(() => {
       if (!document.body.contains(wrapper)) {
         dropdown.remove();
-        document.removeEventListener('mousedown', handleOutsideClick);
+        document.removeEventListener('click', handleOutsideClick, true);
         observer.disconnect();
       }
     });

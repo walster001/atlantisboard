@@ -260,8 +260,8 @@ export function ToastUIMarkdownEditor({
   const undoButton = useCallback(() => {
     const btn = document.createElement('button');
     btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;';
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:24px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:0;';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>';
     btn.title = 'Undo';
     btn.type = 'button';
     btn.onclick = (e) => {
@@ -281,8 +281,8 @@ export function ToastUIMarkdownEditor({
   const redoButton = useCallback(() => {
     const btn = document.createElement('button');
     btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;';
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:24px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:0;';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>';
     btn.title = 'Redo';
     btn.type = 'button';
     btn.onclick = (e) => {
@@ -298,46 +298,95 @@ export function ToastUIMarkdownEditor({
     return btn;
   }, []);
 
-  // Emoji picker button
+  // Emoji picker button with categories
   const emojiButton = useCallback(() => {
-    const commonEmojis = ['😀', '😂', '😍', '🤔', '👍', '👎', '🎉', '🔥', '✅', '❌', '⭐', '💡', '📌', '🚀', '💪', '🙏', '❤️', '💯', '⚡', '🎯'];
+    const emojiCategories: Record<string, { icon: string; emojis: string[] }> = {
+      'Smileys': { icon: '😀', emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '☺️', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐'] },
+      'Gestures': { icon: '👍', emojis: ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄'] },
+      'Hearts': { icon: '❤️', emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '♥️', '💋', '💌', '💐', '🌹', '🥀', '🌺', '🌸', '🌷', '🌻', '🌼'] },
+      'Objects': { icon: '💡', emojis: ['💡', '🔦', '🏮', '🪔', '📱', '💻', '🖥️', '🖨️', '⌨️', '🖱️', '💾', '💿', '📀', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️', '⏲️', '⏰', '🕰️', '⌚', '📡', '🔋', '🔌', '💸', '💵', '💴', '💶', '💷', '🪙', '💰', '💳', '💎', '⚖️', '🪜', '🧰', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪'] },
+      'Symbols': { icon: '✅', emojis: ['✅', '❌', '⭐', '🌟', '💫', '✨', '⚡', '🔥', '💥', '❗', '❓', '❕', '❔', '‼️', '⁉️', '💯', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲', '🏁', '🚩', '🎌', '🏴', '🏳️', '➕', '➖', '➗', '✖️', '♾️', '💲', '💱', '™️', '©️', '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔝', '🔜', '☑️', '🔘', '🔃', '🔄', '🔀', '🔁', '🔂', '▶️', '⏩', '⏭️', '⏯️', '◀️', '⏪', '⏮️', '🔼', '⏫', '🔽', '⏬', '⏸️', '⏹️', '⏺️', '⏏️', '🔈', '🔉', '🔊', '🔇', '📢', '📣'] },
+      'Activities': { icon: '🎉', emojis: ['🎉', '🎊', '🎈', '🎁', '🎀', '🎄', '🎃', '🎗️', '🎟️', '🎫', '🎖️', '🏆', '🥇', '🥈', '🥉', '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '🤺', '⛹️', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚴', '🚵', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🪘', '🎷', '🎺', '🪗', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩'] },
+      'Nature': { icon: '🌿', emojis: ['🌵', '🎄', '🌲', '🌳', '🌴', '🪵', '🌱', '🌿', '☘️', '🍀', '🎍', '🪴', '🎋', '🍃', '🍂', '🍁', '🍄', '🐚', '🪨', '🌾', '💐', '🌷', '🌹', '🥀', '🌺', '🌸', '🌼', '🌻', '🌞', '🌝', '🌛', '🌜', '🌚', '🌕', '🌖', '🌗', '🌘', '🌑', '🌒', '🌓', '🌔', '🌙', '🌎', '🌍', '🌏', '🪐', '💫', '⭐', '🌟', '✨', '⚡', '☄️', '💥', '🔥', '🌪️', '🌈', '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '💧', '💦', '☔', '☂️', '🌊', '🌫️'] },
+      'Food': { icon: '🍕', emojis: ['🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏', '🍐', '🍑', '🍒', '🍓', '🫐', '🥝', '🍅', '🫒', '🥥', '🥑', '🍆', '🥔', '🥕', '🌽', '🌶️', '🫑', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜', '🫘', '🌰', '🍞', '🥐', '🥖', '🫓', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🫔', '🥙', '🧆', '🥚', '🍳', '🥘', '🍲', '🫕', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦀', '🦞', '🦐', '🦑', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍼', '🥛', '☕', '🫖', '🍵', '🍶', '🍾', '🍷', '🍸', '🍹', '🍺', '🍻', '🥂', '🥃', '🫗', '🥤', '🧋', '🧃', '🧉', '🧊'] },
+      'Animals': { icon: '🐱', emojis: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🦟', '🦗', '🕷️', '🕸️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🦣', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🪶', '🐓', '🦃', '🦤', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦫', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔'] },
+    };
     
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:relative;display:inline-block;';
+    wrapper.style.cssText = 'position:relative;display:inline-flex;';
     
     const btn = document.createElement('button');
     btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:16px;';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:24px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;margin:0;padding:0;';
     btn.innerHTML = '😀';
     btn.title = 'Insert Emoji';
     btn.type = 'button';
     
     const dropdown = document.createElement('div');
-    dropdown.style.cssText = 'position:absolute;top:100%;left:0;z-index:9999;background:#1D2125;border:1px solid #3d444d;border-radius:6px;padding:8px;display:none;grid-template-columns:repeat(5,1fr);gap:4px;width:180px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+    dropdown.style.cssText = 'position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:9999;background:#1D2125;border:1px solid #3d444d;border-radius:8px;display:none;flex-direction:column;width:320px;max-height:360px;box-shadow:0 8px 24px rgba(0,0,0,0.4);overflow:hidden;';
     
-    commonEmojis.forEach(emoji => {
-      const emojiBtn = document.createElement('button');
-      emojiBtn.type = 'button';
-      emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:18px;padding:4px;border-radius:4px;transition:background 0.15s;';
-      emojiBtn.textContent = emoji;
-      emojiBtn.onmouseenter = () => { emojiBtn.style.background = '#3d444d'; };
-      emojiBtn.onmouseleave = () => { emojiBtn.style.background = 'none'; };
-      emojiBtn.onclick = (e) => {
+    // Category tabs
+    const tabsContainer = document.createElement('div');
+    tabsContainer.style.cssText = 'display:flex;gap:2px;padding:8px;border-bottom:1px solid #3d444d;flex-wrap:wrap;';
+    
+    // Emoji grid container
+    const emojiGrid = document.createElement('div');
+    emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:8px;overflow-y:auto;max-height:280px;';
+    
+    const categoryNames = Object.keys(emojiCategories);
+    let activeCategory = categoryNames[0];
+    
+    const renderEmojis = (category: string) => {
+      emojiGrid.innerHTML = '';
+      emojiCategories[category].emojis.forEach(emoji => {
+        const emojiBtn = document.createElement('button');
+        emojiBtn.type = 'button';
+        emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:20px;padding:4px;border-radius:4px;transition:background 0.15s;display:flex;align-items:center;justify-content:center;width:32px;height:32px;';
+        emojiBtn.textContent = emoji;
+        emojiBtn.onmouseenter = () => { emojiBtn.style.background = '#3d444d'; };
+        emojiBtn.onmouseleave = () => { emojiBtn.style.background = 'none'; };
+        emojiBtn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const editor = editorRef.current?.getInstance();
+          if (editor) {
+            editor.insertText(emoji);
+          }
+          dropdown.style.display = 'none';
+        };
+        emojiGrid.appendChild(emojiBtn);
+      });
+    };
+    
+    categoryNames.forEach(category => {
+      const tabBtn = document.createElement('button');
+      tabBtn.type = 'button';
+      tabBtn.style.cssText = `background:${category === activeCategory ? '#3d444d' : 'none'};border:none;cursor:pointer;font-size:16px;padding:4px 6px;border-radius:4px;transition:background 0.15s;`;
+      tabBtn.textContent = emojiCategories[category].icon;
+      tabBtn.title = category;
+      tabBtn.onmouseenter = () => { if (category !== activeCategory) tabBtn.style.background = '#2d343d'; };
+      tabBtn.onmouseleave = () => { if (category !== activeCategory) tabBtn.style.background = 'none'; };
+      tabBtn.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const editor = editorRef.current?.getInstance();
-        if (editor) {
-          editor.insertText(emoji);
-        }
-        dropdown.style.display = 'none';
+        activeCategory = category;
+        // Update tab styles
+        Array.from(tabsContainer.children).forEach((child, i) => {
+          (child as HTMLElement).style.background = categoryNames[i] === category ? '#3d444d' : 'none';
+        });
+        renderEmojis(category);
       };
-      dropdown.appendChild(emojiBtn);
+      tabsContainer.appendChild(tabBtn);
     });
+    
+    dropdown.appendChild(tabsContainer);
+    dropdown.appendChild(emojiGrid);
+    renderEmojis(activeCategory);
     
     btn.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      dropdown.style.display = dropdown.style.display === 'none' ? 'grid' : 'none';
+      dropdown.style.display = dropdown.style.display === 'none' ? 'flex' : 'none';
     };
     
     // Close on outside click
@@ -356,7 +405,7 @@ export function ToastUIMarkdownEditor({
   const toolbarButton = useCallback(() => {
     const btn = document.createElement('button');
     btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:11px;font-weight:600;font-family:monospace;';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:10px;font-weight:600;font-family:monospace;margin:0;padding:0;';
     btn.innerHTML = 'INB';
     btn.title = 'Insert Inline Button';
     btn.type = 'button';
@@ -383,8 +432,7 @@ export function ToastUIMarkdownEditor({
           ['hr', 'quote'],
           ['ul', 'ol', 'task'],
           ['table', 'link'],
-          ['code', 'codeblock', { el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' }],
-          [{ el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' }],
+          ['code', 'codeblock', { el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' }, { el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' }],
         ]}
       />
       

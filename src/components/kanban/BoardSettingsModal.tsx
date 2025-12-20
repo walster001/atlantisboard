@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { UserPlus, User, X, Search, UserMinus, Loader2, Palette, ImageIcon } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { ThemeSettings } from './ThemeSettings';
+import { BoardBackgroundSettings } from './BoardBackgroundSettings';
 import { cn } from '@/lib/utils';
 
 interface BoardMember {
@@ -32,6 +33,18 @@ interface AppUser {
   avatar_url: string | null;
 }
 
+interface BoardTheme {
+  id: string;
+  name: string;
+  navbar_color: string;
+  column_color: string;
+  default_card_color: string | null;
+  homepage_board_color: string;
+  board_icon_color: string;
+  scrollbar_color: string;
+  scrollbar_track_color: string;
+}
+
 interface BoardSettingsModalProps {
   open: boolean;
   onClose: () => void;
@@ -40,8 +53,12 @@ interface BoardSettingsModalProps {
   userRole: 'admin' | 'manager' | 'viewer' | null;
   currentUserId: string | null;
   currentThemeId: string | null;
+  currentTheme: BoardTheme | null;
+  currentBackgroundColor: string;
+  currentBackgroundImageUrl: string | null;
   onMembersChange: () => void;
   onThemeChange: () => void;
+  onBackgroundChange: () => void;
 }
 
 const themeSubTabs = [
@@ -57,8 +74,12 @@ export function BoardSettingsModal({
   userRole,
   currentUserId,
   currentThemeId,
+  currentTheme,
+  currentBackgroundColor,
+  currentBackgroundImageUrl,
   onMembersChange,
   onThemeChange,
+  onBackgroundChange,
 }: BoardSettingsModalProps) {
   const { toast } = useToast();
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
@@ -475,9 +496,14 @@ export function BoardSettingsModal({
                   />
                 )}
                 {activeThemeSubTab === 'background' && (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <p>Background settings coming soon...</p>
-                  </div>
+                  <BoardBackgroundSettings
+                    boardId={boardId}
+                    currentBackgroundColor={currentBackgroundColor}
+                    currentBackgroundImageUrl={currentBackgroundImageUrl}
+                    currentTheme={currentTheme}
+                    userRole={userRole}
+                    onBackgroundChange={onBackgroundChange}
+                  />
                 )}
               </div>
             </TabsContent>

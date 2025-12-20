@@ -199,6 +199,61 @@ export function ToastUIMarkdownEditor({
     
     return () => clearTimeout(timeoutId);
   }, [content]);
+
+  // Force all toolbar items to be visible by preventing ToastUI's overflow behavior
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const fixToolbar = () => {
+      // Find all toolbar items that might be hidden/moved to overflow
+      const toolbarGroup = container.querySelector('.toastui-editor-toolbar-group');
+      const moreButton = container.querySelector('.toastui-editor-more-button, [class*="more-button"]');
+      const dropdownToolbar = container.querySelector('.toastui-editor-dropdown-toolbar, [class*="dropdown-toolbar"]');
+
+      // Hide more button
+      if (moreButton instanceof HTMLElement) {
+        moreButton.style.display = 'none';
+      }
+
+      // Move items from dropdown back to main toolbar
+      if (dropdownToolbar && toolbarGroup) {
+        const items = dropdownToolbar.querySelectorAll('.toastui-editor-toolbar-icons');
+        items.forEach(item => {
+          if (item instanceof HTMLElement) {
+            toolbarGroup.appendChild(item);
+          }
+        });
+        if (dropdownToolbar instanceof HTMLElement) {
+          dropdownToolbar.style.display = 'none';
+        }
+      }
+
+      // Ensure all toolbar icons are visible
+      const allIcons = container.querySelectorAll('.toastui-editor-toolbar-icons');
+      allIcons.forEach(icon => {
+        if (icon instanceof HTMLElement) {
+          icon.style.display = 'flex';
+          icon.style.visibility = 'visible';
+        }
+      });
+    };
+
+    // Run after editor initializes and on resize
+    const timeoutId = setTimeout(fixToolbar, 100);
+    const intervalId = setInterval(fixToolbar, 500); // Keep checking periodically
+
+    // Also run on resize
+    const resizeObserver = new ResizeObserver(fixToolbar);
+    resizeObserver.observe(container);
+
+    return () => {
+      clearTimeout(timeoutId);
+      clearInterval(intervalId);
+      resizeObserver.disconnect();
+    };
+  }, []);
+
   // Sync external content changes - only when content prop changes from outside
   useEffect(() => {
     // Skip if not initialized or if this is our own change
@@ -801,27 +856,23 @@ export function ToastUIMarkdownEditor({
           width: clamp(14px, 3.5vw, 18px) !important;
           height: clamp(14px, 3.5vw, 18px) !important;
         }
-        /* Force hide ALL overflow/more menu elements */
+        /* Hide only overflow menu containers, not toolbar icons */
         .toastui-editor-wrapper .toastui-editor-more-button,
         .toastui-editor-wrapper .toastui-editor-toolbar-more,
-        .toastui-editor-wrapper .toastui-editor-popup,
-        .toastui-editor-wrapper .toastui-editor-dropdown-toolbar,
-        .toastui-editor-wrapper button[aria-label="More"],
-        .toastui-editor-wrapper [class*="more"],
-        .toastui-editor-wrapper [class*="dropdown-toolbar"] {
+        .toastui-editor-wrapper .toastui-editor-dropdown-toolbar {
           display: none !important;
           visibility: hidden !important;
-          opacity: 0 !important;
-          pointer-events: none !important;
-          width: 0 !important;
-          height: 0 !important;
-          overflow: hidden !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-divider {
           display: none !important;
         }
-        /* Ensure all toolbar items are always visible */
-        .toastui-editor-wrapper .toastui-editor-toolbar-group > * {
+        /* Ensure all toolbar icons are always visible */
+        .toastui-editor-wrapper .toastui-editor-toolbar-icons {
+          display: flex !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+        }
+        .toastui-editor-wrapper .toastui-editor-toolbar-group > .toastui-editor-toolbar-icons {
           display: flex !important;
           visibility: visible !important;
           opacity: 1 !important;

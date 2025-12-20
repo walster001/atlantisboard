@@ -31,8 +31,10 @@ const PRESET_COLORS = [
   '#8b5cf6', // purple
   '#ec4899', // pink
   '#6b7280', // gray
-  '#ffffff', // white (no color)
 ];
+
+// Special transparent value
+const TRANSPARENT_VALUE = 'transparent';
 
 // Helper functions to convert between color formats
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -84,6 +86,7 @@ interface ColorPickerProps {
   applyToAllLabel: string;
   trigger?: React.ReactNode;
   onClose?: () => void;
+  showTransparent?: boolean;
 }
 
 export function ColorPicker({ 
@@ -92,7 +95,8 @@ export function ColorPicker({
   onApplyToAll, 
   applyToAllLabel,
   trigger,
-  onClose
+  onClose,
+  showTransparent = false
 }: ColorPickerProps) {
   const [selectedColor, setSelectedColor] = useState<string | null>(currentColor);
   const [open, setOpen] = useState(false);
@@ -109,7 +113,7 @@ export function ColorPicker({
 
   // Sync RGB values when selectedColor changes
   useEffect(() => {
-    if (selectedColor && selectedColor !== '#ffffff') {
+    if (selectedColor && selectedColor !== TRANSPARENT_VALUE) {
       const { r, g, b } = hexToRgb(selectedColor);
       setRgb({ r, g, b });
       setHexInput(selectedColor);
@@ -161,8 +165,8 @@ export function ColorPicker({
   };
 
   const handleApply = () => {
-    const colorToApply = selectedColor === '#ffffff' ? null : selectedColor;
-    if (selectedColor && selectedColor !== '#ffffff') {
+    const colorToApply = selectedColor === TRANSPARENT_VALUE ? null : selectedColor;
+    if (selectedColor && selectedColor !== TRANSPARENT_VALUE) {
       setRecentColors(addRecentColor(selectedColor));
     }
     onApply(colorToApply);
@@ -175,8 +179,8 @@ export function ColorPicker({
   };
 
   const handleConfirmApplyToAll = () => {
-    const colorToApply = selectedColor === '#ffffff' ? null : selectedColor;
-    if (selectedColor && selectedColor !== '#ffffff') {
+    const colorToApply = selectedColor === TRANSPARENT_VALUE ? null : selectedColor;
+    if (selectedColor && selectedColor !== TRANSPARENT_VALUE) {
       setRecentColors(addRecentColor(selectedColor));
     }
     onApplyToAll(colorToApply);
@@ -221,26 +225,39 @@ export function ColorPicker({
             
             <TabsContent value="presets" className="space-y-3">
               <div className="grid grid-cols-5 gap-2">
+                {showTransparent && (
+                  <button
+                    onClick={() => {
+                      setSelectedColor(TRANSPARENT_VALUE);
+                    }}
+                    className={cn(
+                      'h-8 w-8 rounded-md border-2 transition-all hover:scale-110 bg-[repeating-linear-gradient(45deg,#ddd,#ddd_2px,transparent_2px,transparent_6px)]',
+                      selectedColor === TRANSPARENT_VALUE ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+                    )}
+                    title="Transparent (no colour)"
+                  >
+                    {selectedColor === TRANSPARENT_VALUE && (
+                      <Check className="h-4 w-4 mx-auto text-foreground" />
+                    )}
+                  </button>
+                )}
                 {PRESET_COLORS.map((color) => (
                   <button
                     key={color}
                     onClick={() => {
                       setSelectedColor(color);
                       setHexInput(color);
-                      if (color !== '#ffffff') {
-                        const { r, g, b } = hexToRgb(color);
-                        setRgb({ r, g, b });
-                      }
+                      const { r, g, b } = hexToRgb(color);
+                      setRgb({ r, g, b });
                     }}
                     className={cn(
                       'h-8 w-8 rounded-md border-2 transition-all hover:scale-110',
-                      selectedColor === color ? 'border-primary ring-2 ring-primary/20' : 'border-transparent',
-                      color === '#ffffff' && 'border-border'
+                      selectedColor === color ? 'border-primary ring-2 ring-primary/20' : 'border-transparent'
                     )}
                     style={{ backgroundColor: color }}
                   >
                     {selectedColor === color && (
-                      <Check className={cn('h-4 w-4 mx-auto', color === '#ffffff' ? 'text-foreground' : 'text-white')} />
+                      <Check className="h-4 w-4 mx-auto text-white" />
                     )}
                   </button>
                 ))}

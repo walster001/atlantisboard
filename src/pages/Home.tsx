@@ -102,6 +102,17 @@ export default function Home() {
   const [editDescDialogOpen, setEditDescDialogOpen] = useState(false);
   const [deleteBoardId, setDeleteBoardId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteWorkspaceId, setDeleteWorkspaceId] = useState<string | null>(null);
+  const [deleteWorkspaceConfirmOpen, setDeleteWorkspaceConfirmOpen] = useState(false);
+  const [deletionCounts, setDeletionCounts] = useState<{
+    boards?: number;
+    columns?: number;
+    cards?: number;
+    members?: number;
+    labels?: number;
+    attachments?: number;
+  } | null>(null);
+  const [deletionCountsLoading, setDeletionCountsLoading] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [assigneeMappingOpen, setAssigneeMappingOpen] = useState(false);
   const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
@@ -239,12 +250,47 @@ export default function Home() {
     }
   };
 
+  const fetchWorkspaceDeletionCounts = async (workspaceId: string) => {
+    setDeletionCountsLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('get_workspace_deletion_counts', {
+        _workspace_id: workspaceId
+      });
+      if (error) throw error;
+      setDeletionCounts(data as any);
+    } catch (error) {
+      console.error('Error fetching deletion counts:', error);
+      setDeletionCounts(null);
+    } finally {
+      setDeletionCountsLoading(false);
+    }
+  };
+
+  const fetchBoardDeletionCounts = async (boardId: string) => {
+    setDeletionCountsLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('get_board_deletion_counts', {
+        _board_id: boardId
+      });
+      if (error) throw error;
+      setDeletionCounts(data as any);
+    } catch (error) {
+      console.error('Error fetching deletion counts:', error);
+      setDeletionCounts(null);
+    } finally {
+      setDeletionCountsLoading(false);
+    }
+  };
+
   const deleteWorkspace = async (id: string) => {
     try {
       const { error } = await supabase.from('workspaces').delete().eq('id', id);
       if (error) throw error;
       setWorkspaces(workspaces.filter((w) => w.id !== id));
       setBoards(boards.filter((b) => b.workspace_id !== id));
+      setDeleteWorkspaceConfirmOpen(false);
+      setDeleteWorkspaceId(null);
+      setDeletionCounts(null);
       toast({ title: 'Workspace deleted' });
     } catch (error: any) {
       console.error('Delete workspace error:', error);
@@ -313,6 +359,9 @@ export default function Home() {
       const { error } = await supabase.from('boards').delete().eq('id', id);
       if (error) throw error;
       setBoards(boards.filter((b) => b.id !== id));
+      setDeleteConfirmOpen(false);
+      setDeleteBoardId(null);
+      setDeletionCounts(null);
       toast({ title: 'Board deleted' });
     } catch (error: any) {
       console.error('Delete board error:', error);
@@ -671,7 +720,11 @@ export default function Home() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 className="text-destructive"
-                                onClick={() => deleteWorkspace(workspace.id)}
+                                onClick={() => {
+                                  setDeleteWorkspaceId(workspace.id);
+                                  setDeleteWorkspaceConfirmOpen(true);
+                                  fetchWorkspaceDeletionCounts(workspace.id);
+                                }}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Delete Workspace
@@ -769,6 +822,7 @@ export default function Home() {
                                                   e.stopPropagation();
                                                   setDeleteBoardId(board.id);
                                                   setDeleteConfirmOpen(true);
+                                                  fetchBoardDeletionCounts(board.id);
                                                 }}
                                               >
                                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -842,13 +896,38 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      {/* Delete Board Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={(open) => {
+        setDeleteConfirmOpen(open);
+        if (!open) {
+          setDeleteBoardId(null);
+          setDeletionCounts(null);
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Board</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this board? This action cannot be undone and all cards and data will be permanently removed.
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Are you sure you want to delete this board? This action cannot be undone.</p>
+                {deletionCountsLoading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Calculating impact...</span>
+                  </div>
+                ) : deletionCounts && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 space-y-1">
+                    <p className="font-medium text-destructive">The following will be permanently deleted:</p>
+                    <ul className="text-sm space-y-0.5 text-muted-foreground">
+                      {Number(deletionCounts.columns) > 0 && <li>• {deletionCounts.columns} column{Number(deletionCounts.columns) !== 1 ? 's' : ''}</li>}
+                      {Number(deletionCounts.cards) > 0 && <li>• {deletionCounts.cards} card{Number(deletionCounts.cards) !== 1 ? 's' : ''}</li>}
+                      {Number(deletionCounts.labels) > 0 && <li>• {deletionCounts.labels} label{Number(deletionCounts.labels) !== 1 ? 's' : ''}</li>}
+                      {Number(deletionCounts.attachments) > 0 && <li>• {deletionCounts.attachments} attachment{Number(deletionCounts.attachments) !== 1 ? 's' : ''}</li>}
+                      {Number(deletionCounts.members) > 0 && <li>• {deletionCounts.members} member assignment{Number(deletionCounts.members) !== 1 ? 's' : ''}</li>}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -858,7 +937,55 @@ export default function Home() {
               onClick={() => {
                 if (deleteBoardId) {
                   deleteBoard(deleteBoardId);
-                  setDeleteBoardId(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Workspace Confirmation Dialog */}
+      <AlertDialog open={deleteWorkspaceConfirmOpen} onOpenChange={(open) => {
+        setDeleteWorkspaceConfirmOpen(open);
+        if (!open) {
+          setDeleteWorkspaceId(null);
+          setDeletionCounts(null);
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Are you sure you want to delete this workspace? This action cannot be undone.</p>
+                {deletionCountsLoading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Calculating impact...</span>
+                  </div>
+                ) : deletionCounts && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 space-y-1">
+                    <p className="font-medium text-destructive">The following will be permanently deleted:</p>
+                    <ul className="text-sm space-y-0.5 text-muted-foreground">
+                      {Number(deletionCounts.boards) > 0 && <li>• {deletionCounts.boards} board{Number(deletionCounts.boards) !== 1 ? 's' : ''}</li>}
+                      {Number(deletionCounts.columns) > 0 && <li>• {deletionCounts.columns} column{Number(deletionCounts.columns) !== 1 ? 's' : ''}</li>}
+                      {Number(deletionCounts.cards) > 0 && <li>• {deletionCounts.cards} card{Number(deletionCounts.cards) !== 1 ? 's' : ''}</li>}
+                      {Number(deletionCounts.members) > 0 && <li>• {deletionCounts.members} workspace member{Number(deletionCounts.members) !== 1 ? 's' : ''}</li>}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteWorkspaceId) {
+                  deleteWorkspace(deleteWorkspaceId);
                 }
               }}
             >

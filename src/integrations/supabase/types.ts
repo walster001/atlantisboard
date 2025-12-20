@@ -964,6 +964,7 @@ export type Database = {
         Args: { _board_id: string; _user_id: string }
         Returns: Json
       }
+      get_board_deletion_counts: { Args: { _board_id: string }; Returns: Json }
       get_board_member_profiles: {
         Args: { _board_id: string }
         Returns: {
@@ -980,6 +981,10 @@ export type Database = {
         Returns: Database["public"]["Enums"]["board_role"]
       }
       get_home_data: { Args: { _user_id: string }; Returns: Json }
+      get_workspace_deletion_counts: {
+        Args: { _workspace_id: string }
+        Returns: Json
+      }
       is_app_admin: { Args: { _user_id: string }; Returns: boolean }
       is_board_member: {
         Args: { _board_id: string; _user_id: string }

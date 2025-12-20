@@ -171,11 +171,10 @@ function markdownToHtml(markdown: string): string {
   if (!markdown?.trim()) return '';
   
   try {
-    let html = markdown;
+    let content = markdown;
     
-    // First, convert inline button placeholders to HTML
-    // Format: [INLINE_BUTTON:base64data]
-    html = html.replace(/\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g, (_match, dataAttr) => {
+    // First, convert [INLINE_BUTTON:base64data] format to HTML spans
+    content = content.replace(/\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g, (_match, dataAttr) => {
       const data = parseInlineButtonFromDataAttr(dataAttr);
       if (data) {
         return serializeInlineButtonHtml(data);
@@ -184,7 +183,7 @@ function markdownToHtml(markdown: string): string {
     });
     
     // Check if content is already HTML (legacy imported content)
-    const trimmed = html.trim();
+    const trimmed = content.trim();
     const isHtml = (
       (trimmed.startsWith('<') && (
         trimmed.startsWith('<p>') ||
@@ -197,16 +196,19 @@ function markdownToHtml(markdown: string): string {
         trimmed.startsWith('<pre') ||
         trimmed.startsWith('<span')
       )) ||
-      /<(p|h[1-6]|ul|ol|li|div|blockquote|pre|strong|em|a|span|br)\b[^>]*>/i.test(html)
+      /<(p|h[1-6]|ul|ol|li|div|blockquote|pre|strong|em|a|span|br)\b[^>]*>/i.test(content)
     );
     
     if (isHtml) {
-      // Already HTML, transform Wekan inline buttons and return
-      return transformLegacyInlineButtons(html);
+      // Already HTML - transform any legacy Wekan inline buttons
+      return transformLegacyInlineButtons(content);
     }
     
     // Convert markdown to HTML
-    const result = marked.parse(html, { async: false }) as string;
+    let result = marked.parse(content, { async: false }) as string;
+    
+    // Also run transform on the result in case the markdown contained HTML inline buttons
+    result = transformLegacyInlineButtons(result);
     
     return result;
   } catch (error) {
@@ -217,14 +219,21 @@ function markdownToHtml(markdown: string): string {
 
 /**
  * Transform legacy Wekan inline buttons to our editable format.
+ * Handles multiple formats:
+ * 1. Wekan-style: <span style="display:inline-flex"><img><a>text</a></span>
+ * 2. Simple hyperlinks within styled spans
  */
 function transformLegacyInlineButtons(html: string): string {
-  // Pattern for Wekan-style inline buttons
+  if (!html) return html;
+  
+  let result = html;
+  
+  // Pattern 1: Wekan-style inline buttons with display:inline-flex
   const wekanPattern = /<span[^>]*style=['"][^'"]*display\s*:\s*inline-?flex[^'"]*['"][^>]*>([\s\S]*?)<\/span>/gi;
   
-  return html.replace(wekanPattern, (match) => {
+  result = result.replace(wekanPattern, (match) => {
     // Check if it's already our format
-    if (match.includes('editable-inline-button')) {
+    if (match.includes('editable-inline-button') || match.includes('data-inline-button')) {
       return match;
     }
     
@@ -249,6 +258,20 @@ function transformLegacyInlineButtons(html: string): string {
     
     return match;
   });
+  
+  // Pattern 2: Our editable-inline-button format that might have been corrupted
+  // (e.g., the link text was turned into an actual hyperlink)
+  const corruptedButtonPattern = /<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*data-inline-button="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi;
+  
+  result = result.replace(corruptedButtonPattern, (_match, dataAttr) => {
+    const data = parseInlineButtonFromDataAttr(dataAttr);
+    if (data) {
+      return serializeInlineButtonHtml(data);
+    }
+    return _match;
+  });
+  
+  return result;
 }
 
 /**

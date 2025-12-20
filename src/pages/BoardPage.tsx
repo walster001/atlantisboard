@@ -926,6 +926,7 @@ export default function BoardPage() {
           boardId={boardId}
           members={boardMembers}
           userRole={userRole}
+          currentUserId={user?.id || null}
           onMembersChange={fetchBoardData}
         />
       )}

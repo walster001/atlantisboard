@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyle } from '@tiptap/extension-text-style';
@@ -51,6 +51,50 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
   const [showLinkPopover, setShowLinkPopover] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   
+  // Convert wekan-inline-button divs to code blocks for editing
+  const convertWekanButtonsToCode = (html: string): string => {
+    // Find all wekan-inline-button divs and convert them to visible code blocks
+    const wekanButtonRegex = /<div[^>]*class="wekan-inline-button"[^>]*data-raw-html="([^"]+)"[^>]*>[\s\S]*?<\/div>/gi;
+    
+    return html.replace(wekanButtonRegex, (match, encodedHtml) => {
+      try {
+        // Decode the base64 raw HTML
+        const rawHtml = decodeURIComponent(escape(atob(encodedHtml)));
+        // Escape HTML entities for code display
+        const escapedHtml = rawHtml
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        // Return as a code block with the data attribute preserved
+        return `<pre class="wekan-inline-button-code" data-raw-html="${encodedHtml}"><code>${escapedHtml}</code></pre>`;
+      } catch (e) {
+        console.error('Error decoding wekan button:', e);
+        return match;
+      }
+    });
+  };
+  
+  // Convert code blocks back to wekan-inline-button divs when saving
+  const convertCodeToWekanButtons = (html: string): string => {
+    // Find all wekan-inline-button-code pre blocks and convert back to divs
+    const codeBlockRegex = /<pre[^>]*class="wekan-inline-button-code"[^>]*data-raw-html="([^"]+)"[^>]*>[\s\S]*?<\/pre>/gi;
+    
+    return html.replace(codeBlockRegex, (match, encodedHtml) => {
+      try {
+        // Decode the base64 raw HTML
+        const rawHtml = decodeURIComponent(escape(atob(encodedHtml)));
+        // Return as the original wekan-inline-button div
+        return `<div class="wekan-inline-button" data-raw-html="${encodedHtml}">${rawHtml}</div>`;
+      } catch (e) {
+        console.error('Error encoding wekan button:', e);
+        return match;
+      }
+    });
+  };
+  
+  // Process content for editor display
+  const processedContent = useMemo(() => convertWekanButtonsToCode(content), [content]);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -76,9 +120,12 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
         },
       }),
     ],
-    content,
+    content: processedContent,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      // Convert code blocks back to wekan-inline-button divs when saving
+      const html = editor.getHTML();
+      const processedHtml = convertCodeToWekanButtons(html);
+      onChange(processedHtml);
     },
     editorProps: {
       attributes: {
@@ -92,10 +139,10 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
 
   // Sync external content changes
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content, { emitUpdate: false });
+    if (editor && processedContent !== editor.getHTML()) {
+      editor.commands.setContent(processedContent, { emitUpdate: false });
     }
-  }, [content, editor]);
+  }, [processedContent, editor]);
 
   if (!editor) {
     return null;
@@ -455,6 +502,23 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
           font-size: 0.875rem;
           overflow-x: auto;
           margin: 0.5rem 0;
+        }
+        .ProseMirror pre.wekan-inline-button-code {
+          background: linear-gradient(135deg, hsl(var(--muted)), hsl(var(--muted) / 0.7));
+          border: 1px dashed hsl(var(--primary) / 0.5);
+          position: relative;
+        }
+        .ProseMirror pre.wekan-inline-button-code::before {
+          content: "Wekan Button (raw HTML)";
+          position: absolute;
+          top: -0.5rem;
+          left: 0.5rem;
+          background: hsl(var(--primary));
+          color: hsl(var(--primary-foreground));
+          font-size: 0.625rem;
+          padding: 0.125rem 0.375rem;
+          border-radius: 0.25rem;
+          font-family: system-ui, sans-serif;
         }
         .ProseMirror code {
           background: hsl(var(--muted));

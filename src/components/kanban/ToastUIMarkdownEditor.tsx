@@ -773,19 +773,25 @@ export function ToastUIMarkdownEditor({
         onChange={handleChange}
         widgetRules={widgetRules}
         toolbarItems={[
-          [
-            { el: undoButton(), tooltip: 'Undo', name: 'undo' },
-            { el: redoButton(), tooltip: 'Redo', name: 'redo' },
-            'heading', 'bold', 'italic', 'strike',
-            'hr', 'quote',
-            'ul', 'ol', 'task',
-            { el: indentButton(), tooltip: 'Indent', name: 'indent' },
-            { el: outdentButton(), tooltip: 'Outdent', name: 'outdent' },
-            'table', 'link',
-            'code', 'codeblock',
-            { el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' },
-            { el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' },
-          ],
+          [{ el: undoButton(), tooltip: 'Undo', name: 'undo' }],
+          [{ el: redoButton(), tooltip: 'Redo', name: 'redo' }],
+          ['heading'],
+          ['bold'],
+          ['italic'],
+          ['strike'],
+          ['hr'],
+          ['quote'],
+          ['ul'],
+          ['ol'],
+          ['task'],
+          [{ el: indentButton(), tooltip: 'Indent', name: 'indent' }],
+          [{ el: outdentButton(), tooltip: 'Outdent', name: 'outdent' }],
+          ['table'],
+          ['link'],
+          ['code'],
+          ['codeblock'],
+          [{ el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' }],
+          [{ el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' }],
         ]}
       />
       
@@ -820,62 +826,52 @@ export function ToastUIMarkdownEditor({
         .toastui-editor-wrapper .toastui-editor-toolbar {
           display: flex !important;
           flex-wrap: wrap !important;
-          gap: 0 !important;
-          justify-content: space-between !important;
+          gap: 2px !important;
+          justify-content: flex-start !important;
           background: transparent !important;
           width: 100% !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-group {
-          display: flex !important;
-          flex-wrap: wrap !important;
-          flex: 1 !important;
+          display: inline-flex !important;
+          flex: 0 0 auto !important;
           gap: 0 !important;
           align-items: center !important;
-          justify-content: space-evenly !important;
+          margin: 0 !important;
+          padding: 0 !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons {
           flex: 0 0 auto !important;
-          width: clamp(24px, 5vw, 32px) !important;
-          height: clamp(24px, 5vw, 32px) !important;
-          min-width: 24px !important;
+          width: 28px !important;
+          height: 28px !important;
+          min-width: 28px !important;
           margin: 0 !important;
-          padding: 3px !important;
+          padding: 4px !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
           border-radius: 4px !important;
           transition: background-color 0.15s ease !important;
+          visibility: visible !important;
+          opacity: 1 !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons:hover {
           background-color: var(--editor-muted, hsl(var(--muted))) !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons::before {
-          transform: scale(0.9) !important;
+          transform: scale(0.85) !important;
         }
         .toastui-editor-wrapper .custom-toolbar-btn svg {
-          width: clamp(14px, 3.5vw, 18px) !important;
-          height: clamp(14px, 3.5vw, 18px) !important;
+          width: 16px !important;
+          height: 16px !important;
         }
-        /* Hide only overflow menu containers, not toolbar icons */
+        /* Hide overflow menu elements */
         .toastui-editor-wrapper .toastui-editor-more-button,
         .toastui-editor-wrapper .toastui-editor-toolbar-more,
         .toastui-editor-wrapper .toastui-editor-dropdown-toolbar {
           display: none !important;
-          visibility: hidden !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-divider {
           display: none !important;
-        }
-        /* Ensure all toolbar icons are always visible */
-        .toastui-editor-wrapper .toastui-editor-toolbar-icons {
-          display: flex !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
-        .toastui-editor-wrapper .toastui-editor-toolbar-group > .toastui-editor-toolbar-icons {
-          display: flex !important;
-          visibility: visible !important;
-          opacity: 1 !important;
         }
         .toastui-editor-wrapper .toastui-editor-main-container {
           flex: 1;

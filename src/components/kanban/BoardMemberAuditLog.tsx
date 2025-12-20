@@ -95,9 +95,9 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
   const fetchRetentionSetting = async () => {
     try {
       const { data, error } = await supabase
-        .from('boards')
+        .from('app_settings')
         .select('audit_log_retention_days')
-        .eq('id', boardId)
+        .eq('id', 'default')
         .maybeSingle();
 
       if (error) throw error;
@@ -118,9 +118,9 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
       const retentionValue = value === 'never' ? null : parseInt(value, 10);
       
       const { error } = await supabase
-        .from('boards')
+        .from('app_settings')
         .update({ audit_log_retention_days: retentionValue })
-        .eq('id', boardId);
+        .eq('id', 'default');
 
       if (error) throw error;
       
@@ -275,9 +275,9 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
         <div className="flex items-center gap-3">
           <Clock className="h-5 w-5 text-muted-foreground" />
           <div>
-            <Label className="text-sm font-medium">Log Retention</Label>
+            <Label className="text-sm font-medium">Global Log Retention</Label>
             <p className="text-xs text-muted-foreground">
-              Automatically delete old entries to manage database size
+              Automatically delete old entries across all boards
             </p>
           </div>
         </div>

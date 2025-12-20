@@ -322,8 +322,10 @@ export function ToastUIMarkdownEditor({
     btn.title = 'Insert Emoji';
     btn.type = 'button';
     
+    // Create dropdown and append to body for proper z-index layering
     const dropdown = document.createElement('div');
-    dropdown.style.cssText = 'position:absolute;top:100%;right:0;z-index:9999;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:380px;height:420px;box-shadow:0 12px 32px rgba(0,0,0,0.5);overflow:hidden;';
+    dropdown.style.cssText = 'position:fixed;z-index:99999;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:380px;height:420px;box-shadow:0 12px 32px rgba(0,0,0,0.5);overflow:hidden;';
+    document.body.appendChild(dropdown);
     
     // Header with category label
     const header = document.createElement('div');
@@ -422,12 +424,41 @@ export function ToastUIMarkdownEditor({
     dropdown.appendChild(emojiScrollContainer);
     renderEmojis(activeCategory);
     
+    const positionDropdown = () => {
+      const btnRect = btn.getBoundingClientRect();
+      const dropdownHeight = 420;
+      const dropdownWidth = 380;
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      
+      // Position below button, but flip above if not enough space
+      let top = btnRect.bottom + 4;
+      if (top + dropdownHeight > viewportHeight - 10) {
+        top = btnRect.top - dropdownHeight - 4;
+      }
+      
+      // Align right edge with button, but adjust if would go off-screen
+      let left = btnRect.right - dropdownWidth;
+      if (left < 10) {
+        left = 10;
+      }
+      if (left + dropdownWidth > viewportWidth - 10) {
+        left = viewportWidth - dropdownWidth - 10;
+      }
+      
+      dropdown.style.top = `${top}px`;
+      dropdown.style.left = `${left}px`;
+    };
+    
     btn.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
       const isVisible = dropdown.style.display !== 'none';
-      dropdown.style.display = isVisible ? 'none' : 'flex';
-      if (!isVisible) {
+      if (isVisible) {
+        dropdown.style.display = 'none';
+      } else {
+        positionDropdown();
+        dropdown.style.display = 'flex';
         // Reset to first category when opening
         activeCategory = categoryNames[0];
         updateTabStyles();
@@ -436,14 +467,24 @@ export function ToastUIMarkdownEditor({
     };
     
     // Close on outside click
-    document.addEventListener('click', (e) => {
-      if (!wrapper.contains(e.target as Node)) {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (!wrapper.contains(e.target as Node) && !dropdown.contains(e.target as Node)) {
         dropdown.style.display = 'none';
       }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    
+    // Cleanup dropdown from body when wrapper is removed
+    const observer = new MutationObserver(() => {
+      if (!document.body.contains(wrapper)) {
+        dropdown.remove();
+        document.removeEventListener('click', handleOutsideClick);
+        observer.disconnect();
+      }
     });
+    observer.observe(document.body, { childList: true, subtree: true });
     
     wrapper.appendChild(btn);
-    wrapper.appendChild(dropdown);
     return wrapper;
   }, []);
 

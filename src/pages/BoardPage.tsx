@@ -1047,6 +1047,7 @@ export default function BoardPage() {
           }
         }}
         disabled={!canEdit}
+        boardLabels={labels}
         attachments={editingCard ? cardAttachments.filter(a => a.card_id === editingCard.card.id) : []}
         onAttachmentsChange={async () => {
           if (editingCard) {
@@ -1082,9 +1083,11 @@ export default function BoardPage() {
           currentTheme={boardTheme}
           currentBackgroundColor={isImageBackground ? '#0079bf' : boardColor}
           currentBackgroundImageUrl={isImageBackground ? boardColor : null}
+          labels={labels}
           onMembersChange={refreshBoardMembers}
           onThemeChange={refreshBoardTheme}
           onBackgroundChange={refreshBoardBackground}
+          onLabelsChange={fetchBoardData}
         />
       )}
     </div>

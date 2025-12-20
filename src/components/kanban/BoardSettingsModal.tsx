@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, User, X, Search, UserMinus, Loader2, Palette, ImageIcon } from 'lucide-react';
+import { UserPlus, User, X, Search, UserMinus, Loader2, Palette, ImageIcon, Tag, Settings2 } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { ThemeSettings } from './ThemeSettings';
 import { BoardBackgroundSettings } from './BoardBackgroundSettings';
+import { BoardLabelsSettings } from './BoardLabelsSettings';
 import { cn } from '@/lib/utils';
 
 interface BoardMember {
@@ -45,6 +46,13 @@ interface BoardTheme {
   scrollbar_track_color: string;
 }
 
+interface BoardLabel {
+  id: string;
+  board_id: string;
+  name: string;
+  color: string;
+}
+
 interface BoardSettingsModalProps {
   open: boolean;
   onClose: () => void;
@@ -56,14 +64,21 @@ interface BoardSettingsModalProps {
   currentTheme: BoardTheme | null;
   currentBackgroundColor: string;
   currentBackgroundImageUrl: string | null;
+  labels: BoardLabel[];
   onMembersChange: () => void;
   onThemeChange: () => void;
   onBackgroundChange: () => void;
+  onLabelsChange: () => void;
 }
 
 const themeSubTabs = [
   { id: 'themes', label: 'Theme / Colouring', icon: Palette },
   { id: 'background', label: 'Background', icon: ImageIcon },
+];
+
+const boardSubTabs = [
+  { id: 'card-settings', label: 'Card Settings', icon: Settings2 },
+  { id: 'labels', label: 'Labels', icon: Tag },
 ];
 
 export function BoardSettingsModal({
@@ -77,9 +92,11 @@ export function BoardSettingsModal({
   currentTheme,
   currentBackgroundColor,
   currentBackgroundImageUrl,
+  labels,
   onMembersChange,
   onThemeChange,
   onBackgroundChange,
+  onLabelsChange,
 }: BoardSettingsModalProps) {
   const { toast } = useToast();
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
@@ -90,6 +107,7 @@ export function BoardSettingsModal({
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [userToRemove, setUserToRemove] = useState<{ id: string; name: string } | null>(null);
   const [activeThemeSubTab, setActiveThemeSubTab] = useState('themes');
+  const [activeBoardSubTab, setActiveBoardSubTab] = useState('labels');
   const [pendingRoles, setPendingRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
 
   // UI-only permission checks for better UX
@@ -268,10 +286,47 @@ export function BoardSettingsModal({
               </TabsTrigger>
             </TabsList>
 
-            {/* Board Settings Tab - Placeholder */}
-            <TabsContent value="board" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <p>Board settings coming soon...</p>
+            {/* Board Settings Tab */}
+            <TabsContent value="board" className="flex-1 mt-0 data-[state=inactive]:hidden flex min-h-0">
+              {/* Vertical sub-navigation */}
+              <aside className="w-48 bg-muted/30 border-r border-border p-3 shrink-0">
+                <nav className="space-y-1">
+                  {boardSubTabs.map((subTab) => {
+                    const Icon = subTab.icon;
+                    return (
+                      <button
+                        key={subTab.id}
+                        onClick={() => setActiveBoardSubTab(subTab.id)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
+                          activeBoardSubTab === subTab.id
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {subTab.label}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </aside>
+
+              {/* Sub-tab content */}
+              <div className="flex-1 p-4 overflow-y-auto">
+                {activeBoardSubTab === 'card-settings' && (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <p>Card settings coming soon...</p>
+                  </div>
+                )}
+                {activeBoardSubTab === 'labels' && (
+                  <BoardLabelsSettings
+                    boardId={boardId}
+                    labels={labels}
+                    onLabelsChange={onLabelsChange}
+                    disabled={userRole === 'viewer'}
+                  />
+                )}
               </div>
             </TabsContent>
 

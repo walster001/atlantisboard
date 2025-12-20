@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Card, Label, LABEL_COLORS, LabelColorName, getLabelHexColor } from '@/types/kanban';
+import { Card, Label, getLabelHexColor } from '@/types/kanban';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Slider } from '@/components/ui/slider';
 import { 
   Calendar as CalendarIcon, 
   X, 
@@ -17,7 +15,6 @@ import {
   Clock,
   Check,
   Trash2,
-  Pipette
 } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -41,19 +38,12 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   } : null;
 }
 
-function rgbToHex(r: number, g: number, b: number): string {
-  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+interface BoardLabel {
+  id: string;
+  board_id: string;
+  name: string;
+  color: string;
 }
-
-const PRESET_LABEL_COLORS: { name: LabelColorName; hex: string }[] = [
-  { name: 'red', hex: LABEL_COLORS.red },
-  { name: 'orange', hex: LABEL_COLORS.orange },
-  { name: 'yellow', hex: LABEL_COLORS.yellow },
-  { name: 'green', hex: LABEL_COLORS.green },
-  { name: 'blue', hex: LABEL_COLORS.blue },
-  { name: 'purple', hex: LABEL_COLORS.purple },
-  { name: 'pink', hex: LABEL_COLORS.pink },
-];
 
 interface Attachment {
   id: string;
@@ -77,6 +67,7 @@ interface CardDetailModalProps {
   disabled?: boolean;
   attachments?: Attachment[];
   onAttachmentsChange?: () => void;
+  boardLabels?: BoardLabel[];
   themeCardWindowColor?: string;
   themeCardWindowTextColor?: string;
   themeCardWindowButtonColor?: string;
@@ -116,6 +107,7 @@ export function CardDetailModal({
   disabled = false,
   attachments = [],
   onAttachmentsChange,
+  boardLabels = [],
   themeCardWindowColor,
   themeCardWindowTextColor,
   themeCardWindowButtonColor,
@@ -131,10 +123,6 @@ export function CardDetailModal({
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [showLabelPicker, setShowLabelPicker] = useState(false);
-  const [newLabelText, setNewLabelText] = useState('');
-  const [selectedLabelColor, setSelectedLabelColor] = useState<string>(LABEL_COLORS.blue);
-  const [customRgb, setCustomRgb] = useState({ r: 59, g: 130, b: 246 });
-  const [customHex, setCustomHex] = useState<string>('#3b82f6');
 
   useEffect(() => {
     if (card) {
@@ -166,55 +154,19 @@ export function CardDetailModal({
     onSave({ dueDate: date === undefined ? null : date.toISOString() } as Partial<Card>);
   };
 
-  const handleAddLabel = () => {
-    if (!newLabelText.trim()) return;
-    const newLabel: Label = {
-      id: Math.random().toString(36).substr(2, 9),
-      color: selectedLabelColor,
-      text: newLabelText.trim(),
+  // Add existing board label to this card
+  const handleSelectBoardLabel = (boardLabel: BoardLabel) => {
+    // Check if label is already on the card
+    if (card?.labels.some(l => l.id === boardLabel.id)) {
+      return; // Already added
+    }
+    const label: Label = {
+      id: boardLabel.id,
+      color: boardLabel.color,
+      text: boardLabel.name,
     };
-    onAddLabel(newLabel);
-    setNewLabelText('');
-    setSelectedLabelColor(LABEL_COLORS.blue);
+    onAddLabel(label);
     setShowLabelPicker(false);
-  };
-
-  const handleSelectPresetColor = (hex: string) => {
-    setSelectedLabelColor(hex);
-    const rgb = hexToRgb(hex);
-    if (rgb) {
-      setCustomRgb(rgb);
-      setCustomHex(hex);
-    }
-  };
-
-  const handleCustomRgbChange = (channel: 'r' | 'g' | 'b', value: number) => {
-    const newRgb = { ...customRgb, [channel]: value };
-    setCustomRgb(newRgb);
-    const hex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
-    setCustomHex(hex);
-    setSelectedLabelColor(hex);
-  };
-
-  const handleCustomHexChange = (hex: string) => {
-    setCustomHex(hex);
-    const rgb = hexToRgb(hex);
-    if (rgb) {
-      setCustomRgb(rgb);
-      setSelectedLabelColor(hex);
-    }
-  };
-
-  const handleEyedropper = async () => {
-    if ('EyeDropper' in window) {
-      try {
-        const eyeDropper = new (window as any).EyeDropper();
-        const result = await eyeDropper.open();
-        handleCustomHexChange(result.sRGBHex);
-      } catch (e) {
-        // User cancelled
-      }
-    }
   };
 
   if (!card) return null;
@@ -534,125 +486,42 @@ export function CardDetailModal({
                   Add Label
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80" align="start">
-                <div className="space-y-3">
-                  <div>
-                    <Input
-                      value={newLabelText}
-                      onChange={(e) => setNewLabelText(e.target.value)}
-                      placeholder="Label text (required)"
-                      className="h-9"
-                    />
-                    {!newLabelText.trim() && (
-                      <p className="text-xs text-muted-foreground mt-1">Enter label text to add</p>
-                    )}
-                  </div>
-                  
-                  <Tabs defaultValue="presets" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 h-8">
-                      <TabsTrigger value="presets" className="text-xs">Presets</TabsTrigger>
-                      <TabsTrigger value="custom" className="text-xs">Custom</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="presets" className="mt-2 space-y-3">
-                      <div className="grid grid-cols-7 gap-2">
-                        {PRESET_LABEL_COLORS.map((label) => (
+              <PopoverContent className="w-72" align="start">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Select a label</p>
+                  {boardLabels.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">
+                      No labels available. Create labels in Board Settings → Labels.
+                    </p>
+                  ) : (
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {boardLabels.map((boardLabel) => {
+                        const isAlreadyAdded = card?.labels.some(l => l.id === boardLabel.id);
+                        return (
                           <button
-                            key={label.name}
-                            onClick={() => handleSelectPresetColor(label.hex)}
+                            key={boardLabel.id}
+                            onClick={() => !isAlreadyAdded && handleSelectBoardLabel(boardLabel)}
+                            disabled={isAlreadyAdded}
                             className={cn(
-                              "h-8 w-full rounded-md transition-all",
-                              selectedLabelColor === label.hex 
-                                ? "ring-2 ring-offset-2 ring-foreground" 
-                                : "hover:ring-2 hover:ring-offset-2 hover:ring-foreground/20"
+                              "w-full flex items-center gap-2 px-2 py-2 rounded-md text-left transition-colors",
+                              isAlreadyAdded 
+                                ? "opacity-50 cursor-not-allowed" 
+                                : "hover:bg-muted"
                             )}
-                            style={{ backgroundColor: label.hex }}
-                            title={label.name}
-                          />
-                        ))}
-                      </div>
-                      <Button 
-                        size="sm" 
-                        className="w-full"
-                        onClick={handleAddLabel}
-                        disabled={!newLabelText.trim()}
-                      >
-                        Add Label
-                      </Button>
-                    </TabsContent>
-                    <TabsContent value="custom" className="mt-2 space-y-3">
-                      <div className="flex gap-2">
-                        <div
-                          className="w-12 h-12 rounded-md border shrink-0"
-                          style={{ backgroundColor: selectedLabelColor }}
-                        />
-                        <div className="flex-1 space-y-2">
-                          <div className="flex gap-2">
-                            <Input
-                              value={customHex}
-                              onChange={(e) => handleCustomHexChange(e.target.value)}
-                              className="h-8 text-xs font-mono"
-                              placeholder="#000000"
-                              maxLength={7}
+                          >
+                            <div
+                              className="w-6 h-6 rounded shrink-0"
+                              style={{ backgroundColor: boardLabel.color }}
                             />
-                            {'EyeDropper' in window && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                onClick={handleEyedropper}
-                              >
-                                <Pipette className="h-3.5 w-3.5" />
-                              </Button>
+                            <span className="text-sm flex-1 truncate">{boardLabel.name}</span>
+                            {isAlreadyAdded && (
+                              <Check className="h-4 w-4 text-muted-foreground" />
                             )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium w-4">R</span>
-                          <Slider
-                            value={[customRgb.r]}
-                            onValueChange={([v]) => handleCustomRgbChange('r', v)}
-                            max={255}
-                            step={1}
-                            className="flex-1"
-                          />
-                          <span className="text-xs w-8 text-right">{customRgb.r}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium w-4">G</span>
-                          <Slider
-                            value={[customRgb.g]}
-                            onValueChange={([v]) => handleCustomRgbChange('g', v)}
-                            max={255}
-                            step={1}
-                            className="flex-1"
-                          />
-                          <span className="text-xs w-8 text-right">{customRgb.g}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium w-4">B</span>
-                          <Slider
-                            value={[customRgb.b]}
-                            onValueChange={([v]) => handleCustomRgbChange('b', v)}
-                            max={255}
-                            step={1}
-                            className="flex-1"
-                          />
-                          <span className="text-xs w-8 text-right">{customRgb.b}</span>
-                        </div>
-                      </div>
-                      <Button 
-                        size="sm" 
-                        className="w-full"
-                        onClick={handleAddLabel}
-                        disabled={!newLabelText.trim()}
-                      >
-                        Add Label
-                      </Button>
-                    </TabsContent>
-                  </Tabs>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </PopoverContent>
             </Popover>

@@ -259,9 +259,9 @@ export function ToastUIMarkdownEditor({
   // Undo button
   const undoButton = useCallback(() => {
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:20px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:3px;margin:0;padding:0;';
-    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>';
+    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:4px;flex-shrink:0;';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>';
     btn.title = 'Undo';
     btn.type = 'button';
     btn.onclick = (e) => {
@@ -280,9 +280,9 @@ export function ToastUIMarkdownEditor({
   // Redo button
   const redoButton = useCallback(() => {
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:20px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:3px;margin:0;padding:0;';
-    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>';
+    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:4px;flex-shrink:0;';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>';
     btn.title = 'Redo';
     btn.type = 'button';
     btn.onclick = (e) => {
@@ -301,9 +301,9 @@ export function ToastUIMarkdownEditor({
   // Indent button
   const indentButton = useCallback(() => {
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:20px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:3px;margin:0;padding:0;';
-    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="9 4 13 8 9 12"/></svg>';
+    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:4px;flex-shrink:0;';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="9 4 13 8 9 12"/></svg>';
     btn.title = 'Indent';
     btn.type = 'button';
     btn.onclick = (e) => {
@@ -323,9 +323,9 @@ export function ToastUIMarkdownEditor({
   // Outdent button
   const outdentButton = useCallback(() => {
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:20px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:3px;margin:0;padding:0;';
-    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="13 4 9 8 13 12"/></svg>';
+    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;margin:0;padding:4px;flex-shrink:0;';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="13 4 9 8 13 12"/></svg>';
     btn.title = 'Outdent';
     btn.type = 'button';
     btn.onclick = (e) => {
@@ -390,8 +390,8 @@ export function ToastUIMarkdownEditor({
     wrapper.style.cssText = 'position:relative;display:inline-flex;';
     
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:20px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:3px;font-size:12px;margin:0;padding:0;';
+    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:16px;margin:0;padding:4px;flex-shrink:0;';
     btn.innerHTML = '😀';
     btn.title = 'Insert Emoji';
     btn.type = 'button';
@@ -638,8 +638,8 @@ export function ToastUIMarkdownEditor({
   // Create toolbar button for inserting new buttons (styled like codeblock)
   const toolbarButton = useCallback(() => {
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:20px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:3px;font-size:8px;font-weight:600;font-family:monospace;margin:0;padding:0;';
+    btn.className = 'toastui-editor-toolbar-icons custom-toolbar-btn';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:10px;font-weight:600;font-family:monospace;margin:0;padding:4px 6px;flex-shrink:0;';
     btn.innerHTML = 'INB';
     btn.title = 'Insert Inline Button';
     btn.type = 'button';
@@ -700,29 +700,50 @@ export function ToastUIMarkdownEditor({
         }
         .toastui-editor-wrapper .toastui-editor-defaultUI-toolbar {
           flex-shrink: 0;
-          padding: 4px 6px !important;
+          padding: 6px 8px !important;
+          border-bottom: 1px solid hsl(var(--border));
         }
         .toastui-editor-wrapper .toastui-editor-toolbar {
-          flex-wrap: nowrap !important;
+          display: flex !important;
+          flex-wrap: wrap !important;
+          gap: 2px !important;
+          justify-content: flex-start !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-group {
           display: flex !important;
-          flex-wrap: nowrap !important;
-          gap: 1px !important;
+          flex-wrap: wrap !important;
+          gap: 2px !important;
+          align-items: center !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons {
-          width: 20px !important;
-          height: 24px !important;
+          width: 28px !important;
+          height: 28px !important;
+          min-width: 28px !important;
           margin: 0 !important;
-          padding: 0 !important;
-          background-size: 12px 12px !important;
+          padding: 4px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          border-radius: 4px !important;
+          transition: background-color 0.15s ease !important;
+        }
+        .toastui-editor-wrapper .toastui-editor-toolbar-icons:hover {
+          background-color: hsl(var(--muted)) !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons::before {
-          transform: scale(0.7) !important;
+          transform: scale(0.85) !important;
+        }
+        .toastui-editor-wrapper .custom-toolbar-btn svg {
+          width: 16px !important;
+          height: 16px !important;
         }
         .toastui-editor-wrapper .toastui-editor-more-button,
         .toastui-editor-wrapper .toastui-editor-toolbar-more {
           display: none !important;
+        }
+        .toastui-editor-wrapper .toastui-editor-toolbar-divider {
+          height: 20px !important;
+          margin: 0 4px !important;
         }
         .toastui-editor-wrapper .toastui-editor-main-container {
           flex: 1;

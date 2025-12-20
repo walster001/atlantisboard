@@ -146,15 +146,21 @@ export default function BoardPage() {
             const existingCard = prev.find(c => c.id === updatedCard.id);
             if (!existingCard) return prev;
             
-            // Only update if card actually changed
-            if (existingCard.title === updatedCard.title &&
-                existingCard.description === updatedCard.description &&
-                existingCard.due_date === updatedCard.due_date &&
-                existingCard.position === updatedCard.position &&
-                existingCard.column_id === updatedCard.column_id &&
-                existingCard.color === updatedCard.color) {
-              return prev; // No change, don't trigger re-render
+            // Deep compare all relevant fields - return same array reference if no change
+            // This prevents unnecessary re-renders when optimistic update already applied
+            const hasChange = 
+              existingCard.title !== updatedCard.title ||
+              existingCard.description !== updatedCard.description ||
+              existingCard.due_date !== updatedCard.due_date ||
+              existingCard.position !== updatedCard.position ||
+              existingCard.column_id !== updatedCard.column_id ||
+              existingCard.color !== updatedCard.color;
+            
+            if (!hasChange) {
+              return prev; // No change, return same reference to avoid re-render
             }
+            
+            // Create new array only if there's an actual change
             return prev.map(c => c.id === updatedCard.id ? updatedCard : c);
           });
           // Update editing card modal if it's the one being edited by another user
@@ -724,6 +730,18 @@ export default function BoardPage() {
         });
       }
       
+      // Optimistic update BEFORE the RPC call to prevent flash
+      // This ensures the card updates immediately in the UI
+      setCards(prev => prev.map(c => {
+        if (c.id !== cardId) return c;
+        return {
+          ...c,
+          ...(updates.title !== undefined && { title: updates.title }),
+          ...(updates.description !== undefined && { description: updates.description || null }),
+          ...('dueDate' in updates && { due_date: updates.dueDate || null }),
+        };
+      }));
+      
       // Use server-side function for update (triggers realtime for all users)
       // Check if dueDate is explicitly null (meaning clear it) vs undefined (meaning don't update)
       const clearDueDate = 'dueDate' in updates && updates.dueDate === null;
@@ -743,13 +761,12 @@ export default function BoardPage() {
       if (result?.error) {
         throw new Error(result.error);
       }
-
-      // Optimistic update (realtime will sync other users)
-      if (result?.card) {
-        setCards(cards.map(c => c.id === cardId ? result.card! : c));
-      }
+      // Realtime subscription will handle syncing if needed
+      // No need to call setCards again here - the optimistic update is already done
     } catch (error: any) {
       console.error('Update card error:', error);
+      // Revert optimistic update on error by refetching
+      fetchBoardData();
       if (error instanceof z.ZodError) {
         toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
       } else {

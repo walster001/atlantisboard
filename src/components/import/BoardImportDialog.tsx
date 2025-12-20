@@ -149,6 +149,7 @@ const trelloColorMap: Record<string, string> = {
   teal: '#008080',
   grey: '#808080',
   gray: '#808080',
+  slateblue: '#6a5acd',
 };
 
 // Helper function to get color - handles hex values directly or maps named colors

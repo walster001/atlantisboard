@@ -216,13 +216,26 @@ export function ToastUIMarkdownEditor({
         toolbar.style.overflow = 'visible';
       }
 
-      // Force remove more button and dropdown
-      const moreButtons = container.querySelectorAll('.toastui-editor-more-button, [class*="more"], .toastui-editor-dropdown-toolbar');
-      moreButtons.forEach(el => {
-        if (el instanceof HTMLElement) {
-          el.remove();
+      // Force hide only the specific more button (not elements that just contain "more" in class)
+      const moreButton = container.querySelector('.toastui-editor-more-button');
+      if (moreButton instanceof HTMLElement) {
+        moreButton.style.display = 'none';
+      }
+      
+      const dropdownToolbar = container.querySelector('.toastui-editor-dropdown-toolbar');
+      if (dropdownToolbar instanceof HTMLElement) {
+        // Move any items from dropdown back to the main toolbar before hiding
+        const mainToolbar = container.querySelector('.toastui-editor-toolbar');
+        if (mainToolbar) {
+          const items = dropdownToolbar.querySelectorAll('.toastui-editor-toolbar-icons, .toastui-editor-toolbar-group');
+          items.forEach(item => {
+            if (item instanceof HTMLElement) {
+              mainToolbar.appendChild(item.cloneNode(true));
+            }
+          });
         }
-      });
+        dropdownToolbar.style.display = 'none';
+      }
 
       // Ensure all toolbar groups and icons are visible
       const groups = container.querySelectorAll('.toastui-editor-toolbar-group');
@@ -873,18 +886,12 @@ export function ToastUIMarkdownEditor({
           width: 16px !important;
           height: 16px !important;
         }
-        /* Completely remove overflow menu elements from DOM flow */
+        /* Hide only specific overflow menu elements */
         .toastui-editor-wrapper .toastui-editor-more-button,
         .toastui-editor-wrapper .toastui-editor-toolbar-more,
-        .toastui-editor-wrapper .toastui-editor-dropdown-toolbar,
-        .toastui-editor-wrapper [class*="more-button"],
-        .toastui-editor-wrapper [class*="dropdown-toolbar"] {
+        .toastui-editor-wrapper .toastui-editor-dropdown-toolbar {
           display: none !important;
-          width: 0 !important;
-          height: 0 !important;
           visibility: hidden !important;
-          position: absolute !important;
-          pointer-events: none !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-divider {
           width: 1px !important;

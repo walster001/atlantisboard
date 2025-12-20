@@ -711,7 +711,7 @@ export function BoardSettingsModal({
                       Track who added, removed, or changed roles for board members
                     </p>
                   </div>
-                  <BoardMemberAuditLog boardId={boardId} />
+                  <BoardMemberAuditLog boardId={boardId} userRole={userRole} />
                 </div>
               </TabsContent>
             )}

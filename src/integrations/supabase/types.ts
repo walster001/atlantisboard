@@ -278,6 +278,7 @@ export type Database = {
       }
       boards: {
         Row: {
+          audit_log_retention_days: number | null
           background_color: string | null
           created_at: string
           description: string | null
@@ -289,6 +290,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          audit_log_retention_days?: number | null
           background_color?: string | null
           created_at?: string
           description?: string | null
@@ -300,6 +302,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          audit_log_retention_days?: number | null
           background_color?: string | null
           created_at?: string
           description?: string | null
@@ -943,6 +946,7 @@ export type Database = {
         Args: { _board_id: string; _user_id: string }
         Returns: boolean
       }
+      cleanup_expired_audit_logs: { Args: never; Returns: number }
       find_user_by_email: {
         Args: { _board_id: string; _email: string }
         Returns: {

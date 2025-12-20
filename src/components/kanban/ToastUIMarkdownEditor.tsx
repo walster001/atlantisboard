@@ -2,8 +2,7 @@
  * ToastUIMarkdownEditor.tsx
  * 
  * A WYSIWYG Markdown editor using Toast UI Editor.
- * Stores inline buttons as [INLINE_BUTTON:base64] in markdown,
- * displays them as styled text placeholders in the editor.
+ * Uses Toast UI's widgetRules to render inline buttons as custom widgets.
  */
 
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
@@ -19,70 +18,78 @@ interface ToastUIMarkdownEditorProps {
   className?: string;
 }
 
-const INLINE_BUTTON_MARKDOWN_REGEX = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g;
+// Match [INLINE_BUTTON:base64data] format
+const INLINE_BUTTON_REGEX = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g;
+const INLINE_BUTTON_WIDGET_RULE = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/;
 
 /**
- * Create a text placeholder for an inline button in the editor
- * Using a simple format that Toast UI won't sanitize: 【ButtonText】
+ * Create the widget DOM element for an inline button
  */
-function createButtonPlaceholder(data: InlineButtonData): string {
-  return `【${data.linkText || 'Button'}】`;
-}
-
-/**
- * Extract button data from content and create a map of placeholder -> data
- */
-function extractButtons(content: string): Map<string, InlineButtonData> {
-  const buttons = new Map<string, InlineButtonData>();
-  if (!content) return buttons;
+function createButtonWidget(encodedData: string): HTMLElement {
+  const data = parseInlineButtonFromDataAttr(encodedData);
   
-  let match;
-  INLINE_BUTTON_MARKDOWN_REGEX.lastIndex = 0;
+  const wrapper = document.createElement('span');
+  wrapper.className = 'inline-button-widget';
+  wrapper.setAttribute('data-btn', encodedData);
+  wrapper.contentEditable = 'false';
+  wrapper.style.cssText = `
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    margin: 0 2px;
+    border-radius: 4px;
+    background: ${data?.backgroundColor || '#1D2125'};
+    border: 1px solid #3d444d;
+    cursor: pointer;
+    vertical-align: middle;
+    user-select: none;
+    font-size: 14px;
+    line-height: 1.4;
+  `;
   
-  while ((match = INLINE_BUTTON_MARKDOWN_REGEX.exec(content)) !== null) {
-    const data = parseInlineButtonFromDataAttr(match[1]);
-    if (data) {
-      const placeholder = createButtonPlaceholder(data);
-      buttons.set(placeholder, data);
-    }
+  if (data?.iconUrl) {
+    const img = document.createElement('img');
+    img.src = data.iconUrl;
+    img.alt = '';
+    img.style.cssText = `
+      width: ${data.iconSize || 16}px;
+      height: ${data.iconSize || 16}px;
+      object-fit: contain;
+      pointer-events: none;
+    `;
+    wrapper.appendChild(img);
   }
   
-  return buttons;
+  const text = document.createElement('span');
+  text.textContent = data?.linkText || 'Button';
+  text.style.cssText = `
+    color: ${data?.textColor || '#579DFF'};
+    pointer-events: none;
+    white-space: nowrap;
+  `;
+  wrapper.appendChild(text);
+  
+  return wrapper;
 }
 
 /**
- * Convert content with [INLINE_BUTTON:...] to editor format with placeholders
+ * Widget rules for Toast UI Editor
  */
-function contentToEditorFormat(content: string): string {
-  if (!content) return '';
-  
-  return content.replace(INLINE_BUTTON_MARKDOWN_REGEX, (_match, encodedData) => {
-    const data = parseInlineButtonFromDataAttr(encodedData);
-    if (data) {
-      return createButtonPlaceholder(data);
-    }
-    return '';
-  });
-}
-
-/**
- * Convert editor content back to storage format, restoring button markers
- */
-function editorToContentFormat(editorContent: string, buttonMap: Map<string, InlineButtonData>): string {
-  if (!editorContent) return '';
-  
-  let result = editorContent;
-  
-  // Restore button placeholders to [INLINE_BUTTON:...] format
-  for (const [placeholder, data] of buttonMap) {
-    const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-    // Escape special regex chars in placeholder
-    const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    result = result.replace(new RegExp(escapedPlaceholder, 'g'), `[INLINE_BUTTON:${encodedData}]`);
-  }
-  
-  return result;
-}
+const widgetRules = [
+  {
+    rule: INLINE_BUTTON_WIDGET_RULE,
+    toDOM(text: string) {
+      const match = text.match(INLINE_BUTTON_WIDGET_RULE);
+      if (match) {
+        return createButtonWidget(match[1]);
+      }
+      const span = document.createElement('span');
+      span.textContent = text;
+      return span;
+    },
+  },
+];
 
 export function ToastUIMarkdownEditor({
   content,
@@ -97,13 +104,19 @@ export function ToastUIMarkdownEditor({
   const isSyncing = useRef(false);
   const isInitialized = useRef(false);
   const lastContentRef = useRef(content);
-  const buttonMapRef = useRef<Map<string, InlineButtonData>>(new Map());
   
-  // Parse buttons from content
+  // Extract buttons from content for the chip display
   const buttons = useMemo(() => {
-    const map = extractButtons(content);
-    buttonMapRef.current = map;
-    return Array.from(map.entries()).map(([placeholder, data]) => ({ placeholder, data }));
+    const result: InlineButtonData[] = [];
+    if (!content) return result;
+    
+    let match;
+    INLINE_BUTTON_REGEX.lastIndex = 0;
+    while ((match = INLINE_BUTTON_REGEX.exec(content)) !== null) {
+      const data = parseInlineButtonFromDataAttr(match[1]);
+      if (data) result.push(data);
+    }
+    return result;
   }, [content]);
   
   // Handle editor changes
@@ -114,11 +127,10 @@ export function ToastUIMarkdownEditor({
     if (!editor) return;
     
     const markdown = editor.getMarkdown();
-    const converted = editorToContentFormat(markdown, buttonMapRef.current);
     
-    if (converted !== lastContentRef.current) {
-      lastContentRef.current = converted;
-      onChange(converted);
+    if (markdown !== lastContentRef.current) {
+      lastContentRef.current = markdown;
+      onChange(markdown);
     }
   }, [onChange]);
   
@@ -128,9 +140,8 @@ export function ToastUIMarkdownEditor({
     if (!editor || isInitialized.current) return;
     
     const timeoutId = setTimeout(() => {
-      const editorContent = contentToEditorFormat(content);
       isSyncing.current = true;
-      editor.setMarkdown(editorContent);
+      editor.setMarkdown(content || '');
       isSyncing.current = false;
       lastContentRef.current = content;
       isInitialized.current = true;
@@ -147,33 +158,55 @@ export function ToastUIMarkdownEditor({
     if (!editor) return;
     
     isSyncing.current = true;
-    editor.setMarkdown(contentToEditorFormat(content));
+    editor.setMarkdown(content || '');
     lastContentRef.current = content;
     isSyncing.current = false;
   }, [content]);
+  
+  // Handle clicks on inline button widgets
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const widget = target.closest('.inline-button-widget') as HTMLElement;
+      
+      if (widget) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const encodedData = widget.getAttribute('data-btn');
+        if (encodedData) {
+          const data = parseInlineButtonFromDataAttr(encodedData);
+          if (data) {
+            setEditingButton(data);
+            setShowButtonEditor(true);
+          }
+        }
+      }
+    };
+    
+    container.addEventListener('click', handleClick);
+    return () => container.removeEventListener('click', handleClick);
+  }, []);
   
   const handleSaveButton = useCallback((data: InlineButtonData) => {
     const editor = editorRef.current?.getInstance();
     if (!editor) return;
     
-    const placeholder = createButtonPlaceholder(data);
     const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    const buttonMarkdown = `[INLINE_BUTTON:${encodedData}]`;
     
     if (editingButton) {
-      // Replace existing button in content
-      const oldPlaceholder = createButtonPlaceholder(editingButton);
+      // Replace existing button
+      const oldEncoded = btoa(unescape(encodeURIComponent(JSON.stringify(editingButton))));
       let markdown = editor.getMarkdown();
-      const escapedOld = oldPlaceholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      markdown = markdown.replace(new RegExp(escapedOld, 'g'), placeholder);
+      markdown = markdown.replace(`[INLINE_BUTTON:${oldEncoded}]`, buttonMarkdown);
       editor.setMarkdown(markdown);
-      
-      // Update button map
-      buttonMapRef.current.delete(oldPlaceholder);
-      buttonMapRef.current.set(placeholder, data);
     } else {
       // Insert new button at cursor
-      editor.insertText(placeholder);
-      buttonMapRef.current.set(placeholder, data);
+      editor.insertText(buttonMarkdown);
     }
     
     setEditingButton(null);
@@ -186,13 +219,10 @@ export function ToastUIMarkdownEditor({
     const editor = editorRef.current?.getInstance();
     if (!editor) return;
     
-    const placeholder = createButtonPlaceholder(editingButton);
+    const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(editingButton))));
     let markdown = editor.getMarkdown();
-    const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    markdown = markdown.replace(new RegExp(escapedPlaceholder, 'g'), '');
+    markdown = markdown.replace(`[INLINE_BUTTON:${encodedData}]`, '');
     editor.setMarkdown(markdown);
-    
-    buttonMapRef.current.delete(placeholder);
     
     setShowButtonEditor(false);
     setEditingButton(null);
@@ -232,6 +262,7 @@ export function ToastUIMarkdownEditor({
         hideModeSwitch={true}
         placeholder={placeholder || 'Write your description...'}
         onChange={handleChange}
+        widgetRules={widgetRules}
         toolbarItems={[
           ['heading', 'bold', 'italic', 'strike'],
           ['hr', 'quote'],
@@ -242,31 +273,31 @@ export function ToastUIMarkdownEditor({
         ]}
       />
       
-      {/* Button chips for editing - shown below editor when buttons exist */}
+      {/* Button chips for quick editing */}
       {buttons.length > 0 && (
         <div className="px-3 py-2 border-t bg-muted/30 flex flex-wrap gap-2 items-center">
-          <span className="text-xs text-muted-foreground">Click to edit:</span>
+          <span className="text-xs text-muted-foreground">Buttons:</span>
           {buttons.map((btn, idx) => (
             <button
               key={idx}
               type="button"
-              onClick={() => handleEditButton(btn.data)}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm cursor-pointer transition-all hover:opacity-80 hover:ring-2 hover:ring-primary/40"
+              onClick={() => handleEditButton(btn)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm cursor-pointer transition-all hover:ring-2 hover:ring-primary/40"
               style={{
-                backgroundColor: btn.data.backgroundColor || '#1D2125',
+                backgroundColor: btn.backgroundColor || '#1D2125',
                 border: '1px solid #3d444d',
               }}
             >
-              {btn.data.iconUrl && (
+              {btn.iconUrl && (
                 <img
-                  src={btn.data.iconUrl}
+                  src={btn.iconUrl}
                   alt=""
-                  style={{ width: btn.data.iconSize || 16, height: btn.data.iconSize || 16 }}
+                  style={{ width: btn.iconSize || 16, height: btn.iconSize || 16 }}
                   className="object-contain"
                 />
               )}
-              <span style={{ color: btn.data.textColor || '#579DFF' }}>
-                {btn.data.linkText || 'Button'}
+              <span style={{ color: btn.textColor || '#579DFF' }}>
+                {btn.linkText || 'Button'}
               </span>
             </button>
           ))}
@@ -282,8 +313,12 @@ export function ToastUIMarkdownEditor({
       />
       
       <style>{`
-        .toastui-editor-wrapper .toastui-editor-contents {
-          font-size: 14px;
+        .toastui-editor-wrapper .inline-button-widget {
+          transition: box-shadow 0.15s, transform 0.15s;
+        }
+        .toastui-editor-wrapper .inline-button-widget:hover {
+          box-shadow: 0 0 0 2px rgba(87, 157, 255, 0.4);
+          transform: translateY(-1px);
         }
       `}</style>
     </div>

@@ -298,6 +298,50 @@ export function ToastUIMarkdownEditor({
     return btn;
   }, []);
 
+  // Indent button
+  const indentButton = useCallback(() => {
+    const btn = document.createElement('button');
+    btn.className = 'toastui-editor-toolbar-icons';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:20px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:3px;margin:0;padding:0;';
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="9 4 13 8 9 12"/></svg>';
+    btn.title = 'Indent';
+    btn.type = 'button';
+    btn.onclick = (e) => {
+      e.preventDefault();
+      const editor = editorRef.current?.getInstance();
+      if (editor) {
+        try {
+          (editor as any).exec('indent');
+        } catch {
+          editor.insertText('    ');
+        }
+      }
+    };
+    return btn;
+  }, []);
+
+  // Outdent button
+  const outdentButton = useCallback(() => {
+    const btn = document.createElement('button');
+    btn.className = 'toastui-editor-toolbar-icons';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:20px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:3px;margin:0;padding:0;';
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><polyline points="13 4 9 8 13 12"/></svg>';
+    btn.title = 'Outdent';
+    btn.type = 'button';
+    btn.onclick = (e) => {
+      e.preventDefault();
+      const editor = editorRef.current?.getInstance();
+      if (editor) {
+        try {
+          (editor as any).exec('outdent');
+        } catch {
+          // No fallback for outdent
+        }
+      }
+    };
+    return btn;
+  }, []);
+
   // Emoji picker button with categories
   const emojiButton = useCallback(() => {
     const RECENT_EMOJIS_KEY = 'toastui-recent-emojis';
@@ -622,7 +666,9 @@ export function ToastUIMarkdownEditor({
             { el: redoButton(), tooltip: 'Redo', name: 'redo' },
             'heading', 'bold', 'italic', 'strike',
             'hr', 'quote',
-            'ul', 'ol', 'task', 'indent', 'outdent',
+            'ul', 'ol', 'task',
+            { el: indentButton(), tooltip: 'Indent', name: 'indent' },
+            { el: outdentButton(), tooltip: 'Outdent', name: 'outdent' },
             'table', 'link',
             'code', 'codeblock',
             { el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' },

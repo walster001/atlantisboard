@@ -377,7 +377,7 @@ export function BoardSettingsModal({
                                   {member.role}
                                 </span>
                               )}
-                              {canAddRemove && members.length > 1 && (
+                              {canAddRemove && (
                                 <Button
                                   variant="ghost"
                                   size="sm"

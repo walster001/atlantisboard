@@ -22,6 +22,9 @@ interface CardAttachmentSectionProps {
   attachments: Attachment[];
   onAttachmentsChange: () => void;
   disabled?: boolean;
+  themeTextColor?: string;
+  themeButtonColor?: string;
+  themeButtonTextColor?: string;
 }
 
 function formatFileSize(bytes: number | null): string {
@@ -46,6 +49,9 @@ export function CardAttachmentSection({
   attachments,
   onAttachmentsChange,
   disabled = false,
+  themeTextColor,
+  themeButtonColor,
+  themeButtonTextColor,
 }: CardAttachmentSectionProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -170,10 +176,20 @@ export function CardAttachmentSection({
     }
   };
 
+  // Button style for themed buttons
+  const buttonStyle: React.CSSProperties = themeButtonColor ? {
+    backgroundColor: themeButtonColor,
+    color: themeButtonTextColor || '#ffffff',
+    borderColor: themeButtonColor,
+  } : {};
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-muted-foreground">
+        <div 
+          className={cn("flex items-center gap-2", !themeTextColor && "text-muted-foreground")}
+          style={themeTextColor ? { color: themeTextColor, opacity: 0.7 } : undefined}
+        >
           <Paperclip className="h-4 w-4" />
           <span className="text-sm font-medium">
             Attachments {attachments.length > 0 && `(${attachments.length})`}
@@ -189,11 +205,12 @@ export function CardAttachmentSection({
               onChange={handleFileSelect}
             />
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="h-8"
+              style={themeButtonColor ? buttonStyle : undefined}
             >
               {uploading ? (
                 <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />

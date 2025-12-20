@@ -161,7 +161,10 @@ export type Database = {
       board_themes: {
         Row: {
           board_icon_color: string
+          card_window_button_color: string
+          card_window_button_text_color: string
           card_window_color: string
+          card_window_intelligent_contrast: boolean
           card_window_text_color: string
           column_color: string
           created_at: string
@@ -178,7 +181,10 @@ export type Database = {
         }
         Insert: {
           board_icon_color?: string
+          card_window_button_color?: string
+          card_window_button_text_color?: string
           card_window_color?: string
+          card_window_intelligent_contrast?: boolean
           card_window_text_color?: string
           column_color?: string
           created_at?: string
@@ -195,7 +201,10 @@ export type Database = {
         }
         Update: {
           board_icon_color?: string
+          card_window_button_color?: string
+          card_window_button_text_color?: string
           card_window_color?: string
+          card_window_intelligent_contrast?: boolean
           card_window_text_color?: string
           column_color?: string
           created_at?: string

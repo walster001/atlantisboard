@@ -1059,6 +1059,9 @@ export default function BoardPage() {
         }}
         themeCardWindowColor={boardTheme?.card_window_color}
         themeCardWindowTextColor={boardTheme?.card_window_text_color}
+        themeCardWindowButtonColor={boardTheme?.card_window_button_color}
+        themeCardWindowButtonTextColor={boardTheme?.card_window_button_text_color}
+        themeCardWindowIntelligentContrast={boardTheme?.card_window_intelligent_contrast}
       />
 
       {/* Board Settings Modal */}

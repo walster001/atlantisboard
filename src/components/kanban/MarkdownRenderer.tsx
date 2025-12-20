@@ -82,11 +82,12 @@ function InlineButton({ data, onClick }: InlineButtonProps) {
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={(e) => e.key === 'Enter' && handleClick(e as any)}
-      className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm cursor-pointer transition-all hover:opacity-85 hover:-translate-y-0.5"
+      className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm cursor-pointer transition-all hover:opacity-85 hover:-translate-y-0.5 my-0.5 mx-0.5"
       style={{
         backgroundColor: data.backgroundColor || '#1D2125',
         color: data.textColor || '#579DFF',
         border: '1px solid #3d444d',
+        verticalAlign: 'middle',
       }}
     >
       {data.iconUrl && (
@@ -157,11 +158,17 @@ const sanitizeSchema = {
  * Handles multiple formats:
  * 1. Our editable-inline-button format with data-inline-button attribute
  * 2. Original Wekan format: <span style="display:inline-flex"><img><a>text</a></span>
+ * 3. Already converted [INLINE_BUTTON:...] format (pass through)
  */
 function convertLegacyInlineButtons(content: string): string {
   if (!content) return content;
   
   let result = content;
+  
+  // Skip if no HTML-like content and no legacy formats
+  if (!result.includes('<span') && !result.includes('<a')) {
+    return result;
+  }
   
   // Pattern 1: Match our editable-inline-button spans with data attributes
   const editableButtonRegex = /<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*data-inline-button="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi;
@@ -288,19 +295,18 @@ function htmlToMarkdown(html: string): string {
   // Convert horizontal rules
   md = md.replace(/<hr[^/]*\/>/gi, '\n---\n');
   
-  // Convert line breaks
-  md = md.replace(/<br\s*\/?>/gi, '\n');
+  // Convert line breaks - preserve spacing
+  md = md.replace(/<br\s*\/?>/gi, '  \n');
   
-  // Convert paragraphs (preserve spacing)
+  // Convert paragraphs (preserve spacing with double newlines)
   md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n');
   
-  // Remove remaining HTML tags (safety measure)
+  // Remove remaining HTML tags (safety measure) but preserve content
   md = md.replace(/<[^>]+>/g, '');
   
-  // Clean up excessive newlines
-  md = md.replace(/\n{3,}/g, '\n\n');
-  
-  // Decode HTML entities
+  // Clean up excessive newlines but preserve paragraph spacing
+  md = md.replace(/\n{4,}/g, '\n\n\n');
+  md = md.replace(/^\n+/, ''); // Remove leading newlines
   md = md
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -545,12 +551,12 @@ export function MarkdownRenderer({
               h1: ({ children }) => <h1 className="text-xl font-bold mt-3 mb-2">{children}</h1>,
               h2: ({ children }) => <h2 className="text-lg font-semibold mt-2 mb-1">{children}</h2>,
               h3: ({ children }) => <h3 className="text-base font-semibold mt-2 mb-1">{children}</h3>,
-              // Style paragraphs
-              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-              // Style lists
-              ul: ({ children }) => <ul className="list-disc pl-5 my-2">{children}</ul>,
-              ol: ({ children }) => <ol className="list-decimal pl-5 my-2">{children}</ol>,
-              li: ({ children }) => <li className="my-0.5">{children}</li>,
+              // Style paragraphs with proper spacing
+              p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
+              // Style lists with proper spacing
+              ul: ({ children }) => <ul className="list-disc pl-5 my-3 space-y-1">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-5 my-3 space-y-1">{children}</ol>,
+              li: ({ children }) => <li className="my-1 leading-relaxed">{children}</li>,
               // Style blockquotes
               blockquote: ({ children }) => (
                 <blockquote

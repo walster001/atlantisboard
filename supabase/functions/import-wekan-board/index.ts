@@ -48,13 +48,12 @@ function parseWekanInlineButton(match: string, spanStyle: string, innerHtml: str
 }
 
 /**
- * Serialize inline button data to the editable component HTML format
+ * Serialize inline button data to our Markdown-compatible format.
+ * Uses [INLINE_BUTTON:base64Data] which MarkdownRenderer can parse.
  */
 function serializeInlineButton(data: InlineButtonData): string {
   const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  return `<span class="editable-inline-button" data-inline-button="${encodedData}" contenteditable="false" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background-color:${data.backgroundColor};border:1px solid #3d444d;white-space:nowrap;cursor:pointer;">${
-    data.iconUrl ? `<img src="${data.iconUrl}" alt="" style="width:${data.iconSize}px;height:${data.iconSize}px;object-fit:contain;">` : ''
-  }<a href="${data.linkUrl}" style="color:${data.textColor};text-decoration:none;" target="_blank" rel="noopener noreferrer">${data.linkText}</a></span>`;
+  return `[INLINE_BUTTON:${encodedData}]`;
 }
 
 /**

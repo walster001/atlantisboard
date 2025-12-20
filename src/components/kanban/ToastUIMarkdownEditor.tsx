@@ -108,6 +108,20 @@ export function ToastUIMarkdownEditor({
   const isInitialized = useRef(false);
   const lastContentRef = useRef(content);
   
+  /**
+   * Strip Toast UI's internal widget markers from markdown content.
+   * Toast UI wraps widgets with $$widget[n] ... $$ markers that we need to remove.
+   */
+  const cleanWidgetMarkers = useCallback((text: string): string => {
+    // Remove $$widget[n] prefix markers
+    let cleaned = text.replace(/\$\$widget\d+\s*/g, '');
+    // Remove trailing $$ markers that aren't part of our button format
+    cleaned = cleaned.replace(/\$\$(?!\[INLINE_BUTTON)/g, '');
+    // Clean up any orphaned $$ markers
+    cleaned = cleaned.replace(/\s*\$\$\s*$/gm, '');
+    return cleaned;
+  }, []);
+
   // Handle editor changes
   const handleChange = useCallback(() => {
     if (isSyncing.current || !isInitialized.current) return;
@@ -115,13 +129,15 @@ export function ToastUIMarkdownEditor({
     const editor = editorRef.current?.getInstance();
     if (!editor) return;
     
-    const markdown = editor.getMarkdown();
+    let markdown = editor.getMarkdown();
+    // Clean widget markers before saving
+    markdown = cleanWidgetMarkers(markdown);
     
     if (markdown !== lastContentRef.current) {
       lastContentRef.current = markdown;
       onChange(markdown);
     }
-  }, [onChange]);
+  }, [onChange, cleanWidgetMarkers]);
   
   // Initialize editor with content
   useEffect(() => {

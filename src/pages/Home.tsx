@@ -38,6 +38,13 @@ interface Board {
   position: number;
 }
 
+interface BoardTheme {
+  id: string;
+  name: string;
+  navbar_color: string;
+  is_default: boolean;
+}
+
 // Helper to darken a hex color by a percentage
 function darkenColor(hex: string, percent: number): string {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -53,7 +60,7 @@ function darkenColor(hex: string, percent: number): string {
   }).join('');
 }
 
-// Map colors to theme names for automatic theme assignment
+// Map colors to theme names (kept for reference/backwards compatibility)
 const COLOR_THEME_MAP: Record<string, string> = {
   '#0079bf': 'Ocean Blue',
   '#d29034': 'Sunset Orange',
@@ -64,11 +71,6 @@ const COLOR_THEME_MAP: Record<string, string> = {
   '#4bbf6b': 'Mint Green',
   '#00aecc': 'Teal',
 };
-
-const BOARD_COLORS = [
-  '#0079bf', '#d29034', '#519839', '#b04632',
-  '#89609e', '#cd5a91', '#4bbf6b', '#00aecc',
-];
 
 export default function Home() {
   const { user, signOut, loading: authLoading, isAppAdmin } = useAuth();
@@ -86,9 +88,11 @@ export default function Home() {
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
   
   const [newBoardName, setNewBoardName] = useState('');
-  const [newBoardColor, setNewBoardColor] = useState(BOARD_COLORS[0]);
+  const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
+  const [availableThemes, setAvailableThemes] = useState<BoardTheme[]>([]);
+  const [themesLoading, setThemesLoading] = useState(false);
 
   // Edit board state
   const [editBoardId, setEditBoardId] = useState<string | null>(null);
@@ -150,6 +154,48 @@ export default function Home() {
     }
   };
 
+  // Fetch themes when board dialog opens
+  const fetchThemes = async () => {
+    setThemesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('board_themes')
+        .select('id, name, navbar_color, is_default');
+
+      if (error) throw error;
+      
+      // Sort themes: default themes in THEME_ORDER first, then custom themes alphabetically
+      const THEME_ORDER = [
+        'Ocean Blue', 'Sunset Orange', 'Forest Green', 'Ruby Red',
+        'Royal Purple', 'Hot Pink', 'Mint Green', 'Teal',
+      ];
+      
+      const allThemes = (data || []) as BoardTheme[];
+      const sortedThemes = allThemes.sort((a, b) => {
+        if (a.is_default && b.is_default) {
+          const aIndex = THEME_ORDER.indexOf(a.name);
+          const bIndex = THEME_ORDER.indexOf(b.name);
+          return aIndex - bIndex;
+        }
+        if (a.is_default && !b.is_default) return -1;
+        if (!a.is_default && b.is_default) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      
+      setAvailableThemes(sortedThemes);
+      
+      // Set default theme (Ocean Blue) if not already selected
+      if (!selectedThemeId && sortedThemes.length > 0) {
+        const oceanBlue = sortedThemes.find(t => t.name === 'Ocean Blue' && t.is_default);
+        setSelectedThemeId(oceanBlue?.id || sortedThemes[0].id);
+      }
+    } catch (error: any) {
+      console.error('Fetch themes error:', error);
+    } finally {
+      setThemesLoading(false);
+    }
+  };
+
   const createWorkspace = async () => {
     if (!user) return;
 
@@ -207,42 +253,31 @@ export default function Home() {
   };
 
   const createBoard = async () => {
-    if (!selectedWorkspaceId || !user) return;
+    if (!selectedWorkspaceId || !user || !selectedThemeId) return;
 
     try {
       // Validate input
+      const selectedTheme = availableThemes.find(t => t.id === selectedThemeId);
+      if (!selectedTheme) {
+        toast({ title: 'Error', description: 'Please select a theme', variant: 'destructive' });
+        return;
+      }
+
       const validated = boardSchema.parse({
         name: newBoardName,
-        background_color: newBoardColor,
+        background_color: selectedTheme.navbar_color,
       });
 
-      // Find the matching theme for the selected color
-      const themeName = COLOR_THEME_MAP[validated.background_color];
-      let themeId: string | null = null;
-      
-      if (themeName) {
-        const { data: themeData } = await supabase
-          .from('board_themes')
-          .select('id, navbar_color')
-          .eq('name', themeName)
-          .eq('is_default', true)
-          .single();
-        
-        if (themeData) {
-          themeId = themeData.id;
-          // Set background color to slightly darker than navbar
-          const darkenedColor = darkenColor(themeData.navbar_color, 0.1);
-          validated.background_color = darkenedColor;
-        }
-      }
+      // Set background color to slightly darker than navbar
+      const backgroundColor = darkenColor(selectedTheme.navbar_color, 0.1);
 
       const { data: board, error } = await supabase
         .from('boards')
         .insert({
           workspace_id: selectedWorkspaceId,
           name: validated.name,
-          background_color: validated.background_color,
-          theme_id: themeId,
+          background_color: backgroundColor,
+          theme_id: selectedThemeId,
         })
         .select()
         .single();
@@ -258,7 +293,9 @@ export default function Home() {
 
       setBoards([board, ...boards]);
       setNewBoardName('');
-      setNewBoardColor(BOARD_COLORS[0]);
+      // Reset to Ocean Blue for next board
+      const oceanBlue = availableThemes.find(t => t.name === 'Ocean Blue' && t.is_default);
+      setSelectedThemeId(oceanBlue?.id || availableThemes[0]?.id || null);
       setBoardDialogOpen(false);
       toast({ title: 'Board created!' });
     } catch (error: any) {
@@ -558,7 +595,10 @@ export default function Home() {
                             open={boardDialogOpen && selectedWorkspaceId === workspace.id}
                             onOpenChange={(open) => {
                               setBoardDialogOpen(open);
-                              if (open) setSelectedWorkspaceId(workspace.id);
+                              if (open) {
+                                setSelectedWorkspaceId(workspace.id);
+                                fetchThemes();
+                              }
                             }}
                           >
                             <DialogTrigger asChild>
@@ -583,29 +623,38 @@ export default function Home() {
                                 </div>
                                 <div className="space-y-2">
                                   <Label>Theme</Label>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {BOARD_COLORS.map((color) => (
-                                      <button
-                                        key={color}
-                                        className={`flex items-center gap-2 p-2 rounded-md transition-all border ${
-                                          newBoardColor === color 
-                                            ? 'ring-2 ring-primary ring-offset-2 border-primary' 
-                                            : 'border-border hover:border-primary/50'
-                                        }`}
-                                        onClick={() => setNewBoardColor(color)}
-                                      >
-                                        <div 
-                                          className="w-6 h-6 rounded shrink-0"
-                                          style={{ backgroundColor: color }}
-                                        />
-                                        <span className="text-sm font-medium truncate">
-                                          {COLOR_THEME_MAP[color]}
-                                        </span>
-                                      </button>
-                                    ))}
-                                  </div>
+                                  {themesLoading ? (
+                                    <div className="flex items-center justify-center py-4">
+                                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                    </div>
+                                  ) : (
+                                    <div className="grid grid-cols-2 gap-2 max-h-[240px] overflow-y-auto">
+                                      {availableThemes.map((theme) => (
+                                        <button
+                                          key={theme.id}
+                                          className={`flex items-center gap-2 p-2 rounded-md transition-all border ${
+                                            selectedThemeId === theme.id 
+                                              ? 'ring-2 ring-primary ring-offset-2 border-primary' 
+                                              : 'border-border hover:border-primary/50'
+                                          }`}
+                                          onClick={() => setSelectedThemeId(theme.id)}
+                                        >
+                                          <div 
+                                            className="w-6 h-6 rounded shrink-0"
+                                            style={{ backgroundColor: theme.navbar_color }}
+                                          />
+                                          <span className="text-sm font-medium truncate">
+                                            {theme.name}
+                                          </span>
+                                          {!theme.is_default && (
+                                            <span className="text-xs text-muted-foreground ml-auto">Custom</span>
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                                <Button onClick={createBoard} className="w-full">
+                                <Button onClick={createBoard} className="w-full" disabled={!selectedThemeId}>
                                   Create Board
                                 </Button>
                               </div>

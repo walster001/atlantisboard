@@ -119,6 +119,47 @@ export type Database = {
         }
         Relationships: []
       }
+      board_member_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          board_id: string
+          created_at: string
+          id: string
+          new_role: string | null
+          old_role: string | null
+          target_user_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          board_id: string
+          created_at?: string
+          id?: string
+          new_role?: string | null
+          old_role?: string | null
+          target_user_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          board_id?: string
+          created_at?: string
+          id?: string
+          new_role?: string | null
+          old_role?: string | null
+          target_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "board_member_audit_log_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       board_members: {
         Row: {
           board_id: string

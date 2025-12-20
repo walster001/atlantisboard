@@ -2,10 +2,11 @@
  * ToastUIMarkdownEditor.tsx
  * 
  * A WYSIWYG Markdown editor using Toast UI Editor.
- * Renders inline buttons as draggable HTML elements within the editor.
+ * Stores inline buttons as [INLINE_BUTTON:base64] in markdown,
+ * displays them as styled text placeholders in the editor.
  */
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
 import { cn } from '@/lib/utils';
@@ -21,70 +22,64 @@ interface ToastUIMarkdownEditorProps {
 const INLINE_BUTTON_MARKDOWN_REGEX = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g;
 
 /**
- * Create HTML for an inline button that renders properly in the editor
+ * Create a text placeholder for an inline button in the editor
+ * Using a simple format that Toast UI won't sanitize: 【ButtonText】
  */
-function createButtonHtml(data: InlineButtonData, encodedData: string): string {
-  const iconHtml = data.iconUrl 
-    ? `<img src="${data.iconUrl}" alt="" draggable="false" style="width:${data.iconSize || 16}px;height:${data.iconSize || 16}px;object-fit:contain;vertical-align:middle;pointer-events:none;">` 
-    : '';
-  
-  return `<span class="inline-btn" data-btn="${encodedData}" draggable="true" contenteditable="false" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;margin:0 2px;border-radius:4px;background:${data.backgroundColor || '#1D2125'};border:1px solid #3d444d;cursor:grab;vertical-align:middle;user-select:none;">${iconHtml}<span style="color:${data.textColor || '#579DFF'};pointer-events:none;">${data.linkText || 'Button'}</span></span>`;
+function createButtonPlaceholder(data: InlineButtonData): string {
+  return `【${data.linkText || 'Button'}】`;
 }
 
 /**
- * Convert markdown [INLINE_BUTTON:...] to HTML buttons for editor display
+ * Extract button data from content and create a map of placeholder -> data
  */
-function markdownToEditorHtml(markdown: string): string {
-  if (!markdown) return '';
+function extractButtons(content: string): Map<string, InlineButtonData> {
+  const buttons = new Map<string, InlineButtonData>();
+  if (!content) return buttons;
   
-  return markdown.replace(INLINE_BUTTON_MARKDOWN_REGEX, (_match, encodedData) => {
+  let match;
+  INLINE_BUTTON_MARKDOWN_REGEX.lastIndex = 0;
+  
+  while ((match = INLINE_BUTTON_MARKDOWN_REGEX.exec(content)) !== null) {
+    const data = parseInlineButtonFromDataAttr(match[1]);
+    if (data) {
+      const placeholder = createButtonPlaceholder(data);
+      buttons.set(placeholder, data);
+    }
+  }
+  
+  return buttons;
+}
+
+/**
+ * Convert content with [INLINE_BUTTON:...] to editor format with placeholders
+ */
+function contentToEditorFormat(content: string): string {
+  if (!content) return '';
+  
+  return content.replace(INLINE_BUTTON_MARKDOWN_REGEX, (_match, encodedData) => {
     const data = parseInlineButtonFromDataAttr(encodedData);
     if (data) {
-      return createButtonHtml(data, encodedData);
+      return createButtonPlaceholder(data);
     }
     return '';
   });
 }
 
 /**
- * Convert editor HTML back to markdown format for storage
+ * Convert editor content back to storage format, restoring button markers
  */
-function editorHtmlToMarkdown(html: string): string {
-  if (!html) return '';
+function editorToContentFormat(editorContent: string, buttonMap: Map<string, InlineButtonData>): string {
+  if (!editorContent) return '';
   
-  let result = html;
+  let result = editorContent;
   
-  // Convert inline button spans back to markdown format
-  result = result.replace(/<span[^>]*class="[^"]*inline-btn[^"]*"[^>]*data-btn="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi, 
-    (_match, encodedData) => `[INLINE_BUTTON:${encodedData}]`
-  );
-  
-  // Convert basic HTML to markdown
-  result = result.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '# $1\n');
-  result = result.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '## $1\n');
-  result = result.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '### $1\n');
-  result = result.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, '#### $1\n');
-  result = result.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**');
-  result = result.replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**');
-  result = result.replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '*$1*');
-  result = result.replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '*$1*');
-  result = result.replace(/<s[^>]*>([\s\S]*?)<\/s>/gi, '~~$1~~');
-  result = result.replace(/<del[^>]*>([\s\S]*?)<\/del>/gi, '~~$1~~');
-  result = result.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`');
-  result = result.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)');
-  result = result.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n');
-  result = result.replace(/<\/?[uo]l[^>]*>/gi, '\n');
-  result = result.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, '> $1\n');
-  result = result.replace(/<hr\s*\/?>/gi, '\n---\n');
-  result = result.replace(/<br\s*\/?>/gi, '\n');
-  result = result.replace(/<\/p>\s*<p[^>]*>/gi, '\n\n');
-  result = result.replace(/<\/?p[^>]*>/gi, '');
-  result = result.replace(/<\/?div[^>]*>/gi, '');
-  result = result.replace(/<\/?span[^>]*>/gi, '');
-  
-  // Decode entities
-  result = result.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ');
-  result = result.replace(/\n{3,}/g, '\n\n').trim();
+  // Restore button placeholders to [INLINE_BUTTON:...] format
+  for (const [placeholder, data] of buttonMap) {
+    const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    // Escape special regex chars in placeholder
+    const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(escapedPlaceholder, 'g'), `[INLINE_BUTTON:${encodedData}]`);
+  }
   
   return result;
 }
@@ -99,12 +94,17 @@ export function ToastUIMarkdownEditor({
   const [showButtonEditor, setShowButtonEditor] = useState(false);
   const [editingButton, setEditingButton] = useState<InlineButtonData | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const dropIndicatorRef = useRef<HTMLDivElement | null>(null);
   const isSyncing = useRef(false);
   const isInitialized = useRef(false);
   const lastContentRef = useRef(content);
-  const dragDataRef = useRef<string | null>(null);
-  const dragSourceRef = useRef<HTMLElement | null>(null);
+  const buttonMapRef = useRef<Map<string, InlineButtonData>>(new Map());
+  
+  // Parse buttons from content
+  const buttons = useMemo(() => {
+    const map = extractButtons(content);
+    buttonMapRef.current = map;
+    return Array.from(map.entries()).map(([placeholder, data]) => ({ placeholder, data }));
+  }, [content]);
   
   // Handle editor changes
   const handleChange = useCallback(() => {
@@ -113,12 +113,12 @@ export function ToastUIMarkdownEditor({
     const editor = editorRef.current?.getInstance();
     if (!editor) return;
     
-    const html = editor.getHTML();
-    const markdown = editorHtmlToMarkdown(html);
+    const markdown = editor.getMarkdown();
+    const converted = editorToContentFormat(markdown, buttonMapRef.current);
     
-    if (markdown !== lastContentRef.current) {
-      lastContentRef.current = markdown;
-      onChange(markdown);
+    if (converted !== lastContentRef.current) {
+      lastContentRef.current = converted;
+      onChange(converted);
     }
   }, [onChange]);
   
@@ -128,9 +128,9 @@ export function ToastUIMarkdownEditor({
     if (!editor || isInitialized.current) return;
     
     const timeoutId = setTimeout(() => {
-      const html = markdownToEditorHtml(content);
+      const editorContent = contentToEditorFormat(content);
       isSyncing.current = true;
-      editor.setHTML(html || '<p><br></p>');
+      editor.setMarkdown(editorContent);
       isSyncing.current = false;
       lastContentRef.current = content;
       isInitialized.current = true;
@@ -147,185 +147,33 @@ export function ToastUIMarkdownEditor({
     if (!editor) return;
     
     isSyncing.current = true;
-    editor.setHTML(markdownToEditorHtml(content) || '<p><br></p>');
+    editor.setMarkdown(contentToEditorFormat(content));
     lastContentRef.current = content;
     isSyncing.current = false;
   }, [content]);
-  
-  // Create/show drop indicator
-  const showDropIndicator = useCallback((x: number, y: number) => {
-    if (!dropIndicatorRef.current) {
-      const indicator = document.createElement('div');
-      indicator.className = 'drop-indicator';
-      indicator.style.cssText = `
-        position: fixed;
-        width: 2px;
-        height: 20px;
-        background: #579DFF;
-        border-radius: 1px;
-        pointer-events: none;
-        z-index: 9999;
-        box-shadow: 0 0 4px rgba(87, 157, 255, 0.6);
-        transition: left 0.05s ease-out, top 0.05s ease-out;
-      `;
-      document.body.appendChild(indicator);
-      dropIndicatorRef.current = indicator;
-    }
-    
-    dropIndicatorRef.current.style.left = `${x}px`;
-    dropIndicatorRef.current.style.top = `${y - 10}px`;
-    dropIndicatorRef.current.style.display = 'block';
-  }, []);
-  
-  const hideDropIndicator = useCallback(() => {
-    if (dropIndicatorRef.current) {
-      dropIndicatorRef.current.style.display = 'none';
-    }
-  }, []);
-  
-  // Cleanup drop indicator on unmount
-  useEffect(() => {
-    return () => {
-      if (dropIndicatorRef.current) {
-        dropIndicatorRef.current.remove();
-        dropIndicatorRef.current = null;
-      }
-    };
-  }, []);
-  
-  // Setup drag-and-drop and click handlers for buttons
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    
-    const handleDragStart = (e: DragEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.classList.contains('inline-btn')) {
-        e.dataTransfer?.setData('text/plain', target.outerHTML);
-        e.dataTransfer!.effectAllowed = 'move';
-        dragDataRef.current = target.getAttribute('data-btn');
-        dragSourceRef.current = target;
-        target.style.opacity = '0.4';
-        target.classList.add('dragging');
-      }
-    };
-    
-    const handleDragEnd = (e: DragEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.classList.contains('inline-btn')) {
-        target.style.opacity = '1';
-        target.classList.remove('dragging');
-      }
-      dragSourceRef.current = null;
-      hideDropIndicator();
-    };
-    
-    const handleDragOver = (e: DragEvent) => {
-      if (!dragDataRef.current) return;
-      e.preventDefault();
-      e.dataTransfer!.dropEffect = 'move';
-      
-      // Show drop indicator at cursor position
-      showDropIndicator(e.clientX, e.clientY);
-    };
-    
-    const handleDragLeave = (e: DragEvent) => {
-      // Only hide if leaving the container entirely
-      const relatedTarget = e.relatedTarget as HTMLElement;
-      if (!container.contains(relatedTarget)) {
-        hideDropIndicator();
-      }
-    };
-    
-    const handleDrop = (e: DragEvent) => {
-      e.preventDefault();
-      hideDropIndicator();
-      
-      if (!dragDataRef.current) return;
-      
-      const editor = editorRef.current?.getInstance();
-      if (!editor) return;
-      
-      const html = e.dataTransfer?.getData('text/plain');
-      if (html) {
-        // Remove the original button first
-        let currentHtml = editor.getHTML();
-        const originalPattern = new RegExp(
-          `<span[^>]*data-btn="${dragDataRef.current.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>[\\s\\S]*?</span>`,
-          'gi'
-        );
-        currentHtml = currentHtml.replace(originalPattern, '');
-        editor.setHTML(currentHtml);
-        
-        // Insert at cursor position
-        const wwEditor = (editor as any).wwEditor;
-        if (wwEditor?.view) {
-          editor.exec('html', html);
-        } else {
-          editor.setHTML(editor.getHTML() + ' ' + html);
-        }
-        
-        dragDataRef.current = null;
-        setTimeout(handleChange, 10);
-      }
-    };
-    
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const btnEl = target.closest('.inline-btn') as HTMLElement;
-      
-      if (btnEl && !btnEl.classList.contains('dragging')) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const dataAttr = btnEl.getAttribute('data-btn');
-        if (dataAttr) {
-          const data = parseInlineButtonFromDataAttr(dataAttr);
-          if (data) {
-            setEditingButton(data);
-            setShowButtonEditor(true);
-          }
-        }
-      }
-    };
-    
-    container.addEventListener('dragstart', handleDragStart);
-    container.addEventListener('dragend', handleDragEnd);
-    container.addEventListener('dragover', handleDragOver);
-    container.addEventListener('dragleave', handleDragLeave);
-    container.addEventListener('drop', handleDrop);
-    container.addEventListener('click', handleClick);
-    
-    return () => {
-      container.removeEventListener('dragstart', handleDragStart);
-      container.removeEventListener('dragend', handleDragEnd);
-      container.removeEventListener('dragover', handleDragOver);
-      container.removeEventListener('dragleave', handleDragLeave);
-      container.removeEventListener('drop', handleDrop);
-      container.removeEventListener('click', handleClick);
-    };
-  }, [handleChange, showDropIndicator, hideDropIndicator]);
   
   const handleSaveButton = useCallback((data: InlineButtonData) => {
     const editor = editorRef.current?.getInstance();
     if (!editor) return;
     
+    const placeholder = createButtonPlaceholder(data);
     const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-    const newButtonHtml = createButtonHtml(data, encodedData);
     
     if (editingButton) {
-      // Replace existing button
-      const oldEncoded = btoa(unescape(encodeURIComponent(JSON.stringify(editingButton))));
-      let html = editor.getHTML();
-      const pattern = new RegExp(
-        `<span[^>]*data-btn="${oldEncoded.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>[\\s\\S]*?</span>`,
-        'gi'
-      );
-      html = html.replace(pattern, newButtonHtml);
-      editor.setHTML(html);
+      // Replace existing button in content
+      const oldPlaceholder = createButtonPlaceholder(editingButton);
+      let markdown = editor.getMarkdown();
+      const escapedOld = oldPlaceholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      markdown = markdown.replace(new RegExp(escapedOld, 'g'), placeholder);
+      editor.setMarkdown(markdown);
+      
+      // Update button map
+      buttonMapRef.current.delete(oldPlaceholder);
+      buttonMapRef.current.set(placeholder, data);
     } else {
-      // Insert new button
-      editor.exec('html', newButtonHtml);
+      // Insert new button at cursor
+      editor.insertText(placeholder);
+      buttonMapRef.current.set(placeholder, data);
     }
     
     setEditingButton(null);
@@ -338,14 +186,13 @@ export function ToastUIMarkdownEditor({
     const editor = editorRef.current?.getInstance();
     if (!editor) return;
     
-    const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(editingButton))));
-    let html = editor.getHTML();
-    const pattern = new RegExp(
-      `<span[^>]*data-btn="${encodedData.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>[\\s\\S]*?</span>`,
-      'gi'
-    );
-    html = html.replace(pattern, '');
-    editor.setHTML(html);
+    const placeholder = createButtonPlaceholder(editingButton);
+    let markdown = editor.getMarkdown();
+    const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    markdown = markdown.replace(new RegExp(escapedPlaceholder, 'g'), '');
+    editor.setMarkdown(markdown);
+    
+    buttonMapRef.current.delete(placeholder);
     
     setShowButtonEditor(false);
     setEditingButton(null);
@@ -354,6 +201,11 @@ export function ToastUIMarkdownEditor({
   
   const handleAddButton = useCallback(() => {
     setEditingButton(null);
+    setShowButtonEditor(true);
+  }, []);
+  
+  const handleEditButton = useCallback((data: InlineButtonData) => {
+    setEditingButton(data);
     setShowButtonEditor(true);
   }, []);
   
@@ -390,6 +242,37 @@ export function ToastUIMarkdownEditor({
         ]}
       />
       
+      {/* Button chips for editing - shown below editor when buttons exist */}
+      {buttons.length > 0 && (
+        <div className="px-3 py-2 border-t bg-muted/30 flex flex-wrap gap-2 items-center">
+          <span className="text-xs text-muted-foreground">Click to edit:</span>
+          {buttons.map((btn, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleEditButton(btn.data)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm cursor-pointer transition-all hover:opacity-80 hover:ring-2 hover:ring-primary/40"
+              style={{
+                backgroundColor: btn.data.backgroundColor || '#1D2125',
+                border: '1px solid #3d444d',
+              }}
+            >
+              {btn.data.iconUrl && (
+                <img
+                  src={btn.data.iconUrl}
+                  alt=""
+                  style={{ width: btn.data.iconSize || 16, height: btn.data.iconSize || 16 }}
+                  className="object-contain"
+                />
+              )}
+              <span style={{ color: btn.data.textColor || '#579DFF' }}>
+                {btn.data.linkText || 'Button'}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      
       <InlineButtonEditor
         open={showButtonEditor}
         onOpenChange={setShowButtonEditor}
@@ -399,22 +282,8 @@ export function ToastUIMarkdownEditor({
       />
       
       <style>{`
-        .toastui-editor-wrapper .inline-btn {
-          transition: opacity 0.15s, box-shadow 0.15s, transform 0.15s;
-        }
-        .toastui-editor-wrapper .inline-btn:hover:not(.dragging) {
-          box-shadow: 0 0 0 2px rgba(87, 157, 255, 0.4);
-        }
-        .toastui-editor-wrapper .inline-btn:active,
-        .toastui-editor-wrapper .inline-btn.dragging {
-          cursor: grabbing;
-          transform: scale(0.98);
-        }
-        .toastui-editor-wrapper .inline-btn.dragging {
-          opacity: 0.4 !important;
-        }
-        .toastui-editor-wrapper .inline-btn img {
-          pointer-events: none;
+        .toastui-editor-wrapper .toastui-editor-contents {
+          font-size: 14px;
         }
       `}</style>
     </div>

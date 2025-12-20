@@ -212,13 +212,11 @@ export function CardDetailModal({
     : themeCardWindowTextColor;
 
   // Apply theme colors - use CSS custom properties for text color inheritance
+  // Height is now controlled by the dialog wrapper (100vh - 20px padding)
   const contentStyle: React.CSSProperties = themeCardWindowColor ? {
-    maxHeight: 'calc(85vh - 2rem)',
     backgroundColor: themeCardWindowColor,
     color: effectiveTextColor || undefined,
-  } : {
-    maxHeight: 'calc(85vh - 2rem)',
-  };
+  } : {};
 
   // Check if custom button colors are provided
   const hasCustomButtonColors = !!themeCardWindowButtonColor;
@@ -599,7 +597,10 @@ export function CardDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] p-0 flex flex-col overflow-hidden" hideCloseButton>
+      <DialogContent 
+        className="w-[50vw] max-w-none h-[calc(100vh-20px)] max-h-[calc(100vh-20px)] p-0 flex flex-col overflow-hidden" 
+        hideCloseButton
+      >
         {content}
       </DialogContent>
     </Dialog>

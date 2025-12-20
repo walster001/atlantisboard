@@ -9,11 +9,12 @@ import { CardDetailModal } from '@/components/kanban/CardDetailModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, ArrowLeft, Loader2, Users, LayoutGrid, LogOut, User, Settings } from 'lucide-react';
+import { Plus, ArrowLeft, Loader2, Users, LayoutGrid, LogOut, User, Settings, Cog } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card as CardType, Label } from '@/types/kanban';
 import { BoardMembersDialog } from '@/components/kanban/BoardMembersDialog';
+import { BoardSettingsModal } from '@/components/kanban/BoardSettingsModal';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
 import { useDragScroll } from '@/hooks/useDragScroll';
@@ -84,6 +85,7 @@ export default function BoardPage() {
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { ref: dragScrollRef, isDragging, isSpaceHeld } = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
@@ -729,12 +731,12 @@ export default function BoardPage() {
             {canManageMembers && (
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon"
                 className="text-white hover:bg-white/20"
-                onClick={() => setMembersDialogOpen(true)}
+                onClick={() => setSettingsModalOpen(true)}
+                title="Board Settings"
               >
-                <Users className="h-4 w-4 mr-2" />
-                Members
+                <Cog className="h-5 w-5" />
               </Button>
             )}
             <DropdownMenu>
@@ -916,11 +918,11 @@ export default function BoardPage() {
         }}
       />
 
-      {/* Members Dialog */}
+      {/* Board Settings Modal */}
       {boardId && (
-        <BoardMembersDialog
-          open={membersDialogOpen}
-          onClose={() => setMembersDialogOpen(false)}
+        <BoardSettingsModal
+          open={settingsModalOpen}
+          onClose={() => setSettingsModalOpen(false)}
           boardId={boardId}
           members={boardMembers}
           userRole={userRole}

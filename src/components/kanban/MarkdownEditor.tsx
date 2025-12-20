@@ -173,41 +173,66 @@ function markdownToHtml(markdown: string): string {
   try {
     let content = markdown;
     
-    // First, convert [INLINE_BUTTON:base64data] format to HTML spans
+    // Preserve [INLINE_BUTTON:...] placeholders during markdown parsing
+    // by replacing them with unique tokens
+    const buttonPlaceholders: Map<string, string> = new Map();
+    let buttonIndex = 0;
+    
     content = content.replace(/\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g, (_match, dataAttr) => {
+      const token = `___INLINE_BTN_${buttonIndex++}___`;
       const data = parseInlineButtonFromDataAttr(dataAttr);
       if (data) {
-        return serializeInlineButtonHtml(data);
+        buttonPlaceholders.set(token, serializeInlineButtonHtml(data));
+      } else {
+        buttonPlaceholders.set(token, '');
       }
-      return '';
+      return token;
     });
     
-    // Check if content is already HTML (legacy imported content)
+    // Also preserve existing inline button HTML spans
+    content = content.replace(/<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*>[\s\S]*?<\/span>/gi, (match) => {
+      const token = `___INLINE_BTN_${buttonIndex++}___`;
+      buttonPlaceholders.set(token, match);
+      return token;
+    });
+    
+    // Transform legacy Wekan inline buttons before markdown processing
+    content = transformLegacyInlineButtons(content);
+    
+    // Check if content is pure HTML (no markdown syntax)
     const trimmed = content.trim();
-    const isHtml = (
-      (trimmed.startsWith('<') && (
-        trimmed.startsWith('<p>') ||
-        trimmed.startsWith('<p ') ||
-        trimmed.startsWith('<h') ||
-        trimmed.startsWith('<ul') ||
-        trimmed.startsWith('<ol') ||
-        trimmed.startsWith('<div') ||
-        trimmed.startsWith('<blockquote') ||
-        trimmed.startsWith('<pre') ||
-        trimmed.startsWith('<span')
-      )) ||
-      /<(p|h[1-6]|ul|ol|li|div|blockquote|pre|strong|em|a|span|br)\b[^>]*>/i.test(content)
+    const startsWithHtml = trimmed.startsWith('<') && (
+      trimmed.startsWith('<p>') ||
+      trimmed.startsWith('<p ') ||
+      trimmed.startsWith('<h') ||
+      trimmed.startsWith('<ul') ||
+      trimmed.startsWith('<ol') ||
+      trimmed.startsWith('<div') ||
+      trimmed.startsWith('<blockquote') ||
+      trimmed.startsWith('<pre')
     );
     
-    if (isHtml) {
-      // Already HTML - transform any legacy Wekan inline buttons
-      return transformLegacyInlineButtons(content);
+    // Check for markdown syntax that indicates we should parse as markdown
+    const hasMarkdownSyntax = /^(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\*\*|__|```|\[.+\]\(.+\))/m.test(content);
+    
+    let result: string;
+    
+    if (startsWithHtml && !hasMarkdownSyntax) {
+      // Pure HTML content
+      result = content;
+    } else {
+      // Parse as markdown (handles mixed content well)
+      result = marked.parse(content, { async: false }) as string;
     }
     
-    // Convert markdown to HTML
-    let result = marked.parse(content, { async: false }) as string;
+    // Restore button placeholders
+    for (const [token, html] of buttonPlaceholders) {
+      result = result.replace(token, html);
+      // Also handle case where marked wrapped the token in <p> tags
+      result = result.replace(`<p>${token}</p>`, html);
+    }
     
-    // Also run transform on the result in case the markdown contained HTML inline buttons
+    // Final cleanup pass
     result = transformLegacyInlineButtons(result);
     
     return result;
@@ -222,17 +247,32 @@ function markdownToHtml(markdown: string): string {
  * Handles multiple formats:
  * 1. Wekan-style: <span style="display:inline-flex"><img><a>text</a></span>
  * 2. Simple hyperlinks within styled spans
+ * 3. Nested anchor tags that got corrupted by TipTap
  */
 function transformLegacyInlineButtons(html: string): string {
   if (!html) return html;
   
   let result = html;
   
-  // Pattern 1: Wekan-style inline buttons with display:inline-flex
+  // Pattern 1: Our editable-inline-button format that contains corrupted content
+  // (e.g., TipTap turned the inner text into an <a> hyperlink)
+  // We need to process these FIRST before they get matched by other patterns
+  const editableButtonPattern = /<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*data-inline-button="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi;
+  
+  result = result.replace(editableButtonPattern, (_match, dataAttr) => {
+    const data = parseInlineButtonFromDataAttr(dataAttr);
+    if (data) {
+      // Re-serialize to clean format (removes any corrupted inner content)
+      return serializeInlineButtonHtml(data);
+    }
+    return _match;
+  });
+  
+  // Pattern 2: Wekan-style inline buttons with display:inline-flex containing <a> tags
   const wekanPattern = /<span[^>]*style=['"][^'"]*display\s*:\s*inline-?flex[^'"]*['"][^>]*>([\s\S]*?)<\/span>/gi;
   
   result = result.replace(wekanPattern, (match) => {
-    // Check if it's already our format
+    // Skip if it's already our format (already processed above)
     if (match.includes('editable-inline-button') || match.includes('data-inline-button')) {
       return match;
     }
@@ -259,16 +299,23 @@ function transformLegacyInlineButtons(html: string): string {
     return match;
   });
   
-  // Pattern 2: Our editable-inline-button format that might have been corrupted
-  // (e.g., the link text was turned into an actual hyperlink)
-  const corruptedButtonPattern = /<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*data-inline-button="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi;
+  // Pattern 3: Standalone hyperlinks that TipTap wrapped around our button content
+  // This happens when the inline-button-text gets turned into a link
+  // e.g., <a href="..."><span class="inline-button-text">text</span></a>
+  const wrappedLinkPattern = /<a[^>]*href=['"]([^'"]+)['"][^>]*>\s*<span[^>]*class="[^"]*inline-button-text[^"]*"[^>]*style=['"][^'"]*color:\s*([^;'"]+)[^'"]*['"][^>]*>([^<]*)<\/span>\s*<\/a>/gi;
   
-  result = result.replace(corruptedButtonPattern, (_match, dataAttr) => {
-    const data = parseInlineButtonFromDataAttr(dataAttr);
-    if (data) {
-      return serializeInlineButtonHtml(data);
-    }
-    return _match;
+  result = result.replace(wrappedLinkPattern, (match, href, textColor, linkText) => {
+    // Create a simple button from the wrapped link
+    const data: InlineButtonData = {
+      id: `recovered-btn-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      iconUrl: '',
+      iconSize: 16,
+      linkUrl: href || '',
+      linkText: linkText?.trim() || 'Button',
+      textColor: textColor?.trim() || '#579DFF',
+      backgroundColor: '#1D2125',
+    };
+    return serializeInlineButtonHtml(data);
   });
   
   return result;
@@ -355,6 +402,7 @@ export function MarkdownEditor({
       }),
       Link.configure({
         openOnClick: false,
+        autolink: false, // Disable auto-linking to prevent corruption of inline buttons
         HTMLAttributes: {
           class: 'text-primary underline hover:text-primary/80',
           target: '_blank',
@@ -368,6 +416,16 @@ export function MarkdownEditor({
       }),
     ],
     content: initialHtml,
+    onCreate: ({ editor }) => {
+      // Re-process content after TipTap initial parse to fix any corrupted inline buttons
+      const currentHtml = editor.getHTML();
+      const cleanedHtml = transformLegacyInlineButtons(currentHtml);
+      if (cleanedHtml !== currentHtml) {
+        isSyncing.current = true;
+        editor.commands.setContent(cleanedHtml, { emitUpdate: false });
+        isSyncing.current = false;
+      }
+    },
     onUpdate: ({ editor }) => {
       if (isSyncing.current) return;
       
@@ -426,7 +484,15 @@ export function MarkdownEditor({
         isSyncing.current = true;
         const newHtml = markdownToHtml(content);
         editor.commands.setContent(newHtml, { emitUpdate: false });
-        isSyncing.current = false;
+        
+        // Re-process after a tick to fix any corrupted inline buttons
+        requestAnimationFrame(() => {
+          const processedHtml = transformLegacyInlineButtons(editor.getHTML());
+          if (processedHtml !== editor.getHTML()) {
+            editor.commands.setContent(processedHtml, { emitUpdate: false });
+          }
+          isSyncing.current = false;
+        });
       }
     }
   }, [content, editor]);

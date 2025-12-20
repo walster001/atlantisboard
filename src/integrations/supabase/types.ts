@@ -753,6 +753,13 @@ export type Database = {
             referencedRelation: "cards"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "import_pending_attachments_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       labels: {

@@ -755,8 +755,22 @@ export default function BoardPage() {
     );
   }
 
+  // Check if background is an image URL
+  const isImageBackground = boardColor.startsWith('http://') || boardColor.startsWith('https://') || boardColor.startsWith('data:');
+  
+  const containerStyle: React.CSSProperties = isImageBackground
+    ? {
+        backgroundImage: `url(${boardColor})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }
+    : {
+        backgroundColor: sanitizeColor(boardColor),
+      };
+
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: sanitizeColor(boardColor) }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={containerStyle}>
       {/* Header - apply theme navbar color */}
       <header 
         className="flex-shrink-0 z-10 backdrop-blur-sm"
@@ -1004,8 +1018,12 @@ export default function BoardPage() {
           userRole={userRole}
           currentUserId={user?.id || null}
           currentThemeId={boardThemeId}
+          currentTheme={boardTheme}
+          currentBackgroundColor={isImageBackground ? '#0079bf' : boardColor}
+          currentBackgroundImageUrl={isImageBackground ? boardColor : null}
           onMembersChange={refreshBoardMembers}
           onThemeChange={fetchBoardData}
+          onBackgroundChange={fetchBoardData}
         />
       )}
     </div>

@@ -451,7 +451,7 @@ export function ToastUIMarkdownEditor({
     btn.type = 'button';
     
     const dropdown = document.createElement('div');
-    dropdown.style.cssText = 'position:fixed;z-index:99999;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:400px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
+    dropdown.style.cssText = 'position:fixed;z-index:2147483647;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:400px;box-shadow:0 12px 32px rgba(0,0,0,0.5);pointer-events:auto;';
     document.body.appendChild(dropdown);
     
     const searchContainer = document.createElement('div');
@@ -485,6 +485,17 @@ export function ToastUIMarkdownEditor({
     let activeCategory: string | null = 'recent';
     const tabButtons: HTMLButtonElement[] = [];
     
+    // Store selection before dropdown opens
+    let savedSelection: { start: number; end: number } | null = null;
+    
+    const saveSelection = () => {
+      const editor = editorRef.current?.getInstance();
+      if (editor) {
+        const [start, end] = editor.getSelection();
+        savedSelection = { start, end };
+      }
+    };
+    
     const createEmojiButton = (emoji: string): HTMLButtonElement => {
       const emojiBtn = document.createElement('button');
       emojiBtn.type = 'button';
@@ -498,6 +509,12 @@ export function ToastUIMarkdownEditor({
         e.stopPropagation();
         const editor = editorRef.current?.getInstance();
         if (editor) {
+          // Restore focus to editor first
+          editor.focus();
+          // Restore selection if we have it
+          if (savedSelection) {
+            editor.setSelection(savedSelection.start, savedSelection.end);
+          }
           editor.insertText(emoji);
           addRecentEmoji(emoji);
         }
@@ -601,6 +618,8 @@ export function ToastUIMarkdownEditor({
       if (isVisible) {
         dropdown.style.display = 'none';
       } else {
+        // Save selection before opening dropdown
+        saveSelection();
         positionDropdown();
         dropdown.style.display = 'flex';
         activeCategory = 'recent';

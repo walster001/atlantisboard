@@ -109,7 +109,7 @@ interface TrelloBoard {
   members?: TrelloMember[];
 }
 
-// Color mapping from Trello to hex
+// Color mapping from Trello to hex - comprehensive list
 const trelloColorMap: Record<string, string> = {
   green: '#61bd4f',
   yellow: '#f2d600',
@@ -121,6 +121,7 @@ const trelloColorMap: Record<string, string> = {
   lime: '#51e898',
   pink: '#ff78cb',
   black: '#344563',
+  // Dark variants
   green_dark: '#519839',
   yellow_dark: '#d9b51c',
   orange_dark: '#cd8313',
@@ -131,6 +132,7 @@ const trelloColorMap: Record<string, string> = {
   lime_dark: '#49852e',
   pink_dark: '#c75488',
   black_dark: '#091e42',
+  // Light variants
   green_light: '#b3f1b0',
   yellow_light: '#f5ea92',
   orange_light: '#fad29c',
@@ -141,7 +143,22 @@ const trelloColorMap: Record<string, string> = {
   lime_light: '#b3f1d0',
   pink_light: '#f9c2e4',
   black_light: '#c1c7d0',
+  // Additional colors that may appear
+  white: '#b3bac5',
+  navy: '#026aa7',
+  teal: '#008080',
+  grey: '#808080',
+  gray: '#808080',
 };
+
+// Helper function to get color - handles hex values directly or maps named colors
+function getTrelloColor(color: string | undefined | null): string {
+  if (!color) return '#6b7280';
+  // If it's already a hex color, use it directly
+  if (color.startsWith('#')) return color;
+  // Try to find in color map, otherwise use default
+  return trelloColorMap[color.toLowerCase()] || '#6b7280';
+}
 
 // Preset colors for default card color picker
 const DEFAULT_CARD_COLORS = [
@@ -475,7 +492,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         if (!label.name && !label.color) continue;
         
         onProgress('labels', labelIdx + 1, trelloLabels.length, `Label ${labelIdx + 1}/${trelloLabels.length}`);
-        const labelColor = label.color ? (trelloColorMap[label.color] || '#6b7280') : '#6b7280';
+        const labelColor = getTrelloColor(label.color);
         const labelName = label.name || label.color || 'Unnamed';
         
         const { data: newLabel, error: labelError } = await supabase

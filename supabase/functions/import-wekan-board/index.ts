@@ -168,8 +168,9 @@ interface WekanBoard {
   modifiedAt?: string;
 }
 
-// Map Wekan colors to hex colors
+// Map Wekan colors to hex colors - comprehensive list including all Wekan color names
 const wekanColorMap: Record<string, string> = {
+  // Standard colors
   green: '#61bd4f',
   yellow: '#f2d600',
   orange: '#ff9f1a',
@@ -182,11 +183,44 @@ const wekanColorMap: Record<string, string> = {
   black: '#344563',
   white: '#b3bac5',
   navy: '#026aa7',
+  // Extended Wekan colors
   darkgreen: '#519839',
   darkblue: '#094c72',
   belize: '#2980b9',
+  midnight: '#1a1a2e',
+  peach: '#ffab91',
+  crimson: '#dc143c',
+  plum: '#8e4585',
+  raspberry: '#e30b5c',
+  teal: '#008080',
+  aqua: '#00ffff',
+  gold: '#ffd700',
+  silver: '#c0c0c0',
+  chartreuse: '#7fff00',
+  pumpkin: '#ff7518',
+  forest: '#228b22',
+  indigo: '#4b0082',
+  turquoise: '#40e0d0',
+  coral: '#ff7f50',
+  magenta: '#ff00ff',
+  olive: '#808000',
+  maroon: '#800000',
+  bronze: '#cd7f32',
+  brown: '#8b4513',
+  grey: '#808080',
+  gray: '#808080',
+  // Fallback
   default: '#838c91',
 };
+
+// Helper function to get color - handles hex values directly or maps named colors
+function getWekanColor(color: string | undefined | null): string {
+  if (!color) return wekanColorMap.default;
+  // If it's already a hex color, use it directly
+  if (color.startsWith('#')) return color;
+  // Try to find in color map, otherwise use default
+  return wekanColorMap[color.toLowerCase()] || wekanColorMap.default;
+}
 
 interface ProgressUpdate {
   type: 'progress';
@@ -466,10 +500,7 @@ async function runImport(
       console.log('Processing board:', wekanBoard.title);
 
       // Determine board color
-      let boardColor = '#0079bf';
-      if (wekanBoard.color && wekanColorMap[wekanBoard.color]) {
-        boardColor = wekanColorMap[wekanBoard.color];
-      }
+      const boardColor = getWekanColor(wekanBoard.color) || '#0079bf';
 
       // Create board
       const { data: board, error: boardError } = await supabase
@@ -518,7 +549,7 @@ async function runImport(
         processedLabels++;
         sendProgress('labels', processedLabels, totalLabels, `Label: ${wekanLabel.name}`);
 
-        const labelColor = wekanColorMap[wekanLabel.color] || wekanColorMap.default;
+        const labelColor = getWekanColor(wekanLabel.color);
 
         const { data: label, error: labelError } = await supabase
           .from('labels')
@@ -608,31 +639,8 @@ async function runImport(
             }
           }
 
-          // Determine card color - accept any color format
-          let cardColor = null;
-          if (wekanCard.color) {
-            if (wekanColorMap[wekanCard.color]) {
-              // Known named color
-              cardColor = wekanColorMap[wekanCard.color];
-            } else if (wekanCard.color.startsWith('#')) {
-              // Already a hex color
-              cardColor = wekanCard.color;
-            } else if (wekanCard.color.startsWith('rgb')) {
-              // RGB format - keep as is, can be edited later
-              cardColor = wekanCard.color;
-            } else {
-              // Unknown named color - try to use it as-is (might be a CSS color name)
-              // Convert common CSS color names to hex for consistency
-              const cssColorMap: Record<string, string> = {
-                red: '#ff0000', green: '#008000', blue: '#0000ff', yellow: '#ffff00',
-                orange: '#ffa500', purple: '#800080', pink: '#ffc0cb', black: '#000000',
-                white: '#ffffff', gray: '#808080', grey: '#808080', cyan: '#00ffff',
-                magenta: '#ff00ff', lime: '#00ff00', navy: '#000080', teal: '#008080',
-                maroon: '#800000', olive: '#808000', aqua: '#00ffff', silver: '#c0c0c0',
-              };
-              cardColor = cssColorMap[wekanCard.color.toLowerCase()] || wekanCard.color;
-            }
-          }
+          // Determine card color using the helper function
+          const cardColor = wekanCard.color ? getWekanColor(wekanCard.color) : null;
 
           // Use default color if card has no color assigned
           const finalCardColor = cardColor || defaultCardColor;

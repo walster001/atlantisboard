@@ -132,15 +132,26 @@ export function CardDetailModal({
     onSave({ dueDate: date?.toISOString() });
   };
 
-  const handleAddLabel = (color: string) => {
+  const handleAddLabel = () => {
+    if (!newLabelText.trim()) return;
     const newLabel: Label = {
       id: Math.random().toString(36).substr(2, 9),
-      color,
-      text: newLabelText || undefined,
+      color: selectedLabelColor,
+      text: newLabelText.trim(),
     };
     onAddLabel(newLabel);
     setNewLabelText('');
+    setSelectedLabelColor(LABEL_COLORS.blue);
     setShowLabelPicker(false);
+  };
+
+  const handleSelectPresetColor = (hex: string) => {
+    setSelectedLabelColor(hex);
+    const rgb = hexToRgb(hex);
+    if (rgb) {
+      setCustomRgb(rgb);
+      setCustomHex(hex);
+    }
   };
 
   const handleCustomRgbChange = (channel: 'r' | 'g' | 'b', value: number) => {
@@ -184,28 +195,6 @@ export function CardDetailModal({
       {/* Header */}
       <div className="flex items-start justify-between p-4 md:p-6 border-b">
         <div className="flex-1 min-w-0">
-          {/* Labels */}
-          {card.labels.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {card.labels.map((label) => (
-                <span
-                  key={label.id}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium text-white"
-                  style={{ backgroundColor: getLabelHexColor(label.color) }}
-                >
-                  {label.text || label.color}
-                  {!disabled && (
-                    <button
-                      onClick={() => onRemoveLabel(label.id)}
-                      className="hover:bg-white/20 rounded-full p-0.5 ml-1"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </span>
-              ))}
-            </div>
-          )}
 
           {/* Title */}
           {isEditingTitle && !disabled ? (
@@ -384,122 +373,164 @@ export function CardDetailModal({
             <span className="text-sm font-medium">Labels</span>
           </div>
           
-          <div className="flex flex-wrap gap-2">
-            {card.labels.length === 0 && disabled && (
-              <span className="text-sm text-muted-foreground italic">No labels</span>
-            )}
-            {!disabled && (
-              <Popover open={showLabelPicker} onOpenChange={setShowLabelPicker}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Tag className="h-3.5 w-3.5 mr-1.5" />
-                    Add Label
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80" align="start">
-                  <div className="space-y-3">
+          {/* Display existing labels */}
+          {card.labels.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {card.labels.map((label) => (
+                <span
+                  key={label.id}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium text-white"
+                  style={{ backgroundColor: getLabelHexColor(label.color) }}
+                >
+                  {label.text || label.color}
+                  {!disabled && (
+                    <button
+                      onClick={() => onRemoveLabel(label.id)}
+                      className="hover:bg-white/20 rounded-full p-0.5 ml-1"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+          
+          {card.labels.length === 0 && disabled && (
+            <span className="text-sm text-muted-foreground italic">No labels</span>
+          )}
+          
+          {!disabled && (
+            <Popover open={showLabelPicker} onOpenChange={setShowLabelPicker}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Tag className="h-3.5 w-3.5 mr-1.5" />
+                  Add Label
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="start">
+                <div className="space-y-3">
+                  <div>
                     <Input
                       value={newLabelText}
                       onChange={(e) => setNewLabelText(e.target.value)}
-                      placeholder="Label text (optional)"
+                      placeholder="Label text (required)"
                       className="h-9"
                     />
-                    <Tabs defaultValue="presets" className="w-full">
-                      <TabsList className="grid w-full grid-cols-2 h-8">
-                        <TabsTrigger value="presets" className="text-xs">Presets</TabsTrigger>
-                        <TabsTrigger value="custom" className="text-xs">Custom</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="presets" className="mt-2">
-                        <div className="grid grid-cols-7 gap-2">
-                          {PRESET_LABEL_COLORS.map((label) => (
-                            <button
-                              key={label.name}
-                              onClick={() => handleAddLabel(label.hex)}
-                              className="h-8 w-full rounded-md hover:ring-2 hover:ring-offset-2 hover:ring-foreground/20 transition-all"
-                              style={{ backgroundColor: label.hex }}
-                              title={label.name}
-                            />
-                          ))}
-                        </div>
-                      </TabsContent>
-                      <TabsContent value="custom" className="mt-2 space-y-3">
-                        <div className="flex gap-2">
-                          <div
-                            className="w-12 h-12 rounded-md border shrink-0"
-                            style={{ backgroundColor: selectedLabelColor }}
-                          />
-                          <div className="flex-1 space-y-2">
-                            <div className="flex gap-2">
-                              <Input
-                                value={customHex}
-                                onChange={(e) => handleCustomHexChange(e.target.value)}
-                                className="h-8 text-xs font-mono"
-                                placeholder="#000000"
-                                maxLength={7}
-                              />
-                              {'EyeDropper' in window && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 shrink-0"
-                                  onClick={handleEyedropper}
-                                >
-                                  <Pipette className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium w-4">R</span>
-                            <Slider
-                              value={[customRgb.r]}
-                              onValueChange={([v]) => handleCustomRgbChange('r', v)}
-                              max={255}
-                              step={1}
-                              className="flex-1"
-                            />
-                            <span className="text-xs w-8 text-right">{customRgb.r}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium w-4">G</span>
-                            <Slider
-                              value={[customRgb.g]}
-                              onValueChange={([v]) => handleCustomRgbChange('g', v)}
-                              max={255}
-                              step={1}
-                              className="flex-1"
-                            />
-                            <span className="text-xs w-8 text-right">{customRgb.g}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium w-4">B</span>
-                            <Slider
-                              value={[customRgb.b]}
-                              onValueChange={([v]) => handleCustomRgbChange('b', v)}
-                              max={255}
-                              step={1}
-                              className="flex-1"
-                            />
-                            <span className="text-xs w-8 text-right">{customRgb.b}</span>
-                          </div>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          className="w-full"
-                          onClick={() => handleAddLabel(selectedLabelColor)}
-                        >
-                          Add Custom Label
-                        </Button>
-                      </TabsContent>
-                    </Tabs>
+                    {!newLabelText.trim() && (
+                      <p className="text-xs text-muted-foreground mt-1">Enter label text to add</p>
+                    )}
                   </div>
-                </PopoverContent>
-              </Popover>
-            )}
-          </div>
+                  
+                  <Tabs defaultValue="presets" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 h-8">
+                      <TabsTrigger value="presets" className="text-xs">Presets</TabsTrigger>
+                      <TabsTrigger value="custom" className="text-xs">Custom</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="presets" className="mt-2 space-y-3">
+                      <div className="grid grid-cols-7 gap-2">
+                        {PRESET_LABEL_COLORS.map((label) => (
+                          <button
+                            key={label.name}
+                            onClick={() => handleSelectPresetColor(label.hex)}
+                            className={cn(
+                              "h-8 w-full rounded-md transition-all",
+                              selectedLabelColor === label.hex 
+                                ? "ring-2 ring-offset-2 ring-foreground" 
+                                : "hover:ring-2 hover:ring-offset-2 hover:ring-foreground/20"
+                            )}
+                            style={{ backgroundColor: label.hex }}
+                            title={label.name}
+                          />
+                        ))}
+                      </div>
+                      <Button 
+                        size="sm" 
+                        className="w-full"
+                        onClick={handleAddLabel}
+                        disabled={!newLabelText.trim()}
+                      >
+                        Add Label
+                      </Button>
+                    </TabsContent>
+                    <TabsContent value="custom" className="mt-2 space-y-3">
+                      <div className="flex gap-2">
+                        <div
+                          className="w-12 h-12 rounded-md border shrink-0"
+                          style={{ backgroundColor: selectedLabelColor }}
+                        />
+                        <div className="flex-1 space-y-2">
+                          <div className="flex gap-2">
+                            <Input
+                              value={customHex}
+                              onChange={(e) => handleCustomHexChange(e.target.value)}
+                              className="h-8 text-xs font-mono"
+                              placeholder="#000000"
+                              maxLength={7}
+                            />
+                            {'EyeDropper' in window && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                onClick={handleEyedropper}
+                              >
+                                <Pipette className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium w-4">R</span>
+                          <Slider
+                            value={[customRgb.r]}
+                            onValueChange={([v]) => handleCustomRgbChange('r', v)}
+                            max={255}
+                            step={1}
+                            className="flex-1"
+                          />
+                          <span className="text-xs w-8 text-right">{customRgb.r}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium w-4">G</span>
+                          <Slider
+                            value={[customRgb.g]}
+                            onValueChange={([v]) => handleCustomRgbChange('g', v)}
+                            max={255}
+                            step={1}
+                            className="flex-1"
+                          />
+                          <span className="text-xs w-8 text-right">{customRgb.g}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium w-4">B</span>
+                          <Slider
+                            value={[customRgb.b]}
+                            onValueChange={([v]) => handleCustomRgbChange('b', v)}
+                            max={255}
+                            step={1}
+                            className="flex-1"
+                          />
+                          <span className="text-xs w-8 text-right">{customRgb.b}</span>
+                        </div>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        className="w-full"
+                        onClick={handleAddLabel}
+                        disabled={!newLabelText.trim()}
+                      >
+                        Add Label
+                      </Button>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
 
         {/* Attachments Section */}

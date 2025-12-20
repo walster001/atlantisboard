@@ -1,14 +1,14 @@
 import { marked } from 'marked';
 
-// Configure marked for safe HTML output
+// Configure marked for safe HTML output with proper line break handling
 marked.setOptions({
-  breaks: true, // Convert \n to <br>
+  breaks: true, // Convert \n to <br> - important for preserving line spacing
   gfm: true, // GitHub Flavored Markdown
 });
 
 /**
  * Convert Markdown to HTML for TipTap editor
- * Preserves formatting, colors, links, code blocks, etc.
+ * Preserves formatting, colors, links, code blocks, paragraph and line spacing, etc.
  */
 export function markdownToHtml(markdown: string | null | undefined): string {
   if (!markdown) return '';
@@ -28,7 +28,7 @@ export function markdownToHtml(markdown: string | null | undefined): string {
   }
   
   try {
-    // Convert markdown to HTML
+    // Convert markdown to HTML using marked with breaks enabled
     let html = marked.parse(markdown, { async: false }) as string;
     
     // Preserve inline HTML that might be in the markdown
@@ -44,8 +44,8 @@ export function markdownToHtml(markdown: string | null | undefined): string {
     return html;
   } catch (error) {
     console.error('Error parsing markdown:', error);
-    // Fallback: wrap plain text in paragraph tags
-    return `<p>${markdown.replace(/\n/g, '</p><p>')}</p>`;
+    // Fallback: wrap plain text in paragraph tags, preserving line breaks
+    return `<p>${markdown.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
   }
 }
 

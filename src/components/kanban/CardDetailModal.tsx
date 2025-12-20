@@ -382,10 +382,19 @@ export function CardDetailModal({
               <div 
                 dangerouslySetInnerHTML={{ __html: description }} 
                 className={cn(
+                  // Spacing for paragraphs and line breaks
+                  "[&>p]:mb-2 [&>p:last-child]:mb-0 [&_br]:block",
+                  // Code block styling
                   "[&>pre]:p-3 [&>pre]:rounded-md [&>pre]:overflow-x-auto [&>pre]:font-mono [&>pre]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&>pre_code]:bg-transparent [&>pre_code]:p-0",
-                  !themeCardWindowColor && "[&>pre]:bg-muted [&_code]:bg-muted/70",
+                  // Heading spacing
+                  "[&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-2 [&_h2]:mb-1 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1",
+                  // List spacing
+                  "[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_li]:my-0.5",
+                  // Blockquote styling
+                  "[&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:my-2 [&_blockquote]:opacity-80",
+                  !themeCardWindowColor && "[&>pre]:bg-muted [&_code]:bg-muted/70 [&_blockquote]:border-border",
                   // When theme color is applied, force inherit color on all text elements
-                  themeCardWindowColor && "[&_*]:!text-inherit [&_h1]:!text-inherit [&_h2]:!text-inherit [&_h3]:!text-inherit [&_h4]:!text-inherit [&_h5]:!text-inherit [&_h6]:!text-inherit [&_p]:!text-inherit [&_li]:!text-inherit [&_strong]:!text-inherit [&_em]:!text-inherit [&_a]:!text-inherit [&_a]:underline [&_blockquote]:!text-inherit [&_blockquote]:opacity-80 [&>pre]:bg-black/10 [&_code]:bg-black/10"
+                  themeCardWindowColor && "[&_*]:!text-inherit [&_h1]:!text-inherit [&_h2]:!text-inherit [&_h3]:!text-inherit [&_h4]:!text-inherit [&_h5]:!text-inherit [&_h6]:!text-inherit [&_p]:!text-inherit [&_li]:!text-inherit [&_strong]:!text-inherit [&_em]:!text-inherit [&_a]:!text-inherit [&_a]:underline [&_blockquote]:!text-inherit [&>pre]:bg-black/10 [&_code]:bg-black/10 [&_blockquote]:border-current"
                 )}
                 style={themeCardWindowColor ? {
                   color: effectiveTextColor,

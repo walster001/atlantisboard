@@ -110,9 +110,21 @@ export function BoardSettingsModal({
   const [activeBoardSubTab, setActiveBoardSubTab] = useState('labels');
   const [pendingRoles, setPendingRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
 
-  // UI-only permission checks for better UX
-  const canChangeRoles = userRole === 'admin';
-  const canAddRemove = userRole === 'admin' || userRole === 'manager';
+  // SECURITY: Role-based access - these control what the user sees
+  // Real security is enforced server-side via RLS policies
+  const isAdmin = userRole === 'admin';
+  const isManager = userRole === 'manager';
+  const isViewer = userRole === 'viewer';
+  
+  // Viewers should never see this modal - close immediately if opened
+  // This is a defense-in-depth measure; the button should already be hidden
+  const hasAccess = isAdmin || isManager;
+  
+  // Permission checks for specific actions
+  const canChangeRoles = isAdmin; // Only admins can change roles
+  const canAddRemove = isAdmin || isManager; // Admins and managers can add/remove members
+  const canAccessBoardSettings = isAdmin; // Only admins can access Board Settings tab
+  const canAccessThemeSettings = isAdmin; // Only admins can access Theme & Background tab
 
   // Fetch all users when modal opens
   useEffect(() => {
@@ -187,8 +199,19 @@ export function BoardSettingsModal({
   const adminCount = members.filter(m => m.role === 'admin').length;
 
   const confirmRemoveMember = (userId: string, name: string) => {
-    // Check if user is trying to remove themselves and they're the last admin
     const memberToRemove = members.find(m => m.user_id === userId);
+    
+    // SECURITY: Managers cannot remove admins or other managers
+    if (isManager && memberToRemove && (memberToRemove.role === 'admin' || memberToRemove.role === 'manager')) {
+      toast({ 
+        title: 'Cannot remove this member', 
+        description: 'As a Manager, you can only remove Viewers from the board.',
+        variant: 'destructive' 
+      });
+      return;
+    }
+    
+    // Check if user is trying to remove themselves and they're the last admin
     const isLastAdmin = memberToRemove?.role === 'admin' && adminCount === 1;
     
     if (userId === currentUserId && isLastAdmin) {
@@ -243,6 +266,19 @@ export function BoardSettingsModal({
     }
   };
 
+  // SECURITY: Viewers should never access this modal
+  // Close immediately if somehow opened (defense-in-depth)
+  useEffect(() => {
+    if (open && !hasAccess) {
+      onClose();
+    }
+  }, [open, hasAccess, onClose]);
+
+  // Don't render anything if user doesn't have access
+  if (!hasAccess) {
+    return null;
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
@@ -252,7 +288,9 @@ export function BoardSettingsModal({
         >
           {/* Custom header with close button */}
           <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-            <h2 className="text-lg font-semibold">Board Settings</h2>
+            <h2 className="text-lg font-semibold">
+              {isManager ? 'Board Members' : 'Board Settings'}
+            </h2>
             <Button 
               variant="ghost" 
               size="icon" 
@@ -263,72 +301,81 @@ export function BoardSettingsModal({
             </Button>
           </div>
 
-          {/* Tabs */}
+          {/* Tabs - Only show tabs if user is admin; managers only see members content */}
           <Tabs defaultValue="users" className="flex flex-col flex-1 min-h-0">
-            <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-auto p-0 px-4 shrink-0">
-              <TabsTrigger 
-                value="board" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
-              >
-                Board Settings
-              </TabsTrigger>
-              <TabsTrigger 
-                value="users" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
-              >
-                Users & Permissions
-              </TabsTrigger>
-              <TabsTrigger 
-                value="theme" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
-              >
-                Theme & Background
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Board Settings Tab */}
-            <TabsContent value="board" className="flex-1 mt-0 data-[state=inactive]:hidden flex min-h-0">
-              {/* Vertical sub-navigation */}
-              <aside className="w-48 bg-muted/30 border-r border-border p-3 shrink-0">
-                <nav className="space-y-1">
-                  {boardSubTabs.map((subTab) => {
-                    const Icon = subTab.icon;
-                    return (
-                      <button
-                        key={subTab.id}
-                        onClick={() => setActiveBoardSubTab(subTab.id)}
-                        className={cn(
-                          "w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
-                          activeBoardSubTab === subTab.id
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {subTab.label}
-                      </button>
-                    );
-                  })}
-                </nav>
-              </aside>
-
-              {/* Sub-tab content */}
-              <div className="flex-1 p-4 overflow-y-auto">
-                {activeBoardSubTab === 'card-settings' && (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <p>Card settings coming soon...</p>
-                  </div>
+            {/* Only show tab list for admins - managers only have access to users tab */}
+            {isAdmin && (
+              <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-auto p-0 px-4 shrink-0">
+                {canAccessBoardSettings && (
+                  <TabsTrigger 
+                    value="board" 
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
+                  >
+                    Board Settings
+                  </TabsTrigger>
                 )}
-                {activeBoardSubTab === 'labels' && (
-                  <BoardLabelsSettings
-                    boardId={boardId}
-                    labels={labels}
-                    onLabelsChange={onLabelsChange}
-                    disabled={userRole === 'viewer'}
-                  />
+                <TabsTrigger 
+                  value="users" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
+                >
+                  Users & Permissions
+                </TabsTrigger>
+                {canAccessThemeSettings && (
+                  <TabsTrigger 
+                    value="theme" 
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
+                  >
+                    Theme & Background
+                  </TabsTrigger>
                 )}
-              </div>
-            </TabsContent>
+              </TabsList>
+            )}
+
+            {/* Board Settings Tab - Only render for admins */}
+            {canAccessBoardSettings && (
+              <TabsContent value="board" className="flex-1 mt-0 data-[state=inactive]:hidden flex min-h-0">
+                {/* Vertical sub-navigation */}
+                <aside className="w-48 bg-muted/30 border-r border-border p-3 shrink-0">
+                  <nav className="space-y-1">
+                    {boardSubTabs.map((subTab) => {
+                      const Icon = subTab.icon;
+                      return (
+                        <button
+                          key={subTab.id}
+                          onClick={() => setActiveBoardSubTab(subTab.id)}
+                          className={cn(
+                            "w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
+                            activeBoardSubTab === subTab.id
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {subTab.label}
+                        </button>
+                      );
+                    })}
+                  </nav>
+                </aside>
+
+                {/* Sub-tab content */}
+                <div className="flex-1 p-4 overflow-y-auto">
+                  {activeBoardSubTab === 'card-settings' && (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <p>Card settings coming soon...</p>
+                    </div>
+                  )}
+                  {activeBoardSubTab === 'labels' && (
+                    <BoardLabelsSettings
+                      boardId={boardId}
+                      labels={labels}
+                      onLabelsChange={onLabelsChange}
+                      disabled={!isAdmin}
+                    />
+                  )}
+                </div>
+              </TabsContent>
+            )}
 
             {/* Users & Permissions Tab */}
             <TabsContent value="users" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
@@ -382,7 +429,8 @@ export function BoardSettingsModal({
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                {canChangeRoles && (
+                                {/* Role selector for new members - Admins get full control */}
+                                {isAdmin ? (
                                   <Select 
                                     value={pendingRoles[user.id] || 'viewer'} 
                                     onValueChange={(v) => setPendingRoles(prev => ({ ...prev, [user.id]: v as 'admin' | 'manager' | 'viewer' }))}
@@ -396,7 +444,34 @@ export function BoardSettingsModal({
                                       <SelectItem value="viewer">Viewer</SelectItem>
                                     </SelectContent>
                                   </Select>
-                                )}
+                                ) : isManager ? (
+                                  // Managers can only add viewers - show greyed-out options
+                                  <Select 
+                                    value="viewer" 
+                                    disabled
+                                  >
+                                    <SelectTrigger className="w-24 h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem 
+                                        value="admin" 
+                                        disabled 
+                                        className="text-muted-foreground opacity-50"
+                                      >
+                                        Admin
+                                      </SelectItem>
+                                      <SelectItem 
+                                        value="manager" 
+                                        disabled 
+                                        className="text-muted-foreground opacity-50"
+                                      >
+                                        Manager
+                                      </SelectItem>
+                                      <SelectItem value="viewer">Viewer</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                ) : null}
                                 <Button 
                                   size="sm" 
                                   onClick={() => addMember(user.id)}
@@ -464,7 +539,8 @@ export function BoardSettingsModal({
                               </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              {canChangeRoles ? (
+                              {/* Role selector - Admins get full control, Managers see restricted options */}
+                              {isAdmin ? (
                                 <Select
                                   value={member.role}
                                   onValueChange={(v) => updateRole(member.user_id, v as 'admin' | 'manager' | 'viewer')}
@@ -478,21 +554,70 @@ export function BoardSettingsModal({
                                     <SelectItem value="viewer">Viewer</SelectItem>
                                   </SelectContent>
                                 </Select>
+                              ) : isManager ? (
+                                // Managers see role with restricted options greyed out
+                                <Select
+                                  value={member.role}
+                                  onValueChange={(v) => {
+                                    // Managers can only change to viewer (demote)
+                                    if (v === 'viewer' && member.role === 'viewer') return;
+                                    // Managers cannot promote anyone (including themselves)
+                                    if (v !== 'viewer') return;
+                                    updateRole(member.user_id, 'viewer');
+                                  }}
+                                  disabled={member.role === 'admin' || member.role === 'manager'}
+                                >
+                                  <SelectTrigger className="w-24 h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem 
+                                      value="admin" 
+                                      disabled 
+                                      className="text-muted-foreground opacity-50"
+                                    >
+                                      Admin
+                                    </SelectItem>
+                                    <SelectItem 
+                                      value="manager" 
+                                      disabled 
+                                      className="text-muted-foreground opacity-50"
+                                    >
+                                      Manager
+                                    </SelectItem>
+                                    <SelectItem value="viewer">Viewer</SelectItem>
+                                  </SelectContent>
+                                </Select>
                               ) : (
                                 <span className="text-xs text-muted-foreground capitalize px-2 py-1 bg-muted rounded">
                                   {member.role}
                                 </span>
                               )}
+                              {/* Remove button - Managers can only remove viewers */}
                               {canAddRemove && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  className={cn(
+                                    "h-8",
+                                    // Grey out for managers viewing admins/managers
+                                    isManager && (member.role === 'admin' || member.role === 'manager')
+                                      ? "text-muted-foreground/50 cursor-not-allowed"
+                                      : "text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  )}
                                   onClick={() => confirmRemoveMember(
                                     member.user_id, 
                                     member.profiles.full_name || member.profiles.email || 'this user'
                                   )}
-                                  disabled={removingUserId === member.user_id}
+                                  disabled={
+                                    removingUserId === member.user_id || 
+                                    (isManager && (member.role === 'admin' || member.role === 'manager'))
+                                  }
+                                  title={
+                                    isManager && (member.role === 'admin' || member.role === 'manager')
+                                      ? 'Managers can only remove Viewers'
+                                      : 'Remove member'
+                                  }
                                 >
                                   {removingUserId === member.user_id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -514,54 +639,56 @@ export function BoardSettingsModal({
               </div>
             </TabsContent>
 
-            {/* Theme & Background Tab */}
-            <TabsContent value="theme" className="flex-1 mt-0 data-[state=inactive]:hidden flex min-h-0">
-              {/* Vertical sub-navigation */}
-              <aside className="w-48 bg-muted/30 border-r border-border p-3 shrink-0">
-                <nav className="space-y-1">
-                  {themeSubTabs.map((subTab) => {
-                    const Icon = subTab.icon;
-                    return (
-                      <button
-                        key={subTab.id}
-                        onClick={() => setActiveThemeSubTab(subTab.id)}
-                        className={cn(
-                          "w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
-                          activeThemeSubTab === subTab.id
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {subTab.label}
-                      </button>
-                    );
-                  })}
-                </nav>
-              </aside>
+            {/* Theme & Background Tab - Only render for admins */}
+            {canAccessThemeSettings && (
+              <TabsContent value="theme" className="flex-1 mt-0 data-[state=inactive]:hidden flex min-h-0">
+                {/* Vertical sub-navigation */}
+                <aside className="w-48 bg-muted/30 border-r border-border p-3 shrink-0">
+                  <nav className="space-y-1">
+                    {themeSubTabs.map((subTab) => {
+                      const Icon = subTab.icon;
+                      return (
+                        <button
+                          key={subTab.id}
+                          onClick={() => setActiveThemeSubTab(subTab.id)}
+                          className={cn(
+                            "w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
+                            activeThemeSubTab === subTab.id
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {subTab.label}
+                        </button>
+                      );
+                    })}
+                  </nav>
+                </aside>
 
-              {/* Sub-tab content */}
-              <div className="flex-1 p-4 overflow-y-auto">
-                {activeThemeSubTab === 'themes' && (
-                  <ThemeSettings
-                    boardId={boardId}
-                    currentThemeId={currentThemeId}
-                    userRole={userRole}
-                    onThemeApplied={onThemeChange}
-                  />
-                )}
-                {activeThemeSubTab === 'background' && (
-                  <BoardBackgroundSettings
-                    boardId={boardId}
-                    currentBackgroundColor={currentBackgroundColor}
-                    currentBackgroundImageUrl={currentBackgroundImageUrl}
-                    currentTheme={currentTheme}
-                    userRole={userRole}
-                    onBackgroundChange={onBackgroundChange}
-                  />
-                )}
-              </div>
-            </TabsContent>
+                {/* Sub-tab content */}
+                <div className="flex-1 p-4 overflow-y-auto">
+                  {activeThemeSubTab === 'themes' && (
+                    <ThemeSettings
+                      boardId={boardId}
+                      currentThemeId={currentThemeId}
+                      userRole={userRole}
+                      onThemeApplied={onThemeChange}
+                    />
+                  )}
+                  {activeThemeSubTab === 'background' && (
+                    <BoardBackgroundSettings
+                      boardId={boardId}
+                      currentBackgroundColor={currentBackgroundColor}
+                      currentBackgroundImageUrl={currentBackgroundImageUrl}
+                      currentTheme={currentTheme}
+                      userRole={userRole}
+                      onBackgroundChange={onBackgroundChange}
+                    />
+                  )}
+                </div>
+              </TabsContent>
+            )}
           </Tabs>
         </DialogContent>
       </Dialog>

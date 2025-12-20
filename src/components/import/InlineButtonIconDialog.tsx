@@ -7,44 +7,41 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, Image, ExternalLink, Check, Loader2 } from 'lucide-react';
 
-// Detected inline button block with internal image reference
+// Detected inline button with internal /cdn image reference
 export interface DetectedInlineButton {
   id: string;
-  originalHtml: string;
-  imgSrc: string;
+  imgSrc: string; // The original /cdn image src
   linkHref: string;
   linkText: string;
   cardTitle?: string;
-  // After upload
-  replacementUrl?: string;
+  occurrenceCount: number; // How many times this imgSrc appears
+  replacementUrl?: string; // After upload
 }
 
 interface InlineButtonIconDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   detectedButtons: DetectedInlineButton[];
-  onComplete: (updatedButtons: DetectedInlineButton[]) => void;
+  onComplete: (replacements: Map<string, string>) => void;
 }
 
 // Regex to detect Wekan inline button blocks with /cdn image sources
-const INLINE_BUTTON_REGEX = /<span[^>]*style=['"][^'"]*display:\s*inline-flex[^'"]*['"][^>]*>[\s\S]*?<img[^>]*src=['"]([^'"]*\/cdn[^'"]+)['"][^>]*>[\s\S]*?<a[^>]*href=['"]([^'"]+)['"][^>]*>([^<]+)<\/a>[\s\S]*?<\/span>/gi;
+const INLINE_BUTTON_REGEX = /<span[^>]*style=['"][^'"]*display:\s*inline-?flex[^'"]*['"][^>]*>[\s\S]*?<img[^>]*src=['"]([^'"]*\/cdn[^'"]+)['"][^>]*>[\s\S]*?<a[^>]*href=['"]([^'"]+)['"][^>]*>([^<]+)<\/a>[\s\S]*?<\/span>/gi;
 
-// Function to extract inline buttons from HTML content
-export function extractInlineButtonsFromHtml(html: string, cardTitle?: string): DetectedInlineButton[] {
-  const buttons: DetectedInlineButton[] = [];
+// Function to extract unique inline button image sources from HTML content
+export function extractInlineButtonsFromHtml(html: string, cardTitle?: string): { imgSrc: string; linkHref: string; linkText: string; cardTitle?: string }[] {
+  const buttons: { imgSrc: string; linkHref: string; linkText: string; cardTitle?: string }[] = [];
   let match;
 
   // Reset regex lastIndex
   INLINE_BUTTON_REGEX.lastIndex = 0;
 
   while ((match = INLINE_BUTTON_REGEX.exec(html)) !== null) {
-    const [fullMatch, imgSrc, linkHref, linkText] = match;
+    const [, imgSrc, linkHref, linkText] = match;
     
     // Only include if img src starts with /cdn
     if (imgSrc && imgSrc.startsWith('/cdn')) {
       buttons.push({
-        id: `btn-${buttons.length}-${Date.now()}`,
-        originalHtml: fullMatch,
         imgSrc,
         linkHref,
         linkText: linkText.trim(),
@@ -57,10 +54,11 @@ export function extractInlineButtonsFromHtml(html: string, cardTitle?: string): 
 }
 
 // Function to scan Wekan data for all inline buttons with /cdn images
+// Returns unique imgSrc entries with occurrence counts
 export function scanWekanDataForInlineButtons(wekanData: any): DetectedInlineButton[] {
-  const allButtons: DetectedInlineButton[] = [];
+  const allButtons: { imgSrc: string; linkHref: string; linkText: string; cardTitle?: string }[] = [];
 
-  if (!wekanData) return allButtons;
+  if (!wekanData) return [];
 
   // Handle both array of boards and single board
   const boards = Array.isArray(wekanData) ? wekanData : [wekanData];
@@ -75,18 +73,30 @@ export function scanWekanDataForInlineButtons(wekanData: any): DetectedInlineBut
     }
   }
 
-  // Deduplicate by imgSrc (same icon might appear multiple times)
-  const uniqueByImgSrc = new Map<string, DetectedInlineButton>();
+  // Group by imgSrc and count occurrences
+  const imgSrcMap = new Map<string, { button: typeof allButtons[0]; count: number }>();
   for (const button of allButtons) {
-    if (!uniqueByImgSrc.has(button.imgSrc)) {
-      uniqueByImgSrc.set(button.imgSrc, button);
+    const existing = imgSrcMap.get(button.imgSrc);
+    if (existing) {
+      existing.count++;
+    } else {
+      imgSrcMap.set(button.imgSrc, { button, count: 1 });
     }
   }
 
-  return Array.from(uniqueByImgSrc.values());
+  // Convert to DetectedInlineButton array
+  return Array.from(imgSrcMap.entries()).map(([imgSrc, { button, count }], index) => ({
+    id: `btn-${index}-${Date.now()}`,
+    imgSrc,
+    linkHref: button.linkHref,
+    linkText: button.linkText,
+    cardTitle: button.cardTitle,
+    occurrenceCount: count,
+  }));
 }
 
 // Function to replace inline button image sources in HTML
+// This directly rewrites the src attributes in the raw HTML
 export function replaceInlineButtonImages(
   html: string,
   replacements: Map<string, string>
@@ -96,7 +106,7 @@ export function replaceInlineButtonImages(
   for (const [originalSrc, newSrc] of replacements) {
     // Escape special regex characters in the original src
     const escapedSrc = originalSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Replace all occurrences of this img src
+    // Replace all occurrences of this img src (both single and double quotes)
     const srcRegex = new RegExp(`src=['"]${escapedSrc}['"]`, 'g');
     result = result.replace(srcRegex, `src="${newSrc}"`);
   }
@@ -113,23 +123,21 @@ export function InlineButtonIconDialog({
   const { toast } = useToast();
   const [buttons, setButtons] = useState<DetectedInlineButton[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
-  // Use individual refs for each button to prevent cross-contamination
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     if (open) {
-      // Create deep copies with unique IDs for each detected button
+      // Create copies with reset replacement URLs
       setButtons(detectedButtons.map((btn, index) => ({
         ...btn,
-        id: `btn-${index}-${btn.imgSrc.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`,
-        replacementUrl: undefined, // Reset replacement on open
+        id: `btn-${index}-${Date.now()}`,
+        replacementUrl: undefined,
       })));
-      // Clear all file input refs
       fileInputRefs.current = {};
     }
   }, [open, detectedButtons]);
 
-  const handleFileSelect = async (buttonId: string, file: File) => {
+  const handleFileSelect = async (buttonId: string, imgSrc: string, file: File) => {
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Invalid file type',
@@ -157,7 +165,7 @@ export function InlineButtonIconDialog({
       const fileName = `inline-icon-${Date.now()}.${fileExt}`;
       const filePath = `import-icons/${fileName}`;
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('branding')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -199,17 +207,25 @@ export function InlineButtonIconDialog({
   };
 
   const handleComplete = () => {
-    onComplete(buttons);
+    // Build replacement map: imgSrc -> replacementUrl
+    const replacements = new Map<string, string>();
+    for (const btn of buttons) {
+      if (btn.replacementUrl) {
+        replacements.set(btn.imgSrc, btn.replacementUrl);
+      }
+    }
+    onComplete(replacements);
     onOpenChange(false);
   };
 
   const handleSkip = () => {
-    // Complete without any replacements
-    onComplete(detectedButtons);
+    // Complete with no replacements
+    onComplete(new Map());
     onOpenChange(false);
   };
 
   const uploadedCount = buttons.filter((b) => b.replacementUrl).length;
+  const totalOccurrences = buttons.reduce((sum, b) => sum + b.occurrenceCount, 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -220,7 +236,8 @@ export function InlineButtonIconDialog({
             Replace Inline Button Icons
           </DialogTitle>
           <DialogDescription>
-            The imported data contains {detectedButtons.length} inline button block(s) with internal Wekan image references that won't work after import. Upload replacement icons for each.
+            Found {buttons.length} unique internal image reference(s) across {totalOccurrences} inline button block(s). 
+            These /cdn images won't work after import. Upload replacements to rewrite the image links directly in the imported data.
           </DialogDescription>
         </DialogHeader>
 
@@ -273,10 +290,17 @@ export function InlineButtonIconDialog({
                   </code>
                 </div>
 
+                {/* Occurrence count */}
+                {button.occurrenceCount > 1 && (
+                  <div className="text-xs text-blue-600">
+                    Used in {button.occurrenceCount} inline button blocks
+                  </div>
+                )}
+
                 {/* Card context if available */}
                 {button.cardTitle && (
                   <div className="text-xs text-muted-foreground">
-                    <span className="font-medium">Found in card:</span> {button.cardTitle}
+                    <span className="font-medium">Example card:</span> {button.cardTitle}
                   </div>
                 )}
 
@@ -292,8 +316,7 @@ export function InlineButtonIconDialog({
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        handleFileSelect(button.id, file);
-                        // Reset input value to allow re-uploading same file
+                        handleFileSelect(button.id, button.imgSrc, file);
                         e.target.value = '';
                       }
                     }}
@@ -335,7 +358,7 @@ export function InlineButtonIconDialog({
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
           <div className="text-sm text-muted-foreground mr-auto">
-            {uploadedCount} of {buttons.length} icons replaced
+            {uploadedCount} of {buttons.length} unique icons replaced
           </div>
           <Button variant="outline" onClick={handleSkip}>
             Skip (keep broken icons)

@@ -801,14 +801,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   };
 
   // Handle when user completes the icon replacement dialog
-  const handleInlineButtonsComplete = (updatedButtons: DetectedInlineButton[]) => {
-    // Build replacement map from updated buttons
-    const replacements = new Map<string, string>();
-    for (const button of updatedButtons) {
-      if (button.replacementUrl) {
-        replacements.set(button.imgSrc, button.replacementUrl);
-      }
-    }
+  const handleInlineButtonsComplete = (replacements: Map<string, string>) => {
     setIconReplacements(replacements);
     setShowInlineButtonDialog(false);
 

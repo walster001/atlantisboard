@@ -99,10 +99,12 @@ export function ToastUIMarkdownEditor({
   const [showButtonEditor, setShowButtonEditor] = useState(false);
   const [editingButton, setEditingButton] = useState<InlineButtonData | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropIndicatorRef = useRef<HTMLDivElement | null>(null);
   const isSyncing = useRef(false);
   const isInitialized = useRef(false);
   const lastContentRef = useRef(content);
   const dragDataRef = useRef<string | null>(null);
+  const dragSourceRef = useRef<HTMLElement | null>(null);
   
   // Handle editor changes
   const handleChange = useCallback(() => {
@@ -150,6 +152,47 @@ export function ToastUIMarkdownEditor({
     isSyncing.current = false;
   }, [content]);
   
+  // Create/show drop indicator
+  const showDropIndicator = useCallback((x: number, y: number) => {
+    if (!dropIndicatorRef.current) {
+      const indicator = document.createElement('div');
+      indicator.className = 'drop-indicator';
+      indicator.style.cssText = `
+        position: fixed;
+        width: 2px;
+        height: 20px;
+        background: #579DFF;
+        border-radius: 1px;
+        pointer-events: none;
+        z-index: 9999;
+        box-shadow: 0 0 4px rgba(87, 157, 255, 0.6);
+        transition: left 0.05s ease-out, top 0.05s ease-out;
+      `;
+      document.body.appendChild(indicator);
+      dropIndicatorRef.current = indicator;
+    }
+    
+    dropIndicatorRef.current.style.left = `${x}px`;
+    dropIndicatorRef.current.style.top = `${y - 10}px`;
+    dropIndicatorRef.current.style.display = 'block';
+  }, []);
+  
+  const hideDropIndicator = useCallback(() => {
+    if (dropIndicatorRef.current) {
+      dropIndicatorRef.current.style.display = 'none';
+    }
+  }, []);
+  
+  // Cleanup drop indicator on unmount
+  useEffect(() => {
+    return () => {
+      if (dropIndicatorRef.current) {
+        dropIndicatorRef.current.remove();
+        dropIndicatorRef.current = null;
+      }
+    };
+  }, []);
+  
   // Setup drag-and-drop and click handlers for buttons
   useEffect(() => {
     const container = containerRef.current;
@@ -159,8 +202,11 @@ export function ToastUIMarkdownEditor({
       const target = e.target as HTMLElement;
       if (target.classList.contains('inline-btn')) {
         e.dataTransfer?.setData('text/plain', target.outerHTML);
+        e.dataTransfer!.effectAllowed = 'move';
         dragDataRef.current = target.getAttribute('data-btn');
-        target.style.opacity = '0.5';
+        dragSourceRef.current = target;
+        target.style.opacity = '0.4';
+        target.classList.add('dragging');
       }
     };
     
@@ -168,21 +214,38 @@ export function ToastUIMarkdownEditor({
       const target = e.target as HTMLElement;
       if (target.classList.contains('inline-btn')) {
         target.style.opacity = '1';
+        target.classList.remove('dragging');
       }
+      dragSourceRef.current = null;
+      hideDropIndicator();
     };
     
     const handleDragOver = (e: DragEvent) => {
+      if (!dragDataRef.current) return;
       e.preventDefault();
+      e.dataTransfer!.dropEffect = 'move';
+      
+      // Show drop indicator at cursor position
+      showDropIndicator(e.clientX, e.clientY);
+    };
+    
+    const handleDragLeave = (e: DragEvent) => {
+      // Only hide if leaving the container entirely
+      const relatedTarget = e.relatedTarget as HTMLElement;
+      if (!container.contains(relatedTarget)) {
+        hideDropIndicator();
+      }
     };
     
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
+      hideDropIndicator();
+      
       if (!dragDataRef.current) return;
       
       const editor = editorRef.current?.getInstance();
       if (!editor) return;
       
-      // Get drop position and insert button there
       const html = e.dataTransfer?.getData('text/plain');
       if (html) {
         // Remove the original button first
@@ -194,13 +257,11 @@ export function ToastUIMarkdownEditor({
         currentHtml = currentHtml.replace(originalPattern, '');
         editor.setHTML(currentHtml);
         
-        // Insert at new position (at cursor or end)
+        // Insert at cursor position
         const wwEditor = (editor as any).wwEditor;
         if (wwEditor?.view) {
-          // Insert the button HTML at cursor
           editor.exec('html', html);
         } else {
-          // Fallback: append
           editor.setHTML(editor.getHTML() + ' ' + html);
         }
         
@@ -213,7 +274,7 @@ export function ToastUIMarkdownEditor({
       const target = e.target as HTMLElement;
       const btnEl = target.closest('.inline-btn') as HTMLElement;
       
-      if (btnEl) {
+      if (btnEl && !btnEl.classList.contains('dragging')) {
         e.preventDefault();
         e.stopPropagation();
         
@@ -231,6 +292,7 @@ export function ToastUIMarkdownEditor({
     container.addEventListener('dragstart', handleDragStart);
     container.addEventListener('dragend', handleDragEnd);
     container.addEventListener('dragover', handleDragOver);
+    container.addEventListener('dragleave', handleDragLeave);
     container.addEventListener('drop', handleDrop);
     container.addEventListener('click', handleClick);
     
@@ -238,10 +300,11 @@ export function ToastUIMarkdownEditor({
       container.removeEventListener('dragstart', handleDragStart);
       container.removeEventListener('dragend', handleDragEnd);
       container.removeEventListener('dragover', handleDragOver);
+      container.removeEventListener('dragleave', handleDragLeave);
       container.removeEventListener('drop', handleDrop);
       container.removeEventListener('click', handleClick);
     };
-  }, [handleChange]);
+  }, [handleChange, showDropIndicator, hideDropIndicator]);
   
   const handleSaveButton = useCallback((data: InlineButtonData) => {
     const editor = editorRef.current?.getInstance();
@@ -337,13 +400,18 @@ export function ToastUIMarkdownEditor({
       
       <style>{`
         .toastui-editor-wrapper .inline-btn {
-          transition: opacity 0.2s, box-shadow 0.2s;
+          transition: opacity 0.15s, box-shadow 0.15s, transform 0.15s;
         }
-        .toastui-editor-wrapper .inline-btn:hover {
+        .toastui-editor-wrapper .inline-btn:hover:not(.dragging) {
           box-shadow: 0 0 0 2px rgba(87, 157, 255, 0.4);
         }
-        .toastui-editor-wrapper .inline-btn:active {
+        .toastui-editor-wrapper .inline-btn:active,
+        .toastui-editor-wrapper .inline-btn.dragging {
           cursor: grabbing;
+          transform: scale(0.98);
+        }
+        .toastui-editor-wrapper .inline-btn.dragging {
+          opacity: 0.4 !important;
         }
         .toastui-editor-wrapper .inline-btn img {
           pointer-events: none;

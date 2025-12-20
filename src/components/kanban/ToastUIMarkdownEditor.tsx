@@ -172,7 +172,7 @@ export function ToastUIMarkdownEditor({
     }
   }, [onChange, cleanWidgetMarkers]);
   
-  // Initialize editor with content
+  // Initialize editor with content and register custom commands
   useEffect(() => {
     const editor = editorRef.current?.getInstance();
     if (!editor || isInitialized.current) return;
@@ -183,6 +183,75 @@ export function ToastUIMarkdownEditor({
       isSyncing.current = false;
       lastContentRef.current = content;
       isInitialized.current = true;
+      
+      // Register custom indent command
+      editor.addCommand('wysiwyg', 'customIndent', () => {
+        const wwEditor = editor.getCurrentModeEditor();
+        if (wwEditor && wwEditor.view) {
+          const { state, dispatch } = wwEditor.view;
+          const { selection, doc } = state;
+          const { from, to } = selection;
+          
+          // Get all lines in the selection
+          const lines: { start: number; end: number }[] = [];
+          doc.nodesBetween(from, to, (node, pos) => {
+            if (node.isBlock && node.type.name === 'paragraph') {
+              lines.push({ start: pos + 1, end: pos + node.nodeSize - 1 });
+            }
+          });
+          
+          if (lines.length > 0) {
+            let tr = state.tr;
+            let offset = 0;
+            lines.forEach(line => {
+              tr = tr.insertText('  ', line.start + offset);
+              offset += 2;
+            });
+            dispatch(tr);
+            return true;
+          }
+        }
+        return false;
+      });
+      
+      // Register custom outdent command
+      editor.addCommand('wysiwyg', 'customOutdent', () => {
+        const wwEditor = editor.getCurrentModeEditor();
+        if (wwEditor && wwEditor.view) {
+          const { state, dispatch } = wwEditor.view;
+          const { selection, doc } = state;
+          const { from, to } = selection;
+          
+          // Get all lines in the selection
+          const lines: { start: number; textStart: string }[] = [];
+          doc.nodesBetween(from, to, (node, pos) => {
+            if (node.isBlock && node.type.name === 'paragraph' && node.textContent) {
+              lines.push({ start: pos + 1, textStart: node.textContent.substring(0, 2) });
+            }
+          });
+          
+          if (lines.length > 0) {
+            let tr = state.tr;
+            let offset = 0;
+            lines.forEach(line => {
+              // Check for leading spaces/tabs and remove them
+              if (line.textStart.startsWith('  ')) {
+                tr = tr.delete(line.start + offset, line.start + offset + 2);
+                offset -= 2;
+              } else if (line.textStart.startsWith('\t')) {
+                tr = tr.delete(line.start + offset, line.start + offset + 1);
+                offset -= 1;
+              } else if (line.textStart.startsWith(' ')) {
+                tr = tr.delete(line.start + offset, line.start + offset + 1);
+                offset -= 1;
+              }
+            });
+            dispatch(tr);
+            return true;
+          }
+        }
+        return false;
+      });
     }, 50);
     
     return () => clearTimeout(timeoutId);
@@ -277,6 +346,40 @@ export function ToastUIMarkdownEditor({
     setEditingButton(null);
     setEditingEncodedData(null);
     setShowButtonEditor(true);
+  }, []);
+
+  // Create custom indent toolbar button
+  const createIndentToolbarItem = useCallback(() => {
+    const btn = document.createElement('button');
+    btn.className = 'toastui-editor-toolbar-icons indent';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;padding:0;width:24px;height:24px;';
+    btn.title = 'Indent (Tab)';
+    btn.type = 'button';
+    btn.onclick = (e) => { 
+      e.preventDefault(); 
+      const editor = editorRef.current?.getInstance();
+      if (editor) {
+        editor.exec('customIndent');
+      }
+    };
+    return btn;
+  }, []);
+
+  // Create custom outdent toolbar button
+  const createOutdentToolbarItem = useCallback(() => {
+    const btn = document.createElement('button');
+    btn.className = 'toastui-editor-toolbar-icons outdent';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;padding:0;width:24px;height:24px;';
+    btn.title = 'Outdent (Shift+Tab)';
+    btn.type = 'button';
+    btn.onclick = (e) => { 
+      e.preventDefault(); 
+      const editor = editorRef.current?.getInstance();
+      if (editor) {
+        editor.exec('customOutdent');
+      }
+    };
+    return btn;
   }, []);
 
   // Create INB (Inline Button) toolbar button
@@ -553,7 +656,13 @@ export function ToastUIMarkdownEditor({
         toolbarItems={[
           ['heading', 'bold', 'italic', 'strike'],
           ['hr', 'quote'],
-          ['ul', 'ol', 'task', 'indent', 'outdent'],
+          [
+            'ul', 
+            'ol', 
+            'task', 
+            { el: createIndentToolbarItem(), tooltip: 'Indent (Tab)', name: 'customIndent' },
+            { el: createOutdentToolbarItem(), tooltip: 'Outdent (Shift+Tab)', name: 'customOutdent' },
+          ],
           ['table', 'link'],
           ['code', 'codeblock'],
           [

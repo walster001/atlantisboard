@@ -504,11 +504,15 @@ export default function BoardPage() {
     }
   };
 
-  const updateColumnColor = async (columnId: string, color: string | null) => {
+  const updateColumnColor = async (columnId: string, color: string | null, isClearing = false) => {
     if (!canEdit) return;
     try {
-      await supabase.from('columns').update({ color }).eq('id', columnId);
-      setColumns(prev => prev.map(c => c.id === columnId ? { ...c, color } : c));
+      // When isClearing is true, save as null to use theme default
+      // When color is null from ColorPicker (transparent selection), save as empty string
+      // Empty string means "explicitly transparent", null means "use theme default"
+      const colorToSave = isClearing ? null : (color === null ? '' : color);
+      await supabase.from('columns').update({ color: colorToSave }).eq('id', columnId);
+      setColumns(prev => prev.map(c => c.id === columnId ? { ...c, color: colorToSave } : c));
     } catch (error: any) {
       console.error('Update column color error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -519,8 +523,10 @@ export default function BoardPage() {
     if (!canEdit || !boardId) return;
     try {
       const columnIds = columns.map(c => c.id);
-      await supabase.from('columns').update({ color }).in('id', columnIds);
-      setColumns(prev => prev.map(c => ({ ...c, color })));
+      // When color is null from ColorPicker (transparent selection), save as empty string
+      const colorToSave = color === null ? '' : color;
+      await supabase.from('columns').update({ color: colorToSave }).in('id', columnIds);
+      setColumns(prev => prev.map(c => ({ ...c, color: colorToSave })));
       toast({ title: 'Success', description: 'Applied colour to all columns' });
     } catch (error: any) {
       console.error('Apply column color to all error:', error);
@@ -932,7 +938,7 @@ export default function BoardPage() {
                     onAddCard={(title) => addCard(column.id, title)}
                     onEditCard={(card) => setEditingCard({ card, columnId: column.id })}
                     onDeleteCard={(cardId) => deleteCard(cardId)}
-                    onUpdateColumnColor={(color) => updateColumnColor(column.id, color)}
+                    onUpdateColumnColor={(color, isClearing) => updateColumnColor(column.id, color, isClearing)}
                     onApplyColumnColorToAll={applyColumnColorToAll}
                     onUpdateCardColor={updateCardColor}
                     onApplyCardColorToAll={applyCardColorToAll}
@@ -1051,6 +1057,8 @@ export default function BoardPage() {
             ]);
           }
         }}
+        themeCardWindowColor={boardTheme?.card_window_color}
+        themeCardWindowTextColor={boardTheme?.card_window_text_color}
       />
 
       {/* Board Settings Modal */}

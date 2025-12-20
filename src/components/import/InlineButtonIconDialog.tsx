@@ -113,11 +113,19 @@ export function InlineButtonIconDialog({
   const { toast } = useToast();
   const [buttons, setButtons] = useState<DetectedInlineButton[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
-  const fileInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  // Use individual refs for each button to prevent cross-contamination
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     if (open) {
-      setButtons([...detectedButtons]);
+      // Create deep copies with unique IDs for each detected button
+      setButtons(detectedButtons.map((btn, index) => ({
+        ...btn,
+        id: `btn-${index}-${btn.imgSrc.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`,
+        replacementUrl: undefined, // Reset replacement on open
+      })));
+      // Clear all file input refs
+      fileInputRefs.current = {};
     }
   }, [open, detectedButtons]);
 
@@ -279,17 +287,21 @@ export function InlineButtonIconDialog({
                     accept="image/*"
                     className="hidden"
                     ref={(el) => {
-                      if (el) fileInputRefs.current.set(button.id, el);
+                      fileInputRefs.current[button.id] = el;
                     }}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) handleFileSelect(button.id, file);
+                      if (file) {
+                        handleFileSelect(button.id, file);
+                        // Reset input value to allow re-uploading same file
+                        e.target.value = '';
+                      }
                     }}
                   />
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => fileInputRefs.current.get(button.id)?.click()}
+                    onClick={() => fileInputRefs.current[button.id]?.click()}
                     disabled={uploading === button.id}
                   >
                     {uploading === button.id ? (

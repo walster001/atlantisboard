@@ -1,64 +1,257 @@
 /**
  * MarkdownEditor.tsx
  * 
- * A secure Markdown editor with a toolbar for inserting Markdown formatting.
+ * A WYSIWYG-style Markdown editor that provides a visual editing experience
+ * similar to HTML editors, while storing content as Markdown.
  * 
  * Features:
- * - Toolbar buttons to insert Markdown syntax (bold, italic, headings, lists, etc.)
- * - Inline button creator integration with floating form
- * - Real-time preview using MarkdownRenderer
- * - Undo/redo support via browser native textarea behavior
- * - Emoji shortcode support in preview (e.g., :smile: → 😄)
- * - GFM support for tables, task lists, strikethrough
+ * - Visual WYSIWYG editing using TipTap
+ * - Toolbar buttons for formatting (bold, italic, headings, lists, etc.)
+ * - Inline button creator integration
+ * - Stores and outputs Markdown format
+ * - Converts legacy HTML content to Markdown on load
+ * - GFM support (tables, task lists, strikethrough)
  * 
- * The editor works with raw Markdown text and stores Markdown in the database,
- * not HTML. This is more secure and portable.
+ * The editor internally uses HTML for the visual editing experience,
+ * but converts to/from Markdown when loading and saving content.
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
-import {
-  Bold,
-  Italic,
-  Strikethrough,
-  List,
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import Placeholder from '@tiptap/extension-placeholder';
+import Link from '@tiptap/extension-link';
+import CodeBlock from '@tiptap/extension-code-block';
+import TurndownService from 'turndown';
+import { gfm } from 'turndown-plugin-gfm';
+import { marked } from 'marked';
+import { 
+  Bold, 
+  Italic, 
+  Strikethrough, 
+  List, 
   ListOrdered,
   Heading1,
   Heading2,
   Heading3,
+  Undo,
+  Redo,
   Quote,
   Minus,
+  Type,
+  Palette,
+  RotateCcw,
   Link as LinkIcon,
   Code,
-  CheckSquare,
-  Table,
+  Unlink,
   SquareArrowOutUpRight,
-  Eye,
-  Edit,
+  Table,
+  CheckSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { InlineButtonEditor, InlineButtonData } from './InlineButtonEditor';
-import { MarkdownRenderer } from './MarkdownRenderer';
+import { InlineButtonEditor, InlineButtonData, parseInlineButtonFromDataAttr } from './InlineButtonEditor';
 
 // ============================================================================
 // Types
 // ============================================================================
 
 interface MarkdownEditorProps {
-  /** Current markdown content */
+  /** Current content (Markdown or legacy HTML) */
   content: string;
-  /** Called when content changes */
-  onChange: (content: string) => void;
+  /** Called when content changes - receives Markdown */
+  onChange: (markdown: string) => void;
   /** Placeholder text when empty */
   placeholder?: string;
   /** Additional CSS classes */
   className?: string;
-  /** Auto-size textarea height */
+  /** Auto-size editor height */
   autoSize?: boolean;
+}
+
+// ============================================================================
+// Color Presets
+// ============================================================================
+
+const presetColors = [
+  '#000000', '#6b7280', '#ef4444', '#f97316', '#eab308',
+  '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#ffffff',
+];
+
+// ============================================================================
+// Markdown <-> HTML Conversion Utilities
+// ============================================================================
+
+/**
+ * Configure Turndown for HTML to Markdown conversion.
+ * Includes GFM support for tables, strikethrough, and task lists.
+ */
+function createTurndownService(): TurndownService {
+  const turndown = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+    bulletListMarker: '-',
+  });
+  
+  // Add GFM plugin for tables, strikethrough, task lists
+  turndown.use(gfm);
+  
+  // Custom rule for inline buttons - convert to our special format
+  turndown.addRule('inlineButton', {
+    filter: (node) => {
+      return (
+        node.nodeName === 'SPAN' &&
+        node.classList?.contains('editable-inline-button')
+      );
+    },
+    replacement: (_content, node) => {
+      const dataAttr = (node as HTMLElement).getAttribute('data-inline-button');
+      if (dataAttr) {
+        return `[INLINE_BUTTON:${dataAttr}]`;
+      }
+      return '';
+    },
+  });
+  
+  // Keep colored spans as HTML since markdown doesn't support colors
+  turndown.addRule('coloredText', {
+    filter: (node) => {
+      return (
+        node.nodeName === 'SPAN' &&
+        !node.classList?.contains('editable-inline-button') &&
+        (node as HTMLElement).style?.color
+      );
+    },
+    replacement: (content, node) => {
+      const color = (node as HTMLElement).style.color;
+      if (color) {
+        return `<span style="color: ${color}">${content}</span>`;
+      }
+      return content;
+    },
+  });
+  
+  return turndown;
+}
+
+/**
+ * Convert HTML to Markdown.
+ */
+function htmlToMarkdown(html: string): string {
+  if (!html?.trim()) return '';
+  
+  const turndown = createTurndownService();
+  
+  try {
+    return turndown.turndown(html).trim();
+  } catch (error) {
+    console.error('Error converting HTML to Markdown:', error);
+    return html;
+  }
+}
+
+/**
+ * Configure marked for Markdown to HTML conversion.
+ */
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
+
+/**
+ * Convert Markdown to HTML for the editor.
+ * Also handles our special inline button format.
+ */
+function markdownToHtml(markdown: string): string {
+  if (!markdown?.trim()) return '';
+  
+  try {
+    let html = markdown;
+    
+    // First, convert inline button placeholders to HTML
+    // Format: [INLINE_BUTTON:base64data]
+    html = html.replace(/\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g, (_match, dataAttr) => {
+      const data = parseInlineButtonFromDataAttr(dataAttr);
+      if (data) {
+        return serializeInlineButtonHtml(data);
+      }
+      return '';
+    });
+    
+    // Check if content is already HTML
+    const trimmed = html.trim();
+    if (trimmed.startsWith('<') && (
+      trimmed.startsWith('<p>') ||
+      trimmed.startsWith('<h') ||
+      trimmed.startsWith('<ul>') ||
+      trimmed.startsWith('<ol>') ||
+      trimmed.startsWith('<div>') ||
+      trimmed.startsWith('<blockquote>') ||
+      trimmed.startsWith('<pre>')
+    )) {
+      // Already HTML, just return it (for legacy content)
+      return transformLegacyInlineButtons(html);
+    }
+    
+    // Convert markdown to HTML
+    const result = marked.parse(html, { async: false }) as string;
+    
+    return result;
+  } catch (error) {
+    console.error('Error converting Markdown to HTML:', error);
+    return `<p>${markdown}</p>`;
+  }
+}
+
+/**
+ * Transform legacy Wekan inline buttons to our editable format.
+ */
+function transformLegacyInlineButtons(html: string): string {
+  // Pattern for Wekan-style inline buttons
+  const wekanPattern = /<span[^>]*style=['"][^'"]*display\s*:\s*inline-?flex[^'"]*['"][^>]*>([\s\S]*?)<\/span>/gi;
+  
+  return html.replace(wekanPattern, (match) => {
+    // Check if it's already our format
+    if (match.includes('editable-inline-button')) {
+      return match;
+    }
+    
+    // Extract icon, link, and text
+    const imgMatch = match.match(/<img[^>]*src=['"]([^'"]+)['"][^>]*>/i);
+    const anchorMatch = match.match(/<a[^>]*href=['"]([^'"]+)['"][^>]*>([^<]*)<\/a>/i);
+    const bgColorMatch = match.match(/background(?:-color)?:\s*([^;'"]+)/i);
+    const textColorMatch = match.match(/(?:^|[^-])color:\s*([^;'"]+)/i);
+    
+    if (anchorMatch) {
+      const data: InlineButtonData = {
+        id: `wekan-btn-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        iconUrl: imgMatch?.[1] || '',
+        iconSize: 16,
+        linkUrl: anchorMatch[1] || '',
+        linkText: anchorMatch[2]?.trim() || 'Button',
+        textColor: textColorMatch?.[1]?.trim() || '#579DFF',
+        backgroundColor: bgColorMatch?.[1]?.trim() || '#1D2125',
+      };
+      return serializeInlineButtonHtml(data);
+    }
+    
+    return match;
+  });
+}
+
+/**
+ * Serialize inline button data to HTML for the editor.
+ */
+function serializeInlineButtonHtml(data: InlineButtonData): string {
+  const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  return `<span class="editable-inline-button" data-inline-button="${encodedData}" data-bg-color="${data.backgroundColor}" data-text-color="${data.textColor}" data-link-url="${data.linkUrl}" contenteditable="false" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background-color:${data.backgroundColor};border:1px solid #3d444d;white-space:nowrap;cursor:pointer;">${
+    data.iconUrl ? `<img src="${data.iconUrl}" alt="" style="width:${data.iconSize}px;height:${data.iconSize}px;object-fit:contain;flex-shrink:0;">` : ''
+  }<span class="inline-button-text" style="color:${data.textColor};text-decoration:none;white-space:nowrap;">${data.linkText}</span></span>`;
 }
 
 // ============================================================================
@@ -91,363 +284,306 @@ function ToolbarButton({ onClick, isActive = false, children, title }: ToolbarBu
 }
 
 // ============================================================================
-// Inline Button Serialization for Markdown
-// ============================================================================
-
-/**
- * Serialize an inline button to our custom Markdown format.
- * Format: [INLINE_BUTTON:base64EncodedData]
- */
-export function serializeInlineButtonMarkdown(data: InlineButtonData): string {
-  const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  return `[INLINE_BUTTON:${encodedData}]`;
-}
-
-// ============================================================================
-// Text Manipulation Utilities
-// ============================================================================
-
-interface TextSelection {
-  start: number;
-  end: number;
-  text: string;
-}
-
-/**
- * Get current selection from textarea.
- */
-function getSelection(textarea: HTMLTextAreaElement): TextSelection {
-  return {
-    start: textarea.selectionStart,
-    end: textarea.selectionEnd,
-    text: textarea.value.substring(textarea.selectionStart, textarea.selectionEnd),
-  };
-}
-
-/**
- * Insert text at cursor position, optionally wrapping selection.
- */
-function insertAtCursor(
-  textarea: HTMLTextAreaElement,
-  before: string,
-  after: string = '',
-  value: string,
-  onChange: (v: string) => void
-) {
-  const selection = getSelection(textarea);
-  const selectedText = selection.text || 'text';
-  
-  const newText = 
-    value.substring(0, selection.start) +
-    before +
-    selectedText +
-    after +
-    value.substring(selection.end);
-  
-  onChange(newText);
-  
-  // Restore focus and set cursor position after update
-  setTimeout(() => {
-    textarea.focus();
-    const newCursorPos = selection.start + before.length + selectedText.length;
-    textarea.setSelectionRange(newCursorPos, newCursorPos);
-  }, 0);
-}
-
-/**
- * Insert text at start of each selected line.
- */
-function insertAtLineStart(
-  textarea: HTMLTextAreaElement,
-  prefix: string,
-  value: string,
-  onChange: (v: string) => void
-) {
-  const selection = getSelection(textarea);
-  
-  // Find start of first selected line
-  let lineStart = selection.start;
-  while (lineStart > 0 && value[lineStart - 1] !== '\n') {
-    lineStart--;
-  }
-  
-  // Find end of last selected line
-  let lineEnd = selection.end;
-  while (lineEnd < value.length && value[lineEnd] !== '\n') {
-    lineEnd++;
-  }
-  
-  // Get the selected lines
-  const lines = value.substring(lineStart, lineEnd).split('\n');
-  
-  // Add prefix to each line
-  const newLines = lines.map(line => prefix + line);
-  
-  const newText = 
-    value.substring(0, lineStart) +
-    newLines.join('\n') +
-    value.substring(lineEnd);
-  
-  onChange(newText);
-  
-  // Restore focus
-  setTimeout(() => {
-    textarea.focus();
-  }, 0);
-}
-
-// ============================================================================
 // Main Editor Component
 // ============================================================================
 
 export function MarkdownEditor({
   content,
   onChange,
-  placeholder = 'Write your description in Markdown...',
+  placeholder,
   className,
   autoSize = false,
 }: MarkdownEditorProps) {
-  // State for link popover
+  const [customColor, setCustomColor] = useState('#3b82f6');
   const [linkUrl, setLinkUrl] = useState('');
-  const [linkText, setLinkText] = useState('');
   const [showLinkPopover, setShowLinkPopover] = useState(false);
-  
-  // State for inline button editor
   const [showInlineButtonEditor, setShowInlineButtonEditor] = useState(false);
+  const [editingButtonData, setEditingButtonData] = useState<InlineButtonData | null>(null);
+  const [editingButtonElement, setEditingButtonElement] = useState<HTMLElement | null>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   
-  // State for preview mode
-  const [showPreview, setShowPreview] = useState(false);
+  // Track if we're currently syncing to prevent loops
+  const isSyncing = useRef(false);
   
-  // Textarea ref for cursor manipulation
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Convert initial markdown content to HTML for the editor
+  const initialHtml = useMemo(() => {
+    return markdownToHtml(content);
+  }, []);
 
-  // ============================================================================
-  // Formatting Handlers
-  // ============================================================================
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: {
+          levels: [1, 2, 3],
+        },
+        codeBlock: false,
+      }),
+      TextStyle,
+      Color,
+      Placeholder.configure({
+        placeholder: placeholder || 'Write your description...',
+      }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-primary underline hover:text-primary/80',
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        },
+      }),
+      CodeBlock.configure({
+        HTMLAttributes: {
+          class: 'bg-muted rounded-md p-3 font-mono text-sm overflow-x-auto',
+        },
+      }),
+    ],
+    content: initialHtml,
+    onUpdate: ({ editor }) => {
+      if (isSyncing.current) return;
+      
+      // Convert HTML back to Markdown and emit
+      const html = editor.getHTML();
+      const markdown = htmlToMarkdown(html);
+      onChange(markdown);
+    },
+    editorProps: {
+      attributes: {
+        class: cn(
+          'prose prose-sm dark:prose-invert max-w-none focus:outline-none px-3 py-2',
+          autoSize ? 'min-h-[80px]' : 'min-h-[120px]'
+        ),
+      },
+    },
+  });
 
-  /**
-   * Toggle bold formatting: **text**
-   */
-  const handleBold = useCallback(() => {
-    if (!textareaRef.current) return;
-    insertAtCursor(textareaRef.current, '**', '**', content, onChange);
-  }, [content, onChange]);
-
-  /**
-   * Toggle italic formatting: *text*
-   */
-  const handleItalic = useCallback(() => {
-    if (!textareaRef.current) return;
-    insertAtCursor(textareaRef.current, '*', '*', content, onChange);
-  }, [content, onChange]);
-
-  /**
-   * Toggle strikethrough formatting: ~~text~~
-   */
-  const handleStrikethrough = useCallback(() => {
-    if (!textareaRef.current) return;
-    insertAtCursor(textareaRef.current, '~~', '~~', content, onChange);
-  }, [content, onChange]);
-
-  /**
-   * Insert heading: # text
-   */
-  const handleHeading = useCallback((level: 1 | 2 | 3) => {
-    if (!textareaRef.current) return;
-    const prefix = '#'.repeat(level) + ' ';
-    insertAtLineStart(textareaRef.current, prefix, content, onChange);
-  }, [content, onChange]);
-
-  /**
-   * Insert bullet list item: - text
-   */
-  const handleBulletList = useCallback(() => {
-    if (!textareaRef.current) return;
-    insertAtLineStart(textareaRef.current, '- ', content, onChange);
-  }, [content, onChange]);
-
-  /**
-   * Insert numbered list item: 1. text
-   */
-  const handleNumberedList = useCallback(() => {
-    if (!textareaRef.current) return;
-    insertAtLineStart(textareaRef.current, '1. ', content, onChange);
-  }, [content, onChange]);
-
-  /**
-   * Insert task list item: - [ ] text
-   */
-  const handleTaskList = useCallback(() => {
-    if (!textareaRef.current) return;
-    insertAtLineStart(textareaRef.current, '- [ ] ', content, onChange);
-  }, [content, onChange]);
-
-  /**
-   * Insert blockquote: > text
-   */
-  const handleBlockquote = useCallback(() => {
-    if (!textareaRef.current) return;
-    insertAtLineStart(textareaRef.current, '> ', content, onChange);
-  }, [content, onChange]);
-
-  /**
-   * Insert code block: ```code```
-   */
-  const handleCodeBlock = useCallback(() => {
-    if (!textareaRef.current) return;
-    insertAtCursor(textareaRef.current, '\n```\n', '\n```\n', content, onChange);
-  }, [content, onChange]);
-
-  /**
-   * Insert horizontal rule: ---
-   */
-  const handleHorizontalRule = useCallback(() => {
-    if (!textareaRef.current) return;
-    const selection = getSelection(textareaRef.current);
-    const newText = 
-      content.substring(0, selection.start) +
-      '\n---\n' +
-      content.substring(selection.end);
-    onChange(newText);
-    
-    setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 0);
-  }, [content, onChange]);
-
-  /**
-   * Insert table template
-   */
-  const handleTable = useCallback(() => {
-    if (!textareaRef.current) return;
-    const tableTemplate = '\n| Header 1 | Header 2 | Header 3 |\n| -------- | -------- | -------- |\n| Cell 1   | Cell 2   | Cell 3   |\n';
-    const selection = getSelection(textareaRef.current);
-    const newText = 
-      content.substring(0, selection.start) +
-      tableTemplate +
-      content.substring(selection.end);
-    onChange(newText);
-    
-    setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 0);
-  }, [content, onChange]);
-
-  /**
-   * Insert link: [text](url)
-   */
-  const handleInsertLink = useCallback(() => {
-    if (!textareaRef.current) return;
-    const url = linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`;
-    const text = linkText || 'link';
-    const linkMarkdown = `[${text}](${url})`;
-    
-    const selection = getSelection(textareaRef.current);
-    const newText = 
-      content.substring(0, selection.start) +
-      linkMarkdown +
-      content.substring(selection.end);
-    
-    onChange(newText);
-    setLinkUrl('');
-    setLinkText('');
-    setShowLinkPopover(false);
-    
-    setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 0);
-  }, [content, onChange, linkUrl, linkText]);
-
-  /**
-   * Insert inline button
-   */
-  const handleInsertInlineButton = useCallback((data: InlineButtonData) => {
-    if (!textareaRef.current) return;
-    
-    const buttonMarkdown = serializeInlineButtonMarkdown(data);
-    const selection = getSelection(textareaRef.current);
-    const newText = 
-      content.substring(0, selection.start) +
-      buttonMarkdown + ' ' +
-      content.substring(selection.end);
-    
-    onChange(newText);
-    setShowInlineButtonEditor(false);
-    
-    setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 0);
-  }, [content, onChange]);
-
-  // ============================================================================
-  // Auto-resize Textarea
-  // ============================================================================
-
+  // Handle clicking on inline buttons in the editor
   useEffect(() => {
-    if (autoSize && textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    const handleEditorClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const buttonEl = target.closest('.editable-inline-button');
+      
+      if (buttonEl) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const dataAttr = buttonEl.getAttribute('data-inline-button');
+        if (dataAttr) {
+          const data = parseInlineButtonFromDataAttr(dataAttr);
+          if (data) {
+            setEditingButtonData(data);
+            setEditingButtonElement(buttonEl as HTMLElement);
+            setShowInlineButtonEditor(true);
+          }
+        }
+      }
+    };
+    
+    const container = editorContainerRef.current;
+    if (container) {
+      container.addEventListener('click', handleEditorClick);
+      return () => container.removeEventListener('click', handleEditorClick);
     }
-  }, [content, autoSize]);
+  }, []);
 
-  // ============================================================================
-  // Render
-  // ============================================================================
+  // Sync external content changes (e.g., when card changes)
+  useEffect(() => {
+    if (editor && content !== undefined) {
+      const currentHtml = editor.getHTML();
+      const currentMarkdown = htmlToMarkdown(currentHtml);
+      
+      // Only update if content actually changed
+      if (currentMarkdown !== content) {
+        isSyncing.current = true;
+        const newHtml = markdownToHtml(content);
+        editor.commands.setContent(newHtml, { emitUpdate: false });
+        isSyncing.current = false;
+      }
+    }
+  }, [content, editor]);
+
+  const handleInsertInlineButton = useCallback((data: InlineButtonData) => {
+    if (!editor) return;
+    
+    const html = serializeInlineButtonHtml(data);
+    
+    if (editingButtonElement) {
+      // Replace existing button
+      editingButtonElement.outerHTML = html;
+      // Trigger update by getting and re-setting content
+      const updatedHtml = editor.getHTML();
+      onChange(htmlToMarkdown(updatedHtml));
+    } else {
+      // Insert new button at cursor
+      editor.chain().focus().insertContent(html + '&nbsp;').run();
+    }
+    
+    setEditingButtonData(null);
+    setEditingButtonElement(null);
+  }, [editor, editingButtonElement, onChange]);
+
+  const handleDeleteInlineButton = useCallback(() => {
+    if (editingButtonElement && editor) {
+      editingButtonElement.remove();
+      const updatedHtml = editor.getHTML();
+      onChange(htmlToMarkdown(updatedHtml));
+    }
+    setShowInlineButtonEditor(false);
+    setEditingButtonData(null);
+    setEditingButtonElement(null);
+  }, [editingButtonElement, editor, onChange]);
+
+  if (!editor) {
+    return null;
+  }
+
+  const handleSetLink = () => {
+    if (linkUrl) {
+      const url = linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`;
+      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    }
+    setLinkUrl('');
+    setShowLinkPopover(false);
+  };
+
+  const handleUnsetLink = () => {
+    editor.chain().focus().unsetLink().run();
+  };
+
+  const handleInsertTable = () => {
+    // Insert a simple markdown table template
+    const tableHtml = `
+      <table>
+        <thead>
+          <tr><th>Header 1</th><th>Header 2</th><th>Header 3</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Cell 1</td><td>Cell 2</td><td>Cell 3</td></tr>
+        </tbody>
+      </table>
+    `;
+    editor.chain().focus().insertContent(tableHtml).run();
+  };
+
+  const handleInsertTaskList = () => {
+    // Insert task list items
+    editor.chain().focus().insertContent(`
+      <ul>
+        <li>[ ] Task item 1</li>
+        <li>[ ] Task item 2</li>
+      </ul>
+    `).run();
+  };
 
   return (
-    <div className={cn('border rounded-lg bg-background', className)}>
+    <div ref={editorContainerRef} className={cn('border rounded-lg bg-background relative', className)}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 p-1 border-b bg-muted/30">
         {/* Text formatting */}
-        <ToolbarButton onClick={handleBold} title="Bold (Ctrl+B)">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          isActive={editor.isActive('bold')}
+          title="Bold (Ctrl+B)"
+        >
           <Bold className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={handleItalic} title="Italic (Ctrl+I)">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          isActive={editor.isActive('italic')}
+          title="Italic (Ctrl+I)"
+        >
           <Italic className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={handleStrikethrough} title="Strikethrough">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          isActive={editor.isActive('strike')}
+          title="Strikethrough"
+        >
           <Strikethrough className="h-4 w-4" />
         </ToolbarButton>
 
         <div className="w-px h-6 bg-border mx-1" />
 
         {/* Headings */}
-        <ToolbarButton onClick={() => handleHeading(1)} title="Heading 1">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+          isActive={editor.isActive('heading', { level: 1 })}
+          title="Heading 1"
+        >
           <Heading1 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => handleHeading(2)} title="Heading 2">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          isActive={editor.isActive('heading', { level: 2 })}
+          title="Heading 2"
+        >
           <Heading2 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => handleHeading(3)} title="Heading 3">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          isActive={editor.isActive('heading', { level: 3 })}
+          title="Heading 3"
+        >
           <Heading3 className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().setParagraph().run()}
+          isActive={editor.isActive('paragraph')}
+          title="Paragraph"
+        >
+          <Type className="h-4 w-4" />
         </ToolbarButton>
 
         <div className="w-px h-6 bg-border mx-1" />
 
         {/* Lists */}
-        <ToolbarButton onClick={handleBulletList} title="Bullet List">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          isActive={editor.isActive('bulletList')}
+          title="Bullet List"
+        >
           <List className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={handleNumberedList} title="Numbered List">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          isActive={editor.isActive('orderedList')}
+          title="Numbered List"
+        >
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={handleTaskList} title="Task List">
+        <ToolbarButton
+          onClick={handleInsertTaskList}
+          title="Task List"
+        >
           <CheckSquare className="h-4 w-4" />
         </ToolbarButton>
 
         <div className="w-px h-6 bg-border mx-1" />
 
         {/* Quote, Code, Table & Divider */}
-        <ToolbarButton onClick={handleBlockquote} title="Quote">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          isActive={editor.isActive('blockquote')}
+          title="Quote"
+        >
           <Quote className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={handleCodeBlock} title="Code Block">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          isActive={editor.isActive('codeBlock')}
+          title="Code Block"
+        >
           <Code className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={handleTable} title="Insert Table">
+        <ToolbarButton
+          onClick={handleInsertTable}
+          title="Insert Table"
+        >
           <Table className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={handleHorizontalRule} title="Horizontal Rule">
+        <ToolbarButton
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          title="Horizontal Rule"
+        >
           <Minus className="h-4 w-4" />
         </ToolbarButton>
 
@@ -460,7 +596,7 @@ export function MarkdownEditor({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
+              className={cn('h-8 w-8 p-0', editor.isActive('link') && 'bg-muted text-primary')}
               title="Add Link"
             >
               <LinkIcon className="h-4 w-4" />
@@ -468,79 +604,305 @@ export function MarkdownEditor({
           </PopoverTrigger>
           <PopoverContent className="w-72 p-3" align="start">
             <div className="space-y-3">
-              <div>
-                <Label className="text-xs font-medium">Link Text</Label>
-                <Input
-                  value={linkText}
-                  onChange={(e) => setLinkText(e.target.value)}
-                  placeholder="Display text"
-                  className="h-8 text-sm mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium">URL</Label>
+              <Label className="text-xs font-medium">Link URL</Label>
+              <div className="flex gap-2">
                 <Input
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
                   placeholder="https://example.com"
-                  className="h-8 text-sm mt-1"
-                  onKeyDown={(e) => e.key === 'Enter' && handleInsertLink()}
+                  className="h-8 text-sm"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSetLink()}
                 />
+                <Button size="sm" onClick={handleSetLink}>
+                  Add
+                </Button>
               </div>
-              <Button size="sm" onClick={handleInsertLink} className="w-full">
-                Insert Link
-              </Button>
             </div>
           </PopoverContent>
         </Popover>
+        
+        {editor.isActive('link') && (
+          <ToolbarButton onClick={handleUnsetLink} title="Remove Link">
+            <Unlink className="h-4 w-4" />
+          </ToolbarButton>
+        )}
+
+        <div className="w-px h-6 bg-border mx-1" />
 
         {/* Inline Button */}
         <ToolbarButton
-          onClick={() => setShowInlineButtonEditor(true)}
+          onClick={() => {
+            setEditingButtonData(null);
+            setEditingButtonElement(null);
+            setShowInlineButtonEditor(true);
+          }}
           title="Insert Inline Button"
         >
           <SquareArrowOutUpRight className="h-4 w-4" />
         </ToolbarButton>
 
+        <div className="w-px h-6 bg-border mx-1" />
+
+        {/* Text Color */}
+        <Popover modal={true}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 relative"
+              title="Text Color"
+            >
+              <Palette className="h-4 w-4" />
+              <div 
+                className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-4 h-1 rounded-full"
+                style={{ backgroundColor: customColor }}
+              />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-3" align="start">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Text Color</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => editor.chain().focus().unsetColor().run()}
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Reset
+                </Button>
+              </div>
+              
+              {/* Color picker input */}
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={customColor}
+                    onChange={(e) => {
+                      setCustomColor(e.target.value);
+                      editor.chain().focus().setColor(e.target.value).run();
+                    }}
+                    className="w-10 h-10 rounded-lg cursor-pointer border border-border"
+                  />
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="text"
+                    value={customColor}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomColor(val);
+                      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                        editor.chain().focus().setColor(val).run();
+                      }
+                    }}
+                    placeholder="#000000"
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Preset colors */}
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">Presets</Label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {presetColors.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => {
+                        setCustomColor(color);
+                        editor.chain().focus().setColor(color).run();
+                      }}
+                      className={cn(
+                        'h-6 w-6 rounded border hover:scale-110 transition-transform',
+                        color === '#ffffff' ? 'border-border' : 'border-transparent'
+                      )}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
         <div className="flex-1" />
 
-        {/* Preview Toggle */}
+        {/* Undo/Redo */}
         <ToolbarButton
-          onClick={() => setShowPreview(!showPreview)}
-          isActive={showPreview}
-          title={showPreview ? 'Edit' : 'Preview'}
+          onClick={() => editor.chain().focus().undo().run()}
+          title="Undo"
         >
-          {showPreview ? <Edit className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          <Undo className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().redo().run()}
+          title="Redo"
+        >
+          <Redo className="h-4 w-4" />
         </ToolbarButton>
       </div>
 
-      {/* Editor Content / Preview */}
-      {showPreview ? (
-        <div className="p-3 min-h-[120px] prose prose-sm dark:prose-invert max-w-none">
-          <MarkdownRenderer content={content} />
-        </div>
-      ) : (
-        <Textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className={cn(
-            'border-0 rounded-none rounded-b-lg focus-visible:ring-0 resize-none',
-            autoSize ? 'min-h-[80px]' : 'min-h-[120px]'
-          )}
-        />
-      )}
+      {/* Editor Content - WYSIWYG view */}
+      <EditorContent editor={editor} />
 
       {/* Inline Button Editor Dialog */}
       <InlineButtonEditor
         open={showInlineButtonEditor}
         onOpenChange={setShowInlineButtonEditor}
-        data={null}
+        data={editingButtonData}
         onSave={handleInsertInlineButton}
+        onDelete={editingButtonElement ? handleDeleteInlineButton : undefined}
       />
+
+      {/* Editor Styles */}
+      <style>{`
+        .ProseMirror p.is-editor-empty:first-child::before {
+          content: attr(data-placeholder);
+          float: left;
+          color: hsl(var(--muted-foreground));
+          pointer-events: none;
+          height: 0;
+        }
+        .ProseMirror h1 {
+          font-size: 1.5rem;
+          font-weight: 700;
+          margin-top: 1rem;
+          margin-bottom: 0.5rem;
+        }
+        .ProseMirror h2 {
+          font-size: 1.25rem;
+          font-weight: 600;
+          margin-top: 0.75rem;
+          margin-bottom: 0.5rem;
+        }
+        .ProseMirror h3 {
+          font-size: 1.1rem;
+          font-weight: 600;
+          margin-top: 0.5rem;
+          margin-bottom: 0.25rem;
+        }
+        .ProseMirror ul, .ProseMirror ol {
+          padding-left: 1.5rem;
+          margin: 0.5rem 0;
+        }
+        .ProseMirror li {
+          margin: 0.25rem 0;
+        }
+        .ProseMirror blockquote {
+          border-left: 3px solid hsl(var(--border));
+          padding-left: 1rem;
+          margin: 0.5rem 0;
+          color: hsl(var(--muted-foreground));
+        }
+        .ProseMirror hr {
+          border: none;
+          border-top: 1px solid hsl(var(--border));
+          margin: 1rem 0;
+        }
+        .ProseMirror p {
+          margin-bottom: 0.5rem;
+        }
+        .ProseMirror p:last-child {
+          margin-bottom: 0;
+        }
+        .ProseMirror br {
+          display: block;
+          content: "";
+        }
+        .ProseMirror pre {
+          background: hsl(var(--muted));
+          border-radius: 0.375rem;
+          padding: 0.75rem;
+          font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 0.875rem;
+          overflow-x: auto;
+          margin: 0.5rem 0;
+        }
+        .ProseMirror code {
+          background: hsl(var(--muted));
+          padding: 0.125rem 0.25rem;
+          border-radius: 0.25rem;
+          font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 0.875em;
+        }
+        .ProseMirror pre code {
+          background: none;
+          padding: 0;
+        }
+        .ProseMirror a {
+          color: hsl(var(--primary));
+          text-decoration: underline;
+        }
+        .ProseMirror a:hover {
+          color: hsl(var(--primary) / 0.8);
+        }
+        .ProseMirror table {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 0.5rem 0;
+        }
+        .ProseMirror th, .ProseMirror td {
+          border: 1px solid hsl(var(--border));
+          padding: 0.5rem;
+          text-align: left;
+        }
+        .ProseMirror th {
+          background: hsl(var(--muted) / 0.5);
+          font-weight: 600;
+        }
+        /* Editable inline button styling in editor */
+        .ProseMirror .editable-inline-button {
+          display: inline-flex !important;
+          align-items: center;
+          gap: 4px;
+          padding: 3px 8px;
+          border-radius: 4px;
+          border: 1px solid #3d444d;
+          white-space: nowrap;
+          cursor: pointer;
+          user-select: none;
+          transition: opacity 0.15s ease;
+          vertical-align: middle;
+          position: relative;
+        }
+        .ProseMirror .editable-inline-button:hover {
+          opacity: 0.85;
+        }
+        .ProseMirror .editable-inline-button img {
+          flex-shrink: 0;
+          object-fit: contain;
+        }
+        .ProseMirror .editable-inline-button .inline-button-text {
+          text-decoration: none !important;
+          white-space: nowrap;
+          line-height: 1.4;
+        }
+        .ProseMirror .editable-inline-button::after {
+          content: "";
+          position: absolute;
+          inset: -2px;
+          border: 2px dashed hsl(var(--primary) / 0.5);
+          border-radius: 6px;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.15s ease;
+        }
+        .ProseMirror .editable-inline-button:hover::after {
+          opacity: 1;
+        }
+      `}</style>
     </div>
   );
 }
 
 export default MarkdownEditor;
+
+// Export utility for inline button markdown serialization
+export { serializeInlineButtonHtml as serializeInlineButtonMarkdown };

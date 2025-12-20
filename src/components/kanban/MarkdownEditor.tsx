@@ -165,7 +165,7 @@ marked.setOptions({
 
 /**
  * Convert Markdown to HTML for the editor.
- * Also handles our special inline button format.
+ * Also handles our special inline button format and legacy HTML content.
  */
 function markdownToHtml(markdown: string): string {
   if (!markdown?.trim()) return '';
@@ -183,18 +183,25 @@ function markdownToHtml(markdown: string): string {
       return '';
     });
     
-    // Check if content is already HTML
+    // Check if content is already HTML (legacy imported content)
     const trimmed = html.trim();
-    if (trimmed.startsWith('<') && (
-      trimmed.startsWith('<p>') ||
-      trimmed.startsWith('<h') ||
-      trimmed.startsWith('<ul>') ||
-      trimmed.startsWith('<ol>') ||
-      trimmed.startsWith('<div>') ||
-      trimmed.startsWith('<blockquote>') ||
-      trimmed.startsWith('<pre>')
-    )) {
-      // Already HTML, just return it (for legacy content)
+    const isHtml = (
+      (trimmed.startsWith('<') && (
+        trimmed.startsWith('<p>') ||
+        trimmed.startsWith('<p ') ||
+        trimmed.startsWith('<h') ||
+        trimmed.startsWith('<ul') ||
+        trimmed.startsWith('<ol') ||
+        trimmed.startsWith('<div') ||
+        trimmed.startsWith('<blockquote') ||
+        trimmed.startsWith('<pre') ||
+        trimmed.startsWith('<span')
+      )) ||
+      /<(p|h[1-6]|ul|ol|li|div|blockquote|pre|strong|em|a|span|br)\b[^>]*>/i.test(html)
+    );
+    
+    if (isHtml) {
+      // Already HTML, transform Wekan inline buttons and return
       return transformLegacyInlineButtons(html);
     }
     

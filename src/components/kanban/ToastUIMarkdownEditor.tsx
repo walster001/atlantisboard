@@ -707,16 +707,30 @@ export function ToastUIMarkdownEditor({
           overflow-y: auto;
         }
         
-        /* Custom indent/outdent toolbar buttons - match native ToastUI icons */
-        .toastui-editor-wrapper .custom-indent,
-        .toastui-editor-wrapper .custom-outdent {
+        /* Custom indent/outdent toolbar buttons - match native ToastUI icons exactly */
+        .toastui-editor-wrapper .toastui-editor-toolbar-icons.custom-indent,
+        .toastui-editor-wrapper .toastui-editor-toolbar-icons.custom-outdent {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 32px !important;
+          height: 32px !important;
+          padding: 0 !important;
+          margin: 0 !important;
           background: transparent !important;
           background-image: none !important;
+          border: none !important;
+          cursor: pointer !important;
         }
-        .toastui-editor-wrapper .custom-indent svg,
-        .toastui-editor-wrapper .custom-outdent svg {
-          width: 16px;
-          height: 16px;
+        .toastui-editor-wrapper .toastui-editor-toolbar-icons.custom-indent::before,
+        .toastui-editor-wrapper .toastui-editor-toolbar-icons.custom-outdent::before {
+          display: none !important;
+        }
+        .toastui-editor-wrapper .toastui-editor-toolbar-icons.custom-indent svg,
+        .toastui-editor-wrapper .toastui-editor-toolbar-icons.custom-outdent svg {
+          width: 16px !important;
+          height: 16px !important;
+          flex-shrink: 0;
         }
         
         /* Themed editor styles */

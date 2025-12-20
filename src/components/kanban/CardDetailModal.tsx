@@ -158,7 +158,8 @@ export function CardDetailModal({
 
   const handleSaveDueDate = (date: Date | undefined) => {
     setDueDate(date);
-    onSave({ dueDate: date?.toISOString() });
+    // Pass null explicitly to clear due date, or the date string to set it
+    onSave({ dueDate: date === undefined ? null : date.toISOString() } as Partial<Card>);
   };
 
   const handleAddLabel = () => {

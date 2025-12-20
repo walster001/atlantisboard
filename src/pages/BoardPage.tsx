@@ -709,13 +709,16 @@ export default function BoardPage() {
       }
       
       // Use server-side function for update (triggers realtime for all users)
+      // Check if dueDate is explicitly null (meaning clear it) vs undefined (meaning don't update)
+      const clearDueDate = 'dueDate' in updates && updates.dueDate === null;
+      
       const { data, error } = await supabase.rpc('update_card', {
         _user_id: user.id,
         _card_id: cardId,
         _title: updates.title || null,
         _description: updates.description || null,
         _due_date: updates.dueDate || null,
-        _clear_due_date: updates.dueDate === undefined ? false : !updates.dueDate
+        _clear_due_date: clearDueDate
       });
 
       if (error) throw error;

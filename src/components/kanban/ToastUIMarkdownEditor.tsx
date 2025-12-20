@@ -26,6 +26,19 @@ marked.setOptions({
 });
 
 /**
+ * Serialize inline button data to HTML for display in WYSIWYG editor.
+ * Uses a visually styled span that Toast UI can render.
+ */
+function serializeInlineButtonHtml(data: InlineButtonData): string {
+  const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  const iconHtml = data.iconUrl 
+    ? `<img src="${data.iconUrl}" alt="" style="width:${data.iconSize}px;height:${data.iconSize}px;object-fit:contain;flex-shrink:0;vertical-align:middle;margin-right:4px;">` 
+    : '';
+  
+  return `<span class="editable-inline-button" data-inline-button="${encodedData}" contenteditable="false" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background-color:${data.backgroundColor};border:1px solid #3d444d;white-space:nowrap;cursor:pointer;vertical-align:middle;">${iconHtml}<span style="color:${data.textColor};text-decoration:none;white-space:nowrap;">${data.linkText}</span></span>`;
+}
+
+/**
  * Transform legacy Wekan inline buttons to our editable format.
  */
 function transformLegacyInlineButtons(html: string): string {
@@ -37,6 +50,7 @@ function transformLegacyInlineButtons(html: string): string {
   const wekanPattern = /<span[^>]*style=['"][^'"]*display\s*:\s*inline-?flex[^'"]*['"][^>]*>([\s\S]*?)<\/span>/gi;
   
   result = result.replace(wekanPattern, (match) => {
+    // Skip if already our format
     if (match.includes('editable-inline-button') || match.includes('data-inline-button')) {
       return match;
     }
@@ -66,16 +80,6 @@ function transformLegacyInlineButtons(html: string): string {
 }
 
 /**
- * Serialize inline button data to HTML.
- */
-function serializeInlineButtonHtml(data: InlineButtonData): string {
-  const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  return `<span class="editable-inline-button" data-inline-button="${encodedData}" data-bg-color="${data.backgroundColor}" data-text-color="${data.textColor}" data-link-url="${data.linkUrl}" contenteditable="false" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background-color:${data.backgroundColor};border:1px solid #3d444d;white-space:nowrap;cursor:pointer;">${
-    data.iconUrl ? `<img src="${data.iconUrl}" alt="" style="width:${data.iconSize}px;height:${data.iconSize}px;object-fit:contain;flex-shrink:0;">` : ''
-  }<span class="inline-button-text" style="color:${data.textColor};text-decoration:none;white-space:nowrap;">${data.linkText}</span></span>`;
-}
-
-/**
  * Convert content to HTML for the editor.
  * Handles:
  * 1. [INLINE_BUTTON:...] markdown format -> HTML spans
@@ -87,49 +91,47 @@ function prepareContentForEditor(content: string): string {
   
   let result = content;
   
-  // Step 1: Protect inline button markers by temporarily replacing them
-  const buttonPlaceholders: Map<string, string> = new Map();
-  let buttonIndex = 0;
-  
+  // Step 1: Convert [INLINE_BUTTON:...] markers to HTML spans FIRST
   result = result.replace(/\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g, (_match, dataAttr) => {
     const data = parseInlineButtonFromDataAttr(dataAttr);
     if (data) {
-      const token = `INLINEBTNPLACEHOLDER${buttonIndex++}`;
-      buttonPlaceholders.set(token, serializeInlineButtonHtml(data));
-      return token;
+      return serializeInlineButtonHtml(data);
     }
     return '';
   });
   
-  // Step 2: Check if content is already HTML or needs markdown parsing
-  const trimmed = result.trim();
-  const startsWithHtml = trimmed.startsWith('<') && (
-    trimmed.startsWith('<p>') ||
-    trimmed.startsWith('<p ') ||
-    trimmed.startsWith('<h') ||
-    trimmed.startsWith('<ul') ||
-    trimmed.startsWith('<ol') ||
-    trimmed.startsWith('<div') ||
-    trimmed.startsWith('<blockquote') ||
-    trimmed.startsWith('<pre')
-  );
+  // Step 2: Check if content still has markdown syntax that needs parsing
+  // Skip if content is already pure HTML
+  const hasMarkdownSyntax = /(?:^|\n)(#{1,6}\s|[-*+]\s|\d+\.\s|>\s)|(\*\*|__|~~|```|\[.+\]\(.+\))/m.test(result);
+  const isPureHtml = result.trim().startsWith('<') && !hasMarkdownSyntax;
   
-  // Check for markdown syntax
-  const hasMarkdownSyntax = /^(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\*\*|__|```|\[.+\]\(.+\))/m.test(result);
-  
-  if (!startsWithHtml || hasMarkdownSyntax) {
-    // Parse as markdown
+  if (!isPureHtml && hasMarkdownSyntax) {
+    // We need to protect existing HTML (inline buttons) before parsing markdown
+    const htmlPlaceholders: Map<string, string> = new Map();
+    let placeholderIndex = 0;
+    
+    // Protect all editable-inline-button spans
+    result = result.replace(/<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*>[\s\S]*?<\/span>/gi, (match) => {
+      const token = `__HTMLPLACEHOLDER${placeholderIndex++}__`;
+      htmlPlaceholders.set(token, match);
+      return token;
+    });
+    
+    // Parse markdown to HTML
+    result = marked.parse(result, { async: false }) as string;
+    
+    // Restore protected HTML
+    for (const [token, html] of htmlPlaceholders) {
+      result = result.replace(token, html);
+      // Also handle if token got wrapped in <p> tags
+      result = result.replace(new RegExp(`<p>\\s*${token}\\s*</p>`, 'g'), html);
+    }
+  } else if (!isPureHtml && !result.includes('<')) {
+    // Plain text without any HTML, parse as markdown
     result = marked.parse(result, { async: false }) as string;
   }
   
-  // Step 3: Restore button placeholders
-  for (const [token, html] of buttonPlaceholders) {
-    // Replace token wherever it appears (might be wrapped in <p> or other tags)
-    const tokenRegex = new RegExp(`(<p>)?\\s*${token}\\s*(<\\/p>)?`, 'g');
-    result = result.replace(tokenRegex, html);
-  }
-  
-  // Step 4: Transform any legacy Wekan buttons still in HTML
+  // Step 3: Transform any legacy Wekan buttons still in HTML
   result = transformLegacyInlineButtons(result);
   
   return result;
@@ -151,43 +153,55 @@ function convertToMarkdown(html: string): string {
   
   // Convert basic HTML back to markdown
   // Headers
-  result = result.replace(/<h1[^>]*>([^<]*)<\/h1>/gi, '# $1\n');
-  result = result.replace(/<h2[^>]*>([^<]*)<\/h2>/gi, '## $1\n');
-  result = result.replace(/<h3[^>]*>([^<]*)<\/h3>/gi, '### $1\n');
-  result = result.replace(/<h4[^>]*>([^<]*)<\/h4>/gi, '#### $1\n');
-  result = result.replace(/<h5[^>]*>([^<]*)<\/h5>/gi, '##### $1\n');
-  result = result.replace(/<h6[^>]*>([^<]*)<\/h6>/gi, '###### $1\n');
+  result = result.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '# $1\n');
+  result = result.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '## $1\n');
+  result = result.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '### $1\n');
+  result = result.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, '#### $1\n');
+  result = result.replace(/<h5[^>]*>([\s\S]*?)<\/h5>/gi, '##### $1\n');
+  result = result.replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, '###### $1\n');
   
   // Bold and italic
-  result = result.replace(/<strong>([^<]*)<\/strong>/gi, '**$1**');
-  result = result.replace(/<b>([^<]*)<\/b>/gi, '**$1**');
-  result = result.replace(/<em>([^<]*)<\/em>/gi, '*$1*');
-  result = result.replace(/<i>([^<]*)<\/i>/gi, '*$1*');
-  result = result.replace(/<s>([^<]*)<\/s>/gi, '~~$1~~');
-  result = result.replace(/<strike>([^<]*)<\/strike>/gi, '~~$1~~');
-  result = result.replace(/<del>([^<]*)<\/del>/gi, '~~$1~~');
+  result = result.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**');
+  result = result.replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**');
+  result = result.replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '*$1*');
+  result = result.replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '*$1*');
+  result = result.replace(/<s[^>]*>([\s\S]*?)<\/s>/gi, '~~$1~~');
+  result = result.replace(/<strike[^>]*>([\s\S]*?)<\/strike>/gi, '~~$1~~');
+  result = result.replace(/<del[^>]*>([\s\S]*?)<\/del>/gi, '~~$1~~');
   
   // Code
-  result = result.replace(/<code>([^<]*)<\/code>/gi, '`$1`');
-  result = result.replace(/<pre><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```');
+  result = result.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`');
+  result = result.replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```');
   
-  // Links
-  result = result.replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '[$2]($1)');
+  // Links (but not inside buttons which are already converted)
+  result = result.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)');
   
-  // Lists
-  result = result.replace(/<li>([^<]*)<\/li>/gi, '- $1\n');
+  // Lists - handle properly
+  result = result.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n');
   result = result.replace(/<\/?[uo]l[^>]*>/gi, '\n');
   
   // Blockquotes
-  result = result.replace(/<blockquote>([^<]*)<\/blockquote>/gi, '> $1\n');
+  result = result.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, '> $1\n');
   
   // Horizontal rules
-  result = result.replace(/<hr\s*\/?>/gi, '---\n');
+  result = result.replace(/<hr\s*\/?>/gi, '\n---\n');
   
   // Paragraphs and breaks
   result = result.replace(/<br\s*\/?>/gi, '\n');
-  result = result.replace(/<\/p>\s*<p>/gi, '\n\n');
+  result = result.replace(/<\/p>\s*<p[^>]*>/gi, '\n\n');
   result = result.replace(/<\/?p[^>]*>/gi, '');
+  
+  // Remove any remaining HTML tags (except our button markers)
+  result = result.replace(/<\/?(?!INLINE_BUTTON)[a-z][^>]*>/gi, '');
+  
+  // Decode HTML entities
+  result = result
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
   
   // Clean up extra whitespace
   result = result.replace(/\n{3,}/g, '\n\n');
@@ -208,6 +222,7 @@ export function ToastUIMarkdownEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const isSyncing = useRef(false);
   const isInitialized = useRef(false);
+  const lastContentRef = useRef(content);
   
   // Handle editor changes
   const handleChange = useCallback(() => {
@@ -219,7 +234,12 @@ export function ToastUIMarkdownEditor({
     // Get HTML from WYSIWYG mode
     const html = editorInstance.getHTML();
     const markdown = convertToMarkdown(html);
-    onChange(markdown);
+    
+    // Only trigger onChange if content actually changed
+    if (markdown !== lastContentRef.current) {
+      lastContentRef.current = markdown;
+      onChange(markdown);
+    }
   }, [onChange]);
   
   // Initialize editor with HTML content after mount
@@ -235,13 +255,14 @@ export function ToastUIMarkdownEditor({
         editorInstance.setHTML(htmlContent);
         isSyncing.current = false;
       }
+      lastContentRef.current = content;
       isInitialized.current = true;
-    }, 100);
+    }, 50);
     
     return () => clearTimeout(timeoutId);
   }, [content]);
   
-  // Handle clicking on inline buttons
+  // Handle clicking on inline buttons in the editor
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -269,13 +290,15 @@ export function ToastUIMarkdownEditor({
     }
   }, []);
   
-  // Sync external content changes (after initial load)
+  // Sync external content changes (only if content differs significantly)
   useEffect(() => {
     if (!isInitialized.current) return;
+    if (content === lastContentRef.current) return;
     
     const editorInstance = editorRef.current?.getInstance();
     if (!editorInstance) return;
     
+    // Only sync if external content is meaningfully different
     const currentHtml = editorInstance.getHTML();
     const currentMarkdown = convertToMarkdown(currentHtml);
     
@@ -283,6 +306,7 @@ export function ToastUIMarkdownEditor({
       isSyncing.current = true;
       const newContent = prepareContentForEditor(content);
       editorInstance.setHTML(newContent);
+      lastContentRef.current = content;
       isSyncing.current = false;
     }
   }, [content]);
@@ -294,26 +318,68 @@ export function ToastUIMarkdownEditor({
     const html = serializeInlineButtonHtml(data);
     
     if (editingButtonData) {
-      // Replace existing button - get current HTML and replace
+      // Replace existing button - find and replace in current HTML
       let currentHtml = editorInstance.getHTML();
       const oldDataAttr = btoa(unescape(encodeURIComponent(JSON.stringify(editingButtonData))));
-      const pattern = new RegExp(`<span[^>]*data-inline-button="${oldDataAttr}"[^>]*>[\\s\\S]*?</span>`, 'gi');
-      currentHtml = currentHtml.replace(pattern, html);
+      
+      // Try to find the old button by its data attribute
+      const oldButtonPattern = new RegExp(
+        `<span[^>]*data-inline-button="${oldDataAttr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>[\\s\\S]*?</span>`,
+        'gi'
+      );
+      
+      if (oldButtonPattern.test(currentHtml)) {
+        currentHtml = currentHtml.replace(oldButtonPattern, html);
+      } else {
+        // Fallback: try to find by button ID
+        const idPattern = new RegExp(
+          `<span[^>]*data-inline-button="[^"]*"[^>]*>[\\s\\S]*?</span>`,
+          'gi'
+        );
+        // Replace first matching button (simple case)
+        currentHtml = currentHtml.replace(idPattern, (match, offset, str) => {
+          // Only replace once
+          if (str.indexOf(match) === offset) {
+            return html;
+          }
+          return match;
+        });
+      }
+      
       editorInstance.setHTML(currentHtml);
     } else {
-      // Insert new button at cursor using exec command
-      const wwEditor = editorInstance.getCurrentModeEditor();
-      if (wwEditor && typeof wwEditor.replaceSelection === 'function') {
-        wwEditor.replaceSelection(html);
-      } else {
-        // Fallback: append to content
+      // Insert new button at cursor position
+      // Use insertHTML which properly inserts HTML at cursor
+      try {
+        // Get the wysiwyg editor instance
+        const wwEditor = (editorInstance as any).wwEditor;
+        if (wwEditor && wwEditor.view) {
+          // Use ProseMirror's insertHTML if available
+          const { state, dispatch } = wwEditor.view;
+          const { from } = state.selection;
+          
+          // Create a temporary element to get the HTML fragment
+          const temp = document.createElement('div');
+          temp.innerHTML = html;
+          
+          // Insert HTML using the editor's exec command
+          editorInstance.exec('htmlBlock', { html });
+        } else {
+          // Fallback: append at end
+          const currentHtml = editorInstance.getHTML();
+          editorInstance.setHTML(currentHtml + ' ' + html + ' ');
+        }
+      } catch {
+        // Final fallback
         const currentHtml = editorInstance.getHTML();
-        editorInstance.setHTML(currentHtml + html);
+        editorInstance.setHTML(currentHtml + ' ' + html + ' ');
       }
     }
     
     setEditingButtonData(null);
-    handleChange();
+    
+    // Trigger change after a small delay to let the editor update
+    setTimeout(() => handleChange(), 10);
   }, [editingButtonData, handleChange]);
   
   const handleDeleteInlineButton = useCallback(() => {
@@ -324,7 +390,10 @@ export function ToastUIMarkdownEditor({
     
     let currentHtml = editorInstance.getHTML();
     const dataAttr = btoa(unescape(encodeURIComponent(JSON.stringify(editingButtonData))));
-    const pattern = new RegExp(`<span[^>]*data-inline-button="${dataAttr}"[^>]*>[\\s\\S]*?</span>`, 'gi');
+    const pattern = new RegExp(
+      `<span[^>]*data-inline-button="${dataAttr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>[\\s\\S]*?</span>`,
+      'gi'
+    );
     currentHtml = currentHtml.replace(pattern, '');
     editorInstance.setHTML(currentHtml);
     
@@ -342,7 +411,7 @@ export function ToastUIMarkdownEditor({
   const customToolbarButton = useCallback(() => {
     const button = document.createElement('button');
     button.className = 'toastui-editor-toolbar-icons';
-    button.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px 8px; font-size: 12px; font-weight: 500; color: inherit; display: flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; border-radius: 4px;';
+    button.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px 8px; font-size: 11px; font-weight: 600; color: inherit; display: flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; border-radius: 4px;';
     button.innerHTML = 'inb';
     button.title = 'Insert Inline Button';
     button.type = 'button';
@@ -355,7 +424,7 @@ export function ToastUIMarkdownEditor({
   }, [handleAddNewButton]);
 
   return (
-    <div ref={containerRef} className={cn('border rounded-lg bg-background relative', className)}>
+    <div ref={containerRef} className={cn('border rounded-lg bg-background relative toastui-editor-wrapper', className)}>
       <Editor
         ref={editorRef}
         initialValue=""
@@ -389,9 +458,12 @@ export function ToastUIMarkdownEditor({
         data={editingButtonData}
       />
       
-      {/* Custom styles for inline buttons in editor */}
+      {/* Custom styles for inline buttons in the WYSIWYG editor */}
       <style>{`
-        .toastui-editor-contents .editable-inline-button {
+        /* Style inline buttons inside Toast UI editor */
+        .toastui-editor-wrapper .toastui-editor-contents .editable-inline-button,
+        .toastui-editor-wrapper .ProseMirror .editable-inline-button,
+        .toastui-editor-ww-container .editable-inline-button {
           display: inline-flex !important;
           align-items: center !important;
           gap: 4px !important;
@@ -401,13 +473,33 @@ export function ToastUIMarkdownEditor({
           white-space: nowrap !important;
           cursor: pointer !important;
           vertical-align: middle !important;
+          font-size: 14px !important;
+          line-height: 1.4 !important;
+          margin: 0 2px !important;
         }
-        .toastui-editor-contents .editable-inline-button:hover {
+        
+        .toastui-editor-wrapper .toastui-editor-contents .editable-inline-button:hover,
+        .toastui-editor-wrapper .ProseMirror .editable-inline-button:hover {
           opacity: 0.9;
           box-shadow: 0 0 0 2px rgba(87, 157, 255, 0.3);
         }
-        .toastui-editor-contents .inline-button-text {
+        
+        .toastui-editor-wrapper .editable-inline-button img {
+          display: inline-block !important;
+          vertical-align: middle !important;
+          flex-shrink: 0 !important;
+        }
+        
+        /* Ensure the button text doesn't have unwanted styling */
+        .toastui-editor-wrapper .editable-inline-button span {
           text-decoration: none !important;
+          display: inline !important;
+        }
+        
+        /* Make buttons non-editable visually */
+        .toastui-editor-wrapper .editable-inline-button[contenteditable="false"] {
+          user-select: none;
+          -webkit-user-select: none;
         }
       `}</style>
     </div>

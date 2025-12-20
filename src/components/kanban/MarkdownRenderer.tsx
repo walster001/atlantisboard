@@ -154,35 +154,81 @@ const sanitizeSchema = {
 
 /**
  * Converts legacy HTML inline buttons to our new markdown format.
- * This handles imported Wekan data that may contain HTML inline buttons.
+ * Handles multiple formats:
+ * 1. Our editable-inline-button format with data-inline-button attribute
+ * 2. Original Wekan format: <span style="display:inline-flex"><img><a>text</a></span>
  */
 function convertLegacyInlineButtons(content: string): string {
   if (!content) return content;
   
-  // Pattern to match editable-inline-button spans with data attributes
-  const legacyButtonRegex = /<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*data-inline-button="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi;
+  let result = content;
   
-  return content.replace(legacyButtonRegex, (_match, dataAttr) => {
-    // Convert to our new markdown format
+  // Pattern 1: Match our editable-inline-button spans with data attributes
+  const editableButtonRegex = /<span[^>]*class="[^"]*editable-inline-button[^"]*"[^>]*data-inline-button="([^"]+)"[^>]*>[\s\S]*?<\/span>/gi;
+  result = result.replace(editableButtonRegex, (_match, dataAttr) => {
     return `[INLINE_BUTTON:${dataAttr}]`;
   });
+  
+  // Pattern 2: Match original Wekan inline button format
+  // <span style="...display:inline-flex..."><img src="..."><a href="...">text</a></span>
+  const wekanButtonRegex = /<span[^>]*style=['"][^'"]*display\s*:\s*inline-?flex[^'"]*['"][^>]*>([\s\S]*?)<\/span>/gi;
+  result = result.replace(wekanButtonRegex, (match, innerHtml) => {
+    // Skip if already converted
+    if (match.includes('INLINE_BUTTON:')) return match;
+    
+    // Extract components from inner HTML
+    const imgMatch = innerHtml.match(/<img[^>]*src=['"]([^'"]+)['"][^>]*>/i);
+    const anchorMatch = innerHtml.match(/<a[^>]*href=['"]([^'"]+)['"][^>]*>([^<]*)<\/a>/i);
+    const bgColorMatch = match.match(/background(?:-color)?:\s*([^;'"]+)/i);
+    const textColorMatch = innerHtml.match(/(?:^|[^-])color:\s*([^;'"]+)/i) || match.match(/(?:^|[^-])color:\s*([^;'"]+)/i);
+    
+    if (anchorMatch) {
+      const data: InlineButtonData = {
+        id: `wekan-btn-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        iconUrl: imgMatch?.[1] || '',
+        iconSize: 16,
+        linkUrl: anchorMatch[1] || '',
+        linkText: anchorMatch[2]?.trim() || 'Button',
+        textColor: textColorMatch?.[1]?.trim() || '#579DFF',
+        backgroundColor: bgColorMatch?.[1]?.trim() || '#1D2125',
+      };
+      
+      // Serialize to our markdown format
+      const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      return `[INLINE_BUTTON:${encodedData}]`;
+    }
+    
+    return match;
+  });
+  
+  return result;
 }
 
 /**
- * Detects if content contains raw HTML that should be stripped.
+ * Detects if content contains raw HTML that should be converted to Markdown.
  * Returns true if content appears to be HTML-formatted.
  */
 function isHtmlContent(content: string): boolean {
   const trimmed = content.trim();
-  return trimmed.startsWith('<') && (
+  
+  // Check for common HTML starting patterns
+  if (trimmed.startsWith('<') && (
     trimmed.startsWith('<p>') ||
+    trimmed.startsWith('<p ') ||
     trimmed.startsWith('<h') ||
-    trimmed.startsWith('<ul>') ||
-    trimmed.startsWith('<ol>') ||
-    trimmed.startsWith('<div>') ||
-    trimmed.startsWith('<blockquote>') ||
-    trimmed.startsWith('<pre>')
-  );
+    trimmed.startsWith('<ul') ||
+    trimmed.startsWith('<ol') ||
+    trimmed.startsWith('<div') ||
+    trimmed.startsWith('<blockquote') ||
+    trimmed.startsWith('<pre') ||
+    trimmed.startsWith('<span')
+  )) {
+    return true;
+  }
+  
+  // Also check if content contains significant HTML tags
+  const htmlTagPattern = /<(p|h[1-6]|ul|ol|li|div|blockquote|pre|strong|em|a|span|br)\b[^>]*>/i;
+  return htmlTagPattern.test(content);
 }
 
 /**

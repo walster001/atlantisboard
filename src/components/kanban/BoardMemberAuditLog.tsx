@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Loader2, User, UserPlus, UserMinus, ArrowRight, History, Clock, AlertTriangle } from 'lucide-react';
+import { Loader2, User, UserPlus, UserMinus, ArrowRight, History, Clock, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
@@ -42,23 +43,54 @@ const RETENTION_OPTIONS = [
   { value: 'never', label: 'Never expire' },
 ];
 
+const PAGE_SIZE = 20;
+
 export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogProps) {
   const { toast } = useToast();
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [retentionDays, setRetentionDays] = useState<string>('never');
   const [savingRetention, setSavingRetention] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadingPage, setLoadingPage] = useState(false);
 
   // SECURITY: Only admins should access this component
   // This is defense-in-depth; RLS policies also protect the data
   const isAdmin = userRole === 'admin';
 
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const hasNextPage = currentPage < totalPages - 1;
+  const hasPrevPage = currentPage > 0;
+
   useEffect(() => {
     if (isAdmin) {
-      fetchAuditLog();
       fetchRetentionSetting();
+      fetchTotalCount();
     }
   }, [boardId, isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchAuditLog(currentPage);
+    }
+  }, [boardId, isAdmin, currentPage]);
+
+  const fetchTotalCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('board_member_audit_log')
+        .select('*', { count: 'exact', head: true })
+        .eq('board_id', boardId);
+
+      if (error) throw error;
+      setTotalCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching total count:', error);
+    }
+  };
 
   const fetchRetentionSetting = async () => {
     try {
@@ -102,16 +134,23 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
     }
   };
 
-  const fetchAuditLog = async () => {
-    setLoading(true);
+  const fetchAuditLog = useCallback(async (page: number) => {
+    if (page === 0) {
+      setLoading(true);
+    } else {
+      setLoadingPage(true);
+    }
+    
     try {
-      // Fetch audit log entries
+      const offset = page * PAGE_SIZE;
+      
+      // Fetch audit log entries with pagination
       const { data: logData, error: logError } = await supabase
         .from('board_member_audit_log')
         .select('*')
         .eq('board_id', boardId)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .range(offset, offset + PAGE_SIZE - 1);
 
       if (logError) throw logError;
 
@@ -146,6 +185,19 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
       console.error('Error fetching audit log:', error);
     } finally {
       setLoading(false);
+      setLoadingPage(false);
+    }
+  }, [boardId]);
+
+  const goToNextPage = () => {
+    if (hasNextPage) {
+      setCurrentPage(prev => prev + 1);
+    }
+  };
+
+  const goToPrevPage = () => {
+    if (hasPrevPage) {
+      setCurrentPage(prev => prev - 1);
     }
   };
 
@@ -252,46 +304,83 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
       </div>
 
       {/* Audit Log Entries */}
-      {entries.length === 0 ? (
+      {entries.length === 0 && totalCount === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <History className="h-12 w-12 mb-3 opacity-50" />
           <p className="text-sm">No member changes recorded yet</p>
           <p className="text-xs mt-1">Changes will appear here as they happen</p>
         </div>
       ) : (
-        <ScrollArea className="h-[350px] pr-4">
-          <div className="space-y-3">
-            {entries.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-              >
-                {/* Action icon */}
-                <div className="mt-0.5 shrink-0">
-                  {getActionIcon(entry.action)}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm leading-relaxed">{getActionText(entry)}</p>
-                  <p className="text-xs text-muted-foreground mt-1" title={format(new Date(entry.created_at), 'PPpp')}>
-                    {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
-                  </p>
-                </div>
-
-                {/* Actor avatar */}
-                {entry.actor_profile && (
-                  <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarImage src={entry.actor_profile.avatar_url || undefined} />
-                    <AvatarFallback className="text-xs">
-                      <User className="h-3 w-3" />
-                    </AvatarFallback>
-                  </Avatar>
-                )}
+        <>
+          <ScrollArea className="h-[300px] pr-4 relative">
+            {loadingPage && (
+              <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ))}
+            )}
+            <div className="space-y-3">
+              {entries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                >
+                  {/* Action icon */}
+                  <div className="mt-0.5 shrink-0">
+                    {getActionIcon(entry.action)}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm leading-relaxed">{getActionText(entry)}</p>
+                    <p className="text-xs text-muted-foreground mt-1" title={format(new Date(entry.created_at), 'PPpp')}>
+                      {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
+                    </p>
+                  </div>
+
+                  {/* Actor avatar */}
+                  {entry.actor_profile && (
+                    <Avatar className="h-6 w-6 shrink-0">
+                      <AvatarImage src={entry.actor_profile.avatar_url || undefined} />
+                      <AvatarFallback className="text-xs">
+                        <User className="h-3 w-3" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between border-t pt-4">
+            <p className="text-sm text-muted-foreground">
+              Showing {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, totalCount)} of {totalCount} entries
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToPrevPage}
+                disabled={!hasPrevPage || loadingPage}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground px-2">
+                Page {currentPage + 1} of {totalPages || 1}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToNextPage}
+                disabled={!hasNextPage || loadingPage}
+              >
+                Next
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
           </div>
-        </ScrollArea>
+        </>
       )}
     </div>
   );

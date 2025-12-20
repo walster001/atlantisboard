@@ -19,6 +19,7 @@ import { getUserFriendlyError } from '@/lib/errorHandler';
 import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
 import { useDragScroll } from '@/hooks/useDragScroll';
 import { z } from 'zod';
+import { BoardTheme } from '@/components/kanban/ThemeEditorModal';
 
 interface DbColumn {
   id: string;
@@ -73,6 +74,7 @@ export default function BoardPage() {
   const [boardName, setBoardName] = useState('');
   const [boardColor, setBoardColor] = useState('#0079bf');
   const [boardThemeId, setBoardThemeId] = useState<string | null>(null);
+  const [boardTheme, setBoardTheme] = useState<BoardTheme | null>(null);
   const [columns, setColumns] = useState<DbColumn[]>([]);
   const [cards, setCards] = useState<DbCard[]>([]);
   const [labels, setLabels] = useState<DbLabel[]>([]);
@@ -315,13 +317,28 @@ export default function BoardPage() {
       setUserRole(result.user_role as 'admin' | 'manager' | 'viewer' | null);
       setColumns(result.columns || []);
 
-      // Fetch theme_id separately (not in RPC response)
+      // Fetch theme_id and theme data separately (not in RPC response)
       const { data: boardData } = await supabase
         .from('boards')
         .select('theme_id')
         .eq('id', boardId)
         .single();
-      setBoardThemeId(boardData?.theme_id || null);
+      
+      const themeId = boardData?.theme_id || null;
+      setBoardThemeId(themeId);
+      
+      // Fetch full theme data if theme is set
+      if (themeId) {
+        const { data: themeData } = await supabase
+          .from('board_themes')
+          .select('*')
+          .eq('id', themeId)
+          .single();
+        setBoardTheme(themeData as BoardTheme | null);
+      } else {
+        setBoardTheme(null);
+      }
+      
       setCards(result.cards || []);
       setLabels(result.labels || []);
       setCardLabels(result.card_labels || []);
@@ -740,8 +757,15 @@ export default function BoardPage() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: sanitizeColor(boardColor) }}>
-      {/* Header */}
-      <header className="flex-shrink-0 z-10 bg-black/20 backdrop-blur-sm">
+      {/* Header - apply theme navbar color */}
+      <header 
+        className="flex-shrink-0 z-10 backdrop-blur-sm"
+        style={{ 
+          backgroundColor: boardTheme?.navbar_color 
+            ? sanitizeColor(boardTheme.navbar_color) 
+            : 'rgba(0, 0, 0, 0.2)' 
+        }}
+      >
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-white hover:bg-white/20">
@@ -756,7 +780,10 @@ export default function BoardPage() {
                   className="object-contain"
                 />
               ) : (
-                <LayoutGrid className="h-5 w-5 text-white" />
+                <LayoutGrid 
+                  className="h-5 w-5" 
+                  style={{ color: boardTheme?.board_icon_color || 'white' }}
+                />
               )}
               <h1 className="text-xl font-bold text-white">{boardName}</h1>
             </div>
@@ -805,20 +832,31 @@ export default function BoardPage() {
         </div>
       </header>
 
-      {/* Board */}
+      {/* Board - apply theme scrollbar colors */}
       <div 
         ref={dragScrollRef} 
-        className={`flex-1 min-h-0 overflow-x-auto overflow-y-hidden scrollbar-thin ${
+        className={`flex-1 min-h-0 overflow-x-auto overflow-y-hidden ${
           isDragging ? 'cursor-grabbing' : isSpaceHeld ? 'cursor-grab' : 'cursor-default'
         }`}
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: boardTheme 
+            ? `${boardTheme.scrollbar_color} ${boardTheme.scrollbar_track_color}` 
+            : undefined,
+        }}
       >
+        <style>{boardTheme ? `
+          .board-scroll-area::-webkit-scrollbar { width: 8px; height: 8px; }
+          .board-scroll-area::-webkit-scrollbar-track { background: ${boardTheme.scrollbar_track_color}; }
+          .board-scroll-area::-webkit-scrollbar-thumb { background: ${boardTheme.scrollbar_color}; border-radius: 4px; }
+        ` : ''}</style>
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="board" type="column" direction="horizontal">
             {(provided) => (
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className="drag-scroll-area flex items-start gap-4 px-6 pt-6 pb-6 min-h-full min-w-max"
+                className="drag-scroll-area board-scroll-area flex items-start gap-4 px-6 pt-6 pb-6 min-h-full min-w-max"
               >
                 {columns.map((column, index) => (
                   <KanbanColumn
@@ -840,6 +878,10 @@ export default function BoardPage() {
                     onUpdateCardColor={updateCardColor}
                     onApplyCardColorToAll={applyCardColorToAll}
                     disabled={!canEdit}
+                    themeColumnColor={boardTheme?.column_color}
+                    themeCardColor={boardTheme?.default_card_color}
+                    themeScrollbarColor={boardTheme?.scrollbar_color}
+                    themeScrollbarTrackColor={boardTheme?.scrollbar_track_color}
                   />
                 ))}
                 {provided.placeholder}

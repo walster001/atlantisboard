@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Check, Loader2, Trash2, Pencil } from 'lucide-react';
+import { Plus, Check, Loader2, Trash2, Pencil, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -179,113 +179,137 @@ export function ThemeSettings({
             )}
 
             {/* Theme tiles */}
-            {themes.map((theme) => (
-              <div
-                key={theme.id}
-                className={cn(
-                  "relative group rounded-lg border-2 transition-all",
-                  currentThemeId === theme.id 
-                    ? "border-primary ring-2 ring-primary/20" 
-                    : "border-border hover:border-primary/50"
-                )}
-              >
-                <button
-                  onClick={() => canApplyThemes && applyTheme(theme.id)}
-                  disabled={!canApplyThemes || applying !== null}
-                  className="w-full p-2 text-left"
-                >
-                  {/* Theme preview */}
-                  <div 
-                    className="aspect-[4/3] rounded overflow-hidden mb-2"
-                    style={{ backgroundColor: theme.column_color }}
-                  >
-                    {/* Mini navbar */}
-                    <div 
-                      className="h-4 flex items-center px-1.5 gap-1"
-                      style={{ backgroundColor: theme.navbar_color }}
-                    >
-                      <div 
-                        className="h-2 w-2 rounded-sm"
-                        style={{ backgroundColor: theme.board_icon_color }}
-                      />
-                      <div 
-                        className="h-1 w-6 rounded"
-                        style={{ backgroundColor: theme.board_icon_color, opacity: 0.7 }}
-                      />
-                    </div>
-                    {/* Mini columns */}
-                    <div className="p-1.5 flex gap-1">
-                      <div 
-                        className="flex-1 rounded p-1 space-y-0.5"
-                        style={{ backgroundColor: theme.column_color }}
-                      >
-                        <div 
-                          className="h-3 rounded shadow-sm"
-                          style={{ backgroundColor: theme.default_card_color || '#ffffff' }}
-                        />
-                        <div 
-                          className="h-3 rounded shadow-sm"
-                          style={{ backgroundColor: theme.default_card_color || '#ffffff' }}
-                        />
-                      </div>
-                      <div 
-                        className="flex-1 rounded p-1 space-y-0.5"
-                        style={{ backgroundColor: theme.column_color }}
-                      >
-                        <div 
-                          className="h-3 rounded shadow-sm"
-                          style={{ backgroundColor: theme.default_card_color || '#ffffff' }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-1">
-                    <p className="text-sm font-medium truncate flex-1">{theme.name}</p>
-                    {applying === theme.id && (
-                      <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                    )}
-                  </div>
-                  {theme.is_default && (
-                    <p className="text-xs text-muted-foreground">Default</p>
+            {themes.map((theme) => {
+              const isSelected = currentThemeId === theme.id;
+              
+              return (
+                <div
+                  key={theme.id}
+                  className={cn(
+                    "relative group rounded-lg border-2 transition-all",
+                    isSelected 
+                      ? "border-primary ring-2 ring-primary/20" 
+                      : "border-border hover:border-primary/50"
                   )}
-                </button>
+                >
+                  <button
+                    onClick={() => canApplyThemes && !isSelected && applyTheme(theme.id)}
+                    disabled={!canApplyThemes || applying !== null}
+                    className="w-full p-2 text-left"
+                  >
+                    {/* Theme preview */}
+                    <div 
+                      className="aspect-[4/3] rounded overflow-hidden mb-2 relative"
+                      style={{ backgroundColor: theme.column_color }}
+                    >
+                      {/* Mini navbar */}
+                      <div 
+                        className="h-4 flex items-center px-1.5 gap-1"
+                        style={{ backgroundColor: theme.navbar_color }}
+                      >
+                        <div 
+                          className="h-2 w-2 rounded-sm"
+                          style={{ backgroundColor: theme.board_icon_color }}
+                        />
+                        <div 
+                          className="h-1 w-6 rounded"
+                          style={{ backgroundColor: theme.board_icon_color, opacity: 0.7 }}
+                        />
+                      </div>
+                      {/* Mini columns */}
+                      <div className="p-1.5 flex gap-1">
+                        <div 
+                          className="flex-1 rounded p-1 space-y-0.5"
+                          style={{ backgroundColor: theme.column_color }}
+                        >
+                          <div 
+                            className="h-3 rounded shadow-sm"
+                            style={{ backgroundColor: theme.default_card_color || '#ffffff' }}
+                          />
+                          <div 
+                            className="h-3 rounded shadow-sm"
+                            style={{ backgroundColor: theme.default_card_color || '#ffffff' }}
+                          />
+                        </div>
+                        <div 
+                          className="flex-1 rounded p-1 space-y-0.5"
+                          style={{ backgroundColor: theme.column_color }}
+                        >
+                          <div 
+                            className="h-3 rounded shadow-sm"
+                            style={{ backgroundColor: theme.default_card_color || '#ffffff' }}
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Selected overlay */}
+                      {isSelected && (
+                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-5 w-5 text-primary-foreground" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
-                {/* Edit/Delete actions for app admins */}
-                {canManageThemes && !theme.is_default && (
-                  <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-sm font-medium truncate flex-1">{theme.name}</p>
+                      {applying === theme.id && (
+                        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                      )}
+                    </div>
+                    {theme.is_default && (
+                      <p className="text-xs text-muted-foreground">Default</p>
+                    )}
+                  </button>
+
+                  {/* Remove theme button - shown on selected theme overlay */}
+                  {isSelected && canApplyThemes && (
                     <Button
                       variant="secondary"
-                      size="icon"
-                      className="h-6 w-6"
+                      size="sm"
+                      className="absolute bottom-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90 hover:bg-background shadow-md"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleEditTheme(theme);
+                        applyTheme(null);
                       }}
+                      disabled={applying !== null}
                     >
-                      <Pencil className="h-3 w-3" />
+                      <X className="h-3 w-3 mr-1" />
+                      Remove Theme
                     </Button>
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="h-6 w-6 hover:bg-destructive hover:text-destructive-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteTheme(theme);
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
+                  )}
 
-                {currentThemeId === theme.id && (
-                  <div className="absolute top-1 right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-3 w-3 text-primary-foreground" />
-                  </div>
-                )}
-              </div>
-            ))}
+                  {/* Edit/Delete actions for app admins */}
+                  {canManageThemes && !theme.is_default && (
+                    <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditTheme(theme);
+                        }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-6 w-6 hover:bg-destructive hover:text-destructive-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTheme(theme);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             {/* Add Theme tile (app admins only) */}
             {canManageThemes && (

@@ -27,9 +27,20 @@ interface KanbanCardProps {
   onUpdateColor: (color: string | null) => void;
   onApplyColorToAll: (color: string | null) => void;
   disabled?: boolean;
+  themeCardColor?: string | null;
 }
 
-export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEdit, onDelete, onUpdateColor, onApplyColorToAll, disabled = false }: KanbanCardProps) {
+export const KanbanCard = memo(function KanbanCard({ 
+  card, 
+  index, 
+  columnId, 
+  onEdit, 
+  onDelete, 
+  onUpdateColor, 
+  onApplyColorToAll, 
+  disabled = false,
+  themeCardColor 
+}: KanbanCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [justDropped, setJustDropped] = useState(false);
   const wasDraggingRef = useRef(false);
@@ -70,6 +81,8 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
           }
         }
         prevDraggingRef.current = isDragging;
+        // Effective card color: per-card override > theme > default
+        const effectiveCardColor = card.color || themeCardColor || undefined;
         
         return (
           <div
@@ -84,12 +97,12 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
               snapshot.isDragging
                 ? 'shadow-card-dragging rotate-1 scale-[1.02] cursor-grabbing ring-2 ring-primary/50 opacity-95'
                 : 'shadow-card hover:shadow-card-hover',
-              !card.color && 'bg-card hover:bg-card/80',
+              !effectiveCardColor && 'bg-card hover:bg-card/80',
               justDropped && 'card-settle'
             )}
             style={{
               ...provided.draggableProps.style,
-              ...(card.color ? { backgroundColor: card.color } : {}),
+              ...(effectiveCardColor ? { backgroundColor: effectiveCardColor } : {}),
               ...(snapshot.isDragging ? { zIndex: 9999 } : {})
             }}
           >
@@ -115,7 +128,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
           <div className="flex items-start justify-between gap-2">
             <h4 className={cn(
               "text-sm font-medium leading-snug flex-1 break-words min-w-0",
-              card.color ? 'text-white drop-shadow-sm' : 'text-card-foreground'
+              effectiveCardColor ? 'text-white drop-shadow-sm' : 'text-card-foreground'
             )}>
               {stripHtmlTags(card.title)}
             </h4>
@@ -175,7 +188,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
           {card.description && (
             <p className={cn(
               "text-xs mt-1 line-clamp-2 break-words",
-              card.color ? 'text-white/80' : 'text-muted-foreground'
+              effectiveCardColor ? 'text-white/80' : 'text-muted-foreground'
             )}>
               {card.description.replace(/<[^>]*>/g, '').split('\n')[0]}
             </p>
@@ -186,7 +199,7 @@ export const KanbanCard = memo(function KanbanCard({ card, index, columnId, onEd
             <div
               className={cn(
                 'flex items-center gap-1 mt-2 text-xs font-medium rounded px-1.5 py-0.5 w-fit',
-                card.color ? 'bg-black/20 text-white' : (
+                effectiveCardColor ? 'bg-black/20 text-white' : (
                   isOverdue ? 'bg-destructive/10 text-destructive' :
                   isDueToday ? 'bg-label-orange/10 text-label-orange' :
                   'bg-muted text-muted-foreground'

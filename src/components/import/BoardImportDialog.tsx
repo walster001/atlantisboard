@@ -13,6 +13,12 @@ import { markdownToHtml } from '@/lib/markdownToHtml';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import {
+  InlineButtonIconDialog,
+  DetectedInlineButton,
+  scanWekanDataForInlineButtons,
+  replaceInlineButtonImages,
+} from './InlineButtonIconDialog';
 interface ImportResult {
   success: boolean;
   workspaces_created: number;
@@ -251,6 +257,12 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [customRgb, setCustomRgb] = useState({ r: 59, g: 130, b: 246 }); // Default blue
   const [customHex, setCustomHex] = useState('#3b82f6');
+  
+  // Inline button icon replacement state
+  const [parsedWekanData, setParsedWekanData] = useState<any>(null);
+  const [detectedInlineButtons, setDetectedInlineButtons] = useState<DetectedInlineButton[]>([]);
+  const [showInlineButtonDialog, setShowInlineButtonDialog] = useState(false);
+  const [iconReplacements, setIconReplacements] = useState<Map<string, string>>(new Map());
 
   // Handle RGB slider changes
   const handleRgbChange = (channel: 'r' | 'g' | 'b', value: string) => {
@@ -766,54 +778,62 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     return result;
   };
 
-  const handleImport = async () => {
-    if (!selectedFile) {
-      toast({
-        title: 'No file selected',
-        description: 'Please select a file to import.',
-        variant: 'destructive',
-      });
-      return;
+  // Apply icon replacements to Wekan data
+  const applyIconReplacements = (wekanData: any, replacements: Map<string, string>): any => {
+    if (!wekanData || replacements.size === 0) return wekanData;
+
+    // Deep clone the data
+    const clonedData = JSON.parse(JSON.stringify(wekanData));
+
+    // Handle both array of boards and single board
+    const boards = Array.isArray(clonedData) ? clonedData : [clonedData];
+
+    for (const board of boards) {
+      const cards = board.cards || [];
+      for (const card of cards) {
+        if (card.description && typeof card.description === 'string') {
+          card.description = replaceInlineButtonImages(card.description, replacements);
+        }
+      }
     }
 
-    if (importSource === 'csv') {
-      toast({
-        title: 'Not implemented',
-        description: 'CSV/TSV import is not yet available.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    return Array.isArray(clonedData) ? clonedData : clonedData;
+  };
 
+  // Handle when user completes the icon replacement dialog
+  const handleInlineButtonsComplete = (updatedButtons: DetectedInlineButton[]) => {
+    // Build replacement map from updated buttons
+    const replacements = new Map<string, string>();
+    for (const button of updatedButtons) {
+      if (button.replacementUrl) {
+        replacements.set(button.imgSrc, button.replacementUrl);
+      }
+    }
+    setIconReplacements(replacements);
+    setShowInlineButtonDialog(false);
+
+    // Continue with import using the parsed and modified data
+    if (parsedWekanData) {
+      proceedWithImport(parsedWekanData, replacements);
+    }
+  };
+
+  // Proceed with the actual import
+  const proceedWithImport = async (jsonData: any, replacements: Map<string, string>) => {
     setImporting(true);
     setImportResult(null);
     updateProgress('parsing');
 
     try {
-      const fileContent = await selectedFile.text();
-      updateProgress('validating');
-      let jsonData;
-      
-      try {
-        jsonData = JSON.parse(fileContent);
-      } catch {
-        toast({
-          title: 'Invalid JSON',
-          description: 'The file contains invalid JSON.',
-          variant: 'destructive',
-        });
-        setImporting(false);
-        updateProgress('idle');
-        return;
-      }
-
       let result: ImportResult;
 
       if (importSource === 'trello') {
         result = await importTrelloBoard(jsonData as TrelloBoard, updateProgress, defaultCardColor);
       } else {
+        // Apply icon replacements to Wekan data before import
+        const modifiedData = applyIconReplacements(jsonData, replacements);
         // For Wekan, use streaming SSE to get real-time progress
-        result = await importWekanWithStreaming(jsonData, updateProgress, defaultCardColor);
+        result = await importWekanWithStreaming(modifiedData, updateProgress, defaultCardColor);
       }
 
       updateProgress('complete');
@@ -850,6 +870,65 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     }
   };
 
+  const handleImport = async () => {
+    if (!selectedFile) {
+      toast({
+        title: 'No file selected',
+        description: 'Please select a file to import.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (importSource === 'csv') {
+      toast({
+        title: 'Not implemented',
+        description: 'CSV/TSV import is not yet available.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const fileContent = await selectedFile.text();
+      let jsonData;
+      
+      try {
+        jsonData = JSON.parse(fileContent);
+      } catch {
+        toast({
+          title: 'Invalid JSON',
+          description: 'The file contains invalid JSON.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // For Wekan imports, check for inline buttons with /cdn images
+      if (importSource === 'wekan') {
+        const detectedButtons = scanWekanDataForInlineButtons(jsonData);
+        
+        if (detectedButtons.length > 0) {
+          // Store parsed data and show the icon replacement dialog
+          setParsedWekanData(jsonData);
+          setDetectedInlineButtons(detectedButtons);
+          setShowInlineButtonDialog(true);
+          return; // Wait for dialog completion
+        }
+      }
+
+      // No inline buttons detected or Trello import - proceed directly
+      proceedWithImport(jsonData, new Map());
+    } catch (error: any) {
+      console.error('Import error:', error);
+      toast({
+        title: 'Import failed',
+        description: error.message || 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const resetDialog = () => {
     setSelectedFile(null);
     setImportResult(null);
@@ -857,6 +936,10 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     setDefaultCardColor(null);
     setColorPickerOpen(false);
     updateProgress('idle');
+    setParsedWekanData(null);
+    setDetectedInlineButtons([]);
+    setShowInlineButtonDialog(false);
+    setIconReplacements(new Map());
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -1219,6 +1302,20 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           </div>
         </div>
       </DialogContent>
+
+      {/* Inline Button Icon Replacement Dialog */}
+      <InlineButtonIconDialog
+        open={showInlineButtonDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowInlineButtonDialog(false);
+            setParsedWekanData(null);
+            setDetectedInlineButtons([]);
+          }
+        }}
+        detectedButtons={detectedInlineButtons}
+        onComplete={handleInlineButtonsComplete}
+      />
     </Dialog>
   );
 }

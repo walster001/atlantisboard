@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, User, X, Search, UserMinus, Loader2, Palette, ImageIcon, Tag, Settings2 } from 'lucide-react';
+import { UserPlus, User, X, Search, UserMinus, Loader2, Palette, ImageIcon, Tag, Settings2, History } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { ThemeSettings } from './ThemeSettings';
 import { BoardBackgroundSettings } from './BoardBackgroundSettings';
 import { BoardLabelsSettings } from './BoardLabelsSettings';
+import { BoardMemberAuditLog } from './BoardMemberAuditLog';
 import { cn } from '@/lib/utils';
 
 interface BoardMember {
@@ -328,6 +329,13 @@ export function BoardSettingsModal({
                     Theme & Background
                   </TabsTrigger>
                 )}
+                <TabsTrigger 
+                  value="audit" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
+                >
+                  <History className="h-4 w-4 mr-1.5" />
+                  Audit Log
+                </TabsTrigger>
               </TabsList>
             )}
 
@@ -686,6 +694,24 @@ export function BoardSettingsModal({
                       onBackgroundChange={onBackgroundChange}
                     />
                   )}
+                </div>
+              </TabsContent>
+            )}
+
+            {/* Audit Log Tab - Only for admins */}
+            {isAdmin && (
+              <TabsContent value="audit" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
+                <div className="max-w-3xl mx-auto">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <History className="h-5 w-5" />
+                      Member Activity Log
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Track who added, removed, or changed roles for board members
+                    </p>
+                  </div>
+                  <BoardMemberAuditLog boardId={boardId} />
                 </div>
               </TabsContent>
             )}

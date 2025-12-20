@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyle } from '@tiptap/extension-text-style';
@@ -24,13 +24,15 @@ import {
   RotateCcw,
   Link as LinkIcon,
   Code,
-  Unlink
+  Unlink,
+  SquareArrowOutUpRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { InlineButtonEditor, InlineButtonData, serializeInlineButton, parseInlineButtonFromDataAttr } from './InlineButtonEditor';
 
 interface RichTextEditorProps {
   content: string;
@@ -49,51 +51,10 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
   const [customColor, setCustomColor] = useState('#3b82f6');
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkPopover, setShowLinkPopover] = useState(false);
+  const [showInlineButtonEditor, setShowInlineButtonEditor] = useState(false);
+  const [editingButtonData, setEditingButtonData] = useState<InlineButtonData | null>(null);
+  const [editingButtonElement, setEditingButtonElement] = useState<HTMLElement | null>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
-  
-  // Convert wekan-inline-button divs to code blocks for editing
-  const convertWekanButtonsToCode = (html: string): string => {
-    // Find all wekan-inline-button divs and convert them to visible code blocks
-    const wekanButtonRegex = /<div[^>]*class="wekan-inline-button"[^>]*data-raw-html="([^"]+)"[^>]*>[\s\S]*?<\/div>/gi;
-    
-    return html.replace(wekanButtonRegex, (match, encodedHtml) => {
-      try {
-        // Decode the base64 raw HTML
-        const rawHtml = decodeURIComponent(escape(atob(encodedHtml)));
-        // Escape HTML entities for code display
-        const escapedHtml = rawHtml
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-        // Return as a code block with the data attribute preserved
-        return `<pre class="wekan-inline-button-code" data-raw-html="${encodedHtml}"><code>${escapedHtml}</code></pre>`;
-      } catch (e) {
-        console.error('Error decoding wekan button:', e);
-        return match;
-      }
-    });
-  };
-  
-  // Convert code blocks back to wekan-inline-button divs when saving
-  const convertCodeToWekanButtons = (html: string): string => {
-    // Find all wekan-inline-button-code pre blocks and convert back to divs
-    const codeBlockRegex = /<pre[^>]*class="wekan-inline-button-code"[^>]*data-raw-html="([^"]+)"[^>]*>[\s\S]*?<\/pre>/gi;
-    
-    return html.replace(codeBlockRegex, (match, encodedHtml) => {
-      try {
-        // Decode the base64 raw HTML
-        const rawHtml = decodeURIComponent(escape(atob(encodedHtml)));
-        // Return as the original wekan-inline-button div
-        return `<div class="wekan-inline-button" data-raw-html="${encodedHtml}">${rawHtml}</div>`;
-      } catch (e) {
-        console.error('Error encoding wekan button:', e);
-        return match;
-      }
-    });
-  };
-  
-  // Process content for editor display
-  const processedContent = useMemo(() => convertWekanButtonsToCode(content), [content]);
 
   const editor = useEditor({
     extensions: [
@@ -101,7 +62,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
         heading: {
           levels: [1, 2, 3],
         },
-        codeBlock: false, // We use the separate extension
+        codeBlock: false,
       }),
       TextStyle,
       Color,
@@ -120,12 +81,9 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
         },
       }),
     ],
-    content: processedContent,
+    content,
     onUpdate: ({ editor }) => {
-      // Convert code blocks back to wekan-inline-button divs when saving
-      const html = editor.getHTML();
-      const processedHtml = convertCodeToWekanButtons(html);
-      onChange(processedHtml);
+      onChange(editor.getHTML());
     },
     editorProps: {
       attributes: {
@@ -137,12 +95,70 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
     },
   });
 
+  // Handle clicking on inline buttons in the editor
+  useEffect(() => {
+    const handleEditorClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const buttonEl = target.closest('.editable-inline-button');
+      
+      if (buttonEl) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const dataAttr = buttonEl.getAttribute('data-inline-button');
+        if (dataAttr) {
+          const data = parseInlineButtonFromDataAttr(dataAttr);
+          if (data) {
+            setEditingButtonData(data);
+            setEditingButtonElement(buttonEl as HTMLElement);
+            setShowInlineButtonEditor(true);
+          }
+        }
+      }
+    };
+    
+    const container = editorContainerRef.current;
+    if (container) {
+      container.addEventListener('click', handleEditorClick);
+      return () => container.removeEventListener('click', handleEditorClick);
+    }
+  }, []);
+
   // Sync external content changes
   useEffect(() => {
-    if (editor && processedContent !== editor.getHTML()) {
-      editor.commands.setContent(processedContent, { emitUpdate: false });
+    if (editor && content !== editor.getHTML()) {
+      editor.commands.setContent(content, { emitUpdate: false });
     }
-  }, [processedContent, editor]);
+  }, [content, editor]);
+
+  const handleInsertInlineButton = useCallback((data: InlineButtonData) => {
+    if (!editor) return;
+    
+    const html = serializeInlineButton(data);
+    
+    if (editingButtonElement) {
+      // Replace existing button
+      editingButtonElement.outerHTML = html;
+      // Trigger update
+      onChange(editor.getHTML());
+    } else {
+      // Insert new button at cursor
+      editor.chain().focus().insertContent(html + '&nbsp;').run();
+    }
+    
+    setEditingButtonData(null);
+    setEditingButtonElement(null);
+  }, [editor, editingButtonElement, onChange]);
+
+  const handleDeleteInlineButton = useCallback(() => {
+    if (editingButtonElement && editor) {
+      editingButtonElement.remove();
+      onChange(editor.getHTML());
+    }
+    setShowInlineButtonEditor(false);
+    setEditingButtonData(null);
+    setEditingButtonElement(null);
+  }, [editingButtonElement, editor, onChange]);
 
   if (!editor) {
     return null;
@@ -330,6 +346,20 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
 
         <div className="w-px h-6 bg-border mx-1" />
 
+        {/* Inline Button */}
+        <ToolbarButton
+          onClick={() => {
+            setEditingButtonData(null);
+            setEditingButtonElement(null);
+            setShowInlineButtonEditor(true);
+          }}
+          title="Insert Inline Button"
+        >
+          <SquareArrowOutUpRight className="h-4 w-4" />
+        </ToolbarButton>
+
+        <div className="w-px h-6 bg-border mx-1" />
+
         {/* Text Color */}
         <Popover modal={true}>
           <PopoverTrigger asChild>
@@ -439,6 +469,15 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
       {/* Editor Content */}
       <EditorContent editor={editor} />
 
+      {/* Inline Button Editor Dialog */}
+      <InlineButtonEditor
+        open={showInlineButtonEditor}
+        onOpenChange={setShowInlineButtonEditor}
+        data={editingButtonData}
+        onSave={handleInsertInlineButton}
+        onDelete={editingButtonElement ? handleDeleteInlineButton : undefined}
+      />
+
       {/* Editor Styles */}
       <style>{`
         .ProseMirror p.is-editor-empty:first-child::before {
@@ -503,23 +542,6 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
           overflow-x: auto;
           margin: 0.5rem 0;
         }
-        .ProseMirror pre.wekan-inline-button-code {
-          background: linear-gradient(135deg, hsl(var(--muted)), hsl(var(--muted) / 0.7));
-          border: 1px dashed hsl(var(--primary) / 0.5);
-          position: relative;
-        }
-        .ProseMirror pre.wekan-inline-button-code::before {
-          content: "Wekan Button (raw HTML)";
-          position: absolute;
-          top: -0.5rem;
-          left: 0.5rem;
-          background: hsl(var(--primary));
-          color: hsl(var(--primary-foreground));
-          font-size: 0.625rem;
-          padding: 0.125rem 0.375rem;
-          border-radius: 0.25rem;
-          font-family: system-ui, sans-serif;
-        }
         .ProseMirror code {
           background: hsl(var(--muted));
           padding: 0.125rem 0.25rem;
@@ -537,6 +559,28 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
         }
         .ProseMirror a:hover {
           color: hsl(var(--primary) / 0.8);
+        }
+        /* Editable inline button styling in editor */
+        .ProseMirror .editable-inline-button {
+          cursor: pointer;
+          user-select: none;
+          transition: opacity 0.15s ease;
+        }
+        .ProseMirror .editable-inline-button:hover {
+          opacity: 0.8;
+        }
+        .ProseMirror .editable-inline-button::after {
+          content: "";
+          position: absolute;
+          inset: -2px;
+          border: 2px dashed hsl(var(--primary) / 0.5);
+          border-radius: 6px;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.15s ease;
+        }
+        .ProseMirror .editable-inline-button:hover::after {
+          opacity: 1;
         }
       `}</style>
     </div>

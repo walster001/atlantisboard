@@ -95,23 +95,38 @@ export function scanWekanDataForInlineButtons(wekanData: any): DetectedInlineBut
   }));
 }
 
-// Function to replace inline button image sources in HTML
-// This directly rewrites the src attributes in the raw HTML
-export function replaceInlineButtonImages(
-  html: string,
+// Function to replace inline button image sources in Wekan data BEFORE import
+// This modifies the raw Wekan JSON data directly
+export function replaceInlineButtonImagesInWekanData(
+  wekanData: any,
   replacements: Map<string, string>
-): string {
-  let result = html;
+): any {
+  if (!wekanData || replacements.size === 0) return wekanData;
 
-  for (const [originalSrc, newSrc] of replacements) {
-    // Escape special regex characters in the original src
-    const escapedSrc = originalSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Replace all occurrences of this img src (both single and double quotes)
-    const srcRegex = new RegExp(`src=['"]${escapedSrc}['"]`, 'g');
-    result = result.replace(srcRegex, `src="${newSrc}"`);
+  // Deep clone to avoid mutating original
+  const cloned = JSON.parse(JSON.stringify(wekanData));
+
+  // Handle both array of boards and single board
+  const boards = Array.isArray(cloned) ? cloned : [cloned];
+
+  for (const board of boards) {
+    const cards = board.cards || [];
+    for (const card of cards) {
+      if (card.description && typeof card.description === 'string') {
+        let desc = card.description;
+        for (const [originalSrc, newSrc] of replacements) {
+          // Escape special regex characters in the original src
+          const escapedSrc = originalSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          // Replace all occurrences of this img src (both single and double quotes)
+          const srcRegex = new RegExp(`src=['"]${escapedSrc}['"]`, 'g');
+          desc = desc.replace(srcRegex, `src="${newSrc}"`);
+        }
+        card.description = desc;
+      }
+    }
   }
 
-  return result;
+  return Array.isArray(wekanData) ? cloned : cloned[0];
 }
 
 export function InlineButtonIconDialog({
@@ -237,7 +252,7 @@ export function InlineButtonIconDialog({
           </DialogTitle>
           <DialogDescription>
             Found {buttons.length} unique internal image reference(s) across {totalOccurrences} inline button block(s). 
-            These /cdn images won't work after import. Upload replacements to rewrite the image links directly in the imported data.
+            These /cdn images won't work after import. Upload replacements before importing.
           </DialogDescription>
         </DialogHeader>
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Check, Loader2, Trash2, Pencil } from 'lucide-react';
+import { Plus, Check, Loader2, Trash2, Pencil, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -66,6 +66,7 @@ export function ThemeSettings({
   const [applying, setApplying] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<BoardTheme | null>(null);
+  const [duplicatingTheme, setDuplicatingTheme] = useState<BoardTheme | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [themeToDelete, setThemeToDelete] = useState<BoardTheme | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -150,6 +151,13 @@ export function ThemeSettings({
 
   const handleEditTheme = (theme: BoardTheme) => {
     setEditingTheme(theme);
+    setDuplicatingTheme(null);
+    setEditorOpen(true);
+  };
+
+  const handleDuplicateTheme = (theme: BoardTheme) => {
+    setDuplicatingTheme(theme);
+    setEditingTheme(null);
     setEditorOpen(true);
   };
 
@@ -184,6 +192,7 @@ export function ThemeSettings({
   const handleThemeSaved = () => {
     fetchThemes();
     setEditingTheme(null);
+    setDuplicatingTheme(null);
   };
 
   if (loading) {
@@ -295,13 +304,32 @@ export function ThemeSettings({
                   </button>
 
 
-                  {/* Edit/Delete actions for app admins */}
+                  {/* Duplicate action for app admins (available on all themes) */}
+                  {canManageThemes && (
+                    <div className={`absolute top-1 ${theme.is_default ? 'left-1' : 'right-1'} flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-6 w-6"
+                        title="Duplicate theme"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicateTheme(theme);
+                        }}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Edit/Delete actions for app admins (custom themes only) */}
                   {canManageThemes && !theme.is_default && (
                     <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
                         variant="secondary"
                         size="icon"
                         className="h-6 w-6"
+                        title="Edit theme"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleEditTheme(theme);
@@ -313,6 +341,7 @@ export function ThemeSettings({
                         variant="secondary"
                         size="icon"
                         className="h-6 w-6 hover:bg-destructive hover:text-destructive-foreground"
+                        title="Delete theme"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteTheme(theme);
@@ -351,9 +380,11 @@ export function ThemeSettings({
         onClose={() => {
           setEditorOpen(false);
           setEditingTheme(null);
+          setDuplicatingTheme(null);
         }}
         onThemeSaved={handleThemeSaved}
         editingTheme={editingTheme}
+        duplicatingTheme={duplicatingTheme}
       />
 
       {/* Delete Confirmation */}

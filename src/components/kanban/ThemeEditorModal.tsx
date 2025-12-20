@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,27 +33,60 @@ interface ThemeEditorModalProps {
   onClose: () => void;
   onThemeSaved: () => void;
   editingTheme?: BoardTheme | null;
+  duplicatingTheme?: BoardTheme | null;
 }
 
 export function ThemeEditorModal({ 
   open, 
   onClose, 
   onThemeSaved,
-  editingTheme 
+  editingTheme,
+  duplicatingTheme
 }: ThemeEditorModalProps) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   
-  const [themeName, setThemeName] = useState(editingTheme?.name || '');
-  const [navbarColor, setNavbarColor] = useState(editingTheme?.navbar_color || '#0079bf');
-  const [columnColor, setColumnColor] = useState(editingTheme?.column_color || '#f4f5f7');
-  const [defaultCardColor, setDefaultCardColor] = useState<string | null>(editingTheme?.default_card_color || null);
-  const [cardWindowColor, setCardWindowColor] = useState(editingTheme?.card_window_color || '#ffffff');
-  const [cardWindowTextColor, setCardWindowTextColor] = useState(editingTheme?.card_window_text_color || '#172b4d');
-  const [homepageBoardColor, setHomepageBoardColor] = useState(editingTheme?.homepage_board_color || '#0079bf');
-  const [boardIconColor, setBoardIconColor] = useState(editingTheme?.board_icon_color || '#ffffff');
-  const [scrollbarColor, setScrollbarColor] = useState(editingTheme?.scrollbar_color || '#c1c7cd');
-  const [scrollbarTrackColor, setScrollbarTrackColor] = useState(editingTheme?.scrollbar_track_color || '#f4f5f7');
+  const [themeName, setThemeName] = useState('');
+  const [navbarColor, setNavbarColor] = useState('#0079bf');
+  const [columnColor, setColumnColor] = useState('#f4f5f7');
+  const [defaultCardColor, setDefaultCardColor] = useState<string | null>(null);
+  const [cardWindowColor, setCardWindowColor] = useState('#ffffff');
+  const [cardWindowTextColor, setCardWindowTextColor] = useState('#172b4d');
+  const [homepageBoardColor, setHomepageBoardColor] = useState('#0079bf');
+  const [boardIconColor, setBoardIconColor] = useState('#ffffff');
+  const [scrollbarColor, setScrollbarColor] = useState('#c1c7cd');
+  const [scrollbarTrackColor, setScrollbarTrackColor] = useState('#f4f5f7');
+
+  // Reset state when modal opens with new theme
+  useEffect(() => {
+    if (open) {
+      const sourceTheme = duplicatingTheme || editingTheme;
+      if (sourceTheme) {
+        setThemeName(duplicatingTheme ? `${sourceTheme.name} (Copy)` : sourceTheme.name);
+        setNavbarColor(sourceTheme.navbar_color);
+        setColumnColor(sourceTheme.column_color);
+        setDefaultCardColor(sourceTheme.default_card_color);
+        setCardWindowColor(sourceTheme.card_window_color);
+        setCardWindowTextColor(sourceTheme.card_window_text_color);
+        setHomepageBoardColor(sourceTheme.homepage_board_color);
+        setBoardIconColor(sourceTheme.board_icon_color);
+        setScrollbarColor(sourceTheme.scrollbar_color);
+        setScrollbarTrackColor(sourceTheme.scrollbar_track_color);
+      } else {
+        // Reset to defaults for new theme
+        setThemeName('');
+        setNavbarColor('#0079bf');
+        setColumnColor('#f4f5f7');
+        setDefaultCardColor(null);
+        setCardWindowColor('#ffffff');
+        setCardWindowTextColor('#172b4d');
+        setHomepageBoardColor('#0079bf');
+        setBoardIconColor('#ffffff');
+        setScrollbarColor('#c1c7cd');
+        setScrollbarTrackColor('#f4f5f7');
+      }
+    }
+  }, [open, editingTheme, duplicatingTheme]);
 
   // Check accessibility issues
   const cardWindowAccessibility = getAccessibilityInfo(cardWindowTextColor, cardWindowColor);
@@ -118,7 +151,7 @@ export function ThemeEditorModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
           <h2 className="text-lg font-semibold">
-            {editingTheme ? 'Edit Theme' : 'Create New Theme'}
+            {duplicatingTheme ? 'Duplicate Theme' : editingTheme ? 'Edit Theme' : 'Create New Theme'}
           </h2>
           <Button 
             variant="ghost" 

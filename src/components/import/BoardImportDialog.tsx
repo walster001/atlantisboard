@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Upload, FileJson, Loader2, CheckCircle, AlertCircle, Palette, X, Check } from 'lucide-react';
+import { Upload, FileJson, Loader2, CheckCircle, AlertCircle, Palette, X, Check, Pipette } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { markdownToHtml } from '@/lib/markdownToHtml';
@@ -275,6 +275,29 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     if (/^#[0-9A-Fa-f]{6}$/.test(customHex)) {
       setDefaultCardColor(customHex);
       setColorPickerOpen(false);
+    }
+  };
+
+  // EyeDropper API support
+  const handleEyedropper = async () => {
+    if (!('EyeDropper' in window)) {
+      toast({
+        title: 'Not supported',
+        description: 'Eyedropper is not supported in your browser.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      // @ts-ignore - EyeDropper API
+      const eyeDropper = new window.EyeDropper();
+      const result = await eyeDropper.open();
+      const hex = result.sRGBHex;
+      setCustomHex(hex);
+      const { r, g, b } = hexToRgb(hex);
+      setCustomRgb({ r, g, b });
+    } catch (e) {
+      // User cancelled
     }
   };
 
@@ -986,6 +1009,18 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                               className="h-8 text-xs font-mono"
                             />
                           </div>
+                          {'EyeDropper' in window && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={handleEyedropper}
+                              title="Pick colour from screen"
+                            >
+                              <Pipette className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
 
                         {/* RGB sliders */}

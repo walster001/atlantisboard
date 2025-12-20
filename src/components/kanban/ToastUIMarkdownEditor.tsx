@@ -259,13 +259,13 @@ export function ToastUIMarkdownEditor({
   }, [handleAddButton]);
 
   return (
-    <div ref={containerRef} className={cn('border rounded-lg bg-background relative toastui-editor-wrapper', className)}>
+    <div ref={containerRef} className={cn('border rounded-lg bg-background relative toastui-editor-wrapper flex flex-col', className)}>
       <Editor
         ref={editorRef}
         initialValue=""
         initialEditType="wysiwyg"
         previewStyle="vertical"
-        height="300px"
+        height="auto"
         usageStatistics={false}
         hideModeSwitch={true}
         placeholder={placeholder || 'Write your description...'}
@@ -296,6 +296,27 @@ export function ToastUIMarkdownEditor({
         .toastui-editor-wrapper .inline-button-widget:hover {
           box-shadow: 0 0 0 2px rgba(87, 157, 255, 0.4);
           transform: translateY(-1px);
+        }
+        .toastui-editor-wrapper .toastui-editor-defaultUI {
+          display: flex;
+          flex-direction: column;
+          min-height: 150px;
+        }
+        .toastui-editor-wrapper .toastui-editor-defaultUI-toolbar {
+          flex-shrink: 0;
+        }
+        .toastui-editor-wrapper .toastui-editor-main-container {
+          flex: 1;
+          min-height: 0;
+          overflow: hidden;
+        }
+        .toastui-editor-wrapper .toastui-editor-ww-container {
+          height: 100%;
+        }
+        .toastui-editor-wrapper .toastui-editor-ww-mode .ProseMirror {
+          min-height: 100px;
+          max-height: calc(100vh - 400px);
+          overflow-y: auto;
         }
       `}</style>
     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, Label, getLabelHexColor } from '@/types/kanban';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -494,33 +495,35 @@ export function CardDetailModal({
                       No labels available. Create labels in Board Settings → Labels.
                     </p>
                   ) : (
-                    <div className="space-y-1 max-h-64 overflow-y-auto">
-                      {boardLabels.map((boardLabel) => {
-                        const isAlreadyAdded = card?.labels.some(l => l.id === boardLabel.id);
-                        return (
-                          <button
-                            key={boardLabel.id}
-                            onClick={() => !isAlreadyAdded && handleSelectBoardLabel(boardLabel)}
-                            disabled={isAlreadyAdded}
-                            className={cn(
-                              "w-full flex items-center gap-2 px-2 py-2 rounded-md text-left transition-colors",
-                              isAlreadyAdded 
-                                ? "opacity-50 cursor-not-allowed" 
-                                : "hover:bg-muted"
-                            )}
-                          >
-                            <div
-                              className="w-6 h-6 rounded shrink-0"
-                              style={{ backgroundColor: boardLabel.color }}
-                            />
-                            <span className="text-sm flex-1 truncate">{boardLabel.name}</span>
-                            {isAlreadyAdded && (
-                              <Check className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <ScrollArea className="max-h-64">
+                      <div className="space-y-1 pr-3">
+                        {boardLabels.map((boardLabel) => {
+                          const isAlreadyAdded = card?.labels.some(l => l.id === boardLabel.id);
+                          return (
+                            <button
+                              key={boardLabel.id}
+                              onClick={() => !isAlreadyAdded && handleSelectBoardLabel(boardLabel)}
+                              disabled={isAlreadyAdded}
+                              className={cn(
+                                "w-full flex items-center gap-2 px-2 py-2 rounded-md text-left transition-colors",
+                                isAlreadyAdded 
+                                  ? "opacity-50 cursor-not-allowed" 
+                                  : "hover:bg-muted"
+                              )}
+                            >
+                              <div
+                                className="w-6 h-6 rounded shrink-0"
+                                style={{ backgroundColor: boardLabel.color }}
+                              />
+                              <span className="text-sm flex-1 truncate">{boardLabel.name}</span>
+                              {isAlreadyAdded && (
+                                <Check className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
                   )}
                 </div>
               </PopoverContent>

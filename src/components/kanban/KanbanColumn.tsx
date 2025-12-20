@@ -14,6 +14,33 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
+// Helper function to convert hex to RGB
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+}
+
+// Calculate luminance for intelligent contrast
+function getLuminance(r: number, g: number, b: number): number {
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    c = c / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+// Get intelligent contrast text color based on background
+function getContrastTextColor(backgroundColor: string): 'light' | 'dark' {
+  const rgb = hexToRgb(backgroundColor);
+  if (!rgb) return 'dark';
+  const luminance = getLuminance(rgb.r, rgb.g, rgb.b);
+  return luminance < 0.5 ? 'light' : 'dark';
+}
+
 interface KanbanColumnProps {
   column: Column;
   index: number;
@@ -65,6 +92,10 @@ export const KanbanColumn = memo(function KanbanColumn({
   const effectiveColumnColor = isColumnTransparent 
     ? null 
     : (column.color || (isThemeTransparent ? null : themeColumnColor) || undefined);
+    
+  // Calculate text color based on column background luminance
+  const columnTextMode = effectiveColumnColor ? getContrastTextColor(effectiveColumnColor) : 'dark';
+  const isLightText = columnTextMode === 'light';
 
   const handleSaveTitle = () => {
     if (editedTitle.trim()) {
@@ -130,11 +161,15 @@ export const KanbanColumn = memo(function KanbanColumn({
                   <div className="flex items-center gap-2">
                     <h3 className={cn(
                       "font-semibold text-sm",
-                      effectiveColumnColor ? 'text-white drop-shadow-sm' : 'text-column-header'
+                      effectiveColumnColor 
+                        ? (isLightText ? 'text-white drop-shadow-sm' : 'text-gray-900') 
+                        : 'text-column-header'
                     )}>{column.title}</h3>
                     <span className={cn(
                       "text-xs px-1.5 py-0.5 rounded-full",
-                      effectiveColumnColor ? 'bg-black/20 text-white' : 'text-muted-foreground bg-muted'
+                      effectiveColumnColor 
+                        ? (isLightText ? 'bg-black/20 text-white' : 'bg-white/40 text-gray-900') 
+                        : 'text-muted-foreground bg-muted'
                     )}>
                       {column.cards.length}
                     </span>

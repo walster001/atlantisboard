@@ -226,12 +226,17 @@
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.1s ease;
   vertical-align: middle;
 }
 
 .editable-inline-button:hover {
   opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+.editable-inline-button:active {
+  transform: translateY(0);
 }
 
 .editable-inline-button img {
@@ -249,8 +254,9 @@
 /* Legacy support for <a> tags in existing buttons */
 .editable-inline-button a {
   text-decoration: none !important;
+  pointer-events: none; /* Prevent <a> from capturing clicks, let parent handle navigation */
 }
 
 .editable-inline-button a:hover {
-  text-decoration: underline !important;
+  text-decoration: none !important;
 }

@@ -325,6 +325,10 @@ interface ProgressUpdate {
   current: number;
   total: number;
   detail?: string;
+  createdIds?: {
+    workspaceId?: string;
+    boardIds?: string[];
+  };
 }
 
 interface ImportResult {
@@ -341,6 +345,10 @@ interface ImportResult {
   assignees_pending: number;
   errors: string[];
   warnings: string[];
+  createdIds?: {
+    workspaceId?: string;
+    boardIds?: string[];
+  };
 }
 
 Deno.serve(async (req) => {
@@ -444,8 +452,8 @@ Deno.serve(async (req) => {
       
       const stream = new ReadableStream({
         async start(controller) {
-          const sendProgress = (stage: string, current: number, total: number, detail?: string) => {
-            const data: ProgressUpdate = { type: 'progress', stage, current, total, detail };
+          const sendProgress = (stage: string, current: number, total: number, detail?: string, createdIds?: { workspaceId?: string; boardIds?: string[] }) => {
+            const data: ProgressUpdate = { type: 'progress', stage, current, total, detail, createdIds };
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
           };
 
@@ -522,9 +530,12 @@ async function runImport(
   userId: string,
   wekanData: any,
   defaultCardColor: string | null,
-  sendProgress: (stage: string, current: number, total: number, detail?: string) => void,
+  sendProgress: (stage: string, current: number, total: number, detail?: string, createdIds?: { workspaceId?: string; boardIds?: string[] }) => void,
   sendResult: (result: ImportResult) => void
 ) {
+  // Track created IDs for potential rollback
+  const createdIds: { workspaceId?: string; boardIds: string[] } = { boardIds: [] };
+
   const result: ImportResult = {
     type: 'result',
     success: true,
@@ -584,7 +595,8 @@ async function runImport(
   }
 
   result.workspaces_created = 1;
-  sendProgress('workspace', 1, 1, 'Workspace created');
+  createdIds.workspaceId = workspace.id;
+  sendProgress('workspace', 1, 1, 'Workspace created', createdIds);
   console.log('Created workspace:', workspace.id);
 
   // Add user as workspace member
@@ -633,8 +645,10 @@ async function runImport(
       }
 
       result.boards_created++;
-
-      // Add user as board admin
+      createdIds.boardIds.push(board.id);
+      
+      // Send progress with created IDs for potential rollback
+      sendProgress('board', boardIdx + 1, boards.length, `Created board: ${wekanBoard.title}`, createdIds);
       await supabase.from('board_members').insert({
         board_id: board.id,
         user_id: userId,

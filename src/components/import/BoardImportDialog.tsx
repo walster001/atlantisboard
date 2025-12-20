@@ -266,6 +266,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   
   // Abort controller for cancelling import
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Track created IDs for rollback
+  const createdIdsRef = useRef<{ workspaceId?: string; boardIds?: string[] }>({});
 
   // Handle RGB slider changes
   const handleRgbChange = (channel: 'r' | 'g' | 'b', value: string) => {
@@ -409,6 +412,11 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                   };
                   const stage = stageMap[data.stage] || 'parsing';
                   onProgress(stage, data.current, data.total, data.detail);
+                  
+                  // Track created IDs for potential rollback
+                  if (data.createdIds) {
+                    createdIdsRef.current = data.createdIds;
+                  }
                 } else if (data.type === 'result') {
                   resolve(data as ImportResult);
                   return;
@@ -807,17 +815,64 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     }
   };
 
+  // Rollback created resources
+  const rollbackImport = async () => {
+    const { workspaceId } = createdIdsRef.current;
+    
+    if (!workspaceId) {
+      console.log('No workspace to rollback');
+      return;
+    }
+    
+    console.log('Rolling back import, deleting workspace:', workspaceId);
+    
+    try {
+      // Deleting the workspace will cascade delete boards, columns, cards, etc.
+      const { error } = await supabase
+        .from('workspaces')
+        .delete()
+        .eq('id', workspaceId);
+      
+      if (error) {
+        console.error('Rollback error:', error);
+        toast({
+          title: 'Rollback partially failed',
+          description: `Could not delete all imported data: ${error.message}. You may need to manually delete the imported workspace.`,
+          variant: 'destructive',
+        });
+      } else {
+        console.log('Rollback successful');
+      }
+    } catch (err) {
+      console.error('Rollback exception:', err);
+    }
+    
+    // Clear tracked IDs
+    createdIdsRef.current = {};
+  };
+
   // Cancel ongoing import
-  const handleCancelImport = () => {
+  const handleCancelImport = async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    
     setImporting(false);
     updateProgress('idle');
+    
+    // Show immediate feedback
+    toast({
+      title: 'Cancelling import...',
+      description: 'Stopping import and cleaning up created data.',
+    });
+    
+    // Rollback in parallel
+    await rollbackImport();
+    
     toast({
       title: 'Import cancelled',
-      description: 'The import operation was cancelled. Note: Any data already imported will remain in the database.',
+      description: 'The import was cancelled and all partially imported data has been removed.',
     });
   };
 
@@ -825,6 +880,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const proceedWithImport = async (jsonData: any, replacements: Map<string, string>) => {
     // Create new abort controller for this import
     abortControllerRef.current = new AbortController();
+    // Reset tracked IDs for new import
+    createdIdsRef.current = {};
     
     setImporting(true);
     setImportResult(null);

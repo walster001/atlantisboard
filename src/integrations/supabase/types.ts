@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       app_settings: {
         Row: {
+          audit_log_retention_days: number | null
           created_at: string
           custom_app_name: string | null
           custom_app_name_color: string
@@ -50,6 +51,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audit_log_retention_days?: number | null
           created_at?: string
           custom_app_name?: string | null
           custom_app_name_color?: string
@@ -84,6 +86,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audit_log_retention_days?: number | null
           created_at?: string
           custom_app_name?: string | null
           custom_app_name_color?: string

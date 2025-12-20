@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Check, Loader2, Trash2, Pencil, X } from 'lucide-react';
+import { Plus, Check, Loader2, Trash2, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -33,6 +33,18 @@ function darkenColor(hex: string, percent: number): string {
     return hex.length === 1 ? '0' + hex : hex;
   }).join('');
 }
+
+// Theme order to match Add Board color picker order
+const THEME_ORDER = [
+  'Ocean Blue',
+  'Sunset Orange', 
+  'Forest Green',
+  'Ruby Red',
+  'Royal Purple',
+  'Hot Pink',
+  'Mint Green',
+  'Teal',
+];
 
 interface ThemeSettingsProps {
   boardId: string;
@@ -70,12 +82,29 @@ export function ThemeSettings({
     try {
       const { data, error } = await supabase
         .from('board_themes')
-        .select('*')
-        .order('is_default', { ascending: false })
-        .order('name', { ascending: true });
+        .select('*');
 
       if (error) throw error;
-      setThemes((data || []) as BoardTheme[]);
+      
+      // Sort themes: default themes in THEME_ORDER first, then custom themes alphabetically
+      const allThemes = (data || []) as BoardTheme[];
+      const sortedThemes = allThemes.sort((a, b) => {
+        const aIsDefault = a.is_default;
+        const bIsDefault = b.is_default;
+        
+        if (aIsDefault && bIsDefault) {
+          // Both default - sort by THEME_ORDER
+          const aIndex = THEME_ORDER.indexOf(a.name);
+          const bIndex = THEME_ORDER.indexOf(b.name);
+          return aIndex - bIndex;
+        }
+        if (aIsDefault && !bIsDefault) return -1;
+        if (!aIsDefault && bIsDefault) return 1;
+        // Both custom - sort alphabetically
+        return a.name.localeCompare(b.name);
+      });
+      
+      setThemes(sortedThemes);
     } catch (error: any) {
       console.error('Fetch themes error:', error);
       toast({ title: 'Error', description: 'Failed to load themes', variant: 'destructive' });
@@ -179,33 +208,6 @@ export function ThemeSettings({
 
         <ScrollArea className="flex-1">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pb-4">
-            {/* No theme option */}
-            {canApplyThemes && (
-              <button
-                onClick={() => applyTheme(null)}
-                disabled={applying !== null}
-                className={cn(
-                  "relative p-2 rounded-lg border-2 transition-all hover:border-primary/50 text-left",
-                  currentThemeId === null 
-                    ? "border-primary ring-2 ring-primary/20" 
-                    : "border-border"
-                )}
-              >
-                <div className="aspect-[4/3] rounded bg-muted flex items-center justify-center mb-2">
-                  {applying === 'none' ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <span className="text-xs text-muted-foreground">No Theme</span>
-                  )}
-                </div>
-                <p className="text-sm font-medium truncate">Default</p>
-                {currentThemeId === null && (
-                  <div className="absolute top-1 right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-3 w-3 text-primary-foreground" />
-                  </div>
-                )}
-              </button>
-            )}
 
             {/* Theme tiles */}
             {themes.map((theme) => {
@@ -292,22 +294,6 @@ export function ThemeSettings({
                     )}
                   </button>
 
-                  {/* Remove theme button - shown on selected theme overlay */}
-                  {isSelected && canApplyThemes && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="absolute bottom-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90 hover:bg-background shadow-md"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        applyTheme(null);
-                      }}
-                      disabled={applying !== null}
-                    >
-                      <X className="h-3 w-3 mr-1" />
-                      Remove Theme
-                    </Button>
-                  )}
 
                   {/* Edit/Delete actions for app admins */}
                   {canManageThemes && !theme.is_default && (

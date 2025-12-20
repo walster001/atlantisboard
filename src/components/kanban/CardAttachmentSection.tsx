@@ -176,8 +176,11 @@ export function CardAttachmentSection({
     }
   };
 
+  // Check if custom button colors are provided
+  const hasCustomButtonColors = !!themeButtonColor;
+  
   // Button style for themed buttons
-  const buttonStyle: React.CSSProperties = themeButtonColor ? {
+  const buttonStyle: React.CSSProperties = hasCustomButtonColors ? {
     backgroundColor: themeButtonColor,
     color: themeButtonTextColor || '#ffffff',
     borderColor: themeButtonColor,
@@ -205,12 +208,12 @@ export function CardAttachmentSection({
               onChange={handleFileSelect}
             />
             <Button
-              variant="outline"
+              variant={hasCustomButtonColors ? "default" : "outline"}
               size="sm"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="h-8"
-              style={themeButtonColor ? buttonStyle : undefined}
+              style={hasCustomButtonColors ? buttonStyle : undefined}
             >
               {uploading ? (
                 <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />

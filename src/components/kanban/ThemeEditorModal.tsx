@@ -316,55 +316,137 @@ export function ThemeEditorModal({
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Preview
               </h3>
-              <div 
-                className="rounded-lg border overflow-hidden bg-[repeating-linear-gradient(45deg,#f0f0f0,#f0f0f0_10px,#e8e8e8_10px,#e8e8e8_20px)]"
-              >
-                {/* Mini navbar */}
+              
+              {/* Board Preview */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Board View</p>
                 <div 
-                  className="h-8 flex items-center px-3 gap-2"
-                  style={{ backgroundColor: navbarColor }}
+                  className="rounded-lg border overflow-hidden bg-[repeating-linear-gradient(45deg,#f0f0f0,#f0f0f0_10px,#e8e8e8_10px,#e8e8e8_20px)]"
                 >
+                  {/* Mini navbar */}
                   <div 
-                    className="h-4 w-4 rounded"
-                    style={{ backgroundColor: boardIconColor }}
-                  />
-                  <div 
-                    className="h-2 w-16 rounded"
-                    style={{ backgroundColor: boardIconColor, opacity: 0.7 }}
-                  />
-                </div>
-                {/* Mini board */}
-                <div className="p-3 flex gap-2">
-                  {/* Column */}
-                  <div 
-                    className={cn(
-                      "w-24 rounded p-2 space-y-1.5",
-                      !columnColor && "bg-transparent"
-                    )}
-                    style={columnColor ? { backgroundColor: columnColor } : undefined}
+                    className="h-8 flex items-center px-3 gap-2"
+                    style={{ backgroundColor: navbarColor }}
                   >
-                    <div className="h-2 w-12 bg-foreground/20 rounded" />
-                    {/* Cards */}
                     <div 
-                      className="h-6 rounded shadow-sm"
-                      style={{ backgroundColor: defaultCardColor || '#ffffff' }}
+                      className="h-4 w-4 rounded"
+                      style={{ backgroundColor: boardIconColor }}
                     />
                     <div 
-                      className="h-6 rounded shadow-sm"
-                      style={{ backgroundColor: defaultCardColor || '#ffffff' }}
+                      className="h-2 w-16 rounded"
+                      style={{ backgroundColor: boardIconColor, opacity: 0.7 }}
                     />
                   </div>
-                  <div 
-                    className={cn(
-                      "w-24 rounded p-2 space-y-1.5",
-                      !columnColor && "bg-transparent"
-                    )}
-                    style={columnColor ? { backgroundColor: columnColor } : undefined}
-                  >
-                    <div className="h-2 w-8 bg-foreground/20 rounded" />
+                  {/* Mini board */}
+                  <div className="p-3 flex gap-2">
+                    {/* Column */}
                     <div 
-                      className="h-6 rounded shadow-sm"
-                      style={{ backgroundColor: defaultCardColor || '#ffffff' }}
+                      className={cn(
+                        "w-24 rounded p-2 space-y-1.5",
+                        !columnColor && "bg-transparent"
+                      )}
+                      style={columnColor ? { backgroundColor: columnColor } : undefined}
+                    >
+                      <div className="h-2 w-12 bg-foreground/20 rounded" />
+                      {/* Cards */}
+                      <div 
+                        className="h-6 rounded shadow-sm"
+                        style={{ backgroundColor: defaultCardColor || '#ffffff' }}
+                      />
+                      <div 
+                        className="h-6 rounded shadow-sm"
+                        style={{ backgroundColor: defaultCardColor || '#ffffff' }}
+                      />
+                    </div>
+                    <div 
+                      className={cn(
+                        "w-24 rounded p-2 space-y-1.5",
+                        !columnColor && "bg-transparent"
+                      )}
+                      style={columnColor ? { backgroundColor: columnColor } : undefined}
+                    >
+                      <div className="h-2 w-8 bg-foreground/20 rounded" />
+                      <div 
+                        className="h-6 rounded shadow-sm"
+                        style={{ backgroundColor: defaultCardColor || '#ffffff' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Detail Window Preview */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Card Detail Window</p>
+                <div 
+                  className="rounded-lg border overflow-hidden shadow-lg"
+                  style={{ backgroundColor: cardWindowColor }}
+                >
+                  {/* Header */}
+                  <div 
+                    className="px-4 py-3 border-b flex items-start gap-3"
+                    style={{ borderColor: `${cardWindowTextColor}20` }}
+                  >
+                    <div 
+                      className="w-5 h-5 rounded mt-0.5 shrink-0"
+                      style={{ backgroundColor: defaultCardColor || '#0079bf' }}
+                    />
+                    <div className="flex-1 space-y-1">
+                      <div 
+                        className="h-4 w-32 rounded"
+                        style={{ backgroundColor: cardWindowTextColor }}
+                      />
+                      <div 
+                        className="h-2.5 w-20 rounded"
+                        style={{ backgroundColor: cardWindowTextColor, opacity: 0.5 }}
+                      />
+                    </div>
+                    <div 
+                      className="w-6 h-6 rounded flex items-center justify-center"
+                      style={{ backgroundColor: `${cardWindowTextColor}10` }}
+                    >
+                      <X className="w-3 h-3" style={{ color: cardWindowTextColor }} />
+                    </div>
+                  </div>
+                  {/* Content */}
+                  <div className="px-4 py-3 space-y-3">
+                    <div className="space-y-1.5">
+                      <div 
+                        className="h-2.5 w-16 rounded"
+                        style={{ backgroundColor: cardWindowTextColor, opacity: 0.6 }}
+                      />
+                      <div 
+                        className="h-3 w-full rounded"
+                        style={{ backgroundColor: cardWindowTextColor, opacity: 0.2 }}
+                      />
+                      <div 
+                        className="h-3 w-3/4 rounded"
+                        style={{ backgroundColor: cardWindowTextColor, opacity: 0.2 }}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <div 
+                        className="h-5 w-14 rounded-full"
+                        style={{ backgroundColor: `${cardWindowTextColor}15` }}
+                      />
+                      <div 
+                        className="h-5 w-10 rounded-full"
+                        style={{ backgroundColor: `${cardWindowTextColor}15` }}
+                      />
+                    </div>
+                  </div>
+                  {/* Footer */}
+                  <div 
+                    className="px-4 py-2 border-t flex justify-end gap-2"
+                    style={{ borderColor: `${cardWindowTextColor}20` }}
+                  >
+                    <div 
+                      className="h-6 w-16 rounded"
+                      style={{ backgroundColor: `${cardWindowTextColor}10` }}
+                    />
+                    <div 
+                      className="h-6 w-12 rounded"
+                      style={{ backgroundColor: navbarColor }}
                     />
                   </div>
                 </div>

@@ -260,3 +260,91 @@
 .editable-inline-button a:hover {
   text-decoration: none !important;
 }
+
+/* Toast UI Editor Dark Mode Overrides */
+.dark .toastui-editor-defaultUI {
+  border-color: hsl(var(--border));
+}
+
+.dark .toastui-editor-defaultUI-toolbar {
+  background-color: hsl(var(--muted));
+  border-color: hsl(var(--border));
+}
+
+.dark .toastui-editor-toolbar-icons {
+  background-color: transparent;
+  border-color: hsl(var(--border));
+}
+
+.dark .toastui-editor-toolbar-icons:hover {
+  background-color: hsl(var(--accent));
+}
+
+.dark .toastui-editor-toolbar-divider {
+  background-color: hsl(var(--border));
+}
+
+.dark .toastui-editor-ww-container {
+  background-color: hsl(var(--background));
+}
+
+.dark .toastui-editor-contents {
+  color: hsl(var(--foreground));
+}
+
+.dark .toastui-editor-contents p,
+.dark .toastui-editor-contents h1,
+.dark .toastui-editor-contents h2,
+.dark .toastui-editor-contents h3,
+.dark .toastui-editor-contents h4,
+.dark .toastui-editor-contents h5,
+.dark .toastui-editor-contents h6,
+.dark .toastui-editor-contents li {
+  color: hsl(var(--foreground));
+}
+
+.dark .toastui-editor-contents blockquote {
+  border-color: hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .toastui-editor-contents pre {
+  background-color: hsl(var(--muted));
+}
+
+.dark .toastui-editor-contents code {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.dark .toastui-editor-contents table th,
+.dark .toastui-editor-contents table td {
+  border-color: hsl(var(--border));
+}
+
+.dark .toastui-editor-contents a {
+  color: hsl(var(--primary));
+}
+
+.dark .toastui-editor-popup {
+  background-color: hsl(var(--popover));
+  border-color: hsl(var(--border));
+}
+
+.dark .toastui-editor-popup-body {
+  color: hsl(var(--popover-foreground));
+}
+
+.dark .ProseMirror-focused {
+  outline: none;
+}
+
+/* General Toast UI Editor Cleanup */
+.toastui-editor-contents {
+  font-family: inherit;
+}
+
+.toastui-editor-defaultUI {
+  border-radius: var(--radius);
+  overflow: hidden;
+}

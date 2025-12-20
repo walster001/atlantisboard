@@ -28,7 +28,7 @@ import {
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { MarkdownEditor } from './MarkdownEditor';
+import { ToastUIMarkdownEditor } from './ToastUIMarkdownEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { CardAttachmentSection } from './CardAttachmentSection';
 import type { InlineButtonData } from './InlineButtonEditor';
@@ -326,14 +326,13 @@ export function CardDetailModal({
           {isEditingDescription && !disabled ? (
             <div className="space-y-2">
               {/* 
-                MarkdownEditor: Secure editor that stores raw Markdown.
-                Does NOT use dangerouslySetInnerHTML.
+                ToastUIMarkdownEditor: WYSIWYG editor using Toast UI.
+                Handles inline buttons properly.
               */}
-              <MarkdownEditor
+              <ToastUIMarkdownEditor
                 content={description}
                 onChange={setDescription}
                 placeholder="Add a more detailed description in Markdown..."
-                autoSize
               />
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={handleSaveDescription}>

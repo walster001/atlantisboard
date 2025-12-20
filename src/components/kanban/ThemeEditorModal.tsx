@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Loader2, AlertTriangle, Sparkles } from 'lucide-react';
+import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { ThemeColorInput, getAccessibilityInfo } from './ThemeColorInput';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -361,39 +361,6 @@ export function ThemeEditorModal({
                       />
                     </button>
                   </div>
-                  
-                  {/* Intelligent Contrast Preview */}
-                  <div className="mt-3 p-3 rounded-lg border bg-muted/30">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      <span className="text-xs font-medium">Contrast Preview</span>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {['#1a1a2e', '#16213e', '#0f3460', '#e94560', '#533483', '#2c3e50', '#f39c12', '#ffffff'].map((bg) => {
-                        const intelligentText = getIntelligentTextColor(bg);
-                        const displayText = cardWindowIntelligentContrast ? intelligentText : cardWindowTextColor;
-                        return (
-                          <div
-                            key={bg}
-                            className="aspect-square rounded-md flex items-center justify-center text-[10px] font-medium border shadow-sm transition-all"
-                            style={{ 
-                              backgroundColor: bg,
-                              color: displayText,
-                              borderColor: bg === '#ffffff' ? '#e5e5e5' : bg
-                            }}
-                            title={`Background: ${bg}\nText: ${displayText}`}
-                          >
-                            Aa
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-2">
-                      {cardWindowIntelligentContrast 
-                        ? '✓ Text automatically adjusts for readability' 
-                        : 'Text uses fixed colour setting'}
-                    </p>
-                  </div>
                 </div>
               </div>
 
@@ -497,89 +464,129 @@ export function ThemeEditorModal({
 
               {/* Card Detail Window Preview */}
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground font-medium">Card Detail Window</p>
-                <div 
-                  className="rounded-lg border overflow-hidden shadow-lg"
-                  style={{ backgroundColor: cardWindowColor }}
-                >
-                  {/* Header */}
-                  <div 
-                    className="px-4 py-3 border-b flex items-start gap-3"
-                    style={{ borderColor: `${cardWindowTextColor}20` }}
-                  >
-                    <div 
-                      className="w-5 h-5 rounded mt-0.5 shrink-0"
-                      style={{ backgroundColor: defaultCardColor || '#0079bf' }}
-                    />
-                    <div className="flex-1 space-y-1">
-                      <div 
-                        className="h-4 w-32 rounded"
-                        style={{ backgroundColor: cardWindowTextColor }}
-                      />
-                      <div 
-                        className="h-2.5 w-20 rounded"
-                        style={{ backgroundColor: cardWindowTextColor, opacity: 0.5 }}
-                      />
-                    </div>
-                    <div 
-                      className="w-6 h-6 rounded flex items-center justify-center"
-                      style={{ backgroundColor: `${cardWindowTextColor}10` }}
-                    >
-                      <X className="w-3 h-3" style={{ color: cardWindowTextColor }} />
-                    </div>
-                  </div>
-                  {/* Content */}
-                  <div className="px-4 py-3 space-y-3">
-                    <div className="space-y-1.5">
-                      <div 
-                        className="h-2.5 w-16 rounded"
-                        style={{ backgroundColor: cardWindowTextColor, opacity: 0.6 }}
-                      />
-                      <div 
-                        className="h-3 w-full rounded"
-                        style={{ backgroundColor: cardWindowTextColor, opacity: 0.2 }}
-                      />
-                      <div 
-                        className="h-3 w-3/4 rounded"
-                        style={{ backgroundColor: cardWindowTextColor, opacity: 0.2 }}
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <div 
-                        className="h-5 w-14 rounded-full flex items-center justify-center text-[6px] font-medium"
-                        style={{ 
-                          backgroundColor: cardWindowButtonColor,
-                          color: cardWindowButtonTextColor 
-                        }}
-                      >
-                        Due Date
-                      </div>
-                      <div 
-                        className="h-5 w-12 rounded-full flex items-center justify-center text-[6px] font-medium"
-                        style={{ 
-                          backgroundColor: cardWindowButtonColor,
-                          color: cardWindowButtonTextColor 
-                        }}
-                      >
-                        + Label
-                      </div>
-                    </div>
-                  </div>
-                  {/* Footer */}
-                  <div 
-                    className="px-4 py-2 border-t flex justify-end gap-2"
-                    style={{ borderColor: `${cardWindowTextColor}20` }}
-                  >
-                    <div 
-                      className="h-6 w-16 rounded"
-                      style={{ backgroundColor: `${cardWindowTextColor}10` }}
-                    />
-                    <div 
-                      className="h-6 w-12 rounded"
-                      style={{ backgroundColor: navbarColor }}
-                    />
-                  </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-muted-foreground font-medium">Card Detail Window</p>
+                  {cardWindowIntelligentContrast && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                      Intelligent Contrast
+                    </span>
+                  )}
                 </div>
+                {(() => {
+                  // Calculate effective text color for preview
+                  const effectiveTextColor = cardWindowIntelligentContrast 
+                    ? getIntelligentTextColor(cardWindowColor) 
+                    : cardWindowTextColor;
+                  
+                  return (
+                    <div 
+                      className="rounded-lg border overflow-hidden shadow-lg"
+                      style={{ backgroundColor: cardWindowColor }}
+                    >
+                      {/* Header */}
+                      <div 
+                        className="px-4 py-3 border-b flex items-start gap-3"
+                        style={{ borderColor: `${effectiveTextColor}20` }}
+                      >
+                        <div 
+                          className="w-5 h-5 rounded mt-0.5 shrink-0"
+                          style={{ backgroundColor: defaultCardColor || '#0079bf' }}
+                        />
+                        <div className="flex-1 space-y-1">
+                          <div 
+                            className="h-4 w-32 rounded flex items-center text-[8px] font-semibold"
+                            style={{ color: effectiveTextColor }}
+                          >
+                            Card Title
+                          </div>
+                          <div 
+                            className="text-[7px]"
+                            style={{ color: effectiveTextColor, opacity: 0.6 }}
+                          >
+                            in List Name
+                          </div>
+                        </div>
+                        <div 
+                          className="w-6 h-6 rounded flex items-center justify-center"
+                          style={{ backgroundColor: `${effectiveTextColor}10` }}
+                        >
+                          <X className="w-3 h-3" style={{ color: effectiveTextColor }} />
+                        </div>
+                      </div>
+                      {/* Content */}
+                      <div className="px-4 py-3 space-y-3">
+                        <div className="space-y-1.5">
+                          <div 
+                            className="text-[7px] font-medium"
+                            style={{ color: effectiveTextColor, opacity: 0.7 }}
+                          >
+                            Description
+                          </div>
+                          <div 
+                            className="h-3 w-full rounded"
+                            style={{ backgroundColor: effectiveTextColor, opacity: 0.15 }}
+                          />
+                          <div 
+                            className="h-3 w-3/4 rounded"
+                            style={{ backgroundColor: effectiveTextColor, opacity: 0.15 }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <div 
+                            className="text-[7px] font-medium"
+                            style={{ color: effectiveTextColor, opacity: 0.7 }}
+                          >
+                            Due Date
+                          </div>
+                          <div className="flex gap-2">
+                            <div 
+                              className="h-5 w-16 rounded flex items-center justify-center text-[6px] font-medium"
+                              style={{ 
+                                backgroundColor: cardWindowButtonColor,
+                                color: cardWindowButtonTextColor 
+                              }}
+                            >
+                              Set due date
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div 
+                            className="text-[7px] font-medium"
+                            style={{ color: effectiveTextColor, opacity: 0.7 }}
+                          >
+                            Labels
+                          </div>
+                          <div className="flex gap-1">
+                            <div 
+                              className="h-4 w-10 rounded flex items-center justify-center text-[6px] font-medium"
+                              style={{ 
+                                backgroundColor: cardWindowButtonColor,
+                                color: cardWindowButtonTextColor 
+                              }}
+                            >
+                              + Label
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Footer */}
+                      <div 
+                        className="px-4 py-2 border-t flex justify-end gap-2"
+                        style={{ borderColor: `${effectiveTextColor}20` }}
+                      >
+                        <div 
+                          className="h-6 w-16 rounded"
+                          style={{ backgroundColor: `${effectiveTextColor}10` }}
+                        />
+                        <div 
+                          className="h-6 w-12 rounded"
+                          style={{ backgroundColor: navbarColor }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

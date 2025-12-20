@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,10 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, UserPlus, User, X, Search } from 'lucide-react';
+import { UserPlus, User, X, Search, UserMinus, Loader2 } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
-import { emailSchema } from '@/lib/validators';
-import { z } from 'zod';
 
 interface BoardMember {
   user_id: string;
@@ -22,6 +21,13 @@ interface BoardMember {
     full_name: string | null;
     avatar_url: string | null;
   };
+}
+
+interface AppUser {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
 }
 
 interface BoardSettingsModalProps {
@@ -42,83 +48,101 @@ export function BoardSettingsModal({
   onMembersChange,
 }: BoardSettingsModalProps) {
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [role, setRole] = useState<'admin' | 'manager' | 'viewer'>('viewer');
-  const [isAdding, setIsAdding] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [addingUserId, setAddingUserId] = useState<string | null>(null);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  const [userToRemove, setUserToRemove] = useState<{ id: string; name: string } | null>(null);
+  const [pendingRoles, setPendingRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
 
   // UI-only permission checks for better UX
-  // SECURITY NOTE: These do NOT provide security - all permissions
-  // are enforced server-side via RLS policies.
   const canChangeRoles = userRole === 'admin';
   const canAddRemove = userRole === 'admin' || userRole === 'manager';
 
-  // Filter members based on search query
-  const filteredMembers = members.filter((member) => {
+  // Fetch all users when modal opens
+  useEffect(() => {
+    if (open && canAddRemove) {
+      fetchAllUsers();
+    }
+  }, [open, canAddRemove]);
+
+  const fetchAllUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url')
+        .order('full_name', { ascending: true, nullsFirst: false });
+
+      if (error) throw error;
+      setAllUsers(data || []);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      toast({ title: 'Error', description: 'Failed to load users', variant: 'destructive' });
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Get member IDs for quick lookup
+  const memberIds = new Set(members.map(m => m.user_id));
+
+  // Filter non-member users based on search
+  const filteredNonMembers = allUsers.filter((user) => {
+    if (memberIds.has(user.id)) return false;
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
+    const name = user.full_name?.toLowerCase() || '';
+    const email = user.email?.toLowerCase() || '';
+    return name.includes(query) || email.includes(query);
+  });
+
+  // Filter current members based on search
+  const filteredMembers = members.filter((member) => {
+    if (!memberSearchQuery.trim()) return true;
+    const query = memberSearchQuery.toLowerCase();
     const name = member.profiles.full_name?.toLowerCase() || '';
     const email = member.profiles.email?.toLowerCase() || '';
     return name.includes(query) || email.includes(query);
   });
 
-  const addMember = async () => {
-    setIsAdding(true);
-
+  const addMember = async (userId: string) => {
+    setAddingUserId(userId);
     try {
-      const validEmail = emailSchema.parse(email);
-
-      const { data: profiles, error: profileError } = await supabase
-        .rpc('find_user_by_email', { _email: validEmail, _board_id: boardId });
-
-      if (profileError) throw profileError;
-      if (!profiles || profiles.length === 0) {
-        toast({ title: 'User not found', description: 'No user with that email exists.', variant: 'destructive' });
-        setIsAdding(false);
-        return;
-      }
-      
-      const profile = profiles[0];
-
-      const existing = members.find(m => m.user_id === profile.id);
-      if (existing) {
-        toast({ title: 'Already a member', description: 'This user is already a board member.', variant: 'destructive' });
-        setIsAdding(false);
-        return;
-      }
-
-      const assignRole = userRole === 'manager' ? 'viewer' : role;
+      const assignRole = userRole === 'manager' ? 'viewer' : (pendingRoles[userId] || 'viewer');
 
       const { error } = await supabase.from('board_members').insert({
         board_id: boardId,
-        user_id: profile.id,
+        user_id: userId,
         role: assignRole,
       });
 
       if (error) throw error;
-
       toast({ title: 'Member added!' });
-      setEmail('');
       onMembersChange();
     } catch (error: any) {
       console.error('Add member error:', error);
-      if (error instanceof z.ZodError) {
-        toast({ title: 'Invalid Email', description: error.errors[0].message, variant: 'destructive' });
-      } else {
-        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
-      }
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     } finally {
-      setIsAdding(false);
+      setAddingUserId(null);
     }
   };
 
-  const removeMember = async (userId: string) => {
+  const confirmRemoveMember = (userId: string, name: string) => {
+    setUserToRemove({ id: userId, name });
+  };
+
+  const removeMember = async () => {
+    if (!userToRemove) return;
+    setRemovingUserId(userToRemove.id);
     try {
       const { error } = await supabase
         .from('board_members')
         .delete()
         .eq('board_id', boardId)
-        .eq('user_id', userId);
+        .eq('user_id', userToRemove.id);
 
       if (error) throw error;
       toast({ title: 'Member removed' });
@@ -126,6 +150,9 @@ export function BoardSettingsModal({
     } catch (error: any) {
       console.error('Remove member error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    } finally {
+      setRemovingUserId(null);
+      setUserToRemove(null);
     }
   };
 
@@ -148,187 +175,270 @@ export function BoardSettingsModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent 
-        className="max-w-4xl w-[95vw] h-[85vh] max-h-[85vh] p-0 overflow-hidden rounded-lg flex flex-col gap-0"
-        hideCloseButton
-      >
-        {/* Custom header with close button */}
-        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-          <h2 className="text-lg font-semibold">Board Settings</h2>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={onClose}
-            className="h-8 w-8"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Tabs */}
-        <Tabs defaultValue="users" className="flex flex-col flex-1 min-h-0">
-          <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-auto p-0 px-4 shrink-0">
-            <TabsTrigger 
-              value="board" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
+    <>
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent 
+          className="max-w-4xl w-[95vw] h-[85vh] max-h-[85vh] p-0 overflow-hidden rounded-lg flex flex-col gap-0"
+          hideCloseButton
+        >
+          {/* Custom header with close button */}
+          <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+            <h2 className="text-lg font-semibold">Board Settings</h2>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={onClose}
+              className="h-8 w-8"
             >
-              Board Settings
-            </TabsTrigger>
-            <TabsTrigger 
-              value="users" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
-            >
-              Users & Permissions
-            </TabsTrigger>
-            <TabsTrigger 
-              value="theme" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
-            >
-              Theme & Background
-            </TabsTrigger>
-          </TabsList>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
 
-          {/* Board Settings Tab - Placeholder */}
-          <TabsContent value="board" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              <p>Board settings coming soon...</p>
-            </div>
-          </TabsContent>
+          {/* Tabs */}
+          <Tabs defaultValue="users" className="flex flex-col flex-1 min-h-0">
+            <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-auto p-0 px-4 shrink-0">
+              <TabsTrigger 
+                value="board" 
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
+              >
+                Board Settings
+              </TabsTrigger>
+              <TabsTrigger 
+                value="users" 
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
+              >
+                Users & Permissions
+              </TabsTrigger>
+              <TabsTrigger 
+                value="theme" 
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
+              >
+                Theme & Background
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Users & Permissions Tab */}
-          <TabsContent value="users" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
-            <div className="space-y-6 max-w-2xl">
-              {/* Add Member Section */}
-              {canAddRemove && (
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Add Member</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Email address"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addMember()}
-                      maxLength={255}
-                      className="flex-1"
-                    />
-                    {canChangeRoles && (
-                      <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'manager' | 'viewer')}>
-                        <SelectTrigger className="w-28">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="viewer">Viewer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <Button onClick={addMember} disabled={isAdding}>
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Add
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {userRole === 'manager' 
-                      ? 'As a Manager, you can only add Viewers.' 
-                      : 'Admin: full access • Manager: manage members only • Viewer: read-only'}
-                  </p>
-                </div>
-              )}
+            {/* Board Settings Tab - Placeholder */}
+            <TabsContent value="board" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <p>Board settings coming soon...</p>
+              </div>
+            </TabsContent>
 
-              {/* Current Members Section */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base font-medium">Current Members ({members.length})</Label>
-                </div>
-                
-                {/* Search */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search members..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-
-                {/* Members List */}
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {filteredMembers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      {searchQuery ? 'No members match your search.' : 'No members found.'}
+            {/* Users & Permissions Tab */}
+            <TabsContent value="users" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                {/* All Users Section - Add to Board */}
+                {canAddRemove && (
+                  <div className="flex flex-col min-h-0">
+                    <Label className="text-base font-medium mb-3">All Users</Label>
+                    <div className="relative mb-3">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search users to add..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {userRole === 'manager' 
+                        ? 'As a Manager, you can only add Viewers.' 
+                        : 'Select a role and add users to this board.'}
                     </p>
-                  ) : (
-                    filteredMembers.map((member) => (
-                      <div
-                        key={member.user_id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={member.profiles.avatar_url || undefined} />
-                            <AvatarFallback>
-                              <User className="h-5 w-5" />
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">
-                              {member.profiles.full_name || member.profiles.email || 'Unknown User'}
-                            </p>
-                            {member.profiles.email && (
-                              <p className="text-sm text-muted-foreground">{member.profiles.email}</p>
-                            )}
+                    <div className="flex-1 overflow-y-auto border rounded-lg min-h-0">
+                      {loadingUsers ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : filteredNonMembers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-8">
+                          {searchQuery ? 'No users match your search.' : 'All users are already members.'}
+                        </p>
+                      ) : (
+                        <div className="divide-y">
+                          {filteredNonMembers.map((user) => (
+                            <div
+                              key={user.id}
+                              className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <Avatar className="h-9 w-9 shrink-0">
+                                  <AvatarImage src={user.avatar_url || undefined} />
+                                  <AvatarFallback>
+                                    <User className="h-4 w-4" />
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium text-sm truncate">
+                                    {user.full_name || 'Unknown User'}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {canChangeRoles && (
+                                  <Select 
+                                    value={pendingRoles[user.id] || 'viewer'} 
+                                    onValueChange={(v) => setPendingRoles(prev => ({ ...prev, [user.id]: v as 'admin' | 'manager' | 'viewer' }))}
+                                  >
+                                    <SelectTrigger className="w-24 h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="admin">Admin</SelectItem>
+                                      <SelectItem value="manager">Manager</SelectItem>
+                                      <SelectItem value="viewer">Viewer</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => addMember(user.id)}
+                                  disabled={addingUserId === user.id}
+                                  className="h-8"
+                                >
+                                  {addingUserId === user.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <UserPlus className="h-4 w-4 mr-1" />
+                                      Add
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Current Members Section */}
+                <div className={`flex flex-col min-h-0 ${!canAddRemove ? 'lg:col-span-2' : ''}`}>
+                  <Label className="text-base font-medium mb-3">
+                    Current Members ({members.length})
+                  </Label>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search members..."
+                      value={memberSearchQuery}
+                      onChange={(e) => setMemberSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  <div className="flex-1 overflow-y-auto border rounded-lg min-h-0">
+                    {filteredMembers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        {memberSearchQuery ? 'No members match your search.' : 'No members found.'}
+                      </p>
+                    ) : (
+                      <div className="divide-y">
+                        {filteredMembers.map((member) => (
+                          <div
+                            key={member.user_id}
+                            className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <Avatar className="h-9 w-9 shrink-0">
+                                <AvatarImage src={member.profiles.avatar_url || undefined} />
+                                <AvatarFallback>
+                                  <User className="h-4 w-4" />
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-sm truncate">
+                                  {member.profiles.full_name || member.profiles.email || 'Unknown User'}
+                                </p>
+                                {member.profiles.email && (
+                                  <p className="text-xs text-muted-foreground truncate">{member.profiles.email}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {canChangeRoles ? (
+                                <Select
+                                  value={member.role}
+                                  onValueChange={(v) => updateRole(member.user_id, v as 'admin' | 'manager' | 'viewer')}
+                                >
+                                  <SelectTrigger className="w-24 h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="manager">Manager</SelectItem>
+                                    <SelectItem value="viewer">Viewer</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <span className="text-xs text-muted-foreground capitalize px-2 py-1 bg-muted rounded">
+                                  {member.role}
+                                </span>
+                              )}
+                              {canAddRemove && members.length > 1 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => confirmRemoveMember(
+                                    member.user_id, 
+                                    member.profiles.full_name || member.profiles.email || 'this user'
+                                  )}
+                                  disabled={removingUserId === member.user_id}
+                                >
+                                  {removingUserId === member.user_id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <UserMinus className="h-4 w-4 mr-1" />
+                                      Remove
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {canChangeRoles ? (
-                            <Select
-                              value={member.role}
-                              onValueChange={(v) => updateRole(member.user_id, v as 'admin' | 'manager' | 'viewer')}
-                            >
-                              <SelectTrigger className="w-28">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="manager">Manager</SelectItem>
-                                <SelectItem value="viewer">Viewer</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="text-sm text-muted-foreground capitalize px-3 py-1 bg-muted rounded">
-                              {member.role}
-                            </span>
-                          )}
-                          {canAddRemove && members.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => removeMember(member.user_id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
+                        ))}
                       </div>
-                    ))
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </TabsContent>
+            </TabsContent>
 
-          {/* Theme & Background Tab - Placeholder */}
-          <TabsContent value="theme" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              <p>Theme and background settings coming soon...</p>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+            {/* Theme & Background Tab - Placeholder */}
+            <TabsContent value="theme" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <p>Theme and background settings coming soon...</p>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Member Confirmation Dialog */}
+      <AlertDialog open={!!userToRemove} onOpenChange={(open) => !open && setUserToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove <strong>{userToRemove?.name}</strong> from this board? 
+              They will lose access to all board content.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={removeMember}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

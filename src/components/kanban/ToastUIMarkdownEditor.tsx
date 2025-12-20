@@ -323,28 +323,49 @@ export function ToastUIMarkdownEditor({
     btn.type = 'button';
     
     const dropdown = document.createElement('div');
-    dropdown.style.cssText = 'position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:9999;background:#1D2125;border:1px solid #3d444d;border-radius:8px;display:none;flex-direction:column;width:320px;max-height:360px;box-shadow:0 8px 24px rgba(0,0,0,0.4);overflow:hidden;';
+    dropdown.style.cssText = 'position:absolute;top:100%;right:0;z-index:9999;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:380px;height:420px;box-shadow:0 12px 32px rgba(0,0,0,0.5);overflow:hidden;';
     
-    // Category tabs
+    // Header with category label
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:12px 16px 8px;font-size:12px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;';
+    header.textContent = 'Smileys';
+    
+    // Category tabs - horizontal scrollable
+    const tabsWrapper = document.createElement('div');
+    tabsWrapper.style.cssText = 'padding:0 12px 8px;border-bottom:1px solid #3d444d;';
+    
     const tabsContainer = document.createElement('div');
-    tabsContainer.style.cssText = 'display:flex;gap:2px;padding:8px;border-bottom:1px solid #3d444d;flex-wrap:wrap;';
+    tabsContainer.style.cssText = 'display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;';
+    tabsContainer.style.setProperty('scrollbar-width', 'none');
     
-    // Emoji grid container
+    // Emoji grid scroll container
+    const emojiScrollContainer = document.createElement('div');
+    emojiScrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#3d444d transparent;';
+    
+    // Emoji grid
     const emojiGrid = document.createElement('div');
-    emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:8px;overflow-y:auto;max-height:280px;';
+    emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(9,1fr);gap:4px;padding:12px;';
     
     const categoryNames = Object.keys(emojiCategories);
     let activeCategory = categoryNames[0];
+    const tabButtons: HTMLButtonElement[] = [];
     
     const renderEmojis = (category: string) => {
       emojiGrid.innerHTML = '';
+      header.textContent = category;
       emojiCategories[category].emojis.forEach(emoji => {
         const emojiBtn = document.createElement('button');
         emojiBtn.type = 'button';
-        emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:20px;padding:4px;border-radius:4px;transition:background 0.15s;display:flex;align-items:center;justify-content:center;width:32px;height:32px;';
+        emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:24px;padding:6px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:36px;height:36px;';
         emojiBtn.textContent = emoji;
-        emojiBtn.onmouseenter = () => { emojiBtn.style.background = '#3d444d'; };
-        emojiBtn.onmouseleave = () => { emojiBtn.style.background = 'none'; };
+        emojiBtn.onmouseenter = () => { 
+          emojiBtn.style.background = '#3d444d'; 
+          emojiBtn.style.transform = 'scale(1.15)';
+        };
+        emojiBtn.onmouseleave = () => { 
+          emojiBtn.style.background = 'none'; 
+          emojiBtn.style.transform = 'scale(1)';
+        };
         emojiBtn.onclick = (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -356,37 +377,62 @@ export function ToastUIMarkdownEditor({
         };
         emojiGrid.appendChild(emojiBtn);
       });
+      emojiScrollContainer.scrollTop = 0;
     };
     
-    categoryNames.forEach(category => {
+    const updateTabStyles = () => {
+      tabButtons.forEach((tabBtn, i) => {
+        const isActive = categoryNames[i] === activeCategory;
+        tabBtn.style.background = isActive ? '#3d444d' : 'none';
+        tabBtn.style.color = isActive ? '#ffffff' : '#8b949e';
+      });
+    };
+    
+    categoryNames.forEach((category, index) => {
       const tabBtn = document.createElement('button');
       tabBtn.type = 'button';
-      tabBtn.style.cssText = `background:${category === activeCategory ? '#3d444d' : 'none'};border:none;cursor:pointer;font-size:16px;padding:4px 6px;border-radius:4px;transition:background 0.15s;`;
+      tabBtn.style.cssText = `background:${category === activeCategory ? '#3d444d' : 'none'};border:none;cursor:pointer;font-size:18px;padding:8px 10px;border-radius:6px;transition:background 0.15s;flex-shrink:0;color:${category === activeCategory ? '#ffffff' : '#8b949e'};`;
       tabBtn.textContent = emojiCategories[category].icon;
       tabBtn.title = category;
-      tabBtn.onmouseenter = () => { if (category !== activeCategory) tabBtn.style.background = '#2d343d'; };
-      tabBtn.onmouseleave = () => { if (category !== activeCategory) tabBtn.style.background = 'none'; };
+      tabBtn.onmouseenter = () => { 
+        if (category !== activeCategory) {
+          tabBtn.style.background = '#2d343d'; 
+        }
+      };
+      tabBtn.onmouseleave = () => { 
+        if (category !== activeCategory) {
+          tabBtn.style.background = 'none'; 
+        }
+      };
       tabBtn.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
         activeCategory = category;
-        // Update tab styles
-        Array.from(tabsContainer.children).forEach((child, i) => {
-          (child as HTMLElement).style.background = categoryNames[i] === category ? '#3d444d' : 'none';
-        });
+        updateTabStyles();
         renderEmojis(category);
       };
+      tabButtons.push(tabBtn);
       tabsContainer.appendChild(tabBtn);
     });
     
-    dropdown.appendChild(tabsContainer);
-    dropdown.appendChild(emojiGrid);
+    tabsWrapper.appendChild(tabsContainer);
+    emojiScrollContainer.appendChild(emojiGrid);
+    dropdown.appendChild(header);
+    dropdown.appendChild(tabsWrapper);
+    dropdown.appendChild(emojiScrollContainer);
     renderEmojis(activeCategory);
     
     btn.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      dropdown.style.display = dropdown.style.display === 'none' ? 'flex' : 'none';
+      const isVisible = dropdown.style.display !== 'none';
+      dropdown.style.display = isVisible ? 'none' : 'flex';
+      if (!isVisible) {
+        // Reset to first category when opening
+        activeCategory = categoryNames[0];
+        updateTabStyles();
+        renderEmojis(activeCategory);
+      }
     };
     
     // Close on outside click

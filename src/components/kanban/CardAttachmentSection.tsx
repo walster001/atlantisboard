@@ -25,6 +25,8 @@ interface CardAttachmentSectionProps {
   themeTextColor?: string;
   themeButtonColor?: string;
   themeButtonTextColor?: string;
+  themeButtonHoverColor?: string;
+  themeButtonHoverTextColor?: string;
 }
 
 function formatFileSize(bytes: number | null): string {
@@ -52,6 +54,8 @@ export function CardAttachmentSection({
   themeTextColor,
   themeButtonColor,
   themeButtonTextColor,
+  themeButtonHoverColor,
+  themeButtonHoverTextColor,
 }: CardAttachmentSectionProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -185,9 +189,20 @@ export function CardAttachmentSection({
     color: themeButtonTextColor || '#ffffff',
     borderColor: themeButtonColor,
   } : {};
+  
+  // Button class for hover states
+  const themedButtonClass = hasCustomButtonColors ? 'themed-button' : '';
+  
+  // CSS custom properties for container
+  const containerStyle: React.CSSProperties = hasCustomButtonColors ? {
+    '--theme-btn-bg': themeButtonColor,
+    '--theme-btn-color': themeButtonTextColor || '#ffffff',
+    '--theme-btn-hover-bg': themeButtonHoverColor || themeButtonColor,
+    '--theme-btn-hover-color': themeButtonHoverTextColor || themeButtonTextColor || '#ffffff',
+  } as React.CSSProperties : {};
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" style={containerStyle}>
       <div className="flex items-center justify-between">
         <div 
           className={cn("flex items-center gap-2", !themeTextColor && "text-muted-foreground")}
@@ -212,7 +227,7 @@ export function CardAttachmentSection({
               size="sm"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="h-8"
+              className={cn("h-8", themedButtonClass)}
               style={hasCustomButtonColors ? buttonStyle : undefined}
             >
               {uploading ? (

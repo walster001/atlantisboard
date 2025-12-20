@@ -203,3 +203,14 @@
     }
   }
 }
+
+/* Themed button hover states using CSS custom properties */
+.themed-button {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.themed-button:hover {
+  background-color: var(--theme-btn-hover-bg) !important;
+  color: var(--theme-btn-hover-color) !important;
+  border-color: var(--theme-btn-hover-bg) !important;
+}

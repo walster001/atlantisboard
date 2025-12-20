@@ -49,6 +49,8 @@ export interface BoardTheme {
   card_window_text_color: string;
   card_window_button_color: string;
   card_window_button_text_color: string;
+  card_window_button_hover_color: string;
+  card_window_button_hover_text_color: string;
   card_window_intelligent_contrast: boolean;
   homepage_board_color: string;
   board_icon_color: string;
@@ -85,6 +87,8 @@ export function ThemeEditorModal({
   const [cardWindowTextColor, setCardWindowTextColor] = useState('#172b4d');
   const [cardWindowButtonColor, setCardWindowButtonColor] = useState('#0079bf');
   const [cardWindowButtonTextColor, setCardWindowButtonTextColor] = useState('#ffffff');
+  const [cardWindowButtonHoverColor, setCardWindowButtonHoverColor] = useState('#005a8c');
+  const [cardWindowButtonHoverTextColor, setCardWindowButtonHoverTextColor] = useState('#ffffff');
   const [cardWindowIntelligentContrast, setCardWindowIntelligentContrast] = useState(false);
   const [homepageBoardColor, setHomepageBoardColor] = useState('#0079bf');
   const [boardIconColor, setBoardIconColor] = useState('#ffffff');
@@ -105,6 +109,8 @@ export function ThemeEditorModal({
         setCardWindowTextColor(sourceTheme.card_window_text_color);
         setCardWindowButtonColor(sourceTheme.card_window_button_color || '#0079bf');
         setCardWindowButtonTextColor(sourceTheme.card_window_button_text_color || '#ffffff');
+        setCardWindowButtonHoverColor(sourceTheme.card_window_button_hover_color || '#005a8c');
+        setCardWindowButtonHoverTextColor(sourceTheme.card_window_button_hover_text_color || '#ffffff');
         setCardWindowIntelligentContrast(sourceTheme.card_window_intelligent_contrast || false);
         setHomepageBoardColor(sourceTheme.homepage_board_color);
         setBoardIconColor(sourceTheme.board_icon_color);
@@ -120,6 +126,8 @@ export function ThemeEditorModal({
         setCardWindowTextColor('#172b4d');
         setCardWindowButtonColor('#0079bf');
         setCardWindowButtonTextColor('#ffffff');
+        setCardWindowButtonHoverColor('#005a8c');
+        setCardWindowButtonHoverTextColor('#ffffff');
         setCardWindowIntelligentContrast(false);
         setHomepageBoardColor('#0079bf');
         setBoardIconColor('#ffffff');
@@ -154,6 +162,8 @@ export function ThemeEditorModal({
         card_window_text_color: cardWindowTextColor,
         card_window_button_color: cardWindowButtonColor,
         card_window_button_text_color: cardWindowButtonTextColor,
+        card_window_button_hover_color: cardWindowButtonHoverColor,
+        card_window_button_hover_text_color: cardWindowButtonHoverTextColor,
         card_window_intelligent_contrast: cardWindowIntelligentContrast,
         homepage_board_color: homepageBoardColor,
         board_icon_color: boardIconColor,
@@ -330,6 +340,18 @@ export function ThemeEditorModal({
                     value={cardWindowButtonTextColor}
                     onChange={(v) => setCardWindowButtonTextColor(v || '#ffffff')}
                     contrastAgainst={cardWindowButtonColor}
+                  />
+                  <ThemeColorInput
+                    label="Button Hover Colour"
+                    value={cardWindowButtonHoverColor}
+                    onChange={(v) => setCardWindowButtonHoverColor(v || '#005a8c')}
+                    contrastAgainst={cardWindowColor}
+                  />
+                  <ThemeColorInput
+                    label="Button Hover Text Colour"
+                    value={cardWindowButtonHoverTextColor}
+                    onChange={(v) => setCardWindowButtonHoverTextColor(v || '#ffffff')}
+                    contrastAgainst={cardWindowButtonHoverColor}
                   />
                   <p className="text-xs text-muted-foreground">
                     Button colours apply to due date, add label, and add attachment buttons.
@@ -540,10 +562,18 @@ export function ThemeEditorModal({
                           </div>
                           <div className="flex gap-2">
                             <div 
-                              className="h-5 w-16 rounded flex items-center justify-center text-[6px] font-medium"
+                              className="h-5 w-16 rounded flex items-center justify-center text-[6px] font-medium cursor-pointer transition-colors hover:opacity-90"
                               style={{ 
                                 backgroundColor: cardWindowButtonColor,
                                 color: cardWindowButtonTextColor 
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = cardWindowButtonHoverColor;
+                                e.currentTarget.style.color = cardWindowButtonHoverTextColor;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = cardWindowButtonColor;
+                                e.currentTarget.style.color = cardWindowButtonTextColor;
                               }}
                             >
                               Set due date
@@ -559,10 +589,18 @@ export function ThemeEditorModal({
                           </div>
                           <div className="flex gap-1">
                             <div 
-                              className="h-4 w-10 rounded flex items-center justify-center text-[6px] font-medium"
+                              className="h-4 w-10 rounded flex items-center justify-center text-[6px] font-medium cursor-pointer transition-colors"
                               style={{ 
                                 backgroundColor: cardWindowButtonColor,
                                 color: cardWindowButtonTextColor 
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = cardWindowButtonHoverColor;
+                                e.currentTarget.style.color = cardWindowButtonHoverTextColor;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = cardWindowButtonColor;
+                                e.currentTarget.style.color = cardWindowButtonTextColor;
                               }}
                             >
                               + Label

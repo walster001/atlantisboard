@@ -105,9 +105,10 @@ export function replaceInlineButtonImagesInWekanData(
 
   // Deep clone to avoid mutating original
   const cloned = JSON.parse(JSON.stringify(wekanData));
+  const isArray = Array.isArray(cloned);
 
   // Handle both array of boards and single board
-  const boards = Array.isArray(cloned) ? cloned : [cloned];
+  const boards = isArray ? cloned : [cloned];
 
   for (const board of boards) {
     const cards = board.cards || [];
@@ -126,7 +127,8 @@ export function replaceInlineButtonImagesInWekanData(
     }
   }
 
-  return Array.isArray(wekanData) ? cloned : cloned[0];
+  // Return in same format as input
+  return isArray ? cloned : boards[0];
 }
 
 export function InlineButtonIconDialog({

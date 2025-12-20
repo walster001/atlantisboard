@@ -38,6 +38,33 @@ interface Board {
   position: number;
 }
 
+// Helper to darken a hex color by a percentage
+function darkenColor(hex: string, percent: number): string {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return hex;
+  
+  const r = Math.max(0, Math.round(parseInt(result[1], 16) * (1 - percent)));
+  const g = Math.max(0, Math.round(parseInt(result[2], 16) * (1 - percent)));
+  const b = Math.max(0, Math.round(parseInt(result[3], 16) * (1 - percent)));
+  
+  return '#' + [r, g, b].map(x => {
+    const hex = x.toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }).join('');
+}
+
+// Map colors to theme names for automatic theme assignment
+const COLOR_THEME_MAP: Record<string, string> = {
+  '#0079bf': 'Ocean Blue',
+  '#d29034': 'Sunset Orange',
+  '#519839': 'Forest Green',
+  '#b04632': 'Ruby Red',
+  '#89609e': 'Royal Purple',
+  '#cd5a91': 'Hot Pink',
+  '#4bbf6b': 'Mint Green',
+  '#00aecc': 'Teal',
+};
+
 const BOARD_COLORS = [
   '#0079bf', '#d29034', '#519839', '#b04632',
   '#89609e', '#cd5a91', '#4bbf6b', '#00aecc',
@@ -189,12 +216,33 @@ export default function Home() {
         background_color: newBoardColor,
       });
 
+      // Find the matching theme for the selected color
+      const themeName = COLOR_THEME_MAP[validated.background_color];
+      let themeId: string | null = null;
+      
+      if (themeName) {
+        const { data: themeData } = await supabase
+          .from('board_themes')
+          .select('id, navbar_color')
+          .eq('name', themeName)
+          .eq('is_default', true)
+          .single();
+        
+        if (themeData) {
+          themeId = themeData.id;
+          // Set background color to slightly darker than navbar
+          const darkenedColor = darkenColor(themeData.navbar_color, 0.1);
+          validated.background_color = darkenedColor;
+        }
+      }
+
       const { data: board, error } = await supabase
         .from('boards')
         .insert({
           workspace_id: selectedWorkspaceId,
           name: validated.name,
           background_color: validated.background_color,
+          theme_id: themeId,
         })
         .select()
         .single();

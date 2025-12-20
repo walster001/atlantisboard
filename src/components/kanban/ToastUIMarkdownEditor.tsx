@@ -780,25 +780,23 @@ export function ToastUIMarkdownEditor({
         onChange={handleChange}
         widgetRules={widgetRules}
         toolbarItems={[
-          [{ el: undoButton(), tooltip: 'Undo', name: 'undo' }],
-          [{ el: redoButton(), tooltip: 'Redo', name: 'redo' }],
-          ['heading'],
-          ['bold'],
-          ['italic'],
-          ['strike'],
-          ['hr'],
-          ['quote'],
-          ['ul'],
-          ['ol'],
-          ['task'],
-          [{ el: indentButton(), tooltip: 'Indent', name: 'indent' }],
-          [{ el: outdentButton(), tooltip: 'Outdent', name: 'outdent' }],
-          ['table'],
-          ['link'],
-          ['code'],
-          ['codeblock'],
-          [{ el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' }],
-          [{ el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' }],
+          [
+            { el: undoButton(), tooltip: 'Undo', name: 'undo' },
+            { el: redoButton(), tooltip: 'Redo', name: 'redo' },
+          ],
+          ['heading', 'bold', 'italic', 'strike'],
+          ['hr', 'quote'],
+          ['ul', 'ol', 'task'],
+          [
+            { el: indentButton(), tooltip: 'Indent', name: 'indent' },
+            { el: outdentButton(), tooltip: 'Outdent', name: 'outdent' },
+          ],
+          ['table', 'link'],
+          ['code', 'codeblock'],
+          [
+            { el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' },
+            { el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' },
+          ],
         ]}
       />
       
@@ -826,26 +824,26 @@ export function ToastUIMarkdownEditor({
         }
         .toastui-editor-wrapper .toastui-editor-defaultUI-toolbar {
           flex-shrink: 0;
-          padding: 4px !important;
+          padding: 4px 8px !important;
           background: transparent !important;
           width: 100% !important;
-          overflow-x: auto !important;
-          overflow-y: hidden !important;
+          overflow: visible !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar {
           display: flex !important;
-          flex-wrap: nowrap !important;
-          gap: 2px !important;
-          justify-content: flex-start !important;
+          flex-wrap: wrap !important;
+          gap: 4px !important;
+          justify-content: space-between !important;
+          align-items: center !important;
           background: transparent !important;
-          min-width: max-content !important;
-          width: auto !important;
+          width: 100% !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-group {
           display: inline-flex !important;
-          flex: 0 0 auto !important;
-          gap: 0 !important;
+          flex: 1 1 auto !important;
+          gap: 2px !important;
           align-items: center !important;
+          justify-content: center !important;
           margin: 0 !important;
           padding: 0 !important;
           visibility: visible !important;
@@ -875,14 +873,25 @@ export function ToastUIMarkdownEditor({
           width: 16px !important;
           height: 16px !important;
         }
-        /* Hide overflow menu elements */
+        /* Completely remove overflow menu elements from DOM flow */
         .toastui-editor-wrapper .toastui-editor-more-button,
         .toastui-editor-wrapper .toastui-editor-toolbar-more,
-        .toastui-editor-wrapper .toastui-editor-dropdown-toolbar {
+        .toastui-editor-wrapper .toastui-editor-dropdown-toolbar,
+        .toastui-editor-wrapper [class*="more-button"],
+        .toastui-editor-wrapper [class*="dropdown-toolbar"] {
           display: none !important;
+          width: 0 !important;
+          height: 0 !important;
+          visibility: hidden !important;
+          position: absolute !important;
+          pointer-events: none !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-divider {
-          display: none !important;
+          width: 1px !important;
+          height: 20px !important;
+          background: var(--editor-border, hsl(var(--border))) !important;
+          margin: 0 4px !important;
+          flex-shrink: 0 !important;
         }
         .toastui-editor-wrapper .toastui-editor-main-container {
           flex: 1;

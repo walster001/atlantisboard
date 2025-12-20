@@ -200,57 +200,64 @@ export function ToastUIMarkdownEditor({
     return () => clearTimeout(timeoutId);
   }, [content]);
 
-  // Force all toolbar items to be visible by preventing ToastUI's overflow behavior
+  // Force all toolbar items visible by patching ToastUI's internal toolbar after mount
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const fixToolbar = () => {
-      // Find all toolbar items that might be hidden/moved to overflow
-      const toolbarGroup = container.querySelector('.toastui-editor-toolbar-group');
-      const moreButton = container.querySelector('.toastui-editor-more-button, [class*="more-button"]');
-      const dropdownToolbar = container.querySelector('.toastui-editor-dropdown-toolbar, [class*="dropdown-toolbar"]');
-
-      // Hide more button
-      if (moreButton instanceof HTMLElement) {
-        moreButton.style.display = 'none';
+      // Get the toolbar element
+      const toolbar = container.querySelector('.toastui-editor-toolbar');
+      if (toolbar instanceof HTMLElement) {
+        // Set a large min-width to trick ToastUI into thinking there's enough space
+        toolbar.style.minWidth = '2000px';
+        toolbar.style.width = 'auto';
+        toolbar.style.maxWidth = 'none';
+        toolbar.style.overflow = 'visible';
       }
 
-      // Move items from dropdown back to main toolbar
-      if (dropdownToolbar && toolbarGroup) {
-        const items = dropdownToolbar.querySelectorAll('.toastui-editor-toolbar-icons');
-        items.forEach(item => {
-          if (item instanceof HTMLElement) {
-            toolbarGroup.appendChild(item);
-          }
-        });
-        if (dropdownToolbar instanceof HTMLElement) {
-          dropdownToolbar.style.display = 'none';
+      // Force remove more button and dropdown
+      const moreButtons = container.querySelectorAll('.toastui-editor-more-button, [class*="more"], .toastui-editor-dropdown-toolbar');
+      moreButtons.forEach(el => {
+        if (el instanceof HTMLElement) {
+          el.remove();
         }
-      }
+      });
 
-      // Ensure all toolbar icons are visible
-      const allIcons = container.querySelectorAll('.toastui-editor-toolbar-icons');
-      allIcons.forEach(icon => {
+      // Ensure all toolbar groups and icons are visible
+      const groups = container.querySelectorAll('.toastui-editor-toolbar-group');
+      groups.forEach(group => {
+        if (group instanceof HTMLElement) {
+          group.style.display = 'inline-flex';
+          group.style.visibility = 'visible';
+        }
+      });
+
+      const icons = container.querySelectorAll('.toastui-editor-toolbar-icons');
+      icons.forEach(icon => {
         if (icon instanceof HTMLElement) {
           icon.style.display = 'flex';
           icon.style.visibility = 'visible';
+          icon.style.opacity = '1';
         }
       });
     };
 
-    // Run after editor initializes and on resize
-    const timeoutId = setTimeout(fixToolbar, 100);
-    const intervalId = setInterval(fixToolbar, 500); // Keep checking periodically
+    // Run multiple times to ensure ToastUI's internal logic doesn't override
+    const timeouts = [50, 100, 200, 500, 1000].map(delay => 
+      setTimeout(fixToolbar, delay)
+    );
 
-    // Also run on resize
-    const resizeObserver = new ResizeObserver(fixToolbar);
-    resizeObserver.observe(container);
+    // Also observe for any DOM changes that might revert our fixes
+    const observer = new MutationObserver(fixToolbar);
+    const editorEl = container.querySelector('.toastui-editor-defaultUI');
+    if (editorEl) {
+      observer.observe(editorEl, { childList: true, subtree: true, attributes: true });
+    }
 
     return () => {
-      clearTimeout(timeoutId);
-      clearInterval(intervalId);
-      resizeObserver.disconnect();
+      timeouts.forEach(clearTimeout);
+      observer.disconnect();
     };
   }, []);
 
@@ -822,14 +829,17 @@ export function ToastUIMarkdownEditor({
           padding: 4px !important;
           background: transparent !important;
           width: 100% !important;
+          overflow-x: auto !important;
+          overflow-y: hidden !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar {
           display: flex !important;
-          flex-wrap: wrap !important;
+          flex-wrap: nowrap !important;
           gap: 2px !important;
           justify-content: flex-start !important;
           background: transparent !important;
-          width: 100% !important;
+          min-width: max-content !important;
+          width: auto !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-group {
           display: inline-flex !important;
@@ -838,6 +848,7 @@ export function ToastUIMarkdownEditor({
           align-items: center !important;
           margin: 0 !important;
           padding: 0 !important;
+          visibility: visible !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons {
           flex: 0 0 auto !important;

@@ -437,7 +437,14 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
           margin: 1rem 0;
         }
         .ProseMirror p {
-          margin: 0.25rem 0;
+          margin-bottom: 0.5rem;
+        }
+        .ProseMirror p:last-child {
+          margin-bottom: 0;
+        }
+        .ProseMirror br {
+          display: block;
+          content: "";
         }
         .ProseMirror pre {
           background: hsl(var(--muted));

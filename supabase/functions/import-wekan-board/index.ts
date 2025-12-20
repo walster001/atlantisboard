@@ -25,7 +25,7 @@ function markdownToHtml(markdown: string | null | undefined): string | null {
   try {
     let html = markdown;
     
-    // Convert headers
+    // Convert headers (must be done before other processing)
     html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
@@ -64,28 +64,31 @@ function markdownToHtml(markdown: string | null | undefined): string | null {
     html = html.replace(/^---$/gm, '<hr>');
     html = html.replace(/^\*\*\*$/gm, '<hr>');
     
-    // Convert line breaks to paragraphs
-    const paragraphs = html.split(/\n\n+/);
-    html = paragraphs.map(p => {
-      p = p.trim();
-      if (!p) return '';
-      if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || 
-          p.startsWith('<blockquote') || p.startsWith('<pre') || p.startsWith('<hr')) {
-        return p;
-      }
-      return `<p>${p.replace(/\n/g, '<br>')}</p>`;
-    }).join('\n');
-    
     // Convert Wekan color format: {color:red}text{color}
     html = html.replace(
       /\{color:([^}]+)\}([^{]*)\{color\}/g, 
       '<span style="color: $1">$2</span>'
     );
     
+    // Split by double newlines for paragraphs, preserving single newlines as <br>
+    const paragraphs = html.split(/\n\n+/);
+    html = paragraphs.map(p => {
+      p = p.trim();
+      if (!p) return '';
+      // Don't wrap block-level elements in paragraphs
+      if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || 
+          p.startsWith('<blockquote') || p.startsWith('<pre') || p.startsWith('<hr')) {
+        return p;
+      }
+      // Preserve single line breaks as <br> within paragraphs
+      return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+    }).join('\n');
+    
     return html;
   } catch (error) {
     console.error('Error parsing markdown:', error);
-    return `<p>${markdown.replace(/\n/g, '<br>')}</p>`;
+    // Fallback: preserve both paragraph breaks and line breaks
+    return `<p>${markdown.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
   }
 }
 

@@ -2,8 +2,7 @@
  * CardDetailModal.tsx
  * 
  * Modal component for viewing and editing card details.
- * Uses the new secure MarkdownEditor and MarkdownRenderer components
- * that do NOT use dangerouslySetInnerHTML.
+ * Uses ToastUIMarkdownEditor for editing and MarkdownRenderer for display.
  */
 
 import { useState, useEffect, useCallback } from 'react';

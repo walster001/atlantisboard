@@ -89,100 +89,38 @@ function convertWekanInlineButtons(content: string): string {
 }
 
 /**
- * Convert Markdown to basic HTML for card descriptions
- * Simple conversion without external dependencies
+ * Process card description: preserve markdown, only convert inline buttons.
+ * We do NOT convert to HTML here - the ToastUI editor handles markdown natively.
  */
-function markdownToHtml(markdown: string | null | undefined): string | null {
-  if (!markdown) return null;
+function processCardDescription(description: string | null | undefined): string | null {
+  if (!description) return null;
   
-  const trimmed = markdown.trim();
+  // Convert Wekan inline buttons to our format
+  let result = convertWekanInlineButtons(description);
   
-  // Check if content is already HTML
-  if (trimmed.startsWith('<') && (
-    trimmed.startsWith('<p>') || 
-    trimmed.startsWith('<h') || 
-    trimmed.startsWith('<ul>') || 
-    trimmed.startsWith('<ol>') || 
-    trimmed.startsWith('<div>') ||
-    trimmed.startsWith('<blockquote>') ||
-    trimmed.startsWith('<pre>')
-  )) {
-    // Even for already-HTML content, we need to process inline buttons
-    return convertWekanInlineButtons(markdown);
+  // Clean up excessive HTML that Wekan might have added while keeping markdown intact
+  // Only strip the paragraph wrappers if the content doesn't have other HTML structure
+  const hasComplexHtml = /<(h[1-6]|ul|ol|blockquote|pre|table|div)[^>]*>/i.test(result);
+  
+  if (!hasComplexHtml) {
+    // Remove wrapping <p> tags that Wekan adds, preserving content
+    result = result.replace(/^<p>|<\/p>$/g, '');
+    // Convert <br> and <br/> to newlines for markdown compatibility
+    result = result.replace(/<br\s*\/?>/gi, '\n');
+    // Convert inline HTML formatting to markdown equivalents
+    result = result.replace(/<strong>([^<]*)<\/strong>/gi, '**$1**');
+    result = result.replace(/<b>([^<]*)<\/b>/gi, '**$1**');
+    result = result.replace(/<em>([^<]*)<\/em>/gi, '*$1*');
+    result = result.replace(/<i>([^<]*)<\/i>/gi, '*$1*');
+    result = result.replace(/<code>([^<]*)<\/code>/gi, '`$1`');
+    result = result.replace(/<s>([^<]*)<\/s>/gi, '~~$1~~');
+    result = result.replace(/<strike>([^<]*)<\/strike>/gi, '~~$1~~');
   }
   
-  try {
-    let html = markdown;
-    
-    // Convert headers (must be done before other processing)
-    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-    
-    // Convert bold and italic
-    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    html = html.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
-    html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
-    html = html.replace(/_(.+?)_/g, '<em>$1</em>');
-    
-    // Convert inline code
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    
-    // Convert code blocks
-    html = html.replace(/```[\s\S]*?```/g, (match) => {
-      const code = match.slice(3, -3).replace(/^\w+\n/, '');
-      return `<pre><code>${code}</code></pre>`;
-    });
-    
-    // Convert links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-    
-    // Convert unordered lists
-    html = html.replace(/^[\*\-] (.+)$/gm, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-    
-    // Convert ordered lists
-    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-    
-    // Convert blockquotes
-    html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
-    
-    // Convert horizontal rules
-    html = html.replace(/^---$/gm, '<hr>');
-    html = html.replace(/^\*\*\*$/gm, '<hr>');
-    
-    // Convert Wekan color format: {color:red}text{color}
-    html = html.replace(
-      /\{color:([^}]+)\}([^{]*)\{color\}/g, 
-      '<span style="color: $1">$2</span>'
-    );
-    
-    // Split by double newlines for paragraphs, preserving single newlines as <br>
-    const paragraphs = html.split(/\n\n+/);
-    html = paragraphs.map(p => {
-      p = p.trim();
-      if (!p) return '';
-      // Don't wrap block-level elements in paragraphs
-      if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || 
-          p.startsWith('<blockquote') || p.startsWith('<pre') || p.startsWith('<hr')) {
-        return p;
-      }
-      // Preserve single line breaks as <br> within paragraphs
-      return `<p>${p.replace(/\n/g, '<br>')}</p>`;
-    }).join('\n');
-    
-    // Convert Wekan inline buttons to editable components
-    html = convertWekanInlineButtons(html);
-    
-    return html;
-  } catch (error) {
-    console.error('Error parsing markdown:', error);
-    // Fallback: preserve both paragraph breaks and line breaks
-    return `<p>${markdown.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
-  }
+  return result.trim() || null;
 }
+
+// Removed markdownToHtml function - we now store raw markdown, not HTML
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -771,11 +709,9 @@ async function runImport(
           // Use default color if card has no color assigned
           const finalCardColor = cardColor || defaultCardColor;
 
-          // Process description: convert Wekan inline buttons but store raw content
-          // MarkdownRenderer handles full conversion at render time
-          const processedDescription = wekanCard.description 
-            ? convertWekanInlineButtons(wekanCard.description)
-            : null;
+          // Process description: preserve markdown, convert Wekan inline buttons
+          // ToastUI editor handles markdown natively
+          const processedDescription = processCardDescription(wekanCard.description);
           
           const { data: card, error: cardError } = await supabase
             .from('cards')

@@ -72,6 +72,7 @@ export default function BoardPage() {
 
   const [boardName, setBoardName] = useState('');
   const [boardColor, setBoardColor] = useState('#0079bf');
+  const [boardThemeId, setBoardThemeId] = useState<string | null>(null);
   const [columns, setColumns] = useState<DbColumn[]>([]);
   const [cards, setCards] = useState<DbCard[]>([]);
   const [labels, setLabels] = useState<DbLabel[]>([]);
@@ -313,6 +314,14 @@ export default function BoardPage() {
       setBoardColor(result.board?.background_color || '#0079bf');
       setUserRole(result.user_role as 'admin' | 'manager' | 'viewer' | null);
       setColumns(result.columns || []);
+
+      // Fetch theme_id separately (not in RPC response)
+      const { data: boardData } = await supabase
+        .from('boards')
+        .select('theme_id')
+        .eq('id', boardId)
+        .single();
+      setBoardThemeId(boardData?.theme_id || null);
       setCards(result.cards || []);
       setLabels(result.labels || []);
       setCardLabels(result.card_labels || []);
@@ -952,7 +961,9 @@ export default function BoardPage() {
           members={boardMembers}
           userRole={userRole}
           currentUserId={user?.id || null}
+          currentThemeId={boardThemeId}
           onMembersChange={refreshBoardMembers}
+          onThemeChange={fetchBoardData}
         />
       )}
     </div>

@@ -19,6 +19,21 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+// Helper to darken a hex color by a percentage
+function darkenColor(hex: string, percent: number): string {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return hex;
+  
+  const r = Math.max(0, Math.round(parseInt(result[1], 16) * (1 - percent)));
+  const g = Math.max(0, Math.round(parseInt(result[2], 16) * (1 - percent)));
+  const b = Math.max(0, Math.round(parseInt(result[3], 16) * (1 - percent)));
+  
+  return '#' + [r, g, b].map(x => {
+    const hex = x.toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }).join('');
+}
+
 interface ThemeSettingsProps {
   boardId: string;
   currentThemeId: string | null;
@@ -69,14 +84,28 @@ export function ThemeSettings({
     }
   };
 
-  const applyTheme = async (themeId: string | null) => {
+  const applyTheme = async (themeId: string | null, theme?: BoardTheme) => {
     if (!canApplyThemes) return;
     
     setApplying(themeId || 'none');
     try {
+      // Calculate background color - slightly darker than navbar for good contrast
+      let backgroundColorUpdate: string | null = null;
+      if (theme) {
+        // Darken navbar color by 10% for the background
+        backgroundColorUpdate = darkenColor(theme.navbar_color, 0.1);
+      }
+      
+      const updateData: { theme_id: string | null; background_color?: string } = { 
+        theme_id: themeId 
+      };
+      if (backgroundColorUpdate) {
+        updateData.background_color = backgroundColorUpdate;
+      }
+      
       const { error } = await supabase
         .from('boards')
-        .update({ theme_id: themeId })
+        .update(updateData)
         .eq('id', boardId);
 
       if (error) throw error;
@@ -193,7 +222,7 @@ export function ThemeSettings({
                   )}
                 >
                   <button
-                    onClick={() => canApplyThemes && !isSelected && applyTheme(theme.id)}
+                    onClick={() => canApplyThemes && !isSelected && applyTheme(theme.id, theme)}
                     disabled={!canApplyThemes || applying !== null}
                     className="w-full p-2 text-left"
                   >

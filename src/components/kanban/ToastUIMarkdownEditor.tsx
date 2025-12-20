@@ -348,36 +348,30 @@ export function ToastUIMarkdownEditor({
     setShowButtonEditor(true);
   }, []);
 
-  // Create custom indent toolbar button
+  // Create custom indent toolbar button with SVG icon
   const createIndentToolbarItem = useCallback(() => {
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons indent';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;padding:0;width:24px;height:24px;';
-    btn.title = 'Indent (Tab)';
+    btn.className = 'toastui-editor-toolbar-icons custom-indent';
+    btn.title = 'Indent';
     btn.type = 'button';
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="18" x2="11" y2="18"/><polyline points="3 8 7 12 3 16"/></svg>`;
     btn.onclick = (e) => { 
       e.preventDefault(); 
-      const editor = editorRef.current?.getInstance();
-      if (editor) {
-        editor.exec('customIndent');
-      }
+      editorRef.current?.getInstance()?.exec('customIndent');
     };
     return btn;
   }, []);
 
-  // Create custom outdent toolbar button
+  // Create custom outdent toolbar button with SVG icon
   const createOutdentToolbarItem = useCallback(() => {
     const btn = document.createElement('button');
-    btn.className = 'toastui-editor-toolbar-icons outdent';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;padding:0;width:24px;height:24px;';
-    btn.title = 'Outdent (Shift+Tab)';
+    btn.className = 'toastui-editor-toolbar-icons custom-outdent';
+    btn.title = 'Outdent';
     btn.type = 'button';
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="18" x2="11" y2="18"/><polyline points="7 8 3 12 7 16"/></svg>`;
     btn.onclick = (e) => { 
       e.preventDefault(); 
-      const editor = editorRef.current?.getInstance();
-      if (editor) {
-        editor.exec('customOutdent');
-      }
+      editorRef.current?.getInstance()?.exec('customOutdent');
     };
     return btn;
   }, []);
@@ -695,6 +689,30 @@ export function ToastUIMarkdownEditor({
           min-height: 100px;
           max-height: calc(100vh - 400px);
           overflow-y: auto;
+        }
+        
+        /* Custom indent/outdent toolbar buttons */
+        .toastui-editor-wrapper .custom-indent,
+        .toastui-editor-wrapper .custom-outdent {
+          display: flex !important;
+          align-items: center;
+          justify-content: center;
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 0;
+          width: 32px;
+          height: 32px;
+          border-radius: 4px;
+        }
+        .toastui-editor-wrapper .custom-indent:hover,
+        .toastui-editor-wrapper .custom-outdent:hover {
+          background: rgba(128, 128, 128, 0.2);
+        }
+        .toastui-editor-wrapper .custom-indent svg,
+        .toastui-editor-wrapper .custom-outdent svg {
+          width: 16px;
+          height: 16px;
         }
         
         /* Themed editor styles */

@@ -158,6 +158,68 @@ export type Database = {
           },
         ]
       }
+      board_themes: {
+        Row: {
+          board_icon_color: string
+          card_window_color: string
+          card_window_text_color: string
+          column_color: string
+          created_at: string
+          created_by: string | null
+          default_card_color: string | null
+          homepage_board_color: string
+          id: string
+          is_default: boolean
+          name: string
+          navbar_color: string
+          scrollbar_color: string
+          scrollbar_track_color: string
+          updated_at: string
+        }
+        Insert: {
+          board_icon_color?: string
+          card_window_color?: string
+          card_window_text_color?: string
+          column_color?: string
+          created_at?: string
+          created_by?: string | null
+          default_card_color?: string | null
+          homepage_board_color?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          navbar_color?: string
+          scrollbar_color?: string
+          scrollbar_track_color?: string
+          updated_at?: string
+        }
+        Update: {
+          board_icon_color?: string
+          card_window_color?: string
+          card_window_text_color?: string
+          column_color?: string
+          created_at?: string
+          created_by?: string | null
+          default_card_color?: string | null
+          homepage_board_color?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          navbar_color?: string
+          scrollbar_color?: string
+          scrollbar_track_color?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "board_themes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       boards: {
         Row: {
           background_color: string | null
@@ -166,6 +228,7 @@ export type Database = {
           id: string
           name: string
           position: number
+          theme_id: string | null
           updated_at: string
           workspace_id: string
         }
@@ -176,6 +239,7 @@ export type Database = {
           id?: string
           name: string
           position?: number
+          theme_id?: string | null
           updated_at?: string
           workspace_id: string
         }
@@ -186,10 +250,18 @@ export type Database = {
           id?: string
           name?: string
           position?: number
+          theme_id?: string | null
           updated_at?: string
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "boards_theme_id_fkey"
+            columns: ["theme_id"]
+            isOneToOne: false
+            referencedRelation: "board_themes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "boards_workspace_id_fkey"
             columns: ["workspace_id"]

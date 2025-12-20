@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, User, X, Search, UserMinus, Loader2 } from 'lucide-react';
+import { UserPlus, User, X, Search, UserMinus, Loader2, Palette, ImageIcon } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
+import { ThemeSettings } from './ThemeSettings';
+import { cn } from '@/lib/utils';
 
 interface BoardMember {
   user_id: string;
@@ -37,8 +39,15 @@ interface BoardSettingsModalProps {
   members: BoardMember[];
   userRole: 'admin' | 'manager' | 'viewer' | null;
   currentUserId: string | null;
+  currentThemeId: string | null;
   onMembersChange: () => void;
+  onThemeChange: () => void;
 }
+
+const themeSubTabs = [
+  { id: 'themes', label: 'Theme / Colouring', icon: Palette },
+  { id: 'background', label: 'Background', icon: ImageIcon },
+];
 
 export function BoardSettingsModal({
   open,
@@ -47,7 +56,9 @@ export function BoardSettingsModal({
   members,
   userRole,
   currentUserId,
+  currentThemeId,
   onMembersChange,
+  onThemeChange,
 }: BoardSettingsModalProps) {
   const { toast } = useToast();
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
@@ -57,6 +68,7 @@ export function BoardSettingsModal({
   const [addingUserId, setAddingUserId] = useState<string | null>(null);
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [userToRemove, setUserToRemove] = useState<{ id: string; name: string } | null>(null);
+  const [activeThemeSubTab, setActiveThemeSubTab] = useState('themes');
   const [pendingRoles, setPendingRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
 
   // UI-only permission checks for better UX
@@ -426,10 +438,47 @@ export function BoardSettingsModal({
               </div>
             </TabsContent>
 
-            {/* Theme & Background Tab - Placeholder */}
-            <TabsContent value="theme" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <p>Theme and background settings coming soon...</p>
+            {/* Theme & Background Tab */}
+            <TabsContent value="theme" className="flex-1 mt-0 data-[state=inactive]:hidden flex min-h-0">
+              {/* Vertical sub-navigation */}
+              <aside className="w-48 bg-muted/30 border-r border-border p-3 shrink-0">
+                <nav className="space-y-1">
+                  {themeSubTabs.map((subTab) => {
+                    const Icon = subTab.icon;
+                    return (
+                      <button
+                        key={subTab.id}
+                        onClick={() => setActiveThemeSubTab(subTab.id)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
+                          activeThemeSubTab === subTab.id
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {subTab.label}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </aside>
+
+              {/* Sub-tab content */}
+              <div className="flex-1 p-4 overflow-y-auto">
+                {activeThemeSubTab === 'themes' && (
+                  <ThemeSettings
+                    boardId={boardId}
+                    currentThemeId={currentThemeId}
+                    userRole={userRole}
+                    onThemeApplied={onThemeChange}
+                  />
+                )}
+                {activeThemeSubTab === 'background' && (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <p>Background settings coming soon...</p>
+                  </div>
+                )}
               </div>
             </TabsContent>
           </Tabs>

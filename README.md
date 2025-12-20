@@ -10,6 +10,10 @@
 - Conversion to Node.js/Native.js for server-side code rather than large client-side.
 - Properly packaged standalone app. 
 
+# In Progress
+- implement database rate-limiting
+- Implement strict database/filehandling security policies
+- Implement session timeout for all logins
 
 # Implemented features
 - Import trello/wekan, fine tuning still to go. 

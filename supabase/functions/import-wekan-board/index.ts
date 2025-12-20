@@ -1,5 +1,49 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
+// Regex to detect Wekan inline button blocks
+// These are spans with display: inline-flex containing an img and anchor
+const INLINE_BUTTON_REGEX = /<span[^>]*style=['"][^'"]*display:\s*inline-?flex[^'"]*['"][^>]*>[\s\S]*?<\/span>/gi;
+
+/**
+ * Extract and preserve Wekan inline button blocks
+ * Returns the content with inline buttons replaced by placeholders and a map of placeholders to original HTML
+ */
+function extractInlineButtons(content: string): { processed: string; buttons: Map<string, string> } {
+  const buttons = new Map<string, string>();
+  let index = 0;
+  
+  const processed = content.replace(INLINE_BUTTON_REGEX, (match) => {
+    const placeholder = `__WEKAN_INLINE_BUTTON_${index}__`;
+    buttons.set(placeholder, match);
+    index++;
+    return placeholder;
+  });
+  
+  return { processed, buttons };
+}
+
+/**
+ * Restore inline button blocks wrapped in a special div
+ * The div has data attributes containing the raw HTML for the editor to show as code
+ * and the rendered HTML is shown in view mode
+ */
+function restoreInlineButtons(content: string, buttons: Map<string, string>): string {
+  let result = content;
+  
+  for (const [placeholder, originalHtml] of buttons) {
+    // Base64 encode the raw HTML for safe attribute storage
+    const encodedHtml = btoa(unescape(encodeURIComponent(originalHtml)));
+    
+    // Create a wrapper div that contains both:
+    // 1. A data attribute with the raw HTML (base64 encoded)
+    // 2. The rendered button HTML for display
+    const wrapper = `<div class="wekan-inline-button" data-raw-html="${encodedHtml}">${originalHtml}</div>`;
+    result = result.replace(placeholder, wrapper);
+  }
+  
+  return result;
+}
+
 /**
  * Convert Markdown to basic HTML for card descriptions
  * Simple conversion without external dependencies
@@ -19,11 +63,18 @@ function markdownToHtml(markdown: string | null | undefined): string | null {
     trimmed.startsWith('<blockquote>') ||
     trimmed.startsWith('<pre>')
   )) {
+    // Even for already-HTML content, we need to process inline buttons
+    const { processed, buttons } = extractInlineButtons(markdown);
+    if (buttons.size > 0) {
+      return restoreInlineButtons(processed, buttons);
+    }
     return markdown;
   }
   
   try {
-    let html = markdown;
+    // First, extract inline buttons before any processing
+    const { processed: contentWithoutButtons, buttons } = extractInlineButtons(markdown);
+    let html = contentWithoutButtons;
     
     // Convert headers (must be done before other processing)
     html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
@@ -83,6 +134,11 @@ function markdownToHtml(markdown: string | null | undefined): string | null {
       // Preserve single line breaks as <br> within paragraphs
       return `<p>${p.replace(/\n/g, '<br>')}</p>`;
     }).join('\n');
+    
+    // Restore inline buttons
+    if (buttons.size > 0) {
+      html = restoreInlineButtons(html, buttons);
+    }
     
     return html;
   } catch (error) {

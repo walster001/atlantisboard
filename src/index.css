@@ -214,3 +214,35 @@
   color: var(--theme-btn-hover-color) !important;
   border-color: var(--theme-btn-hover-bg) !important;
 }
+
+/* Wekan inline button styles */
+.wekan-inline-button {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background-color: #1D2125;
+  color: #579DFF !important;
+  text-decoration: none !important;
+  font-size: 13px;
+  line-height: 1.2;
+  vertical-align: baseline;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.wekan-inline-button:hover {
+  opacity: 0.85;
+  background-color: #282E33;
+  text-decoration: none !important;
+}
+
+.wekan-inline-button img {
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.wekan-inline-button span {
+  color: inherit !important;
+}

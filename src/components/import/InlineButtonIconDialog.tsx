@@ -229,14 +229,13 @@ export function InlineButtonIconDialog({
         replacements.set(btn.imgSrc, btn.replacementUrl);
       }
     }
+    // Only call onComplete - the parent handles closing
     onComplete(replacements);
-    onOpenChange(false);
   };
 
   const handleSkip = () => {
-    // Complete with no replacements
+    // Complete with no replacements - parent handles closing
     onComplete(new Map());
-    onOpenChange(false);
   };
 
   const uploadedCount = buttons.filter((b) => b.replacementUrl).length;

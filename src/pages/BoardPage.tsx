@@ -9,7 +9,7 @@ import { CardDetailModal } from '@/components/kanban/CardDetailModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, ArrowLeft, Loader2, Users, LayoutGrid, LogOut, User, Settings, Cog } from 'lucide-react';
+import { Plus, ArrowLeft, Loader2, Users, LayoutGrid, LogOut, User, Settings } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card as CardType, Label } from '@/types/kanban';
@@ -736,7 +736,7 @@ export default function BoardPage() {
                 onClick={() => setSettingsModalOpen(true)}
                 title="Board Settings"
               >
-                <Cog className="h-5 w-5" />
+                <Settings className="h-5 w-5" />
               </Button>
             )}
             <DropdownMenu>

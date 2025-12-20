@@ -620,7 +620,7 @@ export function ToastUIMarkdownEditor({
           [{ el: undoButton(), tooltip: 'Undo', name: 'undo' }, { el: redoButton(), tooltip: 'Redo', name: 'redo' }],
           ['heading', 'bold', 'italic', 'strike'],
           ['hr', 'quote'],
-          ['ul', 'ol', 'task'],
+          ['ul', 'ol', 'task', 'indent', 'outdent'],
           ['table', 'link'],
           ['code', 'codeblock', { el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' }, { el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' }],
         ]}

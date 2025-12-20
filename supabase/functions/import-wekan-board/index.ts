@@ -91,6 +91,7 @@ function convertWekanInlineButtons(content: string): string {
 /**
  * Process card description: preserve markdown, only convert inline buttons.
  * We do NOT convert to HTML here - the ToastUI editor handles markdown natively.
+ * Preserves indentation and properly handles line/paragraph spacing.
  */
 function processCardDescription(description: string | null | undefined): string | null {
   if (!description) return null;
@@ -103,10 +104,16 @@ function processCardDescription(description: string | null | undefined): string 
   const hasComplexHtml = /<(h[1-6]|ul|ol|blockquote|pre|table|div)[^>]*>/i.test(result);
   
   if (!hasComplexHtml) {
-    // Remove wrapping <p> tags that Wekan adds, preserving content
-    result = result.replace(/^<p>|<\/p>$/g, '');
-    // Convert <br> and <br/> to newlines for markdown compatibility
+    // Convert paragraph tags to double newlines for proper paragraph spacing
+    // Handle </p><p> transitions first to create paragraph breaks
+    result = result.replace(/<\/p>\s*<p>/gi, '\n\n');
+    // Remove remaining <p> and </p> tags
+    result = result.replace(/<p[^>]*>/gi, '');
+    result = result.replace(/<\/p>/gi, '\n\n');
+    
+    // Convert <br> and <br/> to single newlines
     result = result.replace(/<br\s*\/?>/gi, '\n');
+    
     // Convert inline HTML formatting to markdown equivalents
     result = result.replace(/<strong>([^<]*)<\/strong>/gi, '**$1**');
     result = result.replace(/<b>([^<]*)<\/b>/gi, '**$1**');
@@ -115,8 +122,48 @@ function processCardDescription(description: string | null | undefined): string 
     result = result.replace(/<code>([^<]*)<\/code>/gi, '`$1`');
     result = result.replace(/<s>([^<]*)<\/s>/gi, '~~$1~~');
     result = result.replace(/<strike>([^<]*)<\/strike>/gi, '~~$1~~');
+    
+    // Preserve indentation: convert &nbsp; sequences to spaces (4 spaces = 1 indent level)
+    result = result.replace(/(&nbsp;){4}/gi, '    ');
+    result = result.replace(/(&nbsp;){2}/gi, '  ');
+    result = result.replace(/&nbsp;/gi, ' ');
+    
+    // Preserve tab characters for indentation
+    result = result.replace(/\t/g, '    ');
+    
+    // Handle markdown list indentation - ensure proper spacing for nested lists
+    // Lines starting with spaces followed by - or * or numbers should be preserved
+    const lines = result.split('\n');
+    const processedLines = lines.map(line => {
+      // Count leading spaces/tabs to preserve indentation
+      const leadingWhitespaceMatch = line.match(/^(\s*)/);
+      const leadingWhitespace = leadingWhitespaceMatch ? leadingWhitespaceMatch[1] : '';
+      const content = line.substring(leadingWhitespace.length);
+      
+      // If line starts with list markers, preserve the indentation
+      if (/^[-*+]\s|^\d+\.\s/.test(content)) {
+        return leadingWhitespace + content;
+      }
+      
+      // For indented content (blockquotes, code blocks), preserve leading spaces
+      if (leadingWhitespace.length > 0) {
+        return leadingWhitespace + content;
+      }
+      
+      return line;
+    });
+    result = processedLines.join('\n');
+    
+    // Normalize multiple newlines: max 2 consecutive newlines for paragraph breaks
+    result = result.replace(/\n{3,}/g, '\n\n');
+  } else {
+    // For complex HTML, still preserve indentation markers
+    result = result.replace(/(&nbsp;){4}/gi, '    ');
+    result = result.replace(/(&nbsp;){2}/gi, '  ');
+    result = result.replace(/&nbsp;/gi, ' ');
   }
   
+  // Trim leading/trailing whitespace but preserve internal structure
   return result.trim() || null;
 }
 

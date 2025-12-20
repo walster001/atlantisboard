@@ -582,17 +582,26 @@ export default function Home() {
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Background Color</Label>
-                                  <div className="flex gap-2 flex-wrap">
+                                  <Label>Theme</Label>
+                                  <div className="grid grid-cols-2 gap-2">
                                     {BOARD_COLORS.map((color) => (
                                       <button
                                         key={color}
-                                        className={`w-8 h-8 rounded-md transition-all ${
-                                          newBoardColor === color ? 'ring-2 ring-primary ring-offset-2' : ''
+                                        className={`flex items-center gap-2 p-2 rounded-md transition-all border ${
+                                          newBoardColor === color 
+                                            ? 'ring-2 ring-primary ring-offset-2 border-primary' 
+                                            : 'border-border hover:border-primary/50'
                                         }`}
-                                        style={{ backgroundColor: color }}
                                         onClick={() => setNewBoardColor(color)}
-                                      />
+                                      >
+                                        <div 
+                                          className="w-6 h-6 rounded shrink-0"
+                                          style={{ backgroundColor: color }}
+                                        />
+                                        <span className="text-sm font-medium truncate">
+                                          {COLOR_THEME_MAP[color]}
+                                        </span>
+                                      </button>
                                     ))}
                                   </div>
                                 </div>

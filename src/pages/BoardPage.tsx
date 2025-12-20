@@ -348,7 +348,32 @@ export default function BoardPage() {
     }
   };
 
-  // UI-only permission checks for better UX
+  // Lightweight member refresh without triggering full page loading state
+  const refreshBoardMembers = async () => {
+    if (!boardId || !user) return;
+    try {
+      const { data, error } = await supabase.rpc('get_board_member_profiles', {
+        _board_id: boardId
+      });
+
+      if (error) throw error;
+
+      const transformedMembers: BoardMember[] = (data || []).map((m: any) => ({
+        user_id: m.user_id,
+        role: m.role as 'admin' | 'manager' | 'viewer',
+        profiles: {
+          id: m.id,
+          email: m.email || '',
+          full_name: m.full_name,
+          avatar_url: m.avatar_url,
+        }
+      }));
+      setBoardMembers(transformedMembers);
+    } catch (error: any) {
+      console.error('Error refreshing members:', error);
+    }
+  };
+
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
@@ -927,7 +952,7 @@ export default function BoardPage() {
           members={boardMembers}
           userRole={userRole}
           currentUserId={user?.id || null}
-          onMembersChange={fetchBoardData}
+          onMembersChange={refreshBoardMembers}
         />
       )}
     </div>

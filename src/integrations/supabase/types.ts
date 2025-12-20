@@ -162,6 +162,8 @@ export type Database = {
         Row: {
           board_icon_color: string
           card_window_button_color: string
+          card_window_button_hover_color: string | null
+          card_window_button_hover_text_color: string | null
           card_window_button_text_color: string
           card_window_color: string
           card_window_intelligent_contrast: boolean
@@ -182,6 +184,8 @@ export type Database = {
         Insert: {
           board_icon_color?: string
           card_window_button_color?: string
+          card_window_button_hover_color?: string | null
+          card_window_button_hover_text_color?: string | null
           card_window_button_text_color?: string
           card_window_color?: string
           card_window_intelligent_contrast?: boolean
@@ -202,6 +206,8 @@ export type Database = {
         Update: {
           board_icon_color?: string
           card_window_button_color?: string
+          card_window_button_hover_color?: string | null
+          card_window_button_hover_text_color?: string | null
           card_window_button_text_color?: string
           card_window_color?: string
           card_window_intelligent_contrast?: boolean

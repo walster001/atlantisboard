@@ -81,6 +81,8 @@ interface CardDetailModalProps {
   themeCardWindowTextColor?: string;
   themeCardWindowButtonColor?: string;
   themeCardWindowButtonTextColor?: string;
+  themeCardWindowButtonHoverColor?: string;
+  themeCardWindowButtonHoverTextColor?: string;
   themeCardWindowIntelligentContrast?: boolean;
 }
 
@@ -118,6 +120,8 @@ export function CardDetailModal({
   themeCardWindowTextColor,
   themeCardWindowButtonColor,
   themeCardWindowButtonTextColor,
+  themeCardWindowButtonHoverColor,
+  themeCardWindowButtonHoverTextColor,
   themeCardWindowIntelligentContrast,
 }: CardDetailModalProps) {
   const isMobile = useIsMobile();
@@ -237,15 +241,27 @@ export function CardDetailModal({
   // Check if custom button colors are provided
   const hasCustomButtonColors = !!themeCardWindowButtonColor;
   
+  
+  // CSS custom properties for container to enable hover states
+  const containerStyle: React.CSSProperties = hasCustomButtonColors ? {
+    '--theme-btn-bg': themeCardWindowButtonColor,
+    '--theme-btn-color': themeCardWindowButtonTextColor || '#ffffff',
+    '--theme-btn-hover-bg': themeCardWindowButtonHoverColor || themeCardWindowButtonColor,
+    '--theme-btn-hover-color': themeCardWindowButtonHoverTextColor || themeCardWindowButtonTextColor || '#ffffff',
+  } as React.CSSProperties : {};
+
   // Button styles - use inline styles with custom properties to override tailwind classes
   const buttonStyle: React.CSSProperties = hasCustomButtonColors ? {
     backgroundColor: themeCardWindowButtonColor,
     color: themeCardWindowButtonTextColor || '#ffffff',
     borderColor: themeCardWindowButtonColor,
   } : {};
+  
+  // Button class for hover states
+  const themedButtonClass = hasCustomButtonColors ? 'themed-button' : '';
 
   const content = (
-    <div className="flex flex-col overflow-hidden" style={contentStyle}>
+    <div className="flex flex-col overflow-hidden" style={{ ...contentStyle, ...containerStyle }}>
       {/* Header */}
       <div 
         className="flex items-start justify-between p-4 md:p-6 border-b"
@@ -405,7 +421,8 @@ export function CardDetailModal({
                       'justify-start text-left font-normal',
                       !dueDate && !hasCustomButtonColors && 'text-muted-foreground',
                       dueDateStatus?.isOverdue && 'border-destructive text-destructive bg-transparent',
-                      dueDateStatus?.isDueToday && 'border-label-orange text-label-orange bg-transparent'
+                      dueDateStatus?.isDueToday && 'border-label-orange text-label-orange bg-transparent',
+                      !dueDateStatus?.isOverdue && !dueDateStatus?.isDueToday && themedButtonClass
                     )}
                     style={!dueDateStatus?.isOverdue && !dueDateStatus?.isDueToday && hasCustomButtonColors ? buttonStyle : undefined}
                   >
@@ -479,6 +496,7 @@ export function CardDetailModal({
                 <Button 
                   variant={hasCustomButtonColors ? "default" : "outline"} 
                   size="sm"
+                  className={themedButtonClass}
                   style={hasCustomButtonColors ? buttonStyle : undefined}
                 >
                   <Tag className="h-3.5 w-3.5 mr-1.5" />
@@ -619,6 +637,8 @@ export function CardDetailModal({
           themeTextColor={effectiveTextColor}
           themeButtonColor={themeCardWindowButtonColor}
           themeButtonTextColor={themeCardWindowButtonTextColor}
+          themeButtonHoverColor={themeCardWindowButtonHoverColor}
+          themeButtonHoverTextColor={themeCardWindowButtonHoverTextColor}
         />
       </div>
 

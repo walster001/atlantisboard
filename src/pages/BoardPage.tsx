@@ -1064,6 +1064,8 @@ export default function BoardPage() {
         themeCardWindowTextColor={boardTheme?.card_window_text_color}
         themeCardWindowButtonColor={boardTheme?.card_window_button_color}
         themeCardWindowButtonTextColor={boardTheme?.card_window_button_text_color}
+        themeCardWindowButtonHoverColor={boardTheme?.card_window_button_hover_color}
+        themeCardWindowButtonHoverTextColor={boardTheme?.card_window_button_hover_text_color}
         themeCardWindowIntelligentContrast={boardTheme?.card_window_intelligent_contrast}
       />
 

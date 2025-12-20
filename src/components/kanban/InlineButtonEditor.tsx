@@ -18,6 +18,7 @@ export interface InlineButtonData {
   linkText: string;
   textColor: string;
   backgroundColor: string;
+  borderRadius?: 'none' | 'small' | 'medium' | 'large' | 'full';
 }
 
 interface InlineButtonEditorProps {
@@ -37,6 +38,19 @@ const presetColors = [
 
 const iconSizes = [12, 14, 16, 18, 20, 24, 28, 32];
 
+const borderRadiusOptions = [
+  { value: 'none', label: 'Square', px: '0px' },
+  { value: 'small', label: 'Small', px: '4px' },
+  { value: 'medium', label: 'Medium', px: '8px' },
+  { value: 'large', label: 'Large', px: '12px' },
+  { value: 'full', label: 'Pill', px: '9999px' },
+] as const;
+
+const getBorderRadiusPx = (value?: string): string => {
+  const option = borderRadiusOptions.find(o => o.value === value);
+  return option?.px || '4px';
+};
+
 export function InlineButtonEditor({
   open,
   onOpenChange,
@@ -51,6 +65,7 @@ export function InlineButtonEditor({
   const [linkText, setLinkText] = useState('');
   const [textColor, setTextColor] = useState('#579DFF');
   const [backgroundColor, setBackgroundColor] = useState('#1D2125');
+  const [borderRadius, setBorderRadius] = useState<'none' | 'small' | 'medium' | 'large' | 'full'>('small');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -62,6 +77,7 @@ export function InlineButtonEditor({
       setLinkText(data.linkText || '');
       setTextColor(data.textColor || '#579DFF');
       setBackgroundColor(data.backgroundColor || '#1D2125');
+      setBorderRadius(data.borderRadius || 'small');
     } else if (open) {
       // New button defaults
       setIconUrl('');
@@ -70,6 +86,7 @@ export function InlineButtonEditor({
       setLinkText('Button');
       setTextColor('#579DFF');
       setBackgroundColor('#1D2125');
+      setBorderRadius('small');
     }
   }, [open, data]);
 
@@ -144,6 +161,7 @@ export function InlineButtonEditor({
       linkText: linkText.trim(),
       textColor,
       backgroundColor,
+      borderRadius,
     });
     onOpenChange(false);
   };
@@ -224,10 +242,11 @@ export function InlineButtonEditor({
             <Label className="text-xs text-muted-foreground">Preview</Label>
             <div className="p-3 rounded-lg bg-muted/30 border">
               <span
-                className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-sm"
+                className="inline-flex items-center gap-1.5 px-2 py-1 text-sm"
                 style={{
                   backgroundColor,
                   border: '1px solid #3d444d',
+                  borderRadius: getBorderRadiusPx(borderRadius),
                 }}
               >
                 {iconUrl && (
@@ -351,6 +370,26 @@ export function InlineButtonEditor({
               value={backgroundColor}
               onChange={setBackgroundColor}
             />
+          </div>
+
+          {/* Border Radius */}
+          <div className="space-y-2">
+            <Label className="text-xs">Roundness</Label>
+            <Select
+              value={borderRadius}
+              onValueChange={(v) => setBorderRadius(v as 'none' | 'small' | 'medium' | 'large' | 'full')}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-popover">
+                {borderRadiusOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

@@ -22,6 +22,17 @@ interface ToastUIMarkdownEditorProps {
 // Match [INLINE_BUTTON:base64data] format
 const INLINE_BUTTON_WIDGET_RULE = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/;
 
+const getBorderRadiusPx = (value?: string): string => {
+  const map: Record<string, string> = {
+    none: '0px',
+    small: '4px',
+    medium: '8px',
+    large: '12px',
+    full: '9999px',
+  };
+  return map[value || 'small'] || '4px';
+};
+
 /**
  * Create the widget DOM element for an inline button.
  * This is called by Toast UI's widgetRules when it encounters the pattern.
@@ -39,7 +50,7 @@ function createButtonWidget(encodedData: string): HTMLElement {
     gap: 4px;
     padding: 2px 8px;
     margin: 0 2px;
-    border-radius: 4px;
+    border-radius: ${getBorderRadiusPx(data?.borderRadius)};
     background: ${data?.backgroundColor || '#1D2125'};
     border: 1px solid #3d444d;
     cursor: pointer;

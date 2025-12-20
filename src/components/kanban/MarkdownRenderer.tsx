@@ -62,6 +62,17 @@ interface InlineButtonProps {
   onClick?: (data: InlineButtonData) => void;
 }
 
+const getBorderRadiusPx = (value?: string): string => {
+  const map: Record<string, string> = {
+    none: '0px',
+    small: '4px',
+    medium: '8px',
+    large: '12px',
+    full: '9999px',
+  };
+  return map[value || 'small'] || '4px';
+};
+
 function InlineButton({ data, onClick }: InlineButtonProps) {
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -82,11 +93,12 @@ function InlineButton({ data, onClick }: InlineButtonProps) {
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={(e) => e.key === 'Enter' && handleClick(e as any)}
-      className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm cursor-pointer transition-all hover:opacity-85 hover:-translate-y-0.5 my-0.5 mx-0.5"
+      className="inline-flex items-center gap-1 px-2 py-1 text-sm cursor-pointer transition-all hover:opacity-85 hover:-translate-y-0.5 my-0.5 mx-0.5"
       style={{
         backgroundColor: data.backgroundColor || '#1D2125',
         color: data.textColor || '#579DFF',
         border: '1px solid #3d444d',
+        borderRadius: getBorderRadiusPx(data.borderRadius),
         verticalAlign: 'middle',
       }}
     >

@@ -256,12 +256,108 @@ export function ToastUIMarkdownEditor({
     setShowButtonEditor(true);
   }, []);
   
-  // Create toolbar button for inserting new buttons
+  // Undo button
+  const undoButton = useCallback(() => {
+    const btn = document.createElement('button');
+    btn.className = 'toastui-editor-toolbar-icons';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>';
+    btn.title = 'Undo';
+    btn.type = 'button';
+    btn.onclick = (e) => {
+      e.preventDefault();
+      const editor = editorRef.current?.getInstance();
+      if (editor) {
+        const wwEditor = (editor as any).wwEditor;
+        if (wwEditor?.commands?.undo) {
+          wwEditor.commands.undo();
+        }
+      }
+    };
+    return btn;
+  }, []);
+
+  // Redo button
+  const redoButton = useCallback(() => {
+    const btn = document.createElement('button');
+    btn.className = 'toastui-editor-toolbar-icons';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>';
+    btn.title = 'Redo';
+    btn.type = 'button';
+    btn.onclick = (e) => {
+      e.preventDefault();
+      const editor = editorRef.current?.getInstance();
+      if (editor) {
+        const wwEditor = (editor as any).wwEditor;
+        if (wwEditor?.commands?.redo) {
+          wwEditor.commands.redo();
+        }
+      }
+    };
+    return btn;
+  }, []);
+
+  // Emoji picker button
+  const emojiButton = useCallback(() => {
+    const commonEmojis = ['😀', '😂', '😍', '🤔', '👍', '👎', '🎉', '🔥', '✅', '❌', '⭐', '💡', '📌', '🚀', '💪', '🙏', '❤️', '💯', '⚡', '🎯'];
+    
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative;display:inline-block;';
+    
+    const btn = document.createElement('button');
+    btn.className = 'toastui-editor-toolbar-icons';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:16px;';
+    btn.innerHTML = '😀';
+    btn.title = 'Insert Emoji';
+    btn.type = 'button';
+    
+    const dropdown = document.createElement('div');
+    dropdown.style.cssText = 'position:absolute;top:100%;left:0;z-index:9999;background:#1D2125;border:1px solid #3d444d;border-radius:6px;padding:8px;display:none;grid-template-columns:repeat(5,1fr);gap:4px;width:180px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+    
+    commonEmojis.forEach(emoji => {
+      const emojiBtn = document.createElement('button');
+      emojiBtn.type = 'button';
+      emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:18px;padding:4px;border-radius:4px;transition:background 0.15s;';
+      emojiBtn.textContent = emoji;
+      emojiBtn.onmouseenter = () => { emojiBtn.style.background = '#3d444d'; };
+      emojiBtn.onmouseleave = () => { emojiBtn.style.background = 'none'; };
+      emojiBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const editor = editorRef.current?.getInstance();
+        if (editor) {
+          editor.insertText(emoji);
+        }
+        dropdown.style.display = 'none';
+      };
+      dropdown.appendChild(emojiBtn);
+    });
+    
+    btn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropdown.style.display = dropdown.style.display === 'none' ? 'grid' : 'none';
+    };
+    
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+      if (!wrapper.contains(e.target as Node)) {
+        dropdown.style.display = 'none';
+      }
+    });
+    
+    wrapper.appendChild(btn);
+    wrapper.appendChild(dropdown);
+    return wrapper;
+  }, []);
+
+  // Create toolbar button for inserting new buttons (styled like codeblock)
   const toolbarButton = useCallback(() => {
     const btn = document.createElement('button');
     btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px 8px;font-size:11px;font-weight:600;min-width:28px;height:28px;border-radius:4px;';
-    btn.innerHTML = 'inb';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:11px;font-weight:600;font-family:monospace;';
+    btn.innerHTML = 'INB';
     btn.title = 'Insert Inline Button';
     btn.type = 'button';
     btn.onclick = (e) => { e.preventDefault(); handleAddButton(); };
@@ -282,12 +378,13 @@ export function ToastUIMarkdownEditor({
         onChange={handleChange}
         widgetRules={widgetRules}
         toolbarItems={[
+          [{ el: undoButton(), tooltip: 'Undo', name: 'undo' }, { el: redoButton(), tooltip: 'Redo', name: 'redo' }],
           ['heading', 'bold', 'italic', 'strike'],
           ['hr', 'quote'],
           ['ul', 'ol', 'task'],
           ['table', 'link'],
-          ['code', 'codeblock'],
-          [{ el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' }],
+          ['code', 'codeblock', { el: toolbarButton(), tooltip: 'Insert Inline Button', name: 'inlineButton' }],
+          [{ el: emojiButton(), tooltip: 'Insert Emoji', name: 'emoji' }],
         ]}
       />
       

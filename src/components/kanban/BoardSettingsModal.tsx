@@ -36,6 +36,7 @@ interface BoardSettingsModalProps {
   boardId: string;
   members: BoardMember[];
   userRole: 'admin' | 'manager' | 'viewer' | null;
+  currentUserId: string | null;
   onMembersChange: () => void;
 }
 
@@ -45,6 +46,7 @@ export function BoardSettingsModal({
   boardId,
   members,
   userRole,
+  currentUserId,
   onMembersChange,
 }: BoardSettingsModalProps) {
   const { toast } = useToast();
@@ -130,7 +132,23 @@ export function BoardSettingsModal({
     }
   };
 
+  // Count admins on the board
+  const adminCount = members.filter(m => m.role === 'admin').length;
+
   const confirmRemoveMember = (userId: string, name: string) => {
+    // Check if user is trying to remove themselves and they're the last admin
+    const memberToRemove = members.find(m => m.user_id === userId);
+    const isLastAdmin = memberToRemove?.role === 'admin' && adminCount === 1;
+    
+    if (userId === currentUserId && isLastAdmin) {
+      toast({ 
+        title: 'Cannot remove yourself', 
+        description: 'You are the last admin on this board. At least one admin must remain. Please assign another admin before removing yourself.',
+        variant: 'destructive' 
+      });
+      return;
+    }
+    
     setUserToRemove({ id: userId, name });
   };
 

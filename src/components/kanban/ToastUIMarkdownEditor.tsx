@@ -6,18 +6,47 @@
  * Buttons can be clicked directly in the editor to edit them.
  */
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
 import { cn } from '@/lib/utils';
 import { InlineButtonEditor, InlineButtonData, parseInlineButtonFromDataAttr } from './InlineButtonEditor';
-import { useTheme } from 'next-themes';
 
 interface ToastUIMarkdownEditorProps {
   content: string;
   onChange: (markdown: string) => void;
   placeholder?: string;
   className?: string;
+  themeBackgroundColor?: string;
+  themeTextColor?: string;
+  useIntelligentContrast?: boolean;
+}
+
+// Helper to parse hex color to RGB
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+}
+
+// Calculate luminance for intelligent contrast
+function getLuminance(r: number, g: number, b: number): number {
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    c = c / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+// Determine if background is dark based on luminance
+function isDarkBackground(backgroundColor: string): boolean {
+  const rgb = hexToRgb(backgroundColor);
+  if (!rgb) return false;
+  const luminance = getLuminance(rgb.r, rgb.g, rgb.b);
+  return luminance < 0.5;
 }
 
 // Match [INLINE_BUTTON:base64data] format
@@ -101,9 +130,18 @@ export function ToastUIMarkdownEditor({
   onChange,
   placeholder,
   className,
+  themeBackgroundColor,
+  themeTextColor,
+  useIntelligentContrast,
 }: ToastUIMarkdownEditorProps) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
+  // Determine if dark mode based on background color using intelligent contrast
+  const isDark = useMemo(() => {
+    if (themeBackgroundColor) {
+      return isDarkBackground(themeBackgroundColor);
+    }
+    return false; // Default to light mode
+  }, [themeBackgroundColor]);
+
   const editorRef = useRef<Editor>(null);
   const [showButtonEditor, setShowButtonEditor] = useState(false);
   const [editingButton, setEditingButton] = useState<InlineButtonData | null>(null);
@@ -649,9 +687,25 @@ export function ToastUIMarkdownEditor({
     btn.onclick = (e) => { e.preventDefault(); handleAddButton(); };
     return btn;
   }, [handleAddButton]);
+  // Generate inline styles based on theme colors
+  const containerStyle: React.CSSProperties = themeBackgroundColor ? {
+    '--editor-bg': themeBackgroundColor,
+    '--editor-text': themeTextColor || (isDark ? '#ffffff' : '#000000'),
+    '--editor-muted': isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+    '--editor-border': isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
+  } as React.CSSProperties : {};
 
   return (
-    <div ref={containerRef} className={cn('border rounded-lg bg-background relative toastui-editor-wrapper flex flex-col', isDark ? 'toastui-dark' : 'toastui-light', className)}>
+    <div 
+      ref={containerRef} 
+      className={cn(
+        'border rounded-lg relative toastui-editor-wrapper flex flex-col',
+        themeBackgroundColor ? 'toastui-themed' : 'bg-background',
+        isDark ? 'toastui-dark' : 'toastui-light',
+        className
+      )}
+      style={containerStyle}
+    >
       <Editor
         ref={editorRef}
         initialValue=""
@@ -705,7 +759,6 @@ export function ToastUIMarkdownEditor({
         .toastui-editor-wrapper .toastui-editor-defaultUI-toolbar {
           flex-shrink: 0;
           padding: 6px 8px !important;
-          border-bottom: 1px solid hsl(var(--border)) !important;
           background: transparent !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar {
@@ -734,7 +787,7 @@ export function ToastUIMarkdownEditor({
           transition: background-color 0.15s ease !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons:hover {
-          background-color: hsl(var(--muted)) !important;
+          background-color: var(--editor-muted, hsl(var(--muted))) !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons::before {
           transform: scale(0.85) !important;
@@ -765,112 +818,87 @@ export function ToastUIMarkdownEditor({
           overflow-y: auto;
         }
         
-        /* Dark theme styles */
-        .toastui-dark .toastui-editor-defaultUI {
-          background: hsl(var(--card)) !important;
+        /* Themed editor styles - uses CSS custom properties from inline style */
+        .toastui-themed .toastui-editor-defaultUI {
+          background: var(--editor-bg) !important;
         }
-        .toastui-dark .toastui-editor-ww-container {
-          background: hsl(var(--card)) !important;
+        .toastui-themed .toastui-editor-defaultUI-toolbar {
+          border-bottom: 1px solid var(--editor-border) !important;
         }
-        .toastui-dark .toastui-editor-ww-mode .ProseMirror {
-          background: hsl(var(--card)) !important;
-          color: hsl(var(--foreground)) !important;
+        .toastui-themed .toastui-editor-ww-container {
+          background: var(--editor-bg) !important;
         }
-        .toastui-dark .toastui-editor-toolbar-icons {
-          color: hsl(var(--foreground)) !important;
-          background-image: none !important;
+        .toastui-themed .toastui-editor-ww-mode .ProseMirror {
+          background: var(--editor-bg) !important;
+          color: var(--editor-text) !important;
         }
-        .toastui-dark .toastui-editor-toolbar-icons::before {
-          background-position-y: -48px !important;
-          filter: invert(1) !important;
+        .toastui-themed .toastui-editor-toolbar-icons {
+          color: var(--editor-text) !important;
         }
-        .toastui-dark .toastui-editor-contents p,
-        .toastui-dark .toastui-editor-contents li,
-        .toastui-dark .toastui-editor-contents h1,
-        .toastui-dark .toastui-editor-contents h2,
-        .toastui-dark .toastui-editor-contents h3,
-        .toastui-dark .toastui-editor-contents h4,
-        .toastui-dark .toastui-editor-contents h5,
-        .toastui-dark .toastui-editor-contents h6 {
-          color: hsl(var(--foreground)) !important;
+        .toastui-themed .toastui-editor-contents p,
+        .toastui-themed .toastui-editor-contents li,
+        .toastui-themed .toastui-editor-contents h1,
+        .toastui-themed .toastui-editor-contents h2,
+        .toastui-themed .toastui-editor-contents h3,
+        .toastui-themed .toastui-editor-contents h4,
+        .toastui-themed .toastui-editor-contents h5,
+        .toastui-themed .toastui-editor-contents h6 {
+          color: var(--editor-text) !important;
         }
-        .toastui-dark .toastui-editor-contents code {
-          background: hsl(var(--muted)) !important;
-          color: hsl(var(--foreground)) !important;
+        .toastui-themed .toastui-editor-contents code {
+          background: var(--editor-muted) !important;
+          color: var(--editor-text) !important;
         }
-        .toastui-dark .toastui-editor-contents pre {
-          background: hsl(var(--muted)) !important;
+        .toastui-themed .toastui-editor-contents pre {
+          background: var(--editor-muted) !important;
         }
-        .toastui-dark .toastui-editor-contents blockquote {
-          border-left-color: hsl(var(--border)) !important;
-          color: hsl(var(--muted-foreground)) !important;
+        .toastui-themed .toastui-editor-contents blockquote {
+          border-left-color: var(--editor-border) !important;
+          color: var(--editor-text) !important;
+          opacity: 0.8;
         }
-        .toastui-dark .toastui-editor-contents hr {
-          border-color: hsl(var(--border)) !important;
+        .toastui-themed .toastui-editor-contents hr {
+          border-color: var(--editor-border) !important;
         }
-        .toastui-dark .toastui-editor-contents table th,
-        .toastui-dark .toastui-editor-contents table td {
-          border-color: hsl(var(--border)) !important;
+        .toastui-themed .toastui-editor-contents table th,
+        .toastui-themed .toastui-editor-contents table td {
+          border-color: var(--editor-border) !important;
         }
-        .toastui-dark .toastui-editor-contents table th {
-          background: hsl(var(--muted)) !important;
-        }
-        .toastui-dark .toastui-editor-contents a {
-          color: hsl(var(--primary)) !important;
-        }
-        .toastui-dark .toastui-editor-md-container,
-        .toastui-dark .toastui-editor-md-preview {
-          background: hsl(var(--card)) !important;
-          color: hsl(var(--foreground)) !important;
-        }
-        .toastui-dark .ProseMirror-selectednode {
-          outline-color: hsl(var(--primary)) !important;
-        }
-        .toastui-dark .toastui-editor-popup {
-          background: hsl(var(--popover)) !important;
-          border-color: hsl(var(--border)) !important;
-        }
-        .toastui-dark .toastui-editor-popup-body {
-          background: hsl(var(--popover)) !important;
-        }
-        .toastui-dark .toastui-editor-dropdown-toolbar {
-          background: hsl(var(--popover)) !important;
-          border-color: hsl(var(--border)) !important;
+        .toastui-themed .toastui-editor-contents table th {
+          background: var(--editor-muted) !important;
         }
         
-        /* Light theme styles */
-        .toastui-light .toastui-editor-defaultUI {
+        /* Dark theme - invert toolbar icons */
+        .toastui-themed.toastui-dark .toastui-editor-toolbar-icons::before {
+          filter: invert(1) !important;
+        }
+        
+        /* Non-themed fallback styles */
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-defaultUI {
           background: hsl(var(--card)) !important;
         }
-        .toastui-light .toastui-editor-ww-container {
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-defaultUI-toolbar {
+          border-bottom: 1px solid hsl(var(--border)) !important;
+        }
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-ww-container {
           background: hsl(var(--card)) !important;
         }
-        .toastui-light .toastui-editor-ww-mode .ProseMirror {
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-ww-mode .ProseMirror {
           background: hsl(var(--card)) !important;
           color: hsl(var(--foreground)) !important;
         }
-        .toastui-light .toastui-editor-toolbar-icons {
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-toolbar-icons {
           color: hsl(var(--foreground)) !important;
         }
-        .toastui-light .toastui-editor-contents p,
-        .toastui-light .toastui-editor-contents li,
-        .toastui-light .toastui-editor-contents h1,
-        .toastui-light .toastui-editor-contents h2,
-        .toastui-light .toastui-editor-contents h3,
-        .toastui-light .toastui-editor-contents h4,
-        .toastui-light .toastui-editor-contents h5,
-        .toastui-light .toastui-editor-contents h6 {
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents p,
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents li,
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents h1,
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents h2,
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents h3,
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents h4,
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents h5,
+        .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents h6 {
           color: hsl(var(--foreground)) !important;
-        }
-        .toastui-light .toastui-editor-contents code {
-          background: hsl(var(--muted)) !important;
-        }
-        .toastui-light .toastui-editor-contents blockquote {
-          border-left-color: hsl(var(--border)) !important;
-        }
-        .toastui-light .toastui-editor-popup {
-          background: hsl(var(--popover)) !important;
-          border-color: hsl(var(--border)) !important;
         }
       `}</style>
     </div>

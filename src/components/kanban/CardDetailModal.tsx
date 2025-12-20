@@ -330,6 +330,9 @@ export function CardDetailModal({
                 content={description}
                 onChange={setDescription}
                 placeholder="Add a more detailed description in Markdown..."
+                themeBackgroundColor={themeCardWindowColor}
+                themeTextColor={effectiveTextColor}
+                useIntelligentContrast={themeCardWindowIntelligentContrast}
               />
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={handleSaveDescription}>

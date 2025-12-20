@@ -445,6 +445,22 @@ export default function BoardPage() {
     }
   };
 
+  // Lightweight labels refresh - updates labels without triggering loading state
+  const refreshLabels = async () => {
+    if (!boardId) return;
+    try {
+      const { data: labelsData, error } = await supabase
+        .from('labels')
+        .select('*')
+        .eq('board_id', boardId);
+      
+      if (error) throw error;
+      setLabels(labelsData || []);
+    } catch (error: any) {
+      console.error('Error refreshing labels:', error);
+    }
+  };
+
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
@@ -1087,7 +1103,7 @@ export default function BoardPage() {
           onMembersChange={refreshBoardMembers}
           onThemeChange={refreshBoardTheme}
           onBackgroundChange={refreshBoardBackground}
-          onLabelsChange={fetchBoardData}
+          onLabelsChange={refreshLabels}
         />
       )}
     </div>

@@ -10,8 +10,6 @@ import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
 import { cn } from '@/lib/utils';
 import { InlineButtonEditor, InlineButtonData, parseInlineButtonFromDataAttr } from './InlineButtonEditor';
-import { Button } from '@/components/ui/button';
-import { SquareArrowOutUpRight } from 'lucide-react';
 
 interface ToastUIMarkdownEditorProps {
   content: string;
@@ -251,24 +249,25 @@ export function ToastUIMarkdownEditor({
     setEditingButtonData(null);
     setShowInlineButtonEditor(true);
   }, []);
+  
+  // Create custom toolbar button for inline buttons
+  const customToolbarButton = useCallback(() => {
+    const button = document.createElement('button');
+    button.className = 'toastui-editor-toolbar-icons';
+    button.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px 8px; font-size: 12px; font-weight: 500; color: inherit; display: flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; border-radius: 4px;';
+    button.innerHTML = 'inb';
+    button.title = 'Insert Inline Button';
+    button.type = 'button';
+    button.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleAddNewButton();
+    };
+    return button;
+  }, [handleAddNewButton]);
 
   return (
     <div ref={containerRef} className={cn('border rounded-lg bg-background relative', className)}>
-      {/* Add button toolbar */}
-      <div className="flex items-center gap-1 p-1 border-b bg-muted/30">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleAddNewButton}
-          className="h-8 px-2 text-xs"
-          title="Add Inline Button"
-        >
-          <SquareArrowOutUpRight className="h-4 w-4 mr-1" />
-          Add Button
-        </Button>
-      </div>
-      
       <Editor
         ref={editorRef}
         initialValue=""
@@ -285,6 +284,11 @@ export function ToastUIMarkdownEditor({
           ['ul', 'ol', 'task'],
           ['table', 'link'],
           ['code', 'codeblock'],
+          [{
+            el: customToolbarButton(),
+            tooltip: 'Insert Inline Button',
+            name: 'inlineButton',
+          }],
         ]}
       />
       

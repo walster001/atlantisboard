@@ -801,12 +801,30 @@ export function ToastUIMarkdownEditor({
           width: clamp(14px, 3.5vw, 18px) !important;
           height: clamp(14px, 3.5vw, 18px) !important;
         }
+        /* Force hide ALL overflow/more menu elements */
         .toastui-editor-wrapper .toastui-editor-more-button,
-        .toastui-editor-wrapper .toastui-editor-toolbar-more {
+        .toastui-editor-wrapper .toastui-editor-toolbar-more,
+        .toastui-editor-wrapper .toastui-editor-popup,
+        .toastui-editor-wrapper .toastui-editor-dropdown-toolbar,
+        .toastui-editor-wrapper button[aria-label="More"],
+        .toastui-editor-wrapper [class*="more"],
+        .toastui-editor-wrapper [class*="dropdown-toolbar"] {
           display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          width: 0 !important;
+          height: 0 !important;
+          overflow: hidden !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-divider {
           display: none !important;
+        }
+        /* Ensure all toolbar items are always visible */
+        .toastui-editor-wrapper .toastui-editor-toolbar-group > * {
+          display: flex !important;
+          visibility: visible !important;
+          opacity: 1 !important;
         }
         .toastui-editor-wrapper .toastui-editor-main-container {
           flex: 1;

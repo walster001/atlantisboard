@@ -24,6 +24,7 @@ import { Color } from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import CodeBlock from '@tiptap/extension-code-block';
+import { Node, mergeAttributes } from '@tiptap/core';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 import { marked } from 'marked';
@@ -73,6 +74,137 @@ interface MarkdownEditorProps {
   /** Auto-size editor height */
   autoSize?: boolean;
 }
+
+// ============================================================================
+// TipTap Custom Extension for Inline Buttons
+// ============================================================================
+
+/**
+ * Custom TipTap Node extension for inline buttons.
+ * This ensures TipTap preserves our inline button HTML structure.
+ */
+const InlineButtonNode = Node.create({
+  name: 'inlineButton',
+  group: 'inline',
+  inline: true,
+  atom: true, // Makes it non-editable as a single unit
+  
+  addAttributes() {
+    return {
+      'data-inline-button': { default: null },
+      'data-bg-color': { default: '#1D2125' },
+      'data-text-color': { default: '#579DFF' },
+      'data-link-url': { default: '' },
+      style: { default: null },
+    };
+  },
+  
+  parseHTML() {
+    return [
+      {
+        tag: 'span.editable-inline-button',
+        getAttrs: (node) => {
+          const element = node as HTMLElement;
+          return {
+            'data-inline-button': element.getAttribute('data-inline-button'),
+            'data-bg-color': element.getAttribute('data-bg-color'),
+            'data-text-color': element.getAttribute('data-text-color'),
+            'data-link-url': element.getAttribute('data-link-url'),
+            style: element.getAttribute('style'),
+          };
+        },
+      },
+    ];
+  },
+  
+  renderHTML({ HTMLAttributes }) {
+    const dataAttr = HTMLAttributes['data-inline-button'];
+    let iconHtml = '';
+    let buttonText = 'Button';
+    let bgColor = HTMLAttributes['data-bg-color'] || '#1D2125';
+    let textColor = HTMLAttributes['data-text-color'] || '#579DFF';
+    
+    if (dataAttr) {
+      try {
+        const decoded = decodeURIComponent(escape(atob(dataAttr)));
+        const data = JSON.parse(decoded);
+        buttonText = data.linkText || 'Button';
+        bgColor = data.backgroundColor || bgColor;
+        textColor = data.textColor || textColor;
+        if (data.iconUrl) {
+          iconHtml = `<img src="${data.iconUrl}" alt="" style="width:${data.iconSize || 16}px;height:${data.iconSize || 16}px;object-fit:contain;flex-shrink:0;">`;
+        }
+      } catch (e) {
+        console.error('Failed to parse inline button data:', e);
+      }
+    }
+    
+    const style = `display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background-color:${bgColor};border:1px solid #3d444d;white-space:nowrap;cursor:pointer;`;
+    
+    // Create the HTML structure
+    const attrs = mergeAttributes(HTMLAttributes, {
+      class: 'editable-inline-button',
+      contenteditable: 'false',
+      style,
+    });
+    
+    // We need to return DOM-spec for TipTap
+    // Since we can't easily nest elements in renderHTML, we'll use innerHTML approach
+    return ['span', attrs, 0]; // 0 means no content hole
+  },
+  
+  // Custom node view to render the full button with icon
+  addNodeView() {
+    return ({ node }) => {
+      const dom = document.createElement('span');
+      dom.className = 'editable-inline-button';
+      dom.contentEditable = 'false';
+      
+      const dataAttr = node.attrs['data-inline-button'];
+      let iconUrl = '';
+      let iconSize = 16;
+      let buttonText = 'Button';
+      let bgColor = node.attrs['data-bg-color'] || '#1D2125';
+      let textColor = node.attrs['data-text-color'] || '#579DFF';
+      
+      if (dataAttr) {
+        try {
+          const decoded = decodeURIComponent(escape(atob(dataAttr)));
+          const data = JSON.parse(decoded);
+          iconUrl = data.iconUrl || '';
+          iconSize = data.iconSize || 16;
+          buttonText = data.linkText || 'Button';
+          bgColor = data.backgroundColor || bgColor;
+          textColor = data.textColor || textColor;
+        } catch (e) {
+          console.error('Failed to parse inline button data:', e);
+        }
+      }
+      
+      dom.setAttribute('data-inline-button', dataAttr || '');
+      dom.setAttribute('data-bg-color', bgColor);
+      dom.setAttribute('data-text-color', textColor);
+      dom.setAttribute('data-link-url', node.attrs['data-link-url'] || '');
+      dom.style.cssText = `display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background-color:${bgColor};border:1px solid #3d444d;white-space:nowrap;cursor:pointer;`;
+      
+      if (iconUrl) {
+        const img = document.createElement('img');
+        img.src = iconUrl;
+        img.alt = '';
+        img.style.cssText = `width:${iconSize}px;height:${iconSize}px;object-fit:contain;flex-shrink:0;`;
+        dom.appendChild(img);
+      }
+      
+      const textSpan = document.createElement('span');
+      textSpan.className = 'inline-button-text';
+      textSpan.style.cssText = `color:${textColor};text-decoration:none;white-space:nowrap;`;
+      textSpan.textContent = buttonText;
+      dom.appendChild(textSpan);
+      
+      return { dom };
+    };
+  },
+});
 
 // ============================================================================
 // Color Presets
@@ -415,18 +547,9 @@ export function MarkdownEditor({
           class: 'bg-muted rounded-md p-3 font-mono text-sm overflow-x-auto',
         },
       }),
+      InlineButtonNode, // Custom extension for inline buttons
     ],
     content: initialHtml,
-    onCreate: ({ editor }) => {
-      // Re-process content after TipTap initial parse to fix any corrupted inline buttons
-      const currentHtml = editor.getHTML();
-      const cleanedHtml = transformLegacyInlineButtons(currentHtml);
-      if (cleanedHtml !== currentHtml) {
-        isSyncing.current = true;
-        editor.commands.setContent(cleanedHtml, { emitUpdate: false });
-        isSyncing.current = false;
-      }
-    },
     onUpdate: ({ editor }) => {
       if (isSyncing.current) return;
       
@@ -485,15 +608,7 @@ export function MarkdownEditor({
         isSyncing.current = true;
         const newHtml = markdownToHtml(content);
         editor.commands.setContent(newHtml, { emitUpdate: false });
-        
-        // Re-process after a tick to fix any corrupted inline buttons
-        requestAnimationFrame(() => {
-          const processedHtml = transformLegacyInlineButtons(editor.getHTML());
-          if (processedHtml !== editor.getHTML()) {
-            editor.commands.setContent(processedHtml, { emitUpdate: false });
-          }
-          isSyncing.current = false;
-        });
+        isSyncing.current = false;
       }
     }
   }, [content, editor]);

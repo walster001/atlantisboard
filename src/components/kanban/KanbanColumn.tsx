@@ -151,6 +151,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                           onApplyToAll={onApplyColumnColorToAll}
                           applyToAllLabel="Apply to All Columns"
                           onClose={() => setMenuOpen(false)}
+                          showTransparent
                           trigger={
                             <DropdownMenuItem 
                               onSelect={(e) => e.preventDefault()}

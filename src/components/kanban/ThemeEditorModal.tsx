@@ -9,6 +9,7 @@ import { ThemeColorInput, getAccessibilityInfo } from './ThemeColorInput';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getUserFriendlyError } from '@/lib/errorHandler';
+import { cn } from '@/lib/utils';
 
 export interface BoardTheme {
   id: string;
@@ -48,7 +49,7 @@ export function ThemeEditorModal({
   
   const [themeName, setThemeName] = useState('');
   const [navbarColor, setNavbarColor] = useState('#0079bf');
-  const [columnColor, setColumnColor] = useState('#f4f5f7');
+  const [columnColor, setColumnColor] = useState<string | null>('#f4f5f7');
   const [defaultCardColor, setDefaultCardColor] = useState<string | null>(null);
   const [cardWindowColor, setCardWindowColor] = useState('#ffffff');
   const [cardWindowTextColor, setCardWindowTextColor] = useState('#172b4d');
@@ -107,7 +108,7 @@ export function ThemeEditorModal({
       const themeData = {
         name: themeName.trim(),
         navbar_color: navbarColor,
-        column_color: columnColor,
+        column_color: columnColor || '', // Empty string for transparent
         default_card_color: defaultCardColor,
         card_window_color: cardWindowColor,
         card_window_text_color: cardWindowTextColor,
@@ -226,8 +227,13 @@ export function ThemeEditorModal({
                   <ThemeColorInput
                     label="Background Colour"
                     value={columnColor}
-                    onChange={(v) => setColumnColor(v || '#f4f5f7')}
+                    onChange={(v) => setColumnColor(v || '')}
+                    allowNull
+                    nullLabel="Transparent"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Set to transparent to use a see-through column background.
+                  </p>
                 </div>
               </div>
 
@@ -310,8 +316,7 @@ export function ThemeEditorModal({
                 Preview
               </h3>
               <div 
-                className="rounded-lg border overflow-hidden"
-                style={{ backgroundColor: columnColor }}
+                className="rounded-lg border overflow-hidden bg-[repeating-linear-gradient(45deg,#f0f0f0,#f0f0f0_10px,#e8e8e8_10px,#e8e8e8_20px)]"
               >
                 {/* Mini navbar */}
                 <div 
@@ -331,8 +336,11 @@ export function ThemeEditorModal({
                 <div className="p-3 flex gap-2">
                   {/* Column */}
                   <div 
-                    className="w-24 rounded p-2 space-y-1.5"
-                    style={{ backgroundColor: columnColor }}
+                    className={cn(
+                      "w-24 rounded p-2 space-y-1.5",
+                      !columnColor && "bg-transparent"
+                    )}
+                    style={columnColor ? { backgroundColor: columnColor } : undefined}
                   >
                     <div className="h-2 w-12 bg-foreground/20 rounded" />
                     {/* Cards */}
@@ -346,8 +354,11 @@ export function ThemeEditorModal({
                     />
                   </div>
                   <div 
-                    className="w-24 rounded p-2 space-y-1.5"
-                    style={{ backgroundColor: columnColor }}
+                    className={cn(
+                      "w-24 rounded p-2 space-y-1.5",
+                      !columnColor && "bg-transparent"
+                    )}
+                    style={columnColor ? { backgroundColor: columnColor } : undefined}
                   >
                     <div className="h-2 w-8 bg-foreground/20 rounded" />
                     <div 

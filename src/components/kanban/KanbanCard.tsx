@@ -18,6 +18,24 @@ function stripHtmlTags(text: string): string {
   return text.replace(/<[^>]*>/g, '').trim();
 }
 
+// Strip markdown formatting for plain text preview
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, '') // HTML tags
+    .replace(/\*\*(.+?)\*\*/g, '$1') // Bold **text**
+    .replace(/\*(.+?)\*/g, '$1') // Italic *text*
+    .replace(/__(.+?)__/g, '$1') // Bold __text__
+    .replace(/_(.+?)_/g, '$1') // Italic _text_
+    .replace(/~~(.+?)~~/g, '$1') // Strikethrough ~~text~~
+    .replace(/`(.+?)`/g, '$1') // Inline code `text`
+    .replace(/^#{1,6}\s+/gm, '') // Headers
+    .replace(/^\s*[-*+]\s+/gm, '') // List items
+    .replace(/^\s*\d+\.\s+/gm, '') // Numbered lists
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Links [text](url)
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1') // Images ![alt](url)
+    .trim();
+}
+
 interface KanbanCardProps {
   card: Card;
   index: number;
@@ -190,7 +208,7 @@ export const KanbanCard = memo(function KanbanCard({
               "text-xs mt-1 line-clamp-2 break-words",
               effectiveCardColor ? 'text-white/80' : 'text-muted-foreground'
             )}>
-              {card.description.replace(/<[^>]*>/g, '').split('\n')[0]}
+              {stripMarkdown(card.description.split('\n')[0])}
             </p>
           )}
 

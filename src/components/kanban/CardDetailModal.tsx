@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Label, getLabelHexColor } from '@/types/kanban';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,6 +23,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { RichTextEditor } from './RichTextEditor';
 import { CardAttachmentSection } from './CardAttachmentSection';
 import { markdownToHtml } from '@/lib/markdownToHtml';
+import { parseInlineButtonFromDataAttr } from './InlineButtonEditor';
 
 // Strip HTML tags from text for plain display
 function stripHtmlTags(text: string): string {
@@ -169,6 +170,42 @@ export function CardDetailModal({
     onAddLabel(label);
     setShowLabelPicker(false);
   };
+
+  // Handle clicks on inline buttons in view mode to navigate to their URLs
+  const handleDescriptionClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const buttonEl = target.closest('.editable-inline-button');
+    
+    if (buttonEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Get link URL from data attribute
+      const dataAttr = buttonEl.getAttribute('data-inline-button');
+      if (dataAttr) {
+        const data = parseInlineButtonFromDataAttr(dataAttr);
+        if (data?.linkUrl) {
+          // Open link in new tab
+          const url = data.linkUrl.startsWith('http') ? data.linkUrl : `https://${data.linkUrl}`;
+          window.open(url, '_blank', 'noopener,noreferrer');
+          return;
+        }
+      }
+      
+      // Fallback: try data-link-url attribute
+      const linkUrl = buttonEl.getAttribute('data-link-url');
+      if (linkUrl) {
+        const url = linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+    }
+    
+    // If not clicking on an inline button, trigger edit mode
+    if (!disabled) {
+      setIsEditingDescription(true);
+    }
+  }, [disabled]);
 
   if (!card) return null;
 
@@ -330,7 +367,7 @@ export function CardDetailModal({
                 backgroundColor: `${effectiveTextColor}10`,
                 color: effectiveTextColor,
               } : undefined}
-              onClick={() => !disabled && setIsEditingDescription(true)}
+              onClick={handleDescriptionClick}
             >
               <div 
                 dangerouslySetInnerHTML={{ __html: description }} 

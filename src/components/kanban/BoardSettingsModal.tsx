@@ -150,11 +150,11 @@ export function BoardSettingsModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent 
-        className="max-w-4xl w-[95vw] h-[80vh] p-0 overflow-hidden rounded-lg"
+        className="max-w-4xl w-[95vw] h-[85vh] max-h-[85vh] p-0 overflow-hidden rounded-lg flex flex-col gap-0"
         hideCloseButton
       >
         {/* Custom header with close button */}
-        <div className="flex items-center justify-between p-[10px] border-b">
+        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
           <h2 className="text-lg font-semibold">Board Settings</h2>
           <Button 
             variant="ghost" 
@@ -167,8 +167,8 @@ export function BoardSettingsModal({
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="users" className="flex flex-col h-[calc(100%-53px)]">
-          <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-auto p-0 px-[10px]">
+        <Tabs defaultValue="users" className="flex flex-col flex-1 min-h-0">
+          <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-auto p-0 px-4 shrink-0">
             <TabsTrigger 
               value="board" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3 px-4"
@@ -190,14 +190,14 @@ export function BoardSettingsModal({
           </TabsList>
 
           {/* Board Settings Tab - Placeholder */}
-          <TabsContent value="board" className="flex-1 p-[10px] overflow-y-auto m-0">
+          <TabsContent value="board" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
             <div className="flex items-center justify-center h-full text-muted-foreground">
               <p>Board settings coming soon...</p>
             </div>
           </TabsContent>
 
           {/* Users & Permissions Tab */}
-          <TabsContent value="users" className="flex-1 p-[10px] overflow-y-auto m-0">
+          <TabsContent value="users" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
             <div className="space-y-6 max-w-2xl">
               {/* Add Member Section */}
               {canAddRemove && (
@@ -322,7 +322,7 @@ export function BoardSettingsModal({
           </TabsContent>
 
           {/* Theme & Background Tab - Placeholder */}
-          <TabsContent value="theme" className="flex-1 p-[10px] overflow-y-auto m-0">
+          <TabsContent value="theme" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
             <div className="flex items-center justify-center h-full text-muted-foreground">
               <p>Theme and background settings coming soon...</p>
             </div>

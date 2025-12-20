@@ -38,8 +38,8 @@ const presetColors = [
 
 const iconSizes = [12, 14, 16, 18, 20, 24, 28, 32];
 
-// 1-20px options for border radius
-const borderRadiusOptions = Array.from({ length: 20 }, (_, i) => i + 1);
+// 0-20px options for border radius
+const borderRadiusOptions = Array.from({ length: 21 }, (_, i) => i);
 
 const DEFAULT_BORDER_RADIUS = 4;
 

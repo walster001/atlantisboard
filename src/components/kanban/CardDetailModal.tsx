@@ -352,7 +352,7 @@ export function CardDetailModal({
               className={cn(
                 "p-3 rounded-lg text-sm",
                 !themeCardWindowColor && "bg-muted/50",
-                !disabled && "cursor-pointer hover:opacity-80 transition-opacity"
+                !disabled && "cursor-pointer"
               )}
               style={themeCardWindowColor ? { 
                 backgroundColor: `${effectiveTextColor}10`,

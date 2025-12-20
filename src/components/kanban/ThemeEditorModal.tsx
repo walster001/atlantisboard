@@ -4,12 +4,39 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Loader2, AlertTriangle } from 'lucide-react';
+import { X, Loader2, AlertTriangle, Sparkles } from 'lucide-react';
 import { ThemeColorInput, getAccessibilityInfo } from './ThemeColorInput';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { cn } from '@/lib/utils';
+
+// Helper function to convert hex to RGB
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+}
+
+// Calculate luminance for intelligent contrast
+function getLuminance(r: number, g: number, b: number): number {
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    c = c / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+// Get intelligent contrast text color based on background
+function getIntelligentTextColor(backgroundColor: string): string {
+  const rgb = hexToRgb(backgroundColor);
+  if (!rgb) return '#172b4d';
+  const luminance = getLuminance(rgb.r, rgb.g, rgb.b);
+  return luminance < 0.5 ? '#ffffff' : '#172b4d';
+}
 
 export interface BoardTheme {
   id: string;
@@ -333,6 +360,39 @@ export function ThemeEditorModal({
                         )}
                       />
                     </button>
+                  </div>
+                  
+                  {/* Intelligent Contrast Preview */}
+                  <div className="mt-3 p-3 rounded-lg border bg-muted/30">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-medium">Contrast Preview</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {['#1a1a2e', '#16213e', '#0f3460', '#e94560', '#533483', '#2c3e50', '#f39c12', '#ffffff'].map((bg) => {
+                        const intelligentText = getIntelligentTextColor(bg);
+                        const displayText = cardWindowIntelligentContrast ? intelligentText : cardWindowTextColor;
+                        return (
+                          <div
+                            key={bg}
+                            className="aspect-square rounded-md flex items-center justify-center text-[10px] font-medium border shadow-sm transition-all"
+                            style={{ 
+                              backgroundColor: bg,
+                              color: displayText,
+                              borderColor: bg === '#ffffff' ? '#e5e5e5' : bg
+                            }}
+                            title={`Background: ${bg}\nText: ${displayText}`}
+                          >
+                            Aa
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-2">
+                      {cardWindowIntelligentContrast 
+                        ? '✓ Text automatically adjusts for readability' 
+                        : 'Text uses fixed colour setting'}
+                    </p>
                   </div>
                 </div>
               </div>

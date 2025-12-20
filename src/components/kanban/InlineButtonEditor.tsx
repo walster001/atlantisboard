@@ -18,7 +18,7 @@ export interface InlineButtonData {
   linkText: string;
   textColor: string;
   backgroundColor: string;
-  borderRadius?: 'none' | 'small' | 'medium' | 'large' | 'full';
+  borderRadius?: number; // px value, default 4
 }
 
 interface InlineButtonEditorProps {
@@ -38,18 +38,10 @@ const presetColors = [
 
 const iconSizes = [12, 14, 16, 18, 20, 24, 28, 32];
 
-const borderRadiusOptions = [
-  { value: 'none', label: 'Square', px: '0px' },
-  { value: 'small', label: 'Small', px: '4px' },
-  { value: 'medium', label: 'Medium', px: '8px' },
-  { value: 'large', label: 'Large', px: '12px' },
-  { value: 'full', label: 'Pill', px: '9999px' },
-] as const;
+// 1-20px options for border radius
+const borderRadiusOptions = Array.from({ length: 20 }, (_, i) => i + 1);
 
-const getBorderRadiusPx = (value?: string): string => {
-  const option = borderRadiusOptions.find(o => o.value === value);
-  return option?.px || '4px';
-};
+const DEFAULT_BORDER_RADIUS = 4;
 
 export function InlineButtonEditor({
   open,
@@ -65,7 +57,7 @@ export function InlineButtonEditor({
   const [linkText, setLinkText] = useState('');
   const [textColor, setTextColor] = useState('#579DFF');
   const [backgroundColor, setBackgroundColor] = useState('#1D2125');
-  const [borderRadius, setBorderRadius] = useState<'none' | 'small' | 'medium' | 'large' | 'full'>('small');
+  const [borderRadius, setBorderRadius] = useState(DEFAULT_BORDER_RADIUS);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,7 +69,7 @@ export function InlineButtonEditor({
       setLinkText(data.linkText || '');
       setTextColor(data.textColor || '#579DFF');
       setBackgroundColor(data.backgroundColor || '#1D2125');
-      setBorderRadius(data.borderRadius || 'small');
+      setBorderRadius(data.borderRadius ?? DEFAULT_BORDER_RADIUS);
     } else if (open) {
       // New button defaults
       setIconUrl('');
@@ -86,7 +78,7 @@ export function InlineButtonEditor({
       setLinkText('Button');
       setTextColor('#579DFF');
       setBackgroundColor('#1D2125');
-      setBorderRadius('small');
+      setBorderRadius(DEFAULT_BORDER_RADIUS);
     }
   }, [open, data]);
 
@@ -246,7 +238,7 @@ export function InlineButtonEditor({
                 style={{
                   backgroundColor,
                   border: '1px solid #3d444d',
-                  borderRadius: getBorderRadiusPx(borderRadius),
+                  borderRadius: `${borderRadius}px`,
                 }}
               >
                 {iconUrl && (
@@ -376,16 +368,16 @@ export function InlineButtonEditor({
           <div className="space-y-2">
             <Label className="text-xs">Roundness</Label>
             <Select
-              value={borderRadius}
-              onValueChange={(v) => setBorderRadius(v as 'none' | 'small' | 'medium' | 'large' | 'full')}
+              value={String(borderRadius)}
+              onValueChange={(v) => setBorderRadius(Number(v))}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-popover">
-                {borderRadiusOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {borderRadiusOptions.map((px) => (
+                  <SelectItem key={px} value={String(px)}>
+                    {px}px
                   </SelectItem>
                 ))}
               </SelectContent>

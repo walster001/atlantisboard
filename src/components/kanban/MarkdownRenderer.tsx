@@ -62,16 +62,7 @@ interface InlineButtonProps {
   onClick?: (data: InlineButtonData) => void;
 }
 
-const getBorderRadiusPx = (value?: string): string => {
-  const map: Record<string, string> = {
-    none: '0px',
-    small: '4px',
-    medium: '8px',
-    large: '12px',
-    full: '9999px',
-  };
-  return map[value || 'small'] || '4px';
-};
+const DEFAULT_BORDER_RADIUS = 4;
 
 function InlineButton({ data, onClick }: InlineButtonProps) {
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -98,7 +89,7 @@ function InlineButton({ data, onClick }: InlineButtonProps) {
         backgroundColor: data.backgroundColor || '#1D2125',
         color: data.textColor || '#579DFF',
         border: '1px solid #3d444d',
-        borderRadius: getBorderRadiusPx(data.borderRadius),
+        borderRadius: `${data.borderRadius ?? DEFAULT_BORDER_RADIUS}px`,
         verticalAlign: 'middle',
       }}
     >

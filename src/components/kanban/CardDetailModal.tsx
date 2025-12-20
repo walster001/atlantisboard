@@ -346,8 +346,8 @@ export function CardDetailModal({
                   // Blockquote styling
                   "[&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:my-2 [&_blockquote]:opacity-80",
                   !themeCardWindowColor && "[&>pre]:bg-muted [&_code]:bg-muted/70 [&_blockquote]:border-border",
-                  // When theme color is applied, force inherit color on all text elements
-                  themeCardWindowColor && "[&_*]:!text-inherit [&_h1]:!text-inherit [&_h2]:!text-inherit [&_h3]:!text-inherit [&_h4]:!text-inherit [&_h5]:!text-inherit [&_h6]:!text-inherit [&_p]:!text-inherit [&_li]:!text-inherit [&_strong]:!text-inherit [&_em]:!text-inherit [&_a]:!text-inherit [&_a]:underline [&_blockquote]:!text-inherit [&>pre]:bg-black/10 [&_code]:bg-black/10 [&_blockquote]:border-current"
+                  // When theme color is applied, force inherit color on all text elements EXCEPT wekan-inline-buttons
+                  themeCardWindowColor && "[&_*:not(.wekan-inline-button):not(.wekan-inline-button_*)]:!text-inherit [&_h1]:!text-inherit [&_h2]:!text-inherit [&_h3]:!text-inherit [&_h4]:!text-inherit [&_h5]:!text-inherit [&_h6]:!text-inherit [&_p]:!text-inherit [&_li]:!text-inherit [&_strong]:!text-inherit [&_em]:!text-inherit [&_a:not(.wekan-inline-button)]:!text-inherit [&_a:not(.wekan-inline-button)]:underline [&_blockquote]:!text-inherit [&>pre]:bg-black/10 [&_code]:bg-black/10 [&_blockquote]:border-current"
                 )}
                 style={themeCardWindowColor ? {
                   color: effectiveTextColor,

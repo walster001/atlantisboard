@@ -7,6 +7,32 @@ marked.setOptions({
 });
 
 /**
+ * Transform Wekan inline button blocks into clean, styled inline buttons.
+ * Detects patterns like:
+ * <span style='...display:inline-flex...'>
+ *   <img ... src='...' ...>
+ *   <a ... href='...'>Link Text</a>
+ * </span>
+ * 
+ * Preserves: img src, a href, anchor text
+ * Normalizes: styling to consistent clean button appearance
+ */
+function transformWekanInlineButtons(html: string): string {
+  // Regex to match Wekan inline button pattern
+  // Match span with inline-flex display containing img + anchor
+  const wekanButtonPattern = /<span\s+style=['"][^'"]*display\s*:\s*inline-?flex[^'"]*['"][^>]*>\s*<img[^>]*src=['"]([^'"]+)['"][^>]*(?:width=['"](\d+)['"][^>]*)?(?:height=['"](\d+)['"][^>]*)?[^>]*>\s*<a[^>]*href=['"]([^'"]+)['"][^>]*>([^<]+)<\/a>\s*<\/span>/gi;
+  
+  return html.replace(wekanButtonPattern, (match, imgSrc, imgWidth, imgHeight, href, linkText) => {
+    // Use original dimensions or defaults
+    const width = imgWidth || '14';
+    const height = imgHeight || '16';
+    
+    // Create clean inline button with consistent styling
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="wekan-inline-button" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background-color:#1D2125;color:#579DFF;text-decoration:none;font-size:13px;line-height:1.2;vertical-align:baseline;"><img src="${imgSrc}" width="${width}" height="${height}" style="flex-shrink:0;" alt=""><span>${linkText}</span></a>`;
+  });
+}
+
+/**
  * Convert Markdown to HTML for TipTap editor
  * Preserves formatting, colors, links, code blocks, paragraph and line spacing, etc.
  */
@@ -24,12 +50,16 @@ export function markdownToHtml(markdown: string | null | undefined): string {
     trimmed.startsWith('<blockquote>') ||
     trimmed.startsWith('<pre>')
   )) {
-    return markdown;
+    // Even for existing HTML, transform Wekan buttons
+    return transformWekanInlineButtons(markdown);
   }
   
   try {
     // Convert markdown to HTML using marked with breaks enabled
     let html = marked.parse(markdown, { async: false }) as string;
+    
+    // Transform Wekan inline button blocks to clean buttons
+    html = transformWekanInlineButtons(html);
     
     // Preserve inline HTML that might be in the markdown
     // (some Wekan/Trello exports include HTML tags)

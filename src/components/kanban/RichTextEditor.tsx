@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyle } from '@tiptap/extension-text-style';
@@ -24,18 +24,13 @@ import {
   RotateCcw,
   Link as LinkIcon,
   Code,
-  Unlink,
-  Trash2,
-  ImagePlus,
-  X
+  Unlink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 
 interface RichTextEditorProps {
   content: string;
@@ -43,12 +38,6 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   autoSize?: boolean;
-}
-
-interface SelectedIconState {
-  element: HTMLImageElement;
-  buttonSpan: HTMLElement;
-  position: { top: number; left: number };
 }
 
 const presetColors = [
@@ -60,10 +49,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
   const [customColor, setCustomColor] = useState('#3b82f6');
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkPopover, setShowLinkPopover] = useState(false);
-  const [selectedIcon, setSelectedIcon] = useState<SelectedIconState | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const editor = useEditor({
     extensions: [
@@ -110,127 +96,6 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
       editor.commands.setContent(content, { emitUpdate: false });
     }
   }, [content, editor]);
-
-  // Handle click on inline button icons
-  const handleEditorClick = useCallback((e: MouseEvent) => {
-    const target = e.target as HTMLElement;
-    
-    // Check if clicked element is an image inside a wekan inline button
-    if (target.tagName === 'IMG') {
-      const imgElement = target as HTMLImageElement;
-      // Find parent span that matches the inline button pattern
-      const parentSpan = imgElement.closest('span[style*="inline-flex"]') as HTMLElement;
-      
-      if (parentSpan) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Get position relative to editor container
-        const containerRect = editorContainerRef.current?.getBoundingClientRect();
-        const imgRect = imgElement.getBoundingClientRect();
-        
-        if (containerRect) {
-          setSelectedIcon({
-            element: imgElement,
-            buttonSpan: parentSpan,
-            position: {
-              top: imgRect.bottom - containerRect.top + 4,
-              left: imgRect.left - containerRect.left + (imgRect.width / 2)
-            }
-          });
-        }
-      }
-    } else if (!target.closest('.inline-icon-controls')) {
-      // Close controls if clicking outside
-      setSelectedIcon(null);
-    }
-  }, []);
-
-  // Attach click listener to editor content
-  useEffect(() => {
-    const editorElement = editorContainerRef.current?.querySelector('.ProseMirror');
-    if (editorElement) {
-      editorElement.addEventListener('click', handleEditorClick as EventListener);
-      return () => {
-        editorElement.removeEventListener('click', handleEditorClick as EventListener);
-      };
-    }
-  }, [handleEditorClick, editor]);
-
-  // Close controls on outside click
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (selectedIcon && !editorContainerRef.current?.contains(e.target as Node)) {
-        setSelectedIcon(null);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [selectedIcon]);
-
-  const handleDeleteIcon = useCallback(() => {
-    if (!selectedIcon || !editor) return;
-    
-    // Remove only the image, keep the button span
-    selectedIcon.element.remove();
-    onChange(editor.getHTML());
-    setSelectedIcon(null);
-    toast.success('Icon removed');
-  }, [selectedIcon, editor, onChange]);
-
-  const handleReplaceIcon = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedIcon || !editor) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-
-    // Validate file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be less than 2MB');
-      return;
-    }
-
-    setIsUploading(true);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `inline-icon-${Date.now()}.${fileExt}`;
-      const filePath = `inline-icons/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('card-attachments')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('card-attachments')
-        .getPublicUrl(filePath);
-
-      // Update the image src
-      selectedIcon.element.src = urlData.publicUrl;
-      onChange(editor.getHTML());
-      setSelectedIcon(null);
-      toast.success('Icon replaced');
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload image');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  }, [selectedIcon, editor, onChange]);
 
   if (!editor) {
     return null;
@@ -527,62 +392,6 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
       {/* Editor Content */}
       <EditorContent editor={editor} />
 
-      {/* Hidden file input for icon replacement */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileUpload}
-        className="hidden"
-      />
-
-      {/* Floating controls for inline button icons */}
-      {selectedIcon && (
-        <div
-          className="inline-icon-controls absolute z-50 flex items-center gap-1 bg-popover border border-border rounded-lg shadow-lg p-1"
-          style={{
-            top: selectedIcon.position.top,
-            left: selectedIcon.position.left,
-            transform: 'translateX(-50%)'
-          }}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleReplaceIcon}
-            disabled={isUploading}
-            className="h-8 px-2 gap-1.5 text-xs"
-            title="Replace icon"
-          >
-            <ImagePlus className="h-4 w-4" />
-            {isUploading ? 'Uploading...' : 'Replace'}
-          </Button>
-          <div className="w-px h-5 bg-border" />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleDeleteIcon}
-            disabled={isUploading}
-            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-            title="Delete icon"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedIcon(null)}
-            className="h-8 w-8 p-0"
-            title="Close"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
       {/* Editor Styles */}
       <style>{`
         .ProseMirror p.is-editor-empty:first-child::before {
@@ -664,16 +473,6 @@ export function RichTextEditor({ content, onChange, placeholder, className, auto
         }
         .ProseMirror a:hover {
           color: hsl(var(--primary) / 0.8);
-        }
-        /* Inline button icon selection styles */
-        .ProseMirror span[style*="inline-flex"] img {
-          cursor: pointer;
-          transition: outline 0.15s ease, transform 0.15s ease;
-          border-radius: 2px;
-        }
-        .ProseMirror span[style*="inline-flex"] img:hover {
-          outline: 2px solid hsl(var(--primary));
-          outline-offset: 1px;
         }
       `}</style>
     </div>

@@ -707,23 +707,11 @@ export function ToastUIMarkdownEditor({
           overflow-y: auto;
         }
         
-        /* Custom indent/outdent toolbar buttons */
+        /* Custom indent/outdent toolbar buttons - match native ToastUI icons */
         .toastui-editor-wrapper .custom-indent,
         .toastui-editor-wrapper .custom-outdent {
-          display: flex !important;
-          align-items: center;
-          justify-content: center;
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 0;
-          width: 32px;
-          height: 32px;
-          border-radius: 4px;
-        }
-        .toastui-editor-wrapper .custom-indent:hover,
-        .toastui-editor-wrapper .custom-outdent:hover {
-          background: rgba(128, 128, 128, 0.2);
+          background: transparent !important;
+          background-image: none !important;
         }
         .toastui-editor-wrapper .custom-indent svg,
         .toastui-editor-wrapper .custom-outdent svg {

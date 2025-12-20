@@ -758,28 +758,33 @@ export function ToastUIMarkdownEditor({
         }
         .toastui-editor-wrapper .toastui-editor-defaultUI-toolbar {
           flex-shrink: 0;
-          padding: 6px 8px !important;
+          padding: 4px !important;
           background: transparent !important;
+          width: 100% !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar {
           display: flex !important;
           flex-wrap: wrap !important;
-          gap: 2px !important;
-          justify-content: flex-start !important;
+          gap: 0 !important;
+          justify-content: space-between !important;
           background: transparent !important;
+          width: 100% !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-group {
           display: flex !important;
           flex-wrap: wrap !important;
-          gap: 2px !important;
+          flex: 1 !important;
+          gap: 0 !important;
           align-items: center !important;
+          justify-content: space-evenly !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons {
-          width: 28px !important;
-          height: 28px !important;
-          min-width: 28px !important;
+          flex: 0 0 auto !important;
+          width: clamp(24px, 5vw, 32px) !important;
+          height: clamp(24px, 5vw, 32px) !important;
+          min-width: 24px !important;
           margin: 0 !important;
-          padding: 4px !important;
+          padding: 3px !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
@@ -790,19 +795,18 @@ export function ToastUIMarkdownEditor({
           background-color: var(--editor-muted, hsl(var(--muted))) !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-icons::before {
-          transform: scale(0.85) !important;
+          transform: scale(0.9) !important;
         }
         .toastui-editor-wrapper .custom-toolbar-btn svg {
-          width: 16px !important;
-          height: 16px !important;
+          width: clamp(14px, 3.5vw, 18px) !important;
+          height: clamp(14px, 3.5vw, 18px) !important;
         }
         .toastui-editor-wrapper .toastui-editor-more-button,
         .toastui-editor-wrapper .toastui-editor-toolbar-more {
           display: none !important;
         }
         .toastui-editor-wrapper .toastui-editor-toolbar-divider {
-          height: 20px !important;
-          margin: 0 4px !important;
+          display: none !important;
         }
         .toastui-editor-wrapper .toastui-editor-main-container {
           flex: 1;

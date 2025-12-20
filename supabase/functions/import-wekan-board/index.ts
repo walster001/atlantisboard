@@ -1,44 +1,89 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
-// Regex to detect Wekan inline button blocks
+// Regex to detect Wekan inline button blocks with all the details we need
 // These are spans with display: inline-flex containing an img and anchor
-const INLINE_BUTTON_REGEX = /<span[^>]*style=['"][^'"]*display:\s*inline-?flex[^'"]*['"][^>]*>[\s\S]*?<\/span>/gi;
+const INLINE_BUTTON_FULL_REGEX = /<span[^>]*style=['"]([^'"]*display:\s*inline-?flex[^'"]*)['"][^>]*>([\s\S]*?)<\/span>/gi;
+const IMG_SRC_REGEX = /<img[^>]*src=['"]([^'"]+)['"][^>]*(?:style=['"]([^'"]+)['"])?[^>]*>/i;
+const IMG_WIDTH_REGEX = /width:\s*(\d+)/i;
+const ANCHOR_REGEX = /<a[^>]*href=['"]([^'"]+)['"][^>]*>([^<]*)<\/a>/i;
+const BG_COLOR_REGEX = /background(?:-color)?:\s*([^;'"]+)/i;
+const COLOR_REGEX = /(?:^|[^-])color:\s*([^;'"]+)/i;
 
-/**
- * Extract and preserve Wekan inline button blocks
- * Returns the content with inline buttons replaced by placeholders and a map of placeholders to original HTML
- */
-function extractInlineButtons(content: string): { processed: string; buttons: Map<string, string> } {
-  const buttons = new Map<string, string>();
-  let index = 0;
-  
-  const processed = content.replace(INLINE_BUTTON_REGEX, (match) => {
-    const placeholder = `__WEKAN_INLINE_BUTTON_${index}__`;
-    buttons.set(placeholder, match);
-    index++;
-    return placeholder;
-  });
-  
-  return { processed, buttons };
+interface InlineButtonData {
+  id: string;
+  iconUrl: string;
+  iconSize: number;
+  linkUrl: string;
+  linkText: string;
+  textColor: string;
+  backgroundColor: string;
 }
 
 /**
- * Restore inline button blocks wrapped in a special div
- * The div has data attributes containing the raw HTML for the editor to show as code
- * and the rendered HTML is shown in view mode
+ * Parse a Wekan inline button span into structured data
  */
-function restoreInlineButtons(content: string, buttons: Map<string, string>): string {
+function parseWekanInlineButton(match: string, spanStyle: string, innerHtml: string): InlineButtonData | null {
+  const imgMatch = innerHtml.match(IMG_SRC_REGEX);
+  const anchorMatch = innerHtml.match(ANCHOR_REGEX);
+  
+  if (!anchorMatch) return null;
+  
+  const iconUrl = imgMatch?.[1] || '';
+  const imgStyle = imgMatch?.[2] || '';
+  const iconSizeMatch = imgStyle.match(IMG_WIDTH_REGEX);
+  const iconSize = iconSizeMatch ? parseInt(iconSizeMatch[1], 10) : 16;
+  
+  const bgColorMatch = spanStyle.match(BG_COLOR_REGEX);
+  const textColorMatch = innerHtml.match(COLOR_REGEX) || spanStyle.match(COLOR_REGEX);
+  
+  return {
+    id: `wekan-btn-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+    iconUrl,
+    iconSize: iconSize || 16,
+    linkUrl: anchorMatch[1] || '',
+    linkText: anchorMatch[2]?.trim() || 'Button',
+    textColor: textColorMatch?.[1]?.trim() || '#579DFF',
+    backgroundColor: bgColorMatch?.[1]?.trim() || '#1D2125',
+  };
+}
+
+/**
+ * Serialize inline button data to the editable component HTML format
+ */
+function serializeInlineButton(data: InlineButtonData): string {
+  const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  return `<span class="editable-inline-button" data-inline-button="${encodedData}" contenteditable="false" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background-color:${data.backgroundColor};border:1px solid #3d444d;white-space:nowrap;cursor:pointer;">${
+    data.iconUrl ? `<img src="${data.iconUrl}" alt="" style="width:${data.iconSize}px;height:${data.iconSize}px;object-fit:contain;">` : ''
+  }<a href="${data.linkUrl}" style="color:${data.textColor};text-decoration:none;" target="_blank" rel="noopener noreferrer">${data.linkText}</a></span>`;
+}
+
+/**
+ * Convert Wekan inline buttons to editable inline button components
+ */
+function convertWekanInlineButtons(content: string): string {
   let result = content;
   
-  for (const [placeholder, originalHtml] of buttons) {
-    // Base64 encode the raw HTML for safe attribute storage
-    const encodedHtml = btoa(unescape(encodeURIComponent(originalHtml)));
-    
-    // Create a wrapper div that contains both:
-    // 1. A data attribute with the raw HTML (base64 encoded)
-    // 2. The rendered button HTML for display
-    const wrapper = `<div class="wekan-inline-button" data-raw-html="${encodedHtml}">${originalHtml}</div>`;
-    result = result.replace(placeholder, wrapper);
+  // Reset lastIndex for the regex
+  INLINE_BUTTON_FULL_REGEX.lastIndex = 0;
+  
+  // Find all matches first, then replace
+  const matches: Array<{ full: string; style: string; inner: string }> = [];
+  let match;
+  while ((match = INLINE_BUTTON_FULL_REGEX.exec(content)) !== null) {
+    matches.push({
+      full: match[0],
+      style: match[1],
+      inner: match[2],
+    });
+  }
+  
+  // Process each match and replace
+  for (const m of matches) {
+    const buttonData = parseWekanInlineButton(m.full, m.style, m.inner);
+    if (buttonData) {
+      const serialized = serializeInlineButton(buttonData);
+      result = result.replace(m.full, serialized);
+    }
   }
   
   return result;
@@ -64,17 +109,11 @@ function markdownToHtml(markdown: string | null | undefined): string | null {
     trimmed.startsWith('<pre>')
   )) {
     // Even for already-HTML content, we need to process inline buttons
-    const { processed, buttons } = extractInlineButtons(markdown);
-    if (buttons.size > 0) {
-      return restoreInlineButtons(processed, buttons);
-    }
-    return markdown;
+    return convertWekanInlineButtons(markdown);
   }
   
   try {
-    // First, extract inline buttons before any processing
-    const { processed: contentWithoutButtons, buttons } = extractInlineButtons(markdown);
-    let html = contentWithoutButtons;
+    let html = markdown;
     
     // Convert headers (must be done before other processing)
     html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
@@ -135,10 +174,8 @@ function markdownToHtml(markdown: string | null | undefined): string | null {
       return `<p>${p.replace(/\n/g, '<br>')}</p>`;
     }).join('\n');
     
-    // Restore inline buttons
-    if (buttons.size > 0) {
-      html = restoreInlineButtons(html, buttons);
-    }
+    // Convert Wekan inline buttons to editable components
+    html = convertWekanInlineButtons(html);
     
     return html;
   } catch (error) {

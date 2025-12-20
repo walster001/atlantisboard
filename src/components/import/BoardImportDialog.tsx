@@ -17,7 +17,7 @@ import {
   InlineButtonIconDialog,
   DetectedInlineButton,
   scanWekanDataForInlineButtons,
-  replaceInlineButtonImages,
+  replaceInlineButtonImagesInWekanData,
 } from './InlineButtonIconDialog';
 interface ImportResult {
   success: boolean;
@@ -780,24 +780,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
   // Apply icon replacements to Wekan data
   const applyIconReplacements = (wekanData: any, replacements: Map<string, string>): any => {
-    if (!wekanData || replacements.size === 0) return wekanData;
-
-    // Deep clone the data
-    const clonedData = JSON.parse(JSON.stringify(wekanData));
-
-    // Handle both array of boards and single board
-    const boards = Array.isArray(clonedData) ? clonedData : [clonedData];
-
-    for (const board of boards) {
-      const cards = board.cards || [];
-      for (const card of cards) {
-        if (card.description && typeof card.description === 'string') {
-          card.description = replaceInlineButtonImages(card.description, replacements);
-        }
-      }
-    }
-
-    return Array.isArray(clonedData) ? clonedData : clonedData;
+    return replaceInlineButtonImagesInWekanData(wekanData, replacements);
   };
 
   // Handle when user completes the icon replacement dialog

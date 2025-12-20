@@ -548,10 +548,11 @@ async function runImport(
       const boardLabels = wekanBoard.labels || [];
       for (let labelIdx = 0; labelIdx < boardLabels.length; labelIdx++) {
         const wekanLabel = boardLabels[labelIdx];
-        if (!wekanLabel.name) continue;
+        // Generate a name from the color if label has no name (common in Trello imports)
+        const labelName = wekanLabel.name || wekanLabel.color || 'Unnamed';
 
         processedLabels++;
-        sendProgress('labels', processedLabels, totalLabels, `Label: ${wekanLabel.name}`);
+        sendProgress('labels', processedLabels, totalLabels, `Label: ${labelName}`);
 
         const labelColor = getWekanColor(wekanLabel.color);
 
@@ -559,7 +560,7 @@ async function runImport(
           .from('labels')
           .insert({
             board_id: board.id,
-            name: wekanLabel.name.substring(0, 50),
+            name: labelName.substring(0, 50),
             color: labelColor,
           })
           .select()

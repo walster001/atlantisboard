@@ -3,9 +3,10 @@
  * 
  * A WYSIWYG Markdown editor using Toast UI Editor.
  * Uses Toast UI's widgetRules to render inline buttons as custom widgets.
+ * Buttons can be clicked directly in the editor to edit them.
  */
 
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
 import { cn } from '@/lib/utils';
@@ -19,11 +20,11 @@ interface ToastUIMarkdownEditorProps {
 }
 
 // Match [INLINE_BUTTON:base64data] format
-const INLINE_BUTTON_REGEX = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g;
 const INLINE_BUTTON_WIDGET_RULE = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/;
 
 /**
- * Create the widget DOM element for an inline button
+ * Create the widget DOM element for an inline button.
+ * This is called by Toast UI's widgetRules when it encounters the pattern.
  */
 function createButtonWidget(encodedData: string): HTMLElement {
   const data = parseInlineButtonFromDataAttr(encodedData);
@@ -52,6 +53,7 @@ function createButtonWidget(encodedData: string): HTMLElement {
     const img = document.createElement('img');
     img.src = data.iconUrl;
     img.alt = '';
+    img.draggable = false;
     img.style.cssText = `
       width: ${data.iconSize || 16}px;
       height: ${data.iconSize || 16}px;
@@ -74,7 +76,7 @@ function createButtonWidget(encodedData: string): HTMLElement {
 }
 
 /**
- * Widget rules for Toast UI Editor
+ * Widget rules for Toast UI Editor - renders [INLINE_BUTTON:...] as styled buttons
  */
 const widgetRules = [
   {
@@ -100,24 +102,11 @@ export function ToastUIMarkdownEditor({
   const editorRef = useRef<Editor>(null);
   const [showButtonEditor, setShowButtonEditor] = useState(false);
   const [editingButton, setEditingButton] = useState<InlineButtonData | null>(null);
+  const [editingEncodedData, setEditingEncodedData] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isSyncing = useRef(false);
   const isInitialized = useRef(false);
   const lastContentRef = useRef(content);
-  
-  // Extract buttons from content for the chip display
-  const buttons = useMemo(() => {
-    const result: InlineButtonData[] = [];
-    if (!content) return result;
-    
-    let match;
-    INLINE_BUTTON_REGEX.lastIndex = 0;
-    while ((match = INLINE_BUTTON_REGEX.exec(content)) !== null) {
-      const data = parseInlineButtonFromDataAttr(match[1]);
-      if (data) result.push(data);
-    }
-    return result;
-  }, [content]);
   
   // Handle editor changes
   const handleChange = useCallback(() => {
@@ -134,7 +123,7 @@ export function ToastUIMarkdownEditor({
     }
   }, [onChange]);
   
-  // Initialize editor
+  // Initialize editor with content
   useEffect(() => {
     const editor = editorRef.current?.getInstance();
     if (!editor || isInitialized.current) return;
@@ -163,7 +152,7 @@ export function ToastUIMarkdownEditor({
     isSyncing.current = false;
   }, [content]);
   
-  // Handle clicks on inline button widgets
+  // Handle clicks on inline button widgets - edit in place
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -181,6 +170,7 @@ export function ToastUIMarkdownEditor({
           const data = parseInlineButtonFromDataAttr(encodedData);
           if (data) {
             setEditingButton(data);
+            setEditingEncodedData(encodedData);
             setShowButtonEditor(true);
           }
         }
@@ -191,54 +181,56 @@ export function ToastUIMarkdownEditor({
     return () => container.removeEventListener('click', handleClick);
   }, []);
   
+  // Save button (new or edited)
   const handleSaveButton = useCallback((data: InlineButtonData) => {
     const editor = editorRef.current?.getInstance();
     if (!editor) return;
     
-    const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-    const buttonMarkdown = `[INLINE_BUTTON:${encodedData}]`;
+    const newEncodedData = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    const newButtonMarkdown = `[INLINE_BUTTON:${newEncodedData}]`;
     
-    if (editingButton) {
-      // Replace existing button
-      const oldEncoded = btoa(unescape(encodeURIComponent(JSON.stringify(editingButton))));
+    if (editingEncodedData) {
+      // Replace existing button using the original encoded data
       let markdown = editor.getMarkdown();
-      markdown = markdown.replace(`[INLINE_BUTTON:${oldEncoded}]`, buttonMarkdown);
+      const oldMarker = `[INLINE_BUTTON:${editingEncodedData}]`;
+      markdown = markdown.replace(oldMarker, newButtonMarkdown);
       editor.setMarkdown(markdown);
     } else {
       // Insert new button at cursor
-      editor.insertText(buttonMarkdown);
+      editor.insertText(newButtonMarkdown);
     }
     
     setEditingButton(null);
+    setEditingEncodedData(null);
     setTimeout(handleChange, 10);
-  }, [editingButton, handleChange]);
+  }, [editingEncodedData, handleChange]);
   
+  // Delete button
   const handleDeleteButton = useCallback(() => {
-    if (!editingButton) return;
+    if (!editingEncodedData) return;
     
     const editor = editorRef.current?.getInstance();
     if (!editor) return;
     
-    const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(editingButton))));
     let markdown = editor.getMarkdown();
-    markdown = markdown.replace(`[INLINE_BUTTON:${encodedData}]`, '');
+    const marker = `[INLINE_BUTTON:${editingEncodedData}]`;
+    markdown = markdown.replace(marker, '');
     editor.setMarkdown(markdown);
     
     setShowButtonEditor(false);
     setEditingButton(null);
+    setEditingEncodedData(null);
     handleChange();
-  }, [editingButton, handleChange]);
+  }, [editingEncodedData, handleChange]);
   
+  // Add new button
   const handleAddButton = useCallback(() => {
     setEditingButton(null);
+    setEditingEncodedData(null);
     setShowButtonEditor(true);
   }, []);
   
-  const handleEditButton = useCallback((data: InlineButtonData) => {
-    setEditingButton(data);
-    setShowButtonEditor(true);
-  }, []);
-  
+  // Create toolbar button for inserting new buttons
   const toolbarButton = useCallback(() => {
     const btn = document.createElement('button');
     btn.className = 'toastui-editor-toolbar-icons';
@@ -273,42 +265,11 @@ export function ToastUIMarkdownEditor({
         ]}
       />
       
-      {/* Button chips for quick editing */}
-      {buttons.length > 0 && (
-        <div className="px-3 py-2 border-t bg-muted/30 flex flex-wrap gap-2 items-center">
-          <span className="text-xs text-muted-foreground">Buttons:</span>
-          {buttons.map((btn, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => handleEditButton(btn)}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm cursor-pointer transition-all hover:ring-2 hover:ring-primary/40"
-              style={{
-                backgroundColor: btn.backgroundColor || '#1D2125',
-                border: '1px solid #3d444d',
-              }}
-            >
-              {btn.iconUrl && (
-                <img
-                  src={btn.iconUrl}
-                  alt=""
-                  style={{ width: btn.iconSize || 16, height: btn.iconSize || 16 }}
-                  className="object-contain"
-                />
-              )}
-              <span style={{ color: btn.textColor || '#579DFF' }}>
-                {btn.linkText || 'Button'}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-      
       <InlineButtonEditor
         open={showButtonEditor}
         onOpenChange={setShowButtonEditor}
         onSave={handleSaveButton}
-        onDelete={editingButton ? handleDeleteButton : undefined}
+        onDelete={editingEncodedData ? handleDeleteButton : undefined}
         data={editingButton}
       />
       

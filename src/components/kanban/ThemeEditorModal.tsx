@@ -20,6 +20,9 @@ export interface BoardTheme {
   default_card_color: string | null;
   card_window_color: string;
   card_window_text_color: string;
+  card_window_button_color: string;
+  card_window_button_text_color: string;
+  card_window_intelligent_contrast: boolean;
   homepage_board_color: string;
   board_icon_color: string;
   scrollbar_color: string;
@@ -53,6 +56,9 @@ export function ThemeEditorModal({
   const [defaultCardColor, setDefaultCardColor] = useState<string | null>(null);
   const [cardWindowColor, setCardWindowColor] = useState('#ffffff');
   const [cardWindowTextColor, setCardWindowTextColor] = useState('#172b4d');
+  const [cardWindowButtonColor, setCardWindowButtonColor] = useState('#0079bf');
+  const [cardWindowButtonTextColor, setCardWindowButtonTextColor] = useState('#ffffff');
+  const [cardWindowIntelligentContrast, setCardWindowIntelligentContrast] = useState(false);
   const [homepageBoardColor, setHomepageBoardColor] = useState('#0079bf');
   const [boardIconColor, setBoardIconColor] = useState('#ffffff');
   const [scrollbarColor, setScrollbarColor] = useState('#c1c7cd');
@@ -70,6 +76,9 @@ export function ThemeEditorModal({
         setDefaultCardColor(sourceTheme.default_card_color);
         setCardWindowColor(sourceTheme.card_window_color);
         setCardWindowTextColor(sourceTheme.card_window_text_color);
+        setCardWindowButtonColor(sourceTheme.card_window_button_color || '#0079bf');
+        setCardWindowButtonTextColor(sourceTheme.card_window_button_text_color || '#ffffff');
+        setCardWindowIntelligentContrast(sourceTheme.card_window_intelligent_contrast || false);
         setHomepageBoardColor(sourceTheme.homepage_board_color);
         setBoardIconColor(sourceTheme.board_icon_color);
         setScrollbarColor(sourceTheme.scrollbar_color);
@@ -82,6 +91,9 @@ export function ThemeEditorModal({
         setDefaultCardColor(null);
         setCardWindowColor('#ffffff');
         setCardWindowTextColor('#172b4d');
+        setCardWindowButtonColor('#0079bf');
+        setCardWindowButtonTextColor('#ffffff');
+        setCardWindowIntelligentContrast(false);
         setHomepageBoardColor('#0079bf');
         setBoardIconColor('#ffffff');
         setScrollbarColor('#c1c7cd');
@@ -113,6 +125,9 @@ export function ThemeEditorModal({
         default_card_color: defaultCardColor,
         card_window_color: cardWindowColor,
         card_window_text_color: cardWindowTextColor,
+        card_window_button_color: cardWindowButtonColor,
+        card_window_button_text_color: cardWindowButtonTextColor,
+        card_window_intelligent_contrast: cardWindowIntelligentContrast,
         homepage_board_color: homepageBoardColor,
         board_icon_color: boardIconColor,
         scrollbar_color: scrollbarColor,
@@ -269,11 +284,56 @@ export function ThemeEditorModal({
                     onChange={(v) => setCardWindowColor(v || '#ffffff')}
                   />
                   <ThemeColorInput
-                    label="Text Colour"
+                    label="Text Colour (Labels & Headers)"
                     value={cardWindowTextColor}
                     onChange={(v) => setCardWindowTextColor(v || '#172b4d')}
                     contrastAgainst={cardWindowColor}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Applies to section labels, title, and headers. Description uses its own rich text styling.
+                  </p>
+                  <ThemeColorInput
+                    label="Button Colour"
+                    value={cardWindowButtonColor}
+                    onChange={(v) => setCardWindowButtonColor(v || '#0079bf')}
+                    contrastAgainst={cardWindowColor}
+                  />
+                  <ThemeColorInput
+                    label="Button Text Colour"
+                    value={cardWindowButtonTextColor}
+                    onChange={(v) => setCardWindowButtonTextColor(v || '#ffffff')}
+                    contrastAgainst={cardWindowButtonColor}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Button colours apply to due date, add label, and add attachment buttons.
+                  </p>
+                  
+                  {/* Intelligent Contrast Toggle */}
+                  <div className="flex items-center justify-between gap-4 pt-2">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Intelligent Contrast</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically adjust text to white on dark backgrounds for better readability.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={cardWindowIntelligentContrast}
+                      onClick={() => setCardWindowIntelligentContrast(!cardWindowIntelligentContrast)}
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        cardWindowIntelligentContrast ? "bg-primary" : "bg-input"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
+                          cardWindowIntelligentContrast ? "translate-x-5" : "translate-x-0"
+                        )}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -426,13 +486,23 @@ export function ThemeEditorModal({
                     </div>
                     <div className="flex gap-2">
                       <div 
-                        className="h-5 w-14 rounded-full"
-                        style={{ backgroundColor: `${cardWindowTextColor}15` }}
-                      />
+                        className="h-5 w-14 rounded-full flex items-center justify-center text-[6px] font-medium"
+                        style={{ 
+                          backgroundColor: cardWindowButtonColor,
+                          color: cardWindowButtonTextColor 
+                        }}
+                      >
+                        Due Date
+                      </div>
                       <div 
-                        className="h-5 w-10 rounded-full"
-                        style={{ backgroundColor: `${cardWindowTextColor}15` }}
-                      />
+                        className="h-5 w-12 rounded-full flex items-center justify-center text-[6px] font-medium"
+                        style={{ 
+                          backgroundColor: cardWindowButtonColor,
+                          color: cardWindowButtonTextColor 
+                        }}
+                      >
+                        + Label
+                      </div>
                     </div>
                   </div>
                   {/* Footer */}

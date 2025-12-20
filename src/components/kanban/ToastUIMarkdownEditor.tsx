@@ -300,6 +300,28 @@ export function ToastUIMarkdownEditor({
 
   // Emoji picker button with categories
   const emojiButton = useCallback(() => {
+    const RECENT_EMOJIS_KEY = 'toastui-recent-emojis';
+    const MAX_RECENT = 20;
+    
+    const getRecentEmojis = (): string[] => {
+      try {
+        const stored = localStorage.getItem(RECENT_EMOJIS_KEY);
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    };
+    
+    const addRecentEmoji = (emoji: string) => {
+      try {
+        let recent = getRecentEmojis();
+        recent = [emoji, ...recent.filter(e => e !== emoji)].slice(0, MAX_RECENT);
+        localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(recent));
+      } catch {
+        // Ignore localStorage errors
+      }
+    };
+    
     const emojiCategories: Record<string, { icon: string; emojis: string[] }> = {
       'Smileys': { icon: '😀', emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '☺️', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐'] },
       'Gestures': { icon: '👍', emojis: ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄'] },
@@ -311,6 +333,14 @@ export function ToastUIMarkdownEditor({
       'Food': { icon: '🍕', emojis: ['🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏', '🍐', '🍑', '🍒', '🍓', '🫐', '🥝', '🍅', '🫒', '🥥', '🥑', '🍆', '🥔', '🥕', '🌽', '🌶️', '🫑', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜', '🫘', '🌰', '🍞', '🥐', '🥖', '🫓', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🫔', '🥙', '🧆', '🥚', '🍳', '🥘', '🍲', '🫕', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦀', '🦞', '🦐', '🦑', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍼', '🥛', '☕', '🫖', '🍵', '🍶', '🍾', '🍷', '🍸', '🍹', '🍺', '🍻', '🥂', '🥃', '🫗', '🥤', '🧋', '🧃', '🧉', '🧊'] },
       'Animals': { icon: '🐱', emojis: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🦟', '🦗', '🕷️', '🕸️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🦣', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🪶', '🐓', '🦃', '🦤', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦫', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔'] },
     };
+    
+    // All emojis for search
+    const allEmojis: { emoji: string; category: string }[] = [];
+    Object.entries(emojiCategories).forEach(([category, data]) => {
+      data.emojis.forEach(emoji => {
+        allEmojis.push({ emoji, category });
+      });
+    });
     
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'position:relative;display:inline-flex;';
@@ -324,129 +354,196 @@ export function ToastUIMarkdownEditor({
     
     // Create dropdown and append to body for proper z-index layering
     const dropdown = document.createElement('div');
-    dropdown.style.cssText = 'position:fixed;z-index:99999;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:380px;height:420px;box-shadow:0 12px 32px rgba(0,0,0,0.5);overflow:hidden;';
+    dropdown.style.cssText = 'position:fixed;z-index:99999;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:380px;height:480px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
     document.body.appendChild(dropdown);
+    
+    // Search input container
+    const searchContainer = document.createElement('div');
+    searchContainer.style.cssText = 'padding:12px;border-bottom:1px solid #3d444d;';
+    
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search emojis...';
+    searchInput.style.cssText = 'width:100%;padding:8px 12px;border:1px solid #3d444d;border-radius:6px;background:#161b22;color:#e6edf3;font-size:14px;outline:none;box-sizing:border-box;';
+    searchInput.onfocus = () => { searchInput.style.borderColor = '#58a6ff'; };
+    searchInput.onblur = () => { searchInput.style.borderColor = '#3d444d'; };
+    searchContainer.appendChild(searchInput);
     
     // Header with category label
     const header = document.createElement('div');
-    header.style.cssText = 'padding:12px 16px 8px;font-size:12px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;';
-    header.textContent = 'Smileys';
+    header.style.cssText = 'padding:8px 16px 4px;font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;';
+    header.textContent = 'Recent';
     
     // Category tabs - horizontal scrollable
     const tabsWrapper = document.createElement('div');
-    tabsWrapper.style.cssText = 'padding:0 12px 8px;border-bottom:1px solid #3d444d;';
+    tabsWrapper.style.cssText = 'padding:0 12px 8px;border-bottom:1px solid #3d444d;flex-shrink:0;';
     
     const tabsContainer = document.createElement('div');
-    tabsContainer.style.cssText = 'display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;';
-    tabsContainer.style.setProperty('scrollbar-width', 'none');
+    tabsContainer.style.cssText = 'display:flex;gap:4px;overflow-x:auto;';
+    // Hide scrollbar
+    const style = document.createElement('style');
+    style.textContent = '.emoji-tabs::-webkit-scrollbar{display:none}';
+    document.head.appendChild(style);
+    tabsContainer.className = 'emoji-tabs';
     
     // Emoji grid scroll container
     const emojiScrollContainer = document.createElement('div');
-    emojiScrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#3d444d transparent;';
+    emojiScrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;';
     
     // Emoji grid
     const emojiGrid = document.createElement('div');
     emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(9,1fr);gap:4px;padding:12px;';
     
     const categoryNames = Object.keys(emojiCategories);
-    let activeCategory = categoryNames[0];
+    let activeCategory: string | null = 'recent';
     const tabButtons: HTMLButtonElement[] = [];
     
-    const renderEmojis = (category: string) => {
+    const createEmojiButton = (emoji: string): HTMLButtonElement => {
+      const emojiBtn = document.createElement('button');
+      emojiBtn.type = 'button';
+      emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:24px;padding:4px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:36px;height:36px;';
+      emojiBtn.textContent = emoji;
+      emojiBtn.onmouseenter = () => { 
+        emojiBtn.style.background = '#3d444d'; 
+        emojiBtn.style.transform = 'scale(1.15)';
+      };
+      emojiBtn.onmouseleave = () => { 
+        emojiBtn.style.background = 'none'; 
+        emojiBtn.style.transform = 'scale(1)';
+      };
+      emojiBtn.onmousedown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      emojiBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const editor = editorRef.current?.getInstance();
+        if (editor) {
+          editor.insertText(emoji);
+          addRecentEmoji(emoji);
+        }
+        dropdown.style.display = 'none';
+      };
+      return emojiBtn;
+    };
+    
+    const renderEmojis = (emojis: string[], label: string) => {
       emojiGrid.innerHTML = '';
-      header.textContent = category;
-      emojiCategories[category].emojis.forEach(emoji => {
-        const emojiBtn = document.createElement('button');
-        emojiBtn.type = 'button';
-        emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:24px;padding:6px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:36px;height:36px;';
-        emojiBtn.textContent = emoji;
-        emojiBtn.onmouseenter = () => { 
-          emojiBtn.style.background = '#3d444d'; 
-          emojiBtn.style.transform = 'scale(1.15)';
-        };
-        emojiBtn.onmouseleave = () => { 
-          emojiBtn.style.background = 'none'; 
-          emojiBtn.style.transform = 'scale(1)';
-        };
-        emojiBtn.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const editor = editorRef.current?.getInstance();
-          if (editor) {
-            editor.insertText(emoji);
-          }
-          dropdown.style.display = 'none';
-        };
-        emojiGrid.appendChild(emojiBtn);
-      });
+      header.textContent = label;
+      if (emojis.length === 0) {
+        const noResults = document.createElement('div');
+        noResults.style.cssText = 'grid-column:1/-1;text-align:center;color:#8b949e;padding:24px;font-size:14px;';
+        noResults.textContent = label === 'Recent' ? 'No recent emojis yet' : 'No emojis found';
+        emojiGrid.appendChild(noResults);
+      } else {
+        emojis.forEach(emoji => {
+          emojiGrid.appendChild(createEmojiButton(emoji));
+        });
+      }
+    };
+    
+    const renderCategory = (category: string) => {
+      if (category === 'recent') {
+        renderEmojis(getRecentEmojis(), 'Recent');
+      } else {
+        renderEmojis(emojiCategories[category].emojis, category);
+      }
       emojiScrollContainer.scrollTop = 0;
     };
     
     const updateTabStyles = () => {
       tabButtons.forEach((tabBtn, i) => {
-        const isActive = categoryNames[i] === activeCategory;
+        const cat = i === 0 ? 'recent' : categoryNames[i - 1];
+        const isActive = cat === activeCategory;
         tabBtn.style.background = isActive ? '#3d444d' : 'none';
-        tabBtn.style.color = isActive ? '#ffffff' : '#8b949e';
       });
     };
     
-    categoryNames.forEach((category, index) => {
+    // Recent tab
+    const recentTab = document.createElement('button');
+    recentTab.type = 'button';
+    recentTab.style.cssText = 'background:#3d444d;border:none;cursor:pointer;font-size:16px;padding:6px 8px;border-radius:6px;transition:background 0.15s;flex-shrink:0;';
+    recentTab.textContent = '🕐';
+    recentTab.title = 'Recent';
+    recentTab.onmouseenter = () => { if (activeCategory !== 'recent') recentTab.style.background = '#2d343d'; };
+    recentTab.onmouseleave = () => { if (activeCategory !== 'recent') recentTab.style.background = 'none'; };
+    recentTab.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      activeCategory = 'recent';
+      searchInput.value = '';
+      updateTabStyles();
+      renderCategory('recent');
+    };
+    tabButtons.push(recentTab);
+    tabsContainer.appendChild(recentTab);
+    
+    categoryNames.forEach((category) => {
       const tabBtn = document.createElement('button');
       tabBtn.type = 'button';
-      tabBtn.style.cssText = `background:${category === activeCategory ? '#3d444d' : 'none'};border:none;cursor:pointer;font-size:18px;padding:8px 10px;border-radius:6px;transition:background 0.15s;flex-shrink:0;color:${category === activeCategory ? '#ffffff' : '#8b949e'};`;
+      tabBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;padding:6px 8px;border-radius:6px;transition:background 0.15s;flex-shrink:0;';
       tabBtn.textContent = emojiCategories[category].icon;
       tabBtn.title = category;
       tabBtn.onmouseenter = () => { 
-        if (category !== activeCategory) {
-          tabBtn.style.background = '#2d343d'; 
-        }
+        if (activeCategory !== category) tabBtn.style.background = '#2d343d'; 
       };
       tabBtn.onmouseleave = () => { 
-        if (category !== activeCategory) {
-          tabBtn.style.background = 'none'; 
-        }
+        if (activeCategory !== category) tabBtn.style.background = 'none'; 
       };
       tabBtn.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
         activeCategory = category;
+        searchInput.value = '';
         updateTabStyles();
-        renderEmojis(category);
+        renderCategory(category);
       };
       tabButtons.push(tabBtn);
       tabsContainer.appendChild(tabBtn);
     });
     
+    // Search functionality
+    searchInput.oninput = () => {
+      const query = searchInput.value.toLowerCase().trim();
+      if (query === '') {
+        activeCategory = 'recent';
+        updateTabStyles();
+        renderCategory('recent');
+      } else {
+        activeCategory = null;
+        updateTabStyles();
+        const filtered = allEmojis.filter(({ emoji }) => emoji.includes(query)).map(e => e.emoji);
+        renderEmojis(filtered, `Search: "${query}"`);
+      }
+    };
+    
     tabsWrapper.appendChild(tabsContainer);
     emojiScrollContainer.appendChild(emojiGrid);
-    dropdown.appendChild(header);
+    dropdown.appendChild(searchContainer);
     dropdown.appendChild(tabsWrapper);
+    dropdown.appendChild(header);
     dropdown.appendChild(emojiScrollContainer);
-    renderEmojis(activeCategory);
     
     const positionDropdown = () => {
       const btnRect = btn.getBoundingClientRect();
-      const dropdownHeight = 420;
+      const dropdownHeight = 480;
       const dropdownWidth = 380;
       const viewportHeight = window.innerHeight;
       const viewportWidth = window.innerWidth;
       
-      // Position below button, but flip above if not enough space
       let top = btnRect.bottom + 4;
       if (top + dropdownHeight > viewportHeight - 10) {
         top = btnRect.top - dropdownHeight - 4;
       }
       
-      // Align right edge with button, but adjust if would go off-screen
       let left = btnRect.right - dropdownWidth;
-      if (left < 10) {
-        left = 10;
-      }
+      if (left < 10) left = 10;
       if (left + dropdownWidth > viewportWidth - 10) {
         left = viewportWidth - dropdownWidth - 10;
       }
       
-      dropdown.style.top = `${top}px`;
+      dropdown.style.top = `${Math.max(10, top)}px`;
       dropdown.style.left = `${left}px`;
     };
     
@@ -459,11 +556,17 @@ export function ToastUIMarkdownEditor({
       } else {
         positionDropdown();
         dropdown.style.display = 'flex';
-        // Reset to first category when opening
-        activeCategory = categoryNames[0];
+        activeCategory = 'recent';
+        searchInput.value = '';
         updateTabStyles();
-        renderEmojis(activeCategory);
+        renderCategory('recent');
+        setTimeout(() => searchInput.focus(), 50);
       }
+    };
+    
+    // Prevent dropdown from closing when interacting with it
+    dropdown.onmousedown = (e) => {
+      e.stopPropagation();
     };
     
     // Close on outside click
@@ -472,13 +575,13 @@ export function ToastUIMarkdownEditor({
         dropdown.style.display = 'none';
       }
     };
-    document.addEventListener('click', handleOutsideClick);
+    document.addEventListener('mousedown', handleOutsideClick);
     
     // Cleanup dropdown from body when wrapper is removed
     const observer = new MutationObserver(() => {
       if (!document.body.contains(wrapper)) {
         dropdown.remove();
-        document.removeEventListener('click', handleOutsideClick);
+        document.removeEventListener('mousedown', handleOutsideClick);
         observer.disconnect();
       }
     });

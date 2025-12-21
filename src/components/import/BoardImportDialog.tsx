@@ -41,6 +41,76 @@ interface BoardImportDialogProps {
 
 type ImportSource = 'wekan' | 'trello' | 'csv';
 
+// Format detection functions
+function isWekanFormat(data: any): boolean {
+  // Wekan exports have these distinctive properties
+  // They can be a single board object or an array of boards
+  const checkBoard = (board: any) => {
+    // Wekan boards have 'lists' array with 'swimlaneId' on cards
+    // or they have 'swimlanes' array at the board level
+    if (board.swimlanes && Array.isArray(board.swimlanes)) return true;
+    if (board.lists && Array.isArray(board.lists)) {
+      // Wekan lists have 'boardId' property
+      if (board.lists[0]?.boardId) return true;
+    }
+    if (board.cards && Array.isArray(board.cards)) {
+      // Wekan cards have 'swimlaneId' property
+      if (board.cards[0]?.swimlaneId !== undefined) return true;
+      // Wekan cards have 'listId' (lowercase), Trello uses 'idList'
+      if (board.cards[0]?.listId !== undefined && board.cards[0]?.idList === undefined) return true;
+    }
+    // Wekan has 'members' with 'isAdmin', 'isActive', 'isNoComments' etc.
+    if (board.members && Array.isArray(board.members) && board.members[0]?.isAdmin !== undefined) return true;
+    return false;
+  };
+
+  if (Array.isArray(data)) {
+    return data.some(item => checkBoard(item));
+  }
+  return checkBoard(data);
+}
+
+function isTrelloFormat(data: any): boolean {
+  // Trello exports have these distinctive properties
+  // Trello is always a single board object (not an array)
+  if (Array.isArray(data)) return false;
+  
+  // Trello boards have 'idOrganization', 'idMemberCreator', or 'closed' at root level
+  if (data.idOrganization !== undefined || data.idMemberCreator !== undefined) return true;
+  
+  // Trello cards have 'idList' (not 'listId' like Wekan)
+  if (data.cards && Array.isArray(data.cards) && data.cards[0]?.idList !== undefined) {
+    // Make sure it's not also Wekan (which wouldn't have idList)
+    if (data.cards[0]?.swimlaneId === undefined) return true;
+  }
+  
+  // Trello checklists have 'idCard' and 'checkItems'
+  if (data.checklists && Array.isArray(data.checklists) && data.checklists[0]?.idCard !== undefined) return true;
+  
+  // Trello labels have 'idBoard' property
+  if (data.labels && Array.isArray(data.labels) && data.labels[0]?.idBoard !== undefined) return true;
+  
+  // Trello has 'prefs' object with board preferences
+  if (data.prefs && typeof data.prefs === 'object' && data.prefs.permissionLevel !== undefined) return true;
+  
+  return false;
+}
+
+function getFormatMismatchError(selectedFormat: ImportSource, data: any): string | null {
+  const isWekan = isWekanFormat(data);
+  const isTrello = isTrelloFormat(data);
+  
+  if (selectedFormat === 'wekan' && isTrello && !isWekan) {
+    return 'This appears to be a Trello export file, but you selected "Wekan JSON". Please select "Trello JSON" as the import source.';
+  }
+  
+  if (selectedFormat === 'trello' && isWekan && !isTrello) {
+    return 'This appears to be a Wekan export file, but you selected "Trello JSON". Please select "Wekan JSON" as the import source.';
+  }
+  
+  return null;
+}
+
 // Trello JSON types
 interface TrelloLabel {
   id: string;
@@ -967,6 +1037,17 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         toast({
           title: 'Invalid JSON',
           description: 'The file contains invalid JSON.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Check for format mismatch (Wekan vs Trello)
+      const formatError = getFormatMismatchError(importSource, jsonData);
+      if (formatError) {
+        toast({
+          title: 'Wrong file format',
+          description: formatError,
           variant: 'destructive',
         });
         return;

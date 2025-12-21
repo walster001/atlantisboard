@@ -129,6 +129,7 @@ export type Database = {
           created_by: string
           expires_at: string
           id: string
+          link_type: string
           token: string
           used_at: string | null
           used_by: string | null
@@ -139,6 +140,7 @@ export type Database = {
           created_by: string
           expires_at?: string
           id?: string
+          link_type?: string
           token: string
           used_at?: string | null
           used_by?: string | null
@@ -149,6 +151,7 @@ export type Database = {
           created_by?: string
           expires_at?: string
           id?: string
+          link_type?: string
           token?: string
           used_at?: string | null
           used_by?: string | null

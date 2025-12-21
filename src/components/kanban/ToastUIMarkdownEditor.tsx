@@ -147,6 +147,17 @@ export function ToastUIMarkdownEditor({
     return false;
   }, [themeBackgroundColor]);
 
+  const containerStyle = useMemo(() => {
+    const style: React.CSSProperties = {};
+    if (themeBackgroundColor) {
+      style.backgroundColor = themeBackgroundColor;
+    }
+    if (themeTextColor) {
+      style.color = themeTextColor;
+    }
+    return style;
+  }, [themeBackgroundColor, themeTextColor]);
+
   const editorRef = useRef<Editor>(null);
   const [showButtonEditor, setShowButtonEditor] = useState(false);
   const [editingButton, setEditingButton] = useState<InlineButtonData | null>(null);

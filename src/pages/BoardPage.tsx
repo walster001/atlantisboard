@@ -324,50 +324,58 @@ export default function BoardPage() {
     };
   }, [boardId, user, isPreviewMode]);
 
-  // Listen for broadcast events for member additions and removals on this board
+  // Listen for board_members DELETE events to detect when current user is removed
   useEffect(() => {
     if (!boardId || !user || isPreviewMode) return;
 
-    console.log('BoardPage: Setting up broadcast listener for board:', boardId);
-
     const channel = supabase
-      .channel(`board-${boardId}-member-changes`)
-      .on('broadcast', { event: 'member_removed' }, (payload) => {
-        console.log('BoardPage: Received member_removed broadcast:', payload);
-        const { user_id, board_id } = payload.payload as { board_id: string; user_id: string };
-        console.log('BoardPage: Checking if removed user matches current user:', { user_id, currentUserId: user.id });
-        if (user_id === user.id) {
-          console.log('BoardPage: Current user was removed, navigating to home');
-          // Get the current board's workspace_id before navigating
-          // Pass removal info to Home via navigation state so it can update properly
-          navigate('/', { 
-            state: { 
-              removedFromBoard: {
-                board_id,
-                workspace_id: workspaceId,
-                timestamp: Date.now()
+      .channel(`board-${boardId}-member-removal-detection`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'board_members',
+          filter: `board_id=eq.${boardId}`,
+        },
+        (payload) => {
+          const deletedMember = payload.old as { board_id: string; user_id: string };
+          if (deletedMember.user_id === user.id) {
+            // Current user was removed from the board - redirect to home
+            navigate('/', { 
+              state: { 
+                removedFromBoard: {
+                  board_id: deletedMember.board_id,
+                  workspace_id: workspaceId,
+                  timestamp: Date.now()
+                }
               }
-            }
-          });
-        } else {
-          // Another member was removed, refresh members list
-          refreshBoardMembers();
+            });
+          } else {
+            // Another member was removed, refresh members list
+            refreshBoardMembers();
+          }
         }
-      })
-      .on('broadcast', { event: 'member_added' }, (payload) => {
-        console.log('BoardPage: Received member_added broadcast:', payload);
-        const { user_id } = payload.payload as { board_id: string; user_id: string };
-        // If someone else was added, refresh members list
-        if (user_id !== user.id) {
-          refreshBoardMembers();
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'board_members',
+          filter: `board_id=eq.${boardId}`,
+        },
+        (payload) => {
+          const newMember = payload.new as { board_id: string; user_id: string };
+          // If someone else was added, refresh members list
+          if (newMember.user_id !== user.id) {
+            refreshBoardMembers();
+          }
         }
-      })
-      .subscribe((status) => {
-        console.log('BoardPage: Broadcast subscription status:', status);
-      });
+      )
+      .subscribe();
 
     return () => {
-      console.log('BoardPage: Cleaning up broadcast listener for board:', boardId);
       supabase.removeChannel(channel);
     };
   }, [boardId, user, isPreviewMode, navigate, workspaceId]);

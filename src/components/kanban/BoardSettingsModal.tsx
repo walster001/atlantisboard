@@ -187,52 +187,7 @@ export function BoardSettingsModal({
 
       if (error) throw error;
       
-      // Broadcast to the board channel for existing members to update their list
-      const boardChannel = supabase.channel(`board-${boardId}-member-changes`);
-      
-      // Wait for subscription to be ready before sending
-      await new Promise<void>((resolve) => {
-        boardChannel.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            resolve();
-          }
-        });
-      });
-      
-      await boardChannel.send({
-        type: 'broadcast',
-        event: 'member_added',
-        payload: { 
-          board_id: boardId, 
-          user_id: userId,
-          role: assignRole,
-          added_by: currentUserId 
-        }
-      });
-      supabase.removeChannel(boardChannel);
-      
-      // Also broadcast to user-specific channel so the added user gets notified
-      const userChannel = supabase.channel(`user-${userId}-board-updates`);
-      
-      // Wait for subscription to be ready before sending
-      await new Promise<void>((resolve) => {
-        userChannel.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            resolve();
-          }
-        });
-      });
-      
-      await userChannel.send({
-        type: 'broadcast',
-        event: 'added_to_board',
-        payload: { 
-          board_id: boardId, 
-          role: assignRole,
-          added_by: currentUserId 
-        }
-      });
-      supabase.removeChannel(userChannel);
+      // Member addition is detected via postgres_changes - no broadcast needed
       
       toast({ title: 'Member added!' });
       onMembersChange();
@@ -287,32 +242,8 @@ export function BoardSettingsModal({
 
       if (error) throw error;
       
-      // Broadcast member removal event so the removed user gets notified instantly
-      const channel = supabase.channel(`board-${boardId}-member-changes`);
-      
-      // Wait for subscription to be ready before sending
-      await new Promise<void>((resolve) => {
-        channel.subscribe((status) => {
-          console.log('BoardSettingsModal: Broadcast channel status:', status);
-          if (status === 'SUBSCRIBED') {
-            resolve();
-          }
-        });
-      });
-      
-      console.log('BoardSettingsModal: Sending member_removed broadcast for user:', userToRemove.id);
-      await channel.send({
-        type: 'broadcast',
-        event: 'member_removed',
-        payload: { 
-          board_id: boardId, 
-          user_id: userToRemove.id,
-          removed_by: currentUserId 
-        }
-      });
-      console.log('BoardSettingsModal: Broadcast sent successfully');
-      
-      supabase.removeChannel(channel);
+      // Member removal is detected via postgres_changes in BoardPage
+      // No need for broadcast - the realtime subscription handles it
       
       toast({ title: 'Member removed' });
       onMembersChange();

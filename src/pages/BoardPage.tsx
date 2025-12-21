@@ -486,9 +486,10 @@ export default function BoardPage() {
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
   // App admins have full access to all boards
-  // Preview mode grants full edit access for testing
-  const canEdit = userRole === 'admin' || isAppAdmin || isPreviewMode;
-  const canManageMembers = userRole === 'admin' || userRole === 'manager' || isAppAdmin || isPreviewMode;
+  // IMPORTANT: isPreviewMode is ONLY used for auth bypass during local development,
+  // NOT for granting edit permissions - permissions are based on actual user role
+  const canEdit = userRole === 'admin' || isAppAdmin;
+  const canManageMembers = userRole === 'admin' || userRole === 'manager' || isAppAdmin;
 
   // Convert DB data to component format
   const getColumnCards = (columnId: string): CardType[] => {

@@ -11,6 +11,7 @@ import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
 import { cn } from '@/lib/utils';
 import { InlineButtonEditor, InlineButtonData, parseInlineButtonFromDataAttr } from './InlineButtonEditor';
+import twemoji from '@twemoji/api';
 
 interface ToastUIMarkdownEditorProps {
   content: string;
@@ -460,10 +461,28 @@ export function ToastUIMarkdownEditor({
     wrapper.style.cssText = 'position:relative;display:inline-flex;';
     wrapper.setAttribute('data-emoji-picker-wrapper', 'true');
     
+    // Helper to convert emoji to Twemoji image HTML
+    const getEmojiImg = (emoji: string, size: number = 24): string => {
+      const parsed = twemoji.parse(emoji, {
+        folder: 'svg',
+        ext: '.svg',
+        base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+      });
+      // Extract just the img src from the parsed HTML
+      const match = parsed.match(/src="([^"]+)"/);
+      return match ? match[1] : '';
+    };
+    
     const btn = document.createElement('button');
     btn.className = 'toastui-editor-toolbar-icons';
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:16px;padding:0;width:24px;height:24px;';
-    btn.innerHTML = '😀';
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;padding:0;width:24px;height:24px;';
+    // Use Twemoji for the toolbar button
+    const toolbarEmojiSrc = getEmojiImg('😀');
+    if (toolbarEmojiSrc) {
+      btn.innerHTML = `<img src="${toolbarEmojiSrc}" alt="😀" style="width:18px;height:18px;" draggable="false" />`;
+    } else {
+      btn.innerHTML = '😀';
+    }
     btn.title = 'Insert Emoji';
     btn.type = 'button';
     
@@ -599,8 +618,24 @@ export function ToastUIMarkdownEditor({
     const createEmojiButton = (emoji: string): HTMLButtonElement => {
       const emojiBtn = document.createElement('button');
       emojiBtn.type = 'button';
-      emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:22px;padding:4px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:34px;height:34px;';
-      emojiBtn.textContent = emoji;
+      emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:34px;height:34px;';
+      
+      // Use Twemoji image instead of native emoji
+      const emojiSrc = getEmojiImg(emoji);
+      if (emojiSrc) {
+        const img = document.createElement('img');
+        img.src = emojiSrc;
+        img.alt = emoji;
+        img.draggable = false;
+        img.style.cssText = 'width:24px;height:24px;pointer-events:none;';
+        emojiBtn.appendChild(img);
+      } else {
+        emojiBtn.textContent = emoji;
+        emojiBtn.style.fontSize = '22px';
+      }
+      
+      // Store the native emoji for insertion
+      emojiBtn.dataset.emoji = emoji;
       
       emojiBtn.addEventListener('mouseenter', () => { 
         emojiBtn.style.background = '#3d444d'; 
@@ -620,13 +655,14 @@ export function ToastUIMarkdownEditor({
       emojiBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        const clickedEmoji = emojiBtn.dataset.emoji || emoji;
         logEmoji('emojiBtn click event', { 
-          emoji, 
+          emoji: clickedEmoji, 
           eventType: e.type,
           isTrusted: e.isTrusted,
           target: (e.target as HTMLElement)?.tagName
         });
-        insertEmoji(emoji);
+        insertEmoji(clickedEmoji);
       });
       
       return emojiBtn;
@@ -674,12 +710,24 @@ export function ToastUIMarkdownEditor({
       renderCategory(category);
     };
     
+    // Helper to create a Twemoji tab button
+    const createTabWithTwemoji = (emoji: string, title: string, isActive: boolean = false): HTMLButtonElement => {
+      const tabBtn = document.createElement('button');
+      tabBtn.type = 'button';
+      tabBtn.style.cssText = `background:${isActive ? '#3d444d' : 'none'};border:none;cursor:pointer;padding:5px 7px;border-radius:6px;display:flex;align-items:center;justify-content:center;`;
+      const emojiSrc = getEmojiImg(emoji);
+      if (emojiSrc) {
+        tabBtn.innerHTML = `<img src="${emojiSrc}" alt="${emoji}" style="width:18px;height:18px;" draggable="false" />`;
+      } else {
+        tabBtn.textContent = emoji;
+        tabBtn.style.fontSize = '14px';
+      }
+      tabBtn.title = title;
+      return tabBtn;
+    };
+    
     // Create tabs
-    const recentTab = document.createElement('button');
-    recentTab.type = 'button';
-    recentTab.style.cssText = 'background:#3d444d;border:none;cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;';
-    recentTab.textContent = '🕐';
-    recentTab.title = 'Recent';
+    const recentTab = createTabWithTwemoji('🕐', 'Recent', true);
     recentTab.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -693,11 +741,7 @@ export function ToastUIMarkdownEditor({
     tabsContainer.appendChild(recentTab);
     
     categoryNames.forEach((category) => {
-      const tabBtn = document.createElement('button');
-      tabBtn.type = 'button';
-      tabBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;';
-      tabBtn.textContent = emojiCategories[category].icon;
-      tabBtn.title = category;
+      const tabBtn = createTabWithTwemoji(emojiCategories[category].icon, category);
       tabBtn.addEventListener('mousedown', (e) => {
         e.preventDefault();
         e.stopPropagation();

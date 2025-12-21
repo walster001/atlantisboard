@@ -135,14 +135,18 @@ export function CardDetailModal({
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [rendererKey, setRendererKey] = useState(0); // Key to force MarkdownRenderer remount for Twemoji
   const titleRef = useRef<HTMLHeadingElement>(null);
+  // Track when to skip syncing description from card prop (after save, prevents re-render race with Twemoji)
+  const skipDescriptionSyncUntilRef = useRef<number>(0);
 
   // Sync state from card prop when card changes
-  // Note: Twemoji persistence is handled by BoardPage's skipRealtimeDescriptionUntilRef
-  // which prevents realtime updates from overwriting the card prop after save
   useEffect(() => {
     if (card) {
       setTitle(stripHtmlTags(card.title));
-      setDescription(card.description || '');
+      // Only sync description if we're not in the skip window (prevents race with Twemoji parsing after save)
+      const now = Date.now();
+      if (now >= skipDescriptionSyncUntilRef.current) {
+        setDescription(card.description || '');
+      }
       setDueDate(card.dueDate ? new Date(card.dueDate) : undefined);
       setIsEditingTitle(false);
       setIsEditingDescription(false);
@@ -174,10 +178,11 @@ export function CardDetailModal({
   };
 
   const handleSaveDescription = () => {
+    // Set skip window to prevent useEffect([card]) from re-setting description state
+    // This prevents a re-render race condition that would overwrite Twemoji parsing
+    skipDescriptionSyncUntilRef.current = Date.now() + 500;
     setIsEditingDescription(false);
     setRendererKey(prev => prev + 1); // Force MarkdownRenderer remount for Twemoji
-    // onSave triggers BoardPage which sets skipRealtimeDescriptionUntilRef to prevent
-    // realtime updates from overwriting Twemoji rendering
     onSave({ description: description || undefined });
   };
 

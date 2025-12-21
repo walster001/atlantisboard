@@ -513,10 +513,12 @@ export function MarkdownRenderer({
   // Apply Twemoji parsing after render - use requestAnimationFrame to ensure DOM is updated
   // Use a double-RAF to ensure React has fully committed DOM updates
   useEffect(() => {
+    let rafId2: number | null = null;
+    
     // First RAF: wait for React's commit phase to complete
     const rafId1 = requestAnimationFrame(() => {
       // Second RAF: ensure browser has painted and DOM is stable
-      const rafId2 = requestAnimationFrame(() => {
+      rafId2 = requestAnimationFrame(() => {
         if (containerRef.current) {
           twemoji.parse(containerRef.current, {
             folder: 'svg',
@@ -526,14 +528,12 @@ export function MarkdownRenderer({
           });
         }
       });
-      // Store for cleanup
-      (rafId1 as any).__innerRaf = rafId2;
     });
     
     return () => {
       cancelAnimationFrame(rafId1);
-      if ((rafId1 as any).__innerRaf) {
-        cancelAnimationFrame((rafId1 as any).__innerRaf);
+      if (rafId2 !== null) {
+        cancelAnimationFrame(rafId2);
       }
     };
   }, [content, contentSegments, processedContent]);

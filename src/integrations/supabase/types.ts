@@ -122,6 +122,61 @@ export type Database = {
         }
         Relationships: []
       }
+      board_invite_tokens: {
+        Row: {
+          board_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          token: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          board_id: string
+          created_at?: string
+          created_by: string
+          expires_at?: string
+          id?: string
+          token: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          board_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          token?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "board_invite_tokens_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "board_invite_tokens_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "board_invite_tokens_used_by_fkey"
+            columns: ["used_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       board_member_audit_log: {
         Row: {
           action: string
@@ -948,6 +1003,10 @@ export type Database = {
         Args: { _board_id: string; _updates: Json; _user_id: string }
         Returns: Json
       }
+      can_create_board_invite: {
+        Args: { _board_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_edit_board: {
         Args: { _board_id: string; _user_id: string }
         Returns: boolean
@@ -1031,6 +1090,10 @@ export type Database = {
           _title?: string
           _user_id: string
         }
+        Returns: Json
+      }
+      validate_and_redeem_invite_token: {
+        Args: { _token: string; _user_id: string }
         Returns: Json
       }
     }

@@ -12,6 +12,7 @@ const Home = lazy(() => import("./pages/Home"));
 const Auth = lazy(() => import("./pages/Auth"));
 const BoardPage = lazy(() => import("./pages/BoardPage"));
 const AdminConfig = lazy(() => import("./pages/AdminConfig"));
+const InvitePage = lazy(() => import("./pages/InvitePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/board/:boardId" element={<BoardPage />} />
                 <Route path="/admin/config" element={<AdminConfig />} />
+                <Route path="/invite/:token" element={<InvitePage />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAppAdmin: boolean;
+  isVerified: boolean;
   verificationError: string | null;
   clearVerificationError: () => void;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAppAdmin, setIsAppAdmin] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
 
   const clearVerificationError = useCallback(() => {
@@ -71,11 +73,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!result.verified) {
             console.log('User not verified, signing out');
             setVerificationError(result.message || 'User does not exist in database');
+            setIsVerified(false);
             await supabase.auth.signOut();
             return;
           }
           console.log('User verified successfully');
+          setIsVerified(true);
+        } else {
+          // Non-verified login styles are always considered verified
+          setIsVerified(true);
         }
+      } else {
+        // Non-Google providers are always considered verified
+        setIsVerified(true);
       }
     }
 
@@ -174,6 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setUser(null);
     setIsAppAdmin(false);
+    setIsVerified(false);
     setVerificationError(null);
   };
 
@@ -184,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         loading,
         isAppAdmin,
+        isVerified,
         verificationError,
         clearVerificationError,
         signInWithGoogle,

@@ -73,7 +73,7 @@ const COLOR_THEME_MAP: Record<string, string> = {
 };
 
 export default function Home() {
-  const { user, signOut, loading: authLoading, isAppAdmin } = useAuth();
+  const { user, signOut, loading: authLoading, isAppAdmin, isVerified } = useAuth();
   const { settings: appSettings, appName } = useAppSettings();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -127,10 +127,13 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       fetchData();
-      // Check for and redeem any pending invite token
-      redeemPendingInviteToken();
+      // Check for and redeem any pending invite token only if user is verified
+      // This prevents token redemption for unverified users in google_verified mode
+      if (isVerified) {
+        redeemPendingInviteToken();
+      }
     }
-  }, [user]);
+  }, [user, isVerified]);
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {

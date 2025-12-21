@@ -202,6 +202,22 @@
       opacity: 1;
     }
   }
+
+  /* Mobile slide-in animation */
+  .animate-slide-in-bottom {
+    animation: slide-in-bottom 0.3s ease-out;
+  }
+
+  @keyframes slide-in-bottom {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
 }
 
 /* Themed button hover states using CSS custom properties */

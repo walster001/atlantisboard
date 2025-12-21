@@ -502,37 +502,35 @@ export function MarkdownRenderer({
   // Ref for the container to apply Twemoji parsing
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Apply Twemoji parsing after render
-  // Use triple-RAF + timeout to ensure all React updates and DOM mutations are complete
+  // Stable function to parse Twemoji in the container
+  const parseTwemoji = useCallback(() => {
+    if (containerRef.current) {
+      twemoji.parse(containerRef.current, {
+        folder: 'svg',
+        ext: '.svg',
+        base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+        className: 'twemoji-inline',
+      });
+    }
+  }, []);
+  
+  // Apply Twemoji parsing after EVERY render
+  // This is necessary because ReactMarkdown recreates DOM nodes on re-render,
+  // which replaces Twemoji <img> elements with fresh text nodes
   useEffect(() => {
     let timeoutId: number | null = null;
-    let rafId1: number | null = null;
-    let rafId2: number | null = null;
+    let rafId: number | null = null;
     
-    // First, wait for React's batched updates to complete
-    rafId1 = requestAnimationFrame(() => {
-      // Second, wait for browser paint
-      rafId2 = requestAnimationFrame(() => {
-        // Third, add a small delay for any remaining state updates
-        timeoutId = window.setTimeout(() => {
-          if (containerRef.current) {
-            twemoji.parse(containerRef.current, {
-              folder: 'svg',
-              ext: '.svg',
-              base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
-              className: 'twemoji-inline',
-            });
-          }
-        }, 50);
-      });
+    // Use RAF + timeout to ensure DOM is stable after React commits
+    rafId = requestAnimationFrame(() => {
+      timeoutId = window.setTimeout(parseTwemoji, 10);
     });
     
     return () => {
-      if (rafId1 !== null) cancelAnimationFrame(rafId1);
-      if (rafId2 !== null) cancelAnimationFrame(rafId2);
+      if (rafId !== null) cancelAnimationFrame(rafId);
       if (timeoutId !== null) clearTimeout(timeoutId);
     };
-  }, [processedContent]);
+  }); // No dependencies - runs after every render
 
   // If no content, return null
   if (!content) return null;

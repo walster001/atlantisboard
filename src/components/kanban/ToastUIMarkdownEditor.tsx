@@ -501,10 +501,11 @@ export function ToastUIMarkdownEditor({
     dropdown.setAttribute('data-emoji-dropdown', 'true');
     dropdown.style.cssText = 'position:fixed;z-index:2147483647;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:420px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
     
-    // Prevent focus loss from editor when interacting with dropdown
+    // Prevent focus loss and stop propagation so document listener doesn't close dropdown
     dropdown.addEventListener('mousedown', (e) => {
       log('DROPDOWN_MOUSEDOWN', { target: (e.target as HTMLElement)?.tagName });
       e.preventDefault(); // Prevents focus loss from editor
+      e.stopPropagation(); // Prevents document mousedown handler from closing
     }, false);
     
     // Search input
@@ -811,7 +812,7 @@ export function ToastUIMarkdownEditor({
       }
       closeDropdown();
     };
-    document.addEventListener('mousedown', handleOutsideMousedown, true); // Use capture phase
+    document.addEventListener('mousedown', handleOutsideMousedown, false); // Use bubble phase so dropdown can stopPropagation first
     
     // Append dropdown to body
     document.body.appendChild(dropdown);
@@ -822,7 +823,7 @@ export function ToastUIMarkdownEditor({
       if (!document.body.contains(wrapper) && !isOpen) {
         log('CLEANUP_OBSERVER_TRIGGERED');
         dropdown.remove();
-        document.removeEventListener('mousedown', handleOutsideMousedown, true);
+        document.removeEventListener('mousedown', handleOutsideMousedown, false);
         observer.disconnect();
       }
     });

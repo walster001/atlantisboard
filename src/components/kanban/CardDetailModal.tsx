@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { Card, Label, getLabelHexColor } from '@/types/kanban';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { SwipeableSheet } from '@/components/ui/swipeable-sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -607,14 +607,12 @@ export function CardDetailModal({
     </div>
   );
 
-  // Use Sheet on mobile, Dialog on desktop
+  // Use SwipeableSheet on mobile for swipe-to-dismiss, Dialog on desktop
   if (isMobile) {
     return (
-      <Sheet open={open} onOpenChange={onClose}>
-        <SheetContent side="bottom" className="h-[90vh] p-0 rounded-t-2xl" hideCloseButton>
-          {content}
-        </SheetContent>
-      </Sheet>
+      <SwipeableSheet open={open} onOpenChange={onClose}>
+        {content}
+      </SwipeableSheet>
     );
   }
 

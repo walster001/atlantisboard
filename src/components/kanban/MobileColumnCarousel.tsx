@@ -13,6 +13,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ColorPicker } from './ColorPicker';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { PullToRefreshIndicator } from './PullToRefreshIndicator';
 
 // Helper function to convert hex to RGB
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -53,6 +55,7 @@ interface MobileColumnCarouselProps {
   onUpdateCardColor: (cardId: string, color: string | null) => void;
   onApplyCardColorToAll: (color: string | null) => void;
   onReorderColumns?: (fromIndex: number, toIndex: number) => void;
+  onRefresh?: () => Promise<void>;
   disabled?: boolean;
   themeColumnColor?: string;
   themeCardColor?: string | null;
@@ -72,6 +75,7 @@ export function MobileColumnCarousel({
   onUpdateCardColor,
   onApplyCardColorToAll,
   onReorderColumns,
+  onRefresh,
   disabled = false,
   themeColumnColor,
   themeCardColor,
@@ -96,6 +100,18 @@ export function MobileColumnCarousel({
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isDotDraggingRef = useRef(false);
   const LONG_PRESS_DELAY = 300; // ms delay before drag starts
+  
+  // Pull-to-refresh
+  const PULL_THRESHOLD = 80;
+  const {
+    pullDistance,
+    isRefreshing,
+    handlers: pullHandlers,
+  } = usePullToRefresh({
+    onRefresh: onRefresh || (async () => {}),
+    threshold: PULL_THRESHOLD,
+    disabled: !onRefresh,
+  });
 
   const activeColumn = columns[activeIndex];
 
@@ -270,11 +286,26 @@ export function MobileColumnCarousel({
   return (
     <div 
       ref={containerRef}
-      className="flex flex-col h-full touch-pan-y"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      className="flex flex-col h-full touch-pan-y relative"
+      onTouchStart={(e) => {
+        handleTouchStart(e);
+        pullHandlers.onTouchStart(e);
+      }}
+      onTouchMove={(e) => {
+        handleTouchMove(e);
+        pullHandlers.onTouchMove(e);
+      }}
+      onTouchEnd={() => {
+        handleTouchEnd();
+        pullHandlers.onTouchEnd();
+      }}
     >
+      {/* Pull-to-refresh indicator */}
+      <PullToRefreshIndicator 
+        pullDistance={pullDistance} 
+        isRefreshing={isRefreshing} 
+        threshold={PULL_THRESHOLD} 
+      />
       {/* Column navigation dots with drag reordering */}
       <div className="flex items-center justify-center gap-2 py-3 px-4">
         <Button

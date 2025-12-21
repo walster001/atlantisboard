@@ -189,7 +189,16 @@ export function BoardSettingsModal({
       
       // Broadcast to the board channel for existing members to update their list
       const boardChannel = supabase.channel(`board-${boardId}-member-changes`);
-      await boardChannel.subscribe();
+      
+      // Wait for subscription to be ready before sending
+      await new Promise<void>((resolve) => {
+        boardChannel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            resolve();
+          }
+        });
+      });
+      
       await boardChannel.send({
         type: 'broadcast',
         event: 'member_added',
@@ -204,7 +213,16 @@ export function BoardSettingsModal({
       
       // Also broadcast to user-specific channel so the added user gets notified
       const userChannel = supabase.channel(`user-${userId}-board-updates`);
-      await userChannel.subscribe();
+      
+      // Wait for subscription to be ready before sending
+      await new Promise<void>((resolve) => {
+        userChannel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            resolve();
+          }
+        });
+      });
+      
       await userChannel.send({
         type: 'broadcast',
         event: 'added_to_board',
@@ -271,7 +289,18 @@ export function BoardSettingsModal({
       
       // Broadcast member removal event so the removed user gets notified instantly
       const channel = supabase.channel(`board-${boardId}-member-changes`);
-      await channel.subscribe();
+      
+      // Wait for subscription to be ready before sending
+      await new Promise<void>((resolve) => {
+        channel.subscribe((status) => {
+          console.log('BoardSettingsModal: Broadcast channel status:', status);
+          if (status === 'SUBSCRIBED') {
+            resolve();
+          }
+        });
+      });
+      
+      console.log('BoardSettingsModal: Sending member_removed broadcast for user:', userToRemove.id);
       await channel.send({
         type: 'broadcast',
         event: 'member_removed',
@@ -281,6 +310,8 @@ export function BoardSettingsModal({
           removed_by: currentUserId 
         }
       });
+      console.log('BoardSettingsModal: Broadcast sent successfully');
+      
       supabase.removeChannel(channel);
       
       toast({ title: 'Member removed' });

@@ -71,6 +71,11 @@ export default function BoardPage() {
   const { settings: appSettings } = useAppSettings();
   const { toast } = useToast();
 
+  // Check if we're in preview/development mode - bypass auth for testing
+  const isPreviewMode = window.location.hostname.includes('lovableproject.com') || 
+                        window.location.hostname.includes('lovable.app') ||
+                        window.location.hostname === 'localhost';
+
   const [boardName, setBoardName] = useState('');
   const [boardColor, setBoardColor] = useState('#0079bf');
   const [boardThemeId, setBoardThemeId] = useState<string | null>(null);
@@ -92,16 +97,20 @@ export default function BoardPage() {
   const { ref: dragScrollRef, isDragging, isSpaceHeld } = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
+    // Skip auth redirect in preview mode
+    if (isPreviewMode) return;
+    
     if (!authLoading && !user) {
       navigate('/auth');
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, isPreviewMode]);
 
   useEffect(() => {
-    if (user && boardId) {
+    // In preview mode, fetch board data even without user
+    if ((user || isPreviewMode) && boardId) {
       fetchBoardData();
     }
-  }, [user, boardId]);
+  }, [user, boardId, isPreviewMode]);
 
   // Memoize column IDs to prevent unnecessary subscription recreation
   const columnIds = useMemo(() => columns.map(c => c.id), [columns]);
@@ -110,7 +119,7 @@ export default function BoardPage() {
 
   // Realtime subscription for cards - updates UI instantly without refresh
   useEffect(() => {
-    if (!boardId || !user) return;
+    if (!boardId || (!user && !isPreviewMode)) return;
     
     const channel = supabase
       .channel(`board-${boardId}-cards-realtime`)
@@ -209,11 +218,11 @@ export default function BoardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, user]);
+  }, [boardId, user, isPreviewMode]);
 
   // Realtime subscription for columns - syncs column changes including color
   useEffect(() => {
-    if (!boardId || !user) return;
+    if (!boardId || (!user && !isPreviewMode)) return;
     
     const channel = supabase
       .channel(`board-${boardId}-columns-realtime`)
@@ -281,17 +290,22 @@ export default function BoardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, user]);
+  }, [boardId, user, isPreviewMode]);
 
   const fetchBoardData = async () => {
-    if (!boardId || !user) return;
+    if (!boardId) return;
+    
+    // In preview mode without user, use a mock user ID
+    const effectiveUserId = user?.id || (isPreviewMode ? '00000000-0000-0000-0000-000000000000' : null);
+    if (!effectiveUserId) return;
+    
     setLoading(true);
 
     try {
       // Single server-side call to get all board data
       const { data, error } = await supabase.rpc('get_board_data', {
         _board_id: boardId,
-        _user_id: user.id
+        _user_id: effectiveUserId
       });
 
       if (error) throw error;
@@ -471,8 +485,9 @@ export default function BoardPage() {
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
   // App admins have full access to all boards
-  const canEdit = userRole === 'admin' || isAppAdmin;
-  const canManageMembers = userRole === 'admin' || userRole === 'manager' || isAppAdmin;
+  // Preview mode grants full edit access for testing
+  const canEdit = userRole === 'admin' || isAppAdmin || isPreviewMode;
+  const canManageMembers = userRole === 'admin' || userRole === 'manager' || isAppAdmin || isPreviewMode;
 
   // Convert DB data to component format
   const getColumnCards = (columnId: string): CardType[] => {

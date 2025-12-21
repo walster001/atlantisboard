@@ -7,6 +7,7 @@ const corsHeaders = {
 
 interface GenerateInviteRequest {
   boardId: string;
+  linkType?: 'one_time' | 'recurring';
 }
 
 Deno.serve(async (req) => {
@@ -50,11 +51,20 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body: GenerateInviteRequest = await req.json();
-    const { boardId } = body;
+    const { boardId, linkType = 'one_time' } = body;
+
+    console.log('Request body:', { boardId, linkType });
 
     if (!boardId) {
       return new Response(
         JSON.stringify({ error: 'Bad Request', message: 'Board ID is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!['one_time', 'recurring'].includes(linkType)) {
+      return new Response(
+        JSON.stringify({ error: 'Bad Request', message: 'Invalid link type' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -102,8 +112,9 @@ Deno.serve(async (req) => {
         board_id: boardId,
         created_by: user.id,
         expires_at: expiresAt.toISOString(),
+        link_type: linkType,
       })
-      .select('id, token, expires_at')
+      .select('id, token, expires_at, link_type')
       .single();
 
     if (insertError) {
@@ -121,6 +132,7 @@ Deno.serve(async (req) => {
         success: true,
         token: insertedToken.token,
         expiresAt: insertedToken.expires_at,
+        linkType: insertedToken.link_type,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

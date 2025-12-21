@@ -502,22 +502,41 @@ export function MarkdownRenderer({
   // Ref for the container to apply Twemoji parsing
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Apply Twemoji parsing after render - use requestAnimationFrame to ensure DOM is updated
+  // Counter to force re-parsing when content prop changes (even if processed result is same)
+  const parseCounter = useRef(0);
+  
+  // Increment parse counter whenever raw content changes to ensure Twemoji re-parses
   useEffect(() => {
-    // Use requestAnimationFrame to ensure the DOM has been updated after ReactMarkdown renders
-    const rafId = requestAnimationFrame(() => {
-      if (containerRef.current) {
-        twemoji.parse(containerRef.current, {
-          folder: 'svg',
-          ext: '.svg',
-          base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
-          className: 'twemoji-inline',
-        });
-      }
+    parseCounter.current += 1;
+  }, [content]);
+  
+  // Apply Twemoji parsing after render - use requestAnimationFrame to ensure DOM is updated
+  // Use a double-RAF to ensure React has fully committed DOM updates
+  useEffect(() => {
+    // First RAF: wait for React's commit phase to complete
+    const rafId1 = requestAnimationFrame(() => {
+      // Second RAF: ensure browser has painted and DOM is stable
+      const rafId2 = requestAnimationFrame(() => {
+        if (containerRef.current) {
+          twemoji.parse(containerRef.current, {
+            folder: 'svg',
+            ext: '.svg',
+            base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+            className: 'twemoji-inline',
+          });
+        }
+      });
+      // Store for cleanup
+      (rafId1 as any).__innerRaf = rafId2;
     });
     
-    return () => cancelAnimationFrame(rafId);
-  }, [contentSegments, processedContent]);
+    return () => {
+      cancelAnimationFrame(rafId1);
+      if ((rafId1 as any).__innerRaf) {
+        cancelAnimationFrame((rafId1 as any).__innerRaf);
+      }
+    };
+  }, [content, contentSegments, processedContent]);
 
   // If no content, return null
   if (!content) return null;

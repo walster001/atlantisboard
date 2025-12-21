@@ -754,6 +754,28 @@ export default function BoardPage() {
       _updates: uniqueUpdates
     });
   }, [columns, cards, canEdit, user, boardId]);
+  
+  // Column reorder handler for mobile carousel dot drag
+  const reorderColumns = useCallback(async (fromIndex: number, toIndex: number) => {
+    if (!canEdit || !user || !boardId) return;
+    if (fromIndex === toIndex) return;
+    
+    const newColumns = Array.from(columns);
+    const [removed] = newColumns.splice(fromIndex, 1);
+    newColumns.splice(toIndex, 0, removed);
+
+    // Update positions locally (optimistic)
+    const updatedColumns = newColumns.map((col, idx) => ({ ...col, position: idx }));
+    setColumns(updatedColumns);
+
+    // Batch update in database (single server call)
+    const updates = updatedColumns.map(col => ({ id: col.id, position: col.position }));
+    await supabase.rpc('batch_update_column_positions', {
+      _user_id: user.id,
+      _board_id: boardId,
+      _updates: updates
+    });
+  }, [columns, canEdit, user, boardId]);
 
   const addColumn = async () => {
     // Early return for better UX - RLS will reject if user lacks permission
@@ -1133,6 +1155,7 @@ export default function BoardPage() {
               onApplyColumnColorToAll={applyColumnColorToAll}
               onUpdateCardColor={updateCardColor}
               onApplyCardColorToAll={applyCardColorToAll}
+              onReorderColumns={reorderColumns}
               disabled={!canEdit}
               themeColumnColor={boardTheme?.column_color}
               themeCardColor={boardTheme?.default_card_color}

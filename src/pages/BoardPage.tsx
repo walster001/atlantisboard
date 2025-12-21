@@ -303,59 +303,46 @@ export default function BoardPage() {
       .on(
         'postgres_changes',
         {
-          event: 'DELETE',
+          event: '*',
           schema: 'public',
           table: 'board_members',
           filter: `board_id=eq.${boardId}`,
         },
         (payload) => {
-          const deletedMembership = payload.old as { board_id: string; user_id: string };
-          // If current user was removed, redirect to home
-          if (deletedMembership.user_id === user.id) {
-            toast({
-              title: 'Access removed',
-              description: 'You have been removed from this board.',
-              variant: 'destructive',
-            });
-            navigate('/');
-          } else {
-            // Another member was removed, refresh members list
+          console.log('BoardPage: board_members change received:', payload);
+          
+          if (payload.eventType === 'DELETE') {
+            const deletedMembership = payload.old as { board_id: string; user_id: string };
+            // If current user was removed, redirect to home
+            if (deletedMembership?.user_id === user.id) {
+              console.log('BoardPage: Current user removed, redirecting to home');
+              toast({
+                title: 'Access removed',
+                description: 'You have been removed from this board.',
+                variant: 'destructive',
+              });
+              navigate('/');
+            } else {
+              // Another member was removed, refresh members list
+              refreshBoardMembers();
+            }
+          } else if (payload.eventType === 'INSERT') {
+            // New member added, refresh members list
+            refreshBoardMembers();
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedMembership = payload.new as { board_id: string; user_id: string; role: string };
+            // If current user's role changed, update local state
+            if (updatedMembership?.user_id === user.id) {
+              setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
+            }
+            // Refresh members list for any role change
             refreshBoardMembers();
           }
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'board_members',
-          filter: `board_id=eq.${boardId}`,
-        },
-        (payload) => {
-          // New member added, refresh members list
-          refreshBoardMembers();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'board_members',
-          filter: `board_id=eq.${boardId}`,
-        },
-        (payload) => {
-          const updatedMembership = payload.new as { board_id: string; user_id: string; role: string };
-          // If current user's role changed, update local state
-          if (updatedMembership.user_id === user.id) {
-            setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
-          }
-          // Refresh members list for any role change
-          refreshBoardMembers();
-        }
-      )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('BoardPage: board_members subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

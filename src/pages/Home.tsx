@@ -146,48 +146,47 @@ export default function Home() {
       .on(
         'postgres_changes',
         {
-          event: 'DELETE',
+          event: '*',
           schema: 'public',
           table: 'board_members',
         },
         (payload) => {
-          const deletedMembership = payload.old as { board_id: string; user_id: string };
-          // If current user was removed from a board, remove it from the list
-          if (deletedMembership.user_id === user.id) {
-            setBoards(prev => prev.filter(b => b.id !== deletedMembership.board_id));
-            // Also remove from boardRoles
-            setBoardRoles(prev => {
-              const updated = { ...prev };
-              delete updated[deletedMembership.board_id];
-              return updated;
-            });
-            toast({
-              title: 'Board access removed',
-              description: 'You have been removed from a board.',
-            });
+          console.log('Home: board_members change received:', payload);
+          
+          if (payload.eventType === 'DELETE') {
+            const deletedMembership = payload.old as { board_id: string; user_id: string };
+            // If current user was removed from a board, remove it from the list
+            if (deletedMembership?.user_id === user.id) {
+              console.log('Home: Current user removed from board:', deletedMembership.board_id);
+              setBoards(prev => prev.filter(b => b.id !== deletedMembership.board_id));
+              // Also remove from boardRoles
+              setBoardRoles(prev => {
+                const updated = { ...prev };
+                delete updated[deletedMembership.board_id];
+                return updated;
+              });
+              toast({
+                title: 'Board access removed',
+                description: 'You have been removed from a board.',
+              });
+            }
+          } else if (payload.eventType === 'INSERT') {
+            const newMembership = payload.new as { board_id: string; user_id: string; role: string };
+            // If current user was added to a board, refresh data to show it
+            if (newMembership?.user_id === user.id) {
+              console.log('Home: Current user added to board:', newMembership.board_id);
+              fetchData();
+              toast({
+                title: 'Board access granted',
+                description: 'You have been added to a new board.',
+              });
+            }
           }
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'board_members',
-        },
-        (payload) => {
-          const newMembership = payload.new as { board_id: string; user_id: string; role: string };
-          // If current user was added to a board, refresh data to show it
-          if (newMembership.user_id === user.id) {
-            fetchData();
-            toast({
-              title: 'Board access granted',
-              description: 'You have been added to a new board.',
-            });
-          }
-        }
-      )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Home: board_members subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

@@ -26,9 +26,6 @@ interface ImportResult {
   cards_created: number;
   labels_created: number;
   subtasks_created: number;
-  attachments_noted: number;
-  attachments_pending: number;
-  assignees_pending: number;
   errors: string[];
   warnings: string[];
 }
@@ -529,9 +526,6 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       cards_created: 0,
       labels_created: 0,
       subtasks_created: 0,
-      attachments_noted: 0,
-      attachments_pending: 0,
-      assignees_pending: 0,
       errors: [],
       warnings: [],
     };
@@ -794,58 +788,6 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                 result.warnings.push(`Failed to create subtask "${item.name}": ${subtaskError.message}`);
               } else {
                 result.subtasks_created++;
-              }
-            }
-          }
-
-          // Create pending attachment records
-          const attachments = card.attachments || [];
-          if (attachments.length > 0) {
-            onProgress('attachments', 0, attachments.length, `Recording ${attachments.length} attachments...`);
-            result.attachments_noted += attachments.length;
-            
-            for (const attachment of attachments) {
-              // Create pending attachment for tracking
-              const { error: pendingAttachError } = await supabase
-                .from('import_pending_attachments')
-                .insert({
-                  board_id: board.id,
-                  card_id: newCard.id,
-                  original_attachment_id: attachment.id,
-                  original_name: attachment.name,
-                  original_url: attachment.url,
-                  original_size: attachment.bytes,
-                  original_type: attachment.mimeType,
-                  import_source: 'trello',
-                });
-
-              if (!pendingAttachError) {
-                result.attachments_pending++;
-              }
-            }
-          }
-
-          // Create pending assignee mappings
-          if (card.idMembers && card.idMembers.length > 0) {
-            onProgress('assignees', 0, card.idMembers.length, `Recording ${card.idMembers.length} assignees...`);
-            for (const memberId of card.idMembers) {
-              const member = memberMap.get(memberId);
-              const memberName = member?.fullName || member?.username || `Unknown (${memberId})`;
-              const username = member?.username || null;
-
-              const { error: pendingError } = await supabase
-                .from('import_pending_assignees')
-                .insert({
-                  board_id: board.id,
-                  card_id: newCard.id,
-                  original_member_id: memberId,
-                  original_member_name: memberName,
-                  original_username: username,
-                  import_source: 'trello',
-                });
-
-              if (!pendingError) {
-                result.assignees_pending++;
               }
             }
           }
@@ -1347,8 +1289,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                 <li>• Wekan Cards → KanBoard Cards</li>
                 <li>• Wekan Labels → KanBoard Labels</li>
                 <li>• Wekan Checklists → KanBoard Subtasks</li>
-                <li>• Wekan Members → Pending (use Assignee Mapping)</li>
-                <li className="text-amber-600">• Comments are ignored</li>
+                <li className="text-amber-600">• Members, attachments, comments are ignored</li>
               </ul>
             </div>
           )}
@@ -1362,8 +1303,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                 <li>• Trello Cards → KanBoard Cards</li>
                 <li>• Trello Labels → KanBoard Labels</li>
                 <li>• Trello Checklists → KanBoard Subtasks</li>
-                <li>• Trello Members → Pending (use Assignee Mapping)</li>
-                <li className="text-amber-600">• Comments ignored, archived items skipped</li>
+                <li className="text-amber-600">• Members, attachments, comments ignored, archived items skipped</li>
               </ul>
             </div>
           )}
@@ -1405,12 +1345,6 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                     <p>✓ Cards: {importResult.cards_created}</p>
                     <p>✓ Labels: {importResult.labels_created}</p>
                     <p>✓ Subtasks: {importResult.subtasks_created}</p>
-                    {importResult.attachments_noted > 0 && (
-                      <p className="text-amber-600">⚠ {importResult.attachments_noted} attachments</p>
-                    )}
-                    {importResult.assignees_pending > 0 && (
-                      <p className="text-blue-600">ℹ {importResult.assignees_pending} assignees pending mapping</p>
-                    )}
                   </div>
                 )}
 

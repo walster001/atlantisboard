@@ -217,8 +217,8 @@ export default function InvitePage() {
     setIsSigningIn(true);
     clearVerificationError();
     
-    // Redirect back to the invite page after OAuth
-    const redirectUrl = `${window.location.origin}/invite/${token}`;
+    // Redirect to homepage after OAuth - token is stored in sessionStorage for redemption there
+    const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',

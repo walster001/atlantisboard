@@ -33,7 +33,7 @@ interface InviteLinkButtonProps {
 interface ActiveRecurringLink {
   id: string;
   token: string;
-  expires_at: string;
+  expires_at: string | null;
   created_at: string;
 }
 
@@ -66,13 +66,12 @@ export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButto
   const fetchActiveRecurringLinks = async () => {
     setIsLoadingLinks(true);
     try {
+      // Recurring links have no expiry (expires_at is NULL), so we don't filter by expiry
       const { data, error } = await supabase
         .from('board_invite_tokens')
         .select('id, token, expires_at, created_at')
         .eq('board_id', boardId)
         .eq('link_type', 'recurring')
-        .is('used_at', null)
-        .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -314,16 +313,16 @@ export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButto
                     )}
                   </Button>
                 </div>
-                {expiresAt && (
+                {generatedLinkType === 'one_time' && expiresAt && (
                   <p className="text-sm text-muted-foreground">
                     Expires: {formatExpiryTime(expiresAt)}
                   </p>
                 )}
                 <div className="text-sm text-muted-foreground space-y-1">
                   {generatedLinkType === 'one_time' ? (
-                    <p>• This link can only be used once</p>
+                    <p>• This link can only be used once (expires in 24 hours)</p>
                   ) : (
-                    <p>• This link can be used by multiple users</p>
+                    <p>• This link can be used by multiple users (no expiry)</p>
                   )}
                   <p>• Recipients will join as viewers (read-only)</p>
                 </div>
@@ -358,7 +357,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButto
                             ...{link.token.slice(-20)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Expires: {formatExpiryTime(link.expires_at)}
+                            {link.expires_at ? `Expires: ${formatExpiryTime(link.expires_at)}` : 'No expiry'}
                           </p>
                         </div>
                         <div className="flex items-center gap-1">

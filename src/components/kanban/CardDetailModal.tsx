@@ -178,10 +178,14 @@ export function CardDetailModal({
   };
 
   const handleSaveDescription = () => {
-    skipNextSyncRef.current = true; // Skip next sync to preserve Twemoji rendering
-    onSave({ description: description || undefined });
+    // Set flag to skip syncing description from prop updates after save
+    // This preserves the local state so Twemoji rendering isn't overwritten
+    skipNextSyncRef.current = true;
     setIsEditingDescription(false);
     setRendererKey(prev => prev + 1); // Force MarkdownRenderer remount for Twemoji
+    
+    // Call onSave after state updates to ensure flag is set before any re-render
+    onSave({ description: description || undefined });
   };
 
   const handleSaveDueDate = (date: Date | undefined) => {

@@ -12,6 +12,13 @@ import '@toast-ui/editor/dist/toastui-editor.css';
 import { cn } from '@/lib/utils';
 import { InlineButtonEditor, InlineButtonData, parseInlineButtonFromDataAttr } from './InlineButtonEditor';
 import twemoji from '@twemoji/api';
+import { 
+  EMOJI_CATEGORIES, 
+  CATEGORY_NAMES, 
+  getRecentEmojis, 
+  addRecentEmoji, 
+  getAllEmojis 
+} from './emojiData';
 
 interface ToastUIMarkdownEditorProps {
   content: string;
@@ -435,224 +442,123 @@ export function ToastUIMarkdownEditor({
 
   // Create Emoji picker toolbar button
   const createEmojiToolbarItem = useCallback(() => {
-    const RECENT_EMOJIS_KEY = 'toastui-recent-emojis';
-    const MAX_RECENT = 20;
+    const allEmojis = getAllEmojis();
     
-    // Enhanced logging helper
-    const logEmoji = (action: string, data?: any) => {
-      const timestamp = new Date().toISOString();
-      const logData = data !== undefined ? JSON.stringify(data, null, 2) : '';
-      console.log(`[EmojiPicker ${timestamp}] ${action}`, logData ? `\n${logData}` : '');
-    };
-    
-    logEmoji('createEmojiToolbarItem called - initializing emoji picker');
-    
-    const getRecentEmojis = (): string[] => {
-      try {
-        const stored = localStorage.getItem(RECENT_EMOJIS_KEY);
-        const result = stored ? JSON.parse(stored) : [];
-        logEmoji('getRecentEmojis', { count: result.length, emojis: result.slice(0, 5) });
-        return result;
-      } catch (err) {
-        logEmoji('getRecentEmojis ERROR', { error: String(err) });
-        return [];
-      }
-    };
-    
-    const addRecentEmoji = (emoji: string) => {
-      try {
-        let recent = getRecentEmojis();
-        recent = [emoji, ...recent.filter(e => e !== emoji)].slice(0, MAX_RECENT);
-        localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(recent));
-        logEmoji('addRecentEmoji success', { emoji, newCount: recent.length });
-      } catch (err) {
-        logEmoji('addRecentEmoji ERROR', { emoji, error: String(err) });
-      }
-    };
-    
-    // Use only widely-supported emojis (no newer emoji 13+ that may not render on all systems)
-    const emojiCategories: Record<string, { icon: string; emojis: string[] }> = {
-      'Smileys': { icon: '😀', emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '😍', '🤩', '😘', '😗', '😚', '😙', '😋', '😛', '😜', '😝', '🤑', '🤗', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '😵', '🤯', '🤠', '😎', '🤓', '🧐', '😕', '😟', '🙁', '😮', '😯', '😲', '😳', '😱', '😨', '😰', '😥', '😢', '😭', '😤', '😠', '😡', '🤬', '😈', '👿', '💀', '👻', '👽', '🤖', '💩', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'] },
-      'Gestures': { icon: '👍', emojis: ['👋', '🤚', '✋', '🖖', '👌', '✌', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤝', '🙏', '💅', '🤳', '💪', '👂', '👃', '👀', '👁', '👅', '👄', '👶', '👧', '🧒', '👦', '👩', '🧑', '👨', '👵', '🧓', '👴', '👮', '🕵', '👷', '👸', '🤴', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶'] },
-      'Hearts': { icon: '❤', emojis: ['❤', '🧡', '💛', '💚', '💙', '💜', '🖤', '💔', '❣', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '💋', '💌', '💐', '🌹', '🌺', '🌸', '🌷', '🌻', '🌼', '🏵', '🌾', '🌿', '🍀', '🍁', '🍂', '🍃', '🌵', '🌴', '🌳', '🌲', '🎋', '🎍'] },
-      'Objects': { icon: '💡', emojis: ['💡', '🔦', '🏮', '📱', '💻', '🖥', '🖨', '💾', '💿', '📀', '📷', '📸', '📹', '🎥', '📞', '📟', '📠', '📺', '📻', '🎙', '⏱', '⏲', '⏰', '🕰', '⌚', '📡', '🔋', '🔌', '💸', '💵', '💴', '💶', '💷', '💰', '💳', '💎', '🔧', '🔨', '🔩', '⚙', '🔫', '💣', '🔪', '🗡', '⚔', '🛡', '🚬', '⚰', '⚱', '🏺', '🔮', '📿', '💈', '🔭', '🔬', '🕳', '💊', '💉', '🌡', '🚽', '🚿', '🛁', '🔑', '🗝', '🚪', '🛋', '🛏', '🖼', '🛍', '🎁', '🎈', '🎏', '🎀', '🎊', '🎉', '🎎', '🏮', '🎐', '✉', '📩', '📨', '📧', '💌', '📮', '📪', '📫', '📬', '📭', '📦', '📯', '📜', '📃', '📄', '📑', '📊', '📈', '📉', '📆', '📅', '📇', '🗃', '🗳', '🗄', '📋', '📁', '📂', '🗂', '🗞', '📰', '📓', '📔', '📒', '📕', '📗', '📘', '📙', '📚', '📖', '🔖', '🔗', '📎', '🖇', '📐', '📏', '📌', '📍', '✂', '🖊', '🖋', '✒', '🖌', '🖍', '📝', '✏', '🔍', '🔎', '🔏', '🔐', '🔒', '🔓'] },
-      'Symbols': { icon: '✅', emojis: ['✅', '❌', '⭐', '🌟', '💫', '✨', '⚡', '🔥', '💥', '❗', '❓', '❕', '❔', '‼', '⁉', '💯', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲', '🏁', '🚩', '🎌', '🏴', '🏳', '➕', '➖', '➗', '✖', '💲', '💱', '™', '©', '®', '〰', '➰', '➿', '🔃', '🔄', '🔙', '🔚', '🔛', '🔜', '🔝', '🎵', '🎶', '🔊', '🔉', '🔈', '🔇', '📣', '📢', '🔔', '🔕', '🃏', '🀄', '🎴', '👁‍🗨', '💭', '🗯', '💬', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛'] },
-      'Activities': { icon: '🎉', emojis: ['🎉', '🎊', '🎈', '🎁', '🎀', '🎄', '🎃', '🎗', '🎟', '🎫', '🎖', '🏆', '🥇', '🥈', '🥉', '⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🏒', '🏑', '🏏', '⛳', '🏹', '🎣', '🥊', '🥋', '🎽', '🛷', '🎿', '🏂', '🏋', '🤺', '🤼', '🤸', '⛹', '🤾', '🏌', '🏇', '⛷', '🏊', '🚣', '🏄', '🚴', '🚵', '🎮', '🕹', '🎲', '♠', '♥', '♦', '♣', '🃏', '🀄', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🎻', '🎯', '🎳', '🎰', '🎪'] },
-    };
-    
-    const allEmojis: { emoji: string; category: string }[] = [];
-    Object.entries(emojiCategories).forEach(([category, data]) => {
-      data.emojis.forEach(emoji => allEmojis.push({ emoji, category }));
-    });
-    
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:relative;display:inline-flex;';
-    wrapper.setAttribute('data-emoji-picker-wrapper', 'true');
-    
-    // Helper to convert emoji to Twemoji image HTML
-    const getEmojiImg = (emoji: string, size: number = 24): string => {
+    // Twemoji helper - get image URL for an emoji
+    const getEmojiImgSrc = (emoji: string): string => {
       const parsed = twemoji.parse(emoji, {
         folder: 'svg',
         ext: '.svg',
         base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
       });
-      // Extract just the img src from the parsed HTML
       const match = parsed.match(/src="([^"]+)"/);
       return match ? match[1] : '';
     };
     
+    // State
+    let isOpen = false;
+    let activeCategory = 'recent';
+    let savedSelection: { start: number; end: number } | null = null;
+    const tabButtons: HTMLButtonElement[] = [];
+    
+    // Create wrapper
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative;display:inline-flex;';
+    wrapper.setAttribute('data-emoji-picker-wrapper', 'true');
+    
+    // Create toolbar button with Twemoji
     const btn = document.createElement('button');
     btn.className = 'toastui-editor-toolbar-icons';
     btn.style.cssText = 'background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;padding:0;width:24px;height:24px;';
-    // Use Twemoji for the toolbar button
-    const toolbarEmojiSrc = getEmojiImg('😀');
-    if (toolbarEmojiSrc) {
-      btn.innerHTML = `<img src="${toolbarEmojiSrc}" alt="😀" style="width:18px;height:18px;" draggable="false" />`;
-    } else {
-      btn.innerHTML = '😀';
-    }
+    const toolbarSrc = getEmojiImgSrc('😀');
+    btn.innerHTML = toolbarSrc 
+      ? `<img src="${toolbarSrc}" alt="😀" style="width:18px;height:18px;" draggable="false" />`
+      : '😀';
     btn.title = 'Insert Emoji';
     btn.type = 'button';
     
-    // Create dropdown and append to wrapper (not body) to avoid z-index and cleanup issues
+    // Create dropdown
     const dropdown = document.createElement('div');
     dropdown.setAttribute('data-emoji-dropdown', 'true');
-    dropdown.style.cssText = 'position:fixed;z-index:2147483647;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:400px;box-shadow:0 12px 32px rgba(0,0,0,0.5);pointer-events:auto;';
+    dropdown.style.cssText = 'position:fixed;z-index:2147483647;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:420px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
     
-    // State
-    let isOpen = false;
-    let activeCategory: string = 'recent';
-    let savedSelection: { start: number; end: number } | null = null;
-    const categoryNames = Object.keys(emojiCategories);
-    const tabButtons: HTMLButtonElement[] = [];
-    
-    // Build UI elements
+    // Search input
     const searchContainer = document.createElement('div');
     searchContainer.style.cssText = 'padding:10px;border-bottom:1px solid #3d444d;';
-    
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
     searchInput.placeholder = 'Search emojis...';
     searchInput.style.cssText = 'width:100%;padding:8px 12px;border:1px solid #3d444d;border-radius:6px;background:#161b22;color:#e6edf3;font-size:14px;outline:none;box-sizing:border-box;';
     searchContainer.appendChild(searchInput);
     
-    
+    // Tabs
     const tabsWrapper = document.createElement('div');
-    tabsWrapper.style.cssText = 'padding:0 10px 6px;border-bottom:1px solid #3d444d;';
-    
+    tabsWrapper.style.cssText = 'padding:6px 10px;border-bottom:1px solid #3d444d;overflow-x:auto;';
     const tabsContainer = document.createElement('div');
-    tabsContainer.style.cssText = 'display:flex;gap:2px;overflow-x:auto;';
+    tabsContainer.style.cssText = 'display:flex;gap:2px;';
+    tabsWrapper.appendChild(tabsContainer);
     
+    // Category header
     const header = document.createElement('div');
     header.style.cssText = 'padding:6px 12px;font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;';
     header.textContent = 'Recent';
     
-    const emojiScrollContainer = document.createElement('div');
-    emojiScrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;-webkit-overflow-scrolling:touch;';
-    
-    // Explicitly handle wheel events to ensure scrolling works
-    emojiScrollContainer.addEventListener('wheel', (e) => {
-      e.stopPropagation();
-      // Allow default scroll behavior
-    }, { passive: true });
+    // Emoji grid container
+    const scrollContainer = document.createElement('div');
+    scrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;-webkit-overflow-scrolling:touch;';
+    scrollContainer.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
     
     const emojiGrid = document.createElement('div');
-    emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:10px;';
+    emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:8px;';
+    scrollContainer.appendChild(emojiGrid);
     
-    // Helper functions
+    // Helper: Save editor selection
     const saveSelection = () => {
-      logEmoji('saveSelection called');
       const editor = editorRef.current?.getInstance();
-      logEmoji('saveSelection - editor exists', { hasEditor: !!editor });
-      
       if (editor) {
         try {
-          const currentMode = editor.isMarkdownMode() ? 'markdown' : 'wysiwyg';
-          logEmoji('saveSelection - editor mode', { mode: currentMode });
-          
           const [start, end] = editor.getSelection();
           savedSelection = { start, end };
-          logEmoji('saveSelection - success', { savedSelection, mode: currentMode });
-        } catch (err) {
-          logEmoji('saveSelection - ERROR', { error: String(err), stack: (err as Error)?.stack });
+        } catch {
           savedSelection = null;
         }
-      } else {
-        logEmoji('saveSelection - no editor instance');
-        savedSelection = null;
       }
     };
     
+    // Helper: Close dropdown
     const closeDropdown = () => {
-      logEmoji('closeDropdown called', { isOpen, dropdownDisplay: dropdown.style.display });
       if (!isOpen) return;
       isOpen = false;
       dropdown.style.display = 'none';
-      logEmoji('closeDropdown - dropdown hidden');
     };
     
+    // Helper: Insert emoji into editor
     const insertEmoji = (emoji: string) => {
-      logEmoji('insertEmoji called', { emoji, savedSelection });
-      
       const editor = editorRef.current?.getInstance();
-      logEmoji('insertEmoji - editor state', { 
-        hasEditor: !!editor,
-        editorRefCurrent: !!editorRef.current
-      });
-      
       if (editor) {
         try {
-          const currentMode = editor.isMarkdownMode() ? 'markdown' : 'wysiwyg';
-          const markdownBefore = editor.getMarkdown();
-          logEmoji('insertEmoji - before state', { 
-            mode: currentMode,
-            markdownLength: markdownBefore.length,
-            markdownPreview: markdownBefore.slice(-50)
-          });
-          
-          logEmoji('insertEmoji - calling editor.focus()');
           editor.focus();
-          
           if (savedSelection) {
-            try {
-              logEmoji('insertEmoji - restoring selection', savedSelection);
-              editor.setSelection(savedSelection.start, savedSelection.end);
-            } catch (err) {
-              logEmoji('insertEmoji - setSelection ERROR', { error: String(err) });
-            }
+            try { editor.setSelection(savedSelection.start, savedSelection.end); } catch {}
           }
-          
-          logEmoji('insertEmoji - calling editor.insertText()');
           editor.insertText(emoji);
-          
-          const markdownAfter = editor.getMarkdown();
-          logEmoji('insertEmoji - after state', { 
-            markdownLength: markdownAfter.length,
-            markdownPreview: markdownAfter.slice(-50),
-            emojiInserted: markdownAfter.includes(emoji)
-          });
-          
           addRecentEmoji(emoji);
-          logEmoji('insertEmoji - complete success');
-        } catch (err) {
-          logEmoji('insertEmoji - EXCEPTION', { error: String(err), stack: (err as Error)?.stack });
-        }
-      } else {
-        logEmoji('insertEmoji - NO EDITOR - cannot insert');
+        } catch {}
       }
       closeDropdown();
     };
     
-    const createEmojiButton = (emoji: string): HTMLButtonElement => {
+    // Helper: Create emoji button
+    const createEmojiBtn = (emoji: string): HTMLButtonElement => {
       const emojiBtn = document.createElement('button');
       emojiBtn.type = 'button';
       emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:34px;height:34px;';
+      emojiBtn.dataset.emoji = emoji;
       
-      // Use Twemoji image instead of native emoji
-      const emojiSrc = getEmojiImg(emoji);
-      if (emojiSrc) {
+      const src = getEmojiImgSrc(emoji);
+      if (src) {
         const img = document.createElement('img');
-        img.src = emojiSrc;
+        img.src = src;
         img.alt = emoji;
         img.draggable = false;
         img.style.cssText = 'width:24px;height:24px;pointer-events:none;';
@@ -662,137 +568,101 @@ export function ToastUIMarkdownEditor({
         emojiBtn.style.fontSize = '22px';
       }
       
-      // Store the native emoji for insertion
-      emojiBtn.dataset.emoji = emoji;
-      
-      emojiBtn.addEventListener('mouseenter', () => { 
-        emojiBtn.style.background = '#3d444d'; 
+      emojiBtn.addEventListener('mouseenter', () => {
+        emojiBtn.style.background = '#3d444d';
         emojiBtn.style.transform = 'scale(1.15)';
       });
-      
-      emojiBtn.addEventListener('mouseleave', () => { 
-        emojiBtn.style.background = 'none'; 
+      emojiBtn.addEventListener('mouseleave', () => {
+        emojiBtn.style.background = 'none';
         emojiBtn.style.transform = 'scale(1)';
       });
-      
-      emojiBtn.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-      
+      emojiBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
       emojiBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const clickedEmoji = emojiBtn.dataset.emoji || emoji;
-        logEmoji('emojiBtn click event', { 
-          emoji: clickedEmoji, 
-          eventType: e.type,
-          isTrusted: e.isTrusted,
-          target: (e.target as HTMLElement)?.tagName
-        });
-        insertEmoji(clickedEmoji);
+        insertEmoji(emojiBtn.dataset.emoji || emoji);
       });
       
       return emojiBtn;
     };
     
+    // Helper: Render emojis
     const renderEmojis = (emojis: string[], label: string) => {
       emojiGrid.innerHTML = '';
       header.textContent = label;
       if (emojis.length === 0) {
         const noResults = document.createElement('div');
         noResults.style.cssText = 'grid-column:1/-1;text-align:center;color:#8b949e;padding:20px;font-size:14px;';
-        noResults.textContent = label === 'Recent' ? 'No recent emojis yet' : 'No emojis found';
+        noResults.textContent = label === 'Recent' ? 'No recent emojis' : 'No emojis found';
         emojiGrid.appendChild(noResults);
       } else {
-        emojis.forEach(emoji => emojiGrid.appendChild(createEmojiButton(emoji)));
+        emojis.forEach(e => emojiGrid.appendChild(createEmojiBtn(e)));
       }
     };
     
+    // Helper: Render category
     const renderCategory = (category: string) => {
-      logEmoji('renderCategory', { category });
       if (category === 'recent') {
-        const recentEmojis = getRecentEmojis();
-        logEmoji('renderCategory - recent emojis', { count: recentEmojis.length });
-        renderEmojis(recentEmojis, 'Recent');
-      } else if (emojiCategories[category]) {
-        const catEmojis = emojiCategories[category].emojis;
-        logEmoji('renderCategory - category emojis', { category, count: catEmojis.length });
-        renderEmojis(catEmojis, category);
+        renderEmojis(getRecentEmojis(), 'Recent');
+      } else if (EMOJI_CATEGORIES[category]) {
+        renderEmojis(EMOJI_CATEGORIES[category].emojis, category);
       }
-      emojiScrollContainer.scrollTop = 0;
+      scrollContainer.scrollTop = 0;
     };
     
+    // Helper: Update tab styles
     const updateTabStyles = () => {
-      tabButtons.forEach((tabBtn, i) => {
-        const cat = i === 0 ? 'recent' : categoryNames[i - 1];
-        tabBtn.style.background = cat === activeCategory ? '#3d444d' : 'none';
+      tabButtons.forEach((tab, i) => {
+        const cat = i === 0 ? 'recent' : CATEGORY_NAMES[i - 1];
+        tab.style.background = cat === activeCategory ? '#3d444d' : 'none';
       });
     };
     
+    // Helper: Select category
     const selectCategory = (category: string) => {
-      logEmoji('selectCategory', { category, previousCategory: activeCategory });
       activeCategory = category;
       searchInput.value = '';
       updateTabStyles();
       renderCategory(category);
     };
     
-    // Helper to create a Twemoji tab button
-    const createTabWithTwemoji = (emoji: string, title: string, isActive: boolean = false): HTMLButtonElement => {
-      const tabBtn = document.createElement('button');
-      tabBtn.type = 'button';
-      tabBtn.style.cssText = `background:${isActive ? '#3d444d' : 'none'};border:none;cursor:pointer;padding:5px 7px;border-radius:6px;display:flex;align-items:center;justify-content:center;`;
-      const emojiSrc = getEmojiImg(emoji);
-      if (emojiSrc) {
-        tabBtn.innerHTML = `<img src="${emojiSrc}" alt="${emoji}" style="width:18px;height:18px;" draggable="false" />`;
+    // Helper: Create tab button
+    const createTab = (emoji: string, title: string, isActive = false): HTMLButtonElement => {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.style.cssText = `background:${isActive ? '#3d444d' : 'none'};border:none;cursor:pointer;padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;`;
+      tab.title = title;
+      const src = getEmojiImgSrc(emoji);
+      if (src) {
+        tab.innerHTML = `<img src="${src}" alt="${emoji}" style="width:18px;height:18px;" draggable="false" />`;
       } else {
-        tabBtn.textContent = emoji;
-        tabBtn.style.fontSize = '14px';
+        tab.textContent = emoji;
+        tab.style.fontSize = '14px';
       }
-      tabBtn.title = title;
-      return tabBtn;
+      return tab;
     };
     
-    // Create tabs
-    const recentTab = createTabWithTwemoji('🕐', 'Recent', true);
-    recentTab.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-    recentTab.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      selectCategory('recent');
-    });
+    // Build tabs - Recent tab first
+    const recentTab = createTab('🕐', 'Recent', true);
+    recentTab.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+    recentTab.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); selectCategory('recent'); });
     tabButtons.push(recentTab);
     tabsContainer.appendChild(recentTab);
     
-    categoryNames.forEach((category) => {
-      const tabBtn = createTabWithTwemoji(emojiCategories[category].icon, category);
-      tabBtn.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-      tabBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        selectCategory(category);
-      });
-      tabButtons.push(tabBtn);
-      tabsContainer.appendChild(tabBtn);
+    // Category tabs
+    CATEGORY_NAMES.forEach(category => {
+      const tab = createTab(EMOJI_CATEGORIES[category].icon, category);
+      tab.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+      tab.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); selectCategory(category); });
+      tabButtons.push(tab);
+      tabsContainer.appendChild(tab);
     });
     
-    // Search functionality - add mousedown prevention
-    searchInput.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
-    });
-    searchInput.addEventListener('focus', (e) => {
-      e.stopPropagation();
-    });
+    // Search functionality
+    searchInput.addEventListener('mousedown', (e) => e.stopPropagation());
     searchInput.addEventListener('input', () => {
       const query = searchInput.value.toLowerCase().trim();
-      if (query === '') {
+      if (!query) {
         activeCategory = 'recent';
         updateTabStyles();
         renderCategory('recent');
@@ -805,136 +675,67 @@ export function ToastUIMarkdownEditor({
     });
     
     // Assemble dropdown
-    tabsWrapper.appendChild(tabsContainer);
-    emojiScrollContainer.appendChild(emojiGrid);
     dropdown.appendChild(searchContainer);
-    
     dropdown.appendChild(tabsWrapper);
     dropdown.appendChild(header);
-    dropdown.appendChild(emojiScrollContainer);
+    dropdown.appendChild(scrollContainer);
     
+    // Position dropdown
     const positionDropdown = () => {
-      const btnRect = btn.getBoundingClientRect();
-      const dropdownHeight = 400;
-      const dropdownWidth = 340;
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-      
-      let top = btnRect.bottom + 4;
-      if (top + dropdownHeight > viewportHeight - 10) top = btnRect.top - dropdownHeight - 4;
-      
-      let left = btnRect.right - dropdownWidth;
+      const rect = btn.getBoundingClientRect();
+      const h = 420, w = 340;
+      let top = rect.bottom + 4;
+      if (top + h > window.innerHeight - 10) top = rect.top - h - 4;
+      let left = rect.right - w;
       if (left < 10) left = 10;
-      if (left + dropdownWidth > viewportWidth - 10) left = viewportWidth - dropdownWidth - 10;
-      
+      if (left + w > window.innerWidth - 10) left = window.innerWidth - w - 10;
       dropdown.style.top = `${Math.max(10, top)}px`;
       dropdown.style.left = `${left}px`;
     };
     
+    // Open dropdown
     const openDropdown = () => {
-      logEmoji('openDropdown called', { isOpen, editorRefExists: !!editorRef.current });
-      if (isOpen) {
-        logEmoji('openDropdown - already open, returning');
-        return;
-      }
+      if (isOpen) return;
       isOpen = true;
-      
-      logEmoji('openDropdown - saving selection');
       saveSelection();
-      
-      logEmoji('openDropdown - positioning dropdown');
       positionDropdown();
-      
       dropdown.style.display = 'flex';
       activeCategory = 'recent';
       searchInput.value = '';
       updateTabStyles();
       renderCategory('recent');
-      
-      logEmoji('openDropdown - complete', { 
-        dropdownDisplay: dropdown.style.display,
-        activeCategory 
-      });
-      // Don't auto-focus search to avoid editor blur issues
     };
     
-    // Toggle button - prevent default and stop all propagation
-    btn.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
+    // Button click handler
+    btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      logEmoji('Toggle button click', { 
-        isOpen, 
-        isTrusted: e.isTrusted,
-        clientX: e.clientX,
-        clientY: e.clientY
-      });
-      if (isOpen) {
-        closeDropdown();
-      } else {
-        openDropdown();
-      }
+      isOpen ? closeDropdown() : openDropdown();
     });
     
-    // Prevent all events inside dropdown from bubbling
-    dropdown.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
-      logEmoji('Dropdown mousedown', { target: (e.target as HTMLElement).tagName, className: (e.target as HTMLElement).className });
+    // Prevent dropdown events from bubbling
+    ['mousedown', 'mouseup', 'click', 'focusin', 'focusout'].forEach(evt => {
+      dropdown.addEventListener(evt, (e) => e.stopPropagation());
     });
-    dropdown.addEventListener('mouseup', (e) => e.stopPropagation());
-    dropdown.addEventListener('click', (e) => {
-      e.stopPropagation();
-      logEmoji('Dropdown click', { target: (e.target as HTMLElement).tagName, className: (e.target as HTMLElement).className });
-    });
-    dropdown.addEventListener('focusin', (e) => e.stopPropagation());
-    dropdown.addEventListener('focusout', (e) => e.stopPropagation());
     
     // Close on outside click
-    const handleOutsideMouseDown = (e: MouseEvent) => {
+    const handleOutside = (e: MouseEvent) => {
       if (!isOpen) return;
       const target = e.target as Node;
-      const targetEl = e.target as HTMLElement;
-      
-      logEmoji('handleOutsideMouseDown', { 
-        isOpen,
-        targetTag: targetEl.tagName,
-        targetClass: targetEl.className,
-        inDropdown: dropdown.contains(target),
-        inWrapper: wrapper.contains(target)
-      });
-      
-      if (dropdown.contains(target) || wrapper.contains(target)) {
-        logEmoji('handleOutsideMouseDown - inside, not closing');
-        return;
-      }
-      logEmoji('handleOutsideMouseDown - outside, closing');
-      closeDropdown();
+      if (!dropdown.contains(target) && !wrapper.contains(target)) closeDropdown();
     };
+    document.addEventListener('mousedown', handleOutside, true);
     
-    // Add listener to document body with capture phase
-    document.addEventListener('mousedown', handleOutsideMouseDown, true);
-    logEmoji('Added document mousedown listener');
-    
-    // Append dropdown to document body for proper z-index stacking
+    // Append dropdown to body
     document.body.appendChild(dropdown);
-    logEmoji('Dropdown appended to body');
     
-    // Cleanup observer - only clean up when dropdown is closed
-    // This prevents the dropdown from being removed during React re-renders
+    // Cleanup observer
     const observer = new MutationObserver(() => {
-      if (!document.body.contains(wrapper)) {
-        // Only clean up if dropdown is NOT open
-        if (!isOpen) {
-          logEmoji('MutationObserver - wrapper removed and dropdown closed, cleaning up');
-          dropdown.remove();
-          document.removeEventListener('mousedown', handleOutsideMouseDown, true);
-          observer.disconnect();
-        } else {
-          logEmoji('MutationObserver - wrapper removed but dropdown still open, keeping dropdown');
-        }
+      if (!document.body.contains(wrapper) && !isOpen) {
+        dropdown.remove();
+        document.removeEventListener('mousedown', handleOutside, true);
+        observer.disconnect();
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
@@ -942,14 +743,6 @@ export function ToastUIMarkdownEditor({
     wrapper.appendChild(btn);
     return wrapper;
   }, []);
-
-  // Generate inline styles based on theme colors
-  const containerStyle: React.CSSProperties = themeBackgroundColor ? {
-    '--editor-bg': themeBackgroundColor,
-    '--editor-text': themeTextColor || (isDark ? '#ffffff' : '#000000'),
-    '--editor-muted': isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-    '--editor-border': isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
-  } as React.CSSProperties : {};
 
   return (
     <div 

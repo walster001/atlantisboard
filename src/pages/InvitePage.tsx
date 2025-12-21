@@ -311,8 +311,9 @@ export default function InvitePage() {
         return <Clock className="h-16 w-16 text-amber-500" />;
       case 'already_used':
         return <XCircle className="h-16 w-16 text-destructive" />;
-      case 'invalid_token':
       case 'deleted':
+        return <AlertTriangle className="h-16 w-16 text-amber-500" />;
+      case 'invalid_token':
         return <XCircle className="h-16 w-16 text-destructive" />;
       default:
         return <AlertTriangle className="h-16 w-16 text-destructive" />;
@@ -325,8 +326,9 @@ export default function InvitePage() {
         return 'Invite Expired';
       case 'already_used':
         return 'Link Already Used';
-      case 'invalid_token':
       case 'deleted':
+        return 'Board No Longer Exists';
+      case 'invalid_token':
         return 'Invalid Invite Link';
       default:
         return 'Error';
@@ -336,12 +338,13 @@ export default function InvitePage() {
   const getErrorDescription = () => {
     switch (errorType) {
       case 'expired':
-        return 'This invite link has expired.';
+        return 'This invite link has expired. Please request a new invitation from the board owner.';
       case 'already_used':
-        return 'This link has already been used.';
-      case 'invalid_token':
+        return 'This one-time invite link has already been used.';
       case 'deleted':
-        return 'This invite link is invalid or has been deleted.';
+        return 'The board you were invited to has been deleted and no longer exists.';
+      case 'invalid_token':
+        return 'This invite link is invalid or has been revoked.';
       default:
         return errorMessage || 'An unexpected error occurred.';
     }

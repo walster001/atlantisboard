@@ -501,24 +501,9 @@ export function ToastUIMarkdownEditor({
     dropdown.setAttribute('data-emoji-dropdown', 'true');
     dropdown.style.cssText = 'position:fixed;z-index:2147483647;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:420px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
     
-    // Track if interaction is inside dropdown to prevent outside close
-    let clickedInsideDropdown = false;
-    
-    // Mark clicks inside dropdown
+    // Prevent focus loss from editor when interacting with dropdown
     dropdown.addEventListener('mousedown', (e) => {
       log('DROPDOWN_MOUSEDOWN', { target: (e.target as HTMLElement)?.tagName });
-      clickedInsideDropdown = true;
-      e.stopPropagation();
-    }, false);
-    
-    dropdown.addEventListener('mouseup', (e) => {
-      log('DROPDOWN_MOUSEUP', { target: (e.target as HTMLElement)?.tagName });
-      e.stopPropagation();
-    }, false);
-    
-    // Prevent focus loss but allow clicks to work
-    dropdown.addEventListener('pointerdown', (e) => {
-      log('DROPDOWN_POINTERDOWN', { target: (e.target as HTMLElement)?.tagName });
       e.preventDefault(); // Prevents focus loss from editor
     }, false);
     
@@ -790,11 +775,7 @@ export function ToastUIMarkdownEditor({
       renderCategory('recent');
     };
     
-    // Toolbar button - mark clicks inside wrapper
-    wrapper.addEventListener('mousedown', () => {
-      clickedInsideDropdown = true;
-    });
-    
+    // Toolbar button click
     btn.addEventListener('click', (e) => {
       log('TOOLBAR_BTN_CLICK', { isOpen });
       e.preventDefault();
@@ -806,34 +787,31 @@ export function ToastUIMarkdownEditor({
       }
     });
     
-    // Close on outside mousedown - check the flag
+    // Close on outside mousedown - use direct contains() check
     const handleOutsideMousedown = (e: MouseEvent) => {
       if (!isOpen) return;
       
-      // Reset flag before check
-      clickedInsideDropdown = false;
+      const target = e.target as HTMLElement;
       
-      // Use setTimeout to let the dropdown's mousedown handler set the flag first
-      setTimeout(() => {
-        const target = e.target as HTMLElement;
-        const inWrapper = wrapper.contains(target);
-        
-        log('OUTSIDE_MOUSEDOWN_CHECK', { 
-          isOpen, 
-          clickedInsideDropdown,
-          inWrapper,
-          targetTag: target?.tagName,
-          targetClass: target?.className
-        });
-        
-        if (clickedInsideDropdown || inWrapper) {
-          log('OUTSIDE_MOUSEDOWN_IGNORED', { reason: 'inside picker' });
-          return;
-        }
-        closeDropdown();
-      }, 0);
+      // Direct check using the dropdown reference (works even when portalled)
+      const inDropdown = dropdown.contains(target);
+      const inWrapper = wrapper.contains(target);
+      
+      log('OUTSIDE_MOUSEDOWN_CHECK', { 
+        isOpen, 
+        inDropdown,
+        inWrapper,
+        targetTag: target?.tagName,
+        targetClass: target?.className
+      });
+      
+      if (inDropdown || inWrapper) {
+        log('OUTSIDE_MOUSEDOWN_IGNORED', { reason: 'inside picker' });
+        return;
+      }
+      closeDropdown();
     };
-    document.addEventListener('mousedown', handleOutsideMousedown, false);
+    document.addEventListener('mousedown', handleOutsideMousedown, true); // Use capture phase
     
     // Append dropdown to body
     document.body.appendChild(dropdown);
@@ -844,7 +822,7 @@ export function ToastUIMarkdownEditor({
       if (!document.body.contains(wrapper) && !isOpen) {
         log('CLEANUP_OBSERVER_TRIGGERED');
         dropdown.remove();
-        document.removeEventListener('mousedown', handleOutsideMousedown, false);
+        document.removeEventListener('mousedown', handleOutsideMousedown, true);
         observer.disconnect();
       }
     });

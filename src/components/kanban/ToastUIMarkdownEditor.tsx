@@ -455,6 +455,14 @@ export function ToastUIMarkdownEditor({
   const createEmojiToolbarItem = useCallback(() => {
     const allEmojis = getAllEmojis();
     
+    // Logging helper
+    const log = (action: string, details?: Record<string, unknown>) => {
+      const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
+      console.log(`[EmojiPicker ${timestamp}] ${action}`, details ? details : '');
+    };
+    
+    log('INIT', { totalEmojis: allEmojis.length });
+    
     // Twemoji helper - get image URL for an emoji
     const getEmojiImgSrc = (emoji: string): string => {
       const parsed = twemoji.parse(emoji, {
@@ -495,6 +503,7 @@ export function ToastUIMarkdownEditor({
     
     // Prevent ALL events from propagating out of dropdown
     const stopAllEvents = (e: Event) => {
+      log('STOP_EVENT', { type: e.type, target: (e.target as HTMLElement)?.tagName });
       e.stopPropagation();
       e.stopImmediatePropagation();
     };
@@ -540,7 +549,9 @@ export function ToastUIMarkdownEditor({
         try {
           const [start, end] = editor.getSelection();
           savedSelection = { start, end };
-        } catch {
+          log('SAVE_SELECTION', { start, end });
+        } catch (err) {
+          log('SAVE_SELECTION_ERROR', { error: String(err) });
           savedSelection = null;
         }
       }
@@ -548,6 +559,7 @@ export function ToastUIMarkdownEditor({
     
     // Helper: Close dropdown
     const closeDropdown = () => {
+      log('CLOSE_DROPDOWN', { wasOpen: isOpen });
       if (!isOpen) return;
       isOpen = false;
       dropdown.style.display = 'none';
@@ -555,16 +567,28 @@ export function ToastUIMarkdownEditor({
     
     // Helper: Insert emoji into editor
     const insertEmoji = (emoji: string) => {
+      log('INSERT_EMOJI_START', { emoji, savedSelection });
       const editor = editorRef.current?.getInstance();
       if (editor) {
         try {
           editor.focus();
+          log('INSERT_EMOJI_FOCUSED');
           if (savedSelection) {
-            try { editor.setSelection(savedSelection.start, savedSelection.end); } catch {}
+            try { 
+              editor.setSelection(savedSelection.start, savedSelection.end); 
+              log('INSERT_EMOJI_SELECTION_RESTORED');
+            } catch (err) {
+              log('INSERT_EMOJI_SELECTION_ERROR', { error: String(err) });
+            }
           }
           editor.insertText(emoji);
+          log('INSERT_EMOJI_SUCCESS', { emoji });
           addRecentEmoji(emoji);
-        } catch {}
+        } catch (err) {
+          log('INSERT_EMOJI_ERROR', { error: String(err) });
+        }
+      } else {
+        log('INSERT_EMOJI_NO_EDITOR');
       }
       closeDropdown();
     };
@@ -600,11 +624,13 @@ export function ToastUIMarkdownEditor({
       
       // Use pointerdown to prevent focus loss, then click to insert
       emojiBtn.addEventListener('pointerdown', (e) => { 
+        log('EMOJI_BTN_POINTERDOWN', { emoji });
         e.preventDefault(); 
         e.stopPropagation();
         e.stopImmediatePropagation();
       });
       emojiBtn.addEventListener('click', (e) => {
+        log('EMOJI_BTN_CLICK', { emoji });
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -617,6 +643,7 @@ export function ToastUIMarkdownEditor({
     
     // Helper: Render emojis
     const renderEmojis = (emojis: string[], label: string) => {
+      log('RENDER_EMOJIS', { label, count: emojis.length });
       emojiGrid.innerHTML = '';
       header.textContent = label;
       if (emojis.length === 0) {
@@ -631,6 +658,7 @@ export function ToastUIMarkdownEditor({
     
     // Helper: Render category
     const renderCategory = (category: string) => {
+      log('RENDER_CATEGORY', { category });
       if (category === 'recent') {
         renderEmojis(getRecentEmojis(), 'Recent');
       } else if (EMOJI_CATEGORIES[category]) {
@@ -649,6 +677,7 @@ export function ToastUIMarkdownEditor({
     
     // Helper: Select category
     const selectCategory = (category: string) => {
+      log('SELECT_CATEGORY', { category });
       activeCategory = category;
       searchInput.value = '';
       updateTabStyles();
@@ -670,6 +699,7 @@ export function ToastUIMarkdownEditor({
       }
       
       tab.addEventListener('pointerdown', (e) => { 
+        log('TAB_POINTERDOWN', { title });
         e.preventDefault(); 
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -681,6 +711,7 @@ export function ToastUIMarkdownEditor({
     // Build tabs - Recent tab first
     const recentTab = createTab('🕐', 'Recent', true);
     recentTab.addEventListener('click', (e) => { 
+      log('RECENT_TAB_CLICK');
       e.preventDefault(); 
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -693,6 +724,7 @@ export function ToastUIMarkdownEditor({
     CATEGORY_NAMES.forEach(category => {
       const tab = createTab(EMOJI_CATEGORIES[category].icon, category);
       tab.addEventListener('click', (e) => { 
+        log('CATEGORY_TAB_CLICK', { category });
         e.preventDefault(); 
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -704,15 +736,18 @@ export function ToastUIMarkdownEditor({
     
     // Search functionality - prevent events from bubbling
     searchInput.addEventListener('pointerdown', (e) => {
+      log('SEARCH_POINTERDOWN');
       e.stopPropagation();
       e.stopImmediatePropagation();
     });
     searchInput.addEventListener('focus', (e) => {
+      log('SEARCH_FOCUS');
       e.stopPropagation();
       e.stopImmediatePropagation();
     });
     searchInput.addEventListener('input', () => {
       const query = searchInput.value.toLowerCase().trim();
+      log('SEARCH_INPUT', { query });
       if (!query) {
         activeCategory = 'recent';
         updateTabStyles();
@@ -742,10 +777,12 @@ export function ToastUIMarkdownEditor({
       if (left + w > window.innerWidth - 10) left = window.innerWidth - w - 10;
       dropdown.style.top = `${Math.max(10, top)}px`;
       dropdown.style.left = `${left}px`;
+      log('POSITION_DROPDOWN', { top, left });
     };
     
     // Open dropdown
     const openDropdown = () => {
+      log('OPEN_DROPDOWN', { wasOpen: isOpen });
       if (isOpen) return;
       isOpen = true;
       saveSelection();
@@ -759,11 +796,13 @@ export function ToastUIMarkdownEditor({
     
     // Button click handler - use pointerdown to prevent focus loss
     btn.addEventListener('pointerdown', (e) => { 
+      log('TOOLBAR_BTN_POINTERDOWN');
       e.preventDefault(); 
       e.stopPropagation();
       e.stopImmediatePropagation();
     });
     btn.addEventListener('click', (e) => {
+      log('TOOLBAR_BTN_CLICK', { isOpen });
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -778,17 +817,28 @@ export function ToastUIMarkdownEditor({
     const handleOutside = (e: PointerEvent) => {
       if (!isOpen) return;
       const target = e.target as Node;
-      if (dropdown.contains(target) || wrapper.contains(target)) return;
+      const inDropdown = dropdown.contains(target);
+      const inWrapper = wrapper.contains(target);
+      log('OUTSIDE_POINTERDOWN', { 
+        isOpen, 
+        inDropdown, 
+        inWrapper, 
+        targetTag: (target as HTMLElement)?.tagName,
+        targetClass: (target as HTMLElement)?.className
+      });
+      if (inDropdown || inWrapper) return;
       closeDropdown();
     };
     document.addEventListener('pointerdown', handleOutside, true);
     
     // Append dropdown to body
     document.body.appendChild(dropdown);
+    log('DROPDOWN_APPENDED_TO_BODY');
     
     // Cleanup observer
     const observer = new MutationObserver(() => {
       if (!document.body.contains(wrapper) && !isOpen) {
+        log('CLEANUP_OBSERVER_TRIGGERED');
         dropdown.remove();
         document.removeEventListener('pointerdown', handleOutside, true);
         observer.disconnect();

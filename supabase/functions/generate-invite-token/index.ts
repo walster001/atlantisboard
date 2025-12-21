@@ -103,7 +103,10 @@ Deno.serve(async (req) => {
     console.log('Generated secure token for board:', boardId);
 
     // Insert token into database
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+    // One-time links expire in 24 hours, recurring links never expire (null expires_at)
+    const expiresAt = linkType === 'one_time' 
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() 
+      : null;
     
     const { data: insertedToken, error: insertError } = await supabase
       .from('board_invite_tokens')
@@ -111,7 +114,7 @@ Deno.serve(async (req) => {
         token,
         board_id: boardId,
         created_by: user.id,
-        expires_at: expiresAt.toISOString(),
+        expires_at: expiresAt,
         link_type: linkType,
       })
       .select('id, token, expires_at, link_type')

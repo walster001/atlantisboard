@@ -135,13 +135,18 @@ export function CardDetailModal({
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [rendererKey, setRendererKey] = useState(0); // Key to force MarkdownRenderer remount for Twemoji
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const skipNextSyncRef = useRef(false); // Flag to skip syncing description after save
 
   useEffect(() => {
     if (card) {
       // Strip HTML tags from title for plain text display
       setTitle(stripHtmlTags(card.title));
-      // Store the raw description (Markdown or legacy HTML) - the renderer will handle conversion
-      setDescription(card.description || '');
+      // Only sync description if we're not skipping (after a save, we want to keep local state)
+      if (!skipNextSyncRef.current) {
+        // Store the raw description (Markdown or legacy HTML) - the renderer will handle conversion
+        setDescription(card.description || '');
+      }
+      skipNextSyncRef.current = false; // Reset the flag
       setDueDate(card.dueDate ? new Date(card.dueDate) : undefined);
       setIsEditingTitle(false);
       setIsEditingDescription(false);
@@ -173,6 +178,7 @@ export function CardDetailModal({
   };
 
   const handleSaveDescription = () => {
+    skipNextSyncRef.current = true; // Skip next sync to preserve Twemoji rendering
     onSave({ description: description || undefined });
     setIsEditingDescription(false);
     setRendererKey(prev => prev + 1); // Force MarkdownRenderer remount for Twemoji

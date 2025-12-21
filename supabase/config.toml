@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.import-wekan-board]
 verify_jwt = false
+
+[functions.generate-invite-token]
+verify_jwt = false
+
+[functions.redeem-invite-token]
+verify_jwt = false

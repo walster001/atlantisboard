@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, ArrowLeft, Loader2, Users, LayoutGrid, LogOut, User, Settings } from 'lucide-react';
+import { InviteLinkButton } from '@/components/kanban/InviteLinkButton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card as CardType, Label } from '@/types/kanban';
@@ -905,6 +906,10 @@ export default function BoardPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Invite Link Button - only visible to board admins */}
+            {boardId && canEdit && (
+              <InviteLinkButton boardId={boardId} canGenerateInvite={canEdit} />
+            )}
             {canManageMembers && (
               <Button
                 variant="ghost"

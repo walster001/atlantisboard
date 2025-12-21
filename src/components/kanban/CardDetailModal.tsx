@@ -308,15 +308,6 @@ export function CardDetailModal({
               >
                 {title}
               </h2>
-              <style>{`
-                .twemoji-title {
-                  display: inline-block;
-                  width: 1em;
-                  height: 1em;
-                  vertical-align: -0.1em;
-                  margin: 0 0.05em;
-                }
-              `}</style>
             </>
           )}
         </div>

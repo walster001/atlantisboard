@@ -501,16 +501,26 @@ export function ToastUIMarkdownEditor({
     dropdown.setAttribute('data-emoji-dropdown', 'true');
     dropdown.style.cssText = 'position:fixed;z-index:2147483647;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:420px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
     
-    // Prevent ALL events from propagating out of dropdown
-    const stopAllEvents = (e: Event) => {
-      log('STOP_EVENT', { type: e.type, target: (e.target as HTMLElement)?.tagName });
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-    };
+    // Track if interaction is inside dropdown to prevent outside close
+    let clickedInsideDropdown = false;
     
-    ['mousedown', 'mouseup', 'click', 'pointerdown', 'pointerup', 'touchstart', 'touchend', 'focusin', 'focusout', 'focus', 'blur'].forEach(evt => {
-      dropdown.addEventListener(evt, stopAllEvents, true);
-    });
+    // Mark clicks inside dropdown
+    dropdown.addEventListener('mousedown', (e) => {
+      log('DROPDOWN_MOUSEDOWN', { target: (e.target as HTMLElement)?.tagName });
+      clickedInsideDropdown = true;
+      e.stopPropagation();
+    }, false);
+    
+    dropdown.addEventListener('mouseup', (e) => {
+      log('DROPDOWN_MOUSEUP', { target: (e.target as HTMLElement)?.tagName });
+      e.stopPropagation();
+    }, false);
+    
+    // Prevent focus loss but allow clicks to work
+    dropdown.addEventListener('pointerdown', (e) => {
+      log('DROPDOWN_POINTERDOWN', { target: (e.target as HTMLElement)?.tagName });
+      e.preventDefault(); // Prevents focus loss from editor
+    }, false);
     
     // Search input
     const searchContainer = document.createElement('div');
@@ -533,10 +543,9 @@ export function ToastUIMarkdownEditor({
     header.style.cssText = 'padding:6px 12px;font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;';
     header.textContent = 'Recent';
     
-    // Emoji grid container
+    // Emoji grid container with proper scrolling
     const scrollContainer = document.createElement('div');
-    scrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;-webkit-overflow-scrolling:touch;';
-    scrollContainer.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+    scrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;';
     
     const emojiGrid = document.createElement('div');
     emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:8px;';
@@ -622,18 +631,11 @@ export function ToastUIMarkdownEditor({
         emojiBtn.style.transform = 'scale(1)';
       });
       
-      // Use pointerdown to prevent focus loss, then click to insert
-      emojiBtn.addEventListener('pointerdown', (e) => { 
-        log('EMOJI_BTN_POINTERDOWN', { emoji });
-        e.preventDefault(); 
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      });
+      // Simple click handler - dropdown pointerdown already prevents focus loss
       emojiBtn.addEventListener('click', (e) => {
         log('EMOJI_BTN_CLICK', { emoji });
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation();
         const emojiToInsert = emojiBtn.dataset.emoji || emoji;
         insertEmoji(emojiToInsert);
       });
@@ -698,11 +700,15 @@ export function ToastUIMarkdownEditor({
         tab.style.fontSize = '14px';
       }
       
-      tab.addEventListener('pointerdown', (e) => { 
-        log('TAB_POINTERDOWN', { title });
-        e.preventDefault(); 
-        e.stopPropagation();
-        e.stopImmediatePropagation();
+      // Add hover effect
+      tab.addEventListener('mouseenter', () => {
+        if (activeCategory !== title.toLowerCase() && title !== 'Recent') {
+          tab.style.background = '#2d333b';
+        }
+      });
+      tab.addEventListener('mouseleave', () => {
+        const cat = title === 'Recent' ? 'recent' : title;
+        tab.style.background = cat === activeCategory ? '#3d444d' : 'none';
       });
       
       return tab;
@@ -712,9 +718,7 @@ export function ToastUIMarkdownEditor({
     const recentTab = createTab('🕐', 'Recent', true);
     recentTab.addEventListener('click', (e) => { 
       log('RECENT_TAB_CLICK');
-      e.preventDefault(); 
       e.stopPropagation();
-      e.stopImmediatePropagation();
       selectCategory('recent'); 
     });
     tabButtons.push(recentTab);
@@ -725,25 +729,17 @@ export function ToastUIMarkdownEditor({
       const tab = createTab(EMOJI_CATEGORIES[category].icon, category);
       tab.addEventListener('click', (e) => { 
         log('CATEGORY_TAB_CLICK', { category });
-        e.preventDefault(); 
         e.stopPropagation();
-        e.stopImmediatePropagation();
         selectCategory(category); 
       });
       tabButtons.push(tab);
       tabsContainer.appendChild(tab);
     });
     
-    // Search functionality - prevent events from bubbling
-    searchInput.addEventListener('pointerdown', (e) => {
-      log('SEARCH_POINTERDOWN');
+    // Search functionality
+    searchInput.addEventListener('click', (e) => {
+      log('SEARCH_CLICK');
       e.stopPropagation();
-      e.stopImmediatePropagation();
-    });
-    searchInput.addEventListener('focus', (e) => {
-      log('SEARCH_FOCUS');
-      e.stopPropagation();
-      e.stopImmediatePropagation();
     });
     searchInput.addEventListener('input', () => {
       const query = searchInput.value.toLowerCase().trim();
@@ -794,18 +790,15 @@ export function ToastUIMarkdownEditor({
       renderCategory('recent');
     };
     
-    // Button click handler - use pointerdown to prevent focus loss
-    btn.addEventListener('pointerdown', (e) => { 
-      log('TOOLBAR_BTN_POINTERDOWN');
-      e.preventDefault(); 
-      e.stopPropagation();
-      e.stopImmediatePropagation();
+    // Toolbar button - mark clicks inside wrapper
+    wrapper.addEventListener('mousedown', () => {
+      clickedInsideDropdown = true;
     });
+    
     btn.addEventListener('click', (e) => {
       log('TOOLBAR_BTN_CLICK', { isOpen });
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation();
       if (isOpen) {
         closeDropdown();
       } else {
@@ -813,34 +806,34 @@ export function ToastUIMarkdownEditor({
       }
     });
     
-    // Close on outside click - use capture phase with better detection
-    const handleOutside = (e: PointerEvent) => {
+    // Close on outside mousedown - check the flag
+    const handleOutsideMousedown = (e: MouseEvent) => {
       if (!isOpen) return;
-      const target = e.target as HTMLElement;
       
-      // Check if click is inside dropdown using closest() - works for portalled elements
-      const inDropdownByAttr = target.closest?.('[data-emoji-dropdown]') !== null;
-      const inWrapperByAttr = target.closest?.('[data-emoji-picker-wrapper]') !== null;
-      const inDropdown = dropdown.contains(target) || inDropdownByAttr;
-      const inWrapper = wrapper.contains(target) || inWrapperByAttr;
+      // Reset flag before check
+      clickedInsideDropdown = false;
       
-      log('OUTSIDE_POINTERDOWN', { 
-        isOpen, 
-        inDropdown, 
-        inWrapper,
-        inDropdownByAttr,
-        inWrapperByAttr,
-        targetTag: target?.tagName,
-        targetClass: target?.className
-      });
-      
-      if (inDropdown || inWrapper) {
-        log('OUTSIDE_POINTERDOWN_IGNORED', { reason: 'inside picker' });
-        return;
-      }
-      closeDropdown();
+      // Use setTimeout to let the dropdown's mousedown handler set the flag first
+      setTimeout(() => {
+        const target = e.target as HTMLElement;
+        const inWrapper = wrapper.contains(target);
+        
+        log('OUTSIDE_MOUSEDOWN_CHECK', { 
+          isOpen, 
+          clickedInsideDropdown,
+          inWrapper,
+          targetTag: target?.tagName,
+          targetClass: target?.className
+        });
+        
+        if (clickedInsideDropdown || inWrapper) {
+          log('OUTSIDE_MOUSEDOWN_IGNORED', { reason: 'inside picker' });
+          return;
+        }
+        closeDropdown();
+      }, 0);
     };
-    document.addEventListener('pointerdown', handleOutside, true);
+    document.addEventListener('mousedown', handleOutsideMousedown, false);
     
     // Append dropdown to body
     document.body.appendChild(dropdown);
@@ -851,7 +844,7 @@ export function ToastUIMarkdownEditor({
       if (!document.body.contains(wrapper) && !isOpen) {
         log('CLEANUP_OBSERVER_TRIGGERED');
         dropdown.remove();
-        document.removeEventListener('pointerdown', handleOutside, true);
+        document.removeEventListener('mousedown', handleOutsideMousedown, false);
         observer.disconnect();
       }
     });

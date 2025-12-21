@@ -5,7 +5,7 @@
  * Uses ToastUIMarkdownEditor for editing and MarkdownRenderer for display.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, Label, getLabelHexColor } from '@/types/kanban';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -31,6 +31,7 @@ import { ToastUIMarkdownEditor } from './ToastUIMarkdownEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { CardAttachmentSection } from './CardAttachmentSection';
 import type { InlineButtonData } from './InlineButtonEditor';
+import twemoji from '@twemoji/api';
 
 // Strip HTML tags from text for plain display
 function stripHtmlTags(text: string): string {
@@ -132,6 +133,7 @@ export function CardDetailModal({
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [showLabelPicker, setShowLabelPicker] = useState(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     if (card) {
@@ -144,6 +146,23 @@ export function CardDetailModal({
       setIsEditingDescription(false);
     }
   }, [card]);
+
+  // Apply Twemoji to title after render
+  useEffect(() => {
+    if (!isEditingTitle && titleRef.current) {
+      const rafId = requestAnimationFrame(() => {
+        if (titleRef.current) {
+          twemoji.parse(titleRef.current, {
+            folder: 'svg',
+            ext: '.svg',
+            base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+            className: 'twemoji-title',
+          });
+        }
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [title, isEditingTitle]);
 
   const handleSaveTitle = () => {
     if (title.trim()) {
@@ -276,17 +295,29 @@ export function CardDetailModal({
               </Button>
             </div>
           ) : (
-            <h2 
-              className={cn(
-                "text-xl md:text-2xl font-semibold",
-                !effectiveTextColor && "text-foreground",
-                !disabled && "cursor-pointer hover:opacity-70 transition-opacity"
-              )}
-              style={effectiveTextColor ? { color: effectiveTextColor } : undefined}
-              onClick={() => !disabled && setIsEditingTitle(true)}
-            >
-              {title}
-            </h2>
+            <>
+              <h2 
+                ref={titleRef}
+                className={cn(
+                  "text-xl md:text-2xl font-semibold",
+                  !effectiveTextColor && "text-foreground",
+                  !disabled && "cursor-pointer hover:opacity-70 transition-opacity"
+                )}
+                style={effectiveTextColor ? { color: effectiveTextColor } : undefined}
+                onClick={() => !disabled && setIsEditingTitle(true)}
+              >
+                {title}
+              </h2>
+              <style>{`
+                .twemoji-title {
+                  display: inline-block;
+                  width: 1em;
+                  height: 1em;
+                  vertical-align: -0.1em;
+                  margin: 0 0.05em;
+                }
+              `}</style>
+            </>
           )}
         </div>
         

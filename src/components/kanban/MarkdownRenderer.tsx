@@ -502,17 +502,22 @@ export function MarkdownRenderer({
   // Ref for the container to apply Twemoji parsing
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Apply Twemoji parsing after render
+  // Apply Twemoji parsing after render - use requestAnimationFrame to ensure DOM is updated
   useEffect(() => {
-    if (containerRef.current) {
-      twemoji.parse(containerRef.current, {
-        folder: 'svg',
-        ext: '.svg',
-        base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
-        className: 'twemoji-inline',
-      });
-    }
-  }, [contentSegments]);
+    // Use requestAnimationFrame to ensure the DOM has been updated after ReactMarkdown renders
+    const rafId = requestAnimationFrame(() => {
+      if (containerRef.current) {
+        twemoji.parse(containerRef.current, {
+          folder: 'svg',
+          ext: '.svg',
+          base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+          className: 'twemoji-inline',
+        });
+      }
+    });
+    
+    return () => cancelAnimationFrame(rafId);
+  }, [contentSegments, processedContent]);
 
   // If no content, return null
   if (!content) return null;

@@ -10,7 +10,7 @@ import { Loader2, CheckCircle, XCircle, Clock, AlertTriangle, ArrowRight } from 
 import { useToast } from '@/hooks/use-toast';
 
 type InviteStatus = 'loading' | 'needs_auth' | 'redeeming' | 'success' | 'already_member' | 'error';
-type ErrorType = 'invalid_token' | 'expired' | 'already_used' | 'generic';
+type ErrorType = 'invalid_token' | 'expired' | 'already_used' | 'deleted' | 'generic';
 type LoginStyle = 'local_accounts' | 'google_only' | 'google_verified';
 
 interface AppSettings {
@@ -308,9 +308,11 @@ export default function InvitePage() {
   const getErrorIcon = () => {
     switch (errorType) {
       case 'expired':
-      case 'already_used':
         return <Clock className="h-16 w-16 text-amber-500" />;
+      case 'already_used':
+        return <XCircle className="h-16 w-16 text-destructive" />;
       case 'invalid_token':
+      case 'deleted':
         return <XCircle className="h-16 w-16 text-destructive" />;
       default:
         return <AlertTriangle className="h-16 w-16 text-destructive" />;
@@ -322,11 +324,26 @@ export default function InvitePage() {
       case 'expired':
         return 'Invite Expired';
       case 'already_used':
-        return 'Invite Already Used';
+        return 'Link Already Used';
       case 'invalid_token':
+      case 'deleted':
         return 'Invalid Invite Link';
       default:
         return 'Error';
+    }
+  };
+
+  const getErrorDescription = () => {
+    switch (errorType) {
+      case 'expired':
+        return 'This invite link has expired.';
+      case 'already_used':
+        return 'This link has already been used.';
+      case 'invalid_token':
+      case 'deleted':
+        return 'This invite link is invalid or has been deleted.';
+      default:
+        return errorMessage || 'An unexpected error occurred.';
     }
   };
 
@@ -622,7 +639,7 @@ export default function InvitePage() {
             <div className="flex flex-col items-center gap-6 py-4">
               {getErrorIcon()}
               <p className="text-center text-muted-foreground">
-                {errorMessage}
+                {getErrorDescription()}
               </p>
               <Button onClick={goHome} variant="outline" size="lg" className="w-full">
                 Go to Home

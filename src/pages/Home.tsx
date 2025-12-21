@@ -764,7 +764,7 @@ export default function Home() {
                     <User className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
-                <span className="hidden sm:inline">{user?.email}</span>
+                <span className="hidden sm:inline">{user?.user_metadata?.full_name || user?.email}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

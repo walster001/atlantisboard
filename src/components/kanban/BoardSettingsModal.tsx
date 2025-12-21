@@ -238,6 +238,21 @@ export function BoardSettingsModal({
         .eq('user_id', userToRemove.id);
 
       if (error) throw error;
+      
+      // Broadcast member removal event so the removed user gets notified instantly
+      const channel = supabase.channel(`board-${boardId}-member-removal`);
+      await channel.subscribe();
+      await channel.send({
+        type: 'broadcast',
+        event: 'member_removed',
+        payload: { 
+          board_id: boardId, 
+          user_id: userToRemove.id,
+          removed_by: currentUserId 
+        }
+      });
+      supabase.removeChannel(channel);
+      
       toast({ title: 'Member removed' });
       onMembersChange();
     } catch (error: any) {

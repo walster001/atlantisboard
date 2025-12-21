@@ -294,7 +294,7 @@ export default function BoardPage() {
     };
   }, [boardId, user, isPreviewMode]);
 
-  // Realtime subscription for board_members - redirect user if removed from board
+  // Realtime subscription for board_members changes (INSERT/UPDATE)
   useEffect(() => {
     if (!boardId || !user || isPreviewMode) return;
 
@@ -303,46 +303,69 @@ export default function BoardPage() {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'board_members',
+          filter: `board_id=eq.${boardId}`,
+        },
+        () => {
+          refreshBoardMembers();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
           schema: 'public',
           table: 'board_members',
           filter: `board_id=eq.${boardId}`,
         },
         (payload) => {
-          console.log('BoardPage: board_members change received:', payload);
-          
-          if (payload.eventType === 'DELETE') {
-            const deletedMembership = payload.old as { board_id: string; user_id: string };
-            // If current user was removed, redirect to home
-            if (deletedMembership?.user_id === user.id) {
-              console.log('BoardPage: Current user removed, redirecting to home');
-              toast({
-                title: 'Access removed',
-                description: 'You have been removed from this board.',
-                variant: 'destructive',
-              });
-              navigate('/');
-            } else {
-              // Another member was removed, refresh members list
-              refreshBoardMembers();
-            }
-          } else if (payload.eventType === 'INSERT') {
-            // New member added, refresh members list
-            refreshBoardMembers();
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedMembership = payload.new as { board_id: string; user_id: string; role: string };
-            // If current user's role changed, update local state
-            if (updatedMembership?.user_id === user.id) {
-              setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
-            }
-            // Refresh members list for any role change
-            refreshBoardMembers();
+          const updatedMembership = payload.new as { board_id: string; user_id: string; role: string };
+          if (updatedMembership?.user_id === user.id) {
+            setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
           }
+          refreshBoardMembers();
         }
       )
-      .subscribe((status) => {
-        console.log('BoardPage: board_members subscription status:', status);
-      });
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'board_members',
+          filter: `board_id=eq.${boardId}`,
+        },
+        () => {
+          // Another member was removed, refresh members list
+          refreshBoardMembers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [boardId, user, isPreviewMode]);
+
+  // Listen for broadcast events when current user is removed from this board
+  useEffect(() => {
+    if (!boardId || !user || isPreviewMode) return;
+
+    const channel = supabase
+      .channel(`board-${boardId}-member-removal`)
+      .on('broadcast', { event: 'member_removed' }, (payload) => {
+        const { user_id } = payload.payload as { board_id: string; user_id: string };
+        if (user_id === user.id) {
+          toast({
+            title: 'Access removed',
+            description: 'You have been removed from this board.',
+            variant: 'destructive',
+          });
+          navigate('/');
+        }
+      })
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);

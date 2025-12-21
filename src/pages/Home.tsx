@@ -137,7 +137,7 @@ export default function Home() {
     }
   }, [user, isVerified]);
 
-  // Realtime subscription for board_members - remove boards instantly when user is removed
+  // Realtime subscription for board_members - listen for additions
   useEffect(() => {
     if (!user) return;
 
@@ -146,52 +146,62 @@ export default function Home() {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'board_members',
         },
         (payload) => {
-          console.log('Home: board_members change received:', payload);
-          
-          if (payload.eventType === 'DELETE') {
-            const deletedMembership = payload.old as { board_id: string; user_id: string };
-            // If current user was removed from a board, remove it from the list
-            if (deletedMembership?.user_id === user.id) {
-              console.log('Home: Current user removed from board:', deletedMembership.board_id);
-              setBoards(prev => prev.filter(b => b.id !== deletedMembership.board_id));
-              // Also remove from boardRoles
-              setBoardRoles(prev => {
-                const updated = { ...prev };
-                delete updated[deletedMembership.board_id];
-                return updated;
-              });
-              toast({
-                title: 'Board access removed',
-                description: 'You have been removed from a board.',
-              });
-            }
-          } else if (payload.eventType === 'INSERT') {
-            const newMembership = payload.new as { board_id: string; user_id: string; role: string };
-            // If current user was added to a board, refresh data to show it
-            if (newMembership?.user_id === user.id) {
-              console.log('Home: Current user added to board:', newMembership.board_id);
-              fetchData();
-              toast({
-                title: 'Board access granted',
-                description: 'You have been added to a new board.',
-              });
-            }
+          const newMembership = payload.new as { board_id: string; user_id: string; role: string };
+          // If current user was added to a board, refresh data to show it
+          if (newMembership?.user_id === user.id) {
+            fetchData();
+            toast({
+              title: 'Board access granted',
+              description: 'You have been added to a new board.',
+            });
           }
         }
       )
-      .subscribe((status) => {
-        console.log('Home: board_members subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
+
+  // Listen for broadcast events when user is removed from any board
+  useEffect(() => {
+    if (!user) return;
+
+    // Subscribe to removal broadcasts for all boards user is currently a member of
+    const channels: ReturnType<typeof supabase.channel>[] = [];
+    
+    boards.forEach(board => {
+      const channel = supabase
+        .channel(`board-${board.id}-member-removal`)
+        .on('broadcast', { event: 'member_removed' }, (payload) => {
+          const { board_id, user_id } = payload.payload as { board_id: string; user_id: string };
+          if (user_id === user.id) {
+            setBoards(prev => prev.filter(b => b.id !== board_id));
+            setBoardRoles(prev => {
+              const updated = { ...prev };
+              delete updated[board_id];
+              return updated;
+            });
+            toast({
+              title: 'Board access removed',
+              description: 'You have been removed from a board.',
+            });
+          }
+        })
+        .subscribe();
+      channels.push(channel);
+    });
+
+    return () => {
+      channels.forEach(channel => supabase.removeChannel(channel));
+    };
+  }, [user, boards.map(b => b.id).join(',')]);
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {

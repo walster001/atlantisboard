@@ -127,7 +127,7 @@ export type Database = {
           board_id: string
           created_at: string
           created_by: string
-          expires_at: string
+          expires_at: string | null
           id: string
           link_type: string
           token: string
@@ -138,7 +138,7 @@ export type Database = {
           board_id: string
           created_at?: string
           created_by: string
-          expires_at?: string
+          expires_at?: string | null
           id?: string
           link_type?: string
           token: string
@@ -149,7 +149,7 @@ export type Database = {
           board_id?: string
           created_at?: string
           created_by?: string
-          expires_at?: string
+          expires_at?: string | null
           id?: string
           link_type?: string
           token?: string

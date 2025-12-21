@@ -533,6 +533,17 @@ export function ToastUIMarkdownEditor({
     const scrollContainer = document.createElement('div');
     scrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;';
     
+    // Handle wheel events to enable scrolling and prevent propagation
+    scrollContainer.addEventListener('wheel', (e) => {
+      e.stopPropagation();
+      // Allow natural scrolling within the container
+    }, { passive: true });
+    
+    // Also prevent wheel events on the dropdown from bubbling
+    dropdown.addEventListener('wheel', (e) => {
+      e.stopPropagation();
+    }, { passive: true });
+    
     const emojiGrid = document.createElement('div');
     emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:8px;';
     scrollContainer.appendChild(emojiGrid);

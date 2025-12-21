@@ -31,7 +31,7 @@ import { ToastUIMarkdownEditor } from './ToastUIMarkdownEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { CardAttachmentSection } from './CardAttachmentSection';
 import type { InlineButtonData } from './InlineButtonEditor';
-import twemoji from '@twemoji/api';
+import { observeTwemoji } from '@/lib/twemojiUtils';
 
 // Strip HTML tags from text for plain display
 function stripHtmlTags(text: string): string {
@@ -133,40 +133,24 @@ export function CardDetailModal({
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [showLabelPicker, setShowLabelPicker] = useState(false);
-  const [rendererKey, setRendererKey] = useState(0); // Key to force MarkdownRenderer remount for Twemoji
   const titleRef = useRef<HTMLHeadingElement>(null);
-  // Track when to skip syncing description from card prop (after save, prevents re-render race with Twemoji)
-  const skipDescriptionSyncUntilRef = useRef<number>(0);
 
   // Sync state from card prop when card changes
   useEffect(() => {
     if (card) {
       setTitle(stripHtmlTags(card.title));
-      // Only sync description if we're not in the skip window (prevents race with Twemoji parsing after save)
-      const now = Date.now();
-      if (now >= skipDescriptionSyncUntilRef.current) {
-        setDescription(card.description || '');
-      }
+      setDescription(card.description || '');
       setDueDate(card.dueDate ? new Date(card.dueDate) : undefined);
       setIsEditingTitle(false);
       setIsEditingDescription(false);
     }
   }, [card]);
 
-  // Apply Twemoji to title after render
+  // Apply Twemoji to title after render using MutationObserver
   useEffect(() => {
     if (!isEditingTitle && titleRef.current) {
-      const rafId = requestAnimationFrame(() => {
-        if (titleRef.current) {
-          twemoji.parse(titleRef.current, {
-            folder: 'svg',
-            ext: '.svg',
-            base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
-            className: 'twemoji-title',
-          });
-        }
-      });
-      return () => cancelAnimationFrame(rafId);
+      const cleanup = observeTwemoji(titleRef.current, 'twemoji-title');
+      return cleanup;
     }
   }, [title, isEditingTitle]);
 
@@ -178,11 +162,7 @@ export function CardDetailModal({
   };
 
   const handleSaveDescription = () => {
-    // Set skip window to prevent useEffect([card]) from re-setting description state
-    // This prevents a re-render race condition that would overwrite Twemoji parsing
-    skipDescriptionSyncUntilRef.current = Date.now() + 500;
     setIsEditingDescription(false);
-    setRendererKey(prev => prev + 1); // Force MarkdownRenderer remount for Twemoji
     onSave({ description: description || undefined });
   };
 
@@ -384,7 +364,6 @@ export function CardDetailModal({
                   onClick={() => {
                     setDescription(card.description || '');
                     setIsEditingDescription(false);
-                    setRendererKey(prev => prev + 1); // Force MarkdownRenderer remount for Twemoji
                   }}
                 >
                   Cancel
@@ -409,7 +388,6 @@ export function CardDetailModal({
                 emoji shortcodes, and sanitized HTML.
               */}
               <MarkdownRenderer
-                key={`md-view-${rendererKey}`}
                 content={description}
                 themeTextColor={effectiveTextColor}
                 themeBackgroundColor={themeCardWindowColor}

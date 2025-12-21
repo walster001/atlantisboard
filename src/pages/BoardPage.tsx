@@ -4,12 +4,14 @@ import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings } from '@/hooks/useAppSettings';
+import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { KanbanColumn } from '@/components/kanban/KanbanColumn';
+import { MobileColumnCarousel } from '@/components/kanban/MobileColumnCarousel';
 import { CardDetailModal } from '@/components/kanban/CardDetailModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, ArrowLeft, Loader2, Users, LayoutGrid, LogOut, User, Settings } from 'lucide-react';
+import { Plus, ArrowLeft, Loader2, LayoutGrid, LogOut, User, Settings, MoreVertical } from 'lucide-react';
 import { InviteLinkButton } from '@/components/kanban/InviteLinkButton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,7 +23,7 @@ import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
 import { useDragScroll } from '@/hooks/useDragScroll';
 import { z } from 'zod';
 import { BoardTheme } from '@/components/kanban/ThemeEditorModal';
-
+import { cn } from '@/lib/utils';
 interface DbColumn {
   id: string;
   board_id: string;
@@ -70,6 +72,7 @@ export default function BoardPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAppAdmin, signOut } = useAuth();
   const { settings: appSettings } = useAppSettings();
+  const { isMobile, isTablet, isDesktop } = useResponsiveLayout();
   const { toast } = useToast();
 
   // Check if we're in preview/development mode - bypass auth for testing
@@ -990,174 +993,303 @@ export default function BoardPage() {
             : 'rgba(0, 0, 0, 0.2)' 
         }}
       >
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-white hover:bg-white/20">
+        <div className={cn(
+          "px-3 py-2 flex items-center justify-between",
+          "md:px-4 md:py-3"
+        )}>
+          <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-white hover:bg-white/20 shrink-0 h-9 w-9 md:h-10 md:w-10">
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               {appSettings?.custom_board_logo_enabled && appSettings?.custom_board_logo_url ? (
                 <img
                   src={appSettings.custom_board_logo_url}
                   alt="Logo"
                   style={{ width: appSettings.custom_board_logo_size, height: appSettings.custom_board_logo_size }}
-                  className="object-contain"
+                  className="object-contain shrink-0"
                 />
               ) : (
                 <LayoutGrid 
-                  className="h-5 w-5" 
+                  className="h-5 w-5 shrink-0 hidden sm:block" 
                   style={{ color: boardTheme?.board_icon_color || 'white' }}
                 />
               )}
-              <h1 className="text-xl font-bold text-white">{boardName}</h1>
+              <h1 className="text-base md:text-xl font-bold text-white truncate">{boardName}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Invite Link Button - only visible to board admins */}
-            {boardId && canEdit && (
-              <InviteLinkButton boardId={boardId} canGenerateInvite={canEdit} />
-            )}
-            {canManageMembers && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20"
-                onClick={() => setSettingsModalOpen(true)}
-                title="Board Settings"
-              >
-                <Settings className="h-5 w-5" />
-              </Button>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2 text-white hover:bg-white/20">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.user_metadata?.avatar_url} />
-                    <AvatarFallback className="bg-white/20">
-                      <User className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="hidden sm:inline">{user?.user_metadata?.full_name || user?.email}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover">
-                {isAppAdmin && (
-                  <DropdownMenuItem onClick={() => navigate('/admin/config')}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Admin Settings
-                  </DropdownMenuItem>
+          <div className="flex items-center gap-1 md:gap-2 shrink-0">
+            {/* Desktop: Show all actions */}
+            {isDesktop && (
+              <>
+                {boardId && canEdit && (
+                  <InviteLinkButton boardId={boardId} canGenerateInvite={canEdit} />
                 )}
-                <DropdownMenuItem onClick={async () => {
-                  await signOut();
-                  navigate('/auth');
-                }}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                {canManageMembers && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20"
+                    onClick={() => setSettingsModalOpen(true)}
+                    title="Board Settings"
+                  >
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-2 text-white hover:bg-white/20">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={user?.user_metadata?.avatar_url} />
+                        <AvatarFallback className="bg-white/20">
+                          <User className="h-4 w-4" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="hidden sm:inline">{user?.user_metadata?.full_name || user?.email}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-popover">
+                    {isAppAdmin && (
+                      <DropdownMenuItem onClick={() => navigate('/admin/config')}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Admin Settings
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={async () => {
+                      await signOut();
+                      navigate('/auth');
+                    }}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
+            
+            {/* Mobile/Tablet: Simplified actions with overflow menu */}
+            {!isDesktop && (
+              <>
+                {canManageMembers && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 h-9 w-9"
+                    onClick={() => setSettingsModalOpen(true)}
+                    title="Board Settings"
+                  >
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 h-9 w-9">
+                      <MoreVertical className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-popover w-56">
+                    {boardId && canEdit && (
+                      <InviteLinkButton boardId={boardId} canGenerateInvite={canEdit} />
+                    )}
+                    {isAppAdmin && (
+                      <DropdownMenuItem onClick={() => navigate('/admin/config')}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Admin Settings
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={async () => {
+                      await signOut();
+                      navigate('/auth');
+                    }}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Board - apply theme scrollbar colors */}
-      <div 
-        ref={dragScrollRef} 
-        className={`flex-1 min-h-0 overflow-x-auto overflow-y-hidden ${
-          isDragging ? 'cursor-grabbing' : isSpaceHeld ? 'cursor-grab' : 'cursor-default'
-        }`}
-        style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: boardTheme 
-            ? `${boardTheme.scrollbar_color} ${boardTheme.scrollbar_track_color}` 
-            : undefined,
-        }}
-      >
-        <style>{boardTheme ? `
-          .board-scroll-area::-webkit-scrollbar { width: 8px; height: 8px; }
-          .board-scroll-area::-webkit-scrollbar-track { background: ${boardTheme.scrollbar_track_color}; }
-          .board-scroll-area::-webkit-scrollbar-thumb { background: ${boardTheme.scrollbar_color}; border-radius: 4px; }
-        ` : ''}</style>
+      {/* Board content - responsive layout */}
+      {isMobile ? (
+        /* Mobile: Swipe carousel for columns */
         <DragDropContext onDragEnd={onDragEnd}>
-          <Droppable droppableId="board" type="column" direction="horizontal">
-            {(provided) => (
-              <div
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-                className="drag-scroll-area board-scroll-area flex items-start gap-4 px-6 pt-6 pb-6 min-h-full min-w-max"
-              >
-                {columns.map((column, index) => (
-                  <KanbanColumn
-                    key={column.id}
-                    column={{
-                      id: column.id,
-                      title: column.title,
-                      cards: getColumnCards(column.id),
-                      color: column.color,
-                    }}
-                    index={index}
-                    onUpdateTitle={(title) => updateColumnTitle(column.id, title)}
-                    onDelete={() => deleteColumn(column.id)}
-                    onAddCard={(title) => addCard(column.id, title)}
-                    onEditCard={(card) => setEditingCard({ card, columnId: column.id })}
-                    onDeleteCard={(cardId) => deleteCard(cardId)}
-                    onUpdateColumnColor={(color, isClearing) => updateColumnColor(column.id, color, isClearing)}
-                    onApplyColumnColorToAll={applyColumnColorToAll}
-                    onUpdateCardColor={updateCardColor}
-                    onApplyCardColorToAll={applyCardColorToAll}
-                    disabled={!canEdit}
-                    themeColumnColor={boardTheme?.column_color}
-                    themeCardColor={boardTheme?.default_card_color}
-                    themeScrollbarColor={boardTheme?.scrollbar_color}
-                    themeScrollbarTrackColor={boardTheme?.scrollbar_track_color}
-                  />
-                ))}
-                {provided.placeholder}
-
-                {/* Add Column */}
-                {canEdit && (
-                  <div className="w-72 shrink-0">
-                    {isAddingColumn ? (
-                      <div className="bg-column rounded-xl p-3 animate-scale-in">
-                        <Input
-                          value={newColumnTitle}
-                          onChange={(e) => setNewColumnTitle(e.target.value)}
-                          placeholder="Enter list title..."
-                          className="mb-2"
-                          autoFocus
-                          maxLength={100}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') addColumn();
-                            if (e.key === 'Escape') {
-                              setIsAddingColumn(false);
-                              setNewColumnTitle('');
-                            }
-                          }}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" onClick={addColumn}>Add List</Button>
-                          <Button size="sm" variant="ghost" onClick={() => { setIsAddingColumn(false); setNewColumnTitle(''); }}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start bg-white/20 hover:bg-white/30 text-white rounded-xl h-12"
-                        onClick={() => setIsAddingColumn(true)}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add another list
-                      </Button>
-                    )}
-                  </div>
-                )}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <MobileColumnCarousel
+              columns={columns.map(column => ({
+                id: column.id,
+                title: column.title,
+                cards: getColumnCards(column.id),
+                color: column.color,
+              }))}
+              onUpdateColumnTitle={updateColumnTitle}
+              onDeleteColumn={deleteColumn}
+              onAddCard={addCard}
+              onEditCard={(card, columnId) => setEditingCard({ card, columnId })}
+              onDeleteCard={deleteCard}
+              onUpdateColumnColor={updateColumnColor}
+              onApplyColumnColorToAll={applyColumnColorToAll}
+              onUpdateCardColor={updateCardColor}
+              onApplyCardColorToAll={applyCardColorToAll}
+              disabled={!canEdit}
+              themeColumnColor={boardTheme?.column_color}
+              themeCardColor={boardTheme?.default_card_color}
+              themeScrollbarColor={boardTheme?.scrollbar_color}
+              themeScrollbarTrackColor={boardTheme?.scrollbar_track_color}
+            />
+            {/* Mobile Add Column FAB */}
+            {canEdit && (
+              <div className="absolute bottom-4 right-4">
+                <Button
+                  size="lg"
+                  className="h-14 w-14 rounded-full shadow-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={() => setIsAddingColumn(true)}
+                >
+                  <Plus className="h-6 w-6" />
+                </Button>
               </div>
             )}
-          </Droppable>
+          </div>
         </DragDropContext>
-      </div>
+      ) : (
+        /* Tablet & Desktop: Horizontal scroll layout */
+        <div 
+          ref={dragScrollRef} 
+          className={cn(
+            "flex-1 min-h-0 overflow-x-auto overflow-y-hidden",
+            isDragging ? 'cursor-grabbing' : isSpaceHeld ? 'cursor-grab' : 'cursor-default'
+          )}
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: boardTheme 
+              ? `${boardTheme.scrollbar_color} ${boardTheme.scrollbar_track_color}` 
+              : undefined,
+          }}
+        >
+          <style>{boardTheme ? `
+            .board-scroll-area::-webkit-scrollbar { width: 8px; height: 8px; }
+            .board-scroll-area::-webkit-scrollbar-track { background: ${boardTheme.scrollbar_track_color}; }
+            .board-scroll-area::-webkit-scrollbar-thumb { background: ${boardTheme.scrollbar_color}; border-radius: 4px; }
+          ` : ''}</style>
+          <DragDropContext onDragEnd={onDragEnd}>
+            <Droppable droppableId="board" type="column" direction="horizontal">
+              {(provided) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className={cn(
+                    "drag-scroll-area board-scroll-area flex items-start gap-3 md:gap-4 px-4 md:px-6 pt-4 md:pt-6 pb-4 md:pb-6 min-h-full",
+                    isTablet ? "min-w-0" : "min-w-max"
+                  )}
+                >
+                  {columns.map((column, index) => (
+                    <KanbanColumn
+                      key={column.id}
+                      column={{
+                        id: column.id,
+                        title: column.title,
+                        cards: getColumnCards(column.id),
+                        color: column.color,
+                      }}
+                      index={index}
+                      onUpdateTitle={(title) => updateColumnTitle(column.id, title)}
+                      onDelete={() => deleteColumn(column.id)}
+                      onAddCard={(title) => addCard(column.id, title)}
+                      onEditCard={(card) => setEditingCard({ card, columnId: column.id })}
+                      onDeleteCard={(cardId) => deleteCard(cardId)}
+                      onUpdateColumnColor={(color, isClearing) => updateColumnColor(column.id, color, isClearing)}
+                      onApplyColumnColorToAll={applyColumnColorToAll}
+                      onUpdateCardColor={updateCardColor}
+                      onApplyCardColorToAll={applyCardColorToAll}
+                      disabled={!canEdit}
+                      themeColumnColor={boardTheme?.column_color}
+                      themeCardColor={boardTheme?.default_card_color}
+                      themeScrollbarColor={boardTheme?.scrollbar_color}
+                      themeScrollbarTrackColor={boardTheme?.scrollbar_track_color}
+                    />
+                  ))}
+                  {provided.placeholder}
+
+                  {/* Add Column */}
+                  {canEdit && (
+                    <div className={cn(
+                      "shrink-0",
+                      isTablet ? "w-64" : "w-72"
+                    )}>
+                      {isAddingColumn ? (
+                        <div className="bg-column rounded-xl p-3 animate-scale-in">
+                          <Input
+                            value={newColumnTitle}
+                            onChange={(e) => setNewColumnTitle(e.target.value)}
+                            placeholder="Enter list title..."
+                            className="mb-2"
+                            autoFocus
+                            maxLength={100}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') addColumn();
+                              if (e.key === 'Escape') {
+                                setIsAddingColumn(false);
+                                setNewColumnTitle('');
+                              }
+                            }}
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={addColumn}>Add List</Button>
+                            <Button size="sm" variant="ghost" onClick={() => { setIsAddingColumn(false); setNewColumnTitle(''); }}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start bg-white/20 hover:bg-white/30 text-white rounded-xl h-12"
+                          onClick={() => setIsAddingColumn(true)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add another list
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+        </div>
+      )}
+
+      {/* Mobile Add Column Dialog */}
+      {isMobile && isAddingColumn && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+          <div className="bg-background w-full rounded-t-xl p-4 animate-slide-in-bottom">
+            <h3 className="text-lg font-semibold mb-3">Add New List</h3>
+            <Input
+              value={newColumnTitle}
+              onChange={(e) => setNewColumnTitle(e.target.value)}
+              placeholder="Enter list title..."
+              className="mb-3"
+              autoFocus
+              maxLength={100}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addColumn();
+                if (e.key === 'Escape') {
+                  setIsAddingColumn(false);
+                  setNewColumnTitle('');
+                }
+              }}
+            />
+            <div className="flex items-center gap-2">
+              <Button className="flex-1 h-11" onClick={addColumn}>Add List</Button>
+              <Button variant="outline" className="flex-1 h-11" onClick={() => { setIsAddingColumn(false); setNewColumnTitle(''); }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Card Detail Modal */}
       <CardDetailModal

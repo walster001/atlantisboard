@@ -10,9 +10,9 @@
 ## [2024-12-21]
 
 ### Fixed
-- **Twemoji Rendering in Card Descriptions**: Refactored and simplified Twemoji persistence logic
-  - Root fix: `skipRealtimeDescriptionUntilRef` in `BoardPage.tsx` prevents realtime subscription from overwriting `editingCard.card.description` after save (3-second window)
-  - Removed redundant `skipSyncUntilRef` from `CardDetailModal.tsx` - BoardPage's skip window is now the single source of truth
+- **Twemoji Rendering in Card Descriptions**: Fixed Twemoji persistence after save
+  - Added `skipDescriptionSyncUntilRef` in `CardDetailModal.tsx` (500ms) to prevent `useEffect([card])` from re-setting description state after save, avoiding re-render race with Twemoji parsing
+  - `skipRealtimeDescriptionUntilRef` in `BoardPage.tsx` prevents realtime subscription from overwriting `editingCard.card.description` (3-second window)
   - Added 50ms delay after double-RAF in `MarkdownRenderer.tsx` Twemoji effect to ensure all React state updates complete before parsing
   - `rendererKey` forces `MarkdownRenderer` remount after save/cancel for reliable Twemoji parsing
 

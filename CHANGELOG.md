@@ -17,6 +17,10 @@
   - Database stores UTF-8 emojis only (no Twemoji HTML markup)
   - `MarkdownRenderer.tsx` and `CardDetailModal.tsx` now use centralized utility
   - Eliminated emoji flicker and reversion issues
+- **Twemoji Flicker Prevention**: Fixed minor rendering glitches after save
+  - Changed to synchronous initial Twemoji parse (no debounce delay on first render)
+  - Switched from `useEffect` to `useLayoutEffect` to parse before browser paint
+  - Reduced debounce from 16ms to 0ms (microtask) for mutation-triggered re-parses
 
 ### Security
 - **Hourly Re-authentication**: Added `[auth]` section to `supabase/config.toml` with:

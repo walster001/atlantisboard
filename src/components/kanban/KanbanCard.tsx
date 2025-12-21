@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { ColorPicker } from './ColorPicker';
+import twemoji from '@twemoji/api';
 
 // Strip HTML tags from text for plain display
 function stripHtmlTags(text: string): string {
@@ -63,9 +64,25 @@ export const KanbanCard = memo(function KanbanCard({
   const [justDropped, setJustDropped] = useState(false);
   const wasDraggingRef = useRef(false);
   const prevDraggingRef = useRef(false);
+  const cardContentRef = useRef<HTMLDivElement>(null);
   const dueDate = card.dueDate ? new Date(card.dueDate) : null;
   const isOverdue = dueDate && isPast(dueDate) && !isToday(dueDate);
   const isDueToday = dueDate && isToday(dueDate);
+
+  // Apply Twemoji parsing after render
+  useEffect(() => {
+    const rafId = requestAnimationFrame(() => {
+      if (cardContentRef.current) {
+        twemoji.parse(cardContentRef.current, {
+          folder: 'svg',
+          ext: '.svg',
+          base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+          className: 'twemoji-card',
+        });
+      }
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [card.title, card.description]);
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't open card if we just finished dragging
@@ -124,6 +141,7 @@ export const KanbanCard = memo(function KanbanCard({
               ...(snapshot.isDragging ? { zIndex: 9999 } : {})
             }}
           >
+          <div ref={cardContentRef}>
           {/* Labels */}
           {card.labels.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-2">
@@ -228,6 +246,16 @@ export const KanbanCard = memo(function KanbanCard({
               {format(dueDate, 'MMM d')}
             </div>
           )}
+          <style>{`
+            .twemoji-card {
+              display: inline-block;
+              width: 1em;
+              height: 1em;
+              vertical-align: -0.1em;
+              margin: 0 0.05em;
+            }
+          `}</style>
+          </div>
         </div>
         );
       }}

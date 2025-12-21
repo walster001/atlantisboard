@@ -99,6 +99,13 @@ export default function Home() {
   const [renameBoardDialogOpen, setRenameBoardDialogOpen] = useState(false);
   const [editDescDialogOpen, setEditDescDialogOpen] = useState(false);
   const [deleteBoardId, setDeleteBoardId] = useState<string | null>(null);
+
+  // Edit workspace state
+  const [editWorkspaceId, setEditWorkspaceId] = useState<string | null>(null);
+  const [editWorkspaceName, setEditWorkspaceName] = useState('');
+  const [editWorkspaceDesc, setEditWorkspaceDesc] = useState('');
+  const [renameWorkspaceDialogOpen, setRenameWorkspaceDialogOpen] = useState(false);
+  const [editWorkspaceDescDialogOpen, setEditWorkspaceDescDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteWorkspaceId, setDeleteWorkspaceId] = useState<string | null>(null);
   const [deleteWorkspaceConfirmOpen, setDeleteWorkspaceConfirmOpen] = useState(false);
@@ -345,6 +352,62 @@ export default function Home() {
     } catch (error: any) {
       console.error('Delete workspace error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    }
+  };
+
+  const renameWorkspace = async () => {
+    if (!editWorkspaceId) return;
+
+    try {
+      const validated = workspaceSchema.parse({
+        name: editWorkspaceName,
+        description: null,
+      });
+
+      const { error } = await supabase
+        .from('workspaces')
+        .update({ name: validated.name })
+        .eq('id', editWorkspaceId);
+      if (error) throw error;
+      setWorkspaces(workspaces.map((w) => (w.id === editWorkspaceId ? { ...w, name: validated.name } : w)));
+      setRenameWorkspaceDialogOpen(false);
+      setEditWorkspaceId(null);
+      toast({ title: 'Workspace renamed' });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        console.error('Rename workspace error:', error);
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
+    }
+  };
+
+  const updateWorkspaceDescription = async () => {
+    if (!editWorkspaceId) return;
+
+    try {
+      const validated = workspaceSchema.parse({
+        name: 'placeholder',
+        description: editWorkspaceDesc || null,
+      });
+
+      const { error } = await supabase
+        .from('workspaces')
+        .update({ description: validated.description })
+        .eq('id', editWorkspaceId);
+      if (error) throw error;
+      setWorkspaces(workspaces.map((w) => (w.id === editWorkspaceId ? { ...w, description: validated.description } : w)));
+      setEditWorkspaceDescDialogOpen(false);
+      setEditWorkspaceId(null);
+      toast({ title: 'Description updated' });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
+      } else {
+        console.error('Update workspace description error:', error);
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
     }
   };
 
@@ -756,6 +819,26 @@ export default function Home() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
+                                onClick={() => {
+                                  setEditWorkspaceId(workspace.id);
+                                  setEditWorkspaceName(workspace.name);
+                                  setRenameWorkspaceDialogOpen(true);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Rename Workspace
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setEditWorkspaceId(workspace.id);
+                                  setEditWorkspaceDesc(workspace.description || '');
+                                  setEditWorkspaceDescDialogOpen(true);
+                                }}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                Edit Description
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => {
                                   setDeleteWorkspaceId(workspace.id);
@@ -933,7 +1016,53 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Board Confirmation Dialog */}
+      {/* Rename Workspace Dialog */}
+      <Dialog open={renameWorkspaceDialogOpen} onOpenChange={setRenameWorkspaceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Workspace</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Workspace Name</Label>
+              <Input
+                value={editWorkspaceName}
+                onChange={(e) => setEditWorkspaceName(e.target.value)}
+                placeholder="Workspace name"
+                maxLength={100}
+              />
+            </div>
+            <Button onClick={renameWorkspace} className="w-full">
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Workspace Description Dialog */}
+      <Dialog open={editWorkspaceDescDialogOpen} onOpenChange={setEditWorkspaceDescDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Workspace Description</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={editWorkspaceDesc}
+                onChange={(e) => setEditWorkspaceDesc(e.target.value)}
+                placeholder="Workspace description (optional)"
+                maxLength={500}
+                rows={4}
+              />
+            </div>
+            <Button onClick={updateWorkspaceDescription} className="w-full">
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={deleteConfirmOpen} onOpenChange={(open) => {
         setDeleteConfirmOpen(open);
         if (!open) {

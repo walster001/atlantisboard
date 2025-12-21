@@ -184,72 +184,86 @@ export default function Home() {
     }
   }, [location.state, user, navigate]);
 
-  // Listen for broadcast events when user is added to or removed from any board
+  // Listen for real-time board_members changes for the current user
+  // This handles both when user is added to or removed from boards
   useEffect(() => {
     if (!user) return;
 
-    const channels: ReturnType<typeof supabase.channel>[] = [];
-    
-    // Subscribe to member change broadcasts for all boards user is currently a member of
-    boards.forEach(board => {
-      const channel = supabase
-        .channel(`board-${board.id}-member-changes`)
-        .on('broadcast', { event: 'member_removed' }, (payload) => {
-          const { board_id, user_id } = payload.payload as { board_id: string; user_id: string };
-          if (user_id === user.id) {
-            // Find the board to get its workspace_id before removing it
-            const removedBoard = boards.find(b => b.id === board_id);
-            const workspaceId = removedBoard?.workspace_id;
-            
-            // Calculate remaining boards in workspace BEFORE state update
-            const remainingBoardsInWorkspace = boards.filter(
-              b => b.workspace_id === workspaceId && b.id !== board_id
-            );
-            const shouldRemoveWorkspace = workspaceId && remainingBoardsInWorkspace.length === 0;
-            
-            // Remove the board
-            setBoards(prev => prev.filter(b => b.id !== board_id));
-            
-            // Remove workspace if this was the last board
-            if (shouldRemoveWorkspace) {
-              setWorkspaces(prev => prev.filter(w => w.id !== workspaceId));
-            }
-            
-            setBoardRoles(prev => {
-              const updated = { ...prev };
-              delete updated[board_id];
-              return updated;
-            });
-            
-            toast({
-              title: 'Board access removed',
-              description: shouldRemoveWorkspace 
-                ? 'You have been removed from a board and no longer have access to the workspace.'
-                : 'You have been removed from a board.',
-            });
-          }
-        })
-        .subscribe();
-      channels.push(channel);
-    });
+    console.log('Home: Setting up board_members realtime subscription for user:', user.id);
 
-    // Listen on user-specific channel for when user is added to new boards
-    const userChannel = supabase
-      .channel(`user-${user.id}-board-updates`)
-      .on('broadcast', { event: 'added_to_board' }, () => {
-        fetchData();
-        toast({
-          title: 'Board access granted',
-          description: 'You have been added to a new board.',
-        });
-      })
-      .subscribe();
-    channels.push(userChannel);
+    const channel = supabase
+      .channel(`user-${user.id}-board-membership-changes`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'board_members',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('Home: Received INSERT event for board_members:', payload);
+          // User was added to a new board - refetch data to get the new board
+          fetchData();
+          toast({
+            title: 'Board access granted',
+            description: 'You have been added to a new board.',
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'board_members',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('Home: Received DELETE event for board_members:', payload);
+          const deletedMembership = payload.old as { board_id: string; user_id: string };
+          
+          // Find the board to get its workspace_id before removing it
+          const removedBoard = boards.find(b => b.id === deletedMembership.board_id);
+          const workspaceId = removedBoard?.workspace_id;
+          
+          // Calculate remaining boards in workspace BEFORE state update
+          const remainingBoardsInWorkspace = boards.filter(
+            b => b.workspace_id === workspaceId && b.id !== deletedMembership.board_id
+          );
+          const shouldRemoveWorkspace = workspaceId && remainingBoardsInWorkspace.length === 0;
+          
+          // Remove the board
+          setBoards(prev => prev.filter(b => b.id !== deletedMembership.board_id));
+          
+          // Remove workspace if this was the last board
+          if (shouldRemoveWorkspace) {
+            setWorkspaces(prev => prev.filter(w => w.id !== workspaceId));
+          }
+          
+          setBoardRoles(prev => {
+            const updated = { ...prev };
+            delete updated[deletedMembership.board_id];
+            return updated;
+          });
+          
+          toast({
+            title: 'Board access removed',
+            description: shouldRemoveWorkspace 
+              ? 'You have been removed from a board and no longer have access to the workspace.'
+              : 'You have been removed from a board.',
+          });
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('Home: Board membership subscription status:', status, err || '');
+      });
 
     return () => {
-      channels.forEach(channel => supabase.removeChannel(channel));
+      console.log('Home: Cleaning up board_members subscription');
+      supabase.removeChannel(channel);
     };
-  }, [user, boards.map(b => b.id).join(',')]);
+  }, [user, boards]);
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {

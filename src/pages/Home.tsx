@@ -150,12 +150,37 @@ export default function Home() {
         .on('broadcast', { event: 'member_removed' }, (payload) => {
           const { board_id, user_id } = payload.payload as { board_id: string; user_id: string };
           if (user_id === user.id) {
-            setBoards(prev => prev.filter(b => b.id !== board_id));
+            // Find the board to get its workspace_id before removing it
+            const removedBoard = boards.find(b => b.id === board_id);
+            const workspaceId = removedBoard?.workspace_id;
+            
+            // Remove the board
+            setBoards(prev => {
+              const updatedBoards = prev.filter(b => b.id !== board_id);
+              
+              // Check if this was the last board in the workspace for this user
+              if (workspaceId) {
+                const remainingBoardsInWorkspace = updatedBoards.filter(
+                  b => b.workspace_id === workspaceId
+                );
+                
+                // If no more boards in this workspace, also remove the workspace
+                if (remainingBoardsInWorkspace.length === 0) {
+                  setWorkspaces(prevWorkspaces => 
+                    prevWorkspaces.filter(w => w.id !== workspaceId)
+                  );
+                }
+              }
+              
+              return updatedBoards;
+            });
+            
             setBoardRoles(prev => {
               const updated = { ...prev };
               delete updated[board_id];
               return updated;
             });
+            
             toast({
               title: 'Board access removed',
               description: 'You have been removed from a board.',

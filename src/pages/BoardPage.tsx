@@ -328,6 +328,8 @@ export default function BoardPage() {
   useEffect(() => {
     if (!boardId || !user || isPreviewMode) return;
 
+    console.log('BoardPage: Setting up member change listener for board:', boardId);
+
     const channel = supabase
       .channel(`board-${boardId}-member-removal-detection`)
       .on(
@@ -339,8 +341,11 @@ export default function BoardPage() {
           filter: `board_id=eq.${boardId}`,
         },
         (payload) => {
+          console.log('BoardPage: Received DELETE event:', payload);
           const deletedMember = payload.old as { board_id: string; user_id: string };
+          console.log('BoardPage: Deleted member user_id:', deletedMember.user_id, 'Current user:', user.id);
           if (deletedMember.user_id === user.id) {
+            console.log('BoardPage: Current user was removed, navigating to home');
             // Current user was removed from the board - redirect to home
             navigate('/', { 
               state: { 
@@ -366,6 +371,7 @@ export default function BoardPage() {
           filter: `board_id=eq.${boardId}`,
         },
         (payload) => {
+          console.log('BoardPage: Received INSERT event:', payload);
           const newMember = payload.new as { board_id: string; user_id: string };
           // If someone else was added, refresh members list
           if (newMember.user_id !== user.id) {
@@ -373,9 +379,12 @@ export default function BoardPage() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('BoardPage: Member change subscription status:', status, err || '');
+      });
 
     return () => {
+      console.log('BoardPage: Cleaning up member change listener');
       supabase.removeChannel(channel);
     };
   }, [boardId, user, isPreviewMode, navigate, workspaceId]);

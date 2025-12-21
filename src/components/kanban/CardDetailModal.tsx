@@ -276,10 +276,18 @@ export function CardDetailModal({
                 onChange={(e) => setTitle(e.target.value)}
                 className="text-xl font-semibold"
                 autoFocus
+                onBlur={() => {
+                  // Auto-save title on blur if it has changed
+                  if (title.trim() && title.trim() !== stripHtmlTags(card.title)) {
+                    handleSaveTitle();
+                  } else {
+                    setIsEditingTitle(false);
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveTitle();
                   if (e.key === 'Escape') {
-                    setTitle(card.title);
+                    setTitle(stripHtmlTags(card.title));
                     setIsEditingTitle(false);
                   }
                 }}
@@ -288,7 +296,7 @@ export function CardDetailModal({
                 <Check className="h-4 w-4" />
               </Button>
               <Button size="icon" variant="ghost" onClick={() => {
-                setTitle(card.title);
+                setTitle(stripHtmlTags(card.title));
                 setIsEditingTitle(false);
               }}>
                 <X className="h-4 w-4" />

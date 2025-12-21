@@ -813,20 +813,31 @@ export function ToastUIMarkdownEditor({
       }
     });
     
-    // Close on outside click - use capture phase
+    // Close on outside click - use capture phase with better detection
     const handleOutside = (e: PointerEvent) => {
       if (!isOpen) return;
-      const target = e.target as Node;
-      const inDropdown = dropdown.contains(target);
-      const inWrapper = wrapper.contains(target);
+      const target = e.target as HTMLElement;
+      
+      // Check if click is inside dropdown using closest() - works for portalled elements
+      const inDropdownByAttr = target.closest?.('[data-emoji-dropdown]') !== null;
+      const inWrapperByAttr = target.closest?.('[data-emoji-picker-wrapper]') !== null;
+      const inDropdown = dropdown.contains(target) || inDropdownByAttr;
+      const inWrapper = wrapper.contains(target) || inWrapperByAttr;
+      
       log('OUTSIDE_POINTERDOWN', { 
         isOpen, 
         inDropdown, 
-        inWrapper, 
-        targetTag: (target as HTMLElement)?.tagName,
-        targetClass: (target as HTMLElement)?.className
+        inWrapper,
+        inDropdownByAttr,
+        inWrapperByAttr,
+        targetTag: target?.tagName,
+        targetClass: target?.className
       });
-      if (inDropdown || inWrapper) return;
+      
+      if (inDropdown || inWrapper) {
+        log('OUTSIDE_POINTERDOWN_IGNORED', { reason: 'inside picker' });
+        return;
+      }
       closeDropdown();
     };
     document.addEventListener('pointerdown', handleOutside, true);

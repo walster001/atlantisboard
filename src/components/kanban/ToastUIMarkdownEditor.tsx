@@ -409,11 +409,23 @@ export function ToastUIMarkdownEditor({
     const RECENT_EMOJIS_KEY = 'toastui-recent-emojis';
     const MAX_RECENT = 20;
     
+    // Enhanced logging helper
+    const logEmoji = (action: string, data?: any) => {
+      const timestamp = new Date().toISOString();
+      const logData = data !== undefined ? JSON.stringify(data, null, 2) : '';
+      console.log(`[EmojiPicker ${timestamp}] ${action}`, logData ? `\n${logData}` : '');
+    };
+    
+    logEmoji('createEmojiToolbarItem called - initializing emoji picker');
+    
     const getRecentEmojis = (): string[] => {
       try {
         const stored = localStorage.getItem(RECENT_EMOJIS_KEY);
-        return stored ? JSON.parse(stored) : [];
-      } catch {
+        const result = stored ? JSON.parse(stored) : [];
+        logEmoji('getRecentEmojis', { count: result.length, emojis: result.slice(0, 5) });
+        return result;
+      } catch (err) {
+        logEmoji('getRecentEmojis ERROR', { error: String(err) });
         return [];
       }
     };
@@ -423,7 +435,10 @@ export function ToastUIMarkdownEditor({
         let recent = getRecentEmojis();
         recent = [emoji, ...recent.filter(e => e !== emoji)].slice(0, MAX_RECENT);
         localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(recent));
-      } catch {}
+        logEmoji('addRecentEmoji success', { emoji, newCount: recent.length });
+      } catch (err) {
+        logEmoji('addRecentEmoji ERROR', { emoji, error: String(err) });
+      }
     };
     
     const emojiCategories: Record<string, { icon: string; emojis: string[] }> = {
@@ -505,40 +520,84 @@ export function ToastUIMarkdownEditor({
     
     // Helper functions
     const saveSelection = () => {
+      logEmoji('saveSelection called');
       const editor = editorRef.current?.getInstance();
+      logEmoji('saveSelection - editor exists', { hasEditor: !!editor });
+      
       if (editor) {
         try {
+          const currentMode = editor.isMarkdownMode() ? 'markdown' : 'wysiwyg';
+          logEmoji('saveSelection - editor mode', { mode: currentMode });
+          
           const [start, end] = editor.getSelection();
           savedSelection = { start, end };
-          console.log('[EmojiPicker] Saved selection:', savedSelection);
+          logEmoji('saveSelection - success', { savedSelection, mode: currentMode });
         } catch (err) {
-          console.log('[EmojiPicker] Could not save selection:', err);
+          logEmoji('saveSelection - ERROR', { error: String(err), stack: (err as Error)?.stack });
           savedSelection = null;
         }
+      } else {
+        logEmoji('saveSelection - no editor instance');
+        savedSelection = null;
       }
     };
     
     const closeDropdown = () => {
-      console.log('[EmojiPicker] closeDropdown called, isOpen:', isOpen);
+      logEmoji('closeDropdown called', { isOpen, dropdownDisplay: dropdown.style.display });
       if (!isOpen) return;
       isOpen = false;
       dropdown.style.display = 'none';
+      logEmoji('closeDropdown - dropdown hidden');
     };
     
     const insertEmoji = (emoji: string) => {
-      console.log('[EmojiPicker] Inserting emoji:', emoji);
+      logEmoji('insertEmoji called', { emoji, savedSelection });
+      
       const editor = editorRef.current?.getInstance();
+      logEmoji('insertEmoji - editor state', { 
+        hasEditor: !!editor,
+        editorRefCurrent: !!editorRef.current
+      });
+      
       if (editor) {
-        editor.focus();
-        if (savedSelection) {
-          try {
-            editor.setSelection(savedSelection.start, savedSelection.end);
-          } catch (err) {
-            console.log('[EmojiPicker] Could not restore selection:', err);
+        try {
+          const currentMode = editor.isMarkdownMode() ? 'markdown' : 'wysiwyg';
+          const markdownBefore = editor.getMarkdown();
+          logEmoji('insertEmoji - before state', { 
+            mode: currentMode,
+            markdownLength: markdownBefore.length,
+            markdownPreview: markdownBefore.slice(-50)
+          });
+          
+          logEmoji('insertEmoji - calling editor.focus()');
+          editor.focus();
+          
+          if (savedSelection) {
+            try {
+              logEmoji('insertEmoji - restoring selection', savedSelection);
+              editor.setSelection(savedSelection.start, savedSelection.end);
+            } catch (err) {
+              logEmoji('insertEmoji - setSelection ERROR', { error: String(err) });
+            }
           }
+          
+          logEmoji('insertEmoji - calling editor.insertText()');
+          editor.insertText(emoji);
+          
+          const markdownAfter = editor.getMarkdown();
+          logEmoji('insertEmoji - after state', { 
+            markdownLength: markdownAfter.length,
+            markdownPreview: markdownAfter.slice(-50),
+            emojiInserted: markdownAfter.includes(emoji)
+          });
+          
+          addRecentEmoji(emoji);
+          logEmoji('insertEmoji - complete success');
+        } catch (err) {
+          logEmoji('insertEmoji - EXCEPTION', { error: String(err), stack: (err as Error)?.stack });
         }
-        editor.insertText(emoji);
-        addRecentEmoji(emoji);
+      } else {
+        logEmoji('insertEmoji - NO EDITOR - cannot insert');
       }
       closeDropdown();
     };
@@ -573,7 +632,12 @@ export function ToastUIMarkdownEditor({
       emojiBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log('[EmojiPicker] Emoji button clicked:', emoji);
+        logEmoji('emojiBtn click event', { 
+          emoji, 
+          eventType: e.type,
+          isTrusted: e.isTrusted,
+          target: (e.target as HTMLElement)?.tagName
+        });
         insertEmoji(emoji);
       });
       
@@ -594,11 +658,15 @@ export function ToastUIMarkdownEditor({
     };
     
     const renderCategory = (category: string) => {
-      console.log('[EmojiPicker] Rendering category:', category);
+      logEmoji('renderCategory', { category });
       if (category === 'recent') {
-        renderEmojis(getRecentEmojis(), 'Recent');
+        const recentEmojis = getRecentEmojis();
+        logEmoji('renderCategory - recent emojis', { count: recentEmojis.length });
+        renderEmojis(recentEmojis, 'Recent');
       } else if (emojiCategories[category]) {
-        renderEmojis(emojiCategories[category].emojis, category);
+        const catEmojis = emojiCategories[category].emojis;
+        logEmoji('renderCategory - category emojis', { category, count: catEmojis.length });
+        renderEmojis(catEmojis, category);
       }
       emojiScrollContainer.scrollTop = 0;
     };
@@ -611,7 +679,7 @@ export function ToastUIMarkdownEditor({
     };
     
     const selectCategory = (category: string) => {
-      console.log('[EmojiPicker] Selecting category:', category);
+      logEmoji('selectCategory', { category, previousCategory: activeCategory });
       activeCategory = category;
       searchInput.value = '';
       updateTabStyles();
@@ -704,16 +772,29 @@ export function ToastUIMarkdownEditor({
     };
     
     const openDropdown = () => {
-      console.log('[EmojiPicker] openDropdown called, isOpen:', isOpen);
-      if (isOpen) return;
+      logEmoji('openDropdown called', { isOpen, editorRefExists: !!editorRef.current });
+      if (isOpen) {
+        logEmoji('openDropdown - already open, returning');
+        return;
+      }
       isOpen = true;
+      
+      logEmoji('openDropdown - saving selection');
       saveSelection();
+      
+      logEmoji('openDropdown - positioning dropdown');
       positionDropdown();
+      
       dropdown.style.display = 'flex';
       activeCategory = 'recent';
       searchInput.value = '';
       updateTabStyles();
       renderCategory('recent');
+      
+      logEmoji('openDropdown - complete', { 
+        dropdownDisplay: dropdown.style.display,
+        activeCategory 
+      });
       // Don't auto-focus search to avoid editor blur issues
     };
     
@@ -725,7 +806,12 @@ export function ToastUIMarkdownEditor({
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      console.log('[EmojiPicker] Toggle button clicked, isOpen:', isOpen);
+      logEmoji('Toggle button click', { 
+        isOpen, 
+        isTrusted: e.isTrusted,
+        clientX: e.clientX,
+        clientY: e.clientY
+      });
       if (isOpen) {
         closeDropdown();
       } else {
@@ -736,12 +822,12 @@ export function ToastUIMarkdownEditor({
     // Prevent all events inside dropdown from bubbling
     dropdown.addEventListener('mousedown', (e) => {
       e.stopPropagation();
-      console.log('[EmojiPicker] Dropdown mousedown, target:', (e.target as HTMLElement).tagName);
+      logEmoji('Dropdown mousedown', { target: (e.target as HTMLElement).tagName, className: (e.target as HTMLElement).className });
     });
     dropdown.addEventListener('mouseup', (e) => e.stopPropagation());
     dropdown.addEventListener('click', (e) => {
       e.stopPropagation();
-      console.log('[EmojiPicker] Dropdown click, target:', (e.target as HTMLElement).tagName);
+      logEmoji('Dropdown click', { target: (e.target as HTMLElement).tagName, className: (e.target as HTMLElement).className });
     });
     dropdown.addEventListener('focusin', (e) => e.stopPropagation());
     dropdown.addEventListener('focusout', (e) => e.stopPropagation());
@@ -750,24 +836,36 @@ export function ToastUIMarkdownEditor({
     const handleOutsideMouseDown = (e: MouseEvent) => {
       if (!isOpen) return;
       const target = e.target as Node;
+      const targetEl = e.target as HTMLElement;
+      
+      logEmoji('handleOutsideMouseDown', { 
+        isOpen,
+        targetTag: targetEl.tagName,
+        targetClass: targetEl.className,
+        inDropdown: dropdown.contains(target),
+        inWrapper: wrapper.contains(target)
+      });
+      
       if (dropdown.contains(target) || wrapper.contains(target)) {
-        console.log('[EmojiPicker] Click inside dropdown/wrapper, not closing');
+        logEmoji('handleOutsideMouseDown - inside, not closing');
         return;
       }
-      console.log('[EmojiPicker] Outside click detected, closing');
+      logEmoji('handleOutsideMouseDown - outside, closing');
       closeDropdown();
     };
     
     // Add listener to document body with capture phase
     document.addEventListener('mousedown', handleOutsideMouseDown, true);
+    logEmoji('Added document mousedown listener');
     
     // Append dropdown to document body for proper z-index stacking
     document.body.appendChild(dropdown);
+    logEmoji('Dropdown appended to body');
     
     // Cleanup observer
     const observer = new MutationObserver(() => {
       if (!document.body.contains(wrapper)) {
-        console.log('[EmojiPicker] Wrapper removed from DOM, cleaning up');
+        logEmoji('MutationObserver - wrapper removed from DOM, cleaning up');
         dropdown.remove();
         document.removeEventListener('mousedown', handleOutsideMouseDown, true);
         observer.disconnect();

@@ -502,22 +502,11 @@ export function MarkdownRenderer({
   // Ref for the container to apply Twemoji parsing
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Counter to force re-parsing when content prop changes (even if processed result is same)
-  const parseCounter = useRef(0);
-  
-  // Increment parse counter whenever raw content changes to ensure Twemoji re-parses
-  useEffect(() => {
-    parseCounter.current += 1;
-  }, [content]);
-  
-  // Apply Twemoji parsing after render - use requestAnimationFrame to ensure DOM is updated
-  // Use a double-RAF to ensure React has fully committed DOM updates
+  // Apply Twemoji parsing after render - use double-RAF to ensure DOM is fully updated
   useEffect(() => {
     let rafId2: number | null = null;
     
-    // First RAF: wait for React's commit phase to complete
     const rafId1 = requestAnimationFrame(() => {
-      // Second RAF: ensure browser has painted and DOM is stable
       rafId2 = requestAnimationFrame(() => {
         if (containerRef.current) {
           twemoji.parse(containerRef.current, {
@@ -536,7 +525,7 @@ export function MarkdownRenderer({
         cancelAnimationFrame(rafId2);
       }
     };
-  }, [content, contentSegments, processedContent]);
+  }, [processedContent]);
 
   // If no content, return null
   if (!content) return null;

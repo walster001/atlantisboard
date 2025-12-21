@@ -500,7 +500,7 @@ export function ToastUIMarkdownEditor({
     header.textContent = 'Recent';
     
     const emojiScrollContainer = document.createElement('div');
-    emojiScrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;';
+    emojiScrollContainer.style.cssText = 'flex:1;overflow-y:scroll;overflow-x:hidden;min-height:0;pointer-events:auto;-webkit-overflow-scrolling:touch;';
     
     const emojiGrid = document.createElement('div');
     emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:10px;';

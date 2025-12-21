@@ -493,6 +493,16 @@ export function ToastUIMarkdownEditor({
     dropdown.setAttribute('data-emoji-dropdown', 'true');
     dropdown.style.cssText = 'position:fixed;z-index:2147483647;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:420px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
     
+    // Prevent ALL events from propagating out of dropdown
+    const stopAllEvents = (e: Event) => {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    };
+    
+    ['mousedown', 'mouseup', 'click', 'pointerdown', 'pointerup', 'touchstart', 'touchend', 'focusin', 'focusout', 'focus', 'blur'].forEach(evt => {
+      dropdown.addEventListener(evt, stopAllEvents, true);
+    });
+    
     // Search input
     const searchContainer = document.createElement('div');
     searchContainer.style.cssText = 'padding:10px;border-bottom:1px solid #3d444d;';
@@ -587,11 +597,19 @@ export function ToastUIMarkdownEditor({
         emojiBtn.style.background = 'none';
         emojiBtn.style.transform = 'scale(1)';
       });
-      emojiBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+      
+      // Use pointerdown to prevent focus loss, then click to insert
+      emojiBtn.addEventListener('pointerdown', (e) => { 
+        e.preventDefault(); 
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      });
       emojiBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        insertEmoji(emojiBtn.dataset.emoji || emoji);
+        e.stopImmediatePropagation();
+        const emojiToInsert = emojiBtn.dataset.emoji || emoji;
+        insertEmoji(emojiToInsert);
       });
       
       return emojiBtn;
@@ -650,27 +668,49 @@ export function ToastUIMarkdownEditor({
         tab.textContent = emoji;
         tab.style.fontSize = '14px';
       }
+      
+      tab.addEventListener('pointerdown', (e) => { 
+        e.preventDefault(); 
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      });
+      
       return tab;
     };
     
     // Build tabs - Recent tab first
     const recentTab = createTab('🕐', 'Recent', true);
-    recentTab.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
-    recentTab.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); selectCategory('recent'); });
+    recentTab.addEventListener('click', (e) => { 
+      e.preventDefault(); 
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      selectCategory('recent'); 
+    });
     tabButtons.push(recentTab);
     tabsContainer.appendChild(recentTab);
     
     // Category tabs
     CATEGORY_NAMES.forEach(category => {
       const tab = createTab(EMOJI_CATEGORIES[category].icon, category);
-      tab.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
-      tab.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); selectCategory(category); });
+      tab.addEventListener('click', (e) => { 
+        e.preventDefault(); 
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        selectCategory(category); 
+      });
       tabButtons.push(tab);
       tabsContainer.appendChild(tab);
     });
     
-    // Search functionality
-    searchInput.addEventListener('mousedown', (e) => e.stopPropagation());
+    // Search functionality - prevent events from bubbling
+    searchInput.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    });
+    searchInput.addEventListener('focus', (e) => {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    });
     searchInput.addEventListener('input', () => {
       const query = searchInput.value.toLowerCase().trim();
       if (!query) {
@@ -717,26 +757,31 @@ export function ToastUIMarkdownEditor({
       renderCategory('recent');
     };
     
-    // Button click handler
-    btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+    // Button click handler - use pointerdown to prevent focus loss
+    btn.addEventListener('pointerdown', (e) => { 
+      e.preventDefault(); 
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    });
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      isOpen ? closeDropdown() : openDropdown();
+      e.stopImmediatePropagation();
+      if (isOpen) {
+        closeDropdown();
+      } else {
+        openDropdown();
+      }
     });
     
-    // Prevent dropdown events from bubbling
-    ['mousedown', 'mouseup', 'click', 'focusin', 'focusout'].forEach(evt => {
-      dropdown.addEventListener(evt, (e) => e.stopPropagation());
-    });
-    
-    // Close on outside click
-    const handleOutside = (e: MouseEvent) => {
+    // Close on outside click - use capture phase
+    const handleOutside = (e: PointerEvent) => {
       if (!isOpen) return;
       const target = e.target as Node;
-      if (!dropdown.contains(target) && !wrapper.contains(target)) closeDropdown();
+      if (dropdown.contains(target) || wrapper.contains(target)) return;
+      closeDropdown();
     };
-    document.addEventListener('mousedown', handleOutside, true);
+    document.addEventListener('pointerdown', handleOutside, true);
     
     // Append dropdown to body
     document.body.appendChild(dropdown);
@@ -745,7 +790,7 @@ export function ToastUIMarkdownEditor({
     const observer = new MutationObserver(() => {
       if (!document.body.contains(wrapper) && !isOpen) {
         dropdown.remove();
-        document.removeEventListener('mousedown', handleOutside, true);
+        document.removeEventListener('pointerdown', handleOutside, true);
         observer.disconnect();
       }
     });

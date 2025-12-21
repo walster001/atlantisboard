@@ -17,3 +17,11 @@ verify_jwt = false
 
 [functions.redeem-invite-token]
 verify_jwt = false
+
+[auth]
+# JWT tokens expire after 1 hour (3600 seconds)
+jwt_expiry = 3600
+
+# Disable refresh token rotation - sessions truly expire after jwt_expiry
+# This ensures users must re-login hourly, triggering verification checks
+enable_refresh_token_rotation = false

@@ -328,11 +328,16 @@ export default function BoardPage() {
   useEffect(() => {
     if (!boardId || !user || isPreviewMode) return;
 
+    console.log('BoardPage: Setting up broadcast listener for board:', boardId);
+
     const channel = supabase
       .channel(`board-${boardId}-member-changes`)
       .on('broadcast', { event: 'member_removed' }, (payload) => {
+        console.log('BoardPage: Received member_removed broadcast:', payload);
         const { user_id, board_id } = payload.payload as { board_id: string; user_id: string };
+        console.log('BoardPage: Checking if removed user matches current user:', { user_id, currentUserId: user.id });
         if (user_id === user.id) {
+          console.log('BoardPage: Current user was removed, navigating to home');
           // Get the current board's workspace_id before navigating
           // Pass removal info to Home via navigation state so it can update properly
           navigate('/', { 
@@ -350,15 +355,19 @@ export default function BoardPage() {
         }
       })
       .on('broadcast', { event: 'member_added' }, (payload) => {
+        console.log('BoardPage: Received member_added broadcast:', payload);
         const { user_id } = payload.payload as { board_id: string; user_id: string };
         // If someone else was added, refresh members list
         if (user_id !== user.id) {
           refreshBoardMembers();
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('BoardPage: Broadcast subscription status:', status);
+      });
 
     return () => {
+      console.log('BoardPage: Cleaning up broadcast listener for board:', boardId);
       supabase.removeChannel(channel);
     };
   }, [boardId, user, isPreviewMode, navigate, workspaceId]);

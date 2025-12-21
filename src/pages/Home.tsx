@@ -137,6 +137,63 @@ export default function Home() {
     }
   }, [user, isVerified]);
 
+  // Realtime subscription for board_members - remove boards instantly when user is removed
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('home-board-members-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'board_members',
+        },
+        (payload) => {
+          const deletedMembership = payload.old as { board_id: string; user_id: string };
+          // If current user was removed from a board, remove it from the list
+          if (deletedMembership.user_id === user.id) {
+            setBoards(prev => prev.filter(b => b.id !== deletedMembership.board_id));
+            // Also remove from boardRoles
+            setBoardRoles(prev => {
+              const updated = { ...prev };
+              delete updated[deletedMembership.board_id];
+              return updated;
+            });
+            toast({
+              title: 'Board access removed',
+              description: 'You have been removed from a board.',
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'board_members',
+        },
+        (payload) => {
+          const newMembership = payload.new as { board_id: string; user_id: string; role: string };
+          // If current user was added to a board, refresh data to show it
+          if (newMembership.user_id === user.id) {
+            fetchData();
+            toast({
+              title: 'Board access granted',
+              description: 'You have been added to a new board.',
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {
     const pendingToken = sessionStorage.getItem('pendingInviteToken');

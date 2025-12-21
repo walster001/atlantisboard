@@ -575,9 +575,6 @@ interface ImportResult {
   cards_created: number;
   labels_created: number;
   subtasks_created: number;
-  attachments_noted: number;
-  attachments_pending: number;
-  assignees_pending: number;
   errors: string[];
   warnings: string[];
   createdIds?: {
@@ -711,9 +708,6 @@ Deno.serve(async (req) => {
               cards_created: 0,
               labels_created: 0,
               subtasks_created: 0,
-              attachments_noted: 0,
-              attachments_pending: 0,
-              assignees_pending: 0,
               warnings: [],
             });
           }
@@ -750,9 +744,6 @@ Deno.serve(async (req) => {
         cards_created: 0,
         labels_created: 0,
         subtasks_created: 0,
-        attachments_noted: 0,
-        attachments_pending: 0,
-        assignees_pending: 0,
         warnings: [],
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -780,9 +771,6 @@ async function runImport(
     cards_created: 0,
     labels_created: 0,
     subtasks_created: 0,
-    attachments_noted: 0,
-    attachments_pending: 0,
-    assignees_pending: 0,
     errors: [],
     warnings: [],
   };
@@ -797,14 +785,12 @@ async function runImport(
   let totalLists = 0;
   let totalCards = 0;
   let totalChecklists = 0;
-  let totalAttachments = 0;
 
   for (const board of boards) {
     totalLabels += (board.labels || []).length;
     totalLists += (board.lists || []).filter(l => !l.archived).length;
     totalCards += (board.cards || []).filter(c => !c.archived).length;
     totalChecklists += (board.checklists || []).length;
-    totalAttachments += (board.attachments || []).length;
   }
 
   sendProgress('workspace', 0, 1, 'Creating workspace...');
@@ -844,7 +830,6 @@ async function runImport(
   let processedLists = 0;
   let processedCards = 0;
   let processedChecklists = 0;
-  let processedAttachments = 0;
 
   // Process each board
   for (let boardIdx = 0; boardIdx < boards.length; boardIdx++) {
@@ -1051,30 +1036,6 @@ async function runImport(
             }
           }
 
-          // Create pending assignee mappings
-          const allAssignees = [...(wekanCard.members || []), ...(wekanCard.assignees || [])];
-          if (allAssignees.length > 0) {
-            for (const memberId of allAssignees) {
-              const member = memberMap.get(memberId);
-              const memberName = member?.fullname || member?.username || `Unknown (${memberId})`;
-              const username = member?.username || null;
-
-              const { error: pendingError } = await supabase
-                .from('import_pending_assignees')
-                .insert({
-                  board_id: board.id,
-                  card_id: card.id,
-                  original_member_id: memberId,
-                  original_member_name: memberName,
-                  original_username: username,
-                  import_source: 'wekan',
-                });
-
-              if (!pendingError) {
-                result.assignees_pending++;
-              }
-            }
-          }
         }
       }
 
@@ -1112,37 +1073,6 @@ async function runImport(
         }
       }
 
-      // Create pending attachment records for manual upload
-      const attachments = wekanBoard.attachments || [];
-      if (attachments.length > 0) {
-        for (const attachment of attachments) {
-          processedAttachments++;
-          sendProgress('attachments', processedAttachments, totalAttachments, `Attachment: ${attachment.name || 'Unknown'}`);
-
-          // Try to find the card for this attachment
-          const cardId = cardIdMap.values().next().value; // Default to first card if no mapping
-          
-          if (cardId) {
-            const { error: pendingAttachError } = await supabase
-              .from('import_pending_attachments')
-              .insert({
-                board_id: board.id,
-                card_id: cardId,
-                original_attachment_id: attachment._id,
-                original_name: attachment.name || 'Unknown',
-                original_url: attachment.url || null,
-                original_size: attachment.size || null,
-                original_type: attachment.type || null,
-                import_source: 'wekan',
-              });
-
-            if (!pendingAttachError) {
-              result.attachments_pending++;
-            }
-          }
-        }
-        result.attachments_noted += attachments.length;
-      }
 
     } catch (boardError: any) {
       console.error('Error processing board:', boardError);

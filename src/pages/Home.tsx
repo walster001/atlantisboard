@@ -13,10 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload, Users, Paperclip } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload } from 'lucide-react';
 import { BoardImportDialog } from '@/components/import/BoardImportDialog';
-import { AssigneeMappingDialog } from '@/components/import/AssigneeMappingDialog';
-import { ImportAttachmentDialog } from '@/components/import/ImportAttachmentDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
@@ -114,9 +112,6 @@ export default function Home() {
   } | null>(null);
   const [deletionCountsLoading, setDeletionCountsLoading] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [assigneeMappingOpen, setAssigneeMappingOpen] = useState(false);
-  const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
-  const [pendingAttachmentCount, setPendingAttachmentCount] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -213,13 +208,6 @@ export default function Home() {
       setWorkspaces(result?.workspaces || []);
       setBoards(result?.boards || []);
       setBoardRoles(result?.board_roles || {});
-
-      // Fetch pending attachment count for admins
-      const { count } = await supabase
-        .from('import_pending_attachments')
-        .select('*', { count: 'exact', head: true })
-        .is('resolved_at', null);
-      setPendingAttachmentCount(count || 0);
     } catch (error: any) {
       console.error('Error fetching data:', error);
     } finally {
@@ -625,19 +613,6 @@ export default function Home() {
             <h2 className="text-2xl font-semibold">Your Workspaces</h2>
             {isAppAdmin && (
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => setAttachmentDialogOpen(true)} className="relative">
-                  <Paperclip className="h-4 w-4 mr-2" />
-                  Attachments
-                  {pendingAttachmentCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-xs font-medium rounded-full h-5 min-w-5 flex items-center justify-center px-1">
-                      {pendingAttachmentCount > 99 ? '99+' : pendingAttachmentCount}
-                    </span>
-                  )}
-                </Button>
-                <Button variant="outline" onClick={() => setAssigneeMappingOpen(true)}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Map Assignees
-                </Button>
                 <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
                   <Upload className="h-4 w-4 mr-2" />
                   Import
@@ -1064,19 +1039,6 @@ export default function Home() {
         onImportComplete={fetchData}
       />
 
-      {/* Assignee Mapping Dialog */}
-      <AssigneeMappingDialog
-        open={assigneeMappingOpen}
-        onOpenChange={setAssigneeMappingOpen}
-        onMappingComplete={fetchData}
-      />
-
-      {/* Import Attachment Dialog */}
-      <ImportAttachmentDialog
-        open={attachmentDialogOpen}
-        onOpenChange={setAttachmentDialogOpen}
-        onComplete={fetchData}
-      />
     </div>
   );
 }

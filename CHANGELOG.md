@@ -10,11 +10,12 @@
 ## [2024-12-21]
 
 ### Fixed
-- **Twemoji Rendering in Card Descriptions**: Fixed issue where Twemojis would load briefly then revert to UTF-8 glyphs after saving description edits
-  - Added `skipRealtimeDescriptionUntilRef` to `BoardPage.tsx` with 3-second window to prevent realtime subscription from overwriting `editingCard.card.description` after save
-  - This is the root fix: realtime updates were bypassing the modal's local state protection by updating the `card` prop directly
-  - Retained `skipSyncUntilRef` in `CardDetailModal.tsx` as secondary protection
-  - Added `rendererKey` state to force `MarkdownRenderer` remount after save/cancel for reliable Twemoji parsing
+- **Twemoji Rendering in Card Descriptions**: Refactored and simplified Twemoji persistence logic
+  - Root fix: `skipRealtimeDescriptionUntilRef` in `BoardPage.tsx` prevents realtime subscription from overwriting `editingCard.card.description` after save (3-second window)
+  - Removed redundant `skipSyncUntilRef` from `CardDetailModal.tsx` - BoardPage's skip window is now the single source of truth
+  - Removed unused `parseCounter` ref from `MarkdownRenderer.tsx`
+  - Simplified Twemoji effect dependencies in `MarkdownRenderer` to just `processedContent`
+  - `rendererKey` forces `MarkdownRenderer` remount after save/cancel for reliable Twemoji parsing
 
 ### Security
 - **Hourly Re-authentication**: Added `[auth]` section to `supabase/config.toml` with:

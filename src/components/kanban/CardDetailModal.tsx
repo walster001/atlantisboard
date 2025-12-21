@@ -135,21 +135,14 @@ export function CardDetailModal({
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [rendererKey, setRendererKey] = useState(0); // Key to force MarkdownRenderer remount for Twemoji
   const titleRef = useRef<HTMLHeadingElement>(null);
-  // Track when to skip syncing description from prop updates (after save, we want to preserve local state)
-  // Use a timestamp to allow the skip to persist across multiple re-renders from realtime updates
-  const skipSyncUntilRef = useRef<number>(0);
 
+  // Sync state from card prop when card changes
+  // Note: Twemoji persistence is handled by BoardPage's skipRealtimeDescriptionUntilRef
+  // which prevents realtime updates from overwriting the card prop after save
   useEffect(() => {
     if (card) {
-      // Strip HTML tags from title for plain text display
       setTitle(stripHtmlTags(card.title));
-      // Only sync description if we're not in the skip window (after a save, we want to keep local state)
-      // The skip window lasts for 2 seconds to handle multiple realtime updates
-      const now = Date.now();
-      if (now >= skipSyncUntilRef.current) {
-        // Store the raw description (Markdown or legacy HTML) - the renderer will handle conversion
-        setDescription(card.description || '');
-      }
+      setDescription(card.description || '');
       setDueDate(card.dueDate ? new Date(card.dueDate) : undefined);
       setIsEditingTitle(false);
       setIsEditingDescription(false);
@@ -181,14 +174,10 @@ export function CardDetailModal({
   };
 
   const handleSaveDescription = () => {
-    // Set a skip window to prevent syncing description from prop updates after save
-    // This preserves the local state so Twemoji rendering isn't overwritten by realtime updates
-    // The 2-second window handles multiple realtime events that may fire after save
-    skipSyncUntilRef.current = Date.now() + 2000;
     setIsEditingDescription(false);
     setRendererKey(prev => prev + 1); // Force MarkdownRenderer remount for Twemoji
-    
-    // Call onSave after state updates to ensure flag is set before any re-render
+    // onSave triggers BoardPage which sets skipRealtimeDescriptionUntilRef to prevent
+    // realtime updates from overwriting Twemoji rendering
     onSave({ description: description || undefined });
   };
 

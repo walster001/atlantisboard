@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings } from '@/hooks/useAppSettings';
@@ -74,6 +74,7 @@ export default function Home() {
   const { user, signOut, loading: authLoading, isAppAdmin, isVerified } = useAuth();
   const { settings: appSettings, appName } = useAppSettings();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -136,6 +137,52 @@ export default function Home() {
       }
     }
   }, [user, isVerified]);
+
+  // Handle navigation state when user is redirected after being removed from a board
+  useEffect(() => {
+    const state = location.state as { removedFromBoard?: { board_id: string; workspace_id: string | null; timestamp: number } } | null;
+    
+    if (state?.removedFromBoard && user) {
+      const { board_id, workspace_id } = state.removedFromBoard;
+      
+      // Remove the board from state
+      setBoards(prev => {
+        const updatedBoards = prev.filter(b => b.id !== board_id);
+        
+        // Check if we need to remove the workspace too
+        if (workspace_id) {
+          const remainingBoardsInWorkspace = updatedBoards.filter(
+            b => b.workspace_id === workspace_id
+          );
+          
+          if (remainingBoardsInWorkspace.length === 0) {
+            setWorkspaces(prevWorkspaces => 
+              prevWorkspaces.filter(w => w.id !== workspace_id)
+            );
+          }
+        }
+        
+        return updatedBoards;
+      });
+      
+      // Remove from board roles
+      setBoardRoles(prev => {
+        const updated = { ...prev };
+        delete updated[board_id];
+        return updated;
+      });
+      
+      // Show notification
+      toast({
+        title: 'Access removed',
+        description: 'You have been removed from this board.',
+        variant: 'destructive',
+      });
+      
+      // Clear the navigation state to prevent re-triggering
+      navigate('/', { replace: true, state: {} });
+    }
+  }, [location.state, user, navigate]);
 
   // Listen for broadcast events when user is added to or removed from any board
   useEffect(() => {

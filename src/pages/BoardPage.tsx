@@ -88,6 +88,7 @@ export default function BoardPage() {
   const [cardAttachments, setCardAttachments] = useState<{ id: string; card_id: string; file_name: string; file_url: string; file_size: number | null; file_type: string | null; uploaded_by: string | null; created_at: string }[]>([]);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [editingCard, setEditingCard] = useState<{ card: CardType; columnId: string } | null>(null);
@@ -330,14 +331,19 @@ export default function BoardPage() {
     const channel = supabase
       .channel(`board-${boardId}-member-changes`)
       .on('broadcast', { event: 'member_removed' }, (payload) => {
-        const { user_id } = payload.payload as { board_id: string; user_id: string };
+        const { user_id, board_id } = payload.payload as { board_id: string; user_id: string };
         if (user_id === user.id) {
-          toast({
-            title: 'Access removed',
-            description: 'You have been removed from this board.',
-            variant: 'destructive',
+          // Get the current board's workspace_id before navigating
+          // Pass removal info to Home via navigation state so it can update properly
+          navigate('/', { 
+            state: { 
+              removedFromBoard: {
+                board_id,
+                workspace_id: workspaceId,
+                timestamp: Date.now()
+              }
+            }
           });
-          navigate('/');
         } else {
           // Another member was removed, refresh members list
           refreshBoardMembers();
@@ -355,7 +361,7 @@ export default function BoardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, user, isPreviewMode, navigate]);
+  }, [boardId, user, isPreviewMode, navigate, workspaceId]);
 
   const fetchBoardData = async () => {
     if (!boardId) return;
@@ -399,6 +405,7 @@ export default function BoardPage() {
       // Set all state from single response
       setBoardName(result.board?.name || '');
       setBoardColor(result.board?.background_color || '#0079bf');
+      setWorkspaceId(result.board?.workspace_id || null);
       setUserRole(result.user_role as 'admin' | 'manager' | 'viewer' | null);
       setColumns(result.columns || []);
 

@@ -502,28 +502,35 @@ export function MarkdownRenderer({
   // Ref for the container to apply Twemoji parsing
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Apply Twemoji parsing after render - use double-RAF to ensure DOM is fully updated
+  // Apply Twemoji parsing after render
+  // Use triple-RAF + timeout to ensure all React updates and DOM mutations are complete
   useEffect(() => {
+    let timeoutId: number | null = null;
+    let rafId1: number | null = null;
     let rafId2: number | null = null;
     
-    const rafId1 = requestAnimationFrame(() => {
+    // First, wait for React's batched updates to complete
+    rafId1 = requestAnimationFrame(() => {
+      // Second, wait for browser paint
       rafId2 = requestAnimationFrame(() => {
-        if (containerRef.current) {
-          twemoji.parse(containerRef.current, {
-            folder: 'svg',
-            ext: '.svg',
-            base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
-            className: 'twemoji-inline',
-          });
-        }
+        // Third, add a small delay for any remaining state updates
+        timeoutId = window.setTimeout(() => {
+          if (containerRef.current) {
+            twemoji.parse(containerRef.current, {
+              folder: 'svg',
+              ext: '.svg',
+              base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+              className: 'twemoji-inline',
+            });
+          }
+        }, 50);
       });
     });
     
     return () => {
-      cancelAnimationFrame(rafId1);
-      if (rafId2 !== null) {
-        cancelAnimationFrame(rafId2);
-      }
+      if (rafId1 !== null) cancelAnimationFrame(rafId1);
+      if (rafId2 !== null) cancelAnimationFrame(rafId2);
+      if (timeoutId !== null) clearTimeout(timeoutId);
     };
   }, [processedContent]);
 

@@ -5,7 +5,7 @@
  * Uses ToastUIMarkdownEditor for editing and MarkdownRenderer for display.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { Card, Label, getLabelHexColor } from '@/types/kanban';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -146,8 +146,8 @@ export function CardDetailModal({
     }
   }, [card]);
 
-  // Apply Twemoji to title after render using MutationObserver
-  useEffect(() => {
+  // Apply Twemoji to title - useLayoutEffect prevents flicker
+  useLayoutEffect(() => {
     if (!isEditingTitle && titleRef.current) {
       const cleanup = observeTwemoji(titleRef.current, 'twemoji-title');
       return cleanup;

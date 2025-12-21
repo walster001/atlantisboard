@@ -56,23 +56,28 @@ export function observeTwemoji(
   // Debounce timer to batch rapid changes
   let debounceTimer: number | null = null;
   
+  const doParse = () => {
+    if (isParsing) return;
+    isParsing = true;
+    applyTwemoji(element, className);
+    isParsing = false;
+  };
+  
   const parseWithDebounce = () => {
     if (debounceTimer !== null) {
       window.clearTimeout(debounceTimer);
     }
     
+    // Use microtask timing (0ms) for minimal delay while still batching
     debounceTimer = window.setTimeout(() => {
-      if (isParsing) return;
-      
-      isParsing = true;
-      applyTwemoji(element, className);
-      isParsing = false;
+      doParse();
       debounceTimer = null;
-    }, 16); // ~1 frame delay for batching
+    }, 0);
   };
   
-  // Initial parse
-  parseWithDebounce();
+  // CRITICAL: Parse immediately and synchronously on setup
+  // This prevents any flash of UTF-8 emojis before Twemoji converts them
+  doParse();
   
   // Create observer for future changes
   const observer = new MutationObserver((mutations) => {

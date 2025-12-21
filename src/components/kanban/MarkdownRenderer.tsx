@@ -16,7 +16,7 @@
  * - rehype-sanitize: Prevent XSS by sanitizing HTML
  */
 
-import { useMemo, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useCallback, useLayoutEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkEmoji from 'remark-emoji';
@@ -503,8 +503,8 @@ export function MarkdownRenderer({
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Apply Twemoji parsing using MutationObserver
-  // This automatically re-parses when ReactMarkdown recreates DOM nodes
-  useEffect(() => {
+  // useLayoutEffect ensures Twemoji parses BEFORE browser paint, preventing flicker
+  useLayoutEffect(() => {
     const cleanup = observeTwemoji(containerRef.current, 'twemoji-inline');
     return cleanup;
   }, [processedContent]); // Re-attach when content changes

@@ -11,10 +11,10 @@
 
 ### Fixed
 - **Twemoji Rendering in Card Descriptions**: Fixed issue where Twemojis would load briefly then revert to UTF-8 glyphs after saving or canceling description edits
-  - Added `skipNextSyncRef` flag to prevent description state sync from overwriting Twemoji parsing after save
-  - Fixed double-RAF cleanup that caused runtime error in production (cannot set property on number primitive)
+  - Changed `skipNextSyncRef` (boolean flag) to `skipSyncUntilRef` (timestamp) with 2-second window to handle multiple realtime subscription updates
+  - This prevents the realtime subscription from overwriting local description state after save, preserving Twemoji rendering
   - Added `rendererKey` state to force `MarkdownRenderer` remount after save/cancel for reliable Twemoji parsing
-  - Updated `MarkdownRenderer` useEffect to use proper closure variable for inner RAF ID cleanup
+  - Fixed double-RAF cleanup that caused runtime error in production
 
 ### Security
 - **Hourly Re-authentication**: Added `[auth]` section to `supabase/config.toml` with:

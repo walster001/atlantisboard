@@ -768,8 +768,19 @@ export function ToastUIMarkdownEditor({
       if (isOpen) return;
       isOpen = true;
       saveSelection();
+      
+      // Append dropdown to the nearest dialog portal or body
+      // This ensures it's in the same stacking context as the dialog
+      const dialogPortal = document.querySelector('[data-radix-portal]');
+      const appendTarget = dialogPortal || document.body;
+      if (!appendTarget.contains(dropdown)) {
+        appendTarget.appendChild(dropdown);
+        log('DROPDOWN_APPENDED', { target: dialogPortal ? 'dialog-portal' : 'body' });
+      }
+      
       positionDropdown();
       dropdown.style.display = 'flex';
+      dropdown.style.pointerEvents = 'auto'; // Ensure pointer events work
       activeCategory = 'recent';
       searchInput.value = '';
       updateTabStyles();
@@ -814,9 +825,8 @@ export function ToastUIMarkdownEditor({
     };
     document.addEventListener('mousedown', handleOutsideMousedown, false); // Use bubble phase so dropdown can stopPropagation first
     
-    // Append dropdown to body
-    document.body.appendChild(dropdown);
-    log('DROPDOWN_APPENDED_TO_BODY');
+    // Don't append immediately - will be appended when opened to the correct portal
+    // This ensures it's in the same stacking context as the dialog
     
     // Cleanup observer
     const observer = new MutationObserver(() => {

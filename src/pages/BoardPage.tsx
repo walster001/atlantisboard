@@ -328,7 +328,7 @@ export default function BoardPage() {
   useEffect(() => {
     if (!boardId || !user || isPreviewMode) return;
 
-    console.log('BoardPage: Setting up member change listener for board:', boardId);
+    console.log('BoardPage: Setting up member change listener for board:', boardId, 'user:', user.id);
 
     const channel = supabase
       .channel(`board-${boardId}-member-removal-detection`)
@@ -341,22 +341,31 @@ export default function BoardPage() {
           filter: `board_id=eq.${boardId}`,
         },
         (payload) => {
-          console.log('BoardPage: Received DELETE event:', payload);
-          const deletedMember = payload.old as { board_id: string; user_id: string };
-          console.log('BoardPage: Deleted member user_id:', deletedMember.user_id, 'Current user:', user.id);
-          if (deletedMember.user_id === user.id) {
-            console.log('BoardPage: Current user was removed, navigating to home');
-            // Current user was removed from the board - redirect to home
+          console.log('BoardPage: Received DELETE event payload:', JSON.stringify(payload));
+          const deletedMember = payload.old as { board_id?: string; user_id?: string; id?: string };
+          console.log('BoardPage: Deleted member:', deletedMember, 'Current user:', user.id);
+          
+          // Check if current user was removed
+          if (deletedMember?.user_id === user.id) {
+            console.log('BoardPage: Current user was removed, showing toast and navigating to home');
+            // Show toast immediately before redirect
+            toast({
+              title: 'Access removed',
+              description: 'You have been removed from this board.',
+              variant: 'destructive',
+            });
+            // Navigate to home with state
             navigate('/', { 
               state: { 
                 removedFromBoard: {
-                  board_id: deletedMember.board_id,
+                  board_id: boardId,
                   workspace_id: workspaceId,
                   timestamp: Date.now()
                 }
               }
             });
           } else {
+            console.log('BoardPage: Another member was removed, refreshing members list');
             // Another member was removed, refresh members list
             refreshBoardMembers();
           }
@@ -387,7 +396,7 @@ export default function BoardPage() {
       console.log('BoardPage: Cleaning up member change listener');
       supabase.removeChannel(channel);
     };
-  }, [boardId, user, isPreviewMode, navigate, workspaceId]);
+  }, [boardId, user, isPreviewMode, navigate, workspaceId, toast]);
 
   const fetchBoardData = async () => {
     if (!boardId) return;

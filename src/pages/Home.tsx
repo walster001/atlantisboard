@@ -222,36 +222,40 @@ export default function Home() {
         (payload) => {
           console.log('Home: Received DELETE event for board_members:', payload);
           const deletedMembership = payload.old as { board_id: string; user_id: string };
+          const deletedBoardId = deletedMembership.board_id;
           
-          // Find the board to get its workspace_id before removing it
-          const removedBoard = boards.find(b => b.id === deletedMembership.board_id);
-          const workspaceId = removedBoard?.workspace_id;
-          
-          // Calculate remaining boards in workspace BEFORE state update
-          const remainingBoardsInWorkspace = boards.filter(
-            b => b.workspace_id === workspaceId && b.id !== deletedMembership.board_id
-          );
-          const shouldRemoveWorkspace = workspaceId && remainingBoardsInWorkspace.length === 0;
-          
-          // Remove the board
-          setBoards(prev => prev.filter(b => b.id !== deletedMembership.board_id));
-          
-          // Remove workspace if this was the last board
-          if (shouldRemoveWorkspace) {
-            setWorkspaces(prev => prev.filter(w => w.id !== workspaceId));
-          }
+          // Use functional state updates to avoid stale closure issues
+          // We need to capture workspace info and update both states atomically
+          setBoards(prevBoards => {
+            const removedBoard = prevBoards.find(b => b.id === deletedBoardId);
+            const workspaceId = removedBoard?.workspace_id;
+            
+            // Calculate remaining boards in workspace
+            const remainingBoardsInWorkspace = prevBoards.filter(
+              b => b.workspace_id === workspaceId && b.id !== deletedBoardId
+            );
+            const shouldRemoveWorkspace = workspaceId && remainingBoardsInWorkspace.length === 0;
+            
+            // Remove workspace if this was the last board (update in separate setState to avoid batching issues)
+            if (shouldRemoveWorkspace) {
+              setWorkspaces(prevWorkspaces => prevWorkspaces.filter(w => w.id !== workspaceId));
+            }
+            
+            // Show toast with correct info
+            toast({
+              title: 'Board access removed',
+              description: shouldRemoveWorkspace 
+                ? 'You have been removed from a board and no longer have access to the workspace.'
+                : 'You have been removed from a board.',
+            });
+            
+            return prevBoards.filter(b => b.id !== deletedBoardId);
+          });
           
           setBoardRoles(prev => {
             const updated = { ...prev };
-            delete updated[deletedMembership.board_id];
+            delete updated[deletedBoardId];
             return updated;
-          });
-          
-          toast({
-            title: 'Board access removed',
-            description: shouldRemoveWorkspace 
-              ? 'You have been removed from a board and no longer have access to the workspace.'
-              : 'You have been removed from a board.',
           });
         }
       )
@@ -263,7 +267,7 @@ export default function Home() {
       console.log('Home: Cleaning up board_members subscription');
       supabase.removeChannel(channel);
     };
-  }, [user, boards]);
+  }, [user]); // Only depend on user - use functional state updates inside callbacks
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {

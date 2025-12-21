@@ -451,9 +451,17 @@ export function ToastUIMarkdownEditor({
     btn.type = 'button';
     
     const dropdown = document.createElement('div');
-    dropdown.style.cssText = 'position:fixed;z-index:2147483647;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:400px;box-shadow:0 12px 32px rgba(0,0,0,0.5);pointer-events:auto;';
+    dropdown.style.cssText = 'position:fixed;z-index:2147483647;background:#1D2125;border:1px solid #3d444d;border-radius:10px;display:none;flex-direction:column;width:340px;height:400px;box-shadow:0 12px 32px rgba(0,0,0,0.5);';
     document.body.appendChild(dropdown);
     
+    // State
+    let isOpen = false;
+    let activeCategory: string = 'recent';
+    let savedSelection: { start: number; end: number } | null = null;
+    const categoryNames = Object.keys(emojiCategories);
+    const tabButtons: HTMLButtonElement[] = [];
+    
+    // Build UI elements
     const searchContainer = document.createElement('div');
     searchContainer.style.cssText = 'padding:10px;border-bottom:1px solid #3d444d;';
     
@@ -461,11 +469,8 @@ export function ToastUIMarkdownEditor({
     searchInput.type = 'text';
     searchInput.placeholder = 'Search emojis...';
     searchInput.style.cssText = 'width:100%;padding:8px 12px;border:1px solid #3d444d;border-radius:6px;background:#161b22;color:#e6edf3;font-size:14px;outline:none;box-sizing:border-box;';
-    searchInput.onfocus = () => { searchInput.style.borderColor = '#58a6ff'; };
-    searchInput.onblur = () => { searchInput.style.borderColor = '#3d444d'; };
     searchContainer.appendChild(searchInput);
     
-    // Preview bar showing hovered emoji
     const previewBar = document.createElement('div');
     previewBar.style.cssText = 'padding:8px 12px;border-bottom:1px solid #3d444d;display:flex;align-items:center;gap:10px;min-height:44px;';
     
@@ -480,15 +485,15 @@ export function ToastUIMarkdownEditor({
     previewBar.appendChild(previewEmoji);
     previewBar.appendChild(previewText);
     
-    const header = document.createElement('div');
-    header.style.cssText = 'padding:6px 12px;font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;';
-    header.textContent = 'Recent';
-    
     const tabsWrapper = document.createElement('div');
     tabsWrapper.style.cssText = 'padding:0 10px 6px;border-bottom:1px solid #3d444d;';
     
     const tabsContainer = document.createElement('div');
     tabsContainer.style.cssText = 'display:flex;gap:2px;overflow-x:auto;';
+    
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:6px 12px;font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;';
+    header.textContent = 'Recent';
     
     const emojiScrollContainer = document.createElement('div');
     emojiScrollContainer.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;';
@@ -496,16 +501,7 @@ export function ToastUIMarkdownEditor({
     const emojiGrid = document.createElement('div');
     emojiGrid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:10px;';
     
-    // Track currently hovered emoji for accurate insertion
-    let hoveredEmoji: string | null = null;
-    
-    const categoryNames = Object.keys(emojiCategories);
-    let activeCategory: string | null = 'recent';
-    const tabButtons: HTMLButtonElement[] = [];
-    
-    // Store selection before dropdown opens
-    let savedSelection: { start: number; end: number } | null = null;
-    
+    // Helper functions
     const saveSelection = () => {
       const editor = editorRef.current?.getInstance();
       if (editor) {
@@ -514,45 +510,47 @@ export function ToastUIMarkdownEditor({
       }
     };
     
+    const insertEmoji = (emoji: string) => {
+      const editor = editorRef.current?.getInstance();
+      if (editor) {
+        editor.focus();
+        if (savedSelection) {
+          editor.setSelection(savedSelection.start, savedSelection.end);
+        }
+        editor.insertText(emoji);
+        addRecentEmoji(emoji);
+      }
+      closeDropdown();
+    };
+    
     const createEmojiButton = (emoji: string): HTMLButtonElement => {
       const emojiBtn = document.createElement('button');
       emojiBtn.type = 'button';
-      emojiBtn.dataset.emoji = emoji; // Store emoji in data attribute for accurate retrieval
       emojiBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:22px;padding:4px;border-radius:6px;transition:background 0.15s,transform 0.1s;display:flex;align-items:center;justify-content:center;width:34px;height:34px;';
       emojiBtn.textContent = emoji;
-      emojiBtn.onmouseenter = () => { 
+      
+      emojiBtn.addEventListener('mouseenter', () => { 
         emojiBtn.style.background = '#3d444d'; 
         emojiBtn.style.transform = 'scale(1.15)';
-        hoveredEmoji = emoji;
         previewEmoji.textContent = emoji;
         previewText.textContent = 'Click to insert';
         previewText.style.color = '#e6edf3';
-      };
-      emojiBtn.onmouseleave = () => { 
+      });
+      
+      emojiBtn.addEventListener('mouseleave', () => { 
         emojiBtn.style.background = 'none'; 
         emojiBtn.style.transform = 'scale(1)';
-        hoveredEmoji = null;
         previewEmoji.textContent = '';
         previewText.textContent = 'Hover over an emoji to preview';
         previewText.style.color = '#8b949e';
-      };
-      emojiBtn.onmousedown = (e) => { e.preventDefault(); e.stopPropagation(); };
-      emojiBtn.onclick = (e) => {
+      });
+      
+      emojiBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        // Use the data attribute to ensure correct emoji is inserted
-        const emojiToInsert = emojiBtn.dataset.emoji || emoji;
-        const editor = editorRef.current?.getInstance();
-        if (editor) {
-          editor.focus();
-          if (savedSelection) {
-            editor.setSelection(savedSelection.start, savedSelection.end);
-          }
-          editor.insertText(emojiToInsert);
-          addRecentEmoji(emojiToInsert);
-        }
-        dropdown.style.display = 'none';
-      };
+        insertEmoji(emoji);
+      });
+      
       return emojiBtn;
     };
     
@@ -572,7 +570,7 @@ export function ToastUIMarkdownEditor({
     const renderCategory = (category: string) => {
       if (category === 'recent') {
         renderEmojis(getRecentEmojis(), 'Recent');
-      } else {
+      } else if (emojiCategories[category]) {
         renderEmojis(emojiCategories[category].emojis, category);
       }
       emojiScrollContainer.scrollTop = 0;
@@ -585,12 +583,24 @@ export function ToastUIMarkdownEditor({
       });
     };
     
+    const selectCategory = (category: string) => {
+      activeCategory = category;
+      searchInput.value = '';
+      updateTabStyles();
+      renderCategory(category);
+    };
+    
+    // Create tabs
     const recentTab = document.createElement('button');
     recentTab.type = 'button';
     recentTab.style.cssText = 'background:#3d444d;border:none;cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;';
     recentTab.textContent = '🕐';
     recentTab.title = 'Recent';
-    recentTab.onclick = (e) => { e.preventDefault(); e.stopPropagation(); activeCategory = 'recent'; searchInput.value = ''; updateTabStyles(); renderCategory('recent'); };
+    recentTab.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      selectCategory('recent');
+    });
     tabButtons.push(recentTab);
     tabsContainer.appendChild(recentTab);
     
@@ -600,25 +610,31 @@ export function ToastUIMarkdownEditor({
       tabBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;';
       tabBtn.textContent = emojiCategories[category].icon;
       tabBtn.title = category;
-      tabBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); activeCategory = category; searchInput.value = ''; updateTabStyles(); renderCategory(category); };
+      tabBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectCategory(category);
+      });
       tabButtons.push(tabBtn);
       tabsContainer.appendChild(tabBtn);
     });
     
-    searchInput.oninput = () => {
+    // Search functionality
+    searchInput.addEventListener('input', () => {
       const query = searchInput.value.toLowerCase().trim();
       if (query === '') {
         activeCategory = 'recent';
         updateTabStyles();
         renderCategory('recent');
       } else {
-        activeCategory = null;
+        activeCategory = '';
         updateTabStyles();
         const filtered = allEmojis.filter(({ emoji }) => emoji.includes(query)).map(e => e.emoji);
         renderEmojis(filtered, `Search: "${query}"`);
       }
-    };
+    });
     
+    // Assemble dropdown
     tabsWrapper.appendChild(tabsContainer);
     emojiScrollContainer.appendChild(emojiGrid);
     dropdown.appendChild(searchContainer);
@@ -645,45 +661,55 @@ export function ToastUIMarkdownEditor({
       dropdown.style.left = `${left}px`;
     };
     
-    btn.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const isVisible = dropdown.style.display !== 'none';
-      if (isVisible) {
-        dropdown.style.display = 'none';
-      } else {
-        // Save selection before opening dropdown
-        saveSelection();
-        positionDropdown();
-        dropdown.style.display = 'flex';
-        activeCategory = 'recent';
-        searchInput.value = '';
-        updateTabStyles();
-        renderCategory('recent');
-        setTimeout(() => searchInput.focus(), 50);
-      }
+    const openDropdown = () => {
+      if (isOpen) return;
+      isOpen = true;
+      saveSelection();
+      positionDropdown();
+      dropdown.style.display = 'flex';
+      activeCategory = 'recent';
+      searchInput.value = '';
+      updateTabStyles();
+      renderCategory('recent');
+      setTimeout(() => searchInput.focus(), 50);
     };
     
-    // Prevent clicks inside dropdown from bubbling
-    dropdown.onclick = (e) => e.stopPropagation();
-    dropdown.onmousedown = (e) => e.stopPropagation();
-    dropdown.onmouseup = (e) => e.stopPropagation();
-    
-    const handleOutsideClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      // Check if click is inside dropdown or button
-      if (dropdown.contains(target) || wrapper.contains(target)) {
-        return;
-      }
+    const closeDropdown = () => {
+      if (!isOpen) return;
+      isOpen = false;
       dropdown.style.display = 'none';
     };
-    // Use setTimeout to defer adding listener, preventing immediate close
-    document.addEventListener('click', handleOutsideClick, true);
     
+    // Toggle button click
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isOpen) {
+        closeDropdown();
+      } else {
+        openDropdown();
+      }
+    });
+    
+    // Prevent all events inside dropdown from closing it
+    dropdown.addEventListener('mousedown', (e) => e.stopPropagation());
+    dropdown.addEventListener('mouseup', (e) => e.stopPropagation());
+    dropdown.addEventListener('click', (e) => e.stopPropagation());
+    
+    // Close on outside click - use mousedown to catch it before focus changes
+    const handleOutsideMouseDown = (e: MouseEvent) => {
+      if (!isOpen) return;
+      const target = e.target as Node;
+      if (dropdown.contains(target) || btn.contains(target)) return;
+      closeDropdown();
+    };
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+    
+    // Cleanup observer
     const observer = new MutationObserver(() => {
       if (!document.body.contains(wrapper)) {
         dropdown.remove();
-        document.removeEventListener('click', handleOutsideClick, true);
+        document.removeEventListener('mousedown', handleOutsideMouseDown);
         observer.disconnect();
       }
     });

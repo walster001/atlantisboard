@@ -23,6 +23,7 @@ function stripHtmlTags(text: string): string {
 function stripMarkdown(text: string): string {
   return text
     .replace(/<[^>]*>/g, '') // HTML tags
+    .replace(/\[INLINE_BUTTON:[A-Za-z0-9+/=]+\]/g, '') // Inline buttons [INLINE_BUTTON:base64]
     .replace(/\*\*(.+?)\*\*/g, '$1') // Bold **text**
     .replace(/\*(.+?)\*/g, '$1') // Italic *text*
     .replace(/__(.+?)__/g, '$1') // Bold __text__

@@ -133,6 +133,7 @@ export function CardDetailModal({
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [showLabelPicker, setShowLabelPicker] = useState(false);
+  const [rendererKey, setRendererKey] = useState(0); // Key to force MarkdownRenderer remount for Twemoji
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -174,6 +175,7 @@ export function CardDetailModal({
   const handleSaveDescription = () => {
     onSave({ description: description || undefined });
     setIsEditingDescription(false);
+    setRendererKey(prev => prev + 1); // Force MarkdownRenderer remount for Twemoji
   };
 
   const handleSaveDueDate = (date: Date | undefined) => {
@@ -374,6 +376,7 @@ export function CardDetailModal({
                   onClick={() => {
                     setDescription(card.description || '');
                     setIsEditingDescription(false);
+                    setRendererKey(prev => prev + 1); // Force MarkdownRenderer remount for Twemoji
                   }}
                 >
                   Cancel
@@ -398,6 +401,7 @@ export function CardDetailModal({
                 emoji shortcodes, and sanitized HTML.
               */}
               <MarkdownRenderer
+                key={`md-view-${rendererKey}`}
                 content={description}
                 themeTextColor={effectiveTextColor}
                 themeBackgroundColor={themeCardWindowColor}

@@ -488,19 +488,6 @@ export function ToastUIMarkdownEditor({
     searchInput.style.cssText = 'width:100%;padding:8px 12px;border:1px solid #3d444d;border-radius:6px;background:#161b22;color:#e6edf3;font-size:14px;outline:none;box-sizing:border-box;';
     searchContainer.appendChild(searchInput);
     
-    const previewBar = document.createElement('div');
-    previewBar.style.cssText = 'padding:8px 12px;border-bottom:1px solid #3d444d;display:flex;align-items:center;gap:10px;min-height:44px;';
-    
-    const previewEmoji = document.createElement('span');
-    previewEmoji.style.cssText = 'font-size:28px;width:36px;text-align:center;';
-    previewEmoji.textContent = '';
-    
-    const previewText = document.createElement('span');
-    previewText.style.cssText = 'font-size:13px;color:#8b949e;';
-    previewText.textContent = 'Hover over an emoji to preview';
-    
-    previewBar.appendChild(previewEmoji);
-    previewBar.appendChild(previewText);
     
     const tabsWrapper = document.createElement('div');
     tabsWrapper.style.cssText = 'padding:0 10px 6px;border-bottom:1px solid #3d444d;';
@@ -611,17 +598,11 @@ export function ToastUIMarkdownEditor({
       emojiBtn.addEventListener('mouseenter', () => { 
         emojiBtn.style.background = '#3d444d'; 
         emojiBtn.style.transform = 'scale(1.15)';
-        previewEmoji.textContent = emoji;
-        previewText.textContent = 'Click to insert';
-        previewText.style.color = '#e6edf3';
       });
       
       emojiBtn.addEventListener('mouseleave', () => { 
         emojiBtn.style.background = 'none'; 
         emojiBtn.style.transform = 'scale(1)';
-        previewEmoji.textContent = '';
-        previewText.textContent = 'Hover over an emoji to preview';
-        previewText.style.color = '#8b949e';
       });
       
       emojiBtn.addEventListener('mousedown', (e) => {
@@ -748,7 +729,7 @@ export function ToastUIMarkdownEditor({
     tabsWrapper.appendChild(tabsContainer);
     emojiScrollContainer.appendChild(emojiGrid);
     dropdown.appendChild(searchContainer);
-    dropdown.appendChild(previewBar);
+    
     dropdown.appendChild(tabsWrapper);
     dropdown.appendChild(header);
     dropdown.appendChild(emojiScrollContainer);

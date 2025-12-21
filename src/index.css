@@ -348,3 +348,16 @@
   border-radius: var(--radius);
   overflow: hidden;
 }
+
+/* Global Twemoji styles - ensures consistent emoji rendering */
+.twemoji-inline,
+.twemoji-card,
+.twemoji-title,
+.twemoji-editor {
+  display: inline-block !important;
+  width: 1.2em !important;
+  height: 1.2em !important;
+  vertical-align: -0.2em !important;
+  margin: 0 0.05em !important;
+  pointer-events: none;
+}

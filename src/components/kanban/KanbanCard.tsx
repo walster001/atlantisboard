@@ -246,15 +246,6 @@ export const KanbanCard = memo(function KanbanCard({
               {format(dueDate, 'MMM d')}
             </div>
           )}
-          <style>{`
-            .twemoji-card {
-              display: inline-block;
-              width: 1em;
-              height: 1em;
-              vertical-align: -0.1em;
-              margin: 0 0.05em;
-            }
-          `}</style>
           </div>
         </div>
         );

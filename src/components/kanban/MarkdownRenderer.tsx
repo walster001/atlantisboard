@@ -602,15 +602,6 @@ export function MarkdownRenderer({
           </ReactMarkdown>
         );
       })}
-      <style>{`
-        .markdown-renderer .twemoji-inline {
-          display: inline-block;
-          width: 1.2em;
-          height: 1.2em;
-          vertical-align: -0.2em;
-          margin: 0 0.05em;
-        }
-      `}</style>
     </div>
   );
 }

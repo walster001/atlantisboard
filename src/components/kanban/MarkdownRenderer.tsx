@@ -16,13 +16,14 @@
  * - rehype-sanitize: Prevent XSS by sanitizing HTML
  */
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkEmoji from 'remark-emoji';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { cn } from '@/lib/utils';
 import { parseInlineButtonFromDataAttr, type InlineButtonData } from './InlineButtonEditor';
+import twemoji from '@twemoji/api';
 
 // ============================================================================
 // Types
@@ -498,11 +499,27 @@ export function MarkdownRenderer({
     onClick?.(e);
   }, [onClick]);
 
+  // Ref for the container to apply Twemoji parsing
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Apply Twemoji parsing after render
+  useEffect(() => {
+    if (containerRef.current) {
+      twemoji.parse(containerRef.current, {
+        folder: 'svg',
+        ext: '.svg',
+        base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+        className: 'twemoji-inline',
+      });
+    }
+  }, [contentSegments]);
+
   // If no content, return null
   if (!content) return null;
 
   return (
     <div
+      ref={containerRef}
       onClick={handleContainerClick}
       className={cn(
         'markdown-renderer',
@@ -580,6 +597,15 @@ export function MarkdownRenderer({
           </ReactMarkdown>
         );
       })}
+      <style>{`
+        .markdown-renderer .twemoji-inline {
+          display: inline-block;
+          width: 1.2em;
+          height: 1.2em;
+          vertical-align: -0.2em;
+          margin: 0 0.05em;
+        }
+      `}</style>
     </div>
   );
 }

@@ -173,6 +173,23 @@ export function ToastUIMarkdownEditor({
     }
   }, [onChange, cleanWidgetMarkers]);
   
+  // Helper function to parse emojis in the editor with Twemoji
+  const parseTwemojiInEditor = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    // Find the editor content area and parse emojis
+    const contentArea = container.querySelector('.toastui-editor-contents');
+    if (contentArea) {
+      twemoji.parse(contentArea as HTMLElement, {
+        folder: 'svg',
+        ext: '.svg',
+        base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+        className: 'twemoji-editor',
+      });
+    }
+  }, []);
+  
   // Initialize editor with content
   useEffect(() => {
     const editor = editorRef.current?.getInstance();
@@ -184,10 +201,21 @@ export function ToastUIMarkdownEditor({
       isSyncing.current = false;
       lastContentRef.current = content;
       isInitialized.current = true;
+      
+      // Parse Twemoji after content is set
+      setTimeout(parseTwemojiInEditor, 50);
     }, 50);
     
     return () => clearTimeout(timeoutId);
-  }, [content]);
+  }, [content, parseTwemojiInEditor]);
+  
+  // Re-parse Twemoji when content changes in the editor
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    
+    const timeoutId = setTimeout(parseTwemojiInEditor, 100);
+    return () => clearTimeout(timeoutId);
+  }, [content, parseTwemojiInEditor]);
 
   // Handle codeblock deletion with backspace
   useEffect(() => {
@@ -1096,6 +1124,15 @@ export function ToastUIMarkdownEditor({
         .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents h5,
         .toastui-editor-wrapper:not(.toastui-themed) .toastui-editor-contents h6 {
           color: hsl(var(--foreground)) !important;
+        }
+        
+        /* Twemoji styles for consistent emoji rendering */
+        .toastui-editor-wrapper .twemoji-editor {
+          display: inline-block;
+          width: 1.2em;
+          height: 1.2em;
+          vertical-align: -0.2em;
+          margin: 0 0.05em;
         }
       `}</style>
     </div>

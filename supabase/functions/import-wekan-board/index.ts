@@ -1,5 +1,245 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
+/**
+ * Convert emoji shortcodes (e.g., :smile:, :rocket:) and HTML entities to unicode emojis.
+ * This ensures imported content displays correctly with twemoji rendering.
+ */
+const EMOJI_SHORTCODE_MAP: Record<string, string> = {
+  // Smileys & Emotion
+  ':smile:': '😄', ':smiley:': '😃', ':grinning:': '😀', ':grin:': '😁',
+  ':laughing:': '😆', ':sweat_smile:': '😅', ':joy:': '😂', ':rofl:': '🤣',
+  ':relaxed:': '☺️', ':blush:': '😊', ':innocent:': '😇', ':wink:': '😉',
+  ':heart_eyes:': '😍', ':smiling_face_with_three_hearts:': '🥰', ':kissing_heart:': '😘',
+  ':kissing:': '😗', ':kissing_smiling_eyes:': '😙', ':kissing_closed_eyes:': '😚',
+  ':yum:': '😋', ':stuck_out_tongue:': '😛', ':stuck_out_tongue_winking_eye:': '😜',
+  ':stuck_out_tongue_closed_eyes:': '😝', ':zany_face:': '🤪', ':money_mouth_face:': '🤑',
+  ':hugs:': '🤗', ':thinking:': '🤔', ':zipper_mouth_face:': '🤐', ':raised_eyebrow:': '🤨',
+  ':neutral_face:': '😐', ':expressionless:': '😑', ':no_mouth:': '😶', ':smirk:': '😏',
+  ':unamused:': '😒', ':roll_eyes:': '🙄', ':grimacing:': '😬', ':lying_face:': '🤥',
+  ':relieved:': '😌', ':pensive:': '😔', ':sleepy:': '😪', ':drooling_face:': '🤤',
+  ':sleeping:': '😴', ':mask:': '😷', ':face_with_thermometer:': '🤒',
+  ':face_with_head_bandage:': '🤕', ':nauseated_face:': '🤢', ':sneezing_face:': '🤧',
+  ':hot_face:': '🥵', ':cold_face:': '🥶', ':woozy_face:': '🥴', ':dizzy_face:': '😵',
+  ':exploding_head:': '🤯', ':cowboy_hat_face:': '🤠', ':partying_face:': '🥳',
+  ':sunglasses:': '😎', ':nerd_face:': '🤓', ':monocle_face:': '🧐', ':confused:': '😕',
+  ':worried:': '😟', ':slightly_frowning_face:': '🙁', ':frowning_face:': '☹️',
+  ':open_mouth:': '😮', ':hushed:': '😯', ':astonished:': '😲', ':flushed:': '😳',
+  ':pleading_face:': '🥺', ':frowning:': '😦', ':anguished:': '😧', ':fearful:': '😨',
+  ':cold_sweat:': '😰', ':disappointed_relieved:': '😥', ':cry:': '😢', ':sob:': '😭',
+  ':scream:': '😱', ':confounded:': '😖', ':persevere:': '😣', ':disappointed:': '😞',
+  ':sweat:': '😓', ':weary:': '😩', ':tired_face:': '😫', ':yawning_face:': '🥱',
+  ':triumph:': '😤', ':rage:': '😡', ':angry:': '😠', ':cursing_face:': '🤬',
+  ':smiling_imp:': '😈', ':imp:': '👿', ':skull:': '💀', ':skull_and_crossbones:': '☠️',
+  ':poop:': '💩', ':hankey:': '💩', ':clown_face:': '🤡', ':japanese_ogre:': '👹',
+  ':japanese_goblin:': '👺', ':ghost:': '👻', ':alien:': '👽', ':space_invader:': '👾',
+  ':robot:': '🤖', ':smiley_cat:': '😺', ':smile_cat:': '😸', ':joy_cat:': '😹',
+  ':heart_eyes_cat:': '😻', ':smirk_cat:': '😼', ':kissing_cat:': '😽',
+  ':scream_cat:': '🙀', ':crying_cat_face:': '😿', ':pouting_cat:': '😾',
+  ':see_no_evil:': '🙈', ':hear_no_evil:': '🙉', ':speak_no_evil:': '🙊',
+  // Hearts & Love
+  ':heart:': '❤️', ':red_heart:': '❤️', ':orange_heart:': '🧡', ':yellow_heart:': '💛',
+  ':green_heart:': '💚', ':blue_heart:': '💙', ':purple_heart:': '💜', ':black_heart:': '🖤',
+  ':white_heart:': '🤍', ':brown_heart:': '🤎', ':broken_heart:': '💔', ':heartbeat:': '💓',
+  ':heartpulse:': '💗', ':two_hearts:': '💕', ':revolving_hearts:': '💞',
+  ':sparkling_heart:': '💖', ':cupid:': '💘', ':gift_heart:': '💝', ':heart_decoration:': '💟',
+  // Hands & Gestures
+  ':wave:': '👋', ':raised_back_of_hand:': '🤚', ':hand:': '✋', ':raised_hand:': '✋',
+  ':vulcan_salute:': '🖖', ':ok_hand:': '👌', ':pinching_hand:': '🤏', ':v:': '✌️',
+  ':crossed_fingers:': '🤞', ':love_you_gesture:': '🤟', ':metal:': '🤘',
+  ':call_me_hand:': '🤙', ':point_left:': '👈', ':point_right:': '👉', ':point_up:': '☝️',
+  ':point_up_2:': '👆', ':middle_finger:': '🖕', ':point_down:': '👇', ':thumbsup:': '👍',
+  ':+1:': '👍', ':thumbsdown:': '👎', ':-1:': '👎', ':fist:': '✊', ':punch:': '👊',
+  ':fist_left:': '🤛', ':fist_right:': '🤜', ':clap:': '👏', ':raised_hands:': '🙌',
+  ':open_hands:': '👐', ':palms_up_together:': '🤲', ':handshake:': '🤝', ':pray:': '🙏',
+  ':writing_hand:': '✍️', ':nail_care:': '💅', ':selfie:': '🤳', ':muscle:': '💪',
+  // Objects & Symbols
+  ':fire:': '🔥', ':star:': '⭐', ':sparkles:': '✨', ':boom:': '💥', ':zap:': '⚡',
+  ':sunny:': '☀️', ':cloud:': '☁️', ':rainbow:': '🌈', ':umbrella:': '☂️',
+  ':snowflake:': '❄️', ':comet:': '☄️', ':ocean:': '🌊',
+  ':rocket:': '🚀', ':airplane:': '✈️', ':helicopter:': '🚁', ':car:': '🚗',
+  ':taxi:': '🚕', ':bus:': '🚌', ':ambulance:': '🚑', ':fire_engine:': '🚒',
+  ':bike:': '🚲', ':ship:': '🚢', ':anchor:': '⚓', ':construction:': '🚧',
+  ':bell:': '🔔', ':no_bell:': '🔕', ':musical_note:': '🎵', ':notes:': '🎶',
+  ':microphone:': '🎤', ':headphones:': '🎧', ':guitar:': '🎸', ':trumpet:': '🎺',
+  ':violin:': '🎻', ':drum:': '🥁', ':piano:': '🎹', ':saxophone:': '🎷',
+  ':camera:': '📷', ':video_camera:': '📹', ':movie_camera:': '🎥', ':tv:': '📺',
+  ':computer:': '💻', ':keyboard:': '⌨️', ':desktop_computer:': '🖥️', ':printer:': '🖨️',
+  ':phone:': '📞', ':telephone:': '☎️', ':iphone:': '📱', ':fax:': '📠',
+  ':battery:': '🔋', ':electric_plug:': '🔌', ':bulb:': '💡', ':flashlight:': '🔦',
+  ':cd:': '💿', ':dvd:': '📀', ':floppy_disk:': '💾', ':minidisc:': '💽',
+  ':book:': '📖', ':books:': '📚', ':notebook:': '📓', ':ledger:': '📒',
+  ':page_facing_up:': '📄', ':scroll:': '📜', ':memo:': '📝', ':pencil:': '✏️',
+  ':pen:': '🖊️', ':fountain_pen:': '🖋️', ':paintbrush:': '🖌️', ':crayon:': '🖍️',
+  ':mag:': '🔍', ':mag_right:': '🔎', ':lock:': '🔒', ':unlock:': '🔓',
+  ':key:': '🔑', ':hammer:': '🔨', ':axe:': '🪓', ':wrench:': '🔧', ':screwdriver:': '🪛',
+  ':gear:': '⚙️', ':link:': '🔗', ':chains:': '⛓️', ':scissors:': '✂️',
+  ':envelope:': '✉️', ':email:': '📧', ':inbox_tray:': '📥', ':outbox_tray:': '📤',
+  ':package:': '📦', ':mailbox:': '📫', ':postbox:': '📮', ':newspaper:': '📰',
+  ':calendar:': '📅', ':date:': '📅', ':spiral_calendar:': '🗓️', ':clock:': '🕐',
+  ':hourglass:': '⌛', ':stopwatch:': '⏱️', ':timer_clock:': '⏲️', ':alarm_clock:': '⏰',
+  ':trophy:': '🏆', ':medal:': '🏅', ':1st_place_medal:': '🥇', ':2nd_place_medal:': '🥈',
+  ':3rd_place_medal:': '🥉', ':soccer:': '⚽', ':baseball:': '⚾', ':basketball:': '🏀',
+  ':football:': '🏈', ':tennis:': '🎾', ':golf:': '⛳', ':bowling:': '🎳',
+  ':dart:': '🎯', ':game_die:': '🎲', ':chess_pawn:': '♟️', ':jigsaw:': '🧩',
+  ':art:': '🎨', ':performing_arts:': '🎭', ':ticket:': '🎫', ':clapper:': '🎬',
+  ':gift:': '🎁', ':balloon:': '🎈', ':tada:': '🎉', ':confetti_ball:': '🎊',
+  ':ribbon:': '🎀', ':dolls:': '🎎', ':flags:': '🎏', ':wind_chime:': '🎐',
+  // Food & Drink
+  ':apple:': '🍎', ':green_apple:': '🍏', ':pear:': '🍐', ':tangerine:': '🍊',
+  ':lemon:': '🍋', ':banana:': '🍌', ':watermelon:': '🍉', ':grapes:': '🍇',
+  ':strawberry:': '🍓', ':cherries:': '🍒', ':peach:': '🍑', ':mango:': '🥭',
+  ':pineapple:': '🍍', ':coconut:': '🥥', ':kiwi_fruit:': '🥝', ':tomato:': '🍅',
+  ':avocado:': '🥑', ':eggplant:': '🍆', ':potato:': '🥔', ':carrot:': '🥕',
+  ':corn:': '🌽', ':hot_pepper:': '🌶️', ':cucumber:': '🥒', ':broccoli:': '🥦',
+  ':mushroom:': '🍄', ':peanuts:': '🥜', ':chestnut:': '🌰',
+  ':bread:': '🍞', ':croissant:': '🥐', ':baguette_bread:': '🥖', ':pretzel:': '🥨',
+  ':bagel:': '🥯', ':pancakes:': '🥞', ':waffle:': '🧇', ':cheese:': '🧀',
+  ':meat_on_bone:': '🍖', ':poultry_leg:': '🍗', ':bacon:': '🥓', ':hamburger:': '🍔',
+  ':fries:': '🍟', ':pizza:': '🍕', ':hotdog:': '🌭', ':sandwich:': '🥪',
+  ':taco:': '🌮', ':burrito:': '🌯', ':egg:': '🥚', ':fried_egg:': '🍳',
+  ':salad:': '🥗', ':popcorn:': '🍿', ':salt:': '🧂', ':canned_food:': '🥫',
+  ':spaghetti:': '🍝', ':ramen:': '🍜', ':stew:': '🍲', ':curry:': '🍛',
+  ':sushi:': '🍣', ':fried_shrimp:': '🍤', ':rice:': '🍚', ':rice_ball:': '🍙',
+  ':ice_cream:': '🍨', ':shaved_ice:': '🍧', ':icecream:': '🍦', ':doughnut:': '🍩',
+  ':cookie:': '🍪', ':cake:': '🍰', ':birthday:': '🎂', ':cupcake:': '🧁',
+  ':pie:': '🥧', ':chocolate_bar:': '🍫', ':candy:': '🍬', ':lollipop:': '🍭',
+  ':custard:': '🍮', ':honey_pot:': '🍯',
+  ':coffee:': '☕', ':tea:': '🍵', ':sake:': '🍶', ':champagne:': '🍾',
+  ':wine_glass:': '🍷', ':cocktail:': '🍸', ':tropical_drink:': '🍹', ':beer:': '🍺',
+  ':beers:': '🍻', ':tumbler_glass:': '🥃', ':cup_with_straw:': '🥤',
+  // Nature & Animals
+  ':dog:': '🐕', ':dog2:': '🐶', ':cat:': '🐈', ':cat2:': '🐱', ':mouse:': '🐁',
+  ':mouse2:': '🐭', ':hamster:': '🐹', ':rabbit:': '🐇', ':rabbit2:': '🐰',
+  ':fox_face:': '🦊', ':bear:': '🐻', ':panda_face:': '🐼', ':koala:': '🐨',
+  ':tiger:': '🐅', ':tiger2:': '🐯', ':lion:': '🦁', ':cow:': '🐄', ':cow2:': '🐮',
+  ':pig:': '🐖', ':pig2:': '🐷', ':pig_nose:': '🐽', ':frog:': '🐸', ':monkey:': '🐒',
+  ':monkey_face:': '🐵', ':gorilla:': '🦍', ':elephant:': '🐘', ':rhino:': '🦏',
+  ':hippo:': '🦛', ':camel:': '🐫', ':giraffe:': '🦒', ':kangaroo:': '🦘',
+  ':water_buffalo:': '🐃', ':ox:': '🐂', ':deer:': '🦌', ':llama:': '🦙',
+  ':horse:': '🐴', ':unicorn:': '🦄', ':zebra:': '🦓', ':donkey:': '🫏',
+  ':chicken:': '🐔', ':rooster:': '🐓', ':hatching_chick:': '🐣', ':baby_chick:': '🐤',
+  ':hatched_chick:': '🐥', ':bird:': '🐦', ':penguin:': '🐧', ':dove:': '🕊️',
+  ':eagle:': '🦅', ':duck:': '🦆', ':swan:': '🦢', ':owl:': '🦉', ':flamingo:': '🦩',
+  ':peacock:': '🦚', ':parrot:': '🦜', ':crocodile:': '🐊', ':turtle:': '🐢',
+  ':lizard:': '🦎', ':snake:': '🐍', ':dragon_face:': '🐲', ':dragon:': '🐉',
+  ':sauropod:': '🦕', ':t_rex:': '🦖', ':whale:': '🐳', ':whale2:': '🐋',
+  ':dolphin:': '🐬', ':fish:': '🐟', ':tropical_fish:': '🐠', ':blowfish:': '🐡',
+  ':shark:': '🦈', ':octopus:': '🐙', ':shell:': '🐚', ':crab:': '🦀',
+  ':lobster:': '🦞', ':shrimp:': '🦐', ':squid:': '🦑', ':snail:': '🐌',
+  ':butterfly:': '🦋', ':bug:': '🐛', ':ant:': '🐜', ':honeybee:': '🐝', ':bee:': '🐝',
+  ':beetle:': '🪲', ':ladybug:': '🐞', ':cricket:': '🦗', ':cockroach:': '🪳',
+  ':spider:': '🕷️', ':spider_web:': '🕸️', ':scorpion:': '🦂', ':mosquito:': '🦟',
+  ':fly:': '🪰', ':worm:': '🪱', ':microbe:': '🦠',
+  ':bouquet:': '💐', ':cherry_blossom:': '🌸', ':white_flower:': '💮', ':rosette:': '🏵️',
+  ':rose:': '🌹', ':wilted_flower:': '🥀', ':hibiscus:': '🌺', ':sunflower:': '🌻',
+  ':blossom:': '🌼', ':tulip:': '🌷', ':seedling:': '🌱', ':evergreen_tree:': '🌲',
+  ':deciduous_tree:': '🌳', ':palm_tree:': '🌴', ':cactus:': '🌵', ':herb:': '🌿',
+  ':shamrock:': '☘️', ':four_leaf_clover:': '🍀', ':maple_leaf:': '🍁',
+  ':fallen_leaf:': '🍂', ':leaves:': '🍃',
+  // Checkmarks & Status
+  ':white_check_mark:': '✅', ':check:': '✔️', ':heavy_check_mark:': '✔️',
+  ':ballot_box_with_check:': '☑️', ':x:': '❌', ':negative_squared_cross_mark:': '❎',
+  ':heavy_multiplication_x:': '✖️', ':exclamation:': '❗', ':question:': '❓',
+  ':grey_exclamation:': '❕', ':grey_question:': '❔', ':bangbang:': '‼️',
+  ':interrobang:': '⁉️', ':warning:': '⚠️', ':no_entry:': '⛔', ':prohibited:': '🚫',
+  ':100:': '💯', ':low_brightness:': '🔅', ':high_brightness:': '🔆',
+  // Arrows & Directions
+  ':arrow_up:': '⬆️', ':arrow_down:': '⬇️', ':arrow_left:': '⬅️', ':arrow_right:': '➡️',
+  ':arrow_upper_left:': '↖️', ':arrow_upper_right:': '↗️', ':arrow_lower_left:': '↙️',
+  ':arrow_lower_right:': '↘️', ':left_right_arrow:': '↔️', ':arrow_up_down:': '↕️',
+  ':arrows_counterclockwise:': '🔄', ':arrows_clockwise:': '🔃',
+  ':back:': '🔙', ':end:': '🔚', ':on:': '🔛', ':soon:': '🔜', ':top:': '🔝',
+  // Miscellaneous
+  ':new:': '🆕', ':free:': '🆓', ':up:': '🆙', ':cool:': '🆒', ':ok:': '🆗',
+  ':ng:': '🆖', ':sos:': '🆘', ':id:': '🆔', ':vs:': '🆚', ':koko:': '🈁',
+  ':information_source:': 'ℹ️', ':abc:': '🔤', ':abcd:': '🔡', ':capital_abcd:': '🔠',
+  ':symbols:': '🔣', ':1234:': '🔢', ':hash:': '#️⃣', ':asterisk:': '*️⃣',
+  ':zero:': '0️⃣', ':one:': '1️⃣', ':two:': '2️⃣', ':three:': '3️⃣', ':four:': '4️⃣',
+  ':five:': '5️⃣', ':six:': '6️⃣', ':seven:': '7️⃣', ':eight:': '8️⃣', ':nine:': '9️⃣',
+  ':keycap_ten:': '🔟',
+  ':a:': '🅰️', ':b:': '🅱️', ':ab:': '🆎', ':o:': '⭕', ':o2:': '🅾️',
+  ':parking:': '🅿️', ':copyright:': '©️', ':registered:': '®️', ':tm:': '™️',
+  ':recycle:': '♻️', ':fleur_de_lis:': '⚜️', ':beginner:': '🔰', ':trident:': '🔱',
+  ':name_badge:': '📛', ':japanese_symbol:': '🈂️',
+  ':red_circle:': '🔴', ':orange_circle:': '🟠', ':yellow_circle:': '🟡',
+  ':green_circle:': '🟢', ':blue_circle:': '🔵', ':purple_circle:': '🟣',
+  ':brown_circle:': '🟤', ':black_circle:': '⚫', ':white_circle:': '⚪',
+  ':red_square:': '🟥', ':orange_square:': '🟧', ':yellow_square:': '🟨',
+  ':green_square:': '🟩', ':blue_square:': '🟦', ':purple_square:': '🟪',
+  ':brown_square:': '🟫', ':black_square:': '⬛', ':white_square:': '⬜',
+  ':black_small_square:': '▪️', ':white_small_square:': '▫️',
+  ':black_medium_square:': '◼️', ':white_medium_square:': '◻️',
+  ':black_medium_small_square:': '◾', ':white_medium_small_square:': '◽',
+  ':black_large_square:': '⬛', ':white_large_square:': '⬜',
+  ':diamond_shape_with_a_dot_inside:': '💠', ':small_orange_diamond:': '🔸',
+  ':small_blue_diamond:': '🔹', ':large_orange_diamond:': '🔶', ':large_blue_diamond:': '🔷',
+};
+
+/**
+ * Convert emoji shortcodes to unicode emojis
+ */
+function convertEmojiShortcodes(text: string): string {
+  if (!text) return text;
+  
+  let result = text;
+  
+  // Convert shortcodes like :smile: to unicode emojis
+  for (const [shortcode, emoji] of Object.entries(EMOJI_SHORTCODE_MAP)) {
+    // Use case-insensitive replacement
+    const regex = new RegExp(shortcode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    result = result.replace(regex, emoji);
+  }
+  
+  // Handle HTML entities for common emojis (&#x1F...; format)
+  result = result.replace(/&#x([0-9A-Fa-f]+);/g, (match, hex) => {
+    try {
+      const codePoint = parseInt(hex, 16);
+      return String.fromCodePoint(codePoint);
+    } catch {
+      return match; // Return original if conversion fails
+    }
+  });
+  
+  // Handle decimal HTML entities (&#128512; format)
+  result = result.replace(/&#(\d+);/g, (match, dec) => {
+    try {
+      const codePoint = parseInt(dec, 10);
+      return String.fromCodePoint(codePoint);
+    } catch {
+      return match;
+    }
+  });
+  
+  // Handle Wekan/Trello specific emoji image tags and convert to unicode
+  // Pattern: <img class="emoji" alt=":emoji:" src="..."> or similar
+  result = result.replace(/<img[^>]*class=["'][^"']*emoji[^"']*["'][^>]*alt=["']([^"']+)["'][^>]*>/gi, (match, alt) => {
+    // Try to convert the alt text shortcode to emoji
+    const shortcode = alt.trim().toLowerCase();
+    if (EMOJI_SHORTCODE_MAP[shortcode]) {
+      return EMOJI_SHORTCODE_MAP[shortcode];
+    }
+    // If it's already a unicode emoji in alt, use it
+    if (/[\u{1F300}-\u{1F9FF}]/u.test(alt)) {
+      return alt;
+    }
+    return alt; // Return alt text if no match
+  });
+  
+  // Also handle img tags where alt comes before class
+  result = result.replace(/<img[^>]*alt=["']([^"']+)["'][^>]*class=["'][^"']*emoji[^"']*["'][^>]*>/gi, (match, alt) => {
+    const shortcode = alt.trim().toLowerCase();
+    if (EMOJI_SHORTCODE_MAP[shortcode]) {
+      return EMOJI_SHORTCODE_MAP[shortcode];
+    }
+    if (/[\u{1F300}-\u{1F9FF}]/u.test(alt)) {
+      return alt;
+    }
+    return alt;
+  });
+  
+  return result;
+}
+
 // Regex to detect Wekan inline button blocks with all the details we need
 // These are spans with display: inline-flex containing an img and anchor
 const INLINE_BUTTON_FULL_REGEX = /<span[^>]*style=['"]([^'"]*display:\s*inline-?flex[^'"]*)['"][^>]*>([\s\S]*?)<\/span>/gi;
@@ -89,15 +329,18 @@ function convertWekanInlineButtons(content: string): string {
 }
 
 /**
- * Process card description: preserve markdown, only convert inline buttons.
+ * Process card description: preserve markdown, convert inline buttons and emojis.
  * We do NOT convert to HTML here - the ToastUI editor handles markdown natively.
  * Preserves indentation and properly handles line/paragraph spacing.
  */
 function processCardDescription(description: string | null | undefined): string | null {
   if (!description) return null;
   
+  // Convert emoji shortcodes and HTML entities to unicode emojis first
+  let result = convertEmojiShortcodes(description);
+  
   // Convert Wekan inline buttons to our format
-  let result = convertWekanInlineButtons(description);
+  result = convertWekanInlineButtons(result);
   
   // Clean up excessive HTML that Wekan might have added while keeping markdown intact
   // Only strip the paragraph wrappers if the content doesn't have other HTML structure
@@ -165,6 +408,14 @@ function processCardDescription(description: string | null | undefined): string 
   
   // Trim leading/trailing whitespace but preserve internal structure
   return result.trim() || null;
+}
+
+/**
+ * Process card title: convert emoji shortcodes to unicode emojis.
+ */
+function processCardTitle(title: string): string {
+  if (!title) return title;
+  return convertEmojiShortcodes(title);
 }
 
 // Removed markdownToHtml function - we now store raw markdown, not HTML
@@ -760,11 +1011,14 @@ async function runImport(
           // ToastUI editor handles markdown natively
           const processedDescription = processCardDescription(wekanCard.description);
           
+          // Process title: convert emoji shortcodes to unicode
+          const processedTitle = processCardTitle(wekanCard.title);
+          
           const { data: card, error: cardError } = await supabase
             .from('cards')
             .insert({
               column_id: columnId,
-              title: wekanCard.title.substring(0, 200),
+              title: processedTitle.substring(0, 200),
               description: processedDescription,
               position: i,
               due_date: dueDate,
@@ -777,7 +1031,7 @@ async function runImport(
 
           if (cardError) {
             console.error('Error creating card:', cardError);
-            result.warnings.push(`Failed to create card "${wekanCard.title}"`);
+            result.warnings.push(`Failed to create card "${processedTitle}"`);
             continue;
           }
 

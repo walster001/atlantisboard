@@ -127,8 +127,67 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       fetchData();
+      // Check for and redeem any pending invite token
+      redeemPendingInviteToken();
     }
   }, [user]);
+
+  // Redeem pending invite token from sessionStorage (set when user clicks invite link)
+  const redeemPendingInviteToken = async () => {
+    const pendingToken = sessionStorage.getItem('pendingInviteToken');
+    if (!pendingToken || !user) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('redeem-invite-token', {
+        body: { token: pendingToken },
+      });
+
+      // Clear the token regardless of outcome
+      sessionStorage.removeItem('pendingInviteToken');
+
+      if (error) {
+        console.error('Error redeeming invite token:', error);
+        toast({
+          title: 'Invite Error',
+          description: 'Failed to process your invitation. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!data.success) {
+        toast({
+          title: 'Invite Error',
+          description: data.message || 'This invite link is no longer valid.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (data.alreadyMember) {
+        toast({
+          title: 'Already a member',
+          description: 'You are already a member of this board.',
+        });
+      } else {
+        toast({
+          title: 'Welcome!',
+          description: 'You have been added to the board as a viewer.',
+        });
+      }
+
+      // Refresh data to show the new board
+      fetchData();
+
+      // Navigate to the board
+      if (data.boardId) {
+        navigate(`/board/${data.boardId}`);
+      }
+    } catch (error) {
+      console.error('Error redeeming invite:', error);
+      sessionStorage.removeItem('pendingInviteToken');
+    }
+  };
 
   const fetchData = async () => {
     if (!user) return;

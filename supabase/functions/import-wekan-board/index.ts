@@ -886,72 +886,75 @@ async function runImport(
         memberMap.set(member._id, member);
       }
 
-      // Create labels
+      // Create labels in batch
       const boardLabels = wekanBoard.labels || [];
-      for (let labelIdx = 0; labelIdx < boardLabels.length; labelIdx++) {
-        const wekanLabel = boardLabels[labelIdx];
-        // Generate a name from the color if label has no name (common in Trello imports)
-        const labelName = wekanLabel.name || wekanLabel.color || 'Unnamed';
-
-        processedLabels++;
-        sendProgress('labels', processedLabels, totalLabels, `Label: ${labelName}`);
-
-        const labelColor = getWekanColor(wekanLabel.color);
-
-        const { data: label, error: labelError } = await supabase
-          .from('labels')
-          .insert({
+      if (boardLabels.length > 0) {
+        const labelInserts = boardLabels.map((wekanLabel) => {
+          const labelName = wekanLabel.name || wekanLabel.color || 'Unnamed';
+          const labelColor = getWekanColor(wekanLabel.color);
+          return {
             board_id: board.id,
             name: labelName.substring(0, 50),
             color: labelColor,
-          })
-          .select()
-          .single();
+            _wekan_id: wekanLabel._id, // temporary for mapping
+          };
+        });
 
-        if (labelError) {
-          console.error('Error creating label:', labelError);
-          result.warnings.push(`Failed to create label "${wekanLabel.name}"`);
-          continue;
+        // Insert all labels at once
+        const { data: createdLabels, error: labelsError } = await supabase
+          .from('labels')
+          .insert(labelInserts.map(({ _wekan_id, ...rest }) => rest))
+          .select();
+
+        if (labelsError) {
+          console.error('Error creating labels:', labelsError);
+          result.warnings.push(`Failed to create some labels: ${labelsError.message}`);
+        } else if (createdLabels) {
+          // Map old IDs to new IDs based on insertion order
+          for (let i = 0; i < createdLabels.length; i++) {
+            labelIdMap.set(labelInserts[i]._wekan_id, createdLabels[i].id);
+          }
+          result.labels_created += createdLabels.length;
         }
-
-        labelIdMap.set(wekanLabel._id, label.id);
-        result.labels_created++;
+        processedLabels += boardLabels.length;
+        sendProgress('labels', processedLabels, totalLabels, `Created ${boardLabels.length} labels`);
       }
 
-      // Create columns (lists)
+      // Create columns (lists) in batch
       const lists = wekanBoard.lists || [];
       const sortedLists = [...lists]
         .filter(l => !l.archived)
         .sort((a, b) => (a.sort || 0) - (b.sort || 0));
 
-      for (let i = 0; i < sortedLists.length; i++) {
-        const wekanList = sortedLists[i];
-        if (!wekanList.title) continue;
+      if (sortedLists.length > 0) {
+        const columnInserts = sortedLists.map((wekanList, i) => ({
+          board_id: board.id,
+          title: (wekanList.title || 'Untitled').substring(0, 100),
+          position: i,
+          _wekan_id: wekanList._id, // temporary for mapping
+        }));
 
-        processedLists++;
-        sendProgress('columns', processedLists, totalLists, `Column: ${wekanList.title}`);
-
-        const { data: column, error: columnError } = await supabase
+        // Insert all columns at once
+        const { data: createdColumns, error: columnsError } = await supabase
           .from('columns')
-          .insert({
-            board_id: board.id,
-            title: wekanList.title.substring(0, 100),
-            position: i,
-          })
-          .select()
-          .single();
+          .insert(columnInserts.map(({ _wekan_id, ...rest }) => rest))
+          .select();
 
-        if (columnError) {
-          console.error('Error creating column:', columnError);
-          result.warnings.push(`Failed to create column "${wekanList.title}"`);
-          continue;
+        if (columnsError) {
+          console.error('Error creating columns:', columnsError);
+          result.warnings.push(`Failed to create some columns: ${columnsError.message}`);
+        } else if (createdColumns) {
+          // Map old IDs to new IDs based on insertion order
+          for (let i = 0; i < createdColumns.length; i++) {
+            columnIdMap.set(columnInserts[i]._wekan_id, createdColumns[i].id);
+          }
+          result.columns_created += createdColumns.length;
         }
-
-        columnIdMap.set(wekanList._id, column.id);
-        result.columns_created++;
+        processedLists += sortedLists.length;
+        sendProgress('columns', processedLists, totalLists, `Created ${sortedLists.length} columns`);
       }
 
-      // Create cards
+      // Create cards in batches for parallel processing
       const cards = wekanBoard.cards || [];
       const sortedCards = [...cards]
         .filter(c => !c.archived)
@@ -965,6 +968,12 @@ async function runImport(
         cardsByList.set(card.listId, listCards);
       }
 
+      // Prepare all card inserts
+      const allCardInserts: Array<{
+        insert: any;
+        wekanCard: WekanCard;
+      }> = [];
+
       for (const [listId, listCards] of cardsByList) {
         const columnId = columnIdMap.get(listId);
         if (!columnId) continue;
@@ -972,9 +981,6 @@ async function runImport(
         for (let i = 0; i < listCards.length; i++) {
           const wekanCard = listCards[i];
           if (!wekanCard.title) continue;
-
-          processedCards++;
-          sendProgress('cards', processedCards, totalCards, `Card: ${wekanCard.title.substring(0, 30)}${wekanCard.title.length > 30 ? '...' : ''}`);
 
           // Parse due date if exists
           let dueDate = null;
@@ -988,20 +994,14 @@ async function runImport(
 
           // Determine card color using the helper function
           const cardColor = wekanCard.color ? getWekanColor(wekanCard.color) : null;
-
-          // Use default color if card has no color assigned
           const finalCardColor = cardColor || defaultCardColor;
 
-          // Process description: preserve markdown, convert Wekan inline buttons
-          // ToastUI editor handles markdown natively
+          // Process description and title
           const processedDescription = processCardDescription(wekanCard.description);
-          
-          // Process title: convert emoji shortcodes to unicode
           const processedTitle = processCardTitle(wekanCard.title);
-          
-          const { data: card, error: cardError } = await supabase
-            .from('cards')
-            .insert({
+
+          allCardInserts.push({
+            insert: {
               column_id: columnId,
               title: processedTitle.substring(0, 200),
               description: processedDescription,
@@ -1010,43 +1010,81 @@ async function runImport(
               created_by: userId,
               priority: 'none',
               color: finalCardColor,
-            })
-            .select()
-            .single();
+            },
+            wekanCard,
+          });
+        }
+      }
 
-          if (cardError) {
-            console.error('Error creating card:', cardError);
-            result.warnings.push(`Failed to create card "${processedTitle}"`);
-            continue;
-          }
+      // Insert cards in batches of 50 for optimal performance
+      const CARD_BATCH_SIZE = 50;
+      for (let batchStart = 0; batchStart < allCardInserts.length; batchStart += CARD_BATCH_SIZE) {
+        const batch = allCardInserts.slice(batchStart, batchStart + CARD_BATCH_SIZE);
+        
+        sendProgress('cards', Math.min(batchStart + CARD_BATCH_SIZE, allCardInserts.length), totalCards, 
+          `Cards batch ${Math.floor(batchStart / CARD_BATCH_SIZE) + 1}/${Math.ceil(allCardInserts.length / CARD_BATCH_SIZE)}`);
 
-          cardIdMap.set(wekanCard._id, card.id);
-          result.cards_created++;
+        const { data: createdCards, error: cardsError } = await supabase
+          .from('cards')
+          .insert(batch.map(b => b.insert))
+          .select();
 
-          // Add card labels
-          if (wekanCard.labelIds && wekanCard.labelIds.length > 0) {
-            for (const wekanLabelId of wekanCard.labelIds) {
-              const labelId = labelIdMap.get(wekanLabelId);
-              if (labelId) {
-                await supabase
-                  .from('card_labels')
-                  .insert({ card_id: card.id, label_id: labelId })
-                  .maybeSingle();
+        if (cardsError) {
+          console.error('Error creating cards batch:', cardsError);
+          result.warnings.push(`Failed to create some cards: ${cardsError.message}`);
+          continue;
+        }
+
+        if (createdCards) {
+          // Map old IDs to new IDs and collect card labels
+          const cardLabelInserts: Array<{ card_id: string; label_id: string }> = [];
+          
+          for (let i = 0; i < createdCards.length; i++) {
+            const wekanCard = batch[i].wekanCard;
+            const newCardId = createdCards[i].id;
+            cardIdMap.set(wekanCard._id, newCardId);
+            result.cards_created++;
+
+            // Collect card labels for batch insert
+            if (wekanCard.labelIds && wekanCard.labelIds.length > 0) {
+              for (const wekanLabelId of wekanCard.labelIds) {
+                const labelId = labelIdMap.get(wekanLabelId);
+                if (labelId) {
+                  cardLabelInserts.push({ card_id: newCardId, label_id: labelId });
+                }
               }
             }
           }
 
+          // Insert all card labels for this batch at once
+          if (cardLabelInserts.length > 0) {
+            const { error: cardLabelsError } = await supabase
+              .from('card_labels')
+              .insert(cardLabelInserts);
+            
+            if (cardLabelsError) {
+              console.error('Error creating card labels:', cardLabelsError);
+              result.warnings.push('Failed to create some card labels');
+            }
+          }
         }
+
+        processedCards += batch.length;
       }
 
-      // Create subtasks from checklists
+      // Create subtasks from checklists in batch
       const checklists = wekanBoard.checklists || [];
+      const allSubtaskInserts: Array<{
+        card_id: string;
+        title: string;
+        completed: boolean;
+        position: number;
+        checklist_name: string;
+      }> = [];
+
       for (const checklist of checklists) {
         const cardId = cardIdMap.get(checklist.cardId);
         if (!cardId) continue;
-
-        processedChecklists++;
-        sendProgress('subtasks', processedChecklists, totalChecklists, `Checklist: ${checklist.title || 'Untitled'}`);
 
         const items = checklist.items || [];
         const sortedItems = [...items].sort((a, b) => (a.sort || 0) - (b.sort || 0));
@@ -1055,22 +1093,36 @@ async function runImport(
           const item = sortedItems[i];
           if (!item.title) continue;
 
-          const { error: subtaskError } = await supabase
-            .from('card_subtasks')
-            .insert({
-              card_id: cardId,
-              title: item.title.substring(0, 200),
-              completed: item.isFinished || false,
-              position: i,
-              checklist_name: checklist.title || 'Checklist',
-            });
-
-          if (subtaskError) {
-            console.error('Error creating subtask:', subtaskError);
-          } else {
-            result.subtasks_created++;
-          }
+          allSubtaskInserts.push({
+            card_id: cardId,
+            title: item.title.substring(0, 200),
+            completed: item.isFinished || false,
+            position: i,
+            checklist_name: checklist.title || 'Checklist',
+          });
         }
+      }
+
+      // Insert subtasks in batches of 100
+      const SUBTASK_BATCH_SIZE = 100;
+      for (let batchStart = 0; batchStart < allSubtaskInserts.length; batchStart += SUBTASK_BATCH_SIZE) {
+        const batch = allSubtaskInserts.slice(batchStart, batchStart + SUBTASK_BATCH_SIZE);
+        
+        sendProgress('subtasks', Math.min(batchStart + SUBTASK_BATCH_SIZE, allSubtaskInserts.length), totalChecklists,
+          `Subtasks batch ${Math.floor(batchStart / SUBTASK_BATCH_SIZE) + 1}/${Math.ceil(allSubtaskInserts.length / SUBTASK_BATCH_SIZE)}`);
+
+        const { error: subtasksError } = await supabase
+          .from('card_subtasks')
+          .insert(batch);
+
+        if (subtasksError) {
+          console.error('Error creating subtasks batch:', subtasksError);
+          result.warnings.push('Failed to create some subtasks');
+        } else {
+          result.subtasks_created += batch.length;
+        }
+
+        processedChecklists += batch.length;
       }
 
 

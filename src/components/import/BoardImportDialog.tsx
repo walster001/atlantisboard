@@ -594,63 +594,66 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         role: 'admin',
       });
 
+      // Create labels in batch
       const trelloLabels = trelloData.labels || [];
-      onProgress('labels', 0, trelloLabels.length, `Creating ${trelloLabels.length} labels...`);
-      // Create labels and build mapping
       const labelMap = new Map<string, string>();
       
-      for (let labelIdx = 0; labelIdx < trelloLabels.length; labelIdx++) {
-        const label = trelloLabels[labelIdx];
-        if (!label.name && !label.color) continue;
+      if (trelloLabels.length > 0) {
+        onProgress('labels', 0, trelloLabels.length, `Creating ${trelloLabels.length} labels...`);
         
-        onProgress('labels', labelIdx + 1, trelloLabels.length, `Label ${labelIdx + 1}/${trelloLabels.length}`);
-        const labelColor = getTrelloColor(label.color);
-        const labelName = label.name || label.color || 'Unnamed';
-        
-        const { data: newLabel, error: labelError } = await supabase
-          .from('labels')
-          .insert({
-            board_id: board.id,
-            name: labelName,
-            color: labelColor,
-          })
-          .select()
-          .single();
+        const validLabels = trelloLabels.filter(l => l.name || l.color);
+        const labelInserts = validLabels.map(label => ({
+          board_id: board.id,
+          name: label.name || label.color || 'Unnamed',
+          color: getTrelloColor(label.color),
+        }));
 
-        if (labelError) {
-          result.warnings.push(`Failed to create label "${labelName}": ${labelError.message}`);
-        } else {
-          labelMap.set(label.id, newLabel.id);
-          result.labels_created++;
+        const { data: createdLabels, error: labelsError } = await supabase
+          .from('labels')
+          .insert(labelInserts)
+          .select();
+
+        if (labelsError) {
+          result.warnings.push(`Failed to create some labels: ${labelsError.message}`);
+        } else if (createdLabels) {
+          for (let i = 0; i < createdLabels.length; i++) {
+            labelMap.set(validLabels[i].id, createdLabels[i].id);
+          }
+          result.labels_created = createdLabels.length;
         }
+        onProgress('labels', trelloLabels.length, trelloLabels.length, `Created ${result.labels_created} labels`);
       }
 
+      // Create columns in batch
       const sortedLists = [...(trelloData.lists || [])]
         .filter(list => !list.closed)
         .sort((a, b) => a.pos - b.pos);
-      onProgress('columns', 0, sortedLists.length, `Creating ${sortedLists.length} columns...`);
-      // Create columns (lists) and build mapping
+      
       const columnMap = new Map<string, string>();
 
-      for (let i = 0; i < sortedLists.length; i++) {
-        const list = sortedLists[i];
-        onProgress('columns', i + 1, sortedLists.length, `Column ${i + 1}/${sortedLists.length}: ${list.name}`);
-        const { data: column, error: columnError } = await supabase
-          .from('columns')
-          .insert({
-            board_id: board.id,
-            title: list.name,
-            position: i,
-          })
-          .select()
-          .single();
+      if (sortedLists.length > 0) {
+        onProgress('columns', 0, sortedLists.length, `Creating ${sortedLists.length} columns...`);
+        
+        const columnInserts = sortedLists.map((list, i) => ({
+          board_id: board.id,
+          title: list.name,
+          position: i,
+        }));
 
-        if (columnError) {
-          result.warnings.push(`Failed to create column "${list.name}": ${columnError.message}`);
-        } else {
-          columnMap.set(list.id, column.id);
-          result.columns_created++;
+        const { data: createdColumns, error: columnsError } = await supabase
+          .from('columns')
+          .insert(columnInserts)
+          .select();
+
+        if (columnsError) {
+          result.warnings.push(`Failed to create some columns: ${columnsError.message}`);
+        } else if (createdColumns) {
+          for (let i = 0; i < createdColumns.length; i++) {
+            columnMap.set(sortedLists[i].id, createdColumns[i].id);
+          }
+          result.columns_created = createdColumns.length;
         }
+        onProgress('columns', sortedLists.length, sortedLists.length, `Created ${result.columns_created} columns`);
       }
 
       // Build checklist map
@@ -661,7 +664,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         checklistMap.set(checklist.idCard, existing);
       }
 
-      // Group cards by list
+      // Group cards by list and prepare for batch insert
       const sortedCards = [...(trelloData.cards || [])]
         .filter(card => !card.closed)
         .sort((a, b) => a.pos - b.pos);
@@ -674,19 +677,21 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         cardsByList.set(card.idList, existing);
       }
 
-      let cardIndex = 0;
+      // Prepare all card inserts
+      const allCardInserts: Array<{
+        insert: any;
+        trelloCard: TrelloCard;
+      }> = [];
+
       for (const [listId, cards] of cardsByList) {
         const columnId = columnMap.get(listId);
         if (!columnId) {
           result.warnings.push(`Skipped ${cards.length} cards from archived/missing list`);
-          cardIndex += cards.length;
           continue;
         }
 
         for (let i = 0; i < cards.length; i++) {
-          cardIndex++;
           const card = cards[i];
-          onProgress('cards', cardIndex, sortedCards.length, `Card ${cardIndex}/${sortedCards.length}: ${card.name.substring(0, 30)}${card.name.length > 30 ? '...' : ''}`);
           
           // Map priority based on labels
           let priority = 'none';
@@ -702,20 +707,16 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             priority = 'low';
           }
 
-          // Determine card color from cover - accept any color format
+          // Determine card color from cover
           let cardColor: string | null = null;
           if (card.cover?.color) {
             if (trelloColorMap[card.cover.color]) {
-              // Known Trello color
               cardColor = trelloColorMap[card.cover.color];
             } else if (card.cover.color.startsWith('#')) {
-              // Already a hex color
               cardColor = card.cover.color;
             } else if (card.cover.color.startsWith('rgb')) {
-              // RGB format - keep as is
               cardColor = card.cover.color;
             } else {
-              // Unknown color - try CSS color name mapping
               const cssColorMap: Record<string, string> = {
                 red: '#ff0000', green: '#008000', blue: '#0000ff', yellow: '#ffff00',
                 orange: '#ffa500', purple: '#800080', pink: '#ffc0cb', black: '#000000',
@@ -727,70 +728,123 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             }
           }
 
-          // Use default color if card has no color assigned
           const finalCardColor = cardColor || defaultColor;
 
-          const { data: newCard, error: cardError } = await supabase
-            .from('cards')
-            .insert({
+          allCardInserts.push({
+            insert: {
               column_id: columnId,
               title: card.name,
-              // Store raw description - MarkdownRenderer handles conversion at render time
               description: card.desc || null,
               due_date: card.due || null,
               position: i,
               priority,
               created_by: user.id,
               color: finalCardColor,
-            })
-            .select()
-            .single();
+            },
+            trelloCard: card,
+          });
+        }
+      }
 
-          if (cardError) {
-            result.warnings.push(`Failed to create card "${card.name}": ${cardError.message}`);
-            continue;
-          }
-          result.cards_created++;
+      // Insert cards in batches of 50
+      const CARD_BATCH_SIZE = 50;
+      const cardIdMap = new Map<string, string>();
 
-          // Create card-label associations
-          for (const labelId of card.idLabels) {
-            const mappedLabelId = labelMap.get(labelId);
-            if (mappedLabelId) {
-              await supabase.from('card_labels').insert({
-                card_id: newCard.id,
-                label_id: mappedLabelId,
-              });
-            }
-          }
+      for (let batchStart = 0; batchStart < allCardInserts.length; batchStart += CARD_BATCH_SIZE) {
+        const batch = allCardInserts.slice(batchStart, batchStart + CARD_BATCH_SIZE);
+        
+        onProgress('cards', Math.min(batchStart + CARD_BATCH_SIZE, allCardInserts.length), sortedCards.length, 
+          `Cards batch ${Math.floor(batchStart / CARD_BATCH_SIZE) + 1}/${Math.ceil(allCardInserts.length / CARD_BATCH_SIZE)}`);
 
-          // Create subtasks from checklists
-          const cardChecklists = checklistMap.get(card.id) || [];
-          if (cardChecklists.length > 0) {
-            onProgress('subtasks', 0, 0, `Processing checklists for "${card.name.substring(0, 20)}..."`);
-          }
-          let subtaskPosition = 0;
+        const { data: createdCards, error: cardsError } = await supabase
+          .from('cards')
+          .insert(batch.map(b => b.insert))
+          .select();
+
+        if (cardsError) {
+          result.warnings.push(`Failed to create some cards: ${cardsError.message}`);
+          continue;
+        }
+
+        if (createdCards) {
+          // Map old IDs to new IDs and collect card labels
+          const cardLabelInserts: Array<{ card_id: string; label_id: string }> = [];
           
-          for (const checklist of cardChecklists) {
-            const sortedItems = [...checklist.checkItems].sort((a, b) => a.pos - b.pos);
-            
-            for (const item of sortedItems) {
-              const { error: subtaskError } = await supabase
-                .from('card_subtasks')
-                .insert({
-                  card_id: newCard.id,
-                  title: item.name,
-                  completed: item.state === 'complete',
-                  position: subtaskPosition++,
-                  checklist_name: checklist.name,
-                });
+          for (let i = 0; i < createdCards.length; i++) {
+            const trelloCard = batch[i].trelloCard;
+            const newCardId = createdCards[i].id;
+            cardIdMap.set(trelloCard.id, newCardId);
+            result.cards_created++;
 
-              if (subtaskError) {
-                result.warnings.push(`Failed to create subtask "${item.name}": ${subtaskError.message}`);
-              } else {
-                result.subtasks_created++;
+            // Collect card labels for batch insert
+            for (const labelId of trelloCard.idLabels) {
+              const mappedLabelId = labelMap.get(labelId);
+              if (mappedLabelId) {
+                cardLabelInserts.push({ card_id: newCardId, label_id: mappedLabelId });
               }
             }
           }
+
+          // Insert all card labels for this batch at once
+          if (cardLabelInserts.length > 0) {
+            const { error: cardLabelsError } = await supabase
+              .from('card_labels')
+              .insert(cardLabelInserts);
+            
+            if (cardLabelsError) {
+              result.warnings.push('Failed to create some card labels');
+            }
+          }
+        }
+      }
+
+      // Create subtasks from checklists in batch
+      onProgress('subtasks', 0, 0, 'Processing checklists...');
+      
+      const allSubtaskInserts: Array<{
+        card_id: string;
+        title: string;
+        completed: boolean;
+        position: number;
+        checklist_name: string;
+      }> = [];
+
+      for (const [trelloCardId, cardChecklists] of checklistMap) {
+        const cardId = cardIdMap.get(trelloCardId);
+        if (!cardId) continue;
+
+        let subtaskPosition = 0;
+        for (const checklist of cardChecklists) {
+          const sortedItems = [...checklist.checkItems].sort((a, b) => a.pos - b.pos);
+          
+          for (const item of sortedItems) {
+            allSubtaskInserts.push({
+              card_id: cardId,
+              title: item.name,
+              completed: item.state === 'complete',
+              position: subtaskPosition++,
+              checklist_name: checklist.name,
+            });
+          }
+        }
+      }
+
+      // Insert subtasks in batches of 100
+      const SUBTASK_BATCH_SIZE = 100;
+      for (let batchStart = 0; batchStart < allSubtaskInserts.length; batchStart += SUBTASK_BATCH_SIZE) {
+        const batch = allSubtaskInserts.slice(batchStart, batchStart + SUBTASK_BATCH_SIZE);
+        
+        onProgress('subtasks', Math.min(batchStart + SUBTASK_BATCH_SIZE, allSubtaskInserts.length), allSubtaskInserts.length,
+          `Subtasks batch ${Math.floor(batchStart / SUBTASK_BATCH_SIZE) + 1}/${Math.ceil(allSubtaskInserts.length / SUBTASK_BATCH_SIZE)}`);
+
+        const { error: subtasksError } = await supabase
+          .from('card_subtasks')
+          .insert(batch);
+
+        if (subtasksError) {
+          result.warnings.push('Failed to create some subtasks');
+        } else {
+          result.subtasks_created += batch.length;
         }
       }
 

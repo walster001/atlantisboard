@@ -23,7 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAppAdmin, setIsAppAdmin] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
-  const [verificationPending, setVerificationPending] = useState(false);
 
   const clearVerificationError = useCallback(() => {
     setVerificationError(null);
@@ -52,28 +51,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleAuthStateChange = useCallback(async (event: string, newSession: Session | null) => {
     console.log('Auth state change:', event, newSession?.user?.email);
     
-    // If signing in and verification is pending, check database
-    if (event === 'SIGNED_IN' && newSession?.user && verificationPending) {
-      setVerificationPending(false);
+    // If signing in via Google OAuth, check if verification is needed
+    if (event === 'SIGNED_IN' && newSession?.user) {
+      // Check if this is a Google OAuth sign-in by checking the provider
+      const provider = newSession.user.app_metadata?.provider;
       
-      // Check login style
-      const { data: settings } = await supabase
-        .from('app_settings')
-        .select('login_style')
-        .eq('id', 'default')
-        .maybeSingle();
+      if (provider === 'google') {
+        // Check login style
+        const { data: settings } = await supabase
+          .from('app_settings')
+          .select('login_style')
+          .eq('id', 'default')
+          .maybeSingle();
 
-      if (settings?.login_style === 'google_verified') {
-        console.log('Checking database verification for:', newSession.user.email);
-        const result = await verifyUserInDatabase(newSession.user.email!);
-        
-        if (!result.verified) {
-          console.log('User not verified, signing out');
-          setVerificationError(result.message || 'User does not exist in database');
-          await supabase.auth.signOut();
-          return;
+        if (settings?.login_style === 'google_verified') {
+          console.log('Checking database verification for:', newSession.user.email);
+          const result = await verifyUserInDatabase(newSession.user.email!);
+          
+          if (!result.verified) {
+            console.log('User not verified, signing out');
+            setVerificationError(result.message || 'User does not exist in database');
+            await supabase.auth.signOut();
+            return;
+          }
+          console.log('User verified successfully');
         }
-        console.log('User verified successfully');
       }
     }
 
@@ -89,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setIsAppAdmin(false);
     }
-  }, [verificationPending, verifyUserInDatabase]);
+  }, [verifyUserInDatabase]);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -124,8 +126,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    // Set pending flag before initiating OAuth
-    setVerificationPending(true);
     setVerificationError(null);
     
     const { error } = await supabase.auth.signInWithOAuth({
@@ -134,10 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         redirectTo: `${window.location.origin}/`,
       },
     });
-    
-    if (error) {
-      setVerificationPending(false);
-    }
     
     return { error };
   };

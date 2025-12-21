@@ -57,7 +57,7 @@ const logoSizeMap: Record<string, { className: string; width: number; height: nu
 export default function InvitePage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const { user, loading: authLoading, signInWithEmail, signUpWithEmail } = useAuth();
+  const { user, loading: authLoading, signInWithEmail, signUpWithEmail, verificationError, clearVerificationError } = useAuth();
   const { toast } = useToast();
 
   const [status, setStatus] = useState<InviteStatus>('loading');
@@ -215,6 +215,7 @@ export default function InvitePage() {
 
   const handleGoogleSignIn = async () => {
     setIsSigningIn(true);
+    clearVerificationError();
     
     // Redirect back to the invite page after OAuth
     const redirectUrl = `${window.location.origin}/invite/${token}`;
@@ -236,6 +237,18 @@ export default function InvitePage() {
       setIsSigningIn(false);
     }
   };
+
+  // Handle verification errors from google_verified login style
+  useEffect(() => {
+    if (verificationError) {
+      toast({
+        title: 'Access Denied',
+        description: verificationError,
+        variant: 'destructive',
+      });
+      setIsSigningIn(false);
+    }
+  }, [verificationError, toast]);
 
   const handleEmailAuth = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();

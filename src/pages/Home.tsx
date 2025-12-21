@@ -154,26 +154,19 @@ export default function Home() {
             const removedBoard = boards.find(b => b.id === board_id);
             const workspaceId = removedBoard?.workspace_id;
             
+            // Calculate remaining boards in workspace BEFORE state update
+            const remainingBoardsInWorkspace = boards.filter(
+              b => b.workspace_id === workspaceId && b.id !== board_id
+            );
+            const shouldRemoveWorkspace = workspaceId && remainingBoardsInWorkspace.length === 0;
+            
             // Remove the board
-            setBoards(prev => {
-              const updatedBoards = prev.filter(b => b.id !== board_id);
-              
-              // Check if this was the last board in the workspace for this user
-              if (workspaceId) {
-                const remainingBoardsInWorkspace = updatedBoards.filter(
-                  b => b.workspace_id === workspaceId
-                );
-                
-                // If no more boards in this workspace, also remove the workspace
-                if (remainingBoardsInWorkspace.length === 0) {
-                  setWorkspaces(prevWorkspaces => 
-                    prevWorkspaces.filter(w => w.id !== workspaceId)
-                  );
-                }
-              }
-              
-              return updatedBoards;
-            });
+            setBoards(prev => prev.filter(b => b.id !== board_id));
+            
+            // Remove workspace if this was the last board
+            if (shouldRemoveWorkspace) {
+              setWorkspaces(prev => prev.filter(w => w.id !== workspaceId));
+            }
             
             setBoardRoles(prev => {
               const updated = { ...prev };
@@ -183,7 +176,9 @@ export default function Home() {
             
             toast({
               title: 'Board access removed',
-              description: 'You have been removed from a board.',
+              description: shouldRemoveWorkspace 
+                ? 'You have been removed from a board and no longer have access to the workspace.'
+                : 'You have been removed from a board.',
             });
           }
         })

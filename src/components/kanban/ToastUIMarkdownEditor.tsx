@@ -862,13 +862,19 @@ export function ToastUIMarkdownEditor({
     document.body.appendChild(dropdown);
     logEmoji('Dropdown appended to body');
     
-    // Cleanup observer
+    // Cleanup observer - only clean up when dropdown is closed
+    // This prevents the dropdown from being removed during React re-renders
     const observer = new MutationObserver(() => {
       if (!document.body.contains(wrapper)) {
-        logEmoji('MutationObserver - wrapper removed from DOM, cleaning up');
-        dropdown.remove();
-        document.removeEventListener('mousedown', handleOutsideMouseDown, true);
-        observer.disconnect();
+        // Only clean up if dropdown is NOT open
+        if (!isOpen) {
+          logEmoji('MutationObserver - wrapper removed and dropdown closed, cleaning up');
+          dropdown.remove();
+          document.removeEventListener('mousedown', handleOutsideMouseDown, true);
+          observer.disconnect();
+        } else {
+          logEmoji('MutationObserver - wrapper removed but dropdown still open, keeping dropdown');
+        }
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });

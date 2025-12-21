@@ -239,6 +239,9 @@ export const KanbanColumn = memo(function KanbanColumn({
                     scrollbarColor: themeScrollbarColor && themeScrollbarTrackColor 
                       ? `${themeScrollbarColor} ${themeScrollbarTrackColor}` 
                       : undefined,
+                    // Prevent scroll bouncing/glitching on fast scroll
+                    overscrollBehavior: 'contain',
+                    WebkitOverflowScrolling: 'touch',
                   }}
                 >
                   {column.cards.map((card, cardIndex) => (

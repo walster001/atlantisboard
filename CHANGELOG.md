@@ -10,11 +10,13 @@
 ## [2024-12-21]
 
 ### Fixed
-- **Twemoji Rendering in Card Descriptions**: Fixed Twemoji persistence after save
-  - Added `skipDescriptionSyncUntilRef` in `CardDetailModal.tsx` (500ms) to prevent `useEffect([card])` from re-setting description state after save, avoiding re-render race with Twemoji parsing
-  - `skipRealtimeDescriptionUntilRef` in `BoardPage.tsx` prevents realtime subscription from overwriting `editingCard.card.description` (3-second window)
-  - Added 50ms delay after double-RAF in `MarkdownRenderer.tsx` Twemoji effect to ensure all React state updates complete before parsing
-  - `rendererKey` forces `MarkdownRenderer` remount after save/cancel for reliable Twemoji parsing
+- **Twemoji Rendering Rewrite**: Complete overhaul of emoji handling
+  - Created centralized `src/lib/twemojiUtils.ts` with `observeTwemoji()` MutationObserver utility
+  - Removed all workaround code: `skipDescriptionSyncUntilRef`, `skipRealtimeDescriptionUntilRef`, `rendererKey`
+  - Twemoji is now applied ONLY after DOM render via MutationObserver, never during save/persistence
+  - Database stores UTF-8 emojis only (no Twemoji HTML markup)
+  - `MarkdownRenderer.tsx` and `CardDetailModal.tsx` now use centralized utility
+  - Eliminated emoji flicker and reversion issues
 
 ### Security
 - **Hourly Re-authentication**: Added `[auth]` section to `supabase/config.toml` with:

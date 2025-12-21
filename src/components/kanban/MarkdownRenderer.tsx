@@ -23,7 +23,7 @@ import remarkEmoji from 'remark-emoji';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { cn } from '@/lib/utils';
 import { parseInlineButtonFromDataAttr, type InlineButtonData } from './InlineButtonEditor';
-import twemoji from '@twemoji/api';
+import { observeTwemoji } from '@/lib/twemojiUtils';
 
 // ============================================================================
 // Types
@@ -502,35 +502,12 @@ export function MarkdownRenderer({
   // Ref for the container to apply Twemoji parsing
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Stable function to parse Twemoji in the container
-  const parseTwemoji = useCallback(() => {
-    if (containerRef.current) {
-      twemoji.parse(containerRef.current, {
-        folder: 'svg',
-        ext: '.svg',
-        base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
-        className: 'twemoji-inline',
-      });
-    }
-  }, []);
-  
-  // Apply Twemoji parsing after EVERY render
-  // This is necessary because ReactMarkdown recreates DOM nodes on re-render,
-  // which replaces Twemoji <img> elements with fresh text nodes
+  // Apply Twemoji parsing using MutationObserver
+  // This automatically re-parses when ReactMarkdown recreates DOM nodes
   useEffect(() => {
-    let timeoutId: number | null = null;
-    let rafId: number | null = null;
-    
-    // Use RAF + timeout to ensure DOM is stable after React commits
-    rafId = requestAnimationFrame(() => {
-      timeoutId = window.setTimeout(parseTwemoji, 10);
-    });
-    
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      if (timeoutId !== null) clearTimeout(timeoutId);
-    };
-  }); // No dependencies - runs after every render
+    const cleanup = observeTwemoji(containerRef.current, 'twemoji-inline');
+    return cleanup;
+  }, [processedContent]); // Re-attach when content changes
 
   // If no content, return null
   if (!content) return null;

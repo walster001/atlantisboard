@@ -97,9 +97,6 @@ export default function BoardPage() {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { ref: dragScrollRef, isDragging, isSpaceHeld } = useDragScroll<HTMLDivElement>();
   
-  // Ref to track when to skip realtime description updates for the editing card
-  // This prevents Twemoji rendering from being overwritten after save
-  const skipRealtimeDescriptionUntilRef = useRef<number>(0);
 
   useEffect(() => {
     // Skip auth redirect in preview mode
@@ -180,17 +177,12 @@ export default function BoardPage() {
           // Update editing card modal if it's the one being edited by another user
           setEditingCard(prev => {
             if (prev && prev.card.id === updatedCard.id) {
-              // Check if we should skip description updates (preserves Twemoji rendering after save)
-              const now = Date.now();
-              const skipDescription = now < skipRealtimeDescriptionUntilRef.current;
-              
               return {
                 ...prev,
                 card: {
                   ...prev.card,
                   title: updatedCard.title,
-                  // Only update description if not in skip window
-                  description: skipDescription ? prev.card.description : (updatedCard.description || undefined),
+                  description: updatedCard.description || undefined,
                   dueDate: updatedCard.due_date || undefined,
                   color: updatedCard.color,
                 }
@@ -1069,10 +1061,6 @@ export default function BoardPage() {
         onClose={() => setEditingCard(null)}
         onSave={(updates) => {
           if (editingCard) {
-            // If saving description, set skip window to prevent realtime from overwriting Twemoji rendering
-            if ('description' in updates) {
-              skipRealtimeDescriptionUntilRef.current = Date.now() + 3000; // 3 second window
-            }
             updateCard(editingCard.card.id, updates);
             // Update local state for immediate feedback
             setEditingCard({

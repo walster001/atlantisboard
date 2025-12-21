@@ -186,6 +186,36 @@ export function BoardSettingsModal({
       });
 
       if (error) throw error;
+      
+      // Broadcast to the board channel for existing members to update their list
+      const boardChannel = supabase.channel(`board-${boardId}-member-changes`);
+      await boardChannel.subscribe();
+      await boardChannel.send({
+        type: 'broadcast',
+        event: 'member_added',
+        payload: { 
+          board_id: boardId, 
+          user_id: userId,
+          role: assignRole,
+          added_by: currentUserId 
+        }
+      });
+      supabase.removeChannel(boardChannel);
+      
+      // Also broadcast to user-specific channel so the added user gets notified
+      const userChannel = supabase.channel(`user-${userId}-board-updates`);
+      await userChannel.subscribe();
+      await userChannel.send({
+        type: 'broadcast',
+        event: 'added_to_board',
+        payload: { 
+          board_id: boardId, 
+          role: assignRole,
+          added_by: currentUserId 
+        }
+      });
+      supabase.removeChannel(userChannel);
+      
       toast({ title: 'Member added!' });
       onMembersChange();
     } catch (error: any) {
@@ -240,7 +270,7 @@ export function BoardSettingsModal({
       if (error) throw error;
       
       // Broadcast member removal event so the removed user gets notified instantly
-      const channel = supabase.channel(`board-${boardId}-member-removal`);
+      const channel = supabase.channel(`board-${boardId}-member-changes`);
       await channel.subscribe();
       await channel.send({
         type: 'broadcast',

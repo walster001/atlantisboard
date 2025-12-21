@@ -294,24 +294,12 @@ export default function BoardPage() {
     };
   }, [boardId, user, isPreviewMode]);
 
-  // Realtime subscription for board_members changes (INSERT/UPDATE)
+  // Realtime subscription for board_members changes (UPDATE only - broadcasts handle add/remove for current user)
   useEffect(() => {
     if (!boardId || !user || isPreviewMode) return;
 
     const channel = supabase
       .channel(`board-${boardId}-members-realtime`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'board_members',
-          filter: `board_id=eq.${boardId}`,
-        },
-        () => {
-          refreshBoardMembers();
-        }
-      )
       .on(
         'postgres_changes',
         {
@@ -328,19 +316,6 @@ export default function BoardPage() {
           refreshBoardMembers();
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'board_members',
-          filter: `board_id=eq.${boardId}`,
-        },
-        () => {
-          // Another member was removed, refresh members list
-          refreshBoardMembers();
-        }
-      )
       .subscribe();
 
     return () => {
@@ -348,12 +323,12 @@ export default function BoardPage() {
     };
   }, [boardId, user, isPreviewMode]);
 
-  // Listen for broadcast events when current user is removed from this board
+  // Listen for broadcast events for member additions and removals on this board
   useEffect(() => {
     if (!boardId || !user || isPreviewMode) return;
 
     const channel = supabase
-      .channel(`board-${boardId}-member-removal`)
+      .channel(`board-${boardId}-member-changes`)
       .on('broadcast', { event: 'member_removed' }, (payload) => {
         const { user_id } = payload.payload as { board_id: string; user_id: string };
         if (user_id === user.id) {
@@ -363,6 +338,16 @@ export default function BoardPage() {
             variant: 'destructive',
           });
           navigate('/');
+        } else {
+          // Another member was removed, refresh members list
+          refreshBoardMembers();
+        }
+      })
+      .on('broadcast', { event: 'member_added' }, (payload) => {
+        const { user_id } = payload.payload as { board_id: string; user_id: string };
+        // If someone else was added, refresh members list
+        if (user_id !== user.id) {
+          refreshBoardMembers();
         }
       })
       .subscribe();

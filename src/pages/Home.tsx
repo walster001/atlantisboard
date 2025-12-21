@@ -137,48 +137,16 @@ export default function Home() {
     }
   }, [user, isVerified]);
 
-  // Realtime subscription for board_members - listen for additions
+  // Listen for broadcast events when user is added to or removed from any board
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
-      .channel('home-board-members-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'board_members',
-        },
-        (payload) => {
-          const newMembership = payload.new as { board_id: string; user_id: string; role: string };
-          // If current user was added to a board, refresh data to show it
-          if (newMembership?.user_id === user.id) {
-            fetchData();
-            toast({
-              title: 'Board access granted',
-              description: 'You have been added to a new board.',
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
-
-  // Listen for broadcast events when user is removed from any board
-  useEffect(() => {
-    if (!user) return;
-
-    // Subscribe to removal broadcasts for all boards user is currently a member of
     const channels: ReturnType<typeof supabase.channel>[] = [];
     
+    // Subscribe to member change broadcasts for all boards user is currently a member of
     boards.forEach(board => {
       const channel = supabase
-        .channel(`board-${board.id}-member-removal`)
+        .channel(`board-${board.id}-member-changes`)
         .on('broadcast', { event: 'member_removed' }, (payload) => {
           const { board_id, user_id } = payload.payload as { board_id: string; user_id: string };
           if (user_id === user.id) {
@@ -197,6 +165,19 @@ export default function Home() {
         .subscribe();
       channels.push(channel);
     });
+
+    // Listen on user-specific channel for when user is added to new boards
+    const userChannel = supabase
+      .channel(`user-${user.id}-board-updates`)
+      .on('broadcast', { event: 'added_to_board' }, () => {
+        fetchData();
+        toast({
+          title: 'Board access granted',
+          description: 'You have been added to a new board.',
+        });
+      })
+      .subscribe();
+    channels.push(userChannel);
 
     return () => {
       channels.forEach(channel => supabase.removeChannel(channel));

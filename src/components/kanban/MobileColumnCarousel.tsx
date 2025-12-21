@@ -52,6 +52,7 @@ interface MobileColumnCarouselProps {
   onApplyColumnColorToAll: (color: string | null) => void;
   onUpdateCardColor: (cardId: string, color: string | null) => void;
   onApplyCardColorToAll: (color: string | null) => void;
+  onReorderColumns?: (fromIndex: number, toIndex: number) => void;
   disabled?: boolean;
   themeColumnColor?: string;
   themeCardColor?: string | null;
@@ -70,6 +71,7 @@ export function MobileColumnCarousel({
   onApplyColumnColorToAll,
   onUpdateCardColor,
   onApplyCardColorToAll,
+  onReorderColumns,
   disabled = false,
   themeColumnColor,
   themeCardColor,
@@ -86,6 +88,14 @@ export function MobileColumnCarousel({
   const startXRef = useRef(0);
   const currentXRef = useRef(0);
   const isDraggingRef = useRef(false);
+  
+  // Dot drag-and-drop state
+  const [draggingDotIndex, setDraggingDotIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dotTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isDotDraggingRef = useRef(false);
+  const LONG_PRESS_DELAY = 300; // ms delay before drag starts
 
   const activeColumn = columns[activeIndex];
 
@@ -154,6 +164,90 @@ export function MobileColumnCarousel({
       setActiveIndex(columns.length - 1);
     }
   }, [columns.length, activeIndex]);
+  
+  // Cleanup long press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+  
+  // Dot drag handlers with delayed touch activation
+  const handleDotTouchStart = useCallback((e: React.TouchEvent, index: number) => {
+    if (disabled || !onReorderColumns) return;
+    
+    const touch = e.touches[0];
+    dotTouchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+    
+    // Start long press timer
+    longPressTimerRef.current = setTimeout(() => {
+      isDotDraggingRef.current = true;
+      setDraggingDotIndex(index);
+      // Haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, LONG_PRESS_DELAY);
+  }, [disabled, onReorderColumns]);
+  
+  const handleDotTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!dotTouchStartRef.current) return;
+    
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - dotTouchStartRef.current.x);
+    const dy = Math.abs(touch.clientY - dotTouchStartRef.current.y);
+    
+    // If moved too much before long press, cancel the drag initiation
+    if (!isDotDraggingRef.current && (dx > 10 || dy > 10)) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      return;
+    }
+    
+    // If dragging, find which dot we're over
+    if (isDotDraggingRef.current) {
+      e.preventDefault();
+      const dotsContainer = (e.currentTarget as HTMLElement).parentElement;
+      if (!dotsContainer) return;
+      
+      const dots = dotsContainer.querySelectorAll('[data-dot-index]');
+      let newOverIndex: number | null = null;
+      
+      dots.forEach((dot) => {
+        const rect = dot.getBoundingClientRect();
+        if (touch.clientX >= rect.left && touch.clientX <= rect.right) {
+          newOverIndex = parseInt(dot.getAttribute('data-dot-index') || '0', 10);
+        }
+      });
+      
+      setDragOverIndex(newOverIndex);
+    }
+  }, []);
+  
+  const handleDotTouchEnd = useCallback(() => {
+    // Cancel long press timer
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    
+    // If we were dragging and have a valid drop target, reorder
+    if (isDotDraggingRef.current && draggingDotIndex !== null && dragOverIndex !== null && draggingDotIndex !== dragOverIndex) {
+      onReorderColumns?.(draggingDotIndex, dragOverIndex);
+      // Update active index to follow the moved column
+      setActiveIndex(dragOverIndex);
+    }
+    
+    // Reset state
+    isDotDraggingRef.current = false;
+    dotTouchStartRef.current = null;
+    setDraggingDotIndex(null);
+    setDragOverIndex(null);
+  }, [draggingDotIndex, dragOverIndex, onReorderColumns]);
 
   if (!activeColumn) {
     return (
@@ -181,29 +275,43 @@ export function MobileColumnCarousel({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Column navigation dots */}
+      {/* Column navigation dots with drag reordering */}
       <div className="flex items-center justify-center gap-2 py-3 px-4">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/20"
+          className="h-10 w-10 text-white/70 hover:text-white hover:bg-white/20 touch-manipulation"
           onClick={goToPrevious}
           disabled={activeIndex === 0}
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
         
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2 px-2">
           {columns.map((col, idx) => (
             <button
               key={col.id}
-              onClick={() => setActiveIndex(idx)}
+              data-dot-index={idx}
+              onClick={() => !isDotDraggingRef.current && setActiveIndex(idx)}
+              onTouchStart={(e) => handleDotTouchStart(e, idx)}
+              onTouchMove={handleDotTouchMove}
+              onTouchEnd={handleDotTouchEnd}
               className={cn(
-                "h-2 rounded-full transition-all duration-200",
+                "rounded-full transition-all duration-200 touch-manipulation",
+                // Size: active is larger, dragging dot gets special style
                 idx === activeIndex 
-                  ? "w-6 bg-white" 
-                  : "w-2 bg-white/40 hover:bg-white/60"
+                  ? "w-8 h-3 bg-white" 
+                  : "w-3 h-3 bg-white/40 hover:bg-white/60",
+                // Dragging styles
+                draggingDotIndex === idx && "scale-125 bg-primary shadow-lg ring-2 ring-primary/50",
+                dragOverIndex === idx && draggingDotIndex !== idx && "ring-2 ring-white/80 scale-110",
+                // Larger touch target via padding
+                "p-1 -m-1"
               )}
+              style={{
+                // Visual indicator when being dragged over
+                transform: dragOverIndex === idx && draggingDotIndex !== idx ? 'translateX(4px)' : undefined,
+              }}
             />
           ))}
         </div>
@@ -211,13 +319,20 @@ export function MobileColumnCarousel({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/20"
+          className="h-10 w-10 text-white/70 hover:text-white hover:bg-white/20 touch-manipulation"
           onClick={goToNext}
           disabled={activeIndex === columns.length - 1}
         >
           <ChevronRight className="h-5 w-5" />
         </Button>
       </div>
+      
+      {/* Drag hint text - shows when dragging */}
+      {draggingDotIndex !== null && (
+        <div className="text-center text-xs text-white/60 -mt-2 mb-1 animate-fade-in">
+          Drag to reorder • Release to drop
+        </div>
+      )}
 
       {/* Active column */}
       <div className="flex-1 min-h-0 px-4 pb-4">

@@ -19,6 +19,7 @@ import {
   addRecentEmoji, 
   getAllEmojis 
 } from './emojiData';
+import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
 interface ToastUIMarkdownEditorProps {
   content: string;
@@ -140,6 +141,9 @@ export function ToastUIMarkdownEditor({
   themeBackgroundColor,
   themeTextColor,
 }: ToastUIMarkdownEditorProps) {
+  const { isMobile, isTablet } = useResponsiveLayout();
+  const isMobileOrTablet = isMobile || isTablet;
+
   const isDark = useMemo(() => {
     if (themeBackgroundColor) {
       return isDarkBackground(themeBackgroundColor);
@@ -876,7 +880,15 @@ export function ToastUIMarkdownEditor({
         placeholder={placeholder || 'Write your description...'}
         onChange={handleChange}
         widgetRules={widgetRules}
-        toolbarItems={[
+        toolbarItems={isMobileOrTablet ? [
+          // Simplified mobile toolbar with fewer groups
+          ['heading', 'bold', 'italic'],
+          ['ul', 'ol', 'task'],
+          [
+            'link',
+            { el: createEmojiToolbarItem(), tooltip: 'Insert Emoji', name: 'emoji' },
+          ],
+        ] : [
           ['heading', 'bold', 'italic', 'strike'],
           ['hr', 'quote'],
           [
@@ -1036,6 +1048,35 @@ export function ToastUIMarkdownEditor({
           height: 1.2em;
           vertical-align: -0.2em;
           margin: 0 0.05em;
+        }
+        
+        /* Mobile toolbar styles - larger touch targets */
+        @media (max-width: 1024px) {
+          .toastui-editor-wrapper .toastui-editor-toolbar-icons {
+            min-width: 44px !important;
+            min-height: 44px !important;
+            width: 44px !important;
+            height: 44px !important;
+            padding: 10px !important;
+            margin: 2px !important;
+          }
+          .toastui-editor-wrapper .toastui-editor-toolbar-icons::before {
+            transform: scale(1.25) !important;
+          }
+          .toastui-editor-wrapper .toastui-editor-defaultUI-toolbar {
+            padding: 8px 4px !important;
+            gap: 4px;
+            flex-wrap: wrap;
+          }
+          .toastui-editor-wrapper .toastui-editor-toolbar-group {
+            padding: 0 4px !important;
+            gap: 4px;
+          }
+          .toastui-editor-wrapper .toastui-editor-toolbar-icons.custom-indent svg,
+          .toastui-editor-wrapper .toastui-editor-toolbar-icons.custom-outdent svg {
+            width: 20px !important;
+            height: 20px !important;
+          }
         }
       `}</style>
     </div>

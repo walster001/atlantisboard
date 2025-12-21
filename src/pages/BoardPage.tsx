@@ -1156,6 +1156,7 @@ export default function BoardPage() {
               onUpdateCardColor={updateCardColor}
               onApplyCardColorToAll={applyCardColorToAll}
               onReorderColumns={reorderColumns}
+              onRefresh={fetchBoardData}
               disabled={!canEdit}
               themeColumnColor={boardTheme?.column_color}
               themeCardColor={boardTheme?.default_card_color}

@@ -10,6 +10,7 @@ import { BrandingSettings } from '@/components/admin/BrandingSettings';
 import { CustomFontsSettings } from '@/components/admin/CustomFontsSettings';
 import { AppBrandingSettings } from '@/components/admin/AppBrandingSettings';
 import { LoginOptionsSettings } from '@/components/admin/LoginOptionsSettings';
+import { PermissionsSettings } from '@/components/admin/permissions';
 
 // Placeholder settings data structure
 const tabConfig = {
@@ -165,6 +166,10 @@ function SettingsContent({ mainTab, subTab }: { mainTab: MainTab; subTab: string
   // Render specific settings based on tab
   if (mainTab === 'configuration' && subTab === 'login-options') {
     return <LoginOptionsSettings />;
+  }
+
+  if (mainTab === 'configuration' && subTab === 'permissions') {
+    return <PermissionsSettings />;
   }
 
   if (mainTab === 'customisation' && subTab === 'branding') {

@@ -5,7 +5,7 @@
 
 import { 
   Settings, Palette, LayoutGrid, Trello, Settings2, 
-  Users, Columns3, StickyNote, Tag, Paperclip, CheckSquare 
+  Users, Columns3, StickyNote, Tag, Paperclip, CheckSquare, Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PERMISSION_CATEGORIES, CategoryStatus, PermissionCategoryConfig } from './types';
@@ -39,11 +39,51 @@ export function CategoriesList({
   return (
     <div className="w-48 shrink-0 flex flex-col">
       <div className="bg-card border border-border rounded-lg p-4 flex-1">
+        {/* App-Level Permissions Section */}
+        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <Shield className="h-3 w-3 text-amber-500" />
+          App Permissions
+        </div>
+        <div className="flex flex-col gap-1 mb-4">
+          {PERMISSION_CATEGORIES.filter(c => 
+            c.id === 'app-admin' || c.id === 'themes' || c.id === 'workspaces'
+          ).map((category) => {
+            const Icon = iconMap[category.icon] || Settings;
+            const status = getCategoryStatus(category.id);
+            
+            return (
+              <button
+                key={category.id}
+                onClick={() => onSelectCategory(category.id)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium transition-colors w-full text-left",
+                  selectedCategoryId === category.id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5 opacity-70" />
+                <span className="flex-1 truncate">{category.name}</span>
+                <StatusIndicator 
+                  status={status} 
+                  isSelected={selectedCategoryId === category.id}
+                />
+              </button>
+            );
+          })}
+        </div>
+        
+        {/* Divider */}
+        <div className="h-px bg-border mb-4" />
+        
+        {/* Board-Level Permissions Section */}
         <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          Permission Categories
+          Board Permissions
         </div>
         <div className="flex flex-col gap-1">
-          {PERMISSION_CATEGORIES.map((category) => {
+          {PERMISSION_CATEGORIES.filter(c => 
+            c.id !== 'app-admin' && c.id !== 'themes' && c.id !== 'workspaces'
+          ).map((category) => {
             const Icon = iconMap[category.icon] || Settings;
             const status = getCategoryStatus(category.id);
             

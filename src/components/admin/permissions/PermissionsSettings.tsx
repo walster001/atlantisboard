@@ -153,7 +153,8 @@ export function PermissionsSettings() {
       <div>
         <h2 className="text-2xl font-semibold">Permissions</h2>
         <p className="text-muted-foreground">
-          Manage roles and their permissions across the application.
+          Manage board roles and their permissions. App-level permissions (Administration, Themes, Workspaces) 
+          require App Admin status, which is automatically granted to the first user who signs in.
         </p>
       </div>
 

@@ -103,7 +103,14 @@ export function RoleDetailView({
 
         {/* Category Header with toggle */}
         <div className="flex items-center justify-between p-4 bg-muted rounded-lg mb-4">
-          <span className="font-semibold">{category.name}</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold">{category.name}</span>
+            {category.id.startsWith('app-') || category.id === 'themes' || category.id === 'workspaces' ? (
+              <span className="text-xs text-amber-600 dark:text-amber-400">
+                Requires App Admin status
+              </span>
+            ) : null}
+          </div>
           <ToggleSlider
             state={categoryStatus}
             disabled={isBuiltIn}

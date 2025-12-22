@@ -40,9 +40,9 @@ export interface BuiltInRole {
 }
 
 export const BUILT_IN_ROLES: BuiltInRole[] = [
-  { id: 'admin', name: 'Admin', description: 'Full access to all board features' },
-  { id: 'manager', name: 'Manager', description: 'Can manage members and view settings' },
-  { id: 'viewer', name: 'Viewer', description: 'Read-only access to board content' },
+  { id: 'admin', name: 'Board Admin', description: 'Full access to all board features and settings' },
+  { id: 'manager', name: 'Manager', description: 'Can manage members, create invites, and view board settings' },
+  { id: 'viewer', name: 'Viewer', description: 'Read-only access to board content and attachments' },
 ];
 
 // Permission categories with their permissions

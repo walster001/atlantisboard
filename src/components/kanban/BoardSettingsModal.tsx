@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/usePermissions';
 import { UserPlus, User, X, Search, UserMinus, Loader2, Palette, ImageIcon, Tag, Settings2, History } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { ThemeSettings } from './ThemeSettings';
@@ -111,21 +112,23 @@ export function BoardSettingsModal({
   const [activeBoardSubTab, setActiveBoardSubTab] = useState('labels');
   const [pendingRoles, setPendingRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
 
-  // SECURITY: Role-based access - these control what the user sees
-  // Real security is enforced server-side via RLS policies
+  // Use permission system for UI checks
+  // SECURITY: Real security is enforced server-side via RLS policies
+  const { can, canEdit, canManageMembers, canChangeRoles: canChangeRolesPermission } = usePermissions(boardId, userRole);
+  
   const isAdmin = userRole === 'admin';
   const isManager = userRole === 'manager';
   const isViewer = userRole === 'viewer';
   
   // Viewers should never see this modal - close immediately if opened
   // This is a defense-in-depth measure; the button should already be hidden
-  const hasAccess = isAdmin || isManager;
+  const hasAccess = can('board.settings.button');
   
   // Permission checks for specific actions
-  const canChangeRoles = isAdmin; // Only admins can change roles
-  const canAddRemove = isAdmin || isManager; // Admins and managers can add/remove members
-  const canAccessBoardSettings = isAdmin; // Only admins can access Board Settings tab
-  const canAccessThemeSettings = isAdmin; // Only admins can access Theme & Background tab
+  const canChangeRoles = canChangeRolesPermission || can('board.members.role.change');
+  const canAddRemove = canManageMembers || can('board.members.add');
+  const canAccessBoardSettings = can('board.settings.labels') || can('board.settings.audit');
+  const canAccessThemeSettings = can('board.settings.theme');
 
   // Fetch all users when modal opens
   useEffect(() => {

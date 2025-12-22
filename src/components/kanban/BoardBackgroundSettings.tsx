@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Upload, Trash2, Loader2 } from 'lucide-react';
 import { ThemeColorInput } from './ThemeColorInput';
 import { cn } from '@/lib/utils';
@@ -62,7 +63,9 @@ export function BoardBackgroundSettings({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   
-  const canEdit = userRole === 'admin';
+  // Use permission system
+  const { can } = usePermissions(boardId, userRole);
+  const canEdit = can('board.background.edit');
 
   // Sync local state when props change
   useEffect(() => {

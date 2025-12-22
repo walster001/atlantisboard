@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, User, UserPlus, UserMinus, ArrowRight, History, Clock, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface AuditLogEntry {
   id: string;
@@ -57,9 +58,10 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
   const [totalCount, setTotalCount] = useState(0);
   const [loadingPage, setLoadingPage] = useState(false);
 
-  // SECURITY: Only admins should access this component
-  // This is defense-in-depth; RLS policies also protect the data
-  const isAdmin = userRole === 'admin';
+  // Use permission system
+  // SECURITY: Only those with audit log permission should access this
+  const { can } = usePermissions(boardId, userRole);
+  const isAdmin = can('board.settings.audit');
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const hasNextPage = currentPage < totalPages - 1;

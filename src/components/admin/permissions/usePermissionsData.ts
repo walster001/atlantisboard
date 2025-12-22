@@ -1,8 +1,10 @@
 /**
  * Hook for managing permissions data
+ * 
+ * Includes real-time subscriptions to stay in sync with other admins
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { CustomRole, RolePermission } from './types';
@@ -17,6 +19,10 @@ export function usePermissionsData() {
   const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  // Track last refetch to debounce rapid changes
+  const lastRefetchRef = useRef<number>(0);
+  const DEBOUNCE_MS = 500;
 
   // Fetch custom roles and their permissions
   const fetchData = useCallback(async () => {
@@ -46,6 +52,39 @@ export function usePermissionsData() {
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
+
+  // Realtime subscription for roles and permissions changes
+  useEffect(() => {
+    const debouncedRefetch = () => {
+      const now = Date.now();
+      if (now - lastRefetchRef.current < DEBOUNCE_MS) return;
+      lastRefetchRef.current = now;
+      fetchData();
+    };
+
+    const rolesChannel = supabase
+      .channel('admin-custom-roles-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'custom_roles' },
+        () => debouncedRefetch()
+      )
+      .subscribe();
+
+    const permsChannel = supabase
+      .channel('admin-role-permissions-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'role_permissions' },
+        () => debouncedRefetch()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(rolesChannel);
+      supabase.removeChannel(permsChannel);
+    };
   }, [fetchData]);
 
   // Get permissions for a specific role

@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
+import { usePermissionsRealtime } from '@/hooks/usePermissionsRealtime';
 import { KanbanColumn } from '@/components/kanban/KanbanColumn';
 import { MobileColumnCarousel } from '@/components/kanban/MobileColumnCarousel';
 import { CardDetailModal } from '@/components/kanban/CardDetailModal';
@@ -103,6 +104,26 @@ export default function BoardPage() {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { ref: dragScrollRef, isDragging, isSpaceHeld } = useDragScroll<HTMLDivElement>();
   
+  // Real-time permissions updates - triggers refetch when permissions change
+  usePermissionsRealtime({
+    boardId,
+    onPermissionsUpdated: useCallback(() => {
+      console.log('[BoardPage] Permissions updated, refetching board data...');
+      fetchBoardData();
+    }, []),
+    onAccessRevoked: useCallback(() => {
+      console.log('[BoardPage] Access revoked via permissions, redirecting...');
+      navigate('/', {
+        state: {
+          permissionsRevoked: {
+            board_id: boardId,
+            timestamp: Date.now()
+          }
+        }
+      });
+    }, [boardId, navigate]),
+  });
+
 
   useEffect(() => {
     // Skip auth redirect in preview mode

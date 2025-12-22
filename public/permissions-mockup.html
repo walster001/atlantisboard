@@ -110,7 +110,7 @@
     }
 
     .header-content {
-      max-width: 80rem; /* max-w-7xl */
+      max-width: 80rem;
       margin: 0 auto;
       padding: 0.75rem 1rem;
       display: flex;
@@ -199,7 +199,7 @@
     }
 
     /* ============================================
-       Main Content Layout — Three Column
+       Main Content Layout — Four Column
        ============================================ */
     .main-container {
       display: flex;
@@ -212,7 +212,7 @@
 
     /* Left: Vertical Sub-Navigation (Config Tabs) */
     .config-sidebar {
-      width: 14rem; /* w-56 */
+      width: 14rem;
       background: hsl(var(--card));
       border-right: 1px solid hsl(var(--border));
       padding: 1rem;
@@ -250,20 +250,20 @@
     }
 
     /* ============================================
-       Permissions Content Area — Two Column
+       Permissions Content Area — Three Column
        ============================================ */
     .permissions-content {
       flex: 1;
       display: flex;
       padding: 1.5rem;
-      gap: 1.5rem;
+      gap: 1rem;
       min-width: 0;
       overflow-x: auto;
     }
 
-    /* Middle: Roles List */
+    /* Roles List Panel */
     .roles-panel {
-      width: 13rem;
+      width: 11rem;
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -356,25 +356,103 @@
       background: hsl(var(--primary) / 0.1);
     }
 
-    .delete-btn {
-      background: none;
-      border: none;
-      color: hsl(var(--muted-foreground));
-      cursor: pointer;
-      padding: 0.25rem;
-      border-radius: calc(var(--radius) - 4px);
-      transition: all 0.15s;
+    /* ============================================
+       Categories Panel — NEW
+       ============================================ */
+    .categories-panel {
+      width: 12rem;
+      flex-shrink: 0;
       display: flex;
-      align-items: center;
+      flex-direction: column;
     }
 
-    .delete-btn:hover {
-      color: hsl(var(--destructive));
-      background: hsl(var(--destructive) / 0.1);
+    .categories-section {
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      padding: 1rem;
+      flex: 1;
+    }
+
+    .categories-section-title {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: hsl(var(--muted-foreground));
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+
+    .categories-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .category-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: hsl(var(--muted-foreground));
+      background: transparent;
+      border: none;
+      border-radius: calc(var(--radius) - 2px);
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: all 0.15s;
+    }
+
+    .category-item:hover {
+      background: hsl(var(--muted));
+      color: hsl(var(--foreground));
+    }
+
+    .category-item.active {
+      background: hsl(var(--primary));
+      color: hsl(var(--primary-foreground));
+    }
+
+    .category-item svg {
+      width: 14px;
+      height: 14px;
+      opacity: 0.7;
+    }
+
+    .category-item.active svg {
+      opacity: 1;
+    }
+
+    /* Category status indicator */
+    .category-status {
+      margin-left: auto;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: hsl(var(--muted-foreground) / 0.3);
+    }
+
+    .category-status.on {
+      background: hsl(142 71% 45%);
+    }
+
+    .category-status.partial {
+      background: hsl(45 93% 47%);
+    }
+
+    .category-status.off {
+      background: hsl(var(--muted-foreground) / 0.3);
+    }
+
+    .category-item.active .category-status {
+      border: 1px solid hsl(var(--primary-foreground) / 0.5);
     }
 
     /* ============================================
-       Right: Role Detail View — Fills Remaining Width
+       Role Detail View — Fills Remaining Width
        ============================================ */
     .role-detail {
       flex: 1;
@@ -384,10 +462,15 @@
       border-radius: var(--radius);
       padding: 1.5rem;
       overflow-x: auto;
+      display: flex;
+      flex-direction: column;
     }
 
     .role-detail-content {
-      min-width: 25rem; /* Minimum before horizontal scroll */
+      min-width: 20rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
     }
 
     .role-detail-header {
@@ -397,6 +480,12 @@
       margin-bottom: 1.5rem;
       padding-bottom: 1rem;
       border-bottom: 1px solid hsl(var(--border));
+    }
+
+    .role-detail-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
     }
 
     .role-detail-title {
@@ -414,48 +503,88 @@
       border-radius: calc(var(--radius) - 4px);
     }
 
-    /* ============================================
-       Permission Categories & Toggle Sliders
-       ============================================ */
-    .permission-category {
-      margin-bottom: 1rem;
-      border: 1px solid hsl(var(--border));
-      border-radius: var(--radius);
-      overflow: hidden;
+    .editable-badge {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      padding: 0.25rem 0.5rem;
+      background: hsl(142 71% 45% / 0.15);
+      color: hsl(142 71% 35%);
+      border-radius: calc(var(--radius) - 4px);
     }
 
-    .category-header {
+    .dark .editable-badge {
+      background: hsl(142 71% 45% / 0.2);
+      color: hsl(142 71% 55%);
+    }
+
+    /* Header action buttons */
+    .role-detail-header-actions {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 0.875rem 1rem;
-      background: hsl(var(--muted));
+      gap: 0.75rem;
+    }
+
+    .unsaved-indicator {
+      font-size: 0.8125rem;
+      color: hsl(var(--destructive));
+      font-weight: 500;
+    }
+
+    .save-btn {
+      padding: 0.5rem 1rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: hsl(var(--primary-foreground));
+      background: hsl(var(--primary));
+      border: none;
+      border-radius: calc(var(--radius) - 2px);
       cursor: pointer;
       transition: background-color 0.15s;
     }
 
-    .category-header:hover {
-      background: hsl(var(--accent));
+    .save-btn:hover {
+      background: hsl(217 91% 50%);
     }
 
-    .category-header-left {
+    .save-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .delete-role-header-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: hsl(var(--destructive));
+      background: hsl(var(--destructive) / 0.1);
+      border: 1px solid hsl(var(--destructive) / 0.3);
+      border-radius: calc(var(--radius) - 2px);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .delete-role-header-btn:hover {
+      background: hsl(var(--destructive) / 0.2);
+      border-color: hsl(var(--destructive) / 0.5);
+    }
+
+    /* Category header in detail view */
+    .category-detail-header {
       display: flex;
       align-items: center;
-      gap: 0.625rem;
+      justify-content: space-between;
+      padding: 1rem;
+      background: hsl(var(--muted));
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
     }
 
-    .expand-icon {
-      color: hsl(var(--muted-foreground));
-      transition: transform 0.2s;
-    }
-
-    .category-header.expanded .expand-icon {
-      transform: rotate(90deg);
-    }
-
-    .category-name {
-      font-size: 0.875rem;
-      font-weight: 500;
+    .category-detail-title {
+      font-size: 1rem;
+      font-weight: 600;
       color: hsl(var(--foreground));
     }
 
@@ -510,17 +639,35 @@
       cursor: not-allowed;
     }
 
-    /* Permission Items (Expanded) */
-    .permission-items {
-      background: hsl(var(--card));
+    .toggle-slider:not(.disabled):hover {
+      box-shadow: 0 0 0 2px hsl(var(--ring) / 0.3);
+    }
+
+    .toggle-slider:not(.disabled):active {
+      transform: scale(0.95);
+    }
+
+    /* Permission Items */
+    .permissions-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
     }
 
     .permission-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0.75rem 1rem 0.75rem 2.625rem;
-      border-top: 1px solid hsl(var(--border));
+      padding: 0.875rem 1rem;
+      background: hsl(var(--background));
+      border: 1px solid hsl(var(--border));
+      border-radius: calc(var(--radius) - 2px);
+      transition: background-color 0.15s;
+    }
+
+    .permission-item:hover {
+      background: hsl(var(--muted));
     }
 
     .permission-item-left {
@@ -539,92 +686,6 @@
     .permission-desc {
       font-size: 0.75rem;
       color: hsl(var(--muted-foreground));
-    }
-
-    /* ============================================
-       Save Button Section
-       ============================================ */
-    .save-section {
-      margin-top: 1.5rem;
-      padding-top: 1rem;
-      border-top: 1px solid hsl(var(--border));
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 1rem;
-    }
-
-    .unsaved-indicator {
-      font-size: 0.8125rem;
-      color: hsl(var(--destructive));
-      font-weight: 500;
-    }
-
-    .save-btn {
-      padding: 0.625rem 1.25rem;
-      font-size: 0.875rem;
-      font-weight: 500;
-      color: hsl(var(--primary-foreground));
-      background: hsl(var(--primary));
-      border: none;
-      border-radius: calc(var(--radius) - 2px);
-      cursor: pointer;
-      transition: background-color 0.15s;
-    }
-
-    .save-btn:hover {
-      background: hsl(217 91% 50%);
-    }
-
-    .save-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    /* ============================================
-       Editable Role Styles
-       ============================================ */
-    .editable-badge {
-      font-size: 0.6875rem;
-      font-weight: 500;
-      padding: 0.25rem 0.5rem;
-      background: hsl(142 71% 45% / 0.15);
-      color: hsl(142 71% 35%);
-      border-radius: calc(var(--radius) - 4px);
-    }
-
-    .dark .editable-badge {
-      background: hsl(142 71% 45% / 0.2);
-      color: hsl(142 71% 55%);
-    }
-
-    .delete-role-header-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 0.75rem;
-      font-size: 0.8125rem;
-      font-weight: 500;
-      color: hsl(var(--destructive));
-      background: hsl(var(--destructive) / 0.1);
-      border: 1px solid hsl(var(--destructive) / 0.3);
-      border-radius: calc(var(--radius) - 2px);
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .delete-role-header-btn:hover {
-      background: hsl(var(--destructive) / 0.2);
-      border-color: hsl(var(--destructive) / 0.5);
-    }
-
-    /* Toggle slider hover effect for editable */
-    .toggle-slider:not(.disabled):hover {
-      box-shadow: 0 0 0 2px hsl(var(--ring) / 0.3);
-    }
-
-    .toggle-slider:not(.disabled):active {
-      transform: scale(0.95);
     }
 
     /* ============================================
@@ -816,6 +877,15 @@
     /* ============================================
        Responsive Behavior
        ============================================ */
+    @media (max-width: 1200px) {
+      .categories-panel {
+        width: 10rem;
+      }
+      .roles-panel {
+        width: 10rem;
+      }
+    }
+
     @media (max-width: 1024px) {
       .main-container {
         flex-direction: column;
@@ -841,29 +911,34 @@
         flex-direction: column;
       }
 
-      .roles-panel {
+      .roles-panel,
+      .categories-panel {
         width: 100%;
       }
 
-      .roles-section {
+      .roles-section,
+      .categories-section {
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem;
         align-items: center;
       }
 
-      .roles-section-title {
+      .roles-section-title,
+      .categories-section-title {
         width: 100%;
         margin-bottom: 0.5rem;
       }
 
-      .roles-list {
+      .roles-list,
+      .categories-list {
         flex-direction: row;
         flex-wrap: wrap;
         gap: 0.5rem;
       }
 
-      .role-item {
+      .role-item,
+      .category-item {
         width: auto;
       }
 
@@ -919,7 +994,7 @@
   </div>
 
   <!-- ============================================
-       Main Content — Three Column Layout
+       Main Content — Four Column Layout
        ============================================ -->
   <div class="main-container">
     <!-- Left: Vertical Sub-Navigation -->
@@ -934,7 +1009,7 @@
 
     <!-- Permissions Content Area -->
     <div class="permissions-content">
-      <!-- Middle: Roles Panel -->
+      <!-- Column 1: Roles Panel -->
       <div class="roles-panel">
         <div class="roles-section">
           <div class="roles-section-title">Built-in Roles</div>
@@ -974,7 +1049,93 @@
         </div>
       </div>
 
-      <!-- Right: Role Detail View — Expands to Fill Remaining Width -->
+      <!-- Column 2: Categories Panel -->
+      <div class="categories-panel">
+        <div class="categories-section">
+          <div class="categories-section-title">Permission Categories</div>
+          <div class="categories-list" id="categoriesList">
+            <button class="category-item active" onclick="selectCategory('app-admin')" data-category="app-admin">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              <span>App Admin</span>
+              <span class="category-status off"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('themes')" data-category="themes">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="13.5" cy="6.5" r="0.5"/><circle cx="17.5" cy="10.5" r="0.5"/><circle cx="8.5" cy="7.5" r="0.5"/><circle cx="6.5" cy="12.5" r="0.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"/>
+              </svg>
+              <span>Themes</span>
+              <span class="category-status off"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('workspaces')" data-category="workspaces">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/>
+              </svg>
+              <span>Workspaces</span>
+              <span class="category-status off"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('boards')" data-category="boards">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+              </svg>
+              <span>Boards</span>
+              <span class="category-status on"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('board-settings')" data-category="board-settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+              <span>Board Settings</span>
+              <span class="category-status on"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('members')" data-category="members">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>Members</span>
+              <span class="category-status on"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('columns')" data-category="columns">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/>
+              </svg>
+              <span>Columns</span>
+              <span class="category-status on"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('cards')" data-category="cards">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/>
+              </svg>
+              <span>Cards</span>
+              <span class="category-status on"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('labels')" data-category="labels">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>
+              </svg>
+              <span>Labels</span>
+              <span class="category-status partial"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('attachments')" data-category="attachments">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+              <span>Attachments</span>
+              <span class="category-status partial"></span>
+            </button>
+            <button class="category-item" onclick="selectCategory('subtasks')" data-category="subtasks">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <span>Subtasks</span>
+              <span class="category-status on"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 3: Role Detail View — Fills Remaining Width -->
       <div class="role-detail">
         <div class="role-detail-content">
           <!-- ============================================
@@ -982,568 +1143,71 @@
                ============================================ -->
           <div id="builtInRoleView" class="role-view" style="display: none;">
             <div class="role-detail-header">
-              <span class="role-detail-title" id="builtInRoleTitle">Admin</span>
-              <span class="read-only-badge">Read-only</span>
+              <div class="role-detail-header-left">
+                <span class="role-detail-title" id="builtInRoleTitle">Admin</span>
+                <span class="read-only-badge">Read-only</span>
+              </div>
+              <!-- No action buttons for built-in roles -->
             </div>
 
-            <!-- App Administration -->
-            <div class="permission-category">
-              <div class="category-header expanded" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">App Administration</span>
+            <!-- Category Header -->
+            <div class="category-detail-header">
+              <span class="category-detail-title" id="builtInCategoryTitle">App Administration</span>
+              <div class="toggle-slider on disabled"></div>
+            </div>
+
+            <!-- Permission Items for selected category -->
+            <div class="permissions-list" id="builtInPermissionsList">
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.access</span>
+                  <span class="permission-desc">Access admin configuration panel</span>
                 </div>
                 <div class="toggle-slider on disabled"></div>
               </div>
-              <div class="permission-items">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.access</span>
-                    <span class="permission-desc">Access admin configuration panel</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.branding.view</span>
-                    <span class="permission-desc">View branding settings</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.branding.edit</span>
-                    <span class="permission-desc">Edit branding settings</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.fonts.view</span>
-                    <span class="permission-desc">View custom fonts</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.fonts.edit</span>
-                    <span class="permission-desc">Manage custom fonts</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.login.view</span>
-                    <span class="permission-desc">View login options</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.login.edit</span>
-                    <span class="permission-desc">Edit login options</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Themes -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Themes</span>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.branding.view</span>
+                  <span class="permission-desc">View branding settings</span>
                 </div>
                 <div class="toggle-slider on disabled"></div>
               </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.themes.create</span>
-                    <span class="permission-desc">Create new themes</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.themes.edit</span>
-                    <span class="permission-desc">Edit existing themes</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.themes.delete</span>
-                    <span class="permission-desc">Delete themes</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Workspaces -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Workspaces</span>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.branding.edit</span>
+                  <span class="permission-desc">Edit branding settings</span>
                 </div>
                 <div class="toggle-slider on disabled"></div>
               </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.workspace.create</span>
-                    <span class="permission-desc">Create new workspaces</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.workspace.edit</span>
-                    <span class="permission-desc">Edit workspace details</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.workspace.delete</span>
-                    <span class="permission-desc">Delete workspaces</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Board Management -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Board Management</span>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.fonts.view</span>
+                  <span class="permission-desc">View custom fonts</span>
                 </div>
                 <div class="toggle-slider on disabled"></div>
               </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.board.create</span>
-                    <span class="permission-desc">Create new boards</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.board.import</span>
-                    <span class="permission-desc">Import boards from external sources</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.view</span>
-                    <span class="permission-desc">View boards and their contents</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.edit</span>
-                    <span class="permission-desc">Edit board name and description</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.delete</span>
-                    <span class="permission-desc">Delete boards permanently</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.move</span>
-                    <span class="permission-desc">Move boards between workspaces</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Board Settings -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Board Settings</span>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.fonts.edit</span>
+                  <span class="permission-desc">Manage custom fonts</span>
                 </div>
                 <div class="toggle-slider on disabled"></div>
               </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.button</span>
-                    <span class="permission-desc">Access board settings button</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.members</span>
-                    <span class="permission-desc">Access members settings</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.theme</span>
-                    <span class="permission-desc">Access theme settings</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.labels</span>
-                    <span class="permission-desc">Access labels settings</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.audit</span>
-                    <span class="permission-desc">Access audit log</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.background.edit</span>
-                    <span class="permission-desc">Change board background</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.theme.assign</span>
-                    <span class="permission-desc">Assign themes to boards</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Member Management -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Member Management</span>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.login.view</span>
+                  <span class="permission-desc">View login settings</span>
                 </div>
                 <div class="toggle-slider on disabled"></div>
               </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.members.view</span>
-                    <span class="permission-desc">View board members</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.members.add</span>
-                    <span class="permission-desc">Add new members to boards</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.members.remove</span>
-                    <span class="permission-desc">Remove members from boards</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.members.role.change</span>
-                    <span class="permission-desc">Change member roles</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.invite.create</span>
-                    <span class="permission-desc">Create invite links</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.invite.delete</span>
-                    <span class="permission-desc">Delete invite links</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Columns -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Columns</span>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.login.edit</span>
+                  <span class="permission-desc">Edit login settings</span>
                 </div>
                 <div class="toggle-slider on disabled"></div>
               </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.create</span>
-                    <span class="permission-desc">Create new columns</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.edit</span>
-                    <span class="permission-desc">Edit column titles</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.delete</span>
-                    <span class="permission-desc">Delete columns</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.reorder</span>
-                    <span class="permission-desc">Reorder columns</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.color.edit</span>
-                    <span class="permission-desc">Change column colors</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
             </div>
-
-            <!-- Cards -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Cards</span>
-                </div>
-                <div class="toggle-slider on disabled"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.create</span>
-                    <span class="permission-desc">Create new cards</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.edit</span>
-                    <span class="permission-desc">Edit card content</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.delete</span>
-                    <span class="permission-desc">Delete cards</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.move</span>
-                    <span class="permission-desc">Move cards between columns</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.color.edit</span>
-                    <span class="permission-desc">Change card colors</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.duedate.edit</span>
-                    <span class="permission-desc">Set and edit due dates</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Labels -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Labels</span>
-                </div>
-                <div class="toggle-slider on disabled"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.create</span>
-                    <span class="permission-desc">Create new labels</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.edit</span>
-                    <span class="permission-desc">Edit label names and colors</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.delete</span>
-                    <span class="permission-desc">Delete labels</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.assign</span>
-                    <span class="permission-desc">Assign labels to cards</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.unassign</span>
-                    <span class="permission-desc">Remove labels from cards</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Attachments -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Attachments</span>
-                </div>
-                <div class="toggle-slider on disabled"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">attachment.view</span>
-                    <span class="permission-desc">View attachments</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">attachment.upload</span>
-                    <span class="permission-desc">Upload attachments</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">attachment.download</span>
-                    <span class="permission-desc">Download attachments</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">attachment.delete</span>
-                    <span class="permission-desc">Delete attachments</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Subtasks -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Subtasks</span>
-                </div>
-                <div class="toggle-slider on disabled"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">subtask.view</span>
-                    <span class="permission-desc">View subtasks</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">subtask.create</span>
-                    <span class="permission-desc">Create subtasks</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">subtask.toggle</span>
-                    <span class="permission-desc">Toggle subtask completion</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">subtask.delete</span>
-                    <span class="permission-desc">Delete subtasks</span>
-                  </div>
-                  <div class="toggle-slider on disabled"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- No save button for read-only roles -->
           </div>
 
           <!-- ============================================
@@ -1551,588 +1215,79 @@
                ============================================ -->
           <div id="customRoleView" class="role-view">
             <div class="role-detail-header">
-              <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <div class="role-detail-header-left">
                 <span class="role-detail-title" id="customRoleTitle">Content Editor</span>
-                <span class="editable-badge">✏️ Editable</span>
+                <span class="editable-badge">Editable</span>
               </div>
-              <button class="delete-role-header-btn" onclick="showDeleteDialog()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                </svg>
-                Delete Role
-              </button>
-            </div>
-
-            <!-- App Administration — Off for custom role -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
+              <div class="role-detail-header-actions">
+                <span class="unsaved-indicator" id="unsavedIndicator">● Unsaved changes</span>
+                <button class="save-btn" onclick="saveChanges()">Save Changes</button>
+                <button class="delete-role-header-btn" onclick="showDeleteDialog()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
                   </svg>
-                  <span class="category-name">App Administration</span>
-                </div>
-                <div class="toggle-slider" id="appAdminToggle" onclick="event.stopPropagation(); toggleCategorySlider('appAdmin')"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.access</span>
-                    <span class="permission-desc">Access admin configuration panel</span>
-                  </div>
-                  <div class="toggle-slider" data-category="appAdmin" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.branding.view</span>
-                    <span class="permission-desc">View branding settings</span>
-                  </div>
-                  <div class="toggle-slider" data-category="appAdmin" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.branding.edit</span>
-                    <span class="permission-desc">Edit branding settings</span>
-                  </div>
-                  <div class="toggle-slider" data-category="appAdmin" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.fonts.view</span>
-                    <span class="permission-desc">View custom fonts</span>
-                  </div>
-                  <div class="toggle-slider" data-category="appAdmin" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.fonts.edit</span>
-                    <span class="permission-desc">Manage custom fonts</span>
-                  </div>
-                  <div class="toggle-slider" data-category="appAdmin" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.login.view</span>
-                    <span class="permission-desc">View login options</span>
-                  </div>
-                  <div class="toggle-slider" data-category="appAdmin" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.admin.login.edit</span>
-                    <span class="permission-desc">Edit login options</span>
-                  </div>
-                  <div class="toggle-slider" data-category="appAdmin" onclick="togglePermission(this)"></div>
-                </div>
+                  Delete Role
+                </button>
               </div>
             </div>
 
-            <!-- Themes — Off -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Themes</span>
-                </div>
-                <div class="toggle-slider" id="themesToggle" onclick="event.stopPropagation(); toggleCategorySlider('themes')"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.themes.create</span>
-                    <span class="permission-desc">Create new themes</span>
-                  </div>
-                  <div class="toggle-slider" data-category="themes" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.themes.edit</span>
-                    <span class="permission-desc">Edit existing themes</span>
-                  </div>
-                  <div class="toggle-slider" data-category="themes" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.themes.delete</span>
-                    <span class="permission-desc">Delete themes</span>
-                  </div>
-                  <div class="toggle-slider" data-category="themes" onclick="togglePermission(this)"></div>
-                </div>
-              </div>
+            <!-- Category Header -->
+            <div class="category-detail-header">
+              <span class="category-detail-title" id="customCategoryTitle">App Administration</span>
+              <div class="toggle-slider" id="categoryToggle" onclick="toggleAllInCategory()"></div>
             </div>
 
-            <!-- Workspaces — Off -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Workspaces</span>
+            <!-- Permission Items for selected category -->
+            <div class="permissions-list" id="customPermissionsList">
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.access</span>
+                  <span class="permission-desc">Access admin configuration panel</span>
                 </div>
-                <div class="toggle-slider" id="workspacesToggle" onclick="event.stopPropagation(); toggleCategorySlider('workspaces')"></div>
+                <div class="toggle-slider" data-perm="app.admin.access" onclick="togglePermission(this)"></div>
               </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.workspace.create</span>
-                    <span class="permission-desc">Create new workspaces</span>
-                  </div>
-                  <div class="toggle-slider" data-category="workspaces" onclick="togglePermission(this)"></div>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.branding.view</span>
+                  <span class="permission-desc">View branding settings</span>
                 </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.workspace.edit</span>
-                    <span class="permission-desc">Edit workspace details</span>
-                  </div>
-                  <div class="toggle-slider" data-category="workspaces" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.workspace.delete</span>
-                    <span class="permission-desc">Delete workspaces</span>
-                  </div>
-                  <div class="toggle-slider" data-category="workspaces" onclick="togglePermission(this)"></div>
-                </div>
+                <div class="toggle-slider" data-perm="app.admin.branding.view" onclick="togglePermission(this)"></div>
               </div>
-            </div>
-
-            <!-- Board Management — Partial -->
-            <div class="permission-category">
-              <div class="category-header expanded" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Board Management</span>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.branding.edit</span>
+                  <span class="permission-desc">Edit branding settings</span>
                 </div>
-                <div class="toggle-slider partial" id="boardMgmtToggle" onclick="event.stopPropagation(); toggleCategorySlider('boardMgmt')"></div>
+                <div class="toggle-slider" data-perm="app.admin.branding.edit" onclick="togglePermission(this)"></div>
               </div>
-              <div class="permission-items">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.board.create</span>
-                    <span class="permission-desc">Create new boards</span>
-                  </div>
-                  <div class="toggle-slider" data-category="boardMgmt" onclick="togglePermission(this)"></div>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.fonts.view</span>
+                  <span class="permission-desc">View custom fonts</span>
                 </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">app.board.import</span>
-                    <span class="permission-desc">Import boards from external sources</span>
-                  </div>
-                  <div class="toggle-slider" data-category="boardMgmt" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.view</span>
-                    <span class="permission-desc">View boards and their contents</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="boardMgmt" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.edit</span>
-                    <span class="permission-desc">Edit board name and description</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="boardMgmt" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.delete</span>
-                    <span class="permission-desc">Delete boards permanently</span>
-                  </div>
-                  <div class="toggle-slider" data-category="boardMgmt" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.move</span>
-                    <span class="permission-desc">Move boards between workspaces</span>
-                  </div>
-                  <div class="toggle-slider" data-category="boardMgmt" onclick="togglePermission(this)"></div>
-                </div>
+                <div class="toggle-slider" data-perm="app.admin.fonts.view" onclick="togglePermission(this)"></div>
               </div>
-            </div>
-
-            <!-- Board Settings — Partial -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Board Settings</span>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.fonts.edit</span>
+                  <span class="permission-desc">Manage custom fonts</span>
                 </div>
-                <div class="toggle-slider partial" id="boardSettingsToggle" onclick="event.stopPropagation(); toggleCategorySlider('boardSettings')"></div>
+                <div class="toggle-slider" data-perm="app.admin.fonts.edit" onclick="togglePermission(this)"></div>
               </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.button</span>
-                    <span class="permission-desc">Access board settings button</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="boardSettings" onclick="togglePermission(this)"></div>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.login.view</span>
+                  <span class="permission-desc">View login settings</span>
                 </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.members</span>
-                    <span class="permission-desc">Access members settings</span>
-                  </div>
-                  <div class="toggle-slider" data-category="boardSettings" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.theme</span>
-                    <span class="permission-desc">Access theme settings</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="boardSettings" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.labels</span>
-                    <span class="permission-desc">Access labels settings</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="boardSettings" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.settings.audit</span>
-                    <span class="permission-desc">Access audit log</span>
-                  </div>
-                  <div class="toggle-slider" data-category="boardSettings" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.background.edit</span>
-                    <span class="permission-desc">Change board background</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="boardSettings" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.theme.assign</span>
-                    <span class="permission-desc">Assign themes to boards</span>
-                  </div>
-                  <div class="toggle-slider" data-category="boardSettings" onclick="togglePermission(this)"></div>
-                </div>
+                <div class="toggle-slider" data-perm="app.admin.login.view" onclick="togglePermission(this)"></div>
               </div>
-            </div>
-
-            <!-- Member Management — Off -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Member Management</span>
+              <div class="permission-item">
+                <div class="permission-item-left">
+                  <span class="permission-key">app.admin.login.edit</span>
+                  <span class="permission-desc">Edit login settings</span>
                 </div>
-                <div class="toggle-slider" id="memberMgmtToggle" onclick="event.stopPropagation(); toggleCategorySlider('memberMgmt')"></div>
+                <div class="toggle-slider" data-perm="app.admin.login.edit" onclick="togglePermission(this)"></div>
               </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.members.view</span>
-                    <span class="permission-desc">View board members</span>
-                  </div>
-                  <div class="toggle-slider" data-category="memberMgmt" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.members.add</span>
-                    <span class="permission-desc">Add new members to boards</span>
-                  </div>
-                  <div class="toggle-slider" data-category="memberMgmt" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.members.remove</span>
-                    <span class="permission-desc">Remove members from boards</span>
-                  </div>
-                  <div class="toggle-slider" data-category="memberMgmt" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.members.role.change</span>
-                    <span class="permission-desc">Change member roles</span>
-                  </div>
-                  <div class="toggle-slider" data-category="memberMgmt" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.invite.create</span>
-                    <span class="permission-desc">Create invite links</span>
-                  </div>
-                  <div class="toggle-slider" data-category="memberMgmt" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">board.invite.delete</span>
-                    <span class="permission-desc">Delete invite links</span>
-                  </div>
-                  <div class="toggle-slider" data-category="memberMgmt" onclick="togglePermission(this)"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Columns — All On -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Columns</span>
-                </div>
-                <div class="toggle-slider on" id="columnsToggle" onclick="event.stopPropagation(); toggleCategorySlider('columns')"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.create</span>
-                    <span class="permission-desc">Create new columns</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="columns" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.edit</span>
-                    <span class="permission-desc">Edit column titles</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="columns" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.delete</span>
-                    <span class="permission-desc">Delete columns</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="columns" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.reorder</span>
-                    <span class="permission-desc">Reorder columns</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="columns" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">column.color.edit</span>
-                    <span class="permission-desc">Change column colors</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="columns" onclick="togglePermission(this)"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Cards — All On -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Cards</span>
-                </div>
-                <div class="toggle-slider on" id="cardsToggle" onclick="event.stopPropagation(); toggleCategorySlider('cards')"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.create</span>
-                    <span class="permission-desc">Create new cards</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="cards" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.edit</span>
-                    <span class="permission-desc">Edit card content</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="cards" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.delete</span>
-                    <span class="permission-desc">Delete cards</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="cards" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.move</span>
-                    <span class="permission-desc">Move cards between columns</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="cards" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.color.edit</span>
-                    <span class="permission-desc">Change card colors</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="cards" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">card.duedate.edit</span>
-                    <span class="permission-desc">Set and edit due dates</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="cards" onclick="togglePermission(this)"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Labels — Partial -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Labels</span>
-                </div>
-                <div class="toggle-slider partial" id="labelsToggle" onclick="event.stopPropagation(); toggleCategorySlider('labels')"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.create</span>
-                    <span class="permission-desc">Create new labels</span>
-                  </div>
-                  <div class="toggle-slider" data-category="labels" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.edit</span>
-                    <span class="permission-desc">Edit label names and colors</span>
-                  </div>
-                  <div class="toggle-slider" data-category="labels" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.delete</span>
-                    <span class="permission-desc">Delete labels</span>
-                  </div>
-                  <div class="toggle-slider" data-category="labels" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.assign</span>
-                    <span class="permission-desc">Assign labels to cards</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="labels" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">label.unassign</span>
-                    <span class="permission-desc">Remove labels from cards</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="labels" onclick="togglePermission(this)"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Attachments — Partial -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Attachments</span>
-                </div>
-                <div class="toggle-slider partial" id="attachmentsToggle" onclick="event.stopPropagation(); toggleCategorySlider('attachments')"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">attachment.view</span>
-                    <span class="permission-desc">View attachments</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="attachments" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">attachment.upload</span>
-                    <span class="permission-desc">Upload attachments</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="attachments" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">attachment.download</span>
-                    <span class="permission-desc">Download attachments</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="attachments" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">attachment.delete</span>
-                    <span class="permission-desc">Delete attachments</span>
-                  </div>
-                  <div class="toggle-slider" data-category="attachments" onclick="togglePermission(this)"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Subtasks — All On -->
-            <div class="permission-category">
-              <div class="category-header" onclick="toggleCategory(this)">
-                <div class="category-header-left">
-                  <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                  <span class="category-name">Subtasks</span>
-                </div>
-                <div class="toggle-slider on" id="subtasksToggle" onclick="event.stopPropagation(); toggleCategorySlider('subtasks')"></div>
-              </div>
-              <div class="permission-items" style="display: none;">
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">subtask.view</span>
-                    <span class="permission-desc">View subtasks</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="subtasks" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">subtask.create</span>
-                    <span class="permission-desc">Create subtasks</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="subtasks" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">subtask.toggle</span>
-                    <span class="permission-desc">Toggle subtask completion</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="subtasks" onclick="togglePermission(this)"></div>
-                </div>
-                <div class="permission-item">
-                  <div class="permission-item-left">
-                    <span class="permission-key">subtask.delete</span>
-                    <span class="permission-desc">Delete subtasks</span>
-                  </div>
-                  <div class="toggle-slider on" data-category="subtasks" onclick="togglePermission(this)"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Save Changes Button — Only for custom roles -->
-            <div class="save-section">
-              <span class="unsaved-indicator" id="unsavedIndicator">● Unsaved changes</span>
-              <button class="save-btn" onclick="saveChanges()">Save Changes</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-            <!-- Save Changes Button — Only for custom roles -->
-            <div class="save-section">
-              <span class="unsaved-indicator" id="unsavedIndicator">● Unsaved changes</span>
-              <button class="save-btn" onclick="saveChanges()">Save Changes</button>
             </div>
           </div>
         </div>
@@ -2206,8 +1361,175 @@
        JavaScript — UI Interactions (Mock-up Only)
        ============================================ -->
   <script>
-    // Current state
+    // ============================================
+    // Permission Data Model
+    // ============================================
+    const categoryPermissions = {
+      'app-admin': [
+        { key: 'app.admin.access', desc: 'Access admin configuration panel' },
+        { key: 'app.admin.branding.view', desc: 'View branding settings' },
+        { key: 'app.admin.branding.edit', desc: 'Edit branding settings' },
+        { key: 'app.admin.fonts.view', desc: 'View custom fonts' },
+        { key: 'app.admin.fonts.edit', desc: 'Manage custom fonts' },
+        { key: 'app.admin.login.view', desc: 'View login settings' },
+        { key: 'app.admin.login.edit', desc: 'Edit login settings' }
+      ],
+      'themes': [
+        { key: 'app.themes.create', desc: 'Create new themes' },
+        { key: 'app.themes.edit', desc: 'Edit existing themes' },
+        { key: 'app.themes.delete', desc: 'Delete themes' }
+      ],
+      'workspaces': [
+        { key: 'app.workspace.create', desc: 'Create new workspaces' },
+        { key: 'app.workspace.edit', desc: 'Edit workspace settings' },
+        { key: 'app.workspace.delete', desc: 'Delete workspaces' }
+      ],
+      'boards': [
+        { key: 'app.board.create', desc: 'Create new boards' },
+        { key: 'app.board.import', desc: 'Import boards from external sources' },
+        { key: 'board.view', desc: 'View boards' },
+        { key: 'board.edit', desc: 'Edit board details' },
+        { key: 'board.delete', desc: 'Delete boards' },
+        { key: 'board.move', desc: 'Move boards between workspaces' }
+      ],
+      'board-settings': [
+        { key: 'board.settings.button', desc: 'Access board settings button' },
+        { key: 'board.settings.members', desc: 'Access members settings tab' },
+        { key: 'board.settings.theme', desc: 'Access theme settings tab' },
+        { key: 'board.settings.labels', desc: 'Access labels settings tab' },
+        { key: 'board.settings.audit', desc: 'Access audit log tab' },
+        { key: 'board.background.edit', desc: 'Change board background' },
+        { key: 'board.theme.assign', desc: 'Assign themes to boards' }
+      ],
+      'members': [
+        { key: 'board.members.view', desc: 'View board members' },
+        { key: 'board.members.add', desc: 'Add new members to boards' },
+        { key: 'board.members.remove', desc: 'Remove members from boards' },
+        { key: 'board.members.role.change', desc: 'Change member roles' },
+        { key: 'board.invite.create', desc: 'Create invite links' },
+        { key: 'board.invite.delete', desc: 'Delete invite links' }
+      ],
+      'columns': [
+        { key: 'column.create', desc: 'Create new columns' },
+        { key: 'column.edit', desc: 'Edit column titles' },
+        { key: 'column.delete', desc: 'Delete columns' },
+        { key: 'column.reorder', desc: 'Reorder columns' },
+        { key: 'column.color.edit', desc: 'Change column colors' }
+      ],
+      'cards': [
+        { key: 'card.create', desc: 'Create new cards' },
+        { key: 'card.edit', desc: 'Edit card content' },
+        { key: 'card.delete', desc: 'Delete cards' },
+        { key: 'card.move', desc: 'Move cards between columns' },
+        { key: 'card.color.edit', desc: 'Change card colors' },
+        { key: 'card.duedate.edit', desc: 'Set and edit due dates' }
+      ],
+      'labels': [
+        { key: 'label.create', desc: 'Create new labels' },
+        { key: 'label.edit', desc: 'Edit label names and colors' },
+        { key: 'label.delete', desc: 'Delete labels' },
+        { key: 'label.assign', desc: 'Assign labels to cards' },
+        { key: 'label.unassign', desc: 'Remove labels from cards' }
+      ],
+      'attachments': [
+        { key: 'attachment.view', desc: 'View attachments' },
+        { key: 'attachment.upload', desc: 'Upload attachments' },
+        { key: 'attachment.download', desc: 'Download attachments' },
+        { key: 'attachment.delete', desc: 'Delete attachments' }
+      ],
+      'subtasks': [
+        { key: 'subtask.view', desc: 'View subtasks' },
+        { key: 'subtask.create', desc: 'Create subtasks' },
+        { key: 'subtask.toggle', desc: 'Toggle subtask completion' },
+        { key: 'subtask.delete', desc: 'Delete subtasks' }
+      ]
+    };
+
+    const categoryNames = {
+      'app-admin': 'App Administration',
+      'themes': 'Themes',
+      'workspaces': 'Workspaces',
+      'boards': 'Boards',
+      'board-settings': 'Board Settings',
+      'members': 'Members',
+      'columns': 'Columns',
+      'cards': 'Cards',
+      'labels': 'Labels',
+      'attachments': 'Attachments',
+      'subtasks': 'Subtasks'
+    };
+
+    // State
+    let currentRole = 'content-editor';
+    let currentRoleIsBuiltIn = false;
+    let currentCategory = 'app-admin';
     let hasUnsavedChanges = true;
+    
+    // Permission states (per role, per permission key)
+    const rolePermissions = {
+      'admin': {}, // All on
+      'manager': {}, // Most on
+      'viewer': {}, // View only
+      'content-editor': {
+        'app.admin.access': false,
+        'app.admin.branding.view': false,
+        'app.admin.branding.edit': false,
+        'app.admin.fonts.view': false,
+        'app.admin.fonts.edit': false,
+        'app.admin.login.view': false,
+        'app.admin.login.edit': false,
+        'app.themes.create': false,
+        'app.themes.edit': false,
+        'app.themes.delete': false,
+        'app.workspace.create': false,
+        'app.workspace.edit': false,
+        'app.workspace.delete': false,
+        'app.board.create': true,
+        'app.board.import': false,
+        'board.view': true,
+        'board.edit': true,
+        'board.delete': false,
+        'board.move': false,
+        'board.settings.button': true,
+        'board.settings.members': false,
+        'board.settings.theme': true,
+        'board.settings.labels': true,
+        'board.settings.audit': false,
+        'board.background.edit': true,
+        'board.theme.assign': true,
+        'board.members.view': true,
+        'board.members.add': false,
+        'board.members.remove': false,
+        'board.members.role.change': false,
+        'board.invite.create': false,
+        'board.invite.delete': false,
+        'column.create': true,
+        'column.edit': true,
+        'column.delete': true,
+        'column.reorder': true,
+        'column.color.edit': true,
+        'card.create': true,
+        'card.edit': true,
+        'card.delete': true,
+        'card.move': true,
+        'card.color.edit': true,
+        'card.duedate.edit': true,
+        'label.create': false,
+        'label.edit': false,
+        'label.delete': false,
+        'label.assign': true,
+        'label.unassign': true,
+        'attachment.view': true,
+        'attachment.upload': true,
+        'attachment.download': true,
+        'attachment.delete': false,
+        'subtask.view': true,
+        'subtask.create': true,
+        'subtask.toggle': true,
+        'subtask.delete': true
+      },
+      'board-owner': {}
+    };
 
     // Theme toggle
     function toggleTheme() {
@@ -2230,14 +1552,16 @@
 
     // Role selection
     function selectRole(roleId, isBuiltIn) {
+      currentRole = roleId;
+      currentRoleIsBuiltIn = isBuiltIn;
+
       // Clear all active states
       document.querySelectorAll('.role-item').forEach(item => {
         item.classList.remove('active');
       });
 
       // Find and activate the clicked role
-      const roleItems = document.querySelectorAll('.role-item');
-      roleItems.forEach(item => {
+      document.querySelectorAll('.role-item').forEach(item => {
         const roleName = item.querySelector('span').textContent.toLowerCase().replace(/\s+/g, '-');
         if (roleName === roleId) {
           item.classList.add('active');
@@ -2247,7 +1571,7 @@
       // Show appropriate view
       const builtInView = document.getElementById('builtInRoleView');
       const customView = document.getElementById('customRoleView');
-      
+
       if (isBuiltIn) {
         builtInView.style.display = 'block';
         customView.style.display = 'none';
@@ -2256,10 +1580,71 @@
       } else {
         builtInView.style.display = 'none';
         customView.style.display = 'block';
-        const formattedName = roleId.split('-').map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' ');
-        document.getElementById('customRoleTitle').textContent = formattedName;
+        document.getElementById('customRoleTitle').textContent = 
+          roleId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      }
+
+      // Refresh the current category view
+      renderCategoryPermissions();
+      updateAllCategoryStatuses();
+    }
+
+    // Category selection
+    function selectCategory(categoryId) {
+      currentCategory = categoryId;
+
+      // Update active states
+      document.querySelectorAll('.category-item').forEach(item => {
+        if (item.dataset.category === categoryId) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+
+      // Render permissions for this category
+      renderCategoryPermissions();
+    }
+
+    // Render permissions for current category
+    function renderCategoryPermissions() {
+      const permissions = categoryPermissions[currentCategory] || [];
+      const categoryName = categoryNames[currentCategory] || currentCategory;
+
+      if (currentRoleIsBuiltIn) {
+        // Built-in role (read-only)
+        document.getElementById('builtInCategoryTitle').textContent = categoryName;
+        const container = document.getElementById('builtInPermissionsList');
+        container.innerHTML = permissions.map(p => `
+          <div class="permission-item">
+            <div class="permission-item-left">
+              <span class="permission-key">${p.key}</span>
+              <span class="permission-desc">${p.desc}</span>
+            </div>
+            <div class="toggle-slider on disabled"></div>
+          </div>
+        `).join('');
+      } else {
+        // Custom role (editable)
+        document.getElementById('customCategoryTitle').textContent = categoryName;
+        const container = document.getElementById('customPermissionsList');
+        const rolePerms = rolePermissions[currentRole] || {};
+        
+        container.innerHTML = permissions.map(p => {
+          const isOn = rolePerms[p.key] === true;
+          return `
+            <div class="permission-item">
+              <div class="permission-item-left">
+                <span class="permission-key">${p.key}</span>
+                <span class="permission-desc">${p.desc}</span>
+              </div>
+              <div class="toggle-slider ${isOn ? 'on' : ''}" data-perm="${p.key}" onclick="togglePermission(this)"></div>
+            </div>
+          `;
+        }).join('');
+
+        // Update category toggle state
+        updateCategoryToggle();
       }
     }
 
@@ -2267,58 +1652,103 @@
     function togglePermission(slider) {
       if (slider.classList.contains('disabled')) return;
       
+      const permKey = slider.dataset.perm;
+      const isOn = slider.classList.contains('on');
+      
+      // Toggle state
       slider.classList.toggle('on');
+      
+      // Update data model
+      if (!rolePermissions[currentRole]) {
+        rolePermissions[currentRole] = {};
+      }
+      rolePermissions[currentRole][permKey] = !isOn;
+      
+      // Mark unsaved
       markUnsaved();
-      updateCategoryState(slider.dataset.category);
+      
+      // Update category toggle
+      updateCategoryToggle();
+      updateAllCategoryStatuses();
     }
 
-    // Toggle entire category
-    function toggleCategorySlider(categoryId) {
-      const toggle = document.getElementById(categoryId + 'Toggle');
-      if (!toggle || toggle.classList.contains('disabled')) return;
-
-      // Cycle through states: off -> on -> off
-      const wasOn = toggle.classList.contains('on');
-      const wasPartial = toggle.classList.contains('partial');
+    // Toggle all permissions in category
+    function toggleAllInCategory() {
+      const categoryToggle = document.getElementById('categoryToggle');
+      const permissions = categoryPermissions[currentCategory] || [];
+      const rolePerms = rolePermissions[currentRole] || {};
       
-      toggle.classList.remove('on', 'partial');
+      // Determine current state
+      const onCount = permissions.filter(p => rolePerms[p.key] === true).length;
+      const allOn = onCount === permissions.length;
       
-      if (!wasOn && !wasPartial) {
-        toggle.classList.add('on');
-      } else if (wasPartial) {
-        toggle.classList.add('on');
+      // Toggle: if all on, turn all off; otherwise turn all on
+      const newState = !allOn;
+      
+      // Update data model
+      if (!rolePermissions[currentRole]) {
+        rolePermissions[currentRole] = {};
       }
-      // else: turn off (no class)
+      permissions.forEach(p => {
+        rolePermissions[currentRole][p.key] = newState;
+      });
+      
+      // Re-render
+      renderCategoryPermissions();
+      markUnsaved();
+      updateAllCategoryStatuses();
+    }
 
-      // Update all child permissions in this category
-      const childSliders = document.querySelectorAll(`[data-category="${categoryId}"]`);
-      childSliders.forEach(child => {
-        child.classList.remove('on');
-        if (toggle.classList.contains('on')) {
-          child.classList.add('on');
+    // Update category toggle based on permission states
+    function updateCategoryToggle() {
+      const categoryToggle = document.getElementById('categoryToggle');
+      if (!categoryToggle) return;
+      
+      const permissions = categoryPermissions[currentCategory] || [];
+      const rolePerms = rolePermissions[currentRole] || {};
+      
+      const onCount = permissions.filter(p => rolePerms[p.key] === true).length;
+      
+      categoryToggle.classList.remove('on', 'partial');
+      if (onCount === permissions.length) {
+        categoryToggle.classList.add('on');
+      } else if (onCount > 0) {
+        categoryToggle.classList.add('partial');
+      }
+    }
+
+    // Update all category status indicators
+    function updateAllCategoryStatuses() {
+      if (currentRoleIsBuiltIn) {
+        // All on for built-in roles
+        document.querySelectorAll('.category-status').forEach(status => {
+          status.classList.remove('off', 'partial');
+          status.classList.add('on');
+        });
+        return;
+      }
+
+      const rolePerms = rolePermissions[currentRole] || {};
+      
+      Object.keys(categoryPermissions).forEach(catId => {
+        const permissions = categoryPermissions[catId];
+        const onCount = permissions.filter(p => rolePerms[p.key] === true).length;
+        
+        const categoryItem = document.querySelector(`.category-item[data-category="${catId}"]`);
+        if (!categoryItem) return;
+        
+        const status = categoryItem.querySelector('.category-status');
+        if (!status) return;
+        
+        status.classList.remove('on', 'partial', 'off');
+        if (onCount === permissions.length) {
+          status.classList.add('on');
+        } else if (onCount > 0) {
+          status.classList.add('partial');
+        } else {
+          status.classList.add('off');
         }
       });
-
-      markUnsaved();
-    }
-
-    // Update category toggle based on child states
-    function updateCategoryState(categoryId) {
-      const toggle = document.getElementById(categoryId + 'Toggle');
-      if (!toggle) return;
-
-      const childSliders = document.querySelectorAll(`[data-category="${categoryId}"]`);
-      if (childSliders.length === 0) return;
-
-      const onCount = Array.from(childSliders).filter(s => s.classList.contains('on')).length;
-      
-      toggle.classList.remove('on', 'partial');
-      
-      if (onCount === childSliders.length) {
-        toggle.classList.add('on');
-      } else if (onCount > 0) {
-        toggle.classList.add('partial');
-      }
     }
 
     // Mark as having unsaved changes
@@ -2332,37 +1762,23 @@
       hasUnsavedChanges = false;
       document.getElementById('unsavedIndicator').style.display = 'none';
       
-      // Show success feedback (mock)
+      // Visual feedback
       const btn = document.querySelector('.save-btn');
       const originalText = btn.textContent;
       btn.textContent = '✓ Saved!';
-      btn.style.background = 'hsl(142 71% 45%)';
+      btn.disabled = true;
       
       setTimeout(() => {
         btn.textContent = originalText;
-        btn.style.background = '';
+        btn.disabled = false;
       }, 1500);
     }
 
-    // Category expand/collapse
-    function toggleCategory(header) {
-      header.classList.toggle('expanded');
-      const items = header.nextElementSibling;
-      if (items && items.classList.contains('permission-items')) {
-        items.style.display = header.classList.contains('expanded') ? 'block' : 'none';
-      }
-    }
-
-    // Initialize collapsed categories
-    document.querySelectorAll('.category-header:not(.expanded)').forEach(header => {
-      const items = header.nextElementSibling;
-      if (items && items.classList.contains('permission-items')) {
-        items.style.display = 'none';
-      }
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      renderCategoryPermissions();
+      updateAllCategoryStatuses();
     });
-
-    // Initialize unsaved indicator visibility
-    document.getElementById('unsavedIndicator').style.display = hasUnsavedChanges ? 'inline' : 'none';
   </script>
 </body>
 </html>

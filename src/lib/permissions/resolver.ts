@@ -23,8 +23,8 @@ import { DEFAULT_ROLE_PERMISSIONS, APP_ADMIN_PERMISSIONS } from './registry';
  * const canCreate = hasPermission(context, 'card.create');
  * 
  * @example
- * // Check app-level permission
- * const canAccessAdmin = hasPermission({ userId: user.id, isAppAdmin: true }, 'app.admin.access');
+ * // Check app-level permission (unified admin)
+ * const canAccessAdmin = hasPermission({ userId: user.id, isAppAdmin: true, boardRole: 'admin' }, 'app.admin.access');
  */
 export function hasPermission(
   context: PermissionContext,
@@ -35,17 +35,21 @@ export function hasPermission(
     return false;
   }
 
-  // Check if this is an app-level permission
-  const isAppPermission = (APP_PERMISSIONS as readonly string[]).includes(permission);
-
-  if (isAppPermission) {
-    // App-level permissions require isAppAdmin flag
-    return context.isAppAdmin && APP_ADMIN_PERMISSIONS.has(permission);
-  }
-
-  // Board-level permission - app admins have all board permissions
+  // App admins have all permissions
   if (context.isAppAdmin) {
     return true;
+  }
+
+  // Unified Admin: Board admins with role 'admin' get ALL permissions (app + board level)
+  // This matches the unified Admin role in the UI
+  if (context.boardRole === 'admin') {
+    return true;
+  }
+
+  // Check if this is an app-level permission (non-admins don't get these)
+  const isAppPermission = (APP_PERMISSIONS as readonly string[]).includes(permission);
+  if (isAppPermission) {
+    return false;
   }
 
   // For board-level permissions, we need a board role
@@ -87,21 +91,18 @@ export function hasAnyPermission(
 export function getAllPermissions(context: PermissionContext): Set<PermissionKey> {
   const permissions = new Set<PermissionKey>();
 
-  // Add app-level permissions if app admin
-  if (context.isAppAdmin) {
+  // Unified Admin: Both app admins AND board admins get all permissions
+  if (context.isAppAdmin || context.boardRole === 'admin') {
+    // Add all app-level permissions
     for (const permission of APP_ADMIN_PERMISSIONS) {
       permissions.add(permission);
     }
-  }
-
-  // Add board-level permissions based on role
-  if (context.isAppAdmin) {
-    // App admins get all board permissions
+    // Add all board-level permissions
     for (const permission of DEFAULT_ROLE_PERMISSIONS.admin) {
       permissions.add(permission);
     }
   } else if (context.boardRole) {
-    // Add permissions from the user's board role
+    // Add permissions from the user's board role (manager/viewer)
     const rolePermissions = DEFAULT_ROLE_PERMISSIONS[context.boardRole];
     for (const permission of rolePermissions) {
       permissions.add(permission);

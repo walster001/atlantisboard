@@ -11,7 +11,7 @@ import { CardDetailModal } from '@/components/kanban/CardDetailModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, ArrowLeft, Loader2, LayoutGrid, LogOut, User, Settings, MoreVertical } from 'lucide-react';
+import { Plus, ArrowLeft, Loader2, LayoutGrid, LogOut, User, Settings, MoreVertical, ShieldAlert } from 'lucide-react';
 import { InviteLinkButton } from '@/components/kanban/InviteLinkButton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -93,6 +93,7 @@ export default function BoardPage() {
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const [editingCard, setEditingCard] = useState<{ card: CardType; columnId: string } | null>(null);
   const [isAddingColumn, setIsAddingColumn] = useState(false);
@@ -435,6 +436,11 @@ export default function BoardPage() {
         if (result.error === 'Board not found') {
           toast({ title: 'Board not found', variant: 'destructive' });
           navigate('/');
+          return;
+        }
+        if (result.error === 'Access denied') {
+          setAccessDenied(true);
+          setLoading(false);
           return;
         }
         throw new Error(result.error);
@@ -986,6 +992,42 @@ export default function BoardPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Access denied - show message and redirect
+  if (accessDenied) {
+    const handleRedirect = () => {
+      if (user) {
+        navigate('/');
+      } else {
+        navigate('/auth');
+      }
+    };
+
+    // Auto-redirect after 3 seconds
+    setTimeout(handleRedirect, 3000);
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center max-w-md px-6">
+          <div className="mb-6 flex justify-center">
+            <div className="p-4 rounded-full bg-destructive/10">
+              <ShieldAlert className="h-12 w-12 text-destructive" />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Access Denied</h1>
+          <p className="text-muted-foreground mb-6">
+            You don't have permission to view this board. You need to be a member to access it.
+          </p>
+          <Button onClick={handleRedirect}>
+            {user ? 'Go to Boards' : 'Sign In'}
+          </Button>
+          <p className="text-sm text-muted-foreground mt-4">
+            Redirecting automatically...
+          </p>
+        </div>
       </div>
     );
   }

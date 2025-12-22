@@ -1,3 +1,6 @@
+// Auto-run tests in development
+import './runTests';
+
 /**
  * Permission System
  * 

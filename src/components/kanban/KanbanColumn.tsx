@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useState, memo, useCallback, useRef } from 'react';
 import { Draggable, Droppable } from '@hello-pangea/dnd';
 import { Column, Card } from '@/types/kanban';
 import { KanbanCard } from './KanbanCard';
@@ -83,6 +83,23 @@ export const KanbanColumn = memo(function KanbanColumn({
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Prevent scroll bounce at boundaries on desktop (wheel events only)
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const atTop = scrollTop <= 0;
+    const atBottom = scrollTop + clientHeight >= scrollHeight;
+
+    // Prevent overscroll when at boundaries
+    if ((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, []);
 
   // Effective column color: per-column override > theme > default
   // Empty string or 'transparent' means transparent (no color)
@@ -227,8 +244,12 @@ export const KanbanColumn = memo(function KanbanColumn({
             <Droppable droppableId={column.id} type="card">
               {(provided, snapshot) => (
                 <div
-                  ref={provided.innerRef}
+                  ref={(node) => {
+                    provided.innerRef(node);
+                    (scrollContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+                  }}
                   {...provided.droppableProps}
+                  onWheel={handleWheel}
                   className={cn(
                     'min-h-[2rem] transition-all duration-200 rounded-lg flex-1 overflow-y-auto p-1 -m-1',
                     snapshot.isDraggingOver && 'drop-zone-active',
@@ -239,9 +260,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                     scrollbarColor: themeScrollbarColor && themeScrollbarTrackColor 
                       ? `${themeScrollbarColor} ${themeScrollbarTrackColor}` 
                       : undefined,
-                    // Prevent scroll bouncing/glitching on fast scroll
                     overscrollBehavior: 'contain',
-                    WebkitOverflowScrolling: 'touch',
                   }}
                 >
                   {column.cards.map((card, cardIndex) => (

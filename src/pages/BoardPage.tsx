@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { usePermissionsRealtime } from '@/hooks/usePermissionsRealtime';
+import { usePermissions } from '@/hooks/usePermissions';
 import { KanbanColumn } from '@/components/kanban/KanbanColumn';
 import { MobileColumnCarousel } from '@/components/kanban/MobileColumnCarousel';
 import { CardDetailModal } from '@/components/kanban/CardDetailModal';
@@ -626,14 +627,11 @@ export default function BoardPage() {
     }
   };
 
+  // Use the permission system for UI checks
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
-  // App admins have full access to all boards
-  // IMPORTANT: isPreviewMode is ONLY used for auth bypass during local development,
-  // NOT for granting edit permissions - permissions are based on actual user role
-  const canEdit = userRole === 'admin' || isAppAdmin;
-  const canManageMembers = userRole === 'admin' || userRole === 'manager' || isAppAdmin;
+  const { can, canEdit, canManageMembers } = usePermissions(boardId, userRole);
 
   // Convert DB data to component format
   const getColumnCards = (columnId: string): CardType[] => {

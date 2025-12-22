@@ -506,6 +506,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<BoardRole, Set<PermissionKey>> = {
     'board.members.view',
     'board.members.add',    // Note: Server enforces "viewers only" for managers
     'board.members.remove', // Note: Server enforces "viewers only" for managers
+    'board.invite.create',  // Can create invite links
+    'board.invite.delete',  // Can delete invite links
     
     // View-only permissions
     'attachment.view',

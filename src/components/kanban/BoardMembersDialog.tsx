@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Trash2, UserPlus, User } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { emailSchema } from '@/lib/validators';
@@ -45,12 +46,12 @@ export function BoardMembersDialog({
   const [role, setRole] = useState<'admin' | 'manager' | 'viewer'>('viewer');
   const [isAdding, setIsAdding] = useState(false);
 
-  // UI-only permission checks for better UX
+  // Use permission system for UI checks
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
-  const canChangeRoles = userRole === 'admin';
-  const canAddRemove = userRole === 'admin' || userRole === 'manager';
+  const { can, canChangeRoles, canManageMembers } = usePermissions(boardId, userRole);
+  const canAddRemove = canManageMembers;
 
   const addMember = async () => {
     setIsAdding(true);

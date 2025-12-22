@@ -6,6 +6,7 @@ import { Plus, Check, Loader2, Trash2, Pencil, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { ThemeEditorModal, BoardTheme } from './ThemeEditorModal';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import {
@@ -71,8 +72,10 @@ export function ThemeSettings({
   const [themeToDelete, setThemeToDelete] = useState<BoardTheme | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const canManageThemes = isAppAdmin;
-  const canApplyThemes = userRole === 'admin';
+  // Use permission system
+  const { can } = usePermissions(boardId, userRole);
+  const canManageThemes = isAppAdmin; // App-level permission
+  const canApplyThemes = can('board.theme.assign');
 
   useEffect(() => {
     fetchThemes();

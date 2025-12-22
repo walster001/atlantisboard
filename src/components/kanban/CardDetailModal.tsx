@@ -23,6 +23,7 @@ import {
   Clock,
   Check,
   Trash2,
+  ListTodo,
 } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -30,6 +31,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { ToastUIMarkdownEditor } from './ToastUIMarkdownEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { CardAttachmentSection } from './CardAttachmentSection';
+import { CardSubtaskSection, Subtask } from './CardSubtaskSection';
 import type { InlineButtonData } from './InlineButtonEditor';
 import { observeTwemoji } from '@/lib/twemojiUtils';
 
@@ -77,6 +79,8 @@ interface CardDetailModalProps {
   disabled?: boolean;
   attachments?: Attachment[];
   onAttachmentsChange?: () => void;
+  subtasks?: Subtask[];
+  onSubtasksChange?: () => void;
   boardLabels?: BoardLabel[];
   themeCardWindowColor?: string;
   themeCardWindowTextColor?: string;
@@ -117,6 +121,8 @@ export function CardDetailModal({
   disabled = false,
   attachments = [],
   onAttachmentsChange,
+  subtasks = [],
+  onSubtasksChange,
   boardLabels = [],
   themeCardWindowColor,
   themeCardWindowTextColor,
@@ -569,6 +575,19 @@ export function CardDetailModal({
             </Popover>
           )}
         </div>
+
+        {/* Checklist/Subtasks Section */}
+        <CardSubtaskSection
+          cardId={card.id}
+          subtasks={subtasks}
+          onSubtasksChange={onSubtasksChange || (() => {})}
+          disabled={disabled}
+          themeTextColor={effectiveTextColor}
+          themeButtonColor={themeCardWindowButtonColor}
+          themeButtonTextColor={themeCardWindowButtonTextColor}
+          themeButtonHoverColor={themeCardWindowButtonHoverColor}
+          themeButtonHoverTextColor={themeCardWindowButtonHoverTextColor}
+        />
 
         {/* Attachments Section */}
         <CardAttachmentSection

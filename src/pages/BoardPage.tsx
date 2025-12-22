@@ -89,6 +89,7 @@ export default function BoardPage() {
   const [labels, setLabels] = useState<DbLabel[]>([]);
   const [cardLabels, setCardLabels] = useState<DbCardLabel[]>([]);
   const [cardAttachments, setCardAttachments] = useState<{ id: string; card_id: string; file_name: string; file_url: string; file_size: number | null; file_type: string | null; uploaded_by: string | null; created_at: string }[]>([]);
+  const [cardSubtasks, setCardSubtasks] = useState<{ id: string; card_id: string; title: string; completed: boolean; completed_at: string | null; completed_by: string | null; position: number; checklist_name: string | null; created_at: string }[]>([]);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -479,14 +480,21 @@ export default function BoardPage() {
       setLabels(result.labels || []);
       setCardLabels(result.card_labels || []);
 
-      // Fetch card attachments
+      // Fetch card attachments and subtasks
       const cardIds = (result.cards || []).map((c: DbCard) => c.id);
       if (cardIds.length > 0) {
-        const { data: attachments } = await supabase
-          .from('card_attachments')
-          .select('*')
-          .in('card_id', cardIds);
-        setCardAttachments(attachments || []);
+        const [attachmentsResult, subtasksResult] = await Promise.all([
+          supabase
+            .from('card_attachments')
+            .select('*')
+            .in('card_id', cardIds),
+          supabase
+            .from('card_subtasks')
+            .select('*')
+            .in('card_id', cardIds)
+        ]);
+        setCardAttachments(attachmentsResult.data || []);
+        setCardSubtasks(subtasksResult.data || []);
       }
       
       // Transform members to expected format
@@ -1415,6 +1423,19 @@ export default function BoardPage() {
               .eq('card_id', editingCard.card.id);
             setCardAttachments(prev => [
               ...prev.filter(a => a.card_id !== editingCard.card.id),
+              ...(data || [])
+            ]);
+          }
+        }}
+        subtasks={editingCard ? cardSubtasks.filter(s => s.card_id === editingCard.card.id) : []}
+        onSubtasksChange={async () => {
+          if (editingCard) {
+            const { data } = await supabase
+              .from('card_subtasks')
+              .select('*')
+              .eq('card_id', editingCard.card.id);
+            setCardSubtasks(prev => [
+              ...prev.filter(s => s.card_id !== editingCard.card.id),
               ...(data || [])
             ]);
           }

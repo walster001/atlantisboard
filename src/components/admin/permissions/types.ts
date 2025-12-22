@@ -34,13 +34,16 @@ export interface PermissionCategoryConfig {
 export type CategoryStatus = 'on' | 'partial' | 'off';
 
 export interface BuiltInRole {
-  id: 'admin' | 'manager' | 'viewer';
+  id: 'app-admin' | 'admin' | 'manager' | 'viewer';
   name: string;
   description: string;
+  isAppLevel?: boolean;
 }
 
+// App Admin is a special role that shows user management, not granular permissions
 export const BUILT_IN_ROLES: BuiltInRole[] = [
-  { id: 'admin', name: 'Admin', description: 'Full access to all permissions including app-level and board-level features' },
+  { id: 'app-admin', name: 'App Admin', description: 'Global administrators with full access to all features and settings', isAppLevel: true },
+  { id: 'admin', name: 'Board Admin', description: 'Board-level administration: manages board settings, members, and all board content' },
   { id: 'manager', name: 'Manager', description: 'Can manage members, create invites, and view board settings' },
   { id: 'viewer', name: 'Viewer', description: 'Read-only access to board content and attachments' },
 ];
@@ -182,9 +185,25 @@ export const PERMISSION_CATEGORIES: PermissionCategoryConfig[] = [
   },
 ];
 
+// Board-level permission categories (excludes app-level permissions)
+export const BOARD_LEVEL_CATEGORIES = PERMISSION_CATEGORIES.filter(
+  c => !['app-admin', 'themes', 'workspaces'].includes(c.id) && 
+       !c.permissions.some(p => p.key.startsWith('app.'))
+);
+
+// Get only board-level permissions (no app.* permissions)
+const getBoardLevelPermissions = () => {
+  return PERMISSION_CATEGORIES
+    .flatMap(c => c.permissions.map(p => p.key))
+    .filter(key => !key.startsWith('app.'));
+};
+
 // Default permissions for built-in roles
 export const BUILT_IN_ROLE_PERMISSIONS: Record<string, Set<PermissionKey>> = {
-  admin: new Set(PERMISSION_CATEGORIES.flatMap(c => c.permissions.map(p => p.key))),
+  // App Admin has ALL permissions (handled specially in UI - shows user list, not toggles)
+  'app-admin': new Set(PERMISSION_CATEGORIES.flatMap(c => c.permissions.map(p => p.key))),
+  // Board Admin has all BOARD-LEVEL permissions (not app-level)
+  admin: new Set(getBoardLevelPermissions()),
   manager: new Set([
     'board.view',
     'board.settings.button',

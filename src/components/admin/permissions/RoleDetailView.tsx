@@ -19,6 +19,7 @@ import { calculateCategoryStatus } from './CategoriesList';
 interface RoleDetailViewProps {
   roleId: string;
   isBuiltIn: boolean;
+  isEditable?: boolean;
   selectedCategoryId: string;
   permissions: Set<PermissionKey>;
   hasUnsavedChanges: boolean;
@@ -33,6 +34,7 @@ interface RoleDetailViewProps {
 export function RoleDetailView({
   roleId,
   isBuiltIn,
+  isEditable = !isBuiltIn,
   selectedCategoryId,
   permissions,
   hasUnsavedChanges,
@@ -51,10 +53,18 @@ export function RoleDetailView({
     ? BUILT_IN_ROLES.find(r => r.id === roleId)?.name || roleId
     : customRole?.name || 'Custom Role';
 
+  // Get role description
+  const roleDescription = isBuiltIn
+    ? BUILT_IN_ROLES.find(r => r.id === roleId)?.description
+    : customRole?.description;
+
   // Get permissions to display (built-in roles use predefined permissions)
   const displayPermissions = isBuiltIn
     ? BUILT_IN_ROLE_PERMISSIONS[roleId] || new Set<PermissionKey>()
     : permissions;
+
+  // Determine if toggles should be disabled
+  const togglesDisabled = !isEditable;
 
   if (!category) return null;
 
@@ -63,18 +73,29 @@ export function RoleDetailView({
       <div className="min-w-[20rem] flex-1 flex flex-col">
         {/* Header with role name and actions */}
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold">{roleName}</h3>
-            {isBuiltIn ? (
-              <Badge variant="secondary" className="text-xs">Read-only</Badge>
-            ) : (
-              <Badge className="text-xs bg-green-500/15 text-green-600 hover:bg-green-500/20">
-                Editable
-              </Badge>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold">{roleName}</h3>
+              {isBuiltIn ? (
+                isEditable ? (
+                  <Badge className="text-xs bg-amber-500/15 text-amber-600 hover:bg-amber-500/20">
+                    App Admin Editable
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-xs">Read-only</Badge>
+                )
+              ) : (
+                <Badge className="text-xs bg-green-500/15 text-green-600 hover:bg-green-500/20">
+                  Editable
+                </Badge>
+              )}
+            </div>
+            {roleDescription && (
+              <p className="text-sm text-muted-foreground">{roleDescription}</p>
             )}
           </div>
           
-          {!isBuiltIn && (
+          {(isEditable && !isBuiltIn) && (
             <div className="flex items-center gap-3">
               {hasUnsavedChanges && (
                 <span className="text-sm text-destructive font-medium">
@@ -105,16 +126,16 @@ export function RoleDetailView({
         <div className="flex items-center justify-between p-4 bg-muted rounded-lg mb-4">
           <div className="flex flex-col gap-0.5">
             <span className="font-semibold">{category.name}</span>
-            {/* Show note for custom roles on app-level categories */}
-            {!isBuiltIn && (category.id.startsWith('app-') || category.id === 'themes' || category.id === 'workspaces') ? (
+            {/* Show note for Board Admin */}
+            {roleId === 'admin' && isBuiltIn && (
               <span className="text-xs text-muted-foreground">
-                These permissions apply when the user has this custom role on a board
+                Board Admins have all board-level permissions by default
               </span>
-            ) : null}
+            )}
           </div>
           <ToggleSlider
             state={categoryStatus}
-            disabled={isBuiltIn}
+            disabled={togglesDisabled}
             onChange={onToggleCategory}
           />
         </div>

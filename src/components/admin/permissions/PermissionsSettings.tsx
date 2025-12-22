@@ -8,13 +8,24 @@ import { Loader2 } from 'lucide-react';
 import { RolesList } from './RolesList';
 import { CategoriesList, calculateCategoryStatus } from './CategoriesList';
 import { RoleDetailView } from './RoleDetailView';
+import { AppAdminUserList } from './AppAdminUserList';
 import { CreateRoleDialog } from './CreateRoleDialog';
 import { DeleteRoleDialog } from './DeleteRoleDialog';
 import { usePermissionsData } from './usePermissionsData';
-import { PERMISSION_CATEGORIES, BUILT_IN_ROLE_PERMISSIONS, CategoryStatus } from './types';
+import { PERMISSION_CATEGORIES, BUILT_IN_ROLE_PERMISSIONS, BOARD_LEVEL_CATEGORIES, CategoryStatus } from './types';
 import { PermissionKey } from '@/lib/permissions/types';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+
+interface AppAdmin {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
 
 export function PermissionsSettings() {
+  const { isAppAdmin } = useAuth();
   const {
     customRoles,
     loading,
@@ -26,21 +37,51 @@ export function PermissionsSettings() {
   } = usePermissionsData();
 
   // UI State
-  const [selectedRoleId, setSelectedRoleId] = useState<string>('admin');
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('app-admin');
   const [selectedRoleIsBuiltIn, setSelectedRoleIsBuiltIn] = useState(true);
-  const [selectedCategoryId, setSelectedCategoryId] = useState('app-admin');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('boards');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  
+  // App Admins list
+  const [appAdmins, setAppAdmins] = useState<AppAdmin[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(true);
   
   // Editing state for custom roles
   const [editedPermissions, setEditedPermissions] = useState<Set<PermissionKey>>(new Set());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Load App Admins
+  const loadAppAdmins = useCallback(async () => {
+    setLoadingAdmins(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url')
+        .eq('is_admin', true)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setAppAdmins(data || []);
+    } catch (error) {
+      console.error('Error loading app admins:', error);
+    } finally {
+      setLoadingAdmins(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAppAdmins();
+  }, [loadAppAdmins]);
 
   // Get the currently selected custom role
   const selectedCustomRole = useMemo(() => 
     customRoles.find(r => r.id === selectedRoleId),
     [customRoles, selectedRoleId]
   );
+
+  // Check if App Admin tab is selected
+  const isAppAdminSelected = selectedRoleId === 'app-admin' && selectedRoleIsBuiltIn;
 
   // Load permissions when selecting a custom role
   useEffect(() => {
@@ -53,10 +94,14 @@ export function PermissionsSettings() {
 
   // Handle role selection
   const handleSelectRole = useCallback((roleId: string, isBuiltIn: boolean) => {
-    // TODO: Warn about unsaved changes
     setSelectedRoleId(roleId);
     setSelectedRoleIsBuiltIn(isBuiltIn);
     setHasUnsavedChanges(false);
+    
+    // Reset category to first board-level category when switching roles
+    if (roleId !== 'app-admin') {
+      setSelectedCategoryId('boards');
+    }
   }, []);
 
   // Handle category selection
@@ -134,11 +179,14 @@ export function PermissionsSettings() {
     const success = await deleteRole(selectedRoleId);
     if (success) {
       // Select first built-in role after deletion
-      setSelectedRoleId('admin');
+      setSelectedRoleId('app-admin');
       setSelectedRoleIsBuiltIn(true);
       setDeleteDialogOpen(false);
     }
   }, [selectedRoleId, deleteRole]);
+
+  // Determine if Board Admin permissions are editable (only by App Admins)
+  const isBoardAdminEditable = selectedRoleId === 'admin' && selectedRoleIsBuiltIn && isAppAdmin;
 
   if (loading) {
     return (
@@ -153,8 +201,7 @@ export function PermissionsSettings() {
       <div>
         <h2 className="text-2xl font-semibold">Permissions</h2>
         <p className="text-muted-foreground">
-          Manage roles and their permissions. The built-in Admin role has full access to all features.
-          Custom roles can be created with specific permission sets.
+          Manage roles and their permissions. App Admins have full global access. Board Admins have board-level permissions only.
         </p>
       </div>
 
@@ -168,27 +215,40 @@ export function PermissionsSettings() {
           onAddRole={() => setCreateDialogOpen(true)}
         />
 
-        {/* Categories Panel */}
-        <CategoriesList
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategory={handleSelectCategory}
-          getCategoryStatus={getCategoryStatus}
-        />
+        {/* Conditional: App Admin shows user list, others show categories + detail */}
+        {isAppAdminSelected ? (
+          <AppAdminUserList
+            appAdmins={appAdmins}
+            loading={loadingAdmins}
+            onRefresh={loadAppAdmins}
+          />
+        ) : (
+          <>
+            {/* Categories Panel - use board-level categories only for board roles */}
+            <CategoriesList
+              selectedCategoryId={selectedCategoryId}
+              onSelectCategory={handleSelectCategory}
+              getCategoryStatus={getCategoryStatus}
+              categories={selectedRoleId === 'admin' ? BOARD_LEVEL_CATEGORIES : PERMISSION_CATEGORIES}
+            />
 
-        {/* Role Detail View */}
-        <RoleDetailView
-          roleId={selectedRoleId}
-          isBuiltIn={selectedRoleIsBuiltIn}
-          selectedCategoryId={selectedCategoryId}
-          permissions={editedPermissions}
-          hasUnsavedChanges={hasUnsavedChanges}
-          saving={saving}
-          customRole={selectedCustomRole}
-          onTogglePermission={handleTogglePermission}
-          onToggleCategory={handleToggleCategory}
-          onSave={handleSave}
-          onDelete={() => setDeleteDialogOpen(true)}
-        />
+            {/* Role Detail View */}
+            <RoleDetailView
+              roleId={selectedRoleId}
+              isBuiltIn={selectedRoleIsBuiltIn}
+              isEditable={!selectedRoleIsBuiltIn || isBoardAdminEditable}
+              selectedCategoryId={selectedCategoryId}
+              permissions={editedPermissions}
+              hasUnsavedChanges={hasUnsavedChanges}
+              saving={saving}
+              customRole={selectedCustomRole}
+              onTogglePermission={handleTogglePermission}
+              onToggleCategory={handleToggleCategory}
+              onSave={handleSave}
+              onDelete={() => setDeleteDialogOpen(true)}
+            />
+          </>
+        )}
       </div>
 
       {/* Dialogs */}

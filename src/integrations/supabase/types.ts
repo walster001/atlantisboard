@@ -221,6 +221,52 @@ export type Database = {
           },
         ]
       }
+      board_member_custom_roles: {
+        Row: {
+          board_id: string
+          created_at: string
+          custom_role_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          board_id: string
+          created_at?: string
+          custom_role_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          board_id?: string
+          created_at?: string
+          custom_role_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "board_member_custom_roles_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "board_member_custom_roles_custom_role_id_fkey"
+            columns: ["custom_role_id"]
+            isOneToOne: false
+            referencedRelation: "custom_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "board_member_custom_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       board_members: {
         Row: {
           board_id: string
@@ -679,6 +725,44 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_roles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_system: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_roles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_pending_assignees: {
         Row: {
           board_id: string
@@ -918,6 +1002,35 @@ export type Database = {
         }
         Relationships: []
       }
+      role_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          permission_key: Database["public"]["Enums"]["permission_key"]
+          role_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission_key: Database["public"]["Enums"]["permission_key"]
+          role_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission_key?: Database["public"]["Enums"]["permission_key"]
+          role_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "custom_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_members: {
         Row: {
           created_at: string
@@ -1057,6 +1170,10 @@ export type Database = {
         Returns: Database["public"]["Enums"]["board_role"]
       }
       get_home_data: { Args: { _user_id: string }; Returns: Json }
+      get_user_permissions: {
+        Args: { _board_id?: string; _user_id: string }
+        Returns: Database["public"]["Enums"]["permission_key"][]
+      }
       get_workspace_deletion_counts: {
         Args: { _workspace_id: string }
         Returns: Json

@@ -1254,7 +1254,8 @@ export type Database = {
         | "board.edit"
         | "board.delete"
         | "board.move"
-        | "board.settings.access"
+        | "board.settings.button"
+        | "board.settings.members"
         | "board.settings.theme"
         | "board.settings.labels"
         | "board.settings.audit"
@@ -1438,7 +1439,8 @@ export const Constants = {
         "board.edit",
         "board.delete",
         "board.move",
-        "board.settings.access",
+        "board.settings.button",
+        "board.settings.members",
         "board.settings.theme",
         "board.settings.labels",
         "board.settings.audit",

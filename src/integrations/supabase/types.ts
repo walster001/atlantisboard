@@ -1018,6 +1018,13 @@ export type Database = {
         Args: { _board_id: string; _user_id: string }
         Returns: boolean
       }
+      check_permission: {
+        Args: {
+          _board_id?: string
+          _permission: Database["public"]["Enums"]["permission_key"]
+        }
+        Returns: boolean
+      }
       cleanup_expired_audit_logs: { Args: never; Returns: number }
       find_user_by_email: {
         Args: { _board_id: string; _email: string }
@@ -1053,6 +1060,14 @@ export type Database = {
       get_workspace_deletion_counts: {
         Args: { _workspace_id: string }
         Returns: Json
+      }
+      has_permission: {
+        Args: {
+          _board_id?: string
+          _permission: Database["public"]["Enums"]["permission_key"]
+          _user_id: string
+        }
+        Returns: boolean
       }
       is_app_admin: { Args: { _user_id: string }; Returns: boolean }
       is_board_member: {
@@ -1102,6 +1117,62 @@ export type Database = {
     }
     Enums: {
       board_role: "admin" | "manager" | "viewer"
+      permission_key:
+        | "app.admin.access"
+        | "app.admin.branding.view"
+        | "app.admin.branding.edit"
+        | "app.admin.fonts.view"
+        | "app.admin.fonts.edit"
+        | "app.admin.login.view"
+        | "app.admin.login.edit"
+        | "app.themes.create"
+        | "app.themes.edit"
+        | "app.themes.delete"
+        | "app.workspace.create"
+        | "app.workspace.edit"
+        | "app.workspace.delete"
+        | "app.board.create"
+        | "app.board.import"
+        | "board.view"
+        | "board.edit"
+        | "board.delete"
+        | "board.move"
+        | "board.settings.access"
+        | "board.settings.theme"
+        | "board.settings.labels"
+        | "board.settings.audit"
+        | "board.background.edit"
+        | "board.theme.assign"
+        | "board.members.view"
+        | "board.members.add"
+        | "board.members.remove"
+        | "board.members.role.change"
+        | "board.invite.create"
+        | "board.invite.delete"
+        | "column.create"
+        | "column.edit"
+        | "column.delete"
+        | "column.reorder"
+        | "column.color.edit"
+        | "card.create"
+        | "card.edit"
+        | "card.delete"
+        | "card.move"
+        | "card.color.edit"
+        | "card.duedate.edit"
+        | "label.create"
+        | "label.edit"
+        | "label.delete"
+        | "label.assign"
+        | "label.unassign"
+        | "attachment.view"
+        | "attachment.upload"
+        | "attachment.download"
+        | "attachment.delete"
+        | "subtask.view"
+        | "subtask.create"
+        | "subtask.toggle"
+        | "subtask.delete"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1230,6 +1301,63 @@ export const Constants = {
   public: {
     Enums: {
       board_role: ["admin", "manager", "viewer"],
+      permission_key: [
+        "app.admin.access",
+        "app.admin.branding.view",
+        "app.admin.branding.edit",
+        "app.admin.fonts.view",
+        "app.admin.fonts.edit",
+        "app.admin.login.view",
+        "app.admin.login.edit",
+        "app.themes.create",
+        "app.themes.edit",
+        "app.themes.delete",
+        "app.workspace.create",
+        "app.workspace.edit",
+        "app.workspace.delete",
+        "app.board.create",
+        "app.board.import",
+        "board.view",
+        "board.edit",
+        "board.delete",
+        "board.move",
+        "board.settings.access",
+        "board.settings.theme",
+        "board.settings.labels",
+        "board.settings.audit",
+        "board.background.edit",
+        "board.theme.assign",
+        "board.members.view",
+        "board.members.add",
+        "board.members.remove",
+        "board.members.role.change",
+        "board.invite.create",
+        "board.invite.delete",
+        "column.create",
+        "column.edit",
+        "column.delete",
+        "column.reorder",
+        "column.color.edit",
+        "card.create",
+        "card.edit",
+        "card.delete",
+        "card.move",
+        "card.color.edit",
+        "card.duedate.edit",
+        "label.create",
+        "label.edit",
+        "label.delete",
+        "label.assign",
+        "label.unassign",
+        "attachment.view",
+        "attachment.upload",
+        "attachment.download",
+        "attachment.delete",
+        "subtask.view",
+        "subtask.create",
+        "subtask.toggle",
+        "subtask.delete",
+      ],
     },
   },
 } as const

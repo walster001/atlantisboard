@@ -105,9 +105,10 @@ export function RoleDetailView({
         <div className="flex items-center justify-between p-4 bg-muted rounded-lg mb-4">
           <div className="flex flex-col gap-0.5">
             <span className="font-semibold">{category.name}</span>
-            {category.id.startsWith('app-') || category.id === 'themes' || category.id === 'workspaces' ? (
+            {/* Show App Admin note only for custom roles on app-level categories */}
+            {!isBuiltIn && (category.id.startsWith('app-') || category.id === 'themes' || category.id === 'workspaces') ? (
               <span className="text-xs text-amber-600 dark:text-amber-400">
-                Requires App Admin status
+                Requires App Admin status to use these permissions
               </span>
             ) : null}
           </div>

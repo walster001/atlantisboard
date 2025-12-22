@@ -33,7 +33,8 @@ export const BOARD_PERMISSIONS = [
   'board.edit',
   'board.delete',
   'board.move',
-  'board.settings.access',
+  'board.settings.button',    // Controls visibility of settings button
+  'board.settings.members',   // Controls access to members tab in settings
   'board.settings.theme',
   'board.settings.labels',
   'board.settings.audit',

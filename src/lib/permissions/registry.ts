@@ -158,10 +158,17 @@ export const PERMISSION_METADATA: Record<PermissionKey, PermissionMetadata> = {
     category: 'board',
     requiresBoardContext: true,
   },
-  'board.settings.access': {
-    key: 'board.settings.access',
-    label: 'Access Settings',
-    description: 'Open board settings modal',
+  'board.settings.button': {
+    key: 'board.settings.button',
+    label: 'Settings Button',
+    description: 'See the board settings button',
+    category: 'board',
+    requiresBoardContext: true,
+  },
+  'board.settings.members': {
+    key: 'board.settings.members',
+    label: 'Members Tab',
+    description: 'Access the members tab in board settings',
     category: 'board',
     requiresBoardContext: true,
   },
@@ -438,7 +445,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<BoardRole, Set<PermissionKey>> = {
     'board.edit',
     'board.delete',
     'board.move',
-    'board.settings.access',
+    'board.settings.button',
+    'board.settings.members',
     'board.settings.theme',
     'board.settings.labels',
     'board.settings.audit',
@@ -491,7 +499,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<BoardRole, Set<PermissionKey>> = {
   manager: new Set([
     // Board access
     'board.view',
-    'board.settings.access', // Limited access (only users tab)
+    'board.settings.button',  // Can see the settings button
+    'board.settings.members', // Can access the members tab
     
     // Member management (limited - can only add/remove viewers)
     'board.members.view',

@@ -218,7 +218,6 @@ export function PermissionsSettings() {
         {/* Conditional: App Admin shows user list, others show categories + detail */}
         {isAppAdminSelected ? (
           <AppAdminUserList
-            appAdmins={appAdmins}
             loading={loadingAdmins}
             onRefresh={loadAppAdmins}
           />

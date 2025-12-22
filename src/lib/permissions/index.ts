@@ -47,3 +47,17 @@ export {
   canManageMembers,
   canChangeRoles,
 } from './resolver';
+
+// Export testing utilities (for development/debugging)
+export {
+  validateClientPermissions,
+  testClientPermissionsForRole,
+  getExpectedPermissions,
+  testServerPermission,
+  getServerUserPermissions,
+  runPermissionTests,
+  generatePermissionMatrix,
+  formatPermissionMatrixAsTable,
+  type PermissionTestResult,
+  type PermissionTestSummary,
+} from './testing';

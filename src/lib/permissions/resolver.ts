@@ -35,18 +35,13 @@ export function hasPermission(
     return false;
   }
 
-  // App admins have all permissions
+  // App Admins have ALL permissions (global)
   if (context.isAppAdmin) {
     return true;
   }
 
-  // Unified Admin: Board admins with role 'admin' get ALL permissions (app + board level)
-  // This matches the unified Admin role in the UI
-  if (context.boardRole === 'admin') {
-    return true;
-  }
-
-  // Check if this is an app-level permission (non-admins don't get these)
+  // Check if this is an app-level permission
+  // Only App Admins get app-level permissions - Board Admins do NOT
   const isAppPermission = (APP_PERMISSIONS as readonly string[]).includes(permission);
   if (isAppPermission) {
     return false;
@@ -55,6 +50,11 @@ export function hasPermission(
   // For board-level permissions, we need a board role
   if (!context.boardRole) {
     return false;
+  }
+
+  // Board Admin: has all BOARD-LEVEL permissions (not app-level)
+  if (context.boardRole === 'admin') {
+    return !isAppPermission;
   }
 
   // Check if the role has this permission in the default set
@@ -91,18 +91,21 @@ export function hasAnyPermission(
 export function getAllPermissions(context: PermissionContext): Set<PermissionKey> {
   const permissions = new Set<PermissionKey>();
 
-  // Unified Admin: Both app admins AND board admins get all permissions
-  if (context.isAppAdmin || context.boardRole === 'admin') {
-    // Add all app-level permissions
+  // App Admins get ALL permissions (app + board level)
+  if (context.isAppAdmin) {
     for (const permission of APP_ADMIN_PERMISSIONS) {
       permissions.add(permission);
     }
-    // Add all board-level permissions
+    for (const permission of DEFAULT_ROLE_PERMISSIONS.admin) {
+      permissions.add(permission);
+    }
+  } else if (context.boardRole === 'admin') {
+    // Board Admin: only board-level permissions (not app-level)
     for (const permission of DEFAULT_ROLE_PERMISSIONS.admin) {
       permissions.add(permission);
     }
   } else if (context.boardRole) {
-    // Add permissions from the user's board role (manager/viewer)
+    // Manager/Viewer: specific permission set
     const rolePermissions = DEFAULT_ROLE_PERMISSIONS[context.boardRole];
     for (const permission of rolePermissions) {
       permissions.add(permission);

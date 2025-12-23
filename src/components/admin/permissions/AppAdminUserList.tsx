@@ -4,9 +4,8 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { Shield, Loader2, Plus, Search, X } from 'lucide-react';
+import { Shield, Loader2, Plus, Search, X, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -134,6 +133,12 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
       if (error) throw error;
 
       const displayName = targetUser.full_name || targetUser.email;
+      
+      // Update local state immediately for instant UI feedback
+      setAllUsers(prev => prev.map(u => 
+        u.id === targetUser.id ? { ...u, is_admin: newAdminStatus } : u
+      ));
+      
       if (action === 'add') {
         toast.success(`${displayName} is now an App Admin`);
         setAddDialogOpen(false);
@@ -144,7 +149,6 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
 
       setConfirmDialog({ open: false, user: null, action: 'add' });
       onRefresh();
-      fetchAllUsers();
     } catch (error) {
       console.error('Error updating admin status:', error);
       toast.error('Failed to update App Admin status');
@@ -210,7 +214,7 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
               <TableHead className="w-[60px]">Avatar</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead className="w-[100px] text-right">App Admin</TableHead>
+              <TableHead className="w-[80px] text-right">Remove</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -243,12 +247,16 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="inline-flex justify-end">
-                            <Switch
-                              checked={true}
-                              onCheckedChange={() => handleRemoveClick(userProfile)}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveClick(userProfile)}
                               disabled={disabled}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
                               aria-label={`Remove App Admin from ${userProfile.full_name || userProfile.email}`}
-                            />
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </span>
                         </TooltipTrigger>
                         {tooltipMessage && (

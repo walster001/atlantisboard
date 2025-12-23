@@ -50,8 +50,11 @@ export function BoardMembersDialog({
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
-  const { can, canChangeRoles, canManageMembers } = usePermissions(boardId, userRole);
-  const canAddRemove = canManageMembers;
+  const { can, canChangeRoles, canManageMembers, isAppAdmin } = usePermissions(boardId, userRole);
+  const canAddRemove = canManageMembers || isAppAdmin;
+  
+  // App Admins can always change roles (including their own) for self-management/testing
+  const canChangeRolesEffective = canChangeRoles || isAppAdmin;
 
   const addMember = async () => {
     setIsAdding(true);
@@ -127,7 +130,8 @@ export function BoardMembersDialog({
   const updateRole = async (userId: string, newRole: 'admin' | 'manager' | 'viewer') => {
     // Early return for better UX (don't show loading states)
     // Server-side RLS will reject if user lacks permission
-    if (!canChangeRoles) return;
+    // App Admins can always change roles for self-management/testing
+    if (!canChangeRolesEffective) return;
     try {
       const { error } = await supabase
         .from('board_members')
@@ -161,7 +165,7 @@ export function BoardMembersDialog({
                 onKeyDown={(e) => e.key === 'Enter' && addMember()}
                 maxLength={255}
               />
-              {canChangeRoles && (
+              {canChangeRolesEffective && (
                 <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'manager' | 'viewer')}>
                   <SelectTrigger className="w-28">
                     <SelectValue />
@@ -210,7 +214,7 @@ export function BoardMembersDialog({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {canChangeRoles ? (
+                  {canChangeRolesEffective ? (
                     <Select
                       value={member.role}
                       onValueChange={(v) => updateRole(member.user_id, v as 'admin' | 'manager' | 'viewer')}

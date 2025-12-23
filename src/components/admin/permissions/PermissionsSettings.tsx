@@ -223,12 +223,12 @@ export function PermissionsSettings() {
           />
         ) : (
           <>
-            {/* Categories Panel - use board-level categories only for board roles */}
+            {/* Categories Panel - show all categories for consistent layout */}
             <CategoriesList
               selectedCategoryId={selectedCategoryId}
               onSelectCategory={handleSelectCategory}
               getCategoryStatus={getCategoryStatus}
-              categories={selectedRoleId === 'admin' ? BOARD_LEVEL_CATEGORIES : PERMISSION_CATEGORIES}
+              categories={PERMISSION_CATEGORIES}
             />
 
             {/* Role Detail View */}

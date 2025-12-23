@@ -59,11 +59,11 @@ export function RolesList({
         {/* Add Custom Role Button */}
         <Button
           variant="outline"
-          className="w-fit gap-2 border-dashed border-primary text-primary hover:bg-primary/10 mb-3"
+          className="w-full gap-2 border-dashed border-primary text-primary hover:bg-primary/10 mb-3 text-xs px-2"
           onClick={onAddRole}
         >
-          <Plus className="h-4 w-4 shrink-0" />
-          <span className="whitespace-nowrap">Add Custom Role</span>
+          <Plus className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">Add Custom Role</span>
         </Button>
 
         {/* Custom Roles */}

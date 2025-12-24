@@ -193,9 +193,24 @@ main() {
         info "Docker Compose plugin already installed"
     fi
     
-    # Method 2: Try apt install (may fail on some systems)
+    # Method 2: Try installing from Docker's official apt repository
     if [ "$COMPOSE_INSTALLED" = "false" ]; then
-        info "Attempting to install Docker Compose via apt..."
+        info "Setting up Docker apt repository for Compose plugin..."
+        
+        # Add Docker's official GPG key if not present
+        if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
+            sudo mkdir -p /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null || true
+        fi
+        
+        # Add Docker repository if not present
+        if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+                sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt update 2>/dev/null || true
+        fi
+        
+        # Try apt install
         if sudo apt install -y docker-compose-plugin 2>/dev/null; then
             if sudo docker compose version &>/dev/null 2>&1; then
                 COMPOSE_INSTALLED=true
@@ -204,10 +219,10 @@ main() {
         fi
     fi
     
-    # Method 3: Install via official Docker Compose GitHub release
+    # Method 3: Install via official Docker Compose GitHub release as CLI plugin
     if [ "$COMPOSE_INSTALLED" = "false" ]; then
         info "Installing Docker Compose from official GitHub release..."
-        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/' || echo "v2.24.0")
+        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null || echo "v2.27.0")
         COMPOSE_ARCH=$(uname -m)
         
         # Map architecture names
@@ -221,7 +236,7 @@ main() {
         
         # Install as Docker CLI plugin
         sudo mkdir -p /usr/local/lib/docker/cli-plugins
-        if sudo curl -SL "$COMPOSE_URL" -o /usr/local/lib/docker/cli-plugins/docker-compose; then
+        if sudo curl -fsSL "$COMPOSE_URL" -o /usr/local/lib/docker/cli-plugins/docker-compose 2>/dev/null; then
             sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
             if sudo docker compose version &>/dev/null 2>&1; then
                 COMPOSE_INSTALLED=true
@@ -233,14 +248,13 @@ main() {
     # Method 4: Install as standalone binary (legacy fallback)
     if [ "$COMPOSE_INSTALLED" = "false" ]; then
         info "Installing Docker Compose as standalone binary (legacy method)..."
-        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/' || echo "v2.24.0")
-        sudo curl -SL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose
-        
-        # Create symlink for 'docker compose' command
-        if [ -f /usr/local/bin/docker-compose ]; then
-            COMPOSE_INSTALLED=true
-            info "Docker Compose installed as standalone binary"
+        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null || echo "v2.27.0")
+        if sudo curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose 2>/dev/null; then
+            sudo chmod +x /usr/local/bin/docker-compose
+            if [ -f /usr/local/bin/docker-compose ]; then
+                COMPOSE_INSTALLED=true
+                info "Docker Compose installed as standalone binary"
+            fi
         fi
     fi
     
@@ -467,12 +481,17 @@ EOL
     cd "$SUPABASE_DOCKER_DIR"
     
     # Determine which docker compose command to use
+    DOCKER_COMPOSE_CMD=""
+    
+    # Method 1: Docker Compose plugin with sudo
     if sudo docker compose version &>/dev/null 2>&1; then
         DOCKER_COMPOSE_CMD="sudo docker compose"
         info "Using Docker Compose plugin (sudo docker compose)"
+    # Method 2: Docker Compose plugin without sudo
     elif docker compose version &>/dev/null 2>&1; then
         DOCKER_COMPOSE_CMD="docker compose"
         info "Using Docker Compose plugin (docker compose)"
+    # Method 3: Standalone docker-compose binary
     elif command -v docker-compose &>/dev/null; then
         DOCKER_COMPOSE_CMD="sudo docker-compose"
         info "Using standalone Docker Compose (sudo docker-compose)"
@@ -526,79 +545,69 @@ EOL
     done
     
     # =========================================
-    # Start all services at once - Docker Compose handles dependencies
-    # The compose file has proper healthchecks and depends_on conditions
+    # Start database first, then other services
+    # The supabase/postgres image automatically creates auth/storage schemas
     # =========================================
     
-    info "Starting all Supabase services..."
+    info "Starting PostgreSQL database..."
+    if ! $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d db; then
+        error "Failed to start PostgreSQL"
+        exit 1
+    fi
+    
+    # Wait for PostgreSQL container to be healthy
+    # The healthcheck now verifies auth.users table exists
+    info "Waiting for PostgreSQL to be healthy (includes auth schema initialization)..."
+    info "This may take 1-2 minutes on first run..."
+    
+    for i in $(seq 1 120); do
+        HEALTH=$(sudo docker inspect --format='{{.State.Health.Status}}' supabase-db 2>/dev/null || echo "unknown")
+        
+        if [ "$HEALTH" = "healthy" ]; then
+            success "PostgreSQL is healthy with auth schema initialized"
+            break
+        fi
+        
+        if [ "$HEALTH" = "unhealthy" ]; then
+            error "PostgreSQL container is unhealthy"
+            sudo docker logs supabase-db --tail 50 2>&1 || true
+            exit 1
+        fi
+        
+        if [ $i -eq 120 ]; then
+            error "PostgreSQL failed to become healthy within 10 minutes"
+            info "Container health status: $HEALTH"
+            sudo docker logs supabase-db --tail 50 2>&1 || true
+            exit 1
+        fi
+        
+        sleep 5
+        [ $((i % 12)) -eq 0 ] && info "  Still waiting for PostgreSQL... ($((i*5))s elapsed, status: $HEALTH)"
+    done
+    
+    # Verify auth schema exists by connecting from container
+    info "Verifying auth schema initialization..."
+    AUTH_EXISTS=$(sudo docker exec supabase-db psql -U postgres -d postgres -tAc \
+        "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'users')" 2>/dev/null || echo "f")
+    
+    if [ "$AUTH_EXISTS" != "t" ]; then
+        error "auth.users table not found - Supabase postgres image initialization failed"
+        sudo docker logs supabase-db --tail 50 2>&1 || true
+        exit 1
+    fi
+    success "auth schema verified"
+    
+    # Start remaining services
+    info "Starting remaining Supabase services..."
     if ! $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d; then
         error "Failed to start Supabase services"
         sudo docker ps -a --filter "name=supabase-" --format "table {{.Names}}\t{{.Status}}" || true
         exit 1
     fi
     
-    # Wait for PostgreSQL to be healthy
-    info "Waiting for PostgreSQL to be healthy..."
-    for i in $(seq 1 60); do
-        HEALTH=$(sudo docker inspect --format='{{.State.Health.Status}}' supabase-db 2>/dev/null || echo "unknown")
-        if [ "$HEALTH" = "healthy" ]; then
-            success "PostgreSQL is healthy"
-            break
-        fi
-        if [ $i -eq 60 ]; then
-            error "PostgreSQL failed to become healthy within 5 minutes"
-            sudo docker logs supabase-db --tail 30 2>&1 || true
-            exit 1
-        fi
-        sleep 5
-        [ $((i % 6)) -eq 0 ] && info "  Still waiting for PostgreSQL... ($((i*5))s elapsed)"
-    done
-    
-    # Wait for auth schema to be created by Supabase postgres image
-    info "Waiting for Supabase initialization (auth schema)..."
-    for i in $(seq 1 60); do
-        AUTH_EXISTS=$(sudo docker exec supabase-db psql -U postgres -d postgres -tAc \
-            "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'auth')" 2>/dev/null || echo "f")
-        
-        if [ "$AUTH_EXISTS" = "t" ]; then
-            # Verify auth.users table exists
-            AUTH_USERS=$(sudo docker exec supabase-db psql -U postgres -d postgres -tAc \
-                "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'users')" 2>/dev/null || echo "f")
-            if [ "$AUTH_USERS" = "t" ]; then
-                success "Auth schema initialized by Supabase"
-                break
-            fi
-        fi
-        
-        if [ $i -eq 60 ]; then
-            error "Auth schema not created - Supabase initialization failed"
-            sudo docker logs supabase-db --tail 50 2>&1 || true
-            exit 1
-        fi
-        sleep 5
-        [ $((i % 6)) -eq 0 ] && info "  Still waiting for auth schema... ($((i*5))s elapsed)"
-    done
-    
-    # Wait for storage schema
-    info "Waiting for storage schema..."
-    for i in $(seq 1 30); do
-        STORAGE_EXISTS=$(sudo docker exec supabase-db psql -U postgres -d postgres -tAc \
-            "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'storage')" 2>/dev/null || echo "f")
-        
-        if [ "$STORAGE_EXISTS" = "t" ]; then
-            success "Storage schema initialized"
-            break
-        fi
-        
-        if [ $i -eq 30 ]; then
-            warn "Storage schema not found yet - storage service may need more time"
-        fi
-        sleep 3
-    done
-    
-    # Give services time to fully initialize
-    info "Allowing services to stabilize..."
-    sleep 10
+    # Wait for services to stabilize
+    info "Waiting for services to stabilize..."
+    sleep 15
     
     # Verify all required services are running
     info "Verifying services..."
@@ -609,16 +618,23 @@ EOL
     echo ""
     for svc in $REQUIRED_SERVICES; do
         if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${svc}$"; then
-            success "  ✓ $svc running"
+            # Check if healthy or running
+            HEALTH=$(sudo docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}running{{end}}' "$svc" 2>/dev/null || echo "unknown")
+            if [ "$HEALTH" = "healthy" ] || [ "$HEALTH" = "running" ]; then
+                success "  ✓ $svc ($HEALTH)"
+            else
+                warn "  ~ $svc (starting: $HEALTH)"
+            fi
         else
             error "  ✗ $svc NOT running"
+            sudo docker logs "$svc" --tail 20 2>&1 || true
             ALL_RUNNING=false
         fi
     done
     
     for svc in $OPTIONAL_SERVICES; do
         if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${svc}$"; then
-            success "  ✓ $svc running (optional)"
+            success "  ✓ $svc (optional)"
         else
             warn "  - $svc not running (optional)"
         fi
@@ -681,11 +697,17 @@ EOL
     
     # Verify Kong is accessible
     info "Verifying Kong API Gateway..."
-    if curl -sf http://localhost:54321/rest/v1/ -H "apikey: $SUPABASE_ANON_KEY" &>/dev/null; then
-        success "Kong API Gateway is responding"
-    else
-        warn "Kong may not be fully ready yet"
-    fi
+    KONG_PORT="${KONG_HTTP_PORT:-54321}"
+    for i in $(seq 1 12); do
+        if curl -sf "http://localhost:${KONG_PORT}/rest/v1/" -H "apikey: $SUPABASE_ANON_KEY" &>/dev/null; then
+            success "Kong API Gateway is responding on port $KONG_PORT"
+            break
+        fi
+        if [ $i -eq 12 ]; then
+            warn "Kong may not be fully ready yet (will continue anyway)"
+        fi
+        sleep 5
+    done
     
     # Show schema summary
     echo ""

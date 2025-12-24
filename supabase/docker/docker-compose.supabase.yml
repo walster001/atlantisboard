@@ -2,6 +2,9 @@
 # Supabase Self-Hosted Docker Compose Stack
 # For AtlantisBoard standalone deployment
 # =====================================================
+# 
+# NOTE: No "version" attribute - Docker Compose v2+ doesn't need it
+# =====================================================
 
 services:
   # PostgreSQL Database
@@ -20,11 +23,11 @@ services:
       - supabase-db-data:/var/lib/postgresql/data
       - ./volumes/db/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres && psql -U postgres -d postgres -c 'SELECT 1 FROM auth.users LIMIT 1' 2>/dev/null || exit 1"]
       interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
     networks:
       - supabase-net
 
@@ -42,7 +45,8 @@ services:
       API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost:8000}
       
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
+      # Use postgres superuser for auth - the supabase image creates the auth schema
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
       
       GOTRUE_SITE_URL: ${SITE_URL:-http://localhost:3000}
       GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-}
@@ -65,8 +69,8 @@ services:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 60s
     networks:
       - supabase-net
 
@@ -79,7 +83,8 @@ services:
       db:
         condition: service_healthy
     environment:
-      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
+      # Use postgres superuser - it will switch to anon/authenticated via RLS
+      PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
       PGRST_DB_SCHEMAS: public,storage,graphql_public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${JWT_SECRET}
@@ -90,8 +95,8 @@ services:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/ || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 10
+      start_period: 30s
     networks:
       - supabase-net
 
@@ -107,7 +112,7 @@ services:
       PORT: 4000
       DB_HOST: db
       DB_PORT: 5432
-      DB_USER: supabase_admin
+      DB_USER: postgres
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       DB_NAME: ${POSTGRES_DB:-postgres}
       DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
@@ -123,8 +128,8 @@ services:
       test: ["CMD-SHELL", "curl -sf http://localhost:4000/api/health || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 60s
     networks:
       - supabase-net
 
@@ -137,13 +142,14 @@ services:
       db:
         condition: service_healthy
       rest:
-        condition: service_started
+        condition: service_healthy
     environment:
       ANON_KEY: ${ANON_KEY}
       SERVICE_KEY: ${SERVICE_ROLE_KEY}
       POSTGREST_URL: http://rest:3000
       PGRST_JWT_SECRET: ${JWT_SECRET}
-      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
+      # Use postgres superuser for storage
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
       FILE_SIZE_LIMIT: 52428800
       STORAGE_BACKEND: file
       FILE_STORAGE_BACKEND_PATH: /var/lib/storage
@@ -156,14 +162,14 @@ services:
       test: ["CMD-SHELL", "curl -sf http://localhost:5000/status || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 10
+      start_period: 30s
     volumes:
       - supabase-storage-data:/var/lib/storage
     networks:
       - supabase-net
 
-  # Image Proxy for transformations (optional but recommended)
+  # Image Proxy for transformations
   imgproxy:
     image: darthsim/imgproxy:v3.18
     container_name: supabase-imgproxy
@@ -175,6 +181,12 @@ services:
       IMGPROXY_ENABLE_WEBP_DETECTION: "true"
     volumes:
       - supabase-storage-data:/var/lib/storage:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - supabase-net
 
@@ -185,13 +197,11 @@ services:
     restart: unless-stopped
     depends_on:
       auth:
-        condition: service_started
+        condition: service_healthy
       rest:
-        condition: service_started
-      realtime:
-        condition: service_started
+        condition: service_healthy
       storage:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "${KONG_HTTP_PORT:-8000}:8000"
       - "${KONG_HTTPS_PORT:-8443}:8443"
@@ -208,7 +218,7 @@ services:
       test: ["CMD", "kong", "health"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 30s
     volumes:
       - ./volumes/kong/kong.yml:/var/lib/kong/kong.yml:ro
@@ -222,7 +232,7 @@ services:
     restart: unless-stopped
     depends_on:
       kong:
-        condition: service_started
+        condition: service_healthy
     environment:
       JWT_SECRET: ${JWT_SECRET}
       SUPABASE_URL: http://kong:8000

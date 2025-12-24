@@ -25,6 +25,7 @@ This guide explains how to deploy AtlantisBoard on your own server using the loc
 - **Node.js** (v18+) and **npm** (v9+)
 - **Git**
 - **Supabase CLI** (`npm install -g supabase`)
+- **PostgreSQL Client** (`psql`) - for applying migrations
 
 ### System Requirements
 
@@ -109,15 +110,14 @@ Update these critical values:
 - `GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID`: From Google Cloud Console
 - `GOTRUE_EXTERNAL_GOOGLE_SECRET`: From Google Cloud Console
 
-### Step 4: Apply Database Migrations
+### Step 4: Apply Database Schema
 
 ```bash
-# Apply the schema
-supabase db reset
+# Apply the complete schema from the db folder
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -f supabase/db/schema.sql
 
-# This runs:
-# - supabase/migrations/00001_initial_schema.sql
-# - supabase/seed.sql
+# Apply seed data
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -f supabase/seed.sql
 ```
 
 ### Step 5: Configure Storage Buckets

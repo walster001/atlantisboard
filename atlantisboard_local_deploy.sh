@@ -401,12 +401,16 @@ EOL
     cd "$SUPABASE_DOCKER_DIR"
     
     # Determine which docker compose command to use (modern 'docker compose' or legacy 'docker-compose')
-    if docker compose version &>/dev/null; then
-        DOCKER_COMPOSE="docker compose"
+    # Try with sudo first since Docker operations typically require it
+    if sudo docker compose version &>/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD="sudo docker compose"
+        info "Using modern Docker Compose (sudo docker compose)"
+    elif docker compose version &>/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD="docker compose"
         info "Using modern Docker Compose (docker compose)"
     elif command -v docker-compose &>/dev/null; then
-        DOCKER_COMPOSE="docker-compose"
-        info "Using legacy Docker Compose (docker-compose)"
+        DOCKER_COMPOSE_CMD="sudo docker-compose"
+        info "Using legacy Docker Compose (sudo docker-compose)"
     else
         error "Neither 'docker compose' nor 'docker-compose' found. Please install Docker Compose."
         exit 1
@@ -420,16 +424,18 @@ EOL
         exit 1
     fi
     
+    info "Using compose file: $SUPABASE_DOCKER_DIR/$COMPOSE_FILE"
+    
     # Stop existing services if running
     info "Stopping any existing Supabase services..."
-    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || {
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || {
         info "No existing services to stop or already stopped"
     }
     
     # Remove any stale containers that might conflict
     info "Cleaning up any stale Supabase containers..."
     for container in supabase-db supabase-auth supabase-rest supabase-realtime supabase-storage supabase-imgproxy supabase-kong supabase-functions; do
-        if sudo docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
+        if sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then
             sudo docker rm -f "$container" 2>/dev/null || true
         fi
     done
@@ -445,7 +451,7 @@ EOL
     PULL_ATTEMPT=1
     MAX_PULL_ATTEMPTS=3
     while [ $PULL_ATTEMPT -le $MAX_PULL_ATTEMPTS ]; do
-        if sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" pull; then
+        if $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" pull; then
             success "Docker images pulled successfully"
             break
         else
@@ -460,152 +466,310 @@ EOL
         fi
     done
     
-    # Start services in dependency order
-    # Order: db -> auth, rest, realtime, storage -> imgproxy -> kong -> functions
+    # =========================================
+    # Start services in correct dependency order:
+    # 1. db (PostgreSQL) - must be healthy first, creates auth/storage schemas on init
+    # 2. auth, rest, realtime (depend on db being healthy)
+    # 3. storage (depends on db and rest)
+    # 4. imgproxy (depends on storage for image transformations)
+    # 5. kong (API gateway, routes to all services)
+    # 6. functions (edge functions, depends on kong for routing)
+    # =========================================
+    
     info "Starting Supabase services in dependency order..."
     
-    # Start database first
-    info "  Starting PostgreSQL database..."
-    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d db
+    # Step 1: Start database first (this creates auth and storage schemas automatically)
+    info "  [1/6] Starting PostgreSQL database..."
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d db
     
     # Wait for database to be healthy before continuing
-    info "  Waiting for PostgreSQL to be ready..."
+    # The supabase/postgres image runs initialization scripts that create auth, storage schemas
+    info "  Waiting for PostgreSQL to be healthy and complete initialization..."
     DB_READY=false
-    for i in $(seq 1 60); do
-        if sudo docker exec supabase-db pg_isready -U postgres &>/dev/null; then
-            DB_READY=true
-            break
+    for i in $(seq 1 90); do
+        # Check if container is running first
+        if ! sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^supabase-db$"; then
+            sleep 2
+            continue
         fi
+        
+        # Check PostgreSQL readiness
+        if sudo docker exec supabase-db pg_isready -U postgres &>/dev/null; then
+            # Additional check: verify the database is accepting connections
+            if sudo docker exec supabase-db psql -U postgres -d postgres -c "SELECT 1" &>/dev/null; then
+                DB_READY=true
+                break
+            fi
+        fi
+        
         sleep 2
-        if [ $((i % 10)) -eq 0 ]; then
-            info "    Still waiting for PostgreSQL... ($i/60)"
+        if [ $((i % 15)) -eq 0 ]; then
+            info "    Still waiting for PostgreSQL... ($i/90 - ~$((i*2))s elapsed)"
         fi
     done
     
     if [ "$DB_READY" = "false" ]; then
-        error "PostgreSQL failed to start within 120 seconds"
+        error "PostgreSQL failed to start within 180 seconds"
         info "Checking container logs..."
-        sudo docker logs supabase-db --tail 50
+        sudo docker logs supabase-db --tail 50 2>&1 || true
         exit 1
     fi
-    success "  PostgreSQL is ready"
+    success "  PostgreSQL is ready and accepting connections"
     
-    # Start auth, rest, realtime, and storage (they depend on db)
-    info "  Starting core services (auth, rest, realtime, storage)..."
-    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d auth rest realtime storage
+    # Brief pause to ensure init scripts complete
+    info "  Allowing time for Supabase PostgreSQL initialization scripts..."
+    sleep 10
     
-    # Brief wait for core services to initialize
-    sleep 5
+    # Step 2: Start auth, rest, realtime (they depend on db being healthy)
+    # Docker Compose handles the health check dependency via depends_on: condition: service_healthy
+    info "  [2/6] Starting core services (auth, rest, realtime)..."
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d auth rest realtime
     
-    # Start imgproxy (depends on storage)
-    info "  Starting image proxy..."
-    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d imgproxy
+    # Wait for auth service to be responsive (it creates additional auth schema objects)
+    info "  Waiting for Auth service to initialize..."
+    AUTH_READY=false
+    for i in $(seq 1 60); do
+        if sudo docker ps --format '{{.Names}}:{{.Status}}' 2>/dev/null | grep -q "supabase-auth.*Up"; then
+            # Check if auth service is responding (internal port 9999)
+            if sudo docker exec supabase-auth wget -q --spider http://localhost:9999/health 2>/dev/null || \
+               sudo docker exec supabase-auth curl -sf http://localhost:9999/health 2>/dev/null; then
+                AUTH_READY=true
+                break
+            fi
+        fi
+        sleep 2
+        if [ $((i % 10)) -eq 0 ]; then
+            info "    Still waiting for Auth service... ($i/60)"
+        fi
+    done
     
-    # Start Kong API Gateway (depends on auth, rest, realtime, storage)
-    info "  Starting Kong API Gateway..."
-    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d kong
+    if [ "$AUTH_READY" = "false" ]; then
+        warn "Auth service may not be fully ready yet, continuing anyway..."
+        info "Auth container status:"
+        sudo docker ps --filter name=supabase-auth --format "table {{.Names}}\t{{.Status}}" 2>/dev/null || true
+    else
+        success "  Auth service is ready"
+    fi
     
-    # Wait for Kong to be ready
-    info "  Waiting for Kong API Gateway..."
+    # Step 3: Start storage (depends on db and rest)
+    info "  [3/6] Starting Storage service..."
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d storage
+    
+    # Wait for storage service to be ready (it creates storage schema objects)
+    info "  Waiting for Storage service to initialize..."
+    STORAGE_READY=false
+    for i in $(seq 1 60); do
+        if sudo docker ps --format '{{.Names}}:{{.Status}}' 2>/dev/null | grep -q "supabase-storage.*Up"; then
+            # Check if storage tables exist
+            if sudo docker exec supabase-db psql -U postgres -d postgres -tAc \
+                "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'storage' AND table_name = 'buckets')" 2>/dev/null | grep -q "t"; then
+                STORAGE_READY=true
+                break
+            fi
+        fi
+        sleep 2
+        if [ $((i % 10)) -eq 0 ]; then
+            info "    Still waiting for Storage service... ($i/60)"
+        fi
+    done
+    
+    if [ "$STORAGE_READY" = "false" ]; then
+        warn "Storage service may not be fully ready yet, continuing..."
+    else
+        success "  Storage service is ready"
+    fi
+    
+    # Step 4: Start imgproxy (optional, for image transformations)
+    info "  [4/6] Starting Image Proxy service..."
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d imgproxy
+    
+    # Brief wait for imgproxy
+    sleep 3
+    
+    # Step 5: Start Kong API Gateway (routes to all services)
+    info "  [5/6] Starting Kong API Gateway..."
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d kong
+    
+    # Wait for Kong to be ready (critical - it's the API entry point)
+    info "  Waiting for Kong API Gateway to be ready..."
     KONG_READY=false
-    for i in $(seq 1 30); do
-        if curl -sf http://localhost:54321/ &>/dev/null || curl -sf http://localhost:54321/rest/v1/ -H "apikey: $SUPABASE_ANON_KEY" &>/dev/null; then
+    for i in $(seq 1 45); do
+        # Check if Kong is responding on the configured port
+        if curl -sf http://localhost:54321/ &>/dev/null 2>&1 || \
+           curl -sf "http://localhost:54321/rest/v1/" -H "apikey: $SUPABASE_ANON_KEY" &>/dev/null 2>&1; then
             KONG_READY=true
             break
         fi
         sleep 2
-        if [ $((i % 5)) -eq 0 ]; then
-            info "    Still waiting for Kong... ($i/30)"
+        if [ $((i % 10)) -eq 0 ]; then
+            info "    Still waiting for Kong... ($i/45)"
         fi
     done
     
     if [ "$KONG_READY" = "false" ]; then
-        warn "Kong may not be fully ready yet, but continuing..."
-        info "Checking Kong container status..."
-        sudo docker ps --filter name=supabase-kong --format "table {{.Names}}\t{{.Status}}"
+        warn "Kong may not be fully ready yet. Checking container status..."
+        sudo docker ps --filter name=supabase-kong --format "table {{.Names}}\t{{.Status}}" 2>/dev/null || true
+        sudo docker logs supabase-kong --tail 20 2>&1 || true
     else
         success "  Kong API Gateway is ready"
     fi
     
-    # Start Edge Functions runtime
-    info "  Starting Edge Functions runtime..."
-    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d functions
+    # Step 6: Start Edge Functions runtime
+    info "  [6/6] Starting Edge Functions runtime..."
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d functions
     
-    # Final verification - show all container statuses
+    # Brief wait for functions service
+    sleep 5
+    
+    # =========================================
+    # Final verification of all services
+    # =========================================
     echo ""
     info "Supabase container status:"
-    sudo docker ps --filter "name=supabase-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -20
+    sudo docker ps --filter "name=supabase-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | head -20
     
     # Verify all expected services are running
-    EXPECTED_SERVICES="supabase-db supabase-auth supabase-rest supabase-realtime supabase-storage supabase-imgproxy supabase-kong supabase-functions"
+    # Note: imgproxy is optional but included in our compose file
+    REQUIRED_SERVICES="supabase-db supabase-auth supabase-rest supabase-realtime supabase-storage supabase-kong supabase-functions"
+    OPTIONAL_SERVICES="supabase-imgproxy"
     ALL_RUNNING=true
     
     echo ""
-    info "Service verification:"
-    for svc in $EXPECTED_SERVICES; do
-        if sudo docker ps --format '{{.Names}}' | grep -q "^${svc}$"; then
+    info "Required service verification:"
+    for svc in $REQUIRED_SERVICES; do
+        if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${svc}$"; then
             success "  ✓ $svc is running"
         else
-            warn "  ✗ $svc is NOT running"
+            error "  ✗ $svc is NOT running"
             ALL_RUNNING=false
         fi
     done
     
+    info "Optional service verification:"
+    for svc in $OPTIONAL_SERVICES; do
+        if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${svc}$"; then
+            success "  ✓ $svc is running (optional)"
+        else
+            warn "  - $svc is not running (optional, non-blocking)"
+        fi
+    done
+    
     if [ "$ALL_RUNNING" = "true" ]; then
-        success "All Supabase Docker services started successfully"
+        success "All required Supabase Docker services started successfully"
     else
-        warn "Some services may not be running. Check logs with: sudo docker logs <container-name>"
-        warn "You can try restarting with: cd $SUPABASE_DOCKER_DIR && sudo $DOCKER_COMPOSE -f $COMPOSE_FILE restart"
+        error "Some required services are not running!"
+        warn "Check logs with: sudo docker logs <container-name>"
+        warn "Try restarting with: cd $SUPABASE_DOCKER_DIR && $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d"
+        # Don't exit - let the next step verify schema availability
     fi
     
+    # Store the compose command for later use
+    echo "DOCKER_COMPOSE_CMD=\"$DOCKER_COMPOSE_CMD\"" > "$SUPABASE_DOCKER_DIR/.compose_cmd"
+    
     # =========================================
-    step "10" "Waiting for Supabase services to be ready"
+    step "10" "Verifying Supabase schemas and services"
     # =========================================
     
     cd "$APP_DIR"
     
-    # Wait for PostgreSQL
-    wait_for_service "PostgreSQL" \
+    # Wait for PostgreSQL to be accessible from host
+    info "Verifying PostgreSQL is accessible from host..."
+    wait_for_service "PostgreSQL (host access)" \
         "PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -c 'SELECT 1'" \
-        60 5
+        60 3
     
-    # Check for auth schema (created by supabase/postgres image)
-    info "Verifying auth schema exists..."
-    AUTH_EXISTS=$(PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -tAc \
-        "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'auth')")
+    # =========================================
+    # IMPORTANT: The 'auth' and 'storage' schemas are created by Supabase Docker images:
+    # - auth schema: Created by supabase/postgres image init scripts + supabase-auth service
+    # - storage schema: Created by supabase-storage service on startup
+    # We do NOT create these manually - we wait for Supabase to create them.
+    # =========================================
     
-    if [ "$AUTH_EXISTS" = "t" ]; then
-        success "auth schema exists (created by Supabase)"
+    # Check for auth schema (created by Supabase)
+    info "Checking for auth schema (created by Supabase services)..."
+    AUTH_SCHEMA_READY=false
+    for i in $(seq 1 30); do
+        AUTH_EXISTS=$(PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -tAc \
+            "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'auth')" 2>/dev/null || echo "f")
+        
+        if [ "$AUTH_EXISTS" = "t" ]; then
+            # Also verify auth.users table exists
+            AUTH_USERS=$(PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -tAc \
+                "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'users')" 2>/dev/null || echo "f")
+            
+            if [ "$AUTH_USERS" = "t" ]; then
+                AUTH_SCHEMA_READY=true
+                break
+            fi
+        fi
+        
+        sleep 3
+        if [ $((i % 10)) -eq 0 ]; then
+            info "  Still waiting for auth schema... ($i/30)"
+        fi
+    done
+    
+    if [ "$AUTH_SCHEMA_READY" = "true" ]; then
+        success "auth schema and auth.users table exist (created by Supabase)"
     else
-        warn "auth schema not found - Supabase may not have initialized correctly"
-        info "Waiting additional 30 seconds for Supabase initialization..."
-        sleep 30
+        error "auth schema not found after waiting. The supabase-auth service may have failed."
+        warn "This is a Supabase initialization issue, not a schema.sql issue."
+        warn "Check auth service logs: sudo docker logs supabase-auth"
+        warn "Check database logs: sudo docker logs supabase-db"
+        # Continue anyway - schema import might still work for public schema
     fi
     
-    # Check for storage schema
-    info "Verifying storage schema exists..."
-    STORAGE_EXISTS=$(PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -tAc \
-        "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'storage')")
+    # Check for storage schema (created by Supabase storage service)
+    info "Checking for storage schema (created by Supabase services)..."
+    STORAGE_SCHEMA_READY=false
+    for i in $(seq 1 30); do
+        STORAGE_EXISTS=$(PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -tAc \
+            "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'storage')" 2>/dev/null || echo "f")
+        
+        if [ "$STORAGE_EXISTS" = "t" ]; then
+            # Also verify storage.buckets table exists
+            STORAGE_BUCKETS=$(PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -tAc \
+                "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'storage' AND table_name = 'buckets')" 2>/dev/null || echo "f")
+            
+            if [ "$STORAGE_BUCKETS" = "t" ]; then
+                STORAGE_SCHEMA_READY=true
+                break
+            fi
+        fi
+        
+        sleep 3
+        if [ $((i % 10)) -eq 0 ]; then
+            info "  Still waiting for storage schema... ($i/30)"
+        fi
+    done
     
-    if [ "$STORAGE_EXISTS" = "t" ]; then
-        success "storage schema exists (created by Supabase)"
+    if [ "$STORAGE_SCHEMA_READY" = "true" ]; then
+        success "storage schema and storage.buckets table exist (created by Supabase)"
     else
-        warn "storage schema not found - Storage service may not be ready yet"
-        info "Waiting for storage service..."
-        sleep 20
+        warn "storage schema not fully ready. Storage service may need more time."
+        warn "Check storage service logs: sudo docker logs supabase-storage"
+        # Continue anyway - we'll check again before applying buckets.sql
     fi
     
-    # Wait for Kong API Gateway
+    # Wait for Kong API Gateway to be accessible
+    info "Verifying Kong API Gateway..."
     wait_for_service "Kong API Gateway" \
         "curl -sf http://localhost:54321/rest/v1/ -H 'apikey: $SUPABASE_ANON_KEY'" \
-        30 5
+        30 3 || warn "Kong may not be fully ready"
     
-    # Wait for Auth service
+    # Wait for Auth service health endpoint
+    info "Verifying Auth service..."
     wait_for_service "GoTrue Auth" \
         "curl -sf http://localhost:54321/auth/v1/health" \
-        30 5
+        30 3 || warn "Auth service may not be fully ready"
     
-    success "All Supabase services are ready"
+    # Summary
+    echo ""
+    info "Schema availability summary:"
+    PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -c \
+        "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('public', 'auth', 'storage', 'extensions') ORDER BY schema_name" 2>/dev/null || true
+    
+    success "Supabase services verification complete"
     
     # =========================================
     step "11" "Importing database schema"

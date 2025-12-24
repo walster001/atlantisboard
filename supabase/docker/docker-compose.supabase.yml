@@ -182,44 +182,10 @@ services:
     networks:
       - supabase-net
 
-  # Supabase Studio (optional - web dashboard)
-  studio:
-    image: supabase/studio:20240101-ce42139
-    container_name: supabase-studio
-    restart: unless-stopped
-    depends_on:
-      - kong
-    ports:
-      - "${STUDIO_PORT:-3000}:3000"
-    environment:
-      STUDIO_PG_META_URL: http://meta:8080
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      DEFAULT_ORGANIZATION_NAME: AtlantisBoard
-      DEFAULT_PROJECT_NAME: AtlantisBoard
-      SUPABASE_URL: http://kong:8000
-      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://localhost:8000}
-      SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
-    networks:
-      - supabase-net
-
-  # Postgres Meta - Database management API
-  meta:
-    image: supabase/postgres-meta:v0.77.2
-    container_name: supabase-meta
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      PG_META_PORT: 8080
-      PG_META_DB_HOST: db
-      PG_META_DB_PORT: 5432
-      PG_META_DB_NAME: ${POSTGRES_DB:-postgres}
-      PG_META_DB_USER: supabase_admin
-      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    networks:
-      - supabase-net
+  # NOTE: Supabase Studio (web dashboard) is intentionally NOT included
+  # as it's optional and the image tags change frequently causing 404 errors.
+  # The app functions without it. If you need database management, use psql
+  # or a tool like pgAdmin/DBeaver connected to localhost:5432
 
   # Edge Functions Runtime
   functions:

@@ -1,20 +1,22 @@
--- =====================================================
--- AtlantisBoard Complete Database Schema
--- Version: 1.0.0
--- Generated for standalone/self-hosted deployment
--- 
--- To apply: psql $DATABASE_URL < supabase/db/schema.sql
--- =====================================================
+# AtlantisBoard Database Schema
 
--- Full schema content available in the project
--- This is a comprehensive export including:
--- - 2 ENUMs (board_role, permission_key)
--- - 23 Tables with all columns and constraints
--- - All foreign key relationships
--- - All indexes
--- - 30+ database functions
--- - 4 triggers (auth, audit logging)
--- - 82 RLS policies
--- - Storage bucket configuration
+This folder contains the complete database schema for self-hosted deployments.
 
--- See SELF_HOSTING.md for complete setup instructions
+## Files
+
+- `schema.sql` - Complete database schema (~1900 lines) including:
+  - 2 ENUMs (board_role, permission_key)
+  - 23 Tables with all columns and constraints
+  - All foreign key relationships
+  - All indexes
+  - 30+ database functions
+  - 4 triggers (auth, audit logging)
+  - 82 RLS policies
+
+## Usage
+
+```bash
+psql $DATABASE_URL < supabase/db/schema.sql
+```
+
+See `SELF_HOSTING.md` in the project root for complete setup instructions.

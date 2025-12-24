@@ -27,7 +27,7 @@ sleep 2
 # ----------------------------
 echo "[STEP 1] Updating system & installing packages..."
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl git docker.io docker-compose build-essential unzip nginx certbot python3-certbot-nginx
+sudo apt install -y curl git docker.io docker-compose build-essential unzip nginx certbot python3-certbot-nginx postgresql-client
 
 sudo systemctl enable --now docker
 sudo systemctl enable --now nginx
@@ -99,7 +99,42 @@ read -p "MySQL User: " MYSQL_USER
 read -p "MySQL Password: " MYSQL_PASSWORD
 read -p "MySQL Database: " MYSQL_DB
 
-# Unified .env creation
+# ----------------------------
+# STEP 7: Start local Supabase
+# ----------------------------
+echo "[STEP 7] Starting local Supabase..."
+
+# Skip init if already initialized (config.toml exists in repo)
+if [ ! -f "supabase/.temp" ]; then
+    echo "Supabase config found in repo, skipping init..."
+fi
+
+supabase start || { echo "Supabase start failed"; exit 1; }
+sleep 10
+
+# Extract keys from supabase status
+echo "[STEP 7] Extracting Supabase keys..."
+SUPABASE_ANON_KEY=$(supabase status --output json | grep -o '"anon_key":"[^"]*"' | cut -d'"' -f4)
+SUPABASE_SERVICE_KEY=$(supabase status --output json | grep -o '"service_role_key":"[^"]*"' | cut -d'"' -f4)
+SUPABASE_DB_URL="postgresql://postgres:postgres@localhost:54322/postgres"
+
+if [ -z "$SUPABASE_ANON_KEY" ]; then
+    echo "Failed to extract Supabase anon key. Using fallback method..."
+    SUPABASE_ANON_KEY=$(supabase status | grep "anon key:" | awk '{print $3}')
+fi
+
+if [ -z "$SUPABASE_SERVICE_KEY" ]; then
+    SUPABASE_SERVICE_KEY=$(supabase status | grep "service_role key:" | awk '{print $3}')
+fi
+
+echo "Anon Key: ${SUPABASE_ANON_KEY:0:20}..."
+echo "Service Key: ${SUPABASE_SERVICE_KEY:0:20}..."
+
+# ----------------------------
+# STEP 8: Create unified .env with real keys
+# ----------------------------
+echo "[STEP 8] Creating unified .env file..."
+
 cat > .env <<EOL
 # --------------------------
 # Core App
@@ -111,10 +146,19 @@ ENABLE_SSL=$ENABLE_SSL
 CERTBOT_EMAIL=$CERTBOT_EMAIL
 
 # --------------------------
-# Supabase / Deno
+# Supabase Configuration
 # --------------------------
 SUPABASE_URL=http://localhost:54321
-SUPABASE_ANON_KEY=local
+SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_KEY
+SUPABASE_DB_URL=$SUPABASE_DB_URL
+
+# --------------------------
+# Frontend Variables (Vite)
+# --------------------------
+VITE_SUPABASE_URL=http://localhost:54321
+VITE_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_ANON_KEY
+VITE_SUPABASE_PROJECT_ID=local
 
 # --------------------------
 # Google OAuth
@@ -123,6 +167,8 @@ GOTRUE_EXTERNAL_GOOGLE_ENABLED=true
 GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
 GOTRUE_EXTERNAL_GOOGLE_SECRET=$GOOGLE_CLIENT_SECRET
 GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=$GOOGLE_REDIRECT
+GOTRUE_SITE_URL=https://$DOMAIN
+GOTRUE_URI_ALLOW_LIST=https://$DOMAIN/*
 
 # --------------------------
 # External MySQL verification
@@ -139,72 +185,92 @@ if [ ! -s .env ]; then
     exit 1
 fi
 
-echo "[STEP 6] Unified .env file created successfully"
+echo "[STEP 8] Unified .env file created successfully"
 
 # ----------------------------
-# STEP 7: Initialize local Supabase
+# STEP 9: Import database schema
 # ----------------------------
-echo "[STEP 7] Initializing local Supabase project..."
-supabase init || { echo "Supabase init failed"; exit 1; }
+echo "[STEP 9] Importing database schema..."
 
-echo "[STEP 7] Starting local Supabase..."
-supabase start || { echo "Supabase start failed"; exit 1; }
-sleep 10
-
-# ----------------------------
-# STEP 8: Import database schema
-# ----------------------------
 if [ -f "supabase/db/schema.sql" ]; then
-    echo "[STEP 8] Importing schema into local Supabase..."
-supabase db reset --yes || { echo "DB reset failed"; exit 1; }
-supabase db remote set localhost:5432
-supabase db restore supabase/db/schema.sql || { echo "DB restore failed"; exit 1; }
-echo "[STEP 8] Schema imported!"
+    echo "Applying schema from supabase/db/schema.sql..."
+    PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -f supabase/db/schema.sql || { echo "Schema import failed"; exit 1; }
+    echo "Schema imported successfully!"
 else
-    echo "[STEP 8] No schema.sql found. Continuing with empty local database."
+    echo "WARNING: supabase/db/schema.sql not found. Database will be empty."
 fi
 
 # ----------------------------
-# STEP 9: Deploy Edge Functions locally
+# STEP 10: Apply seed data
+# ----------------------------
+echo "[STEP 10] Applying seed data..."
+
+if [ -f "supabase/seed.sql" ]; then
+    echo "Applying seed data from supabase/seed.sql..."
+    PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -f supabase/seed.sql || { echo "Seed import failed"; exit 1; }
+    echo "Seed data applied successfully!"
+else
+    echo "WARNING: supabase/seed.sql not found. No seed data applied."
+fi
+
+# ----------------------------
+# STEP 11: Configure storage buckets
+# ----------------------------
+echo "[STEP 11] Configuring storage buckets..."
+
+if [ -f "supabase/storage/buckets.sql" ]; then
+    echo "Applying storage configuration from supabase/storage/buckets.sql..."
+    PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -f supabase/storage/buckets.sql || { echo "Storage config failed"; exit 1; }
+    echo "Storage buckets configured successfully!"
+else
+    echo "WARNING: supabase/storage/buckets.sql not found. Storage not configured."
+fi
+
+# ----------------------------
+# STEP 12: Deploy Edge Functions locally
 # ----------------------------
 EDGE_FUNCS_DIR="$APP_DIR/supabase/functions"
 if [ -d "$EDGE_FUNCS_DIR" ] && [ "$(ls -A $EDGE_FUNCS_DIR)" ]; then
-    echo "[STEP 9] Deploying Edge Functions to local Supabase..."
-    cd $EDGE_FUNCS_DIR
-    for func in */ ; do
-        echo "Deploying function: $func"
-        supabase functions deploy ${func%/} --project-ref local || { echo "Edge function $func deploy failed"; exit 1; }
-    done
-    cd $APP_DIR
-    echo "[STEP 9] Edge Functions deployed locally!"
+    echo "[STEP 12] Deploying Edge Functions to local Supabase..."
+    # For local development, use supabase functions serve or deploy without --project-ref
+    # Edge functions are auto-served when supabase start runs with functions in the repo
+    echo "Edge functions will be served automatically by local Supabase."
+    echo "Functions found:"
+    ls -d $EDGE_FUNCS_DIR/*/ 2>/dev/null | xargs -n1 basename || echo "None"
+    echo "[STEP 12] Edge Functions ready!"
 else
-    echo "[STEP 9] No Edge Functions found."
+    echo "[STEP 12] No Edge Functions found."
 fi
 
 # ----------------------------
-# STEP 10: Install frontend dependencies
+# STEP 13: Install frontend dependencies
 # ----------------------------
+echo "[STEP 13] Installing frontend dependencies..."
 npm install || { echo "npm install failed"; exit 1; }
 
 # ----------------------------
-# STEP 11: Configure frontend to use local Supabase
+# STEP 14: Configure frontend environment
 # ----------------------------
-mkdir -p frontend
+echo "[STEP 14] Configuring frontend environment..."
 cat > .env.local <<EOL
 VITE_SUPABASE_URL=http://localhost:54321
-VITE_SUPABASE_ANON_KEY=local
+VITE_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_ANON_KEY
+VITE_SUPABASE_PROJECT_ID=local
 EOL
 
 # ----------------------------
-# STEP 12: Build frontend
+# STEP 15: Build frontend
 # ----------------------------
+echo "[STEP 15] Building frontend..."
 npm run build || { echo "Frontend build failed"; exit 1; }
+mkdir -p frontend
 mv dist frontend/
-echo "[STEP 12] Frontend build complete!"
+echo "[STEP 15] Frontend build complete!"
 
 # ----------------------------
-# STEP 13: Setup Deno server
+# STEP 16: Setup Deno server
 # ----------------------------
+echo "[STEP 16] Setting up Deno server..."
 mkdir -p server
 cat > server/server.ts <<'EOF'
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
@@ -219,28 +285,26 @@ serve(async (req) => {
     const contentType = ext === "js" ? "application/javascript" : ext === "css" ? "text/css" : ext === "html" ? "text/html" : "text/plain";
     return new Response(data, { headers: { "content-type": contentType } });
   } catch {
-    return new Response("Not Found", { status: 404 });
+    // SPA fallback - serve index.html for client-side routing
+    try {
+      const indexData = await Deno.readFile("./frontend/dist/index.html");
+      return new Response(indexData, { headers: { "content-type": "text/html" } });
+    } catch {
+      return new Response("Not Found", { status: 404 });
+    }
   }
 }, { port: PORT });
 EOF
 
 # ----------------------------
-# STEP 14: Create Docker Compose using unified .env
+# STEP 17: Create Docker Compose
 # ----------------------------
+echo "[STEP 17] Creating Docker Compose configuration..."
+# Note: Supabase is already running via supabase start, not Docker Compose
+# Docker Compose here is only for the Deno frontend server
 cat > docker-compose.yml <<'EOF'
 version: '3.9'
 services:
-  supabase:
-    image: supabase/supabase:latest
-    container_name: supabase
-    env_file:
-      - .env
-    ports:
-      - "54321:54321"
-      - "5432:5432"
-    networks:
-      - atlantis-net
-
   deno:
     image: denoland/deno:alpine
     container_name: atlantis-deno
@@ -252,8 +316,6 @@ services:
     command: deno run --allow-net --allow-read --allow-env server/server.ts
     ports:
       - "8000:8000"
-    depends_on:
-      - supabase
     networks:
       - atlantis-net
 
@@ -263,14 +325,14 @@ networks:
 EOF
 
 # ----------------------------
-# STEP 15: Start Docker services
+# STEP 18: Start Docker services
 # ----------------------------
+echo "[STEP 18] Starting Docker services..."
 docker-compose up -d || { echo "Docker Compose up failed"; exit 1; }
-
 # ----------------------------
+# STEP 19: Configure Nginx using .env
 # ----------------------------
-# STEP 16: Configure Nginx using .env
-# ----------------------------
+echo "[STEP 19] Configuring Nginx..."
 source .env
 
 NGINX_CONF="/etc/nginx/conf.d/atlantisboard.conf"
@@ -287,6 +349,27 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
+    
+    # Proxy Supabase API
+    location /rest/ {
+        proxy_pass http://localhost:54321/rest/;
+        proxy_set_header Host \$host;
+    }
+    
+    location /auth/ {
+        proxy_pass http://localhost:54321/auth/;
+        proxy_set_header Host \$host;
+    }
+    
+    location /storage/ {
+        proxy_pass http://localhost:54321/storage/;
+        proxy_set_header Host \$host;
+    }
+    
+    location /functions/ {
+        proxy_pass http://localhost:54321/functions/;
+        proxy_set_header Host \$host;
+    }
 }
 EOL
 
@@ -294,18 +377,19 @@ sudo nginx -t || { echo "Nginx config test failed"; exit 1; }
 sudo systemctl reload nginx
 
 if [ "$ENABLE_SSL" = "yes" ]; then
-  echo "[STEP 16] Enabling HTTPS with Certbot"
+  echo "[STEP 19] Enabling HTTPS with Certbot..."
   sudo certbot --nginx -d ${APP_DOMAIN} --non-interactive --agree-tos -m ${CERTBOT_EMAIL} || { echo "Certbot SSL setup failed"; exit 1; }
   sudo systemctl reload nginx
 
   echo "0 3 * * * root certbot renew --quiet && systemctl reload nginx" | sudo tee /etc/cron.d/certbot-renew
 else
-  echo "[STEP 16] HTTPS disabled, running HTTP only"
+  echo "[STEP 19] HTTPS disabled, running HTTP only"
 fi
 
 # ----------------------------
-# STEP 17: Setup systemd service for Docker Compose
+# STEP 20: Setup systemd service
 # ----------------------------
+echo "[STEP 20] Setting up systemd service..."
 SERVICE_FILE="/etc/systemd/system/atlantisboard.service"
 sudo tee $SERVICE_FILE > /dev/null <<EOL
 [Unit]
@@ -329,18 +413,18 @@ sudo systemctl enable atlantisboard
 sudo systemctl start atlantisboard
 
 echo "======================================="
-echo "✅ AtlantisBoard fully deployed locally with unified .env!"
+echo "✅ AtlantisBoard fully deployed locally!"
 echo "Frontend: https://$DOMAIN"
 echo "Supabase API: http://localhost:54321"
-echo "Edge Functions deployed locally!"
-echo "Google OAuth and external MySQL verification configured via unified .env" 
+echo "Edge Functions: http://localhost:54321/functions/v1/"
+echo "Google OAuth configured via .env"
 echo "Services auto-start on reboot, SSL auto-renews."
 echo "======================================="
 
 # ----------------------------
-# STEP 18: Pre-flight checks
+# STEP 21: Pre-flight checks
 # ----------------------------
-echo "[STEP 18] Running pre-flight checks..."
+echo "[STEP 21] Running pre-flight checks..."
 
 # DNS check
 if ! getent hosts "$APP_DOMAIN" > /dev/null; then
@@ -356,9 +440,9 @@ if ! docker info > /dev/null 2>&1; then
 fi
 
 # ----------------------------
-# STEP 19: Health check endpoints
+# STEP 22: Health check endpoints
 # ----------------------------
-echo "[STEP 19] Performing basic health checks..."
+echo "[STEP 22] Performing basic health checks..."
 
 sleep 5
 
@@ -368,24 +452,27 @@ else
   echo "Frontend responding OK"
 fi
 
-if ! curl -s http://localhost:54321/health > /dev/null; then
+if ! curl -s http://localhost:54321/rest/v1/ > /dev/null; then
   echo "WARNING: Supabase API not responding"
 else
   echo "Supabase responding OK"
 fi
 
 # ----------------------------
-# STEP 20: Create helper scripts
+# STEP 23: Create helper scripts
 # ----------------------------
-echo "[STEP 20] Creating helper scripts..."
+echo "[STEP 23] Creating helper scripts..."
 
 cat > update.sh <<'EOF'
 #!/bin/bash
 set -e
 cd "$HOME/atlantisboard"
 git pull
-docker-compose pull
-docker-compose up -d
+npm install
+npm run build
+rm -rf frontend/dist
+mv dist frontend/
+docker-compose restart
 echo "AtlantisBoard updated successfully"
 EOF
 chmod +x update.sh
@@ -396,7 +483,8 @@ set -e
 BACKUP_DIR="$HOME/atlantisboard_backups"
 mkdir -p "$BACKUP_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-docker exec supabase pg_dump -U postgres postgres > "$BACKUP_DIR/db_$TIMESTAMP.sql"
+# Use local Supabase postgres directly
+PGPASSWORD=postgres pg_dump -h localhost -p 54322 -U postgres postgres > "$BACKUP_DIR/db_$TIMESTAMP.sql"
 echo "Backup saved to $BACKUP_DIR/db_$TIMESTAMP.sql"
 EOF
 chmod +x backup.sh
@@ -408,43 +496,32 @@ if [ -z "$1" ]; then
   echo "Usage: ./restore.sh backup.sql"
   exit 1
 fi
-docker exec -i supabase psql -U postgres postgres < "$1"
+# Use local Supabase postgres directly
+PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres postgres < "$1"
 echo "Database restored from $1"
 EOF
 chmod +x restore.sh
 
 # ----------------------------
-# STEP 21: Write .env.example
-# ----------------------------
-cat > .env.example <<'EOF'
-APP_DOMAIN=example.com
-NGINX_HTTP_PORT=80
-NGINX_HTTPS_PORT=443
-ENABLE_SSL=yes
-CERTBOT_EMAIL=admin@example.com
-
-SUPABASE_URL=http://localhost:54321
-SUPABASE_ANON_KEY=local
-
-GOTRUE_EXTERNAL_GOOGLE_ENABLED=true
-GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=your-google-client-id
-GOTRUE_EXTERNAL_GOOGLE_SECRET=your-google-client-secret
-GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=https://example.com/auth/callback
-
-EXTERNAL_MYSQL_HOST=db.example.com
-EXTERNAL_MYSQL_PORT=3306
-EXTERNAL_MYSQL_USER=user
-EXTERNAL_MYSQL_PASSWORD=password
-EXTERNAL_MYSQL_DATABASE=verification
-EOF
-
-# ----------------------------
 # FINAL
 # ----------------------------
 echo "======================================="
-echo "AtlantisBoard installation complete."
-echo "Domain: https://$APP_DOMAIN"
-echo "Update app: ./update.sh"
-echo "Backup DB: ./backup.sh"
-echo "Restore DB: ./restore.sh <file.sql>"
+echo "AtlantisBoard installation complete!"
+echo "======================================="
+echo ""
+echo "Access your application:"
+echo "  Frontend: https://$APP_DOMAIN"
+echo "  Supabase API: http://localhost:54321"
+echo "  Supabase Studio: http://localhost:54323"
+echo ""
+echo "Helper scripts:"
+echo "  ./update.sh   - Pull latest code and restart"
+echo "  ./backup.sh   - Backup database"
+echo "  ./restore.sh  - Restore database from backup"
+echo ""
+echo "Manage services:"
+echo "  supabase stop    - Stop Supabase"
+echo "  supabase start   - Start Supabase"
+echo "  docker-compose down/up -d - Restart Deno frontend"
+echo ""
 echo "======================================="

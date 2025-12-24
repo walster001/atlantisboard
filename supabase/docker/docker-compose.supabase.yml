@@ -2,8 +2,8 @@
 # Supabase Self-Hosted Docker Compose Stack
 # For AtlantisBoard standalone deployment
 # =====================================================
-
-version: "3.9"
+# NOTE: 'version' attribute is obsolete in modern Docker Compose
+# and has been removed to avoid deprecation warnings
 
 services:
   # PostgreSQL Database

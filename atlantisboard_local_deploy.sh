@@ -183,16 +183,82 @@ main() {
     fi
     success "Docker is ready"
     
-    # Install Docker Compose v2 (if not present)
-    if ! docker compose version > /dev/null 2>&1; then
-        info "Installing Docker Compose plugin..."
-        sudo apt install -y docker-compose-plugin || {
-            # Fallback to standalone docker-compose
-            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-        }
+    # Install Docker Compose v2 using multiple fallback methods
+    info "Checking Docker Compose installation..."
+    COMPOSE_INSTALLED=false
+    
+    # Method 1: Check if docker compose plugin already works
+    if sudo docker compose version &>/dev/null 2>&1; then
+        COMPOSE_INSTALLED=true
+        info "Docker Compose plugin already installed"
     fi
-    success "Docker Compose ready"
+    
+    # Method 2: Try apt install (may fail on some systems)
+    if [ "$COMPOSE_INSTALLED" = "false" ]; then
+        info "Attempting to install Docker Compose via apt..."
+        if sudo apt install -y docker-compose-plugin 2>/dev/null; then
+            if sudo docker compose version &>/dev/null 2>&1; then
+                COMPOSE_INSTALLED=true
+                info "Docker Compose installed via apt"
+            fi
+        fi
+    fi
+    
+    # Method 3: Install via official Docker Compose GitHub release
+    if [ "$COMPOSE_INSTALLED" = "false" ]; then
+        info "Installing Docker Compose from official GitHub release..."
+        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/' || echo "v2.24.0")
+        COMPOSE_ARCH=$(uname -m)
+        
+        # Map architecture names
+        case "$COMPOSE_ARCH" in
+            x86_64) COMPOSE_ARCH="x86_64" ;;
+            aarch64) COMPOSE_ARCH="aarch64" ;;
+            armv7l) COMPOSE_ARCH="armv7" ;;
+        esac
+        
+        COMPOSE_URL="https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${COMPOSE_ARCH}"
+        
+        # Install as Docker CLI plugin
+        sudo mkdir -p /usr/local/lib/docker/cli-plugins
+        if sudo curl -SL "$COMPOSE_URL" -o /usr/local/lib/docker/cli-plugins/docker-compose; then
+            sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            if sudo docker compose version &>/dev/null 2>&1; then
+                COMPOSE_INSTALLED=true
+                info "Docker Compose installed from GitHub as CLI plugin"
+            fi
+        fi
+    fi
+    
+    # Method 4: Install as standalone binary (legacy fallback)
+    if [ "$COMPOSE_INSTALLED" = "false" ]; then
+        info "Installing Docker Compose as standalone binary (legacy method)..."
+        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/' || echo "v2.24.0")
+        sudo curl -SL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        
+        # Create symlink for 'docker compose' command
+        if [ -f /usr/local/bin/docker-compose ]; then
+            COMPOSE_INSTALLED=true
+            info "Docker Compose installed as standalone binary"
+        fi
+    fi
+    
+    # Final verification
+    if [ "$COMPOSE_INSTALLED" = "false" ]; then
+        error "Failed to install Docker Compose. Please install manually."
+        exit 1
+    fi
+    
+    # Verify and show version
+    if sudo docker compose version &>/dev/null 2>&1; then
+        success "Docker Compose ready: $(sudo docker compose version 2>/dev/null | head -1)"
+    elif command -v docker-compose &>/dev/null; then
+        success "Docker Compose ready (standalone): $(docker-compose --version 2>/dev/null | head -1)"
+    else
+        error "Docker Compose installation verification failed"
+        exit 1
+    fi
     
     # =========================================
     step "3" "Installing Node.js 20 LTS"
@@ -471,88 +537,186 @@ EOL
     # 1. db (PostgreSQL) - must be healthy first, creates auth/storage schemas on init
     # 2. auth, rest, realtime (depend on db being healthy)
     # 3. storage (depends on db and rest)
-    # 4. imgproxy (depends on storage for image transformations)
+    # 4. imgproxy (optional, for image transformations)
     # 5. kong (API gateway, routes to all services)
     # 6. functions (edge functions, depends on kong for routing)
+    #
+    # IMPORTANT: The "init process is not running: failed precondition" error
+    # occurs when dependent services start before PostgreSQL is fully ready.
+    # We ensure proper sequencing and use explicit waits.
     # =========================================
     
     info "Starting Supabase services in dependency order..."
     
-    # Step 1: Start database first (this creates auth and storage schemas automatically)
-    info "  [1/6] Starting PostgreSQL database..."
+    # =========================================
+    # Step 1: Start PostgreSQL database ONLY
+    # =========================================
+    info "  [1/5] Starting PostgreSQL database..."
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d db
     
-    # Wait for database to be healthy before continuing
-    # The supabase/postgres image runs initialization scripts that create auth, storage schemas
-    info "  Waiting for PostgreSQL to be healthy and complete initialization..."
-    DB_READY=false
-    for i in $(seq 1 90); do
-        # Check if container is running first
-        if ! sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^supabase-db$"; then
-            sleep 2
-            continue
+    # Wait for database container to exist and be running
+    info "  Waiting for PostgreSQL container to start..."
+    DB_CONTAINER_READY=false
+    for i in $(seq 1 30); do
+        if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^supabase-db$"; then
+            DB_CONTAINER_READY=true
+            break
+        fi
+        sleep 2
+    done
+    
+    if [ "$DB_CONTAINER_READY" = "false" ]; then
+        error "PostgreSQL container failed to start"
+        sudo docker logs supabase-db --tail 30 2>&1 || true
+        exit 1
+    fi
+    
+    # Wait for PostgreSQL to be healthy and accepting connections
+    info "  Waiting for PostgreSQL to be healthy..."
+    DB_HEALTHY=false
+    for i in $(seq 1 120); do
+        # Check health status via Docker
+        HEALTH_STATUS=$(sudo docker inspect --format='{{.State.Health.Status}}' supabase-db 2>/dev/null || echo "none")
+        
+        if [ "$HEALTH_STATUS" = "healthy" ]; then
+            # Double-check with actual connection
+            if sudo docker exec supabase-db psql -U postgres -d postgres -c "SELECT 1" &>/dev/null; then
+                DB_HEALTHY=true
+                break
+            fi
         fi
         
-        # Check PostgreSQL readiness
+        # Also try pg_isready as backup
         if sudo docker exec supabase-db pg_isready -U postgres &>/dev/null; then
-            # Additional check: verify the database is accepting connections
             if sudo docker exec supabase-db psql -U postgres -d postgres -c "SELECT 1" &>/dev/null; then
-                DB_READY=true
+                DB_HEALTHY=true
                 break
             fi
         fi
         
         sleep 2
         if [ $((i % 15)) -eq 0 ]; then
-            info "    Still waiting for PostgreSQL... ($i/90 - ~$((i*2))s elapsed)"
+            info "    Still waiting for PostgreSQL health... ($i/120 - ~$((i*2))s elapsed)"
+            info "    Current health status: $HEALTH_STATUS"
         fi
     done
     
-    if [ "$DB_READY" = "false" ]; then
-        error "PostgreSQL failed to start within 180 seconds"
-        info "Checking container logs..."
+    if [ "$DB_HEALTHY" = "false" ]; then
+        error "PostgreSQL failed to become healthy within 240 seconds"
+        info "Container logs:"
         sudo docker logs supabase-db --tail 50 2>&1 || true
         exit 1
     fi
-    success "  PostgreSQL is ready and accepting connections"
+    success "  PostgreSQL is healthy and accepting connections"
     
-    # Brief pause to ensure init scripts complete
-    info "  Allowing time for Supabase PostgreSQL initialization scripts..."
-    sleep 10
-    
-    # Step 2: Start auth, rest, realtime (they depend on db being healthy)
-    # Docker Compose handles the health check dependency via depends_on: condition: service_healthy
-    info "  [2/6] Starting core services (auth, rest, realtime)..."
-    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d auth rest realtime
-    
-    # Wait for auth service to be responsive (it creates additional auth schema objects)
-    info "  Waiting for Auth service to initialize..."
-    AUTH_READY=false
+    # Wait for Supabase PostgreSQL init scripts to complete
+    # These scripts create auth schema, storage schema, and required roles
+    info "  Waiting for Supabase database initialization scripts to complete..."
+    INIT_COMPLETE=false
     for i in $(seq 1 60); do
-        if sudo docker ps --format '{{.Names}}:{{.Status}}' 2>/dev/null | grep -q "supabase-auth.*Up"; then
-            # Check if auth service is responding (internal port 9999)
-            if sudo docker exec supabase-auth wget -q --spider http://localhost:9999/health 2>/dev/null || \
-               sudo docker exec supabase-auth curl -sf http://localhost:9999/health 2>/dev/null; then
-                AUTH_READY=true
-                break
-            fi
+        # Check if auth schema exists (created by supabase/postgres init scripts)
+        AUTH_SCHEMA=$(sudo docker exec supabase-db psql -U postgres -d postgres -tAc \
+            "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'auth')" 2>/dev/null || echo "f")
+        
+        # Check if required roles exist
+        AUTH_ADMIN=$(sudo docker exec supabase-db psql -U postgres -d postgres -tAc \
+            "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin')" 2>/dev/null || echo "f")
+        
+        if [ "$AUTH_SCHEMA" = "t" ] && [ "$AUTH_ADMIN" = "t" ]; then
+            INIT_COMPLETE=true
+            break
         fi
+        
         sleep 2
         if [ $((i % 10)) -eq 0 ]; then
-            info "    Still waiting for Auth service... ($i/60)"
+            info "    Waiting for init scripts... ($i/60) auth_schema=$AUTH_SCHEMA auth_admin=$AUTH_ADMIN"
+        fi
+    done
+    
+    if [ "$INIT_COMPLETE" = "true" ]; then
+        success "  Database initialization complete (auth schema and roles ready)"
+    else
+        warn "  Database init may not be complete. Continuing, but services might fail."
+        info "  Available schemas:"
+        sudo docker exec supabase-db psql -U postgres -d postgres -c \
+            "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT LIKE 'pg_%';" 2>/dev/null || true
+    fi
+    
+    # Additional pause to ensure all triggers and functions are ready
+    sleep 5
+    
+    # =========================================
+    # Step 2: Start auth, rest, realtime services
+    # =========================================
+    info "  [2/5] Starting core API services (auth, rest, realtime)..."
+    
+    # Start each service individually with a small delay to prevent race conditions
+    for svc in auth rest realtime; do
+        info "    Starting $svc..."
+        $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d $svc
+        sleep 3
+    done
+    
+    # Wait for auth service to be responding
+    info "  Waiting for Auth service to initialize..."
+    AUTH_READY=false
+    for i in $(seq 1 90); do
+        # First check container is running
+        if ! sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^supabase-auth$"; then
+            sleep 2
+            continue
+        fi
+        
+        # Check if container is healthy (not restarting)
+        CONTAINER_STATUS=$(sudo docker inspect --format='{{.State.Status}}' supabase-auth 2>/dev/null || echo "unknown")
+        if [ "$CONTAINER_STATUS" != "running" ]; then
+            sleep 2
+            continue
+        fi
+        
+        # Check if auth service is responding internally
+        if sudo docker exec supabase-auth wget -q --spider http://localhost:9999/health 2>/dev/null || \
+           sudo docker exec supabase-auth curl -sf http://localhost:9999/health 2>/dev/null; then
+            AUTH_READY=true
+            break
+        fi
+        
+        sleep 2
+        if [ $((i % 15)) -eq 0 ]; then
+            info "    Still waiting for Auth service... ($i/90)"
+            # Check for restart loops
+            RESTART_COUNT=$(sudo docker inspect --format='{{.RestartCount}}' supabase-auth 2>/dev/null || echo "0")
+            if [ "$RESTART_COUNT" -gt 3 ]; then
+                warn "    Auth service has restarted $RESTART_COUNT times. Check logs."
+                sudo docker logs supabase-auth --tail 20 2>&1 || true
+            fi
         fi
     done
     
     if [ "$AUTH_READY" = "false" ]; then
-        warn "Auth service may not be fully ready yet, continuing anyway..."
-        info "Auth container status:"
-        sudo docker ps --filter name=supabase-auth --format "table {{.Names}}\t{{.Status}}" 2>/dev/null || true
+        warn "Auth service may not be fully ready. Checking logs..."
+        sudo docker logs supabase-auth --tail 30 2>&1 || true
+        warn "Continuing deployment, but authentication may not work correctly."
     else
         success "  Auth service is ready"
     fi
     
-    # Step 3: Start storage (depends on db and rest)
-    info "  [3/6] Starting Storage service..."
+    # Verify REST service
+    info "  Verifying REST service..."
+    REST_READY=false
+    for i in $(seq 1 30); do
+        if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^supabase-rest$"; then
+            REST_READY=true
+            break
+        fi
+        sleep 2
+    done
+    [ "$REST_READY" = "true" ] && success "  REST service is running" || warn "  REST service may not be running"
+    
+    # =========================================
+    # Step 3: Start storage service
+    # =========================================
+    info "  [3/5] Starting Storage service..."
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d storage
     
     # Wait for storage service to be ready (it creates storage schema objects)
@@ -579,21 +743,29 @@ EOL
         success "  Storage service is ready"
     fi
     
-    # Step 4: Start imgproxy (optional, for image transformations)
-    info "  [4/6] Starting Image Proxy service..."
-    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d imgproxy
+    # =========================================
+    # Step 4: Start Kong API Gateway + imgproxy
+    # =========================================
+    info "  [4/5] Starting Kong API Gateway and imgproxy..."
     
-    # Brief wait for imgproxy
-    sleep 3
+    # Start imgproxy first (optional, for image transformations)
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d imgproxy 2>/dev/null || {
+        warn "imgproxy failed to start (optional service)"
+    }
     
-    # Step 5: Start Kong API Gateway (routes to all services)
-    info "  [5/6] Starting Kong API Gateway..."
+    # Start Kong API Gateway
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d kong
     
     # Wait for Kong to be ready (critical - it's the API entry point)
     info "  Waiting for Kong API Gateway to be ready..."
     KONG_READY=false
-    for i in $(seq 1 45); do
+    for i in $(seq 1 60); do
+        # First ensure container is running
+        if ! sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^supabase-kong$"; then
+            sleep 2
+            continue
+        fi
+        
         # Check if Kong is responding on the configured port
         if curl -sf http://localhost:54321/ &>/dev/null 2>&1 || \
            curl -sf "http://localhost:54321/rest/v1/" -H "apikey: $SUPABASE_ANON_KEY" &>/dev/null 2>&1; then
@@ -602,7 +774,7 @@ EOL
         fi
         sleep 2
         if [ $((i % 10)) -eq 0 ]; then
-            info "    Still waiting for Kong... ($i/45)"
+            info "    Still waiting for Kong... ($i/60)"
         fi
     done
     
@@ -614,12 +786,22 @@ EOL
         success "  Kong API Gateway is ready"
     fi
     
-    # Step 6: Start Edge Functions runtime
-    info "  [6/6] Starting Edge Functions runtime..."
+    # =========================================
+    # Step 5: Start Edge Functions runtime
+    # =========================================
+    info "  [5/5] Starting Edge Functions runtime..."
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d functions
     
-    # Brief wait for functions service
-    sleep 5
+    # Wait for functions container to start
+    FUNCTIONS_READY=false
+    for i in $(seq 1 30); do
+        if sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^supabase-functions$"; then
+            FUNCTIONS_READY=true
+            break
+        fi
+        sleep 2
+    done
+    [ "$FUNCTIONS_READY" = "true" ] && success "  Edge Functions runtime started" || warn "  Edge Functions may not be running"
     
     # =========================================
     # Final verification of all services

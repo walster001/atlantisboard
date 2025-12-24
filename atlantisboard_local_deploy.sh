@@ -400,19 +400,163 @@ EOL
     
     cd "$SUPABASE_DOCKER_DIR"
     
+    # Determine which docker compose command to use (modern 'docker compose' or legacy 'docker-compose')
+    if docker compose version &>/dev/null; then
+        DOCKER_COMPOSE="docker compose"
+        info "Using modern Docker Compose (docker compose)"
+    elif command -v docker-compose &>/dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+        info "Using legacy Docker Compose (docker-compose)"
+    else
+        error "Neither 'docker compose' nor 'docker-compose' found. Please install Docker Compose."
+        exit 1
+    fi
+    
+    COMPOSE_FILE="docker-compose.supabase.yml"
+    
+    # Verify compose file exists
+    if [ ! -f "$COMPOSE_FILE" ]; then
+        error "Docker Compose file not found: $SUPABASE_DOCKER_DIR/$COMPOSE_FILE"
+        exit 1
+    fi
+    
     # Stop existing services if running
     info "Stopping any existing Supabase services..."
-    sudo docker compose -f docker-compose.supabase.yml down 2>/dev/null || true
+    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || {
+        info "No existing services to stop or already stopped"
+    }
     
-    # Pull images
+    # Remove any stale containers that might conflict
+    info "Cleaning up any stale Supabase containers..."
+    for container in supabase-db supabase-auth supabase-rest supabase-realtime supabase-storage supabase-imgproxy supabase-kong supabase-functions; do
+        if sudo docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
+            sudo docker rm -f "$container" 2>/dev/null || true
+        fi
+    done
+    
+    # Create Docker network if it doesn't exist
+    info "Ensuring Docker network exists..."
+    sudo docker network create supabase-net 2>/dev/null || {
+        info "Docker network 'supabase-net' already exists"
+    }
+    
+    # Pull images (with retry on failure)
     info "Pulling Supabase Docker images (this may take several minutes on first run)..."
-    sudo docker compose -f docker-compose.supabase.yml pull
+    PULL_ATTEMPT=1
+    MAX_PULL_ATTEMPTS=3
+    while [ $PULL_ATTEMPT -le $MAX_PULL_ATTEMPTS ]; do
+        if sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" pull; then
+            success "Docker images pulled successfully"
+            break
+        else
+            if [ $PULL_ATTEMPT -lt $MAX_PULL_ATTEMPTS ]; then
+                warn "Image pull attempt $PULL_ATTEMPT failed, retrying in 10 seconds..."
+                sleep 10
+                PULL_ATTEMPT=$((PULL_ATTEMPT + 1))
+            else
+                error "Failed to pull Docker images after $MAX_PULL_ATTEMPTS attempts"
+                exit 1
+            fi
+        fi
+    done
     
-    # Start services
-    info "Starting Supabase services..."
-    sudo docker compose -f docker-compose.supabase.yml up -d
+    # Start services in dependency order
+    # Order: db -> auth, rest, realtime, storage -> imgproxy -> kong -> functions
+    info "Starting Supabase services in dependency order..."
     
-    success "Supabase Docker services started"
+    # Start database first
+    info "  Starting PostgreSQL database..."
+    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d db
+    
+    # Wait for database to be healthy before continuing
+    info "  Waiting for PostgreSQL to be ready..."
+    DB_READY=false
+    for i in $(seq 1 60); do
+        if sudo docker exec supabase-db pg_isready -U postgres &>/dev/null; then
+            DB_READY=true
+            break
+        fi
+        sleep 2
+        if [ $((i % 10)) -eq 0 ]; then
+            info "    Still waiting for PostgreSQL... ($i/60)"
+        fi
+    done
+    
+    if [ "$DB_READY" = "false" ]; then
+        error "PostgreSQL failed to start within 120 seconds"
+        info "Checking container logs..."
+        sudo docker logs supabase-db --tail 50
+        exit 1
+    fi
+    success "  PostgreSQL is ready"
+    
+    # Start auth, rest, realtime, and storage (they depend on db)
+    info "  Starting core services (auth, rest, realtime, storage)..."
+    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d auth rest realtime storage
+    
+    # Brief wait for core services to initialize
+    sleep 5
+    
+    # Start imgproxy (depends on storage)
+    info "  Starting image proxy..."
+    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d imgproxy
+    
+    # Start Kong API Gateway (depends on auth, rest, realtime, storage)
+    info "  Starting Kong API Gateway..."
+    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d kong
+    
+    # Wait for Kong to be ready
+    info "  Waiting for Kong API Gateway..."
+    KONG_READY=false
+    for i in $(seq 1 30); do
+        if curl -sf http://localhost:54321/ &>/dev/null || curl -sf http://localhost:54321/rest/v1/ -H "apikey: $SUPABASE_ANON_KEY" &>/dev/null; then
+            KONG_READY=true
+            break
+        fi
+        sleep 2
+        if [ $((i % 5)) -eq 0 ]; then
+            info "    Still waiting for Kong... ($i/30)"
+        fi
+    done
+    
+    if [ "$KONG_READY" = "false" ]; then
+        warn "Kong may not be fully ready yet, but continuing..."
+        info "Checking Kong container status..."
+        sudo docker ps --filter name=supabase-kong --format "table {{.Names}}\t{{.Status}}"
+    else
+        success "  Kong API Gateway is ready"
+    fi
+    
+    # Start Edge Functions runtime
+    info "  Starting Edge Functions runtime..."
+    sudo $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d functions
+    
+    # Final verification - show all container statuses
+    echo ""
+    info "Supabase container status:"
+    sudo docker ps --filter "name=supabase-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -20
+    
+    # Verify all expected services are running
+    EXPECTED_SERVICES="supabase-db supabase-auth supabase-rest supabase-realtime supabase-storage supabase-imgproxy supabase-kong supabase-functions"
+    ALL_RUNNING=true
+    
+    echo ""
+    info "Service verification:"
+    for svc in $EXPECTED_SERVICES; do
+        if sudo docker ps --format '{{.Names}}' | grep -q "^${svc}$"; then
+            success "  ✓ $svc is running"
+        else
+            warn "  ✗ $svc is NOT running"
+            ALL_RUNNING=false
+        fi
+    done
+    
+    if [ "$ALL_RUNNING" = "true" ]; then
+        success "All Supabase Docker services started successfully"
+    else
+        warn "Some services may not be running. Check logs with: sudo docker logs <container-name>"
+        warn "You can try restarting with: cd $SUPABASE_DOCKER_DIR && sudo $DOCKER_COMPOSE -f $COMPOSE_FILE restart"
+    fi
     
     # =========================================
     step "10" "Waiting for Supabase services to be ready"

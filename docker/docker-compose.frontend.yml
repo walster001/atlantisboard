@@ -1,0 +1,58 @@
+# =====================================================
+# AtlantisBoard Frontend Docker Compose
+# Runs the frontend application in a Docker container
+# =====================================================
+
+services:
+  # Frontend Application (Nginx serving built React app)
+  frontend:
+    build:
+      context: ../
+      dockerfile: docker/frontend/Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+        VITE_SUPABASE_PROJECT_ID: ${VITE_SUPABASE_PROJECT_ID}
+        VITE_APP_URL: ${VITE_APP_URL}
+    image: atlantisboard-frontend:latest
+    container_name: atlantisboard-frontend
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
+      - KONG_HTTP_PORT=${KONG_HTTP_PORT:-8000}
+      - ENABLE_SSL=${ENABLE_SSL:-false}
+    volumes:
+      # SSL certificates (from Certbot on host)
+      - ${SSL_CERT_PATH:-./ssl}:/etc/nginx/ssl:ro
+      # Certbot webroot for ACME challenges
+      - ${CERTBOT_WEBROOT:-./certbot}:/var/www/certbot:ro
+      # Custom nginx config (optional override)
+      - ./frontend/nginx-custom.conf:/etc/nginx/conf.d/custom.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - supabase-net
+    depends_on:
+      - kong-proxy
+
+  # Kong proxy reference (connects to Supabase network)
+  kong-proxy:
+    image: alpine:latest
+    container_name: atlantisboard-kong-proxy
+    command: ["sleep", "infinity"]
+    networks:
+      - supabase-net
+    # This is a placeholder - the actual Kong is in supabase docker-compose
+    # This service just ensures the network exists for the frontend
+
+networks:
+  supabase-net:
+    external: true
+    name: supabase_supabase-net

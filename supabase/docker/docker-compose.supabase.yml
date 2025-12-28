@@ -256,3 +256,4 @@ volumes:
 networks:
   supabase-net:
     driver: bridge
+    name: supabase-net

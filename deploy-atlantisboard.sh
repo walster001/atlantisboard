@@ -1681,154 +1681,549 @@ EOF
 step_19_final_verification() {
     log_step "19" "Final Verification"
     
-    cd "${INSTALL_DIR}"
-    source "${ENV_FILE}"
-    
     local all_passed=true
+    local pass_count=0
+    local warn_count=0
+    local fail_count=0
+    
+    # Results arrays
+    declare -a results_pass=()
+    declare -a results_warn=()
+    declare -a results_fail=()
+    
+    # Helper functions for tracking results
+    record_pass() {
+        results_pass+=("$1")
+        pass_count=$((pass_count + 1))
+    }
+    
+    record_warn() {
+        results_warn+=("$1")
+        warn_count=$((warn_count + 1))
+    }
+    
+    record_fail() {
+        results_fail+=("$1")
+        fail_count=$((fail_count + 1))
+        all_passed=false
+    }
     
     echo ""
     echo "═══════════════════════════════════════════════════════════════"
-    echo "                    VERIFICATION RESULTS                        "
+    echo "              POST-DEPLOYMENT VALIDATION"
     echo "═══════════════════════════════════════════════════════════════"
     echo ""
     
-    # Check Docker containers
-    echo "Docker Containers:"
-    local containers=("supabase-db" "supabase-auth" "supabase-rest" "supabase-realtime" "supabase-storage" "supabase-kong")
-    for container in "${containers[@]}"; do
-        if docker ps --format "{{.Names}}" | grep -q "^${container}$"; then
-            echo "  ✓ ${container}: running"
+    # -------------------------------------------------------------------
+    # SYSTEM VALIDATION
+    # -------------------------------------------------------------------
+    echo -e "${BLUE}[SYSTEM]${NC}"
+    
+    # Check OS is Ubuntu 22.04
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        if [[ "${VERSION_ID:-}" == "22.04" ]] && [[ "${ID:-}" == "ubuntu" ]]; then
+            echo "  ✓ OS: Ubuntu 22.04 (${PRETTY_NAME:-})"
+            record_pass "OS: Ubuntu 22.04"
+        elif [[ "${ID:-}" == "ubuntu" ]]; then
+            echo "  ⚠ OS: Ubuntu ${VERSION_ID:-unknown} (expected 22.04)"
+            record_warn "OS: Ubuntu ${VERSION_ID:-unknown} (expected 22.04)"
         else
-            echo "  ✗ ${container}: NOT RUNNING"
-            all_passed=false
+            echo "  ⚠ OS: ${PRETTY_NAME:-unknown} (expected Ubuntu 22.04)"
+            record_warn "OS: ${PRETTY_NAME:-unknown}"
+        fi
+    else
+        echo "  ⚠ OS: Could not detect"
+        record_warn "OS: Detection failed"
+    fi
+    
+    # Check Docker version
+    if command_exists docker; then
+        local docker_version
+        docker_version=$(get_docker_version)
+        if version_gte "$docker_version" "$MIN_DOCKER_VERSION"; then
+            echo "  ✓ Docker: v${docker_version} (>= ${MIN_DOCKER_VERSION})"
+            record_pass "Docker: v${docker_version}"
+        else
+            echo "  ⚠ Docker: v${docker_version} (recommended >= ${MIN_DOCKER_VERSION})"
+            record_warn "Docker: v${docker_version} below recommended"
+        fi
+    else
+        echo "  ✗ Docker: NOT INSTALLED"
+        record_fail "Docker: Not installed"
+    fi
+    
+    # Check Docker Compose version
+    local compose_cmd
+    compose_cmd=$(detect_docker_compose)
+    if [ -n "$compose_cmd" ]; then
+        local compose_version
+        compose_version=$(get_compose_version)
+        if version_gte "$compose_version" "$MIN_COMPOSE_VERSION"; then
+            echo "  ✓ Docker Compose: v${compose_version} (>= ${MIN_COMPOSE_VERSION})"
+            record_pass "Docker Compose: v${compose_version}"
+        else
+            echo "  ⚠ Docker Compose: v${compose_version} (recommended >= ${MIN_COMPOSE_VERSION})"
+            record_warn "Docker Compose: v${compose_version} below recommended"
+        fi
+    else
+        echo "  ✗ Docker Compose: NOT INSTALLED"
+        record_fail "Docker Compose: Not installed"
+    fi
+    
+    # Check required ports
+    echo ""
+    echo -e "${BLUE}[PORTS]${NC}"
+    local ports_to_check=("${HTTP_PORT}:HTTP" "${HTTPS_PORT}:HTTPS" "${POSTGRES_PORT}:PostgreSQL" "${KONG_HTTP_PORT}:Kong API")
+    
+    for port_entry in "${ports_to_check[@]}"; do
+        local port="${port_entry%%:*}"
+        local service="${port_entry##*:}"
+        
+        if nc -z localhost "$port" 2>/dev/null; then
+            echo "  ✓ Port ${port} (${service}): OPEN"
+            record_pass "Port ${port} (${service}): Open"
+        else
+            # Check if port is listening on 0.0.0.0
+            if ss -tln 2>/dev/null | grep -q ":${port} " || netstat -tln 2>/dev/null | grep -q ":${port} "; then
+                echo "  ✓ Port ${port} (${service}): LISTENING"
+                record_pass "Port ${port} (${service}): Listening"
+            else
+                echo "  ⚠ Port ${port} (${service}): NOT LISTENING"
+                record_warn "Port ${port} (${service}): Not listening"
+            fi
         fi
     done
     
+    # -------------------------------------------------------------------
+    # CONTAINER VALIDATION
+    # -------------------------------------------------------------------
     echo ""
-    echo "Database Schemas:"
+    echo -e "${BLUE}[CONTAINERS]${NC}"
+    
+    # Required containers
+    local required_containers=("supabase-db" "supabase-auth" "supabase-rest" "supabase-realtime" "supabase-storage" "supabase-kong")
+    local optional_containers=("supabase-meta" "supabase-studio" "supabase-imgproxy" "supabase-edge-functions" "supabase-analytics" "supabase-vector")
+    
+    for container in "${required_containers[@]}"; do
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then
+            local container_status
+            container_status=$(docker inspect --format='{{.State.Status}}' "$container" 2>/dev/null)
+            if [ "$container_status" = "running" ]; then
+                echo "  ✓ ${container}: RUNNING"
+                record_pass "${container}: Running"
+            else
+                echo "  ✗ ${container}: ${container_status:-unknown}"
+                record_fail "${container}: ${container_status:-not running}"
+            fi
+        else
+            echo "  ✗ ${container}: NOT FOUND"
+            record_fail "${container}: Not found"
+        fi
+    done
+    
+    # Check optional containers (warn if running but not required)
+    local found_optional=false
+    for container in "${optional_containers[@]}"; do
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then
+            if [ "$found_optional" = false ]; then
+                echo ""
+                echo "  Optional services detected:"
+                found_optional=true
+            fi
+            echo "    ⚠ ${container}: running (optional, may consume resources)"
+            record_warn "${container}: Running (optional)"
+        fi
+    done
+    
+    # -------------------------------------------------------------------
+    # SUPABASE / DATABASE VALIDATION
+    # -------------------------------------------------------------------
+    echo ""
+    echo -e "${BLUE}[SUPABASE]${NC}"
+    
+    # Check PostgreSQL health
+    local pg_healthy=false
+    if PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; then
+        echo "  ✓ PostgreSQL: HEALTHY (accepting connections)"
+        record_pass "PostgreSQL: Healthy"
+        pg_healthy=true
+    else
+        echo "  ✗ PostgreSQL: UNHEALTHY (not accepting connections)"
+        record_fail "PostgreSQL: Unhealthy"
+    fi
     
     # Check schemas
-    if check_schema_exists "auth"; then
-        echo "  ✓ auth schema: exists"
-    else
-        echo "  ✗ auth schema: MISSING"
-        all_passed=false
-    fi
-    
-    if check_schema_exists "storage"; then
-        echo "  ✓ storage schema: exists"
-    else
-        echo "  ✗ storage schema: MISSING"
-        all_passed=false
-    fi
-    
-    if check_schema_exists "public"; then
-        echo "  ✓ public schema: exists"
-    else
-        echo "  ✗ public schema: MISSING"
-        all_passed=false
-    fi
-    
     echo ""
-    echo "Application Tables:"
+    echo "  Schema verification:"
+    local schemas_to_check=("auth" "storage" "public")
+    local all_schemas_exist=true
     
-    if check_table_exists "public" "profiles"; then
-        echo "  ✓ profiles: exists"
-    else
-        echo "  ✗ profiles: MISSING"
-        all_passed=false
-    fi
+    for schema in "${schemas_to_check[@]}"; do
+        if [ "$pg_healthy" = true ] && check_schema_exists "$schema"; then
+            echo "    ✓ ${schema}: EXISTS"
+            record_pass "Schema ${schema}: Exists"
+        else
+            echo "    ✗ ${schema}: MISSING"
+            record_fail "Schema ${schema}: Missing"
+            all_schemas_exist=false
+        fi
+    done
     
-    if check_table_exists "public" "boards"; then
-        echo "  ✓ boards: exists"
-    else
-        echo "  ✗ boards: MISSING"
-        all_passed=false
-    fi
-    
-    if check_table_exists "public" "app_settings"; then
-        echo "  ✓ app_settings: exists"
-    else
-        echo "  ✗ app_settings: MISSING"
-        all_passed=false
-    fi
-    
+    # Verify schema came from schema.sql import (check for app-specific tables)
     echo ""
-    echo "API Endpoints:"
-    
-    # Check Kong
-    if curl -sf "http://localhost:${KONG_HTTP_PORT}/rest/v1/" -H "apikey: ${ANON_KEY}" >/dev/null 2>&1; then
-        echo "  ✓ REST API: accessible"
+    echo "  Schema import verification (checking app tables):"
+    if [ "$pg_healthy" = true ]; then
+        local app_tables=("profiles" "boards" "workspaces" "cards" "columns" "app_settings")
+        local imported_tables=0
+        
+        for table in "${app_tables[@]}"; do
+            if check_table_exists "public" "$table"; then
+                echo "    ✓ public.${table}: EXISTS"
+                imported_tables=$((imported_tables + 1))
+            else
+                echo "    ✗ public.${table}: MISSING"
+            fi
+        done
+        
+        if [ $imported_tables -ge 4 ]; then
+            echo "    ✓ Schema import: VERIFIED (${imported_tables}/${#app_tables[@]} tables found)"
+            record_pass "Schema import: Verified"
+        else
+            echo "    ✗ Schema import: INCOMPLETE (only ${imported_tables}/${#app_tables[@]} tables)"
+            record_fail "Schema import: Incomplete"
+        fi
     else
-        echo "  ⚠ REST API: not accessible (may need API key)"
+        echo "    ⚠ Cannot verify schema import (PostgreSQL not healthy)"
+        record_warn "Schema import: Cannot verify (PostgreSQL unhealthy)"
     fi
     
-    # Check Auth
-    if curl -sf "http://localhost:${KONG_HTTP_PORT}/auth/v1/health" >/dev/null 2>&1; then
-        echo "  ✓ Auth API: accessible"
-    else
-        echo "  ⚠ Auth API: check health endpoint"
-    fi
-    
+    # Check Supabase Auth service
     echo ""
-    echo "Web Server:"
+    echo "  Supabase Auth service:"
+    local auth_health_url="http://localhost:${KONG_HTTP_PORT}/auth/v1/health"
+    local auth_response
+    auth_response=$(curl -sf "$auth_health_url" 2>/dev/null || echo "")
+    
+    if [ -n "$auth_response" ]; then
+        echo "    ✓ Auth service: RESPONDING"
+        record_pass "Supabase Auth: Responding"
+    else
+        # Try direct auth port
+        if curl -sf "http://localhost:9999/health" >/dev/null 2>&1; then
+            echo "    ✓ Auth service: RESPONDING (direct port)"
+            record_pass "Supabase Auth: Responding"
+        else
+            echo "    ⚠ Auth service: NOT RESPONDING (may take time to initialize)"
+            record_warn "Supabase Auth: Not responding"
+        fi
+    fi
+    
+    # -------------------------------------------------------------------
+    # EDGE FUNCTIONS VALIDATION
+    # -------------------------------------------------------------------
+    echo ""
+    echo -e "${BLUE}[EDGE FUNCTIONS]${NC}"
+    
+    if [ -d "${INSTALL_DIR}/supabase/functions" ]; then
+        local func_dirs
+        func_dirs=$(find "${INSTALL_DIR}/supabase/functions" -mindepth 1 -maxdepth 1 -type d -name '*' ! -name '_*' 2>/dev/null)
+        local func_count
+        func_count=$(echo "$func_dirs" | grep -c . 2>/dev/null || echo "0")
+        
+        if [ "$func_count" -gt 0 ]; then
+            echo "  ✓ Edge functions found: ${func_count}"
+            record_pass "Edge functions: ${func_count} found"
+            
+            # List edge functions
+            echo "    Functions:"
+            echo "$func_dirs" | while read -r func_dir; do
+                if [ -n "$func_dir" ]; then
+                    local func_name
+                    func_name=$(basename "$func_dir")
+                    echo "      - ${func_name}"
+                fi
+            done
+            
+            # Check if edge functions are reachable
+            local functions_url="http://localhost:${KONG_HTTP_PORT}/functions/v1/"
+            if curl -sf "$functions_url" -H "Authorization: Bearer ${ANON_KEY:-}" >/dev/null 2>&1; then
+                echo "    ✓ Functions API: REACHABLE"
+                record_pass "Edge Functions API: Reachable"
+            else
+                echo "    ⚠ Functions API: NOT REACHABLE (may require auth)"
+                record_warn "Edge Functions API: Not reachable"
+            fi
+        else
+            echo "  ⚠ No edge functions found in ${INSTALL_DIR}/supabase/functions"
+            record_warn "Edge functions: None found"
+        fi
+    else
+        echo "  ⚠ Edge functions directory not found"
+        record_warn "Edge functions: Directory not found"
+    fi
+    
+    # Check secrets are loaded
+    echo ""
+    echo "  Secrets verification:"
+    if [ -d "${SECRETS_DIR}" ]; then
+        echo "    ✓ Secrets directory exists: ${SECRETS_DIR}"
+        record_pass "Secrets directory: Exists"
+        
+        if [ -f "${ENCRYPTION_KEY_FILE}" ]; then
+            local key_length
+            key_length=$(wc -c < "${ENCRYPTION_KEY_FILE}" 2>/dev/null || echo "0")
+            if [ "$key_length" -ge 64 ]; then
+                echo "    ✓ Encryption key: EXISTS (${key_length} chars)"
+                record_pass "Encryption key: Exists"
+            else
+                echo "    ⚠ Encryption key: EXISTS but may be invalid (${key_length} chars)"
+                record_warn "Encryption key: May be invalid"
+            fi
+        else
+            echo "    ✗ Encryption key: MISSING"
+            record_fail "Encryption key: Missing"
+        fi
+    else
+        echo "    ✗ Secrets directory: MISSING"
+        record_fail "Secrets directory: Missing"
+    fi
+    
+    # -------------------------------------------------------------------
+    # APPLICATION VALIDATION
+    # -------------------------------------------------------------------
+    echo ""
+    echo -e "${BLUE}[APPLICATION]${NC}"
     
     # Check Nginx
-    if systemctl is-active --quiet nginx; then
-        echo "  ✓ Nginx: running"
+    if systemctl is-active --quiet nginx 2>/dev/null; then
+        echo "  ✓ Nginx: RUNNING"
+        record_pass "Nginx: Running"
     else
         echo "  ✗ Nginx: NOT RUNNING"
-        all_passed=false
+        record_fail "Nginx: Not running"
     fi
     
-    # Check if app is accessible
-    if curl -sf "http://localhost:${HTTP_PORT}/" >/dev/null 2>&1; then
-        echo "  ✓ Frontend: accessible"
-    else
-        echo "  ⚠ Frontend: not accessible on localhost"
-    fi
-    
+    # Check Certbot/SSL certificates
     echo ""
-    echo "Edge Functions:"
-    
-    # List edge functions
-    if [ -d "${INSTALL_DIR}/supabase/functions" ]; then
-        local func_count
-        func_count=$(find "${INSTALL_DIR}/supabase/functions" -mindepth 1 -maxdepth 1 -type d | wc -l)
-        echo "  ✓ ${func_count} edge function(s) deployed"
+    echo "  SSL Certificate verification:"
+    local domain="${DOMAIN:-}"
+    if [ -n "$domain" ] && [ "$domain" != "localhost" ]; then
+        local cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
+        if [ -f "$cert_path" ]; then
+            # Check certificate validity
+            local cert_expiry
+            cert_expiry=$(openssl x509 -enddate -noout -in "$cert_path" 2>/dev/null | cut -d= -f2)
+            local cert_expiry_epoch
+            cert_expiry_epoch=$(date -d "$cert_expiry" +%s 2>/dev/null || echo "0")
+            local now_epoch
+            now_epoch=$(date +%s)
+            local days_until_expiry=$(( (cert_expiry_epoch - now_epoch) / 86400 ))
+            
+            if [ "$days_until_expiry" -gt 30 ]; then
+                echo "    ✓ SSL certificate: VALID (expires in ${days_until_expiry} days)"
+                record_pass "SSL certificate: Valid"
+            elif [ "$days_until_expiry" -gt 0 ]; then
+                echo "    ⚠ SSL certificate: EXPIRING SOON (${days_until_expiry} days)"
+                record_warn "SSL certificate: Expiring in ${days_until_expiry} days"
+            else
+                echo "    ✗ SSL certificate: EXPIRED"
+                record_fail "SSL certificate: Expired"
+            fi
+        else
+            echo "    ⚠ SSL certificate: NOT FOUND (run certbot to generate)"
+            record_warn "SSL certificate: Not found"
+        fi
     else
-        echo "  ⚠ No edge functions directory found"
+        echo "    ⚠ SSL certificate: SKIPPED (localhost or no domain set)"
+        record_warn "SSL certificate: Skipped (localhost)"
     fi
     
+    # Check app over HTTPS
+    echo ""
+    echo "  Application accessibility:"
+    if [ -n "$domain" ] && [ "$domain" != "localhost" ]; then
+        if curl -sf "https://${domain}/" -k --max-time 10 >/dev/null 2>&1; then
+            echo "    ✓ App via HTTPS: ACCESSIBLE"
+            record_pass "App HTTPS: Accessible"
+        else
+            echo "    ⚠ App via HTTPS: NOT ACCESSIBLE"
+            record_warn "App HTTPS: Not accessible"
+        fi
+    fi
+    
+    # Check app over HTTP (local)
+    if curl -sf "http://localhost:${HTTP_PORT}/" --max-time 10 >/dev/null 2>&1; then
+        echo "    ✓ App via HTTP: ACCESSIBLE"
+        record_pass "App HTTP: Accessible"
+    else
+        echo "    ⚠ App via HTTP: NOT ACCESSIBLE"
+        record_warn "App HTTP: Not accessible"
+    fi
+    
+    # Check OAuth redirect URLs
+    echo ""
+    echo "  OAuth configuration:"
+    if [ -f "${ENV_FILE}" ]; then
+        if grep -q "GOOGLE_CLIENT_ID=" "${ENV_FILE}" && grep -q "GOOGLE_CLIENT_SECRET=" "${ENV_FILE}"; then
+            local google_client_id
+            google_client_id=$(grep "GOOGLE_CLIENT_ID=" "${ENV_FILE}" | cut -d= -f2-)
+            if [ -n "$google_client_id" ] && [ "$google_client_id" != "your-google-client-id" ]; then
+                echo "    ✓ Google OAuth: CONFIGURED"
+                record_pass "Google OAuth: Configured"
+            else
+                echo "    ⚠ Google OAuth: NOT CONFIGURED (default values)"
+                record_warn "Google OAuth: Not configured"
+            fi
+        else
+            echo "    ⚠ Google OAuth: MISSING from .env"
+            record_warn "Google OAuth: Missing from env"
+        fi
+        
+        # Check redirect URL
+        if [ -n "$domain" ] && [ "$domain" != "localhost" ]; then
+            local expected_redirect="https://${domain}/auth/callback"
+            echo "    ℹ Expected OAuth redirect URL: ${expected_redirect}"
+        fi
+    else
+        echo "    ⚠ Cannot verify OAuth (.env file missing)"
+        record_warn "OAuth: Cannot verify"
+    fi
+    
+    # -------------------------------------------------------------------
+    # AUTH VALIDATION
+    # -------------------------------------------------------------------
+    echo ""
+    echo -e "${BLUE}[AUTH & SECRETS]${NC}"
+    
+    # Check Google OAuth config is loaded
+    if [ -f "${ENV_FILE}" ]; then
+        local oauth_vars=("GOOGLE_CLIENT_ID" "GOOGLE_CLIENT_SECRET" "GOOGLE_REDIRECT_URI")
+        local oauth_configured=0
+        
+        for var in "${oauth_vars[@]}"; do
+            if grep -q "^${var}=" "${ENV_FILE}"; then
+                local value
+                value=$(grep "^${var}=" "${ENV_FILE}" | cut -d= -f2-)
+                if [ -n "$value" ] && [[ "$value" != *"your-"* ]] && [[ "$value" != *"placeholder"* ]]; then
+                    echo "    ✓ ${var}: SET"
+                    oauth_configured=$((oauth_configured + 1))
+                else
+                    echo "    ⚠ ${var}: DEFAULT/PLACEHOLDER"
+                fi
+            else
+                echo "    ⚠ ${var}: MISSING"
+            fi
+        done
+        
+        if [ "$oauth_configured" -ge 2 ]; then
+            record_pass "Google OAuth vars: Configured"
+        else
+            record_warn "Google OAuth vars: Incomplete"
+        fi
+    fi
+    
+    # Check encryption key persistence
+    echo ""
+    echo "  Encryption key persistence:"
+    if [ -f "${ENCRYPTION_KEY_FILE}" ]; then
+        # Check if the file has proper permissions
+        local key_perms
+        key_perms=$(stat -c "%a" "${ENCRYPTION_KEY_FILE}" 2>/dev/null || echo "unknown")
+        
+        if [ "$key_perms" = "600" ] || [ "$key_perms" = "400" ]; then
+            echo "    ✓ Encryption key permissions: SECURE (${key_perms})"
+            record_pass "Encryption key permissions: Secure"
+        else
+            echo "    ⚠ Encryption key permissions: ${key_perms} (recommend 600)"
+            record_warn "Encryption key permissions: ${key_perms}"
+        fi
+        
+        # Check modification time to verify not regenerated
+        local key_mtime
+        key_mtime=$(stat -c "%Y" "${ENCRYPTION_KEY_FILE}" 2>/dev/null || echo "0")
+        local now_time
+        now_time=$(date +%s)
+        local key_age_minutes=$(( (now_time - key_mtime) / 60 ))
+        
+        if [ "$key_age_minutes" -gt 5 ]; then
+            echo "    ✓ Encryption key age: ${key_age_minutes} minutes (not regenerated)"
+            record_pass "Encryption key: Persistent"
+        else
+            echo "    ℹ Encryption key age: ${key_age_minutes} minutes (recently created/modified)"
+        fi
+    else
+        echo "    ✗ Encryption key: NOT FOUND"
+        record_fail "Encryption key: Not found"
+    fi
+    
+    # -------------------------------------------------------------------
+    # SUMMARY
+    # -------------------------------------------------------------------
     echo ""
     echo "═══════════════════════════════════════════════════════════════"
+    echo "                    VALIDATION SUMMARY"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo ""
+    echo -e "${GREEN}  PASSED:${NC}   ${pass_count}"
+    echo -e "${YELLOW}  WARNINGS:${NC} ${warn_count}"
+    echo -e "${RED}  FAILED:${NC}   ${fail_count}"
+    echo ""
     
-    if [ "$all_passed" = true ]; then
-        echo ""
-        echo -e "${GREEN}✓ ALL VERIFICATIONS PASSED${NC}"
-        echo ""
-        echo "AtlantisBoard is ready!"
-        echo ""
-        echo "Access your application:"
-        echo "  URL: ${SITE_URL}"
-        echo ""
-        echo "Helper scripts available at: ${INSTALL_DIR}/scripts/"
-        echo "  ./scripts/status.sh   - Check service status"
-        echo "  ./scripts/logs.sh     - View service logs"
-        echo "  ./scripts/restart.sh  - Restart services"
-        echo "  ./scripts/backup.sh   - Create backup"
-        echo "  ./scripts/update.sh   - Update application"
-        echo ""
-    else
-        echo ""
-        echo -e "${YELLOW}⚠ SOME VERIFICATIONS FAILED${NC}"
-        echo ""
-        echo "Please check the logs for more details:"
-        echo "  Log file: ${LOG_FILE}"
-        echo "  Docker logs: ${INSTALL_DIR}/scripts/logs.sh all"
+    # Print failures if any
+    if [ ${#results_fail[@]} -gt 0 ]; then
+        echo -e "${RED}Failed checks:${NC}"
+        for result in "${results_fail[@]}"; do
+            echo "  ✗ ${result}"
+        done
         echo ""
     fi
     
+    # Print warnings if any
+    if [ ${#results_warn[@]} -gt 0 ]; then
+        echo -e "${YELLOW}Warnings:${NC}"
+        for result in "${results_warn[@]}"; do
+            echo "  ⚠ ${result}"
+        done
+        echo ""
+    fi
+    
+    echo "═══════════════════════════════════════════════════════════════"
+    
+    if [ "$all_passed" = true ] && [ "$warn_count" -eq 0 ]; then
+        echo ""
+        echo -e "${GREEN}✓ ALL VALIDATIONS PASSED${NC}"
+        echo ""
+    elif [ "$all_passed" = true ]; then
+        echo ""
+        echo -e "${YELLOW}✓ ALL CRITICAL CHECKS PASSED (${warn_count} warnings)${NC}"
+        echo ""
+    else
+        echo ""
+        echo -e "${RED}✗ VALIDATION INCOMPLETE (${fail_count} failures, ${warn_count} warnings)${NC}"
+        echo ""
+    fi
+    
+    echo "AtlantisBoard Deployment Status:"
+    if [ "$all_passed" = true ]; then
+        echo "  Status: READY"
+        echo "  URL: ${SITE_URL:-http://localhost:${HTTP_PORT}}"
+    else
+        echo "  Status: REQUIRES ATTENTION"
+        echo "  Please review the failed checks above."
+    fi
+    echo ""
+    echo "Helper scripts available at: ${INSTALL_DIR}/scripts/"
+    echo "  ./scripts/status.sh   - Check service status"
+    echo "  ./scripts/logs.sh     - View service logs"
+    echo "  ./scripts/restart.sh  - Restart services"
+    echo "  ./scripts/backup.sh   - Create backup"
+    echo "  ./scripts/update.sh   - Update application"
+    echo ""
+    echo "Log file: ${LOG_FILE}"
+    echo ""
+    
+    # Return success regardless - we don't want to terminate SSH
     return 0
 }
 

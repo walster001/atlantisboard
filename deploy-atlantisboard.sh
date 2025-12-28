@@ -1014,16 +1014,45 @@ GRANTS_SQL
     log_info "STAGE 2: Starting Auth service (GoTrue)..."
     $COMPOSE_CMD -f docker-compose.supabase.yml up -d auth
     
-    # Wait for auth service to be healthy
-    log_info "Waiting for Auth service to be healthy..."
-    local auth_service_ready=false
-    for i in $(seq 1 60); do
-        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T auth wget --no-verbose --tries=1 --spider http://localhost:9999/health 2>/dev/null; then
-            auth_service_ready=true
+    # Wait for container to be running first (avoid OCI exec errors)
+    log_info "Waiting for Auth container to start..."
+    local container_running=false
+    for i in $(seq 1 30); do
+        local container_state=$(docker inspect --format='{{.State.Status}}' supabase-auth 2>/dev/null || echo "not_found")
+        if [ "$container_state" = "running" ]; then
+            container_running=true
             break
         fi
         echo -n "."
-        sleep 3
+        sleep 2
+    done
+    echo ""
+    
+    if [ "$container_running" = false ]; then
+        log_warning "Auth container not running after 60s - checking logs..."
+        docker logs supabase-auth --tail=50 2>&1 || true
+    fi
+    
+    # Wait for auth service to be healthy using Docker's health check
+    log_info "Waiting for Auth service to become healthy..."
+    local auth_service_ready=false
+    for i in $(seq 1 90); do
+        # Check container health status from Docker (more reliable than exec)
+        local health_status=$(docker inspect --format='{{.State.Health.Status}}' supabase-auth 2>/dev/null || echo "unknown")
+        
+        if [ "$health_status" = "healthy" ]; then
+            auth_service_ready=true
+            break
+        fi
+        
+        # If container exited or is unhealthy after multiple attempts, show logs
+        if [ "$health_status" = "unhealthy" ] && [ $i -gt 60 ]; then
+            log_warning "Auth service unhealthy - checking logs..."
+            docker logs supabase-auth --tail=30 2>&1 || true
+        fi
+        
+        echo -n "."
+        sleep 2
     done
     echo ""
     
@@ -1031,17 +1060,26 @@ GRANTS_SQL
         log_success "Auth service is healthy"
     else
         log_warning "Auth service health check timed out - continuing anyway"
+        log_info "Last few Auth service logs:"
+        docker logs supabase-auth --tail=20 2>&1 || true
     fi
     
-    # Verify auth.users table now exists
+    # Verify auth.users table now exists (use docker exec only after container is confirmed running)
     log_info "Verifying auth.users table..."
+    local auth_users_exists=false
     for i in $(seq 1 30); do
-        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -c "SELECT 1 FROM auth.users LIMIT 0" >/dev/null 2>&1; then
+        # Use docker exec directly with a simple check
+        if docker exec supabase-db psql -U postgres -d postgres -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='auth' AND table_name='users'" 2>/dev/null | grep -q "1"; then
+            auth_users_exists=true
             log_success "auth.users table exists"
             break
         fi
         sleep 2
     done
+    
+    if [ "$auth_users_exists" = false ]; then
+        log_warning "auth.users table not found after waiting - GoTrue may still be initializing"
+    fi
     
     # =====================================================
     # STAGE 3: Start REST API (PostgREST)
@@ -1049,11 +1087,12 @@ GRANTS_SQL
     log_info "STAGE 3: Starting REST API (PostgREST)..."
     $COMPOSE_CMD -f docker-compose.supabase.yml up -d rest
     
-    # Wait for REST to be ready
+    # Wait for REST to be ready using Docker health check
     log_info "Waiting for REST API..."
-    for i in $(seq 1 30); do
-        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T rest curl -sf http://localhost:3000/ >/dev/null 2>&1; then
-            log_success "REST API is ready"
+    for i in $(seq 1 45); do
+        local rest_health=$(docker inspect --format='{{.State.Health.Status}}' supabase-rest 2>/dev/null || echo "unknown")
+        if [ "$rest_health" = "healthy" ]; then
+            log_success "REST API is healthy"
             break
         fi
         echo -n "."
@@ -1067,11 +1106,22 @@ GRANTS_SQL
     log_info "STAGE 4: Starting Storage service..."
     $COMPOSE_CMD -f docker-compose.supabase.yml up -d imgproxy storage
     
-    # Wait for storage to create its schema
-    log_info "Waiting for Storage service..."
-    for i in $(seq 1 45); do
-        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -c "SELECT 1 FROM pg_namespace WHERE nspname = 'storage'" 2>/dev/null | grep -q "1"; then
-            log_success "Storage schema exists"
+    # Wait for storage container to be running first
+    log_info "Waiting for Storage container..."
+    for i in $(seq 1 30); do
+        local storage_state=$(docker inspect --format='{{.State.Status}}' supabase-storage 2>/dev/null || echo "not_found")
+        if [ "$storage_state" = "running" ]; then
+            break
+        fi
+        sleep 2
+    done
+    
+    # Wait for storage service health check
+    log_info "Waiting for Storage service to be healthy..."
+    for i in $(seq 1 60); do
+        local storage_health=$(docker inspect --format='{{.State.Health.Status}}' supabase-storage 2>/dev/null || echo "unknown")
+        if [ "$storage_health" = "healthy" ]; then
+            log_success "Storage service is healthy"
             break
         fi
         echo -n "."
@@ -1079,15 +1129,21 @@ GRANTS_SQL
     done
     echo ""
     
-    # Verify storage.buckets table
-    log_info "Verifying storage.buckets table..."
+    # Verify storage schema using docker exec (container is now running)
+    log_info "Verifying storage schema..."
+    local storage_schema_exists=false
     for i in $(seq 1 30); do
-        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -c "SELECT 1 FROM storage.buckets LIMIT 0" >/dev/null 2>&1; then
+        if docker exec supabase-db psql -U postgres -d postgres -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='storage' AND table_name='buckets'" 2>/dev/null | grep -q "1"; then
+            storage_schema_exists=true
             log_success "storage.buckets table exists"
             break
         fi
         sleep 2
     done
+    
+    if [ "$storage_schema_exists" = false ]; then
+        log_warning "storage.buckets table not found - Storage service may still be initializing"
+    fi
     
     # =====================================================
     # STAGE 5: Start Realtime service
@@ -1095,8 +1151,18 @@ GRANTS_SQL
     log_info "STAGE 5: Starting Realtime service..."
     $COMPOSE_CMD -f docker-compose.supabase.yml up -d realtime
     
-    # Wait briefly for realtime
-    sleep 5
+    # Wait for Realtime service health
+    log_info "Waiting for Realtime service..."
+    for i in $(seq 1 45); do
+        local realtime_health=$(docker inspect --format='{{.State.Health.Status}}' supabase-realtime 2>/dev/null || echo "unknown")
+        if [ "$realtime_health" = "healthy" ]; then
+            log_success "Realtime service is healthy"
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+    echo ""
     
     # =====================================================
     # STAGE 6: Start Kong API Gateway
@@ -1104,10 +1170,11 @@ GRANTS_SQL
     log_info "STAGE 6: Starting Kong API Gateway..."
     $COMPOSE_CMD -f docker-compose.supabase.yml up -d kong
     
-    # Wait for Kong to be ready
+    # Wait for Kong health check
     log_info "Waiting for Kong API Gateway..."
-    for i in $(seq 1 30); do
-        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T kong kong health >/dev/null 2>&1; then
+    for i in $(seq 1 45); do
+        local kong_health=$(docker inspect --format='{{.State.Health.Status}}' supabase-kong 2>/dev/null || echo "unknown")
+        if [ "$kong_health" = "healthy" ]; then
             log_success "Kong API Gateway is healthy"
             break
         fi

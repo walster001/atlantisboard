@@ -631,7 +631,11 @@ export default function BoardPage() {
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
-  const { can, canEdit, canManageMembers } = usePermissions(boardId, userRole);
+  const { can, canEdit, canManageMembers, isAppAdmin: permissionsAppAdmin } = usePermissions(boardId, userRole);
+  
+  // App Admin has full access regardless of board membership
+  const effectiveCanEdit = canEdit || isAppAdmin;
+  const effectiveCanManage = canManageMembers || isAppAdmin;
 
   // Convert DB data to component format
   const getColumnCards = (columnId: string): CardType[] => {
@@ -662,7 +666,7 @@ export default function BoardPage() {
 
   // Color update functions
   const updateCardColor = async (cardId: string, color: string | null) => {
-    if (!canEdit) return;
+    if (!effectiveCanEdit) return;
     try {
       await supabase.from('cards').update({ color }).eq('id', cardId);
       setCards(prev => prev.map(c => c.id === cardId ? { ...c, color } : c));
@@ -673,7 +677,7 @@ export default function BoardPage() {
   };
 
   const applyCardColorToAll = async (color: string | null) => {
-    if (!canEdit || !boardId) return;
+    if (!effectiveCanEdit || !boardId) return;
     try {
       const cardIds = cards.map(c => c.id);
       await supabase.from('cards').update({ color }).in('id', cardIds);
@@ -686,7 +690,7 @@ export default function BoardPage() {
   };
 
   const updateColumnColor = async (columnId: string, color: string | null, isClearing = false) => {
-    if (!canEdit) return;
+    if (!effectiveCanEdit) return;
     try {
       // When isClearing is true, save as null to use theme default
       // When color is null from ColorPicker (transparent selection), save as empty string
@@ -701,7 +705,7 @@ export default function BoardPage() {
   };
 
   const applyColumnColorToAll = async (color: string | null) => {
-    if (!canEdit || !boardId) return;
+    if (!effectiveCanEdit || !boardId) return;
     try {
       const columnIds = columns.map(c => c.id);
       // When color is null from ColorPicker (transparent selection), save as empty string
@@ -717,7 +721,7 @@ export default function BoardPage() {
 
   const onDragEnd = useCallback(async (result: DropResult) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit || !user || !boardId) return;
+    if (!effectiveCanEdit || !user || !boardId) return;
     
     const { destination, source, type, draggableId } = result;
     if (!destination) return;
@@ -786,11 +790,11 @@ export default function BoardPage() {
       _user_id: user.id,
       _updates: uniqueUpdates
     });
-  }, [columns, cards, canEdit, user, boardId]);
+  }, [columns, cards, effectiveCanEdit, user, boardId]);
   
   // Column reorder handler for mobile carousel dot drag
   const reorderColumns = useCallback(async (fromIndex: number, toIndex: number) => {
-    if (!canEdit || !user || !boardId) return;
+    if (!effectiveCanEdit || !user || !boardId) return;
     if (fromIndex === toIndex) return;
     
     const newColumns = Array.from(columns);
@@ -808,11 +812,11 @@ export default function BoardPage() {
       _board_id: boardId,
       _updates: updates
     });
-  }, [columns, canEdit, user, boardId]);
+  }, [columns, effectiveCanEdit, user, boardId]);
 
   const addColumn = async () => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!boardId || !canEdit) return;
+    if (!boardId || !effectiveCanEdit) return;
 
     try {
       // Validate input
@@ -841,7 +845,7 @@ export default function BoardPage() {
 
   const updateColumnTitle = async (columnId: string, title: string) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit) return;
+    if (!effectiveCanEdit) return;
     try {
       // Validate input
       const validated = columnSchema.parse({ title });
@@ -860,7 +864,7 @@ export default function BoardPage() {
 
   const deleteColumn = async (columnId: string) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit) return;
+    if (!effectiveCanEdit) return;
     try {
       await supabase.from('columns').delete().eq('id', columnId);
       setColumns(columns.filter(c => c.id !== columnId));
@@ -873,7 +877,7 @@ export default function BoardPage() {
 
   const addCard = async (columnId: string, title: string) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit) return;
+    if (!effectiveCanEdit) return;
     try {
       // Validate input
       const validated = cardSchema.parse({ title });
@@ -901,7 +905,7 @@ export default function BoardPage() {
 
   const updateCard = async (cardId: string, updates: Partial<CardType>) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit || !user) return;
+    if (!effectiveCanEdit || !user) return;
     try {
       // Validate input if title or description provided
       if (updates.title !== undefined || updates.description !== undefined) {
@@ -958,7 +962,7 @@ export default function BoardPage() {
 
   const deleteCard = async (cardId: string) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit) return;
+    if (!effectiveCanEdit) return;
     try {
       await supabase.from('cards').delete().eq('id', cardId);
       setCards(cards.filter(c => c.id !== cardId));
@@ -971,7 +975,7 @@ export default function BoardPage() {
 
   const addLabelToCard = async (cardId: string, label: Label) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit || !boardId) return;
+    if (!effectiveCanEdit || !boardId) return;
     try {
       // Check if label exists or create new one
       let labelId = label.id;
@@ -1005,7 +1009,7 @@ export default function BoardPage() {
 
   const removeLabelFromCard = async (cardId: string, labelId: string) => {
     // Early return for better UX - RLS will reject if user lacks permission
-    if (!canEdit) return;
+    if (!effectiveCanEdit) return;
     try {
       await supabase.from('card_labels').delete().eq('card_id', cardId).eq('label_id', labelId);
       setCardLabels(cardLabels.filter(cl => !(cl.card_id === cardId && cl.label_id === labelId)));
@@ -1113,10 +1117,10 @@ export default function BoardPage() {
             {/* Desktop: Show all actions */}
             {isDesktop && (
               <>
-                {boardId && canEdit && (
-                  <InviteLinkButton boardId={boardId} canGenerateInvite={canEdit} />
+                {boardId && effectiveCanEdit && (
+                  <InviteLinkButton boardId={boardId} canGenerateInvite={effectiveCanEdit} />
                 )}
-                {canManageMembers && (
+                {effectiveCanManage && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1161,7 +1165,7 @@ export default function BoardPage() {
             {/* Mobile/Tablet: Simplified actions with overflow menu */}
             {!isDesktop && (
               <>
-                {canManageMembers && (
+                {effectiveCanManage && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1179,8 +1183,8 @@ export default function BoardPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-popover w-56">
-                    {boardId && canEdit && (
-                      <InviteLinkButton boardId={boardId} canGenerateInvite={canEdit} />
+                    {boardId && effectiveCanEdit && (
+                      <InviteLinkButton boardId={boardId} canGenerateInvite={effectiveCanEdit} />
                     )}
                     {isAppAdmin && (
                       <DropdownMenuItem onClick={() => navigate('/admin/config')}>
@@ -1226,14 +1230,14 @@ export default function BoardPage() {
               onApplyCardColorToAll={applyCardColorToAll}
               onReorderColumns={reorderColumns}
               onRefresh={fetchBoardData}
-              disabled={!canEdit}
+              disabled={!effectiveCanEdit}
               themeColumnColor={boardTheme?.column_color}
               themeCardColor={boardTheme?.default_card_color}
               themeScrollbarColor={boardTheme?.scrollbar_color}
               themeScrollbarTrackColor={boardTheme?.scrollbar_track_color}
             />
             {/* Mobile Add Column FAB */}
-            {canEdit && (
+            {effectiveCanEdit && (
               <div className="absolute bottom-4 right-4">
                 <Button
                   size="lg"
@@ -1296,7 +1300,7 @@ export default function BoardPage() {
                       onApplyColumnColorToAll={applyColumnColorToAll}
                       onUpdateCardColor={updateCardColor}
                       onApplyCardColorToAll={applyCardColorToAll}
-                      disabled={!canEdit}
+                      disabled={!effectiveCanEdit}
                       themeColumnColor={boardTheme?.column_color}
                       themeCardColor={boardTheme?.default_card_color}
                       themeScrollbarColor={boardTheme?.scrollbar_color}
@@ -1306,7 +1310,7 @@ export default function BoardPage() {
                   {provided.placeholder}
 
                   {/* Add Column */}
-                  {canEdit && (
+                  {effectiveCanEdit && (
                     <div className={cn(
                       "shrink-0",
                       isTablet ? "w-64" : "w-72"
@@ -1431,7 +1435,7 @@ export default function BoardPage() {
             deleteCard(editingCard.card.id);
           }
         }}
-        disabled={!canEdit}
+        disabled={!effectiveCanEdit}
         boardLabels={labels}
         attachments={editingCard ? cardAttachments.filter(a => a.card_id === editingCard.card.id) : []}
         onAttachmentsChange={async () => {

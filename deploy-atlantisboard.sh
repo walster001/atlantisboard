@@ -1157,219 +1157,360 @@ step_13_configure_storage() {
 }
 
 # =====================================================
-# STEP 14: Build Frontend Application
+# STEP 14: Build and Start Frontend Docker Container
 # =====================================================
 step_14_build_frontend() {
-    log_step "14" "Building Frontend Application"
+    log_step "14" "Building Frontend Docker Container"
     
     cd "${INSTALL_DIR}"
     source "${ENV_FILE}"
     
-    # Check if Node.js is installed
-    if ! command_exists node; then
-        log_info "Installing Node.js..."
-        
-        # Install Node.js via NodeSource
-        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-        sudo apt-get install -y nodejs
-        
-        log_success "Node.js installed"
+    # Ensure docker directory structure exists
+    mkdir -p "${INSTALL_DIR}/docker/frontend"
+    mkdir -p "${INSTALL_DIR}/docker/ssl"
+    mkdir -p "${INSTALL_DIR}/docker/certbot"
+    
+    # Create Dockerfile if it doesn't exist
+    if [ ! -f "${INSTALL_DIR}/docker/frontend/Dockerfile" ]; then
+        log_info "Creating frontend Dockerfile..."
+        cat > "${INSTALL_DIR}/docker/frontend/Dockerfile" << 'DOCKERFILE'
+# AtlantisBoard Frontend Docker Image
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+COPY bun.lockb* ./
+RUN npm ci --legacy-peer-deps 2>/dev/null || npm install --legacy-peer-deps
+
+COPY . .
+
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ARG VITE_SUPABASE_PROJECT_ID
+ARG VITE_APP_URL
+
+ENV VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_PUBLISHABLE_KEY}
+ENV VITE_SUPABASE_PROJECT_ID=${VITE_SUPABASE_PROJECT_ID}
+ENV VITE_APP_URL=${VITE_APP_URL}
+
+RUN npm run build
+
+FROM nginx:alpine AS production
+RUN apk add --no-cache gettext
+RUN rm -rf /etc/nginx/conf.d/*
+COPY docker/frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=builder /app/dist /usr/share/nginx/html
+RUN mkdir -p /etc/nginx/ssl
+RUN echo 'OK' > /usr/share/nginx/html/health
+EXPOSE 80 443
+CMD ["/bin/sh", "-c", "envsubst '${DOMAIN_NAME} ${KONG_HTTP_PORT} ${ENABLE_SSL}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+DOCKERFILE
     fi
     
-    node --version
-    npm --version
-    
-    # Install dependencies
-    log_info "Installing npm dependencies..."
-    npm ci --legacy-peer-deps 2>/dev/null || npm install --legacy-peer-deps
-    
-    # Build the application
-    log_info "Building frontend application..."
-    npm run build
-    
-    if [ -d "${INSTALL_DIR}/dist" ]; then
-        log_success "Frontend build completed"
-    else
-        log_error "Frontend build failed - dist directory not created"
-        return 1
-    fi
-}
-
-# =====================================================
-# STEP 15: Configure Nginx
-# =====================================================
-step_15_configure_nginx() {
-    log_step "15" "Configuring Nginx"
-    
-    source "${ENV_FILE}"
-    
-    # Create Nginx configuration
-    log_info "Creating Nginx configuration..."
-    
-    sudo tee /etc/nginx/sites-available/atlantisboard > /dev/null << EOF
-# AtlantisBoard Nginx Configuration
-
-# Upstream for Supabase API
+    # Create nginx config template if it doesn't exist
+    if [ ! -f "${INSTALL_DIR}/docker/frontend/nginx.conf.template" ]; then
+        log_info "Creating Nginx configuration template..."
+        cat > "${INSTALL_DIR}/docker/frontend/nginx.conf.template" << 'NGINXCONF'
 upstream supabase_api {
-    server 127.0.0.1:${KONG_HTTP_PORT};
+    server supabase-kong:8000;
 }
 
 server {
-    listen ${HTTP_PORT};
-    listen [::]:${HTTP_PORT};
+    listen 80;
+    listen [::]:80;
     server_name ${DOMAIN_NAME};
 
-    # Redirect HTTP to HTTPS (if using real domain)
-    $(if [ "${DOMAIN_NAME}" != "localhost" ]; then
-        echo "return 301 https://\$host\$request_uri;"
-    else
-        echo "# Development mode - no HTTPS redirect"
-        echo ""
-        echo "root ${INSTALL_DIR}/dist;"
-        echo "index index.html;"
-        echo ""
-        echo "# Frontend routes"
-        echo "location / {"
-        echo "    try_files \$uri \$uri/ /index.html;"
-        echo "}"
-        echo ""
-        echo "# API proxy"
-        echo "location /rest/ {"
-        echo "    proxy_pass http://supabase_api/rest/;"
-        echo "    proxy_http_version 1.1;"
-        echo "    proxy_set_header Host \$host;"
-        echo "    proxy_set_header X-Real-IP \$remote_addr;"
-        echo "    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
-        echo "    proxy_set_header X-Forwarded-Proto \$scheme;"
-        echo "}"
-        echo ""
-        echo "location /auth/ {"
-        echo "    proxy_pass http://supabase_api/auth/;"
-        echo "    proxy_http_version 1.1;"
-        echo "    proxy_set_header Host \$host;"
-        echo "    proxy_set_header X-Real-IP \$remote_addr;"
-        echo "}"
-        echo ""
-        echo "location /storage/ {"
-        echo "    proxy_pass http://supabase_api/storage/;"
-        echo "    proxy_http_version 1.1;"
-        echo "    proxy_set_header Host \$host;"
-        echo "}"
-        echo ""
-        echo "location /realtime/ {"
-        echo "    proxy_pass http://supabase_api/realtime/;"
-        echo "    proxy_http_version 1.1;"
-        echo "    proxy_set_header Upgrade \$http_upgrade;"
-        echo "    proxy_set_header Connection \"upgrade\";"
-        echo "    proxy_set_header Host \$host;"
-        echo "}"
-        echo ""
-        echo "location /functions/ {"
-        echo "    proxy_pass http://supabase_api/functions/;"
-        echo "    proxy_http_version 1.1;"
-        echo "    proxy_set_header Host \$host;"
-        echo "}"
-    fi)
-}
+    location /health {
+        access_log off;
+        return 200 'OK';
+        add_header Content-Type text/plain;
+    }
 
-$(if [ "${DOMAIN_NAME}" != "localhost" ]; then
-    cat << HTTPS_CONFIG
-server {
-    listen ${HTTPS_PORT} ssl http2;
-    listen [::]:${HTTPS_PORT} ssl http2;
-    server_name ${DOMAIN_NAME};
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
 
-    # SSL certificates (managed by Certbot)
-    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-    root ${INSTALL_DIR}/dist;
+    root /usr/share/nginx/html;
     index index.html;
 
-    # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # Gzip compression
     gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
 
-    # Frontend routes
     location / {
-        try_files \$uri \$uri/ /index.html;
+        try_files $uri $uri/ /index.html;
     }
 
-    # API proxy to Supabase
     location /rest/ {
         proxy_pass http://supabase_api/rest/;
         proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     location /auth/ {
         proxy_pass http://supabase_api/auth/;
         proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     location /storage/ {
         proxy_pass http://supabase_api/storage/;
         proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
         client_max_body_size 50M;
     }
 
     location /realtime/ {
         proxy_pass http://supabase_api/realtime/;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
     }
 
     location /functions/ {
         proxy_pass http://supabase_api/functions/;
         proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINXCONF
+    fi
+    
+    # Create docker-compose for frontend
+    log_info "Creating frontend Docker Compose configuration..."
+    cat > "${INSTALL_DIR}/docker/docker-compose.frontend.yml" << COMPOSE_EOF
+services:
+  frontend:
+    build:
+      context: ../
+      dockerfile: docker/frontend/Dockerfile
+      args:
+        VITE_SUPABASE_URL: \${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: \${VITE_SUPABASE_PUBLISHABLE_KEY}
+        VITE_SUPABASE_PROJECT_ID: \${VITE_SUPABASE_PROJECT_ID}
+        VITE_APP_URL: \${VITE_APP_URL}
+    image: atlantisboard-frontend:latest
+    container_name: atlantisboard-frontend
+    restart: unless-stopped
+    ports:
+      - "\${HTTP_PORT:-80}:80"
+      - "\${HTTPS_PORT:-443}:443"
+    environment:
+      - DOMAIN_NAME=\${DOMAIN_NAME:-localhost}
+      - KONG_HTTP_PORT=\${KONG_HTTP_PORT:-8000}
+      - ENABLE_SSL=\${ENABLE_SSL:-false}
+    volumes:
+      - \${SSL_CERT_PATH:-./ssl}:/etc/nginx/ssl:ro
+      - \${CERTBOT_WEBROOT:-./certbot}:/var/www/certbot:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - supabase-net
+
+networks:
+  supabase-net:
+    external: true
+    name: supabase-net
+COMPOSE_EOF
+    
+    # Create frontend .env file
+    log_info "Creating frontend environment file..."
+    cat > "${INSTALL_DIR}/docker/frontend.env" << FRONTEND_ENV
+# Frontend Docker Environment Variables
+VITE_SUPABASE_URL=${API_EXTERNAL_URL}
+VITE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}
+VITE_SUPABASE_PROJECT_ID=local
+VITE_APP_URL=${SITE_URL}
+DOMAIN_NAME=${DOMAIN_NAME}
+HTTP_PORT=${HTTP_PORT}
+HTTPS_PORT=${HTTPS_PORT}
+KONG_HTTP_PORT=${KONG_HTTP_PORT}
+ENABLE_SSL=${ENABLE_SSL:-false}
+SSL_CERT_PATH=${INSTALL_DIR}/docker/ssl
+CERTBOT_WEBROOT=${INSTALL_DIR}/docker/certbot
+FRONTEND_ENV
+    
+    # Stop any existing frontend container
+    log_info "Stopping any existing frontend container..."
+    cd "${INSTALL_DIR}/docker"
+    $COMPOSE_CMD -f docker-compose.frontend.yml --env-file frontend.env down 2>/dev/null || true
+    
+    # Build the frontend Docker image
+    log_info "Building frontend Docker image (this may take a few minutes)..."
+    if $COMPOSE_CMD -f docker-compose.frontend.yml --env-file frontend.env build --no-cache; then
+        log_success "Frontend Docker image built successfully"
+    else
+        log_error "Frontend Docker image build failed"
+        return 1
+    fi
+    
+    # Start the frontend container
+    log_info "Starting frontend container..."
+    if $COMPOSE_CMD -f docker-compose.frontend.yml --env-file frontend.env up -d; then
+        log_success "Frontend container started"
+    else
+        log_error "Frontend container failed to start"
+        return 1
+    fi
+    
+    # Wait for frontend to be healthy
+    log_info "Waiting for frontend to be healthy..."
+    local attempts=0
+    local max_attempts=30
+    
+    while [ $attempts -lt $max_attempts ]; do
+        if curl -sf "http://localhost:${HTTP_PORT}/health" >/dev/null 2>&1; then
+            log_success "Frontend is healthy and responding"
+            return 0
+        fi
+        echo -n "."
+        sleep 2
+        attempts=$((attempts + 1))
+    done
+    
+    echo ""
+    log_warning "Frontend health check timed out, but container may still be starting"
+    return 0
+}
+
+# =====================================================
+# STEP 15: Configure Host Nginx (Optional Reverse Proxy)
+# =====================================================
+step_15_configure_nginx() {
+    log_step "15" "Configuring Host Nginx (Optional)"
+    
+    source "${ENV_FILE}"
+    
+    # With Docker-based frontend, host Nginx is optional
+    # The frontend container has its own Nginx
+    # Host Nginx is only needed if you want SSL termination at the host level
+    
+    log_info "Frontend is running in Docker container with built-in Nginx"
+    log_info "Host Nginx configuration is optional for SSL termination"
+    
+    # Check if Nginx is installed
+    if ! command_exists nginx; then
+        log_info "Host Nginx not installed. Frontend container handles all traffic."
+        log_info "To add SSL, either:"
+        log_info "  1. Mount SSL certs into the frontend container"
+        log_info "  2. Install host Nginx as a reverse proxy"
+        return 0
+    fi
+    
+    # If host Nginx is installed, configure it as a reverse proxy
+    if [ "${DOMAIN_NAME}" = "localhost" ]; then
+        log_info "Localhost mode - disabling host Nginx to avoid port conflicts"
+        sudo systemctl stop nginx 2>/dev/null || true
+        return 0
+    fi
+    
+    log_info "Creating host Nginx reverse proxy configuration for SSL..."
+    
+    sudo tee /etc/nginx/sites-available/atlantisboard > /dev/null << EOF
+# AtlantisBoard Nginx Reverse Proxy Configuration
+# SSL termination at host level, proxying to frontend container
+
+upstream frontend_container {
+    server 127.0.0.1:${HTTP_PORT};
+}
+
+# HTTP - Redirect to HTTPS or handle ACME challenge
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN_NAME};
+
+    # ACME challenge for Certbot
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Redirect to HTTPS
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+# HTTPS - Reverse proxy to frontend container
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN_NAME};
+
+    # SSL certificates (managed by Certbot)
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+    
+    # SSL configuration
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    
+    # HSTS
+    add_header Strict-Transport-Security "max-age=63072000" always;
+
+    # Proxy all requests to frontend container
+    location / {
+        proxy_pass http://frontend_container;
+        proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # Static assets caching
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Timeouts for WebSocket
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
     }
 }
-HTTPS_CONFIG
-fi)
 EOF
     
     # Enable the site
     sudo ln -sf /etc/nginx/sites-available/atlantisboard /etc/nginx/sites-enabled/
     sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
     
-    # Test Nginx configuration
-    if sudo nginx -t; then
-        log_success "Nginx configuration is valid"
-        sudo systemctl reload nginx
-        log_success "Nginx reloaded"
+    # Only test and reload if SSL certs exist
+    if [ -f "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" ]; then
+        if sudo nginx -t; then
+            log_success "Host Nginx configuration is valid"
+            sudo systemctl reload nginx
+            log_success "Host Nginx reloaded"
+        else
+            log_warning "Nginx configuration test failed - SSL certs may be missing"
+        fi
     else
-        log_error "Nginx configuration test failed"
-        return 1
+        log_info "SSL certificates not found yet. Run step 16 to obtain them."
     fi
 }
 
@@ -1386,58 +1527,98 @@ step_16_configure_ssl() {
         return 0
     fi
     
+    # Create directories for certbot
+    sudo mkdir -p /var/www/certbot
+    mkdir -p "${INSTALL_DIR}/docker/ssl"
+    mkdir -p "${INSTALL_DIR}/docker/certbot"
+    
     # Check if certificates already exist
     if [ -f "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" ]; then
         log_info "SSL certificates already exist for ${DOMAIN_NAME}"
+        
+        # Copy certs to docker ssl directory for container use
+        log_info "Copying certificates to Docker mount directory..."
+        sudo cp "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" "${INSTALL_DIR}/docker/ssl/fullchain.pem"
+        sudo cp "/etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem" "${INSTALL_DIR}/docker/ssl/privkey.pem"
+        sudo chown -R "$USER:$USER" "${INSTALL_DIR}/docker/ssl"
+        
+        # Update frontend env to enable SSL
+        sed -i 's/ENABLE_SSL=false/ENABLE_SSL=true/' "${INSTALL_DIR}/docker/frontend.env" 2>/dev/null || true
+        
+        # Restart frontend container to pick up SSL
+        log_info "Restarting frontend container with SSL..."
+        cd "${INSTALL_DIR}/docker"
+        $COMPOSE_CMD -f docker-compose.frontend.yml --env-file frontend.env up -d
+        
+        log_success "SSL certificates configured for frontend container"
         return 0
     fi
     
     log_info "Obtaining SSL certificate from Let's Encrypt..."
     
-    # Temporarily configure Nginx for HTTP-only verification
-    sudo tee /etc/nginx/sites-available/atlantisboard-temp > /dev/null << EOF
-server {
-    listen 80;
-    listen [::]:80;
-    server_name ${DOMAIN_NAME};
-    root ${INSTALL_DIR}/dist;
+    # Stop frontend container temporarily to free port 80
+    log_info "Temporarily stopping frontend container for certificate verification..."
+    cd "${INSTALL_DIR}/docker"
+    $COMPOSE_CMD -f docker-compose.frontend.yml --env-file frontend.env down 2>/dev/null || true
     
-    location ~ /.well-known/acme-challenge/ {
-        allow all;
-    }
-}
-EOF
-    
-    sudo ln -sf /etc/nginx/sites-available/atlantisboard-temp /etc/nginx/sites-enabled/
-    sudo rm -f /etc/nginx/sites-enabled/atlantisboard 2>/dev/null || true
-    sudo systemctl reload nginx
-    
-    # Get certificate
-    if sudo certbot certonly --nginx -d "${DOMAIN_NAME}" --non-interactive --agree-tos \
-        -m "admin@${DOMAIN_NAME}" --redirect; then
+    # Use standalone certbot
+    if sudo certbot certonly --standalone -d "${DOMAIN_NAME}" --non-interactive --agree-tos \
+        -m "admin@${DOMAIN_NAME}"; then
         log_success "SSL certificate obtained"
+        
+        # Copy certs to docker ssl directory
+        log_info "Copying certificates to Docker mount directory..."
+        sudo cp "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" "${INSTALL_DIR}/docker/ssl/fullchain.pem"
+        sudo cp "/etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem" "${INSTALL_DIR}/docker/ssl/privkey.pem"
+        sudo chown -R "$USER:$USER" "${INSTALL_DIR}/docker/ssl"
+        
+        # Update frontend env to enable SSL
+        sed -i 's/ENABLE_SSL=false/ENABLE_SSL=true/' "${INSTALL_DIR}/docker/frontend.env" 2>/dev/null || true
     else
         log_warning "Failed to obtain SSL certificate. You may need to run certbot manually."
     fi
     
-    # Restore full Nginx config
-    sudo rm -f /etc/nginx/sites-enabled/atlantisboard-temp
-    sudo rm -f /etc/nginx/sites-available/atlantisboard-temp
-    sudo ln -sf /etc/nginx/sites-available/atlantisboard /etc/nginx/sites-enabled/
-    sudo systemctl reload nginx
+    # Restart frontend container
+    log_info "Restarting frontend container..."
+    $COMPOSE_CMD -f docker-compose.frontend.yml --env-file frontend.env up -d
+    
+    # Setup automatic certificate renewal
+    log_info "Setting up automatic certificate renewal..."
+    
+    # Create renewal hook script
+    cat > "${INSTALL_DIR}/scripts/ssl-renewal-hook.sh" << 'RENEWAL_SCRIPT'
+#!/bin/bash
+# SSL Certificate Renewal Hook
+INSTALL_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
+DOMAIN_NAME=$(grep "^DOMAIN_NAME=" "${INSTALL_DIR}/.env" | cut -d= -f2-)
+
+if [ -f "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" ]; then
+    cp "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" "${INSTALL_DIR}/docker/ssl/fullchain.pem"
+    cp "/etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem" "${INSTALL_DIR}/docker/ssl/privkey.pem"
+    
+    # Reload frontend container Nginx
+    docker exec atlantisboard-frontend nginx -s reload 2>/dev/null || true
+fi
+RENEWAL_SCRIPT
+    chmod +x "${INSTALL_DIR}/scripts/ssl-renewal-hook.sh"
+    
+    # Add cron job for renewal
+    (crontab -l 2>/dev/null | grep -v "certbot renew"; echo "0 3 * * * certbot renew --quiet --deploy-hook ${INSTALL_DIR}/scripts/ssl-renewal-hook.sh") | crontab -
+    
+    log_success "SSL configuration completed"
 }
 
 # =====================================================
-# STEP 17: Create systemd Service
+# STEP 17: Create systemd Services
 # =====================================================
 step_17_create_systemd_service() {
-    log_step "17" "Creating systemd Service"
+    log_step "17" "Creating systemd Services"
     
     cd "${INSTALL_DIR}"
     source "${ENV_FILE}"
     
     # Create systemd service for Supabase
-    log_info "Creating systemd service..."
+    log_info "Creating Supabase systemd service..."
     
     sudo tee /etc/systemd/system/atlantisboard-supabase.service > /dev/null << EOF
 [Unit]
@@ -1449,9 +1630,35 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${INSTALL_DIR}/supabase/docker
+EnvironmentFile=${ENV_FILE}
 ExecStart=${COMPOSE_CMD} -f docker-compose.supabase.yml up -d
 ExecStop=${COMPOSE_CMD} -f docker-compose.supabase.yml down
 ExecReload=${COMPOSE_CMD} -f docker-compose.supabase.yml restart
+TimeoutStartSec=180
+TimeoutStopSec=60
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Create systemd service for Frontend
+    log_info "Creating Frontend systemd service..."
+    
+    sudo tee /etc/systemd/system/atlantisboard-frontend.service > /dev/null << EOF
+[Unit]
+Description=AtlantisBoard Frontend Container
+After=docker.service atlantisboard-supabase.service
+Requires=docker.service
+Wants=atlantisboard-supabase.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=${INSTALL_DIR}/docker
+ExecStart=${COMPOSE_CMD} -f docker-compose.frontend.yml --env-file frontend.env up -d
+ExecStop=${COMPOSE_CMD} -f docker-compose.frontend.yml --env-file frontend.env down
+ExecReload=${COMPOSE_CMD} -f docker-compose.frontend.yml --env-file frontend.env restart
 TimeoutStartSec=120
 TimeoutStopSec=60
 Restart=no
@@ -1460,16 +1667,24 @@ Restart=no
 WantedBy=multi-user.target
 EOF
     
-    # Create environment file for systemd
-    sudo tee /etc/systemd/system/atlantisboard-supabase.service.d/env.conf > /dev/null 2>&1 || true
-    sudo mkdir -p /etc/systemd/system/atlantisboard-supabase.service.d/
-    sudo cp "${ENV_FILE}" /etc/systemd/system/atlantisboard-supabase.service.d/env.conf 2>/dev/null || true
+    # Create a combined service target
+    sudo tee /etc/systemd/system/atlantisboard.target > /dev/null << EOF
+[Unit]
+Description=AtlantisBoard Application Stack
+After=docker.service
+Requires=atlantisboard-supabase.service atlantisboard-frontend.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
     
     # Reload systemd
     sudo systemctl daemon-reload
     sudo systemctl enable atlantisboard-supabase.service
+    sudo systemctl enable atlantisboard-frontend.service
+    sudo systemctl enable atlantisboard.target
     
-    log_success "systemd service created and enabled"
+    log_success "systemd services created and enabled"
 }
 
 # =====================================================
@@ -1501,11 +1716,15 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(supab
 echo ""
 echo "Service Health:"
 
-# Check Nginx
-if systemctl is-active --quiet nginx; then
-    echo "✓ Nginx: running"
+# Check Frontend Container
+if docker ps --format '{{.Names}}' | grep -q "atlantisboard-frontend"; then
+    if curl -sf "http://localhost:${HTTP_PORT:-80}/health" >/dev/null 2>&1; then
+        echo "✓ Frontend Container: healthy"
+    else
+        echo "⚠ Frontend Container: running but health check failed"
+    fi
 else
-    echo "✗ Nginx: not running"
+    echo "✗ Frontend Container: not running"
 fi
 
 # Check PostgreSQL
@@ -1522,9 +1741,16 @@ else
     echo "✗ Kong API Gateway: not accessible"
 fi
 
+# Check host Nginx (optional)
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    echo "✓ Host Nginx: running (reverse proxy)"
+else
+    echo "ℹ Host Nginx: not running (frontend container serves directly)"
+fi
+
 echo ""
 echo "URLs:"
-echo "  App: ${SITE_URL:-http://localhost:3000}"
+echo "  App: ${SITE_URL:-http://localhost:80}"
 echo "  API: ${API_EXTERNAL_URL:-http://localhost:8000}"
 EOF
     chmod +x "${INSTALL_DIR}/scripts/status.sh"
@@ -1535,24 +1761,30 @@ EOF
 # AtlantisBoard Logs Script
 
 INSTALL_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
-cd "${INSTALL_DIR}/supabase/docker"
 
 SERVICE="${1:-}"
 
 if [ -z "$SERVICE" ]; then
     echo "Usage: $0 [service|all]"
-    echo "Available services: db, auth, rest, realtime, storage, kong, functions"
+    echo "Available services:"
+    echo "  Supabase: db, auth, rest, realtime, storage, kong, functions"
+    echo "  Frontend: frontend"
     echo ""
     echo "Examples:"
-    echo "  $0 all        - Show all logs"
+    echo "  $0 all        - Show all Supabase logs"
+    echo "  $0 frontend   - Show frontend container logs"
     echo "  $0 auth       - Show auth service logs"
     echo "  $0 db         - Show database logs"
     exit 0
 fi
 
-if [ "$SERVICE" = "all" ]; then
+if [ "$SERVICE" = "frontend" ]; then
+    docker logs -f --tail=100 atlantisboard-frontend
+elif [ "$SERVICE" = "all" ]; then
+    cd "${INSTALL_DIR}/supabase/docker"
     docker compose -f docker-compose.supabase.yml logs -f --tail=100
 else
+    cd "${INSTALL_DIR}/supabase/docker"
     docker compose -f docker-compose.supabase.yml logs -f --tail=100 "$SERVICE"
 fi
 EOF
@@ -1564,20 +1796,33 @@ EOF
 # AtlantisBoard Restart Script
 
 INSTALL_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
-cd "${INSTALL_DIR}/supabase/docker"
 
 echo "Restarting AtlantisBoard services..."
 
 SERVICE="${1:-}"
 
 if [ -z "$SERVICE" ]; then
+    # Restart all services
+    cd "${INSTALL_DIR}/supabase/docker"
     docker compose -f docker-compose.supabase.yml restart
-    sudo systemctl restart nginx
+    
+    cd "${INSTALL_DIR}/docker"
+    docker compose -f docker-compose.frontend.yml --env-file frontend.env restart
+    
+    echo "All services restarted."
+elif [ "$SERVICE" = "frontend" ]; then
+    cd "${INSTALL_DIR}/docker"
+    docker compose -f docker-compose.frontend.yml --env-file frontend.env restart
+    echo "Frontend restarted."
+elif [ "$SERVICE" = "supabase" ]; then
+    cd "${INSTALL_DIR}/supabase/docker"
+    docker compose -f docker-compose.supabase.yml restart
+    echo "Supabase services restarted."
 else
+    cd "${INSTALL_DIR}/supabase/docker"
     docker compose -f docker-compose.supabase.yml restart "$SERVICE"
+    echo "Service $SERVICE restarted."
 fi
-
-echo "Services restarted."
 EOF
     chmod +x "${INSTALL_DIR}/scripts/restart.sh"
     
@@ -1610,6 +1855,12 @@ fi
 cp "${INSTALL_DIR}/.env" "${BACKUP_DIR}/env_${TIMESTAMP}.backup"
 echo "✓ Environment backup: ${BACKUP_DIR}/env_${TIMESTAMP}.backup"
 
+# Backup frontend env
+if [ -f "${INSTALL_DIR}/docker/frontend.env" ]; then
+    cp "${INSTALL_DIR}/docker/frontend.env" "${BACKUP_DIR}/frontend_env_${TIMESTAMP}.backup"
+    echo "✓ Frontend env backup: ${BACKUP_DIR}/frontend_env_${TIMESTAMP}.backup"
+fi
+
 echo ""
 echo "Backup complete!"
 EOF
@@ -1621,12 +1872,20 @@ EOF
 # AtlantisBoard Start Script
 
 INSTALL_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
-cd "${INSTALL_DIR}/supabase/docker"
 
 echo "Starting AtlantisBoard..."
 
+# Start Supabase services
+cd "${INSTALL_DIR}/supabase/docker"
 docker compose -f docker-compose.supabase.yml up -d
-sudo systemctl start nginx
+
+# Wait for Supabase to be ready
+echo "Waiting for Supabase services..."
+sleep 10
+
+# Start Frontend container
+cd "${INSTALL_DIR}/docker"
+docker compose -f docker-compose.frontend.yml --env-file frontend.env up -d
 
 echo "AtlantisBoard started."
 exec "${INSTALL_DIR}/scripts/status.sh"
@@ -1639,12 +1898,16 @@ EOF
 # AtlantisBoard Stop Script
 
 INSTALL_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
-cd "${INSTALL_DIR}/supabase/docker"
 
 echo "Stopping AtlantisBoard..."
 
+# Stop Frontend container
+cd "${INSTALL_DIR}/docker"
+docker compose -f docker-compose.frontend.yml --env-file frontend.env down
+
+# Stop Supabase services
+cd "${INSTALL_DIR}/supabase/docker"
 docker compose -f docker-compose.supabase.yml down
-sudo systemctl stop nginx
 
 echo "AtlantisBoard stopped."
 EOF
@@ -1663,14 +1926,42 @@ echo "Updating AtlantisBoard..."
 # Pull latest code
 git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || echo "Could not pull updates"
 
-# Rebuild frontend
-npm ci --legacy-peer-deps
-npm run build
+# Rebuild frontend Docker image
+echo "Rebuilding frontend Docker image..."
+cd "${INSTALL_DIR}/docker"
+docker compose -f docker-compose.frontend.yml --env-file frontend.env build --no-cache
 
-# Restart services
-exec "${INSTALL_DIR}/scripts/restart.sh"
+# Restart frontend container with new image
+docker compose -f docker-compose.frontend.yml --env-file frontend.env up -d
+
+echo "Update complete!"
+exec "${INSTALL_DIR}/scripts/status.sh"
 EOF
     chmod +x "${INSTALL_DIR}/scripts/update.sh"
+    
+    # Rebuild frontend script
+    cat > "${INSTALL_DIR}/scripts/rebuild-frontend.sh" << 'EOF'
+#!/bin/bash
+# AtlantisBoard Frontend Rebuild Script
+
+INSTALL_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
+cd "${INSTALL_DIR}/docker"
+
+echo "Rebuilding frontend Docker image..."
+
+# Stop current frontend
+docker compose -f docker-compose.frontend.yml --env-file frontend.env down
+
+# Rebuild with no cache
+docker compose -f docker-compose.frontend.yml --env-file frontend.env build --no-cache
+
+# Start new frontend
+docker compose -f docker-compose.frontend.yml --env-file frontend.env up -d
+
+echo "Frontend rebuilt and restarted."
+exec "${INSTALL_DIR}/scripts/status.sh"
+EOF
+    chmod +x "${INSTALL_DIR}/scripts/rebuild-frontend.sh"
     
     log_success "Helper scripts created in ${INSTALL_DIR}/scripts/"
 }
@@ -1801,9 +2092,9 @@ step_19_final_verification() {
     echo ""
     echo -e "${BLUE}[CONTAINERS]${NC}"
     
-    # Required containers
-    local required_containers=("supabase-db" "supabase-auth" "supabase-rest" "supabase-realtime" "supabase-storage" "supabase-kong")
-    local optional_containers=("supabase-meta" "supabase-studio" "supabase-imgproxy" "supabase-edge-functions" "supabase-analytics" "supabase-vector")
+    # Required containers (including frontend)
+    local required_containers=("atlantisboard-frontend" "supabase-db" "supabase-auth" "supabase-rest" "supabase-realtime" "supabase-storage" "supabase-kong")
+    local optional_containers=("supabase-meta" "supabase-studio" "supabase-imgproxy" "supabase-functions" "supabase-analytics" "supabase-vector")
     
     for container in "${required_containers[@]}"; do
         if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then

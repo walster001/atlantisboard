@@ -932,16 +932,16 @@ step_9_start_supabase() {
         $COMPOSE_CMD -f docker-compose.supabase.yml down -v 2>/dev/null || true
     fi
     
-    # Start database first
-    log_info "Starting PostgreSQL database..."
+    # =====================================================
+    # STAGE 1: Start PostgreSQL and wait for full initialization
+    # =====================================================
+    log_info "STAGE 1: Starting PostgreSQL database..."
     $COMPOSE_CMD -f docker-compose.supabase.yml up -d db
     
-    # Wait for database to be ready
-    log_info "Waiting for PostgreSQL to initialize (this may take a minute)..."
-    sleep 10
-    
+    # Wait for PostgreSQL to be ready (basic connectivity)
+    log_info "Waiting for PostgreSQL to accept connections..."
     local db_ready=false
-    for i in $(seq 1 60); do
+    for i in $(seq 1 90); do
         if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db pg_isready -U postgres >/dev/null 2>&1; then
             db_ready=true
             break
@@ -956,14 +956,104 @@ step_9_start_supabase() {
         $COMPOSE_CMD -f docker-compose.supabase.yml logs db
         return 1
     fi
+    log_success "PostgreSQL is accepting connections"
     
-    log_success "PostgreSQL is ready"
+    # Wait for Supabase Postgres image to create auth schema
+    # The supabase/postgres image includes init scripts that create auth, storage schemas
+    log_info "Waiting for Supabase database initialization (auth schema)..."
+    local auth_ready=false
+    for i in $(seq 1 60); do
+        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -c "SELECT 1 FROM pg_namespace WHERE nspname = 'auth'" 2>/dev/null | grep -q "1"; then
+            auth_ready=true
+            break
+        fi
+        echo -n "."
+        sleep 3
+    done
+    echo ""
     
-    # Wait for auth schema to be created by Supabase image
-    log_info "Waiting for auth schema initialization..."
+    if [ "$auth_ready" = true ]; then
+        log_success "Auth schema exists"
+    else
+        log_warning "Auth schema not detected - may be created by GoTrue service"
+    fi
+    
+    # Check for required database roles (supabase_admin, anon, authenticated, service_role)
+    log_info "Verifying database roles..."
+    local roles_exist=true
+    for role in "anon" "authenticated" "service_role"; do
+        if ! $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -tAc \
+            "SELECT 1 FROM pg_roles WHERE rolname = '${role}'" 2>/dev/null | grep -q "1"; then
+            log_info "Creating missing role: ${role}"
+            $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -c \
+                "CREATE ROLE ${role} NOLOGIN NOINHERIT;" 2>/dev/null || true
+        fi
+    done
+    
+    # Grant necessary permissions to roles
+    log_info "Ensuring role permissions..."
+    $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres << 'GRANTS_SQL' 2>/dev/null || true
+-- Grant usage on schemas to roles
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON SCHEMA public TO postgres;
+
+-- Grant future table access
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;
+
+-- Ensure realtime schema exists for realtime service
+CREATE SCHEMA IF NOT EXISTS _realtime;
+GRANT ALL ON SCHEMA _realtime TO postgres;
+GRANTS_SQL
+    log_success "Database roles and permissions configured"
+    
+    # =====================================================
+    # STAGE 2: Start Auth service (GoTrue) - creates auth.users if needed
+    # =====================================================
+    log_info "STAGE 2: Starting Auth service (GoTrue)..."
+    $COMPOSE_CMD -f docker-compose.supabase.yml up -d auth
+    
+    # Wait for auth service to be healthy
+    log_info "Waiting for Auth service to be healthy..."
+    local auth_service_ready=false
+    for i in $(seq 1 60); do
+        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T auth wget --no-verbose --tries=1 --spider http://localhost:9999/health 2>/dev/null; then
+            auth_service_ready=true
+            break
+        fi
+        echo -n "."
+        sleep 3
+    done
+    echo ""
+    
+    if [ "$auth_service_ready" = true ]; then
+        log_success "Auth service is healthy"
+    else
+        log_warning "Auth service health check timed out - continuing anyway"
+    fi
+    
+    # Verify auth.users table now exists
+    log_info "Verifying auth.users table..."
     for i in $(seq 1 30); do
-        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -c "SELECT 1 FROM auth.users LIMIT 1" >/dev/null 2>&1; then
-            log_success "Auth schema initialized"
+        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -c "SELECT 1 FROM auth.users LIMIT 0" >/dev/null 2>&1; then
+            log_success "auth.users table exists"
+            break
+        fi
+        sleep 2
+    done
+    
+    # =====================================================
+    # STAGE 3: Start REST API (PostgREST)
+    # =====================================================
+    log_info "STAGE 3: Starting REST API (PostgREST)..."
+    $COMPOSE_CMD -f docker-compose.supabase.yml up -d rest
+    
+    # Wait for REST to be ready
+    log_info "Waiting for REST API..."
+    for i in $(seq 1 30); do
+        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T rest curl -sf http://localhost:3000/ >/dev/null 2>&1; then
+            log_success "REST API is ready"
             break
         fi
         echo -n "."
@@ -971,20 +1061,76 @@ step_9_start_supabase() {
     done
     echo ""
     
-    # Start remaining services
-    log_info "Starting remaining Supabase services..."
-    $COMPOSE_CMD -f docker-compose.supabase.yml up -d
+    # =====================================================
+    # STAGE 4: Start Storage service
+    # =====================================================
+    log_info "STAGE 4: Starting Storage service..."
+    $COMPOSE_CMD -f docker-compose.supabase.yml up -d imgproxy storage
     
-    # Wait for all services to be healthy
-    log_info "Waiting for all services to be healthy..."
-    sleep 15
+    # Wait for storage to create its schema
+    log_info "Waiting for Storage service..."
+    for i in $(seq 1 45); do
+        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -c "SELECT 1 FROM pg_namespace WHERE nspname = 'storage'" 2>/dev/null | grep -q "1"; then
+            log_success "Storage schema exists"
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+    echo ""
     
-    # Check each service
-    local services=("db" "auth" "rest" "realtime" "storage" "kong")
+    # Verify storage.buckets table
+    log_info "Verifying storage.buckets table..."
+    for i in $(seq 1 30); do
+        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T db psql -U postgres -d postgres -c "SELECT 1 FROM storage.buckets LIMIT 0" >/dev/null 2>&1; then
+            log_success "storage.buckets table exists"
+            break
+        fi
+        sleep 2
+    done
+    
+    # =====================================================
+    # STAGE 5: Start Realtime service
+    # =====================================================
+    log_info "STAGE 5: Starting Realtime service..."
+    $COMPOSE_CMD -f docker-compose.supabase.yml up -d realtime
+    
+    # Wait briefly for realtime
+    sleep 5
+    
+    # =====================================================
+    # STAGE 6: Start Kong API Gateway
+    # =====================================================
+    log_info "STAGE 6: Starting Kong API Gateway..."
+    $COMPOSE_CMD -f docker-compose.supabase.yml up -d kong
+    
+    # Wait for Kong to be ready
+    log_info "Waiting for Kong API Gateway..."
+    for i in $(seq 1 30); do
+        if $COMPOSE_CMD -f docker-compose.supabase.yml exec -T kong kong health >/dev/null 2>&1; then
+            log_success "Kong API Gateway is healthy"
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+    echo ""
+    
+    # =====================================================
+    # STAGE 7: Start Edge Functions (optional)
+    # =====================================================
+    log_info "STAGE 7: Starting Edge Functions..."
+    $COMPOSE_CMD -f docker-compose.supabase.yml up -d functions 2>/dev/null || log_info "Edge functions service not configured"
+    
+    # Final service check
+    log_info "Verifying all services..."
+    sleep 5
+    
+    local services=("db" "auth" "rest" "storage" "realtime" "kong")
     local all_healthy=true
     
     for service in "${services[@]}"; do
-        if $COMPOSE_CMD -f docker-compose.supabase.yml ps "$service" 2>/dev/null | grep -q "Up"; then
+        if $COMPOSE_CMD -f docker-compose.supabase.yml ps "$service" 2>/dev/null | grep -qE "Up|running"; then
             log_success "${service} is running"
         else
             log_warning "${service} may not be running correctly"
@@ -992,8 +1138,18 @@ step_9_start_supabase() {
         fi
     done
     
+    # Check optional services (warn only, don't fail)
+    local optional_services=("imgproxy" "functions")
+    for service in "${optional_services[@]}"; do
+        if $COMPOSE_CMD -f docker-compose.supabase.yml ps "$service" 2>/dev/null | grep -qE "Up|running"; then
+            log_success "${service} is running (optional)"
+        else
+            log_info "${service} is not running (optional service)"
+        fi
+    done
+    
     if [ "$all_healthy" = true ]; then
-        log_success "All Supabase services are running"
+        log_success "All core Supabase services are running"
     else
         log_warning "Some services may have issues. Check logs with: $COMPOSE_CMD -f docker-compose.supabase.yml logs"
     fi
@@ -1008,40 +1164,114 @@ step_10_verify_supabase() {
     cd "${INSTALL_DIR}/supabase/docker"
     source "${ENV_FILE}"
     
-    # Check PostgreSQL connectivity
-    log_info "Checking PostgreSQL connectivity..."
+    local all_verified=true
+    
+    # Check PostgreSQL connectivity from host
+    log_info "Checking PostgreSQL connectivity from host..."
     if wait_for_postgres 30; then
-        log_success "PostgreSQL is accessible"
+        log_success "PostgreSQL is accessible from host"
     else
-        log_warning "PostgreSQL may not be accessible from host"
+        log_warning "PostgreSQL may not be accessible from host (container-to-container works)"
     fi
     
-    # Check for auth schema
+    # Check for auth schema with retry
     log_info "Checking for auth schema..."
-    if check_schema_exists "auth"; then
+    local auth_exists=false
+    for i in $(seq 1 10); do
+        if check_schema_exists "auth"; then
+            auth_exists=true
+            break
+        fi
+        sleep 2
+    done
+    
+    if [ "$auth_exists" = true ]; then
         log_success "Auth schema exists"
+        
+        # Verify auth.users table
+        if PGPASSWORD="${POSTGRES_PASSWORD}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres \
+            -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'users'" 2>/dev/null | grep -q 1; then
+            log_success "auth.users table exists"
+        else
+            log_warning "auth.users table not found - GoTrue may still be initializing"
+        fi
     else
-        log_error "Auth schema not found. Supabase initialization may have failed."
+        log_error "Auth schema not found. GoTrue service may have failed to initialize."
+        all_verified=false
     fi
     
-    # Check for storage schema
+    # Check for storage schema with retry
     log_info "Checking for storage schema..."
-    if check_schema_exists "storage"; then
+    local storage_exists=false
+    for i in $(seq 1 10); do
+        if check_schema_exists "storage"; then
+            storage_exists=true
+            break
+        fi
+        sleep 2
+    done
+    
+    if [ "$storage_exists" = true ]; then
         log_success "Storage schema exists"
+        
+        # Verify storage.buckets table
+        if PGPASSWORD="${POSTGRES_PASSWORD}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres \
+            -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'storage' AND table_name = 'buckets'" 2>/dev/null | grep -q 1; then
+            log_success "storage.buckets table exists"
+        else
+            log_warning "storage.buckets table not found - Storage service may still be initializing"
+        fi
     else
-        log_warning "Storage schema not found"
+        log_warning "Storage schema not found - will retry after storage service starts"
+    fi
+    
+    # Check public schema
+    log_info "Checking for public schema..."
+    if check_schema_exists "public"; then
+        log_success "Public schema exists"
+    else
+        log_error "Public schema not found"
+        all_verified=false
     fi
     
     # Check Kong API Gateway
     log_info "Checking Kong API Gateway..."
-    if curl -sf "http://localhost:${KONG_HTTP_PORT}/" >/dev/null 2>&1 || \
-       curl -sf "http://localhost:${KONG_HTTP_PORT}/rest/v1/" -H "apikey: ${ANON_KEY}" >/dev/null 2>&1; then
+    local kong_accessible=false
+    for i in $(seq 1 15); do
+        if curl -sf "http://localhost:${KONG_HTTP_PORT}/rest/v1/" -H "apikey: ${ANON_KEY}" >/dev/null 2>&1; then
+            kong_accessible=true
+            break
+        fi
+        sleep 2
+    done
+    
+    if [ "$kong_accessible" = true ]; then
         log_success "Kong API Gateway is accessible"
     else
-        log_warning "Kong API Gateway may not be ready yet"
+        log_warning "Kong API Gateway may not be ready yet - check logs if issues persist"
     fi
     
-    log_success "Supabase service verification completed"
+    # Check Auth service via Kong
+    log_info "Checking Auth service via Kong..."
+    if curl -sf "http://localhost:${KONG_HTTP_PORT}/auth/v1/health" -H "apikey: ${ANON_KEY}" >/dev/null 2>&1; then
+        log_success "Auth service is accessible via Kong"
+    else
+        log_info "Auth service health endpoint not responding (may be normal)"
+    fi
+    
+    # Check Edge Functions availability
+    log_info "Checking Edge Functions..."
+    if [ -d "${INSTALL_DIR}/supabase/functions" ] && [ "$(ls -A "${INSTALL_DIR}/supabase/functions" 2>/dev/null)" ]; then
+        log_success "Edge functions directory exists with functions"
+    else
+        log_info "No edge functions found (optional)"
+    fi
+    
+    if [ "$all_verified" = true ]; then
+        log_success "Supabase service verification completed successfully"
+    else
+        log_warning "Supabase verification completed with warnings - some services may need more time"
+    fi
 }
 
 # =====================================================
@@ -1053,10 +1283,10 @@ step_11_import_schema() {
     cd "${INSTALL_DIR}"
     source "${ENV_FILE}"
     
-    # Check if schema already exists
+    # Check if schema already exists (idempotent check)
     if check_table_exists "public" "profiles"; then
-        log_info "Database schema already exists. Skipping import."
-        log_info "To reimport, set CLEAN_INSTALL=true"
+        log_info "Database schema already exists (profiles table found). Skipping import."
+        log_info "To reimport, run with CLEAN_INSTALL=true"
         return 0
     fi
     
@@ -1066,32 +1296,100 @@ step_11_import_schema() {
         return 1
     fi
     
+    # Verify auth schema exists before importing (required for foreign key to auth.users)
+    log_info "Verifying auth.users table exists before schema import..."
+    local auth_users_ready=false
+    for i in $(seq 1 30); do
+        if PGPASSWORD="${POSTGRES_PASSWORD}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres \
+            -c "SELECT 1 FROM auth.users LIMIT 0" >/dev/null 2>&1; then
+            auth_users_ready=true
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+    echo ""
+    
+    if [ "$auth_users_ready" = false ]; then
+        log_error "auth.users table does not exist. Cannot import schema with foreign key constraints."
+        log_info "Ensure the Auth service (GoTrue) is running and has initialized the database."
+        return 1
+    fi
+    log_success "auth.users table verified"
+    
+    # Verify storage schema exists (for storage bucket references)
+    log_info "Verifying storage schema exists..."
+    local storage_ready=false
+    for i in $(seq 1 30); do
+        if check_schema_exists "storage"; then
+            storage_ready=true
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+    echo ""
+    
+    if [ "$storage_ready" = false ]; then
+        log_warning "Storage schema not found. Storage-related features may not work until storage service is ready."
+    else
+        log_success "Storage schema verified"
+    fi
+    
     log_info "Importing database schema..."
     
-    # Import the schema
+    # Create a temporary file to capture errors
+    local import_log=$(mktemp)
+    
+    # Import the schema with error handling
+    # Use ON_ERROR_STOP=off to continue on non-fatal errors (like "type already exists")
     if PGPASSWORD="${POSTGRES_PASSWORD}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres \
-        -f "${INSTALL_DIR}/supabase/db/schema.sql" 2>&1 | tee -a "${LOG_FILE}"; then
-        log_success "Schema imported successfully"
+        -v ON_ERROR_STOP=off \
+        -f "${INSTALL_DIR}/supabase/db/schema.sql" 2>&1 | tee "$import_log"; then
+        
+        # Check for critical errors
+        if grep -qiE "FATAL|permission denied|does not exist.*auth\.users" "$import_log"; then
+            log_error "Schema import had critical errors. Check the log."
+            cat "$import_log" >> "${LOG_FILE}"
+            rm -f "$import_log"
+            return 1
+        fi
+        
+        # Non-critical errors like "already exists" are OK for re-runs
+        if grep -qi "already exists" "$import_log"; then
+            log_info "Some objects already existed (safe to ignore on re-runs)"
+        fi
+        
+        log_success "Schema import completed"
     else
-        log_error "Schema import failed. Check the log for details."
+        log_error "Schema import command failed"
+        cat "$import_log" >> "${LOG_FILE}"
+        rm -f "$import_log"
         return 1
     fi
+    
+    rm -f "$import_log"
     
     # Verify tables were created
-    if check_table_exists "public" "profiles"; then
-        log_success "Verified: profiles table exists"
-    else
-        log_error "Schema verification failed: profiles table not found"
+    log_info "Verifying schema import..."
+    local verification_passed=true
+    
+    local required_tables=("profiles" "boards" "columns" "cards" "workspaces" "app_settings")
+    for table in "${required_tables[@]}"; do
+        if check_table_exists "public" "$table"; then
+            log_success "Verified: ${table} table exists"
+        else
+            log_error "Verification failed: ${table} table not found"
+            verification_passed=false
+        fi
+    done
+    
+    if [ "$verification_passed" = false ]; then
+        log_error "Schema verification failed. Some required tables are missing."
         return 1
     fi
     
-    if check_table_exists "public" "boards"; then
-        log_success "Verified: boards table exists"
-    else
-        log_warning "boards table not found"
-    fi
-    
-    log_success "Database schema import completed"
+    log_success "Database schema import completed successfully"
 }
 
 # =====================================================
@@ -1134,7 +1432,31 @@ step_13_configure_storage() {
     cd "${INSTALL_DIR}"
     source "${ENV_FILE}"
     
-    # Check if storage buckets already exist
+    # First, verify storage schema and buckets table exist
+    log_info "Verifying storage schema and tables..."
+    
+    local storage_ready=false
+    for i in $(seq 1 30); do
+        if PGPASSWORD="${POSTGRES_PASSWORD}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres \
+            -c "SELECT 1 FROM storage.buckets LIMIT 0" >/dev/null 2>&1; then
+            storage_ready=true
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+    echo ""
+    
+    if [ "$storage_ready" = false ]; then
+        log_warning "storage.buckets table does not exist. Storage service may not have initialized yet."
+        log_info "Storage buckets will need to be configured manually once storage service is ready."
+        log_info "You can run: psql -f ${INSTALL_DIR}/supabase/storage/buckets.sql"
+        return 0
+    fi
+    
+    log_success "Storage schema verified"
+    
+    # Check if storage buckets already exist (idempotent)
     if PGPASSWORD="${POSTGRES_PASSWORD}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres \
         -tAc "SELECT COUNT(*) FROM storage.buckets WHERE id = 'branding'" 2>/dev/null | grep -q "1"; then
         log_info "Storage buckets already configured. Skipping."
@@ -1145,14 +1467,40 @@ step_13_configure_storage() {
     if [ -f "${INSTALL_DIR}/supabase/storage/buckets.sql" ]; then
         log_info "Configuring storage buckets..."
         
+        # Use ON_ERROR_STOP=off to handle re-runs gracefully
         if PGPASSWORD="${POSTGRES_PASSWORD}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres \
+            -v ON_ERROR_STOP=off \
             -f "${INSTALL_DIR}/supabase/storage/buckets.sql" 2>&1; then
             log_success "Storage buckets configured"
         else
-            log_warning "Storage bucket configuration had issues"
+            log_warning "Storage bucket configuration had issues (may be OK on re-run)"
         fi
+        
+        # Verify buckets were created
+        local buckets_to_check=("branding" "fonts" "card-attachments")
+        for bucket in "${buckets_to_check[@]}"; do
+            if PGPASSWORD="${POSTGRES_PASSWORD}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres \
+                -tAc "SELECT COUNT(*) FROM storage.buckets WHERE id = '${bucket}'" 2>/dev/null | grep -q "1"; then
+                log_success "Verified: ${bucket} bucket exists"
+            else
+                log_warning "${bucket} bucket not found"
+            fi
+        done
     else
         log_warning "Storage config not found: ${INSTALL_DIR}/supabase/storage/buckets.sql"
+        log_info "Creating default storage buckets..."
+        
+        # Create buckets directly if no config file
+        PGPASSWORD="${POSTGRES_PASSWORD}" psql -h localhost -p "${POSTGRES_PORT}" -U postgres -d postgres << 'BUCKETS_SQL' 2>/dev/null || true
+-- Create storage buckets if they don't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES 
+    ('branding', 'branding', true),
+    ('fonts', 'fonts', true),
+    ('card-attachments', 'card-attachments', false)
+ON CONFLICT (id) DO NOTHING;
+BUCKETS_SQL
+        log_success "Default storage buckets created"
     fi
 }
 
@@ -2191,23 +2539,82 @@ step_19_final_verification() {
     
     # Check Supabase Auth service
     echo ""
-    echo "  Supabase Auth service:"
-    local auth_health_url="http://localhost:${KONG_HTTP_PORT}/auth/v1/health"
-    local auth_response
-    auth_response=$(curl -sf "$auth_health_url" 2>/dev/null || echo "")
+    echo "  Supabase services via Kong:"
     
-    if [ -n "$auth_response" ]; then
+    # Auth service
+    local auth_health_url="http://localhost:${KONG_HTTP_PORT}/auth/v1/health"
+    if curl -sf "$auth_health_url" >/dev/null 2>&1; then
         echo "    ✓ Auth service: RESPONDING"
         record_pass "Supabase Auth: Responding"
     else
-        # Try direct auth port
-        if curl -sf "http://localhost:9999/health" >/dev/null 2>&1; then
-            echo "    ✓ Auth service: RESPONDING (direct port)"
+        # Try with header
+        if curl -sf "$auth_health_url" -H "apikey: ${ANON_KEY:-}" >/dev/null 2>&1; then
+            echo "    ✓ Auth service: RESPONDING"
             record_pass "Supabase Auth: Responding"
         else
-            echo "    ⚠ Auth service: NOT RESPONDING (may take time to initialize)"
+            echo "    ⚠ Auth service: NOT RESPONDING"
             record_warn "Supabase Auth: Not responding"
         fi
+    fi
+    
+    # REST API (PostgREST)
+    local rest_url="http://localhost:${KONG_HTTP_PORT}/rest/v1/"
+    if curl -sf "$rest_url" -H "apikey: ${ANON_KEY:-}" >/dev/null 2>&1; then
+        echo "    ✓ REST API: RESPONDING"
+        record_pass "Supabase REST: Responding"
+    else
+        echo "    ⚠ REST API: NOT RESPONDING"
+        record_warn "Supabase REST: Not responding"
+    fi
+    
+    # Realtime service
+    local realtime_url="http://localhost:${KONG_HTTP_PORT}/realtime/v1/"
+    if curl -sf "$realtime_url" -H "apikey: ${ANON_KEY:-}" >/dev/null 2>&1; then
+        echo "    ✓ Realtime: RESPONDING"
+        record_pass "Supabase Realtime: Responding"
+    else
+        # Realtime WebSocket may not respond to HTTP - check if container is healthy
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "supabase-realtime"; then
+            echo "    ✓ Realtime: CONTAINER RUNNING (WebSocket only)"
+            record_pass "Supabase Realtime: Container running"
+        else
+            echo "    ⚠ Realtime: NOT RESPONDING"
+            record_warn "Supabase Realtime: Not responding"
+        fi
+    fi
+    
+    # Storage API
+    local storage_url="http://localhost:${KONG_HTTP_PORT}/storage/v1/"
+    if curl -sf "$storage_url" -H "apikey: ${ANON_KEY:-}" >/dev/null 2>&1; then
+        echo "    ✓ Storage API: RESPONDING"
+        record_pass "Supabase Storage: Responding"
+    else
+        # Storage may require specific endpoints
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "supabase-storage"; then
+            local storage_status
+            storage_status=$(docker inspect --format='{{.State.Health.Status}}' supabase-storage 2>/dev/null || echo "unknown")
+            if [ "$storage_status" = "healthy" ]; then
+                echo "    ✓ Storage API: CONTAINER HEALTHY"
+                record_pass "Supabase Storage: Healthy"
+            else
+                echo "    ⚠ Storage API: CONTAINER ${storage_status}"
+                record_warn "Supabase Storage: ${storage_status}"
+            fi
+        else
+            echo "    ⚠ Storage API: NOT RESPONDING"
+            record_warn "Supabase Storage: Not responding"
+        fi
+    fi
+    
+    # Kong API Gateway direct check
+    local kong_status
+    kong_status=$(docker exec supabase-kong kong health 2>/dev/null && echo "healthy" || echo "unhealthy")
+    if [ "$kong_status" = "healthy" ]; then
+        echo "    ✓ Kong Gateway: HEALTHY"
+        record_pass "Kong Gateway: Healthy"
+    else
+        echo "    ⚠ Kong Gateway: ${kong_status}"
+        record_warn "Kong Gateway: ${kong_status}"
     fi
     
     # -------------------------------------------------------------------

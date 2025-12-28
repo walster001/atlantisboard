@@ -23,11 +23,12 @@ services:
       - supabase-db-data:/var/lib/postgresql/data
       - ./volumes/db/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres && psql -U postgres -d postgres -c 'SELECT 1 FROM auth.users LIMIT 1' 2>/dev/null || exit 1"]
+      # Only check PostgreSQL is ready - auth.users may not exist until GoTrue starts
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 5s
       timeout: 10s
       retries: 30
-      start_period: 60s
+      start_period: 30s
     networks:
       - supabase-net
 

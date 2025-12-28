@@ -114,21 +114,25 @@ export function BoardSettingsModal({
 
   // Use permission system for UI checks
   // SECURITY: Real security is enforced server-side via RLS policies
-  const { can, canEdit, canManageMembers, canChangeRoles: canChangeRolesPermission } = usePermissions(boardId, userRole);
+  const { can, canEdit, canManageMembers, canChangeRoles: canChangeRolesPermission, isAppAdmin } = usePermissions(boardId, userRole);
   
-  const isAdmin = userRole === 'admin';
-  const isManager = userRole === 'manager';
-  const isViewer = userRole === 'viewer';
+  // App Admin overrides all board-level role checks
+  const isBoardAdmin = userRole === 'admin';
+  const isManager = userRole === 'manager' && !isAppAdmin;
+  const isViewer = userRole === 'viewer' && !isAppAdmin;
+  
+  // Effective admin status: App Admin OR Board Admin
+  const hasAdminCapabilities = isAppAdmin || isBoardAdmin;
   
   // Viewers should never see this modal - close immediately if opened
   // This is a defense-in-depth measure; the button should already be hidden
   const hasAccess = can('board.settings.button');
   
-  // Permission checks for specific actions
-  const canChangeRoles = canChangeRolesPermission || can('board.members.role.change');
-  const canAddRemove = canManageMembers || can('board.members.add');
-  const canAccessBoardSettings = can('board.settings.labels') || can('board.settings.audit');
-  const canAccessThemeSettings = can('board.settings.theme');
+  // Permission checks for specific actions - App Admin bypasses all
+  const canChangeRoles = isAppAdmin || canChangeRolesPermission || can('board.members.role.change');
+  const canAddRemove = isAppAdmin || canManageMembers || can('board.members.add');
+  const canAccessBoardSettings = isAppAdmin || can('board.settings.labels') || can('board.settings.audit');
+  const canAccessThemeSettings = isAppAdmin || can('board.settings.theme');
 
   // Fetch all users when modal opens
   useEffect(() => {
@@ -300,7 +304,7 @@ export function BoardSettingsModal({
           {/* Custom header with close button */}
           <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
             <h2 className="text-lg font-semibold">
-              {isManager ? 'Board Members' : 'Board Settings'}
+              {isManager && !hasAdminCapabilities ? 'Board Members' : 'Board Settings'}
             </h2>
             <Button 
               variant="ghost" 
@@ -312,10 +316,10 @@ export function BoardSettingsModal({
             </Button>
           </div>
 
-          {/* Tabs - Only show tabs if user is admin; managers only see members content */}
+          {/* Tabs - Only show tabs if user has admin capabilities; managers only see members content */}
           <Tabs defaultValue="users" className="flex flex-col flex-1 min-h-0">
-            {/* Only show tab list for admins - managers only have access to users tab */}
-            {isAdmin && (
+            {/* Only show tab list for users with admin capabilities */}
+            {hasAdminCapabilities && (
               <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-auto p-0 px-4 shrink-0">
                 {canAccessBoardSettings && (
                   <TabsTrigger 
@@ -349,8 +353,8 @@ export function BoardSettingsModal({
               </TabsList>
             )}
 
-            {/* Board Settings Tab - Only render for admins */}
-            {canAccessBoardSettings && (
+            {/* Board Settings Tab - Only render for users with admin capabilities */}
+            {canAccessBoardSettings && hasAdminCapabilities && (
               <TabsContent value="board" className="flex-1 mt-0 data-[state=inactive]:hidden flex min-h-0">
                 {/* Vertical sub-navigation */}
                 <aside className="w-48 bg-muted/30 border-r border-border p-3 shrink-0">
@@ -388,7 +392,7 @@ export function BoardSettingsModal({
                       boardId={boardId}
                       labels={labels}
                       onLabelsChange={onLabelsChange}
-                      disabled={!isAdmin}
+                      disabled={!hasAdminCapabilities}
                     />
                   )}
                 </div>
@@ -412,7 +416,7 @@ export function BoardSettingsModal({
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">
-                      {userRole === 'manager' 
+                      {isManager && !hasAdminCapabilities
                         ? 'As a Manager, you can only add Viewers.' 
                         : 'Select a role and add users to this board.'}
                     </p>
@@ -447,8 +451,8 @@ export function BoardSettingsModal({
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                {/* Role selector for new members - Admins get full control */}
-                                {isAdmin ? (
+                                {/* Role selector for new members - Admin-capable users get full control */}
+                                {hasAdminCapabilities ? (
                                   <Select 
                                     value={pendingRoles[user.id] || 'viewer'} 
                                     onValueChange={(v) => setPendingRoles(prev => ({ ...prev, [user.id]: v as 'admin' | 'manager' | 'viewer' }))}
@@ -557,8 +561,8 @@ export function BoardSettingsModal({
                               </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              {/* Role selector - Admins get full control, Managers see restricted options */}
-                              {isAdmin ? (
+                              {/* Role selector - Admin-capable users get full control, Managers see restricted options */}
+                              {hasAdminCapabilities ? (
                                 <Select
                                   value={member.role}
                                   onValueChange={(v) => updateRole(member.user_id, v as 'admin' | 'manager' | 'viewer')}
@@ -708,8 +712,8 @@ export function BoardSettingsModal({
               </TabsContent>
             )}
 
-            {/* Audit Log Tab - Only for admins */}
-            {isAdmin && (
+            {/* Audit Log Tab - Only for users with admin capabilities */}
+            {hasAdminCapabilities && (
               <TabsContent value="audit" className="flex-1 p-4 overflow-y-auto mt-0 data-[state=inactive]:hidden">
                 <div className="max-w-3xl mx-auto">
                   <div className="mb-4">

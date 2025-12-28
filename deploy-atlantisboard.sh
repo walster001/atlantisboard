@@ -22,7 +22,7 @@ set -o pipefail  # Catch pipe failures
 # =====================================================
 SCRIPT_VERSION="1.0.0"
 SCRIPT_NAME="AtlantisBoard Deployment Script"
-REPO_URL="${REPO_URL:-https://github.com/YOUR_USERNAME/atlantisboard.git}"
+REPO_URL="${REPO_URL:-https://github.com/walster001/atlantisboard.git}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/atlantisboard}"
 SECRETS_DIR="${INSTALL_DIR}/.secrets"
 ENV_FILE="${INSTALL_DIR}/.env"

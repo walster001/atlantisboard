@@ -87,7 +87,16 @@ export default function Auth() {
         if (error) throw error;
         const result = data as unknown as AuthPageData;
         setPageData(result);
-      } catch (error) {
+      } catch (error: any) {
+        // Only log non-401 errors (401 is expected when not authenticated for public endpoints)
+        // The app will work fine with default settings
+        const isAuthError = error?.status === 401 || 
+                           error?.code === 'PGRST116' || 
+                           error?.message?.includes('Invalid authentication credentials') ||
+                           error?.message?.includes('JWT');
+        if (!isAuthError) {
+          console.error('Error fetching auth page data:', error);
+        }
         // Use defaults on error
         setPageData({ settings: null, fonts: [] });
       } finally {
@@ -97,11 +106,74 @@ export default function Auth() {
     fetchPageData();
   }, []);
 
+  // Detect OAuth callback by checking for hash fragments
+  const isOAuthCallback = useCallback(() => {
+    const hash = window.location.hash;
+    if (!hash) return false;
+    
+    // Check for OAuth callback indicators in hash
+    // PKCE flow uses 'code' parameter, implicit flow uses 'access_token'
+    // Supabase OAuth callbacks include: access_token, refresh_token, code, error, etc.
+    const isCallback = hash.includes('access_token') || 
+           hash.includes('refresh_token') || 
+           hash.includes('code=') ||  // PKCE flow uses code parameter
+           hash.includes('error=') ||
+           hash.includes('error_description=');
+    
+    // Log for debugging
+    if (isCallback) {
+      console.log('[Auth] OAuth callback detected, hash:', hash.substring(0, 100) + '...');
+    }
+    
+    return isCallback;
+  }, []);
+
+  // Handle OAuth callback if it lands on /auth page
   useEffect(() => {
-    if (!loading && user) {
+    if (isOAuthCallback()) {
+      console.log('[Auth] OAuth callback detected on /auth page, waiting for session...');
+      // OAuth callback detected - wait for session to be established
+      // The auth state change handler will update the user state
+      // Give it time to process (up to 3 seconds)
+      let checkInterval: NodeJS.Timeout | null = null;
+      let timeout: NodeJS.Timeout | null = null;
+
+      checkInterval = setInterval(() => {
+        // Check if user is now authenticated
+        if (user) {
+          console.log('[Auth] OAuth callback successful, redirecting to homepage');
+          if (checkInterval) clearInterval(checkInterval);
+          if (timeout) clearTimeout(timeout);
+          navigate('/');
+        } else if (!loading) {
+          // If loading is false and still no user, session establishment failed
+          console.warn('[Auth] OAuth callback processed but no user found');
+          if (checkInterval) clearInterval(checkInterval);
+          if (timeout) clearTimeout(timeout);
+        }
+      }, 100);
+
+      // Timeout after 3 seconds if no session established
+      timeout = setTimeout(() => {
+        if (checkInterval) clearInterval(checkInterval);
+        if (!user) {
+          console.warn('[Auth] OAuth callback timeout - no session established');
+        }
+      }, 3000);
+
+      return () => {
+        if (checkInterval) clearInterval(checkInterval);
+        if (timeout) clearTimeout(timeout);
+      };
+    }
+  }, [isOAuthCallback, user, loading, navigate]);
+
+  // Normal redirect when user is authenticated (not from OAuth callback)
+  useEffect(() => {
+    if (!loading && user && !isOAuthCallback()) {
       navigate('/');
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, isOAuthCallback]);
 
   // Load custom fonts
   useEffect(() => {

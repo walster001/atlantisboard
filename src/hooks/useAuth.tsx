@@ -187,13 +187,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Check for OAuth callback hash fragments
+    // PKCE flow uses 'code' parameter, implicit flow uses 'access_token'
     const hash = window.location.hash;
     const isOAuthCallback = hash && (
       hash.includes('access_token') || 
       hash.includes('refresh_token') || 
+      hash.includes('code=') ||  // PKCE flow uses code parameter
       hash.includes('error=') ||
       hash.includes('error_description=')
     );
+    
+    // Log OAuth callback details for debugging
+    if (isOAuthCallback) {
+      console.log('[useAuth] OAuth callback detected, hash:', hash.substring(0, 100) + '...');
+      // Check for errors in hash
+      if (hash.includes('error=')) {
+        const errorMatch = hash.match(/error=([^&]+)/);
+        const errorDescMatch = hash.match(/error_description=([^&]+)/);
+        console.error('[useAuth] OAuth callback error:', errorMatch?.[1], errorDescMatch?.[1]);
+      }
+    }
 
     // Set up auth state listener FIRST
     // This will handle OAuth callbacks via the SIGNED_IN event
@@ -208,8 +221,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       // If there's an error related to clock skew, log it but don't fail immediately
       if (error) {
-        console.warn('Session retrieval error:', error);
+        console.warn('[useAuth] Session retrieval error:', error);
+        // Log more details about the error
+        if (error.message) {
+          console.warn('[useAuth] Error message:', error.message);
+        }
         // If it's a clock skew issue, we'll handle it in the retry logic
+      }
+      
+      // Log session state for debugging
+      if (isOAuthCallback) {
+        console.log('[useAuth] OAuth callback - session state:', session ? 'has session' : 'no session', 'error:', error ? 'yes' : 'no');
       }
       
       // If this is an OAuth callback, the hash fragments will be processed
@@ -226,25 +248,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fetchAdminStatus(session.user.id);
         }
       } else if (isOAuthCallback && !session) {
-        // OAuth callback but no session - might be clock skew
-        // Wait a bit longer for the session to be processed
-        // The onAuthStateChange handler will process it, or retry logic will kick in
-        setTimeout(() => {
-          if (loading) {
-            // If still loading after delay, try one more time
-            supabase.auth.getSession().then(({ data: { session: retrySession } }) => {
-              if (retrySession) {
-                setSession(retrySession);
-                setUser(retrySession.user);
-                setLoading(false);
-                fetchAdminStatus(retrySession.user.id);
-              } else {
-                // Still no session - set loading to false to prevent infinite loading
-                setLoading(false);
-              }
-            });
+        // Check if there's an error in the hash first
+        const hashParams = new URLSearchParams(hash.substring(1));
+        const oauthError = hashParams.get('error');
+        const oauthErrorDesc = hashParams.get('error_description');
+        
+        if (oauthError) {
+          console.error('[useAuth] OAuth callback error detected:', oauthError, oauthErrorDesc);
+          setLoading(false);
+          // Don't retry if there's an explicit error
+          return;
+        }
+        
+        // OAuth callback detected but no session yet
+        // Keep loading true and wait for onAuthStateChange to process it
+        // This ensures components don't redirect before session is established
+        console.log('[useAuth] OAuth callback detected, waiting for onAuthStateChange to process...');
+        
+        // Set up a retry mechanism with longer timeout for OAuth callbacks
+        let retryCount = 0;
+        const maxRetries = 3;
+        const retryDelay = 1000; // Start with 1 second
+        
+        const retrySessionCheck = () => {
+          if (retryCount < maxRetries) {
+            setTimeout(() => {
+              supabase.auth.getSession().then(({ data: { session: retrySession }, error: retryError }) => {
+                if (retrySession) {
+                  console.log('[useAuth] Session retrieved on retry attempt', retryCount + 1);
+                  setSession(retrySession);
+                  setUser(retrySession.user);
+                  setLoading(false);
+                  fetchAdminStatus(retrySession.user.id);
+                } else if (retryError) {
+                  console.error('[useAuth] Retry session check error:', retryError);
+                  if (retryCount < maxRetries - 1) {
+                    // Retry again with exponential backoff
+                    retryCount++;
+                    retrySessionCheck();
+                  } else {
+                    console.warn('[useAuth] OAuth callback failed after max retries');
+                    setLoading(false);
+                  }
+                } else if (retryCount < maxRetries - 1) {
+                  // Retry again with exponential backoff
+                  retryCount++;
+                  retrySessionCheck();
+                } else {
+                  // Max retries reached - set loading to false to prevent infinite loading
+                  // onAuthStateChange should have handled it by now, or there's an error
+                  console.warn('[useAuth] OAuth callback timeout after max retries - no session established');
+                  setLoading(false);
+                }
+              });
+            }, retryDelay * (retryCount + 1)); // Exponential backoff
           }
-        }, 1000);
+        };
+        
+        // Start retry after initial delay
+        retrySessionCheck();
       }
     });
 

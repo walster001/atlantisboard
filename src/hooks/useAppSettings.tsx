@@ -48,8 +48,16 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       setSettings(data);
       fetchedRef.current = true;
-    } catch (error) {
-      console.error('Error fetching app settings:', error);
+    } catch (error: any) {
+      // Only log non-401 errors (401 is expected when not authenticated for public endpoints)
+      // The app will work fine with default settings
+      const isAuthError = error?.status === 401 || 
+                         error?.code === 'PGRST116' || 
+                         error?.message?.includes('Invalid authentication credentials') ||
+                         error?.message?.includes('JWT');
+      if (!isAuthError) {
+        console.error('Error fetching app settings:', error);
+      }
       fetchedRef.current = true;
     } finally {
       setLoading(false);

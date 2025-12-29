@@ -127,11 +127,20 @@ export default function Home() {
     if (!hash) return false;
     
     // Check for OAuth callback indicators in hash
-    // Supabase OAuth callbacks include: access_token, refresh_token, error, etc.
-    return hash.includes('access_token') || 
+    // PKCE flow uses 'code' parameter, implicit flow uses 'access_token'
+    // Supabase OAuth callbacks include: access_token, refresh_token, code, error, etc.
+    const isCallback = hash.includes('access_token') || 
            hash.includes('refresh_token') || 
+           hash.includes('code=') ||  // PKCE flow uses code parameter
            hash.includes('error=') ||
            hash.includes('error_description=');
+    
+    // Log for debugging
+    if (isCallback) {
+      console.log('[Home] OAuth callback detected, hash:', hash.substring(0, 100) + '...');
+    }
+    
+    return isCallback;
   }, []);
 
   // Detect clock skew errors in OAuth callback
@@ -169,23 +178,29 @@ export default function Home() {
     // Don't redirect if we're processing an OAuth callback
     // Wait for Supabase to process the hash fragments and establish the session
     if (isOAuthCallback()) {
+      console.log('[Home] OAuth callback detected, waiting for session establishment...');
       // Give Supabase time to process the OAuth callback
       // The auth state change handler will update the user state
       // Wait longer if clock skew error is detected (retry logic is working)
-      const waitTime = hasClockSkewError() ? 3000 : 0;
+      const waitTime = hasClockSkewError() ? 5000 : 2000; // Increased wait time to 2s default, 5s for clock skew
       if (waitTime > 0) {
         setTimeout(() => {
           // Check again after waiting
           if (!authLoading && !user) {
+            console.log('[Home] OAuth callback processed but no user found, redirecting to /auth');
             navigate('/auth');
+          } else if (user) {
+            console.log('[Home] OAuth callback successful, user authenticated');
           }
         }, waitTime);
       }
+      // Always return early if OAuth callback is detected - don't redirect while processing
       return;
     }
     
     // Only redirect if we're certain the user is not authenticated
     // and we're not in the middle of an OAuth callback
+    // Also ensure we're not still loading (which could indicate OAuth processing)
     if (!authLoading && !user) {
       navigate('/auth');
     }

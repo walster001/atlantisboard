@@ -19,6 +19,11 @@ BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
         CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
     END IF;
+    
+    -- Create supabase_admin role (used by Supabase services)
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_admin') THEN
+        CREATE ROLE supabase_admin NOLOGIN NOINHERIT BYPASSRLS;
+    END IF;
 END
 $$;
 
@@ -38,6 +43,21 @@ CREATE SCHEMA IF NOT EXISTS storage;
 GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
 GRANT ALL ON SCHEMA storage TO postgres;
 
+-- Create extensions schema for PostgreSQL extensions
+CREATE SCHEMA IF NOT EXISTS extensions;
+GRANT USAGE ON SCHEMA extensions TO postgres, anon, authenticated, service_role, supabase_admin;
+GRANT ALL ON SCHEMA extensions TO postgres;
+
 -- Ensure realtime schema exists for realtime service
 CREATE SCHEMA IF NOT EXISTS _realtime;
 GRANT ALL ON SCHEMA _realtime TO postgres;
+
+-- Create supabase_realtime publication for Realtime service
+-- This publication is used by Supabase Realtime to replicate table changes
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        CREATE PUBLICATION supabase_realtime FOR ALL TABLES;
+    END IF;
+END
+$$;

@@ -230,7 +230,20 @@ fi
 
 # Setup storage buckets
 echo -e "${BLUE}📁 Setting up storage buckets...${NC}"
-PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h localhost -p "${POSTGRES_PORT:-5432}" -U postgres -d "${POSTGRES_DB:-postgres}" -f ../storage/buckets.sql 2>&1 | grep -v "already exists" || true
+# Use docker exec to run psql inside the container
+BUCKETS_FILE=""
+if [ -f supabase/storage/buckets.sql ]; then
+    BUCKETS_FILE="supabase/storage/buckets.sql"
+elif [ -f ../storage/buckets.sql ]; then
+    BUCKETS_FILE="../storage/buckets.sql"
+fi
+
+if [ -n "$BUCKETS_FILE" ] && [ -f "$BUCKETS_FILE" ]; then
+    docker exec -i supabase-db psql -U postgres -d "${POSTGRES_DB:-postgres}" < "$BUCKETS_FILE" 2>&1 | grep -v "already exists" || true
+    echo -e "${GREEN}✅ Storage buckets configured${NC}"
+else
+    echo -e "${YELLOW}⚠️  No storage buckets file found${NC}"
+fi
 
 cd "$PROJECT_ROOT"
 
@@ -246,11 +259,16 @@ else
 fi
 
 # Check storage buckets
-BUCKET_COUNT=$(PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h localhost -p "${POSTGRES_PORT:-5432}" -U postgres -d "${POSTGRES_DB:-postgres}" -t -c "SELECT COUNT(*) FROM storage.buckets" 2>/dev/null | tr -d ' ')
-if [ "$BUCKET_COUNT" -ge 3 ]; then
+BUCKET_COUNT=$(docker exec supabase-db psql -U postgres -d "${POSTGRES_DB:-postgres}" -t -c "SELECT COUNT(*) FROM storage.buckets" 2>/dev/null | tr -d ' \n\r' || echo "0")
+# Ensure BUCKET_COUNT is a valid integer
+if [ -z "$BUCKET_COUNT" ] || [ "$BUCKET_COUNT" = "" ]; then
+    BUCKET_COUNT=0
+fi
+# Use numeric comparison safely
+if [ "$BUCKET_COUNT" -ge 3 ] 2>/dev/null; then
     echo -e "${GREEN}✅ Storage buckets configured ($BUCKET_COUNT buckets)${NC}"
 else
-    echo -e "${YELLOW}⚠️  Storage buckets may not be fully configured${NC}"
+    echo -e "${YELLOW}⚠️  Storage buckets may not be fully configured (found $BUCKET_COUNT buckets)${NC}"
 fi
 
 echo ""

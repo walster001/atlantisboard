@@ -217,8 +217,16 @@ export default function InvitePage() {
     setIsSigningIn(true);
     clearVerificationError();
     
+    // Detect if we're running on localhost for proper OAuth redirect
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1' ||
+                      window.location.hostname === '';
+    
+    // Use localhost redirect URL when running locally, otherwise use current origin
     // Redirect to homepage after OAuth - token is stored in sessionStorage for redemption there
-    const redirectUrl = `${window.location.origin}/`;
+    const redirectUrl = isLocalhost 
+      ? `http://localhost:${window.location.port || '8080'}/`
+      : `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',

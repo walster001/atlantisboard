@@ -4,11 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "dev": "./run-with-nvm.sh vite",
+    "build": "./run-with-nvm.sh vite build",
+    "build:dev": "./run-with-nvm.sh vite build --mode development",
+    "lint": "./run-with-nvm.sh eslint .",
+    "preview": "./run-with-nvm.sh vite preview"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

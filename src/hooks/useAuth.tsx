@@ -138,10 +138,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = async () => {
     setVerificationError(null);
     
+    // Detect if we're running on localhost for proper OAuth redirect
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1' ||
+                      window.location.hostname === '';
+    
+    // Use localhost redirect URL when running locally, otherwise use current origin
+    const redirectUrl = isLocalhost 
+      ? `http://localhost:${window.location.port || '8080'}/`
+      : `${window.location.origin}/`;
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: redirectUrl,
         queryParams: {
           prompt: 'select_account',
         },

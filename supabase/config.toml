@@ -1,4 +1,4 @@
-project_id = "xuzhmzzvjufkjeypddlr"
+project_id = "local"
 
 [functions.save-mysql-config]
 verify_jwt = false
@@ -25,3 +25,16 @@ jwt_expiry = 3600
 # Disable refresh token rotation - sessions truly expire after jwt_expiry
 # This ensures users must re-login hourly, triggering verification checks
 enable_refresh_token_rotation = false
+
+# Local development site URL
+site_url = "http://localhost:8080"
+
+# Additional redirect URLs for OAuth (localhost)
+additional_redirect_urls = ["http://localhost:8080/*", "http://localhost:8080/"]
+
+[auth.external.google]
+enabled = true
+# These will be read from environment variables in docker-compose
+client_id = "env(GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(GOTRUE_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = "http://localhost:8000/auth/v1/callback"

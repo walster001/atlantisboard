@@ -25,11 +25,13 @@ CREATE POLICY "Only app admins can insert app settings"
 ON public.app_settings FOR INSERT
 WITH CHECK (is_app_admin(auth.uid()));
 
--- Insert default settings row
-INSERT INTO public.app_settings (id) VALUES ('default');
+-- Insert default settings row (only if it doesn't exist)
+INSERT INTO public.app_settings (id) VALUES ('default')
+ON CONFLICT (id) DO NOTHING;
 
--- Create storage bucket for branding assets
-INSERT INTO storage.buckets (id, name, public) VALUES ('branding', 'branding', true);
+-- Create storage bucket for branding assets (only if it doesn't exist)
+INSERT INTO storage.buckets (id, name, public) VALUES ('branding', 'branding', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- Allow public read access to branding bucket
 CREATE POLICY "Branding assets are publicly accessible"

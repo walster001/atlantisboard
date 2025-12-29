@@ -70,6 +70,19 @@ BEGIN
 END;
 $$;
 
+-- Ensure extensions schema exists (in case init script didn't run)
+CREATE SCHEMA IF NOT EXISTS extensions;
+GRANT USAGE ON SCHEMA extensions TO postgres, anon, authenticated, service_role;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_admin') THEN
+        CREATE ROLE supabase_admin NOLOGIN NOINHERIT BYPASSRLS;
+    END IF;
+END
+$$;
+GRANT USAGE ON SCHEMA extensions TO supabase_admin;
+GRANT ALL ON SCHEMA extensions TO postgres;
+
 -- Enable pg_cron extension if not already enabled
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
 

@@ -54,10 +54,11 @@ GRANT ALL ON SCHEMA _realtime TO postgres;
 
 -- Create supabase_realtime publication for Realtime service
 -- This publication is used by Supabase Realtime to replicate table changes
+-- Note: We create it without FOR ALL TABLES so migrations can add tables individually
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-        CREATE PUBLICATION supabase_realtime FOR ALL TABLES;
+        CREATE PUBLICATION supabase_realtime;
     END IF;
 END
 $$;

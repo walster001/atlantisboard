@@ -159,12 +159,22 @@ sleep 15
 # Check if PostgreSQL is ready
 echo -e "${BLUE}🔍 Checking PostgreSQL connection...${NC}"
 for i in {1..30}; do
-    if PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h localhost -p "${POSTGRES_PORT:-5432}" -U postgres -d "${POSTGRES_DB:-postgres}" -c "SELECT 1" > /dev/null 2>&1; then
+    # Try using docker exec first (more reliable, doesn't require psql on host)
+    if docker exec supabase-db pg_isready -U postgres > /dev/null 2>&1; then
         echo -e "${GREEN}✅ PostgreSQL is ready${NC}"
         break
     fi
+    # Fallback: try psql from host if available
+    if command -v psql > /dev/null 2>&1; then
+        if PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h localhost -p "${POSTGRES_PORT:-5432}" -U postgres -d "${POSTGRES_DB:-postgres}" -c "SELECT 1" > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ PostgreSQL is ready${NC}"
+            break
+        fi
+    fi
     if [ $i -eq 30 ]; then
         echo -e "${RED}❌ PostgreSQL failed to start${NC}"
+        echo -e "${YELLOW}Checking container logs...${NC}"
+        docker logs supabase-db --tail 20
         exit 1
     fi
     sleep 2
@@ -172,22 +182,51 @@ done
 
 # Apply database schema
 echo -e "${BLUE}📊 Applying database schema...${NC}"
-PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h localhost -p "${POSTGRES_PORT:-5432}" -U postgres -d "${POSTGRES_DB:-postgres}" -f ../db/schema.sql 2>&1 | grep -v "already exists" || true
+# Use docker exec to run psql inside the container
+if [ -f supabase/db/schema.sql ]; then
+    docker exec -i supabase-db psql -U postgres -d "${POSTGRES_DB:-postgres}" < supabase/db/schema.sql 2>&1 | grep -v "already exists" || true
+elif [ -f ../db/schema.sql ]; then
+    docker exec -i supabase-db psql -U postgres -d "${POSTGRES_DB:-postgres}" < ../db/schema.sql 2>&1 | grep -v "already exists" || true
+fi
 
 # Apply migrations
 echo -e "${BLUE}🔄 Applying migrations...${NC}"
 MIGRATION_COUNT=0
-for file in ../migrations/*.sql; do
-    if [ -f "$file" ]; then
-        PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h localhost -p "${POSTGRES_PORT:-5432}" -U postgres -d "${POSTGRES_DB:-postgres}" -f "$file" 2>&1 | grep -v "already exists" || true
-        MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
-    fi
-done
-echo -e "${GREEN}✅ Applied $MIGRATION_COUNT migrations${NC}"
+# Find migrations directory
+MIGRATIONS_DIR=""
+if [ -d supabase/migrations ]; then
+    MIGRATIONS_DIR="supabase/migrations"
+elif [ -d ../migrations ]; then
+    MIGRATIONS_DIR="../migrations"
+fi
+
+if [ -n "$MIGRATIONS_DIR" ]; then
+    for file in "$MIGRATIONS_DIR"/*.sql; do
+        if [ -f "$file" ]; then
+            docker exec -i supabase-db psql -U postgres -d "${POSTGRES_DB:-postgres}" < "$file" 2>&1 | grep -v "already exists" || true
+            MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
+        fi
+    done
+    echo -e "${GREEN}✅ Applied $MIGRATION_COUNT migrations${NC}"
+else
+    echo -e "${YELLOW}⚠️  No migrations directory found${NC}"
+fi
 
 # Apply seed data
 echo -e "${BLUE}🌱 Seeding database...${NC}"
-PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h localhost -p "${POSTGRES_PORT:-5432}" -U postgres -d "${POSTGRES_DB:-postgres}" -f ../seed.sql 2>&1 | grep -v "already exists" || true
+SEED_FILE=""
+if [ -f supabase/seed.sql ]; then
+    SEED_FILE="supabase/seed.sql"
+elif [ -f ../seed.sql ]; then
+    SEED_FILE="../seed.sql"
+fi
+
+if [ -n "$SEED_FILE" ] && [ -f "$SEED_FILE" ]; then
+    docker exec -i supabase-db psql -U postgres -d "${POSTGRES_DB:-postgres}" < "$SEED_FILE" 2>&1 | grep -v "already exists" || true
+    echo -e "${GREEN}✅ Database seeded${NC}"
+else
+    echo -e "${YELLOW}⚠️  No seed file found${NC}"
+fi
 
 # Setup storage buckets
 echo -e "${BLUE}📁 Setting up storage buckets...${NC}"

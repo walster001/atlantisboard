@@ -84,7 +84,39 @@ GRANT USAGE ON SCHEMA extensions TO supabase_admin;
 GRANT ALL ON SCHEMA extensions TO postgres;
 
 -- Enable pg_cron extension if not already enabled
-CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
+-- Wrap in DO block to handle permission errors gracefully
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
+EXCEPTION
+    WHEN insufficient_privilege THEN
+        -- Extension requires superuser, skip if not available
+        NULL;
+    WHEN OTHERS THEN
+        -- If extension already exists or other non-critical error, continue
+        IF SQLERRM LIKE '%already exists%' OR SQLERRM LIKE '%permission denied%' THEN
+            NULL;
+        ELSE
+            RAISE;
+        END IF;
+END
+$$;
 
 -- Enable pg_net for HTTP calls (needed for cron)
-CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+-- Wrap in DO block to handle permission errors gracefully
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+EXCEPTION
+    WHEN insufficient_privilege THEN
+        -- Extension requires superuser, skip if not available
+        NULL;
+    WHEN OTHERS THEN
+        -- If extension already exists or other non-critical error, continue
+        IF SQLERRM LIKE '%already exists%' OR SQLERRM LIKE '%permission denied%' THEN
+            NULL;
+        ELSE
+            RAISE;
+        END IF;
+END
+$$;

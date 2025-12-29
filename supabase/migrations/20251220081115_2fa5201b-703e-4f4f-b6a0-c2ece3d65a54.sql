@@ -2,7 +2,7 @@
 CREATE TABLE public.board_member_audit_log (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   board_id UUID NOT NULL REFERENCES public.boards(id) ON DELETE CASCADE,
-  action TEXT NOT NULL CHECK (action IN ('added', 'removed', 'role_changed')),
+  action TEXT NOT NULL CONSTRAINT board_member_audit_log_action_check CHECK (action IN ('added', 'removed', 'role_changed')),
   target_user_id UUID NOT NULL,
   actor_user_id UUID,
   old_role TEXT,

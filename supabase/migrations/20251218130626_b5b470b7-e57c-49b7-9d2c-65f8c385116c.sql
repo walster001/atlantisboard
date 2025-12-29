@@ -1,5 +1,6 @@
--- Create storage bucket for custom fonts
-INSERT INTO storage.buckets (id, name, public) VALUES ('fonts', 'fonts', true);
+-- Create storage bucket for custom fonts (only if it doesn't exist)
+INSERT INTO storage.buckets (id, name, public) VALUES ('fonts', 'fonts', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- Create policy to allow public read access
 CREATE POLICY "Public font access" ON storage.objects FOR SELECT USING (bucket_id = 'fonts');

@@ -121,11 +121,75 @@ export default function Home() {
   const [deletionCountsLoading, setDeletionCountsLoading] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
+  // Detect OAuth callback by checking for hash fragments
+  const isOAuthCallback = useCallback(() => {
+    const hash = window.location.hash;
+    if (!hash) return false;
+    
+    // Check for OAuth callback indicators in hash
+    // Supabase OAuth callbacks include: access_token, refresh_token, error, etc.
+    return hash.includes('access_token') || 
+           hash.includes('refresh_token') || 
+           hash.includes('error=') ||
+           hash.includes('error_description=');
+  }, []);
+
+  // Detect clock skew errors in OAuth callback
+  const hasClockSkewError = useCallback(() => {
+    const hash = window.location.hash;
+    if (!hash) return false;
+    
+    // Check for clock skew related errors in hash
+    const errorDescription = new URLSearchParams(hash.substring(1)).get('error_description');
+    return errorDescription?.toLowerCase().includes('clock') || 
+           errorDescription?.toLowerCase().includes('skew') ||
+           errorDescription?.toLowerCase().includes('future');
+  }, []);
+
+  // Clean up OAuth hash fragments from URL after session is established
   useEffect(() => {
+    if (user && isOAuthCallback()) {
+      // Remove hash fragments from URL without reloading
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [user, isOAuthCallback]);
+
+  // Show clock skew warning if detected
+  useEffect(() => {
+    if (hasClockSkewError()) {
+      toast({
+        title: 'Authentication Issue',
+        description: 'Clock synchronization issue detected. Please try logging in again. If the problem persists, check your system clock.',
+        variant: 'destructive',
+      });
+    }
+  }, [hasClockSkewError, toast]);
+
+  useEffect(() => {
+    // Don't redirect if we're processing an OAuth callback
+    // Wait for Supabase to process the hash fragments and establish the session
+    if (isOAuthCallback()) {
+      // Give Supabase time to process the OAuth callback
+      // The auth state change handler will update the user state
+      // Wait longer if clock skew error is detected (retry logic is working)
+      const waitTime = hasClockSkewError() ? 3000 : 0;
+      if (waitTime > 0) {
+        setTimeout(() => {
+          // Check again after waiting
+          if (!authLoading && !user) {
+            navigate('/auth');
+          }
+        }, waitTime);
+      }
+      return;
+    }
+    
+    // Only redirect if we're certain the user is not authenticated
+    // and we're not in the middle of an OAuth callback
     if (!authLoading && !user) {
       navigate('/auth');
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, isOAuthCallback, hasClockSkewError]);
 
   useEffect(() => {
     if (user) {

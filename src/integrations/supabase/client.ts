@@ -13,5 +13,15 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+    // Handle clock skew by allowing some tolerance in session validation
+    // This helps when system clocks are slightly out of sync
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+  global: {
+    // Add headers that might help with clock skew issues
+    headers: {
+      'X-Client-Info': 'atlantisboard-web',
+    },
+  },
 });

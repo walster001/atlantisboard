@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAppAdmin, setIsAppAdmin] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [oauthRetryCount, setOauthRetryCount] = useState(0);
 
   const clearVerificationError = useCallback(() => {
     setVerificationError(null);
@@ -49,9 +50,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Check for clock skew in console errors
+  useEffect(() => {
+    const originalError = console.error;
+    console.error = (...args: any[]) => {
+      const message = args.join(' ');
+      // Detect clock skew warnings from Supabase
+      if (message.includes('clock for skew') || message.includes('issued in the future')) {
+        console.warn('Clock skew detected. This may cause authentication issues.');
+        // Don't block the error, just log it
+      }
+      originalError.apply(console, args);
+    };
+    
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
+
   // Handle auth state changes with verification
   const handleAuthStateChange = useCallback(async (event: string, newSession: Session | null) => {
     console.log('Auth state change:', event, newSession?.user?.email);
+    
+    // Detect clock skew scenario: SIGNED_OUT immediately after OAuth callback
+    const hash = window.location.hash;
+    const isOAuthCallback = hash && (
+      hash.includes('access_token') || 
+      hash.includes('refresh_token')
+    );
+    
+    if (event === 'SIGNED_OUT' && isOAuthCallback && oauthRetryCount < 3) {
+      console.warn('SIGNED_OUT detected during OAuth callback - possible clock skew. Retrying...');
+      const currentRetryCount = oauthRetryCount;
+      setOauthRetryCount(prev => prev + 1);
+      
+      // Wait a bit and retry getting the session
+      // Sometimes the session needs a moment to be processed
+      setTimeout(async () => {
+        try {
+          const { data: { session: retrySession }, error } = await supabase.auth.getSession();
+          if (retrySession && !error) {
+            console.log('Session retrieved on retry - clock skew may have resolved');
+            // Set session directly instead of recursive call
+            setSession(retrySession);
+            setUser(retrySession.user);
+            setLoading(false);
+            setOauthRetryCount(0);
+            // Trigger verification if needed
+            if (retrySession.user) {
+              const provider = retrySession.user.app_metadata?.provider;
+              if (provider === 'google') {
+                const { data: settings } = await supabase
+                  .from('app_settings')
+                  .select('login_style')
+                  .eq('id', 'default')
+                  .maybeSingle();
+                if (settings?.login_style === 'google_verified') {
+                  const result = await verifyUserInDatabase(retrySession.user.email!);
+                  if (!result.verified) {
+                    setVerificationError(result.message || 'User does not exist in database');
+                    setIsVerified(false);
+                    await supabase.auth.signOut();
+                    return;
+                  }
+                  setIsVerified(true);
+                } else {
+                  setIsVerified(true);
+                }
+              } else {
+                setIsVerified(true);
+              }
+              fetchAdminStatus(retrySession.user.id);
+            }
+            return;
+          }
+        } catch (err) {
+          console.error('Retry failed:', err);
+        }
+      }, 500 * (currentRetryCount + 1)); // Exponential backoff
+    }
     
     // If signing in via Google OAuth, check if verification is needed
     if (event === 'SIGNED_IN' && newSession?.user) {
@@ -93,6 +170,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(newSession?.user ?? null);
     setLoading(false);
     
+    // Reset retry count on successful sign in
+    if (event === 'SIGNED_IN') {
+      setOauthRetryCount(0);
+    }
+    
     // Fetch admin status after auth state change
     if (newSession?.user) {
       setTimeout(() => {
@@ -104,7 +186,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [verifyUserInDatabase]);
 
   useEffect(() => {
+    // Check for OAuth callback hash fragments
+    const hash = window.location.hash;
+    const isOAuthCallback = hash && (
+      hash.includes('access_token') || 
+      hash.includes('refresh_token') || 
+      hash.includes('error=') ||
+      hash.includes('error_description=')
+    );
+
     // Set up auth state listener FIRST
+    // This will handle OAuth callbacks via the SIGNED_IN event
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         handleAuthStateChange(event, session);
@@ -112,13 +204,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+    // getSession() will automatically process hash fragments if present
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      // If there's an error related to clock skew, log it but don't fail immediately
+      if (error) {
+        console.warn('Session retrieval error:', error);
+        // If it's a clock skew issue, we'll handle it in the retry logic
+      }
       
-      if (session?.user) {
-        fetchAdminStatus(session.user.id);
+      // If this is an OAuth callback, the hash fragments will be processed
+      // and onAuthStateChange will fire with SIGNED_IN event
+      // In that case, handleAuthStateChange will set loading to false
+      // So we only set loading to false here if it's NOT an OAuth callback
+      // or if we already have a session (meaning the callback was processed)
+      if (!isOAuthCallback || session) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        
+        if (session?.user) {
+          fetchAdminStatus(session.user.id);
+        }
+      } else if (isOAuthCallback && !session) {
+        // OAuth callback but no session - might be clock skew
+        // Wait a bit longer for the session to be processed
+        // The onAuthStateChange handler will process it, or retry logic will kick in
+        setTimeout(() => {
+          if (loading) {
+            // If still loading after delay, try one more time
+            supabase.auth.getSession().then(({ data: { session: retrySession } }) => {
+              if (retrySession) {
+                setSession(retrySession);
+                setUser(retrySession.user);
+                setLoading(false);
+                fetchAdminStatus(retrySession.user.id);
+              } else {
+                // Still no session - set loading to false to prevent infinite loading
+                setLoading(false);
+              }
+            });
+          }
+        }, 1000);
       }
     });
 

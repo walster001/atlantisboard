@@ -49,7 +49,7 @@ export function AppBrandingSettings() {
 
   const fetchSettings = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('app_settings')
         .select('custom_home_logo_enabled, custom_home_logo_url, custom_home_logo_size, custom_board_logo_enabled, custom_board_logo_url, custom_board_logo_size, custom_global_app_name_enabled, custom_global_app_name')
         .eq('id', 'default')
@@ -145,13 +145,13 @@ export function AppBrandingSettings() {
 
       if (currentUrl) {
         const oldPath = currentUrl.split('/branding/')[1];
-        if (oldPath) await supabase.storage.from('branding').remove([oldPath]);
+        if (oldPath) await api.storage.from('branding').remove([oldPath]);
       }
 
       const fileExt = file.name.split('.').pop();
       const fileName = `${type}-logo-${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage.from('branding').upload(fileName, file, { upsert: true });
+      const { error: uploadError } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
       const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);

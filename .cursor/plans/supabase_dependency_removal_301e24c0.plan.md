@@ -92,12 +92,12 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 
 1. Replace `supabase.auth.getUser()` on line 541 with `useAuth` hook:
    ```typescript
-               // Before:
-               const { data: { user } } = await supabase.auth.getUser();
-               
-               // After:
-               const { user } = useAuth();
-               if (!user) { ... }
+                              // Before:
+                              const { data: { user } } = await supabase.auth.getUser();
+                              
+                              // After:
+                              const { user } = useAuth();
+                              if (!user) { ... }
    ```
 
 
@@ -105,11 +105,11 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 
 2. Replace `supabase.from('board_members').insert()` on line 591 with `api.from()`:
    ```typescript
-               // Before:
-               await supabase.from('board_members').insert({...});
-               
-               // After:
-               await api.from('board_members').insert({...});
+                              // Before:
+                              await supabase.from('board_members').insert({...});
+                              
+                              // After:
+                              await api.from('board_members').insert({...});
    ```
 
 
@@ -132,13 +132,13 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 
 1. Replace `supabase.rpc('get_auth_page_data')` on line 86 with REST endpoint:
    ```typescript
-               // Before:
-               const { data, error } = await supabase.rpc('get_auth_page_data');
-               
-               // After:
-               const response = await fetch(`${api.baseUrl}/app-settings`);
-               const { data, error } = await response.json();
-               // Or use api.request() if available
+                              // Before:
+                              const { data, error } = await supabase.rpc('get_auth_page_data');
+                              
+                              // After:
+                              const response = await fetch(`${api.baseUrl}/app-settings`);
+                              const { data, error } = await response.json();
+                              // Or use api.request() if available
    ```
 
 
@@ -170,11 +170,11 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 1. Replace `supabase.storage.from(bucket)` with `api.storage.from(bucket)`
 2. Update upload calls:
    ```typescript
-               // Before:
-               const { error } = await supabase.storage.from('fonts').upload(fileName, file);
-               
-               // After:
-               const { error } = await api.storage.from('fonts').upload(fileName, file);
+                              // Before:
+                              const { error } = await supabase.storage.from('fonts').upload(fileName, file);
+                              
+                              // After:
+                              const { error } = await api.storage.from('fonts').upload(fileName, file);
    ```
 
 
@@ -182,11 +182,11 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 
 3. Update `getPublicUrl()` calls:
    ```typescript
-               // Before:
-               const { data: urlData } = supabase.storage.from('fonts').getPublicUrl(fileName);
-               
-               // After:
-               const { data: urlData } = api.storage.from('fonts').getPublicUrl(fileName);
+                              // Before:
+                              const { data: urlData } = supabase.storage.from('fonts').getPublicUrl(fileName);
+                              
+                              // After:
+                              const { data: urlData } = api.storage.from('fonts').getPublicUrl(fileName);
    ```
 
 
@@ -194,11 +194,11 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 
 4. Update `remove()` calls:
    ```typescript
-               // Before:
-               await supabase.storage.from('fonts').remove([fileName]);
-               
-               // After:
-               await api.storage.from('fonts').remove([fileName]);
+                              // Before:
+                              await supabase.storage.from('fonts').remove([fileName]);
+                              
+                              // After:
+                              await api.storage.from('fonts').remove([fileName]);
    ```
 
 
@@ -222,11 +222,11 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 
 1. Replace `supabase.auth.getSession()` on line 221 with `api.auth.getSession()`:
    ```typescript
-               // Before:
-               const { data: { session } } = await supabase.auth.getSession();
-               
-               // After:
-               const { data: { session } } = await api.auth.getSession();
+                              // Before:
+                              const { data: { session } } = await supabase.auth.getSession();
+                              
+                              // After:
+                              const { data: { session } } = await api.auth.getSession();
    ```
 
 
@@ -288,8 +288,8 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 1. Ensure Prisma schema is up-to-date in `backend/prisma/schema.prisma`
 2. Run Prisma generate in WSL:
    ```bash
-               cd backend
-               npx prisma generate
+                              cd backend
+                              npx prisma generate
    ```
 
 
@@ -374,7 +374,7 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 
 4. Remove package:
    ```bash
-               npm uninstall @supabase/supabase-js
+                              npm uninstall @supabase/supabase-js
    ```
 
 
@@ -469,7 +469,7 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 
 1. Run TypeScript compiler:
    ```bash
-               npm run build
+                              npm run build
    ```
 
 
@@ -524,11 +524,3 @@ This plan addresses all outstanding Supabase dependencies identified in `backend
 - [ ] All unused imports removed
 - [ ] Edge functions directory archived
 - [ ] TypeScript compilation succeeds
-- [ ] All functionality tests pass
-- [ ] Package removal ready (optional, can keep for types)
-
----
-
-## Notes
-
-- The API client (`src/integrations/api/client.ts`) already provides all necessary methods

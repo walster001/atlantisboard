@@ -89,8 +89,12 @@ export default function InvitePage() {
   useEffect(() => {
     const fetchPageData = async () => {
       try {
-        const { data, error } = await supabase.rpc('get_auth_page_data');
-        if (error) throw error;
+        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
+        const response = await fetch(`${API_BASE_URL}/app-settings`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
         const result = data as unknown as AuthPageData;
         setPageData(result);
       } catch (error) {
@@ -220,33 +224,15 @@ export default function InvitePage() {
     setIsSigningIn(true);
     clearVerificationError();
     
-    // Detect if we're running on localhost for proper OAuth redirect
-    const isLocalhost = window.location.hostname === 'localhost' || 
-                      window.location.hostname === '127.0.0.1' ||
-                      window.location.hostname === '';
-    
-    // Use matching hostname (localhost or 127.0.0.1) for redirect URL when running locally
-    // Redirect to homepage after OAuth - token is stored in sessionStorage for redemption there
-    const localHostname = window.location.hostname === '127.0.0.1' ? '127.0.0.1' : 'localhost';
-    const redirectUrl = isLocalhost 
-      ? `http://${localHostname}:${window.location.port || '8080'}/`
-      : `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: redirectUrl,
-        queryParams: {
-          prompt: 'select_account',
-        },
-      },
-    });
-    
-    if (error) {
+    try {
+      await api.auth.signInWithOAuth('google');
+      // Note: signInWithOAuth redirects the page, so setIsSigningIn(false) won't execute
+      // This is expected behavior
+    } catch (error: any) {
       console.error('Google sign in error:', error);
       toast({
         title: 'Sign in failed',
-        description: error.message,
+        description: error?.message || 'Failed to initiate Google sign in',
         variant: 'destructive',
       });
       setIsSigningIn(false);

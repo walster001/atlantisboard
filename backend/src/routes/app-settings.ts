@@ -44,7 +44,11 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         custom_google_button_text_color: settings.customGoogleButtonTextColor,
         login_style: settings.loginStyle,
       } : null,
-      fonts,
+      fonts: fonts.map(font => ({
+        id: font.id,
+        name: font.name,
+        font_url: font.fontUrl,
+      })),
     });
   } catch (error) {
     next(error);

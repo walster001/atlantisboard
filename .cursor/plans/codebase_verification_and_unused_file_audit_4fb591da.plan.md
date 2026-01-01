@@ -611,5 +611,3 @@ grep -r "from.*supabase/functions" src/
 
 - [ ] All frontend pages render and function correctly
 - [ ] All backend APIs respond correctly
-- [ ] Realtime updates work across multiple clients
-- [ ] File storage operations work correctly

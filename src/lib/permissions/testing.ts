@@ -6,7 +6,7 @@
  * and testing all permissions across all roles.
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { 
   PermissionKey, 
   ALL_PERMISSIONS,
@@ -168,7 +168,7 @@ export async function testServerPermission(
 ): Promise<{ hasPermission: boolean; error?: string }> {
   try {
     // Cast permission to the expected type
-    const { data, error } = await supabase.rpc('has_permission', {
+    const { data, error } = await api.rpc('has_permission', {
       _user_id: userId,
       _permission: permission as any,
       _board_id: boardId,
@@ -192,7 +192,7 @@ export async function getServerUserPermissions(
   boardId?: string
 ): Promise<{ permissions: PermissionKey[]; error?: string }> {
   try {
-    const { data, error } = await supabase.rpc('get_user_permissions', {
+    const { data, error } = await api.rpc('get_user_permissions', {
       _user_id: userId,
       _board_id: boardId ?? null,
     });

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Upload, Image, ExternalLink, Check, Loader2 } from 'lucide-react';
 
 // Detected inline button with internal /cdn image reference
@@ -182,7 +182,7 @@ export function InlineButtonIconDialog({
       const fileName = `inline-icon-${Date.now()}.${fileExt}`;
       const filePath = `import-icons/${fileName}`;
 
-      const { error } = await supabase.storage
+      const { error } = await api.storage
         .from('branding')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -194,7 +194,7 @@ export function InlineButtonIconDialog({
       }
 
       // Get public URL
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = api.storage
         .from('branding')
         .getPublicUrl(filePath);
 

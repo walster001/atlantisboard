@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Upload, Palette, ExternalLink, Type, Loader2, Trash2, Image } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -108,7 +108,7 @@ export function InlineButtonEditor({
       const fileName = `inline-icon-${Date.now()}.${fileExt}`;
       const filePath = `inline-icons/${fileName}`;
 
-      const { error } = await supabase.storage
+      const { error } = await api.storage
         .from('branding')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -117,7 +117,7 @@ export function InlineButtonEditor({
 
       if (error) throw error;
 
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = api.storage
         .from('branding')
         .getPublicUrl(filePath);
 

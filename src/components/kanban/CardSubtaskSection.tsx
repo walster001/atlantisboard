@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { api } from '@/integrations/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -44,6 +45,7 @@ export function CardSubtaskSection({
   themeButtonHoverTextColor,
 }: CardSubtaskSectionProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [saving, setSaving] = useState(false);
@@ -59,13 +61,12 @@ export function CardSubtaskSection({
 
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       // Get the max position
       const maxPosition = subtasks.reduce((max, s) => Math.max(max, s.position), -1);
 
-      const { error } = await supabase
+      const { error } = await api
         .from('card_subtasks')
         .insert({
           card_id: cardId,
@@ -93,16 +94,14 @@ export function CardSubtaskSection({
   const handleToggleSubtask = async (subtask: Subtask) => {
     setTogglingId(subtask.id);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      const { error } = await supabase
+      const query = api
         .from('card_subtasks')
-        .update({
-          completed: !subtask.completed,
-          completed_at: !subtask.completed ? new Date().toISOString() : null,
-          completed_by: !subtask.completed ? user?.id : null,
-        })
         .eq('id', subtask.id);
+      const { error } = await query.update({
+        completed: !subtask.completed,
+        completed_at: !subtask.completed ? new Date().toISOString() : null,
+        completed_by: !subtask.completed ? user?.id : null,
+      });
 
       if (error) throw error;
 
@@ -120,10 +119,10 @@ export function CardSubtaskSection({
 
   const handleDeleteSubtask = async (subtaskId: string) => {
     try {
-      const { error } = await supabase
+      const query = api
         .from('card_subtasks')
-        .delete()
         .eq('id', subtaskId);
+      const { error } = await query.delete();
 
       if (error) throw error;
 

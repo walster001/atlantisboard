@@ -402,8 +402,3 @@ await realtimeService.emit({
 5. Remove Supabase auth schema after migration complete
 
 ## Testing Strategy
-
-1. **Unit tests**: Services, permission checks, utilities
-2. **Integration tests**: API endpoints with test database
-3. **E2E tests**: Critical user flows (auth, board creation, realtime)
-4. **Migration tests**: Verify data integrity after migration

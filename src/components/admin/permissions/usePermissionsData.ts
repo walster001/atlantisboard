@@ -6,12 +6,10 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { api } from '@/integrations/api/client';
 import { CustomRole, RolePermission } from './types';
 import { PermissionKey } from '@/lib/permissions/types';
-import { Database } from '@/integrations/supabase/types';
 import { subscribeCustomRoles, subscribeRolePermissions } from '@/realtime/permissionsSubscriptions';
-
-type PermissionKeyEnum = Database['public']['Enums']['permission_key'];
 
 export function usePermissionsData() {
   const { toast } = useToast();
@@ -37,8 +35,8 @@ export function usePermissionsData() {
       if (rolesResult.error) throw rolesResult.error;
       if (permissionsResult.error) throw permissionsResult.error;
 
-      setCustomRoles(rolesResult.data || []);
-      setRolePermissions(permissionsResult.data || []);
+      setCustomRoles((rolesResult.data as CustomRole[]) || []);
+      setRolePermissions((permissionsResult.data as RolePermission[]) || []);
     } catch (error: any) {
       toast({
         title: 'Error loading permissions',
@@ -89,13 +87,15 @@ export function usePermissionsData() {
     try {
       setSaving(true);
       
-      const { data, error } = await api
+      const insertResult = await api
         .from('custom_roles')
-        .insert({ name, description, is_system: false })
-        .select()
-        .single();
-
-      if (error) throw error;
+        .insert({ name, description, is_system: false });
+      
+      if (insertResult.error) throw insertResult.error;
+      
+      // The insert returns the created record
+      const data = insertResult.data as CustomRole;
+      if (!data) throw new Error('Failed to create role');
 
       setCustomRoles(prev => [...prev, data]);
       toast({
@@ -121,10 +121,10 @@ export function usePermissionsData() {
     try {
       setSaving(true);
       
-      const { error } = await api
+      const query = api
         .from('custom_roles')
-        .update(updates)
         .eq('id', roleId);
+      const { error } = await query.update(updates);
 
       if (error) throw error;
 
@@ -151,16 +151,16 @@ export function usePermissionsData() {
       setSaving(true);
       
       // First delete all permissions for this role
-      await api
+      const permQuery = api
         .from('role_permissions')
-        .delete()
         .eq('role_id', roleId);
+      await permQuery.delete();
 
       // Then delete the role
-      const { error } = await api
+      const roleQuery = api
         .from('custom_roles')
-        .delete()
         .eq('id', roleId);
+      const { error } = await roleQuery.delete();
 
       if (error) throw error;
 
@@ -194,16 +194,16 @@ export function usePermissionsData() {
       setSaving(true);
       
       // Delete existing permissions
-      await api
+      const deleteQuery = api
         .from('role_permissions')
-        .delete()
         .eq('role_id', roleId);
+      await deleteQuery.delete();
 
       // Insert new permissions
       if (permissions.size > 0) {
         const permissionRows = Array.from(permissions).map(key => ({
           role_id: roleId,
-          permission_key: key as PermissionKeyEnum,
+          permission_key: key as PermissionKey,
         }));
 
         const { error } = await api
@@ -214,14 +214,18 @@ export function usePermissionsData() {
       }
 
       // Refresh permissions data
-      const { data: newPerms } = await supabase
+      const permResult = await api
         .from('role_permissions')
         .select('*')
         .eq('role_id', roleId);
 
+      if (permResult.error) throw permResult.error;
+
+      const newPerms = (permResult.data as RolePermission[]) || [];
+
       setRolePermissions(prev => [
         ...prev.filter(rp => rp.role_id !== roleId),
-        ...(newPerms || []),
+        ...newPerms,
       ]);
 
       toast({

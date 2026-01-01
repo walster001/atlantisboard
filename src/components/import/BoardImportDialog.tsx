@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/integrations/api/client';
 import { Upload, FileJson, Loader2, CheckCircle, AlertCircle, Palette, X, Check, Pipette } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -312,6 +313,7 @@ const stageWeights: Record<ImportStage, number> = {
 
 export function BoardImportDialog({ open, onOpenChange, onImportComplete }: BoardImportDialogProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [importSource, setImportSource] = useState<ImportSource>('wekan');
@@ -538,7 +540,6 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       }
 
       // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         result.errors.push('User not authenticated');
         return result;
@@ -588,7 +589,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       result.boards_created = 1;
 
       // Add current user as board admin
-      await supabase.from('board_members').insert({
+      await api.from('board_members').insert({
         board_id: board.id,
         user_id: user.id,
         role: 'admin',

@@ -17,7 +17,7 @@ import {
   getServerUserPermissions,
 } from './testing';
 import { ALL_PERMISSIONS, APP_PERMISSIONS, BoardRole } from './types';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 
 /**
  * Run all client-side permission validation tests.
@@ -73,13 +73,14 @@ export async function runServerValidation(): Promise<void> {
   console.log('=====================================\n');
   
   // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await api.auth.getSession();
   
-  if (!user) {
+  if (!session?.user) {
     console.log('   ❌ No authenticated user. Please log in first.');
     return;
   }
   
+  const user = session.user;
   console.log(`   👤 User: ${user.email}`);
   console.log(`   🆔 ID: ${user.id}`);
   

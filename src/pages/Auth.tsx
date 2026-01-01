@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -83,8 +83,12 @@ export default function Auth() {
   useEffect(() => {
     const fetchPageData = async () => {
       try {
-        const { data, error } = await supabase.rpc('get_auth_page_data');
-        if (error) throw error;
+        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
+        const response = await fetch(`${API_BASE_URL}/app-settings`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
         const result = data as unknown as AuthPageData;
         setPageData(result);
       } catch (error: any) {

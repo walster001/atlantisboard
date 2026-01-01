@@ -14,7 +14,6 @@ import { DeleteRoleDialog } from './DeleteRoleDialog';
 import { usePermissionsData } from './usePermissionsData';
 import { PERMISSION_CATEGORIES, BUILT_IN_ROLE_PERMISSIONS, BOARD_LEVEL_CATEGORIES, CategoryStatus } from './types';
 import { PermissionKey } from '@/lib/permissions/types';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 interface AppAdmin {

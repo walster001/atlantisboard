@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -27,7 +27,7 @@ export function CustomFontsSettings() {
 
   const fetchFonts = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('custom_fonts')
         .select('*')
         .order('created_at', { ascending: false });
@@ -70,20 +70,20 @@ export function CustomFontsSettings() {
     try {
       const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
       
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await api.storage
         .from('fonts')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = api.storage
         .from('fonts')
         .getPublicUrl(fileName);
 
       // Extract font name from filename (remove extension and timestamp)
       const fontName = file.name.replace(/\.(ttf|otf|woff|woff2)$/i, '');
 
-      const { error: dbError } = await supabase
+      const { error: dbError } = await api
         .from('custom_fonts')
         .insert({
           name: fontName,
@@ -118,10 +118,10 @@ export function CustomFontsSettings() {
       // Extract filename from URL
       const fileName = font.font_url.split('/fonts/')[1];
       if (fileName) {
-        await supabase.storage.from('fonts').remove([fileName]);
+        await api.storage.from('fonts').remove([fileName]);
       }
 
-      const { error } = await supabase
+      const { error } = await api
         .from('custom_fonts')
         .delete()
         .eq('id', font.id);

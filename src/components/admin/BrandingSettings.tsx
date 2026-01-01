@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -107,7 +107,7 @@ export function BrandingSettings() {
 
   const fetchSettings = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('app_settings')
         .select('*')
         .eq('id', 'default')
@@ -151,7 +151,7 @@ export function BrandingSettings() {
 
   const fetchCustomFonts = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('custom_fonts')
         .select('id, name, font_url')
         .order('name');
@@ -217,7 +217,7 @@ export function BrandingSettings() {
         custom_google_button_text_color: settings.custom_google_button_text_color,
       };
 
-      const { error } = await supabase
+      const { error } = await api
         .from('app_settings')
         .update(updates)
         .eq('id', 'default');
@@ -261,17 +261,17 @@ export function BrandingSettings() {
     try {
       if (settings.custom_login_logo_url) {
         const oldPath = settings.custom_login_logo_url.split('/branding/')[1];
-        if (oldPath) await supabase.storage.from('branding').remove([oldPath]);
+        if (oldPath) await api.storage.from('branding').remove([oldPath]);
       }
 
       const fileExt = file.name.split('.').pop();
       const fileName = `login-logo-${Date.now()}.${fileExt}`;
       
-      const { error: uploadError } = await supabase.storage.from('branding').upload(fileName, file, { upsert: true });
+      const { error: uploadError } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await supabase.from('app_settings').update({ custom_login_logo_url: urlData.publicUrl }).eq('id', 'default');
+      const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
+      const { error } = await api.from('app_settings').update({ custom_login_logo_url: urlData.publicUrl }).eq('id', 'default');
       if (error) throw error;
 
       setSettings(prev => ({ ...prev, custom_login_logo_url: urlData.publicUrl }));
@@ -290,8 +290,8 @@ export function BrandingSettings() {
     setSaving(true);
     try {
       const path = settings.custom_login_logo_url.split('/branding/')[1];
-      if (path) await supabase.storage.from('branding').remove([path]);
-      const { error } = await supabase.from('app_settings').update({ custom_login_logo_url: null, custom_login_logo_enabled: false }).eq('id', 'default');
+      if (path) await api.storage.from('branding').remove([path]);
+      const { error } = await api.from('app_settings').update({ custom_login_logo_url: null, custom_login_logo_enabled: false }).eq('id', 'default');
       if (error) throw error;
       setSettings(prev => ({ ...prev, custom_login_logo_url: null, custom_login_logo_enabled: false }));
       setSavedSettings(prev => prev ? { ...prev, custom_login_logo_url: null, custom_login_logo_enabled: false } : prev);
@@ -320,17 +320,17 @@ export function BrandingSettings() {
     try {
       if (settings.custom_login_background_image_url) {
         const oldPath = settings.custom_login_background_image_url.split('/branding/')[1];
-        if (oldPath) await supabase.storage.from('branding').remove([oldPath]);
+        if (oldPath) await api.storage.from('branding').remove([oldPath]);
       }
 
       const fileExt = file.name.split('.').pop();
       const fileName = `login-bg-${Date.now()}.${fileExt}`;
       
-      const { error: uploadError } = await supabase.storage.from('branding').upload(fileName, file, { upsert: true });
+      const { error: uploadError } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await supabase.from('app_settings').update({ custom_login_background_image_url: urlData.publicUrl }).eq('id', 'default');
+      const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
+      const { error } = await api.from('app_settings').update({ custom_login_background_image_url: urlData.publicUrl }).eq('id', 'default');
       if (error) throw error;
 
       setSettings(prev => ({ ...prev, custom_login_background_image_url: urlData.publicUrl }));
@@ -349,8 +349,8 @@ export function BrandingSettings() {
     setSaving(true);
     try {
       const path = settings.custom_login_background_image_url.split('/branding/')[1];
-      if (path) await supabase.storage.from('branding').remove([path]);
-      const { error } = await supabase.from('app_settings').update({ custom_login_background_image_url: null }).eq('id', 'default');
+      if (path) await api.storage.from('branding').remove([path]);
+      const { error } = await api.from('app_settings').update({ custom_login_background_image_url: null }).eq('id', 'default');
       if (error) throw error;
       setSettings(prev => ({ ...prev, custom_login_background_image_url: null }));
       setSavedSettings(prev => prev ? { ...prev, custom_login_background_image_url: null } : prev);

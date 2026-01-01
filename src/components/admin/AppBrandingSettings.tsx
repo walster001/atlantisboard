@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -102,7 +102,7 @@ export function AppBrandingSettings() {
         custom_global_app_name: appNameInput.trim() || null,
       };
 
-      const { error } = await supabase
+      const { error } = await api
         .from('app_settings')
         .update(updates)
         .eq('id', 'default');
@@ -154,8 +154,8 @@ export function AppBrandingSettings() {
       const { error: uploadError } = await supabase.storage.from('branding').upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await supabase.from('app_settings').update({ [urlKey]: urlData.publicUrl }).eq('id', 'default');
+      const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
+      const { error } = await api.from('app_settings').update({ [urlKey]: urlData.publicUrl }).eq('id', 'default');
       if (error) throw error;
 
       setSettings(prev => ({ ...prev, [urlKey]: urlData.publicUrl }));
@@ -178,8 +178,8 @@ export function AppBrandingSettings() {
     setSaving(true);
     try {
       const path = currentUrl.split('/branding/')[1];
-      if (path) await supabase.storage.from('branding').remove([path]);
-      const { error } = await supabase.from('app_settings').update({ [urlKey]: null, [enabledKey]: false }).eq('id', 'default');
+      if (path) await api.storage.from('branding').remove([path]);
+      const { error } = await api.from('app_settings').update({ [urlKey]: null, [enabledKey]: false }).eq('id', 'default');
       if (error) throw error;
       setSettings(prev => ({ ...prev, [urlKey]: null, [enabledKey]: false }));
       setSavedSettings(prev => prev ? { ...prev, [urlKey]: null, [enabledKey]: false } : prev);

@@ -2,8 +2,42 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+// Normalize Supabase URL to use 127.0.0.1 instead of localhost for WebSocket compatibility
+// WebSocket connections require consistent hostname usage to avoid connection issues
+const SUPABASE_URL_RAW = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+// Enhanced normalization: handle http/https, with/without trailing slash
+const normalizeUrl = (url: string | undefined): string | undefined => {
+  if (!url) return url;
+  // Replace localhost with 127.0.0.1 for both http and https
+  const normalized = url.replace(/https?:\/\/localhost(\/|:)/g, (match) => {
+    return match.replace('localhost', '127.0.0.1');
+  });
+  return normalized;
+};
+
+const SUPABASE_URL = normalizeUrl(SUPABASE_URL_RAW) || SUPABASE_URL_RAW;
+
+// WebSocket proxy removed - it wasn't causing an issue and may have been interfering with connections
+
+// Validate and warn if environment variable still contains localhost
+if (typeof window !== 'undefined' && SUPABASE_URL_RAW && SUPABASE_URL_RAW.includes('localhost')) {
+  console.warn(
+    '[Supabase] Environment variable VITE_SUPABASE_URL contains "localhost". ' +
+    'This has been normalized to "127.0.0.1" for WebSocket compatibility. ' +
+    'Consider updating .env.local to use 127.0.0.1 directly.'
+  );
+}
+
+// Warn if app is accessed via localhost instead of 127.0.0.1
+if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  console.warn(
+    '[Supabase] App accessed via "localhost:8080". ' +
+    'For WebSocket compatibility, please use "http://127.0.0.1:8080" instead. ' +
+    'This ensures consistent hostname usage for WebSocket connections.'
+  );
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +56,14 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     // Add headers that might help with clock skew issues
     headers: {
       'X-Client-Info': 'atlantisboard-web',
+    },
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+      // apikey is required for initial websocket connection
+      // setAuth() will send the user's access token in the websocket handshake/auth message
+      apikey: SUPABASE_PUBLISHABLE_KEY,
     },
   },
 });

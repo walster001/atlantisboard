@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,7 +51,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButto
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
-  // Don't render anything if user can't generate invites (server-side check happens in edge function)
+  // Don't render anything if user can't generate invites (server-side check happens in REST endpoint)
   if (!canGenerateInvite) {
     return null;
   }
@@ -93,12 +93,13 @@ export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButto
 
     try {
       console.log('Generating invite link with type:', linkType);
-      const { data, error } = await supabase.functions.invoke('generate-invite-token', {
-        body: { boardId, linkType },
+      const { data, error } = await api.request(`/boards/${boardId}/invites/generate`, {
+        method: 'POST',
+        body: JSON.stringify({ linkType }),
       });
 
       if (error) {
-        console.error('Edge function error:', error);
+        console.error('API error:', error);
         throw error;
       }
 

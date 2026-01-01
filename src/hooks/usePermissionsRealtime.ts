@@ -13,9 +13,14 @@
 
 import { useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import {
+  subscribeBoardMemberCustomRoles,
+  subscribeBoardMembersForPermissions,
+  subscribeCustomRoles,
+  subscribeRolePermissions,
+} from '@/realtime/permissionsSubscriptions';
 
 interface UsePermissionsRealtimeOptions {
   boardId?: string | null;
@@ -90,155 +95,85 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
-      .channel('permissions-custom-roles')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
+    return subscribeCustomRoles({
+      onChange: (payload) => {
+        handlePermissionChange({
+          eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
           table: 'custom_roles',
-        },
-        (payload) => {
-          handlePermissionChange({
-            eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
-            table: 'custom_roles',
-            new: payload.new as Record<string, unknown>,
-            old: payload.old as Record<string, unknown>,
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+          new: payload.new as Record<string, unknown>,
+          old: payload.old as Record<string, unknown>,
+        });
+      },
+    });
   }, [user, handlePermissionChange]);
 
   // Subscribe to role_permissions changes (global)
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
-      .channel('permissions-role-permissions')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
+    return subscribeRolePermissions({
+      onChange: (payload) => {
+        handlePermissionChange({
+          eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
           table: 'role_permissions',
-        },
-        (payload) => {
-          handlePermissionChange({
-            eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
-            table: 'role_permissions',
-            new: payload.new as Record<string, unknown>,
-            old: payload.old as Record<string, unknown>,
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+          new: payload.new as Record<string, unknown>,
+          old: payload.old as Record<string, unknown>,
+        });
+      },
+    });
   }, [user, handlePermissionChange]);
 
   // Subscribe to board_member_custom_roles changes (board-specific if boardId provided)
   useEffect(() => {
     if (!user) return;
 
-    const filter = boardId ? `board_id=eq.${boardId}` : undefined;
-
-    const channel = supabase
-      .channel(`permissions-member-custom-roles${boardId ? `-${boardId}` : ''}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'board_member_custom_roles',
-          ...(filter && { filter }),
-        },
-        (payload) => {
-          const record = (payload.new || payload.old) as { user_id?: string } | undefined;
-          
-          // Check if this affects the current user
-          if (record?.user_id === user.id) {
-            if (payload.eventType === 'DELETE') {
-              // User's custom role was removed - might affect their permissions
-              handlePermissionChange({
-                eventType: 'DELETE',
-                table: 'board_member_custom_roles',
-                old: payload.old as Record<string, unknown>,
-              });
-            } else {
-              handlePermissionChange({
-                eventType: payload.eventType as 'INSERT' | 'UPDATE',
-                table: 'board_member_custom_roles',
-                new: payload.new as Record<string, unknown>,
-              });
-            }
+    return subscribeBoardMemberCustomRoles(boardId, {
+      currentUserId: user.id,
+      onChange: (payload) => {
+        const record = (payload.new || payload.old) as { user_id?: string } | undefined;
+        if (record?.user_id === user.id) {
+          if (payload.eventType === 'DELETE') {
+            handlePermissionChange({
+              eventType: 'DELETE',
+              table: 'board_member_custom_roles',
+              old: payload.old as Record<string, unknown>,
+            });
+          } else {
+            handlePermissionChange({
+              eventType: payload.eventType as 'INSERT' | 'UPDATE',
+              table: 'board_member_custom_roles',
+              new: payload.new as Record<string, unknown>,
+            });
           }
         }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      },
+    });
   }, [user, boardId, handlePermissionChange]);
 
   // Subscribe to board_members role changes (board-specific)
   useEffect(() => {
     if (!user || !boardId) return;
 
-    const channel = supabase
-      .channel(`permissions-board-members-${boardId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'board_members',
-          filter: `board_id=eq.${boardId}`,
-        },
-        (payload) => {
-          const updatedMember = payload.new as { user_id?: string; role?: string };
-          
-          if (updatedMember?.user_id === user.id) {
-            console.log('[PermissionsRealtime] User role changed:', updatedMember.role);
-            handlePermissionChange({
-              eventType: 'UPDATE',
-              table: 'board_members',
-              new: payload.new as Record<string, unknown>,
-              old: payload.old as Record<string, unknown>,
-            });
-          }
+    return subscribeBoardMembersForPermissions(boardId, {
+      currentUserId: user.id,
+      onChange: (payload) => {
+        const updatedMember = payload.new as { user_id?: string; role?: string };
+        if (updatedMember?.user_id === user.id) {
+          console.log('[PermissionsRealtime] User role changed:', updatedMember.role);
+          handlePermissionChange({
+            eventType: payload.eventType as 'UPDATE' | 'DELETE',
+            table: 'board_members',
+            new: payload.new as Record<string, unknown>,
+            old: payload.old as Record<string, unknown>,
+          });
         }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'board_members',
-          filter: `board_id=eq.${boardId}`,
-        },
-        (payload) => {
-          const deletedMember = payload.old as { user_id?: string };
-          
-          if (deletedMember?.user_id === user.id) {
-            // Current user was removed from the board
-            handleAccessRevoked();
-          }
+      },
+      onAffectsUser: (payload) => {
+        if (payload.eventType === 'DELETE') {
+          handleAccessRevoked();
         }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      },
+    });
   }, [user, boardId, handlePermissionChange, handleAccessRevoked]);
 
   return {
@@ -250,3 +185,4 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
     },
   };
 }
+

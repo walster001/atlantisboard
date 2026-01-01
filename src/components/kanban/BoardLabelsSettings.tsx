@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -161,7 +161,7 @@ export function BoardLabelsSettings({
     
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('labels')
         .insert({
           board_id: boardId,
@@ -192,7 +192,7 @@ export function BoardLabelsSettings({
     
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('labels')
         .update({
           name: editLabelName.trim(),
@@ -217,10 +217,10 @@ export function BoardLabelsSettings({
     setDeleting(labelId);
     try {
       // First delete all card_labels associations
-      await supabase.from('card_labels').delete().eq('label_id', labelId);
+      await api.from('card_labels').delete().eq('label_id', labelId);
       
       // Then delete the label
-      const { error } = await supabase.from('labels').delete().eq('id', labelId);
+      const { error } = await api.from('labels').delete().eq('id', labelId);
 
       if (error) throw error;
       

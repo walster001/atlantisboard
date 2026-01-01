@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Upload, FileJson, Loader2, CheckCircle, AlertCircle, Palette, X, Check, Pipette } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
@@ -410,20 +410,20 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   ): Promise<ImportResult> => {
     return new Promise(async (resolve, reject) => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
+        const accessToken = localStorage.getItem('access_token');
+        if (!accessToken) {
           reject(new Error('Not authenticated'));
           return;
         }
 
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const response = await fetch(
-          `${supabaseUrl}/functions/v1/import-wekan-board?stream=true`,
+          `${apiBaseUrl}/boards/import?stream=true`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
+              'Authorization': `Bearer ${accessToken}`,
             },
             body: JSON.stringify({ wekanData, defaultCardColor: defaultColor }),
             signal,

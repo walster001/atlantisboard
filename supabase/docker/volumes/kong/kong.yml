@@ -97,26 +97,21 @@ services:
             - admin
             - anon
 
-  ## Realtime
+  ## Realtime - Minimal local-only setup
   - name: realtime-v1
-    _comment: "Realtime: /realtime/v1/* -> ws://realtime:4000/socket/*"
+    _comment: "Realtime: /realtime/v1/* -> http://realtime:4000/socket/* (WebSocket connections auto-upgraded by Kong)"
     url: http://realtime:4000/socket/
     routes:
       - name: realtime-v1-all
         strip_path: true
         paths:
           - /realtime/v1/
-    plugins:
-      - name: cors
-      - name: key-auth
-        config:
-          hide_credentials: false
-      - name: acl
-        config:
-          hide_groups_header: true
-          allow:
-            - admin
-            - anon
+        # Allow all HTTP methods (WebSocket upgrades use GET with Upgrade header)
+        # Not specifying methods means all methods are allowed
+    # Note: No plugins for WebSocket support - CORS and auth plugins can interfere with WebSocket upgrades
+    # Kong automatically handles WebSocket upgrades when it detects Upgrade: websocket header
+    # Realtime service verifies JWT tokens directly using API_JWT_SECRET
+    # The apikey query parameter is passed through to Realtime for JWT verification
 
   ## Storage
   - name: storage-v1
@@ -141,8 +136,8 @@ services:
 
   ## Edge Functions
   - name: functions-v1
-    _comment: "Edge Functions: /functions/v1/* -> http://functions:9000/*"
-    url: http://functions:9000/
+    _comment: "Edge Functions: /functions/v1/* -> http://functions:9999/*"
+    url: http://functions:9999/
     routes:
       - name: functions-v1-all
         strip_path: true

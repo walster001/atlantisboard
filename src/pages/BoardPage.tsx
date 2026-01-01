@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
@@ -26,6 +26,7 @@ import { useDragScroll } from '@/hooks/useDragScroll';
 import { z } from 'zod';
 import { BoardTheme } from '@/components/kanban/ThemeEditorModal';
 import { cn } from '@/lib/utils';
+import { subscribeBoardCards, subscribeBoardColumns, subscribeBoardMembers } from '@/realtime/boardSubscriptions';
 interface DbColumn {
   id: string;
   board_id: string;
@@ -78,9 +79,8 @@ export default function BoardPage() {
   const { toast } = useToast();
 
   // Check if we're in preview/development mode - bypass auth for testing
-  const isPreviewMode = window.location.hostname.includes('lovableproject.com') || 
-                        window.location.hostname.includes('lovable.app') ||
-                        window.location.hostname === 'localhost';
+  const isPreviewMode = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1';
 
   const [boardName, setBoardName] = useState('');
   const [boardColor, setBoardColor] = useState('#0079bf');
@@ -125,6 +125,42 @@ export default function BoardPage() {
     }, [boardId, navigate]),
   });
 
+  // Lightweight member refresh without triggering full page loading state
+  // Defined here before useEffect to avoid hoisting issues
+  const refreshBoardMembers = useCallback(async () => {
+    if (!boardId || !user) return;
+    try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:418',message:'refreshBoardMembers called',data:{boardId,hasUser:!!user},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      const { data, error } = await api.rpc('get_board_member_profiles', {
+        _board_id: boardId
+      });
+
+      if (error) throw error;
+
+      const transformedMembers: BoardMember[] = (data || []).map((m: any) => ({
+        user_id: m.user_id,
+        role: m.role as 'admin' | 'manager' | 'viewer',
+        profiles: {
+          id: m.id,
+          email: m.email || '',
+          full_name: m.full_name,
+          avatar_url: m.avatar_url,
+        }
+      }));
+      setBoardMembers(transformedMembers);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:435',message:'refreshBoardMembers completed',data:{memberCount:transformedMembers.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+    } catch (error: any) {
+      console.error('Error refreshing members:', error);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:438',message:'refreshBoardMembers error',data:{error:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+    }
+  }, [boardId, user]);
+
 
   useEffect(() => {
     // Skip auth redirect in preview mode
@@ -147,63 +183,43 @@ export default function BoardPage() {
   const columnIdsRef = useRef<string[]>([]);
   columnIdsRef.current = columnIds;
 
-  // Realtime subscription for cards - updates UI instantly without refresh
+  // Unified realtime subscriptions for cards, columns, and board members
   useEffect(() => {
     if (!boardId || (!user && !isPreviewMode)) return;
-    
-    const channel = supabase
-      .channel(`board-${boardId}-cards-realtime`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'cards',
-        },
-        (payload) => {
-          const newCard = payload.new as DbCard;
-          // Use ref to get latest columnIds
-          if (columnIdsRef.current.length === 0 || columnIdsRef.current.includes(newCard.column_id)) {
-            setCards(prev => {
-              if (prev.some(c => c.id === newCard.id)) return prev;
-              return [...prev, newCard];
+
+    const cleanups: Array<() => void> = [];
+
+    cleanups.push(
+      subscribeBoardCards(boardId, {
+        onInsert: (newCard) => {
+          const card = newCard as DbCard;
+          if (columnIdsRef.current.length === 0 || columnIdsRef.current.includes(card.column_id)) {
+            setCards((prev) => {
+              if (prev.some((c) => c.id === card.id)) return prev;
+              return [...prev, card];
             });
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'cards',
         },
-        (payload) => {
-          const updatedCard = payload.new as DbCard;
-          setCards(prev => {
-            // Check if card exists in our list
-            const existingCard = prev.find(c => c.id === updatedCard.id);
+        onUpdate: (updatedCardRaw, previousRaw) => {
+          const updatedCard = updatedCardRaw as DbCard;
+          const previous = previousRaw as DbCard;
+          setCards((prev) => {
+            const existingCard = prev.find((c) => c.id === updatedCard.id);
             if (!existingCard) return prev;
-            
-            // Deep compare all relevant fields - return same array reference if no change
-            // This prevents unnecessary re-renders when optimistic update already applied
-            const hasChange = 
+
+            const hasChange =
               existingCard.title !== updatedCard.title ||
               existingCard.description !== updatedCard.description ||
               existingCard.due_date !== updatedCard.due_date ||
               existingCard.position !== updatedCard.position ||
               existingCard.column_id !== updatedCard.column_id ||
               existingCard.color !== updatedCard.color;
-            
-            if (!hasChange) {
-              return prev; // No change, return same reference to avoid re-render
-            }
-            
-            // Create new array only if there's an actual change
-            return prev.map(c => c.id === updatedCard.id ? updatedCard : c);
+
+            if (!hasChange) return prev;
+
+            return prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
           });
-          // Update editing card modal if it's the one being edited by another user
-          setEditingCard(prev => {
+          setEditingCard((prev) => {
             if (prev && prev.card.id === updatedCard.id) {
               return {
                 ...prev,
@@ -213,217 +229,111 @@ export default function BoardPage() {
                   description: updatedCard.description || undefined,
                   dueDate: updatedCard.due_date || undefined,
                   color: updatedCard.color,
-                }
+                },
               };
             }
             return prev;
           });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'cards',
+
+          // Preserve column filtering: ignore moves into columns we don't have if the current state lacks them
+          if (previous.column_id !== updatedCard.column_id && columnIdsRef.current.length > 0) {
+            const hasNewColumn = columnIdsRef.current.includes(updatedCard.column_id);
+            if (!hasNewColumn) {
+              setCards((prev) => prev.filter((c) => c.id !== updatedCard.id));
+            }
+          }
         },
-        (payload) => {
-          const deletedCard = payload.old as DbCard;
-          setCards(prev => prev.filter(c => c.id !== deletedCard.id));
-          // Close modal if the deleted card was being edited
-          setEditingCard(prev => {
+        onDelete: (deletedCardRaw) => {
+          const deletedCard = deletedCardRaw as DbCard;
+          setCards((prev) => prev.filter((c) => c.id !== deletedCard.id));
+          setEditingCard((prev) => {
             if (prev && prev.card.id === deletedCard.id) {
               return null;
             }
             return prev;
           });
-        }
-      )
-      .subscribe((status, err) => {
-        if (err) {
-          console.error('Realtime subscription error:', err);
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [boardId, user, isPreviewMode]);
-
-  // Realtime subscription for columns - syncs column changes including color
-  useEffect(() => {
-    if (!boardId || (!user && !isPreviewMode)) return;
-    
-    const channel = supabase
-      .channel(`board-${boardId}-columns-realtime`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'columns',
-          filter: `board_id=eq.${boardId}`,
         },
-        (payload) => {
-          const newColumn = payload.new as DbColumn;
-          setColumns(prev => {
-            if (prev.some(c => c.id === newColumn.id)) return prev;
+      })
+    );
+
+    cleanups.push(
+      subscribeBoardColumns(boardId, {
+        onInsert: (newColumnRaw) => {
+          const newColumn = newColumnRaw as DbColumn;
+          setColumns((prev) => {
+            if (prev.some((c) => c.id === newColumn.id)) return prev;
             return [...prev, newColumn];
           });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'columns',
-          filter: `board_id=eq.${boardId}`,
         },
-        (payload) => {
-          const updatedColumn = payload.new as DbColumn;
-          setColumns(prev => {
-            const existingColumn = prev.find(c => c.id === updatedColumn.id);
+        onUpdate: (updatedColumnRaw, previousRaw) => {
+          const updatedColumn = updatedColumnRaw as DbColumn;
+          setColumns((prev) => {
+            const existingColumn = prev.find((c) => c.id === updatedColumn.id);
             if (!existingColumn) return prev;
-            
-            // Only update if column actually changed
-            if (existingColumn.title === updatedColumn.title &&
-                existingColumn.position === updatedColumn.position &&
-                existingColumn.color === updatedColumn.color) {
+
+            if (
+              existingColumn.title === updatedColumn.title &&
+              existingColumn.position === updatedColumn.position &&
+              existingColumn.color === updatedColumn.color
+            ) {
               return prev;
             }
-            return prev.map(c => c.id === updatedColumn.id ? updatedColumn : c);
+            return prev.map((c) => (c.id === updatedColumn.id ? updatedColumn : c));
           });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'columns',
-          filter: `board_id=eq.${boardId}`,
         },
-        (payload) => {
-          const deletedColumn = payload.old as DbColumn;
-          setColumns(prev => prev.filter(c => c.id !== deletedColumn.id));
-          // Also remove cards from the deleted column
-          setCards(prev => prev.filter(c => c.column_id !== deletedColumn.id));
-        }
-      )
-      .subscribe((status, err) => {
-        if (err) {
-          console.error('Column realtime subscription error:', err);
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [boardId, user, isPreviewMode]);
-
-  // Realtime subscription for board_members changes (UPDATE only - broadcasts handle add/remove for current user)
-  useEffect(() => {
-    if (!boardId || !user || isPreviewMode) return;
-
-    const channel = supabase
-      .channel(`board-${boardId}-members-realtime`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'board_members',
-          filter: `board_id=eq.${boardId}`,
+        onDelete: (deletedColumnRaw) => {
+          const deletedColumn = deletedColumnRaw as DbColumn;
+          setColumns((prev) => prev.filter((c) => c.id !== deletedColumn.id));
+          setCards((prev) => prev.filter((c) => c.column_id !== deletedColumn.id));
         },
-        (payload) => {
-          const updatedMembership = payload.new as { board_id: string; user_id: string; role: string };
-          if (updatedMembership?.user_id === user.id) {
-            setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
-          }
-          refreshBoardMembers();
-        }
-      )
-      .subscribe();
+      })
+    );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [boardId, user, isPreviewMode]);
-
-  // Listen for board_members DELETE events to detect when current user is removed
-  useEffect(() => {
-    if (!boardId || !user || isPreviewMode) return;
-
-    console.log('BoardPage: Setting up member change listener for board:', boardId, 'user:', user.id);
-
-    const channel = supabase
-      .channel(`board-${boardId}-member-removal-detection`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'board_members',
-          filter: `board_id=eq.${boardId}`,
-        },
-        (payload) => {
-          console.log('BoardPage: Received DELETE event payload:', JSON.stringify(payload));
-          const deletedMember = payload.old as { board_id?: string; user_id?: string; id?: string };
-          console.log('BoardPage: Deleted member:', deletedMember, 'Current user:', user.id);
-          
-          // Check if current user was removed
-          if (deletedMember?.user_id === user.id) {
-            console.log('BoardPage: Current user was removed, showing toast and navigating to home');
-            // Show toast immediately before redirect
-            toast({
-              title: 'Access removed',
-              description: 'You have been removed from this board.',
-              variant: 'destructive',
-            });
-            // Navigate to home with state
-            navigate('/', { 
-              state: { 
-                removedFromBoard: {
-                  board_id: boardId,
-                  workspace_id: workspaceId,
-                  timestamp: Date.now()
-                }
-              }
-            });
-          } else {
-            console.log('BoardPage: Another member was removed, refreshing members list');
-            // Another member was removed, refresh members list
+    if (!isPreviewMode && user) {
+      cleanups.push(
+        subscribeBoardMembers(boardId, {
+          onUpdate: (membershipRaw) => {
+            const updatedMembership = membershipRaw as { board_id: string; user_id: string; role: string };
+            if (updatedMembership?.user_id === user.id) {
+              setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
+            }
             refreshBoardMembers();
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'board_members',
-          filter: `board_id=eq.${boardId}`,
-        },
-        (payload) => {
-          console.log('BoardPage: Received INSERT event:', payload);
-          const newMember = payload.new as { board_id: string; user_id: string };
-          // If someone else was added, refresh members list
-          if (newMember.user_id !== user.id) {
-            refreshBoardMembers();
-          }
-        }
-      )
-      .subscribe((status, err) => {
-        console.log('BoardPage: Member change subscription status:', status, err || '');
-      });
+          },
+          onDelete: (membershipRaw) => {
+            const deletedMember = membershipRaw as { board_id?: string; user_id?: string };
+            if (deletedMember?.user_id === user.id) {
+              toast({
+                title: 'Access removed',
+                description: 'You have been removed from this board.',
+                variant: 'destructive',
+              });
+              navigate('/', {
+                state: {
+                  removedFromBoard: {
+                    board_id: boardId,
+                    workspace_id: workspaceId,
+                    timestamp: Date.now(),
+                  },
+                },
+              });
+            } else {
+              refreshBoardMembers();
+            }
+          },
+          onInsert: (membershipRaw) => {
+            const newMember = membershipRaw as { board_id: string; user_id: string };
+            if (newMember.user_id !== user.id) {
+              refreshBoardMembers();
+            }
+          },
+        })
+      );
+    }
 
     return () => {
-      console.log('BoardPage: Cleaning up member change listener');
-      supabase.removeChannel(channel);
+      cleanups.forEach((cleanup) => cleanup());
     };
-  }, [boardId, user, isPreviewMode, navigate, workspaceId, toast]);
+  }, [boardId, user, isPreviewMode, refreshBoardMembers, navigate, workspaceId, toast]);
 
   const fetchBoardData = async () => {
     if (!boardId) return;
@@ -436,7 +346,7 @@ export default function BoardPage() {
 
     try {
       // Single server-side call to get all board data
-      const { data, error } = await supabase.rpc('get_board_data', {
+      const { data, error } = await api.rpc('get_board_data', {
         _board_id: boardId,
         _user_id: effectiveUserId
       });
@@ -540,31 +450,6 @@ export default function BoardPage() {
     }
   };
 
-  // Lightweight member refresh without triggering full page loading state
-  const refreshBoardMembers = async () => {
-    if (!boardId || !user) return;
-    try {
-      const { data, error } = await supabase.rpc('get_board_member_profiles', {
-        _board_id: boardId
-      });
-
-      if (error) throw error;
-
-      const transformedMembers: BoardMember[] = (data || []).map((m: any) => ({
-        user_id: m.user_id,
-        role: m.role as 'admin' | 'manager' | 'viewer',
-        profiles: {
-          id: m.id,
-          email: m.email || '',
-          full_name: m.full_name,
-          avatar_url: m.avatar_url,
-        }
-      }));
-      setBoardMembers(transformedMembers);
-    } catch (error: any) {
-      console.error('Error refreshing members:', error);
-    }
-  };
 
   // Lightweight theme refresh - updates theme without triggering loading state
   const refreshBoardTheme = async () => {
@@ -668,7 +553,7 @@ export default function BoardPage() {
   const updateCardColor = async (cardId: string, color: string | null) => {
     if (!effectiveCanEdit) return;
     try {
-      await supabase.from('cards').update({ color }).eq('id', cardId);
+      await api.from('cards').update({ color }).eq('id', cardId);
       setCards(prev => prev.map(c => c.id === cardId ? { ...c, color } : c));
     } catch (error: any) {
       console.error('Update card color error:', error);
@@ -680,7 +565,7 @@ export default function BoardPage() {
     if (!effectiveCanEdit || !boardId) return;
     try {
       const cardIds = cards.map(c => c.id);
-      await supabase.from('cards').update({ color }).in('id', cardIds);
+      await api.from('cards').update({ color }).in('id', cardIds);
       setCards(prev => prev.map(c => ({ ...c, color })));
       toast({ title: 'Success', description: 'Applied colour to all cards' });
     } catch (error: any) {
@@ -696,7 +581,7 @@ export default function BoardPage() {
       // When color is null from ColorPicker (transparent selection), save as empty string
       // Empty string means "explicitly transparent", null means "use theme default"
       const colorToSave = isClearing ? null : (color === null ? '' : color);
-      await supabase.from('columns').update({ color: colorToSave }).eq('id', columnId);
+      await api.from('columns').update({ color: colorToSave }).eq('id', columnId);
       setColumns(prev => prev.map(c => c.id === columnId ? { ...c, color: colorToSave } : c));
     } catch (error: any) {
       console.error('Update column color error:', error);
@@ -710,7 +595,7 @@ export default function BoardPage() {
       const columnIds = columns.map(c => c.id);
       // When color is null from ColorPicker (transparent selection), save as empty string
       const colorToSave = color === null ? '' : color;
-      await supabase.from('columns').update({ color: colorToSave }).in('id', columnIds);
+      await api.from('columns').update({ color: colorToSave }).in('id', columnIds);
       setColumns(prev => prev.map(c => ({ ...c, color: colorToSave })));
       toast({ title: 'Success', description: 'Applied colour to all columns' });
     } catch (error: any) {
@@ -738,7 +623,7 @@ export default function BoardPage() {
 
       // Batch update in database (single server call)
       const updates = updatedColumns.map(col => ({ id: col.id, position: col.position }));
-      await supabase.rpc('batch_update_column_positions', {
+      await api.rpc('batch_update_column_positions', {
         _user_id: user.id,
         _board_id: boardId,
         _updates: updates
@@ -786,7 +671,7 @@ export default function BoardPage() {
     });
 
     // Batch update in database (single server call)
-    await supabase.rpc('batch_update_card_positions', {
+    await api.rpc('batch_update_card_positions', {
       _user_id: user.id,
       _updates: uniqueUpdates
     });
@@ -807,7 +692,7 @@ export default function BoardPage() {
 
     // Batch update in database (single server call)
     const updates = updatedColumns.map(col => ({ id: col.id, position: col.position }));
-    await supabase.rpc('batch_update_column_positions', {
+    await api.rpc('batch_update_column_positions', {
       _user_id: user.id,
       _board_id: boardId,
       _updates: updates
@@ -850,7 +735,7 @@ export default function BoardPage() {
       // Validate input
       const validated = columnSchema.parse({ title });
       
-      await supabase.from('columns').update({ title: validated.title }).eq('id', columnId);
+      await api.from('columns').update({ title: validated.title }).eq('id', columnId);
       setColumns(columns.map(c => c.id === columnId ? { ...c, title: validated.title } : c));
     } catch (error: any) {
       console.error('Update column error:', error);
@@ -866,7 +751,7 @@ export default function BoardPage() {
     // Early return for better UX - RLS will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      await supabase.from('columns').delete().eq('id', columnId);
+      await api.from('columns').delete().eq('id', columnId);
       setColumns(columns.filter(c => c.id !== columnId));
       setCards(cards.filter(c => c.column_id !== columnId));
     } catch (error: any) {
@@ -931,7 +816,7 @@ export default function BoardPage() {
       // Check if dueDate is explicitly null (meaning clear it) vs undefined (meaning don't update)
       const clearDueDate = 'dueDate' in updates && updates.dueDate === null;
       
-      const { data, error } = await supabase.rpc('update_card', {
+      const { data, error } = await api.rpc('update_card', {
         _user_id: user.id,
         _card_id: cardId,
         _title: updates.title || null,
@@ -964,7 +849,7 @@ export default function BoardPage() {
     // Early return for better UX - RLS will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      await supabase.from('cards').delete().eq('id', cardId);
+      await api.from('cards').delete().eq('id', cardId);
       setCards(cards.filter(c => c.id !== cardId));
       setCardLabels(cardLabels.filter(cl => cl.card_id !== cardId));
     } catch (error: any) {
@@ -1011,7 +896,7 @@ export default function BoardPage() {
     // Early return for better UX - RLS will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      await supabase.from('card_labels').delete().eq('card_id', cardId).eq('label_id', labelId);
+      await api.from('card_labels').delete().eq('card_id', cardId).eq('label_id', labelId);
       setCardLabels(cardLabels.filter(cl => !(cl.card_id === cardId && cl.label_id === labelId)));
     } catch (error: any) {
       console.error('Remove label error:', error);

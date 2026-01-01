@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,7 +87,7 @@ export function BoardMembersDialog({
       // Managers can only add viewers
       const assignRole = userRole === 'manager' ? 'viewer' : role;
 
-      const { error } = await supabase.from('board_members').insert({
+      const { error } = await api.from('board_members').insert({
         board_id: boardId,
         user_id: profile.id,
         role: assignRole,

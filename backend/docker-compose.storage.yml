@@ -1,0 +1,51 @@
+# MinIO S3-Compatible Storage for Local Development
+# Usage: docker-compose -f docker-compose.storage.yml up -d
+
+version: '3.8'
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: atlantisboard-minio
+    ports:
+      - "9000:9000"  # API endpoint
+      - "9001:9001"  # Console UI
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO client for bucket initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: atlantisboard-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/atlantisboard-card-attachments --ignore-existing;
+      mc mb myminio/atlantisboard-branding --ignore-existing;
+      mc mb myminio/atlantisboard-fonts --ignore-existing;
+      mc anonymous set public myminio/atlantisboard-branding;
+      mc anonymous set public myminio/atlantisboard-fonts;
+      echo 'Buckets initialized';
+      "
+    networks:
+      - default
+
+volumes:
+  minio_data:
+
+networks:
+  default:
+    name: atlantisboard-storage
+

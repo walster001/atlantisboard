@@ -110,7 +110,7 @@ services:
     networks:
       - supabase-net
 
-  # Realtime - WebSocket subscriptions
+  # Realtime - WebSocket subscriptions (minimal local-only setup)
   realtime:
     image: supabase/realtime:v2.28.32
     container_name: supabase-realtime
@@ -125,23 +125,21 @@ services:
       DB_USER: postgres
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       DB_NAME: ${POSTGRES_DB:-postgres}
-      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+      # Set search_path to include both _realtime (for service tables) and public (for tenant database access)
+      # This allows postgres_cdc_rls to access both schemas for RLS policy evaluation
+      # In single-tenant mode, the tenant database IS the main database (same connection)
+      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime, public"
       DB_ENC_KEY: supabaserealtime
       API_JWT_SECRET: ${JWT_SECRET}
-      FLY_ALLOC_ID: fly123
       FLY_APP_NAME: realtime
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-UpNVntn3cDxHJpq99YMc1T1AQgQpc8kfYTuRgBiYa15BLrx8etQoXz3gZv1/u2oq}
       ERL_AFLAGS: -proto_dist inet_tcp
       ENABLE_TAILSCALE: "false"
       DNS_NODES: "''"
-    # Healthcheck disabled - Realtime is running (verified in logs)
-    # Container has minimal tools, so using service_started for dependencies
-    # healthcheck:
-    #   test: ["CMD-SHELL", "true"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 10
-    #   start_period: 60s
+      # Platform configuration for local-only setup (prevents distributed node lookups)
+      PLATFORM: local
+      # Disable region lookups for local-only setup (bypasses get_region function calls)
+      REPLICA_REGION: local
     networks:
       - supabase-net
 
@@ -227,6 +225,17 @@ services:
       KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
       KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+      # WebSocket proxy support - ensure nginx properly upgrades HTTP to WebSocket
+      KONG_NGINX_HTTP_UPSTREAM_KEEPALIVE: "60"
+      KONG_NGINX_PROXY_PROXY_HTTP_VERSION: "1.1"
+      # Ensure WebSocket connections are not buffered
+      KONG_NGINX_PROXY_PROXY_BUFFERING: "off"
+      # Increase read timeout for WebSocket connections
+      KONG_NGINX_PROXY_PROXY_READ_TIMEOUT: "86400"
+      # Explicitly enable WebSocket support
+      KONG_PROXY_WEBSOCKETS: "on"
+      # Don't abort on client disconnect for WebSocket connections
+      KONG_NGINX_PROXY_PROXY_IGNORE_CLIENT_ABORT: "on"
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
     healthcheck:
@@ -255,12 +264,15 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       SUPABASE_DB_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
       VERIFY_JWT: "false"
+      RUST_BACKTRACE: "1"
     volumes:
       - ../functions:/home/deno/functions:ro
     command:
       - start
       - --main-service
       - /home/deno/functions
+      - --port
+      - "9000"
     networks:
       - supabase-net
 

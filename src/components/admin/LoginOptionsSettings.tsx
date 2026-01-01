@@ -221,14 +221,15 @@ export function LoginOptionsSettings() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('test-mysql-connection', {
-        body: {
+      const response = await api.request('/admin/mysql-config/test', {
+        method: 'POST',
+        body: JSON.stringify({
           db_host: mysqlConfig.db_host.trim(),
           db_name: mysqlConfig.db_name.trim(),
           db_user: mysqlConfig.db_user.trim(),
           db_password: mysqlConfig.db_password,
           verification_query: mysqlConfig.verification_query.trim(),
-        },
+        }),
       });
 
       if (response.error) throw response.error;
@@ -280,17 +281,15 @@ export function LoginOptionsSettings() {
 
     setSavingMySql(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
-      const response = await supabase.functions.invoke('save-mysql-config', {
-        body: {
+      const response = await api.request('/admin/mysql-config', {
+        method: 'POST',
+        body: JSON.stringify({
           db_host: mysqlConfig.db_host.trim(),
           db_name: mysqlConfig.db_name.trim(),
           db_user: mysqlConfig.db_user.trim(),
           db_password: mysqlConfig.db_password,
           verification_query: mysqlConfig.verification_query.trim(),
-        },
+        }),
       });
 
       if (response.error) throw response.error;

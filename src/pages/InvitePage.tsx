@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -143,9 +143,12 @@ export default function InvitePage() {
     setStatus('redeeming');
 
     try {
-      const { data, error } = await supabase.functions.invoke('redeem-invite-token', {
-        body: { token },
+      const result = await api.request('/invites/redeem', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
       });
+      
+      const { data, error } = result;
 
       // Clear stored token after attempt
       sessionStorage.removeItem('pendingInviteToken');
@@ -222,10 +225,11 @@ export default function InvitePage() {
                       window.location.hostname === '127.0.0.1' ||
                       window.location.hostname === '';
     
-    // Use localhost redirect URL when running locally, otherwise use current origin
+    // Use matching hostname (localhost or 127.0.0.1) for redirect URL when running locally
     // Redirect to homepage after OAuth - token is stored in sessionStorage for redemption there
+    const localHostname = window.location.hostname === '127.0.0.1' ? '127.0.0.1' : 'localhost';
     const redirectUrl = isLocalhost 
-      ? `http://localhost:${window.location.port || '8080'}/`
+      ? `http://${localHostname}:${window.location.port || '8080'}/`
       : `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signInWithOAuth({

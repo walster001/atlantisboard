@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings } from '@/hooks/useAppSettings';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
+import { subscribeHomeBoardMembership } from '@/realtime/homeSubscriptions';
 
 interface Workspace {
   id: string;
@@ -263,90 +263,83 @@ export default function Home() {
     }
   }, [location.state, user, navigate]);
 
+  // Define fetchData using useCallback so it can be used in useEffect dependencies
+  const fetchData = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      // Single server-side call to get all home data
+      const { data, error } = await api.rpc('get_home_data', {
+        _user_id: user.id
+      });
+
+      if (error) throw error;
+
+      // Cast JSON response to typed object
+      const result = data as {
+        workspaces?: Workspace[];
+        boards?: Board[];
+        board_roles?: Record<string, 'admin' | 'manager' | 'viewer'>;
+      };
+
+      setWorkspaces(result?.workspaces || []);
+      setBoards(result?.boards || []);
+      setBoardRoles(result?.board_roles || {});
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
   // Listen for real-time board_members changes for the current user
   // This handles both when user is added to or removed from boards
   useEffect(() => {
     if (!user) return;
 
-    console.log('Home: Setting up board_members realtime subscription for user:', user.id);
+    return subscribeHomeBoardMembership(user.id, {
+      onAdded: () => {
+        fetchData();
+        toast({
+          title: 'Board access granted',
+          description: 'You have been added to a new board.',
+        });
+      },
+      onRemoved: (payload) => {
+        const deletedMembership = payload.old as { board_id: string; user_id: string };
+        const deletedBoardId = deletedMembership.board_id;
 
-    const channel = supabase
-      .channel(`user-${user.id}-board-membership-changes`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'board_members',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log('Home: Received INSERT event for board_members:', payload);
-          // User was added to a new board - refetch data to get the new board
-          fetchData();
+        setBoards((prevBoards) => {
+          const removedBoard = prevBoards.find((b) => b.id === deletedBoardId);
+          const workspaceId = removedBoard?.workspace_id;
+
+          const remainingBoardsInWorkspace = prevBoards.filter(
+            (b) => b.workspace_id === workspaceId && b.id !== deletedBoardId
+          );
+          const shouldRemoveWorkspace = workspaceId && remainingBoardsInWorkspace.length === 0;
+
+          if (shouldRemoveWorkspace) {
+            setWorkspaces((prevWorkspaces) => prevWorkspaces.filter((w) => w.id !== workspaceId));
+          }
+
           toast({
-            title: 'Board access granted',
-            description: 'You have been added to a new board.',
+            title: 'Board access removed',
+            description: shouldRemoveWorkspace
+              ? 'You have been removed from a board and no longer have access to the workspace.'
+              : 'You have been removed from a board.',
           });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'board_members',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log('Home: Received DELETE event for board_members:', payload);
-          const deletedMembership = payload.old as { board_id: string; user_id: string };
-          const deletedBoardId = deletedMembership.board_id;
-          
-          // Use functional state updates to avoid stale closure issues
-          // We need to capture workspace info and update both states atomically
-          setBoards(prevBoards => {
-            const removedBoard = prevBoards.find(b => b.id === deletedBoardId);
-            const workspaceId = removedBoard?.workspace_id;
-            
-            // Calculate remaining boards in workspace
-            const remainingBoardsInWorkspace = prevBoards.filter(
-              b => b.workspace_id === workspaceId && b.id !== deletedBoardId
-            );
-            const shouldRemoveWorkspace = workspaceId && remainingBoardsInWorkspace.length === 0;
-            
-            // Remove workspace if this was the last board (update in separate setState to avoid batching issues)
-            if (shouldRemoveWorkspace) {
-              setWorkspaces(prevWorkspaces => prevWorkspaces.filter(w => w.id !== workspaceId));
-            }
-            
-            // Show toast with correct info
-            toast({
-              title: 'Board access removed',
-              description: shouldRemoveWorkspace 
-                ? 'You have been removed from a board and no longer have access to the workspace.'
-                : 'You have been removed from a board.',
-            });
-            
-            return prevBoards.filter(b => b.id !== deletedBoardId);
-          });
-          
-          setBoardRoles(prev => {
-            const updated = { ...prev };
-            delete updated[deletedBoardId];
-            return updated;
-          });
-        }
-      )
-      .subscribe((status, err) => {
-        console.log('Home: Board membership subscription status:', status, err || '');
-      });
 
-    return () => {
-      console.log('Home: Cleaning up board_members subscription');
-      supabase.removeChannel(channel);
-    };
-  }, [user]); // Only depend on user - use functional state updates inside callbacks
+          return prevBoards.filter((b) => b.id !== deletedBoardId);
+        });
+
+        setBoardRoles((prev) => {
+          const updated = { ...prev };
+          delete updated[deletedBoardId];
+          return updated;
+        });
+      },
+    });
+  }, [user, fetchData, toast]);
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {
@@ -354,9 +347,12 @@ export default function Home() {
     if (!pendingToken || !user) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke('redeem-invite-token', {
-        body: { token: pendingToken },
+      const result = await api.request('/invites/redeem', {
+        method: 'POST',
+        body: JSON.stringify({ token: pendingToken }),
       });
+      
+      const { data, error } = result;
 
       // Clear the token regardless of outcome
       sessionStorage.removeItem('pendingInviteToken');
@@ -405,33 +401,6 @@ export default function Home() {
     }
   };
 
-  const fetchData = async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      // Single server-side call to get all home data
-      const { data, error } = await supabase.rpc('get_home_data', {
-        _user_id: user.id
-      });
-
-      if (error) throw error;
-
-      // Cast JSON response to typed object
-      const result = data as {
-        workspaces?: Workspace[];
-        boards?: Board[];
-        board_roles?: Record<string, 'admin' | 'manager' | 'viewer'>;
-      };
-
-      setWorkspaces(result?.workspaces || []);
-      setBoards(result?.boards || []);
-      setBoardRoles(result?.board_roles || {});
-    } catch (error: any) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Fetch themes when board dialog opens
   const fetchThemes = async () => {
@@ -498,7 +467,7 @@ export default function Home() {
       if (error) throw error;
 
       // Add owner as workspace member
-      await supabase.from('workspace_members').insert({
+      await api.from('workspace_members').insert({
         workspace_id: workspace.id,
         user_id: user.id,
       });
@@ -521,7 +490,7 @@ export default function Home() {
   const fetchWorkspaceDeletionCounts = async (workspaceId: string) => {
     setDeletionCountsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_workspace_deletion_counts', {
+      const { data, error } = await api.rpc('get_workspace_deletion_counts', {
         _workspace_id: workspaceId
       });
       if (error) throw error;
@@ -537,7 +506,7 @@ export default function Home() {
   const fetchBoardDeletionCounts = async (boardId: string) => {
     setDeletionCountsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_board_deletion_counts', {
+      const { data, error } = await api.rpc('get_board_deletion_counts', {
         _board_id: boardId
       });
       if (error) throw error;
@@ -552,7 +521,7 @@ export default function Home() {
 
   const deleteWorkspace = async (id: string) => {
     try {
-      const { error } = await supabase.from('workspaces').delete().eq('id', id);
+      const { error } = await api.from('workspaces').delete().eq('id', id);
       if (error) throw error;
       setWorkspaces(workspaces.filter((w) => w.id !== id));
       setBoards(boards.filter((b) => b.workspace_id !== id));
@@ -655,7 +624,7 @@ export default function Home() {
       if (error) throw error;
 
       // Add creator as board admin
-      await supabase.from('board_members').insert({
+      await api.from('board_members').insert({
         board_id: board.id,
         user_id: user.id,
         role: 'admin',
@@ -680,7 +649,7 @@ export default function Home() {
 
   const deleteBoard = async (id: string) => {
     try {
-      const { error } = await supabase.from('boards').delete().eq('id', id);
+      const { error } = await api.from('boards').delete().eq('id', id);
       if (error) throw error;
       setBoards(boards.filter((b) => b.id !== id));
       setDeleteConfirmOpen(false);
@@ -787,7 +756,7 @@ export default function Home() {
       });
 
       // Update database
-      await supabase.rpc('batch_update_board_positions', {
+      await api.rpc('batch_update_board_positions', {
         _user_id: user.id,
         _workspace_id: sourceWorkspaceId,
         _updates: updatedBoards.map(b => ({ id: b.id, position: b.position }))
@@ -809,7 +778,7 @@ export default function Home() {
       });
 
       // Update database
-      const { data, error } = await supabase.rpc('move_board_to_workspace', {
+      const { data, error } = await api.rpc('move_board_to_workspace', {
         _user_id: user.id,
         _board_id: boardId,
         _new_workspace_id: destWorkspaceId,

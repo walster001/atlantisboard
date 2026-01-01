@@ -45,8 +45,8 @@ export default function AdminConfig() {
   const [activeSubTab, setActiveSubTab] = useState<string>('general');
 
   // Check if we're in preview/development mode
-  const isPreviewMode = window.location.hostname.includes('lovableproject.com') || 
-                        window.location.hostname === 'localhost';
+  const isPreviewMode = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1';
 
   useEffect(() => {
     // Skip auth redirect in preview mode

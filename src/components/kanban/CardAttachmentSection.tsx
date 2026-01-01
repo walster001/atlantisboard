@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Paperclip, Download, Trash2, Upload, FileIcon, Image as ImageIcon, File, Loader2, ExternalLink, Eye } from 'lucide-react';
@@ -70,7 +70,8 @@ export function CardAttachmentSection({
     setUploading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await api.auth.getSession();
+      const user = session?.user;
       if (!user) throw new Error('Not authenticated');
 
       for (const file of Array.from(files)) {
@@ -78,26 +79,26 @@ export function CardAttachmentSection({
         const fileExt = file.name.split('.').pop();
         const fileName = `${cardId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
         
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError, data: uploadData } = await api.storage
           .from('card-attachments')
           .upload(fileName, file);
 
-        if (uploadError) {
+        if (uploadError || !uploadData) {
           toast({
             title: 'Upload failed',
-            description: `Failed to upload ${file.name}: ${uploadError.message}`,
+            description: `Failed to upload ${file.name}: ${uploadError?.message || 'Unknown error'}`,
             variant: 'destructive',
           });
           continue;
         }
 
         // Get public URL
-        const { data: urlData } = supabase.storage
+        const { data: urlData } = api.storage
           .from('card-attachments')
           .getPublicUrl(fileName);
 
         // Create attachment record
-        const { error: insertError } = await supabase
+        const { error: insertError } = await api
           .from('card_attachments')
           .insert({
             card_id: cardId,
@@ -139,10 +140,10 @@ export function CardAttachmentSection({
       const urlParts = attachment.file_url.split('/card-attachments/');
       if (urlParts.length > 1) {
         const storagePath = decodeURIComponent(urlParts[1]);
-        await supabase.storage.from('card-attachments').remove([storagePath]);
+        await api.storage.from('card-attachments').remove([storagePath]);
       }
 
-      const { error } = await supabase
+      const { error } = await api
         .from('card_attachments')
         .delete()
         .eq('id', attachment.id);

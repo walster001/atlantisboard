@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/integrations/api/client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -186,7 +186,7 @@ export function BoardSettingsModal({
     try {
       const assignRole = userRole === 'manager' ? 'viewer' : (pendingRoles[userId] || 'viewer');
 
-      const { error } = await supabase.from('board_members').insert({
+      const { error } = await api.from('board_members').insert({
         board_id: boardId,
         user_id: userId,
         role: assignRole,

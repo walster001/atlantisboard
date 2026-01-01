@@ -1,0 +1,135 @@
+# AtlantisBoard Backend Services
+# Orchestrates: API Server, PostgreSQL, MinIO Storage
+# Usage: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: atlantisboard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-atlantisboard}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-atlantisboard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - atlantisboard-backend
+
+  # Backend API Server (includes WebSocket)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: atlantisboard-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-atlantisboard}
+      
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      
+      # Server
+      API_PORT: 3000
+      WS_PORT: ${WS_PORT:-3001}
+      NODE_ENV: ${NODE_ENV:-production}
+      
+      # CORS
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://127.0.0.1:8080}
+      
+      # Google OAuth (optional)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
+      
+      # MySQL Verification (optional)
+      MYSQL_ENCRYPTION_KEY: ${MYSQL_ENCRYPTION_KEY:-}
+      
+      # S3 Storage
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_BUCKET_PREFIX: ${S3_BUCKET_PREFIX:-atlantisboard}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_USE_SSL: ${S3_USE_SSL:-false}
+      
+      # Rate Limiting
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - atlantisboard-backend
+
+  # MinIO S3-Compatible Storage
+  minio:
+    image: minio/minio:latest
+    container_name: atlantisboard-minio
+    restart: unless-stopped
+    ports:
+      - "${MINIO_PORT:-9000}:9000"  # API endpoint
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # Console UI
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - atlantisboard-backend
+
+  # MinIO Client for bucket initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: atlantisboard-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set myminio http://minio:9000 ${S3_ACCESS_KEY:-minioadmin} ${S3_SECRET_KEY:-minioadmin};
+      mc mb myminio/${S3_BUCKET_PREFIX:-atlantisboard}-card-attachments --ignore-existing;
+      mc mb myminio/${S3_BUCKET_PREFIX:-atlantisboard}-branding --ignore-existing;
+      mc mb myminio/${S3_BUCKET_PREFIX:-atlantisboard}-fonts --ignore-existing;
+      mc anonymous set public myminio/${S3_BUCKET_PREFIX:-atlantisboard}-branding;
+      mc anonymous set public myminio/${S3_BUCKET_PREFIX:-atlantisboard}-fonts;
+      echo 'Buckets initialized';
+      "
+    networks:
+      - atlantisboard-backend
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  atlantisboard-backend:
+    driver: bridge
+

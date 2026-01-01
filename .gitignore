@@ -18,6 +18,10 @@ dist-ssr
 .env.*.local
 supabase/docker/.env
 
+# Development process files
+backend/.dev-api.pid
+backend/.dev-api.log
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

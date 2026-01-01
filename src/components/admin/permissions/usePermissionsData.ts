@@ -5,11 +5,11 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { CustomRole, RolePermission } from './types';
 import { PermissionKey } from '@/lib/permissions/types';
 import { Database } from '@/integrations/supabase/types';
+import { subscribeCustomRoles, subscribeRolePermissions } from '@/realtime/permissionsSubscriptions';
 
 type PermissionKeyEnum = Database['public']['Enums']['permission_key'];
 
@@ -30,8 +30,8 @@ export function usePermissionsData() {
       setLoading(true);
       
       const [rolesResult, permissionsResult] = await Promise.all([
-        supabase.from('custom_roles').select('*').order('name'),
-        supabase.from('role_permissions').select('*'),
+        api.from('custom_roles').select('*').order('name'),
+        api.from('role_permissions').select('*'),
       ]);
 
       if (rolesResult.error) throw rolesResult.error;
@@ -63,27 +63,16 @@ export function usePermissionsData() {
       fetchData();
     };
 
-    const rolesChannel = supabase
-      .channel('admin-custom-roles-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'custom_roles' },
-        () => debouncedRefetch()
-      )
-      .subscribe();
-
-    const permsChannel = supabase
-      .channel('admin-role-permissions-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'role_permissions' },
-        () => debouncedRefetch()
-      )
-      .subscribe();
+    const cleanupRoles = subscribeCustomRoles({
+      onChange: debouncedRefetch,
+    });
+    const cleanupPerms = subscribeRolePermissions({
+      onChange: debouncedRefetch,
+    });
 
     return () => {
-      supabase.removeChannel(rolesChannel);
-      supabase.removeChannel(permsChannel);
+      cleanupRoles();
+      cleanupPerms();
     };
   }, [fetchData]);
 
@@ -100,7 +89,7 @@ export function usePermissionsData() {
     try {
       setSaving(true);
       
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('custom_roles')
         .insert({ name, description, is_system: false })
         .select()
@@ -132,7 +121,7 @@ export function usePermissionsData() {
     try {
       setSaving(true);
       
-      const { error } = await supabase
+      const { error } = await api
         .from('custom_roles')
         .update(updates)
         .eq('id', roleId);
@@ -162,13 +151,13 @@ export function usePermissionsData() {
       setSaving(true);
       
       // First delete all permissions for this role
-      await supabase
+      await api
         .from('role_permissions')
         .delete()
         .eq('role_id', roleId);
 
       // Then delete the role
-      const { error } = await supabase
+      const { error } = await api
         .from('custom_roles')
         .delete()
         .eq('id', roleId);
@@ -205,7 +194,7 @@ export function usePermissionsData() {
       setSaving(true);
       
       // Delete existing permissions
-      await supabase
+      await api
         .from('role_permissions')
         .delete()
         .eq('role_id', roleId);
@@ -217,7 +206,7 @@ export function usePermissionsData() {
           permission_key: key as PermissionKeyEnum,
         }));
 
-        const { error } = await supabase
+        const { error } = await api
           .from('role_permissions')
           .insert(permissionRows);
 

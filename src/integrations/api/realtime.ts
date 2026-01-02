@@ -104,6 +104,9 @@ class RealtimeClient {
       console.log('[Realtime] Connected');
       this.reconnectAttempts = 0;
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:103',message:'WebSocket OPEN - resubscribing channels',data:{channelCount:this.channels.size,channels:Array.from(this.channels.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       // Resubscribe to all channels
       this.channels.forEach((channelState) => {
         this.subscribeToChannel(channelState);
@@ -335,10 +338,17 @@ class RealtimeClient {
 
   private subscribeToChannel(channelState: ChannelState): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:336',message:'sending SUBSCRIBE message',data:{channel:channelState.topic,wsReadyState:this.ws.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       this.send({
         type: 'subscribe',
         channel: channelState.topic,
       });
+    } else {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:336',message:'SUBSCRIBE skipped - WS not open',data:{channel:channelState.topic,wsReadyState:this.ws?.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
     }
   }
 
@@ -368,8 +378,11 @@ class RealtimeClient {
     if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
       this.connect();
     } else if (this.ws.readyState === WebSocket.OPEN) {
+      // WebSocket is open, subscribe immediately
       this.subscribeToChannel(channelState);
     }
+    // If WebSocket is CONNECTING, the onopen handler will subscribe to all channels
+    // No additional action needed here - the channel is already in this.channels
   }
 
   removeChannel(topic: string): void {

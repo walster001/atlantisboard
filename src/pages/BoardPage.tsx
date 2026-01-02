@@ -246,13 +246,10 @@ export default function BoardPage() {
             return prev;
           });
 
-          // Preserve column filtering: ignore moves into columns we don't have if the current state lacks them
-          if (previous.columnId !== updatedCard.columnId && columnIdsRef.current.length > 0) {
-            const hasNewColumn = columnIdsRef.current.includes(updatedCard.columnId);
-            if (!hasNewColumn) {
-              setCards((prev) => prev.filter((c) => c.id !== updatedCard.id));
-            }
-          }
+          // Handle card moves between columns
+          // The card has already been updated with the new columnId above
+          // If the new column doesn't exist in our state yet, the card will appear when the column is loaded
+          // We don't filter out cards here - let the column state determine visibility
         },
         onDelete: (deletedCardRaw) => {
           const deletedCard = deletedCardRaw as DbCard;
@@ -661,8 +658,10 @@ export default function BoardPage() {
   const updateCardColor = async (cardId: string, color: string | null) => {
     if (!effectiveCanEdit) return;
     try {
+      // Update via API - realtime handler will update state when event is received
       await api.from('cards').update({ color }).eq('id', cardId);
-      setCards(prev => prev.map(c => c.id === cardId ? { ...c, color } : c));
+      // Don't optimistically update state - let realtime handler manage it
+      // This ensures consistency across all clients and avoids conflicts
     } catch (error: any) {
       console.error('Update card color error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -673,8 +672,10 @@ export default function BoardPage() {
     if (!effectiveCanEdit || !boardId) return;
     try {
       const cardIds = cards.map(c => c.id);
+      // Update via API - realtime handler will update state when events are received
       await api.from('cards').update({ color }).in('id', cardIds);
-      setCards(prev => prev.map(c => ({ ...c, color })));
+      // Don't optimistically update state - let realtime handler manage it
+      // This ensures consistency across all clients and avoids conflicts
       toast({ title: 'Success', description: 'Applied colour to all cards' });
     } catch (error: any) {
       console.error('Apply card color to all error:', error);

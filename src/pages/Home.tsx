@@ -19,28 +19,29 @@ import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
 import { subscribeHomeBoardMembership } from '@/realtime/homeSubscriptions';
+import { api } from '@/integrations/api/client';
 
 interface Workspace {
   id: string;
   name: string;
   description: string | null;
-  owner_id: string;
+  ownerId: string;
 }
 
 interface Board {
   id: string;
-  workspace_id: string;
+  workspaceId: string;
   name: string;
   description: string | null;
-  background_color: string;
+  backgroundColor: string;
   position: number;
 }
 
 interface BoardTheme {
   id: string;
   name: string;
-  navbar_color: string;
-  is_default: boolean;
+  navbarColor: string;
+  isDefault: boolean;
 }
 
 // Helper to darken a hex color by a percentage
@@ -219,10 +220,10 @@ export default function Home() {
 
   // Handle navigation state when user is redirected after being removed from a board
   useEffect(() => {
-    const state = location.state as { removedFromBoard?: { board_id: string; workspace_id: string | null; timestamp: number } } | null;
+    const state = location.state as { removedFromBoard?: { boardId: string; workspaceId: string | null; timestamp: number } } | null;
     
     if (state?.removedFromBoard && user) {
-      const { board_id, workspace_id } = state.removedFromBoard;
+      const { boardId: board_id, workspaceId: workspace_id } = state.removedFromBoard;
       
       // Remove the board from state
       setBoards(prev => {
@@ -231,7 +232,7 @@ export default function Home() {
         // Check if we need to remove the workspace too
         if (workspace_id) {
           const remainingBoardsInWorkspace = updatedBoards.filter(
-            b => b.workspace_id === workspace_id
+            b => b.workspaceId === workspace_id
           );
           
           if (remainingBoardsInWorkspace.length === 0) {
@@ -279,12 +280,12 @@ export default function Home() {
       const result = data as {
         workspaces?: Workspace[];
         boards?: Board[];
-        board_roles?: Record<string, 'admin' | 'manager' | 'viewer'>;
+        boardRoles?: Record<string, 'admin' | 'manager' | 'viewer'>;
       };
 
       setWorkspaces(result?.workspaces || []);
       setBoards(result?.boards || []);
-      setBoardRoles(result?.board_roles || {});
+      setBoardRoles(result?.boardRoles || {});
     } catch (error: any) {
       console.error('Error fetching data:', error);
     } finally {
@@ -306,15 +307,15 @@ export default function Home() {
         });
       },
       onRemoved: (payload) => {
-        const deletedMembership = payload.old as { board_id: string; user_id: string };
-        const deletedBoardId = deletedMembership.board_id;
+        const deletedMembership = payload.old as { boardId: string; userId: string };
+        const deletedBoardId = deletedMembership.boardId;
 
         setBoards((prevBoards) => {
           const removedBoard = prevBoards.find((b) => b.id === deletedBoardId);
-          const workspaceId = removedBoard?.workspace_id;
+          const workspaceId = removedBoard?.workspaceId;
 
           const remainingBoardsInWorkspace = prevBoards.filter(
-            (b) => b.workspace_id === workspaceId && b.id !== deletedBoardId
+            (b) => b.workspaceId === workspaceId && b.id !== deletedBoardId
           );
           const shouldRemoveWorkspace = workspaceId && remainingBoardsInWorkspace.length === 0;
 
@@ -406,7 +407,7 @@ export default function Home() {
   const fetchThemes = async () => {
     setThemesLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('board_themes')
         .select('id, name, navbar_color, is_default');
 
@@ -454,12 +455,12 @@ export default function Home() {
         description: newWorkspaceDesc || null,
       });
 
-      const { data: workspace, error } = await supabase
+      const { data: workspace, error } = await api
         .from('workspaces')
         .insert({
           name: validated.name,
           description: validated.description,
-          owner_id: user.id,
+          ownerId: user.id,
         })
         .select()
         .single();
@@ -468,8 +469,8 @@ export default function Home() {
 
       // Add owner as workspace member
       await api.from('workspace_members').insert({
-        workspace_id: workspace.id,
-        user_id: user.id,
+        workspaceId: workspace.data?.id || workspace.id,
+        userId: user.id,
       });
 
       setWorkspaces([workspace, ...workspaces]);
@@ -524,7 +525,7 @@ export default function Home() {
       const { error } = await api.from('workspaces').delete().eq('id', id);
       if (error) throw error;
       setWorkspaces(workspaces.filter((w) => w.id !== id));
-      setBoards(boards.filter((b) => b.workspace_id !== id));
+      setBoards(boards.filter((b) => b.workspaceId !== id));
       setDeleteWorkspaceConfirmOpen(false);
       setDeleteWorkspaceId(null);
       setDeletionCounts(null);
@@ -544,7 +545,7 @@ export default function Home() {
         description: null,
       });
 
-      const { error } = await supabase
+      const { error } = await api
         .from('workspaces')
         .update({ name: validated.name })
         .eq('id', editWorkspaceId);
@@ -572,7 +573,7 @@ export default function Home() {
         description: editWorkspaceDesc || null,
       });
 
-      const { error } = await supabase
+      const { error } = await api
         .from('workspaces')
         .update({ description: validated.description })
         .eq('id', editWorkspaceId);
@@ -610,7 +611,7 @@ export default function Home() {
       // Set background color to slightly darker than navbar
       const backgroundColor = darkenColor(selectedTheme.navbar_color, 0.1);
 
-      const { data: board, error } = await supabase
+      const { data: board, error } = await api
         .from('boards')
         .insert({
           workspace_id: selectedWorkspaceId,
@@ -666,7 +667,7 @@ export default function Home() {
     if (!editBoardId) return;
     try {
       const validated = boardSchema.parse({ name: editBoardName, background_color: '#0079bf' });
-      const { error } = await supabase
+      const { error } = await api
         .from('boards')
         .update({ name: validated.name })
         .eq('id', editBoardId);
@@ -688,7 +689,7 @@ export default function Home() {
   const updateBoardDescription = async () => {
     if (!editBoardId) return;
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('boards')
         .update({ description: editBoardDesc || null })
         .eq('id', editBoardId);
@@ -732,11 +733,11 @@ export default function Home() {
 
     // Get boards in source and destination workspaces
     const sourceBoards = boards
-      .filter(b => b.workspace_id === sourceWorkspaceId)
+      .filter(b => b.workspaceId === sourceWorkspaceId)
       .sort((a, b) => a.position - b.position);
     const destBoards = sourceWorkspaceId === destWorkspaceId
       ? sourceBoards
-      : boards.filter(b => b.workspace_id === destWorkspaceId).sort((a, b) => a.position - b.position);
+      : boards.filter(b => b.workspaceId === destWorkspaceId).sort((a, b) => a.position - b.position);
 
     const draggedBoard = boards.find(b => b.id === boardId);
     if (!draggedBoard) return;
@@ -751,7 +752,7 @@ export default function Home() {
       const updatedBoards = newBoards.map((b, idx) => ({ ...b, position: idx }));
       
       setBoards(prev => {
-        const others = prev.filter(b => b.workspace_id !== sourceWorkspaceId);
+        const others = prev.filter(b => b.workspaceId !== sourceWorkspaceId);
         return [...others, ...updatedBoards];
       });
 
@@ -765,7 +766,7 @@ export default function Home() {
       // Moving between workspaces
       const newSourceBoards = sourceBoards.filter(b => b.id !== boardId);
       const newDestBoards = [...destBoards];
-      const updatedBoard = { ...draggedBoard, workspace_id: destWorkspaceId, position: destination.index };
+      const updatedBoard = { ...draggedBoard, workspaceId: destWorkspaceId, position: destination.index };
       newDestBoards.splice(destination.index, 0, updatedBoard);
 
       // Update positions
@@ -773,7 +774,7 @@ export default function Home() {
       const updatedDestBoards = newDestBoards.map((b, idx) => ({ ...b, position: idx }));
 
       setBoards(prev => {
-        const others = prev.filter(b => b.workspace_id !== sourceWorkspaceId && b.workspace_id !== destWorkspaceId);
+        const others = prev.filter(b => b.workspaceId !== sourceWorkspaceId && b.workspaceId !== destWorkspaceId);
         return [...others, ...updatedSourceBoards, ...updatedDestBoards];
       });
 
@@ -1046,7 +1047,7 @@ export default function Home() {
                           }`}
                         >
                           {boards
-                            .filter((b) => b.workspace_id === workspace.id)
+                            .filter((b) => b.workspaceId === workspace.id)
                             .sort((a, b) => a.position - b.position)
                             .map((board, index) => {
                               const canDrag = boardRoles[board.id] === 'admin' || isAppAdmin;
@@ -1069,7 +1070,7 @@ export default function Home() {
                                     >
                                       <div
                                         className="h-24 flex items-end p-3"
-                                        style={{ backgroundColor: sanitizeColor(board.background_color) }}
+                                        style={{ backgroundColor: sanitizeColor(board.backgroundColor) }}
                                       >
                                         <CardTitle className="text-white text-lg drop-shadow-md">
                                           {board.name}

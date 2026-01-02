@@ -69,7 +69,7 @@ class HomeService {
     return {
       workspaces,
       boards,
-      board_roles: boardRoles,
+      boardRoles: boardRoles,
     };
   }
 }

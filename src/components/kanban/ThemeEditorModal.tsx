@@ -40,24 +40,24 @@ function getIntelligentTextColor(backgroundColor: string): string {
 export interface BoardTheme {
   id: string;
   name: string;
-  is_default: boolean;
-  navbar_color: string;
-  column_color: string;
-  default_card_color: string | null;
-  card_window_color: string;
-  card_window_text_color: string;
-  card_window_button_color: string;
-  card_window_button_text_color: string;
-  card_window_button_hover_color: string;
-  card_window_button_hover_text_color: string;
-  card_window_intelligent_contrast: boolean;
-  homepage_board_color: string;
-  board_icon_color: string;
-  scrollbar_color: string;
-  scrollbar_track_color: string;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
+  isDefault: boolean;
+  navbarColor: string;
+  columnColor: string;
+  defaultCardColor: string | null;
+  cardWindowColor: string;
+  cardWindowTextColor: string;
+  cardWindowButtonColor: string;
+  cardWindowButtonTextColor: string;
+  cardWindowButtonHoverColor: string;
+  cardWindowButtonHoverTextColor: string;
+  cardWindowIntelligentContrast: boolean;
+  homepageBoardColor: string;
+  boardIconColor: string;
+  scrollbarColor: string;
+  scrollbarTrackColor: string;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface ThemeEditorModalProps {

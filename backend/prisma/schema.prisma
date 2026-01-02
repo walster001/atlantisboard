@@ -24,12 +24,12 @@ enum BoardRole {
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
-  emailVerified Boolean   @default(false)
-  passwordHash  String?   // Null for OAuth users
+  emailVerified Boolean   @default(false) @map("email_verified")
+  passwordHash  String?   @map("password_hash") // Null for OAuth users
   provider      String?   // 'email', 'google', etc.
-  providerId    String?   // OAuth provider user ID
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  providerId    String?   @map("provider_id") // OAuth provider user ID
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   // Relations
   profile       Profile?
@@ -59,10 +59,10 @@ model User {
 // Refresh tokens for JWT authentication
 model RefreshToken {
   id        String   @id @default(uuid())
-  userId    String
+  userId    String   @map("user_id")
   token     String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

@@ -57,7 +57,7 @@ export function subscribeBoardCards(boardId: string, handlers: CardHandlers): Su
 
 export function subscribeBoardColumns(boardId: string, handlers: ColumnHandlers): SubscriptionCleanup {
   const topic = `board-${boardId}-columns`;
-  const filter = `board_id=eq.${boardId}`;
+  const filter = `boardId=eq.${boardId}`;
 
   return subscribeToChanges(
     topic,
@@ -95,7 +95,7 @@ export function subscribeBoardColumns(boardId: string, handlers: ColumnHandlers)
 
 export function subscribeBoardMembers(boardId: string, handlers: MemberHandlers): SubscriptionCleanup {
   const topic = `board-${boardId}-members`;
-  const filter = `board_id=eq.${boardId}`;
+  const filter = `boardId=eq.${boardId}`;
 
   return subscribeToChanges(
     topic,

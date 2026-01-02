@@ -13,13 +13,13 @@ import { cn } from '@/lib/utils';
 interface BoardTheme {
   id: string;
   name: string;
-  navbar_color: string;
-  column_color: string;
-  default_card_color: string | null;
-  homepage_board_color: string;
-  board_icon_color: string;
-  scrollbar_color: string;
-  scrollbar_track_color: string;
+  navbarColor: string;
+  columnColor: string;
+  defaultCardColor: string | null;
+  homepageBoardColor: string;
+  boardIconColor: string;
+  scrollbarColor: string;
+  scrollbarTrackColor: string;
 }
 
 interface BoardBackgroundSettingsProps {

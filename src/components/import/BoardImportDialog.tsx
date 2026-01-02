@@ -553,12 +553,12 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
       // Create workspace for the imported board
       const workspaceName = `Imported from Trello - ${trelloData.name}`;
-      const { data: workspace, error: workspaceError } = await supabase
+      const { data: workspace, error: workspaceError } = await api
         .from('workspaces')
         .insert({
           name: workspaceName,
           description: trelloData.desc || `Imported from Trello on ${new Date().toISOString()}`,
-          owner_id: user.id,
+          ownerId: user.id,
         })
         .select()
         .single();
@@ -571,13 +571,13 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
       onProgress('board', 0, 0, 'Creating board...');
       // Create board
-      const { data: board, error: boardError } = await supabase
+      const { data: board, error: boardError } = await api
         .from('boards')
         .insert({
           name: trelloData.name,
           description: trelloData.desc || null,
-          workspace_id: workspace.id,
-          background_color: '#0079bf',
+          workspaceId: workspace.data?.id || workspace.id,
+          backgroundColor: '#0079bf',
         })
         .select()
         .single();
@@ -590,8 +590,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
       // Add current user as board admin
       await api.from('board_members').insert({
-        board_id: board.id,
-        user_id: user.id,
+        boardId: board.data?.id || board.id,
+        userId: user.id,
         role: 'admin',
       });
 
@@ -604,23 +604,24 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         
         const validLabels = trelloLabels.filter(l => l.name || l.color);
         const labelInserts = validLabels.map(label => ({
-          board_id: board.id,
+          boardId: board.data?.id || board.id,
           name: label.name || label.color || 'Unnamed',
           color: getTrelloColor(label.color),
         }));
 
-        const { data: createdLabels, error: labelsError } = await supabase
+        const { data: createdLabels, error: labelsError } = await api
           .from('labels')
           .insert(labelInserts)
           .select();
 
         if (labelsError) {
           result.warnings.push(`Failed to create some labels: ${labelsError.message}`);
-        } else if (createdLabels) {
-          for (let i = 0; i < createdLabels.length; i++) {
-            labelMap.set(validLabels[i].id, createdLabels[i].id);
+        } else if (createdLabels?.data || createdLabels) {
+          const labels = createdLabels.data || createdLabels;
+          for (let i = 0; i < labels.length; i++) {
+            labelMap.set(validLabels[i].id, labels[i].id);
           }
-          result.labels_created = createdLabels.length;
+          result.labels_created = labels.length;
         }
         onProgress('labels', trelloLabels.length, trelloLabels.length, `Created ${result.labels_created} labels`);
       }
@@ -636,23 +637,24 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         onProgress('columns', 0, sortedLists.length, `Creating ${sortedLists.length} columns...`);
         
         const columnInserts = sortedLists.map((list, i) => ({
-          board_id: board.id,
+          boardId: board.data?.id || board.id,
           title: list.name,
           position: i,
         }));
 
-        const { data: createdColumns, error: columnsError } = await supabase
+        const { data: createdColumns, error: columnsError } = await api
           .from('columns')
           .insert(columnInserts)
           .select();
 
         if (columnsError) {
           result.warnings.push(`Failed to create some columns: ${columnsError.message}`);
-        } else if (createdColumns) {
-          for (let i = 0; i < createdColumns.length; i++) {
-            columnMap.set(sortedLists[i].id, createdColumns[i].id);
+        } else if (createdColumns?.data || createdColumns) {
+          const columns = createdColumns.data || createdColumns;
+          for (let i = 0; i < columns.length; i++) {
+            columnMap.set(sortedLists[i].id, columns[i].id);
           }
-          result.columns_created = createdColumns.length;
+          result.columns_created = columns.length;
         }
         onProgress('columns', sortedLists.length, sortedLists.length, `Created ${result.columns_created} columns`);
       }
@@ -733,13 +735,13 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
           allCardInserts.push({
             insert: {
-              column_id: columnId,
+              columnId: columnId,
               title: card.name,
               description: card.desc || null,
-              due_date: card.due || null,
+              dueDate: card.due || null,
               position: i,
               priority,
-              created_by: user.id,
+              createdBy: user.id,
               color: finalCardColor,
             },
             trelloCard: card,
@@ -757,7 +759,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         onProgress('cards', Math.min(batchStart + CARD_BATCH_SIZE, allCardInserts.length), sortedCards.length, 
           `Cards batch ${Math.floor(batchStart / CARD_BATCH_SIZE) + 1}/${Math.ceil(allCardInserts.length / CARD_BATCH_SIZE)}`);
 
-        const { data: createdCards, error: cardsError } = await supabase
+        const { data: createdCards, error: cardsError } = await api
           .from('cards')
           .insert(batch.map(b => b.insert))
           .select();
@@ -767,13 +769,14 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           continue;
         }
 
-        if (createdCards) {
+        if (createdCards?.data || createdCards) {
+          const cards = createdCards.data || createdCards;
           // Map old IDs to new IDs and collect card labels
-          const cardLabelInserts: Array<{ card_id: string; label_id: string }> = [];
+          const cardLabelInserts: Array<{ cardId: string; labelId: string }> = [];
           
-          for (let i = 0; i < createdCards.length; i++) {
+          for (let i = 0; i < cards.length; i++) {
             const trelloCard = batch[i].trelloCard;
-            const newCardId = createdCards[i].id;
+            const newCardId = cards[i].id;
             cardIdMap.set(trelloCard.id, newCardId);
             result.cards_created++;
 
@@ -781,14 +784,14 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             for (const labelId of trelloCard.idLabels) {
               const mappedLabelId = labelMap.get(labelId);
               if (mappedLabelId) {
-                cardLabelInserts.push({ card_id: newCardId, label_id: mappedLabelId });
+                cardLabelInserts.push({ cardId: newCardId, labelId: mappedLabelId });
               }
             }
           }
 
           // Insert all card labels for this batch at once
           if (cardLabelInserts.length > 0) {
-            const { error: cardLabelsError } = await supabase
+            const { error: cardLabelsError } = await api
               .from('card_labels')
               .insert(cardLabelInserts);
             
@@ -803,11 +806,11 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       onProgress('subtasks', 0, 0, 'Processing checklists...');
       
       const allSubtaskInserts: Array<{
-        card_id: string;
+        cardId: string;
         title: string;
         completed: boolean;
         position: number;
-        checklist_name: string;
+        checklistName: string;
       }> = [];
 
       for (const [trelloCardId, cardChecklists] of checklistMap) {
@@ -820,11 +823,11 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           
           for (const item of sortedItems) {
             allSubtaskInserts.push({
-              card_id: cardId,
+              cardId: cardId,
               title: item.name,
               completed: item.state === 'complete',
               position: subtaskPosition++,
-              checklist_name: checklist.name,
+              checklistName: checklist.name,
             });
           }
         }
@@ -838,7 +841,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         onProgress('subtasks', Math.min(batchStart + SUBTASK_BATCH_SIZE, allSubtaskInserts.length), allSubtaskInserts.length,
           `Subtasks batch ${Math.floor(batchStart / SUBTASK_BATCH_SIZE) + 1}/${Math.ceil(allSubtaskInserts.length / SUBTASK_BATCH_SIZE)}`);
 
-        const { error: subtasksError } = await supabase
+        const { error: subtasksError } = await api
           .from('card_subtasks')
           .insert(batch);
 

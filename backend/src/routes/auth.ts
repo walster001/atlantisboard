@@ -64,6 +64,7 @@ router.get('/me', authMiddleware, async (req: Request, res: Response, next: Next
       fullName: user.profile?.fullName ?? null,
       isAdmin: user.profile?.isAdmin ?? false,
       avatarUrl: user.profile?.avatarUrl ?? null,
+      provider: user.provider || 'email', // Include provider for OAuth detection
     });
   } catch (error) {
     next(error);

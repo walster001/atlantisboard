@@ -14,13 +14,13 @@ import { emailSchema } from '@/lib/validators';
 import { z } from 'zod';
 
 interface BoardMember {
-  user_id: string;
+  userId: string;
   role: 'admin' | 'manager' | 'viewer';
   profiles: {
     id: string;
     email: string;
-    full_name: string | null;
-    avatar_url: string | null;
+    fullName: string | null;
+    avatarUrl: string | null;
   };
 }
 
@@ -64,7 +64,7 @@ export function BoardMembersDialog({
       const validEmail = emailSchema.parse(email);
 
       // Find user by email using secure RPC function
-      const { data: profiles, error: profileError } = await supabase
+      const { data: profiles, error: profileError } = await api
         .rpc('find_user_by_email', { _email: validEmail, _board_id: boardId });
 
       if (profileError) throw profileError;
@@ -77,7 +77,7 @@ export function BoardMembersDialog({
       const profile = profiles[0];
 
       // Check if already a member
-      const existing = members.find(m => m.user_id === profile.id);
+      const existing = members.find(m => m.userId === profile.id);
       if (existing) {
         toast({ title: 'Already a member', description: 'This user is already a board member.', variant: 'destructive' });
         setIsAdding(false);
@@ -88,8 +88,8 @@ export function BoardMembersDialog({
       const assignRole = userRole === 'manager' ? 'viewer' : role;
 
       const { error } = await api.from('board_members').insert({
-        board_id: boardId,
-        user_id: profile.id,
+        boardId: boardId,
+        userId: profile.id,
         role: assignRole,
       });
 
@@ -112,11 +112,11 @@ export function BoardMembersDialog({
 
   const removeMember = async (userId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('board_members')
         .delete()
-        .eq('board_id', boardId)
-        .eq('user_id', userId);
+        .eq('boardId', boardId)
+        .eq('userId', userId);
 
       if (error) throw error;
       toast({ title: 'Member removed' });
@@ -133,11 +133,11 @@ export function BoardMembersDialog({
     // App Admins can always change roles for self-management/testing
     if (!canChangeRolesEffective) return;
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('board_members')
         .update({ role: newRole })
-        .eq('board_id', boardId)
-        .eq('user_id', userId);
+        .eq('boardId', boardId)
+        .eq('userId', userId);
 
       if (error) throw error;
       toast({ title: 'Role updated' });
@@ -194,19 +194,19 @@ export function BoardMembersDialog({
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {members.map((member) => (
               <div
-                key={member.user_id}
+                key={member.userId}
                 className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
               >
                 <div className="flex items-center gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={member.profiles.avatar_url || undefined} />
+                    <AvatarImage src={member.profiles.avatarUrl || undefined} />
                     <AvatarFallback>
                       <User className="h-4 w-4" />
                     </AvatarFallback>
                   </Avatar>
                   <div>
                     <p className="text-sm font-medium">
-                      {member.profiles.full_name || member.profiles.email || 'Unknown User'}
+                      {member.profiles.fullName || member.profiles.email || 'Unknown User'}
                     </p>
                     {member.profiles.email && (
                       <p className="text-xs text-muted-foreground">{member.profiles.email}</p>
@@ -217,7 +217,7 @@ export function BoardMembersDialog({
                   {canChangeRolesEffective ? (
                     <Select
                       value={member.role}
-                      onValueChange={(v) => updateRole(member.user_id, v as 'admin' | 'manager' | 'viewer')}
+                      onValueChange={(v) => updateRole(member.userId, v as 'admin' | 'manager' | 'viewer')}
                     >
                       <SelectTrigger className="w-24 h-8 text-xs">
                         <SelectValue />
@@ -238,7 +238,7 @@ export function BoardMembersDialog({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => removeMember(member.user_id)}
+                      onClick={() => removeMember(member.userId)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils';
 import { subscribeBoardCards, subscribeBoardColumns, subscribeBoardMembers } from '@/realtime/boardSubscriptions';
 interface DbColumn {
   id: string;
-  board_id: string;
+  boardId: string;
   title: string;
   position: number;
   color: string | null;
@@ -37,36 +37,36 @@ interface DbColumn {
 
 interface DbCard {
   id: string;
-  column_id: string;
+  columnId: string;
   title: string;
   description: string | null;
   position: number;
-  due_date: string | null;
-  created_by: string | null;
+  dueDate: string | null;
+  createdBy: string | null;
   color: string | null;
 }
 
 interface DbLabel {
   id: string;
-  board_id: string;
+  boardId: string;
   name: string;
   color: string;
 }
 
 interface DbCardLabel {
-  card_id: string;
-  label_id: string;
+  cardId: string;
+  labelId: string;
 }
 
 
 interface BoardMember {
-  user_id: string;
+  userId: string;
   role: 'admin' | 'manager' | 'viewer';
   profiles: {
     id: string;
     email: string;
-    full_name: string | null;
-    avatar_url: string | null;
+    fullName: string | null;
+    avatarUrl: string | null;
   };
 }
 
@@ -90,8 +90,8 @@ export default function BoardPage() {
   const [cards, setCards] = useState<DbCard[]>([]);
   const [labels, setLabels] = useState<DbLabel[]>([]);
   const [cardLabels, setCardLabels] = useState<DbCardLabel[]>([]);
-  const [cardAttachments, setCardAttachments] = useState<{ id: string; card_id: string; file_name: string; file_url: string; file_size: number | null; file_type: string | null; uploaded_by: string | null; created_at: string }[]>([]);
-  const [cardSubtasks, setCardSubtasks] = useState<{ id: string; card_id: string; title: string; completed: boolean; completed_at: string | null; completed_by: string | null; position: number; checklist_name: string | null; created_at: string }[]>([]);
+  const [cardAttachments, setCardAttachments] = useState<{ id: string; cardId: string; fileName: string; fileUrl: string; fileSize: number | null; fileType: string | null; uploadedBy: string | null; createdAt: string }[]>([]);
+  const [cardSubtasks, setCardSubtasks] = useState<{ id: string; cardId: string; title: string; completed: boolean; completedAt: string | null; completedBy: string | null; position: number; checklistName: string | null; createdAt: string }[]>([]);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -140,13 +140,13 @@ export default function BoardPage() {
       if (error) throw error;
 
       const transformedMembers: BoardMember[] = (data || []).map((m: any) => ({
-        user_id: m.user_id,
+        userId: m.userId,
         role: m.role as 'admin' | 'manager' | 'viewer',
         profiles: {
           id: m.id,
           email: m.email || '',
-          full_name: m.full_name,
-          avatar_url: m.avatar_url,
+          fullName: m.fullName,
+          avatarUrl: m.avatarUrl,
         }
       }));
       setBoardMembers(transformedMembers);
@@ -193,7 +193,7 @@ export default function BoardPage() {
       subscribeBoardCards(boardId, {
         onInsert: (newCard) => {
           const card = newCard as DbCard;
-          if (columnIdsRef.current.length === 0 || columnIdsRef.current.includes(card.column_id)) {
+          if (columnIdsRef.current.length === 0 || columnIdsRef.current.includes(card.columnId)) {
             setCards((prev) => {
               if (prev.some((c) => c.id === card.id)) return prev;
               return [...prev, card];
@@ -210,9 +210,9 @@ export default function BoardPage() {
             const hasChange =
               existingCard.title !== updatedCard.title ||
               existingCard.description !== updatedCard.description ||
-              existingCard.due_date !== updatedCard.due_date ||
+              existingCard.dueDate !== updatedCard.dueDate ||
               existingCard.position !== updatedCard.position ||
-              existingCard.column_id !== updatedCard.column_id ||
+              existingCard.columnId !== updatedCard.columnId ||
               existingCard.color !== updatedCard.color;
 
             if (!hasChange) return prev;
@@ -227,7 +227,7 @@ export default function BoardPage() {
                   ...prev.card,
                   title: updatedCard.title,
                   description: updatedCard.description || undefined,
-                  dueDate: updatedCard.due_date || undefined,
+                  dueDate: updatedCard.dueDate || undefined,
                   color: updatedCard.color,
                 },
               };
@@ -236,8 +236,8 @@ export default function BoardPage() {
           });
 
           // Preserve column filtering: ignore moves into columns we don't have if the current state lacks them
-          if (previous.column_id !== updatedCard.column_id && columnIdsRef.current.length > 0) {
-            const hasNewColumn = columnIdsRef.current.includes(updatedCard.column_id);
+          if (previous.columnId !== updatedCard.columnId && columnIdsRef.current.length > 0) {
+            const hasNewColumn = columnIdsRef.current.includes(updatedCard.columnId);
             if (!hasNewColumn) {
               setCards((prev) => prev.filter((c) => c.id !== updatedCard.id));
             }
@@ -284,7 +284,7 @@ export default function BoardPage() {
         onDelete: (deletedColumnRaw) => {
           const deletedColumn = deletedColumnRaw as DbColumn;
           setColumns((prev) => prev.filter((c) => c.id !== deletedColumn.id));
-          setCards((prev) => prev.filter((c) => c.column_id !== deletedColumn.id));
+          setCards((prev) => prev.filter((c) => c.columnId !== deletedColumn.id));
         },
       })
     );
@@ -293,15 +293,15 @@ export default function BoardPage() {
       cleanups.push(
         subscribeBoardMembers(boardId, {
           onUpdate: (membershipRaw) => {
-            const updatedMembership = membershipRaw as { board_id: string; user_id: string; role: string };
-            if (updatedMembership?.user_id === user.id) {
+            const updatedMembership = membershipRaw as { boardId: string; userId: string; role: string };
+            if (updatedMembership?.userId === user.id) {
               setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
             }
             refreshBoardMembers();
           },
           onDelete: (membershipRaw) => {
-            const deletedMember = membershipRaw as { board_id?: string; user_id?: string };
-            if (deletedMember?.user_id === user.id) {
+            const deletedMember = membershipRaw as { boardId?: string; userId?: string };
+            if (deletedMember?.userId === user.id) {
               toast({
                 title: 'Access removed',
                 description: 'You have been removed from this board.',
@@ -310,8 +310,8 @@ export default function BoardPage() {
               navigate('/', {
                 state: {
                   removedFromBoard: {
-                    board_id: boardId,
-                    workspace_id: workspaceId,
+                    boardId: boardId,
+                    workspaceId: workspaceId,
                     timestamp: Date.now(),
                   },
                 },
@@ -321,8 +321,8 @@ export default function BoardPage() {
             }
           },
           onInsert: (membershipRaw) => {
-            const newMember = membershipRaw as { board_id: string; user_id: string };
-            if (newMember.user_id !== user.id) {
+            const newMember = membershipRaw as { boardId: string; userId: string };
+            if (newMember.userId !== user.id) {
               refreshBoardMembers();
             }
           },
@@ -356,13 +356,13 @@ export default function BoardPage() {
       // Cast JSON response to typed object
       const result = data as {
         error?: string;
-        board?: { id: string; name: string; description: string | null; background_color: string | null; workspace_id: string };
-        user_role?: string | null;
+        board?: { id: string; name: string; description: string | null; backgroundColor: string | null; workspaceId: string };
+        userRole?: string | null;
         columns?: DbColumn[];
         cards?: DbCard[];
         labels?: DbLabel[];
-        card_labels?: DbCardLabel[];
-        members?: Array<{ user_id: string; role: string; profiles: { id: string; email: string | null; full_name: string | null; avatar_url: string | null } }>;
+        cardLabels?: DbCardLabel[];
+        members?: Array<{ userId: string; role: string; profiles: { id: string; email: string | null; fullName: string | null; avatarUrl: string | null } }>;
       };
       
       if (result?.error) {
@@ -381,49 +381,49 @@ export default function BoardPage() {
 
       // Set all state from single response
       setBoardName(result.board?.name || '');
-      setBoardColor(result.board?.background_color || '#0079bf');
-      setWorkspaceId(result.board?.workspace_id || null);
-      setUserRole(result.user_role as 'admin' | 'manager' | 'viewer' | null);
+      setBoardColor(result.board?.backgroundColor || '#0079bf');
+      setWorkspaceId(result.board?.workspaceId || null);
+      setUserRole(result.userRole as 'admin' | 'manager' | 'viewer' | null);
       setColumns(result.columns || []);
 
-      // Fetch theme_id and theme data separately (not in RPC response)
-      const { data: boardData } = await supabase
+      // Fetch themeId and theme data separately (not in RPC response)
+      const { data: boardData } = await api
         .from('boards')
-        .select('theme_id')
+        .select('themeId')
         .eq('id', boardId)
         .single();
       
-      const themeId = boardData?.theme_id || null;
+      const themeId = boardData?.data?.themeId || null;
       setBoardThemeId(themeId);
       
       // Fetch full theme data if theme is set
       if (themeId) {
-        const { data: themeData } = await supabase
+        const { data: themeData } = await api
           .from('board_themes')
           .select('*')
           .eq('id', themeId)
           .single();
-        setBoardTheme(themeData as BoardTheme | null);
+        setBoardTheme(themeData?.data as BoardTheme | null);
       } else {
         setBoardTheme(null);
       }
       
       setCards(result.cards || []);
       setLabels(result.labels || []);
-      setCardLabels(result.card_labels || []);
+      setCardLabels(result.cardLabels || []);
 
       // Fetch card attachments and subtasks
       const cardIds = (result.cards || []).map((c: DbCard) => c.id);
       if (cardIds.length > 0) {
         const [attachmentsResult, subtasksResult] = await Promise.all([
-          supabase
+          api
             .from('card_attachments')
             .select('*')
-            .in('card_id', cardIds),
-          supabase
+            .in('cardId', cardIds),
+          api
             .from('card_subtasks')
             .select('*')
-            .in('card_id', cardIds)
+            .in('cardId', cardIds)
         ]);
         setCardAttachments(attachmentsResult.data || []);
         setCardSubtasks(subtasksResult.data || []);
@@ -431,13 +431,13 @@ export default function BoardPage() {
       
       // Transform members to expected format
       const transformedMembers: BoardMember[] = (result.members || []).map((m) => ({
-        user_id: m.user_id,
+        userId: m.userId,
         role: m.role as 'admin' | 'manager' | 'viewer',
         profiles: {
           id: m.profiles.id,
           email: m.profiles.email || '',
-          full_name: m.profiles.full_name,
-          avatar_url: m.profiles.avatar_url,
+          fullName: m.profiles.fullName,
+          avatarUrl: m.profiles.avatarUrl,
         }
       }));
       setBoardMembers(transformedMembers);
@@ -455,23 +455,23 @@ export default function BoardPage() {
   const refreshBoardTheme = async () => {
     if (!boardId) return;
     try {
-      const { data: boardData } = await supabase
+      const { data: boardData } = await api
         .from('boards')
-        .select('theme_id, background_color')
+        .select('themeId, backgroundColor')
         .eq('id', boardId)
         .single();
       
-      const themeId = boardData?.theme_id || null;
+      const themeId = boardData?.data?.themeId || null;
       setBoardThemeId(themeId);
-      setBoardColor(boardData?.background_color || '#0079bf');
+      setBoardColor(boardData?.data?.backgroundColor || '#0079bf');
       
       if (themeId) {
-        const { data: themeData } = await supabase
+        const { data: themeData } = await api
           .from('board_themes')
           .select('*')
           .eq('id', themeId)
           .single();
-        setBoardTheme(themeData as BoardTheme | null);
+        setBoardTheme(themeData?.data as BoardTheme | null);
       } else {
         setBoardTheme(null);
       }
@@ -525,16 +525,16 @@ export default function BoardPage() {
   // Convert DB data to component format
   const getColumnCards = (columnId: string): CardType[] => {
     return cards
-      .filter(c => c.column_id === columnId)
+      .filter(c => c.columnId === columnId)
       .sort((a, b) => a.position - b.position)
       .map(c => ({
         id: c.id,
         title: c.title,
         description: c.description || undefined,
         labels: cardLabels
-          .filter(cl => cl.card_id === c.id)
+          .filter(cl => cl.cardId === c.id)
           .map(cl => {
-            const label = labels.find(l => l.id === cl.label_id);
+            const label = labels.find(l => l.id === cl.labelId);
             if (!label) return null;
             return { 
               id: label.id, 
@@ -543,7 +543,7 @@ export default function BoardPage() {
             } as Label;
           })
           .filter((l): l is Label => l !== null),
-        dueDate: c.due_date || undefined,
+        dueDate: c.dueDate || undefined,
         createdAt: '',
         color: c.color,
       }));
@@ -632,10 +632,10 @@ export default function BoardPage() {
     }
 
     // Card drag
-    const sourceCards = cards.filter(c => c.column_id === source.droppableId).sort((a, b) => a.position - b.position);
+    const sourceCards = cards.filter(c => c.columnId === source.droppableId).sort((a, b) => a.position - b.position);
     const destCards = source.droppableId === destination.droppableId
       ? sourceCards
-      : cards.filter(c => c.column_id === destination.droppableId).sort((a, b) => a.position - b.position);
+      : cards.filter(c => c.columnId === destination.droppableId).sort((a, b) => a.position - b.position);
 
     const draggedCard = cards.find(c => c.id === draggableId);
     if (!draggedCard) return;
@@ -648,13 +648,13 @@ export default function BoardPage() {
       ? newSourceCards
       : [...destCards];
     
-    const updatedCard = { ...draggedCard, column_id: destination.droppableId };
+    const updatedCard = { ...draggedCard, columnId: destination.droppableId };
     newDestCards.splice(destination.index, 0, updatedCard);
 
     // Build update list
-    const allUpdates: { id: string; column_id: string; position: number }[] = [];
-    newSourceCards.forEach((c, idx) => allUpdates.push({ id: c.id, column_id: c.column_id, position: idx }));
-    newDestCards.forEach((c, idx) => allUpdates.push({ id: c.id, column_id: destination.droppableId, position: idx }));
+    const allUpdates: { id: string; columnId: string; position: number }[] = [];
+    newSourceCards.forEach((c, idx) => allUpdates.push({ id: c.id, columnId: c.columnId, position: idx }));
+    newDestCards.forEach((c, idx) => allUpdates.push({ id: c.id, columnId: destination.droppableId, position: idx }));
     
     // Deduplicate
     const uniqueUpdates = allUpdates.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
@@ -662,11 +662,11 @@ export default function BoardPage() {
     // Update local state (optimistic)
     setCards(prev => {
       const others = prev.filter(c => 
-        c.column_id !== source.droppableId && c.column_id !== destination.droppableId
+        c.columnId !== source.droppableId && c.columnId !== destination.droppableId
       );
       return [...others, ...uniqueUpdates.map(u => {
         const original = prev.find(c => c.id === u.id);
-        return original ? { ...original, column_id: u.column_id, position: u.position } : null;
+        return original ? { ...original, columnId: u.columnId, position: u.position } : null;
       }).filter((c): c is DbCard => c !== null)];
     });
 
@@ -708,9 +708,9 @@ export default function BoardPage() {
       const validated = columnSchema.parse({ title: newColumnTitle });
 
       const position = columns.length;
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('columns')
-        .insert({ board_id: boardId, title: validated.title, position })
+        .insert({ boardId: boardId, title: validated.title, position })
         .select()
         .single();
 
@@ -753,7 +753,7 @@ export default function BoardPage() {
     try {
       await api.from('columns').delete().eq('id', columnId);
       setColumns(columns.filter(c => c.id !== columnId));
-      setCards(cards.filter(c => c.column_id !== columnId));
+      setCards(cards.filter(c => c.columnId !== columnId));
     } catch (error: any) {
       console.error('Delete column error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -770,14 +770,14 @@ export default function BoardPage() {
       const columnCards = cards.filter(c => c.column_id === columnId);
       const position = columnCards.length;
       
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('cards')
-        .insert({ column_id: columnId, title: validated.title, position, created_by: user?.id })
+        .insert({ columnId: columnId, title: validated.title, position, createdBy: user?.id })
         .select()
         .single();
 
       if (error) throw error;
-      setCards([...cards, data]);
+      setCards([...cards, data.data || data]);
     } catch (error: any) {
       console.error('Add card error:', error);
       if (error instanceof z.ZodError) {
@@ -808,7 +808,7 @@ export default function BoardPage() {
           ...c,
           ...(updates.title !== undefined && { title: updates.title }),
           ...(updates.description !== undefined && { description: updates.description || null }),
-          ...('dueDate' in updates && { due_date: updates.dueDate || null }),
+          ...('dueDate' in updates && { dueDate: updates.dueDate || null }),
         };
       }));
       
@@ -867,25 +867,25 @@ export default function BoardPage() {
       const existingLabel = labels.find(l => l.id === label.id);
       
       if (!existingLabel) {
-        const { data: newLabel, error: labelError } = await supabase
+        const { data: newLabel, error: labelError } = await api
           .from('labels')
-          .insert({ board_id: boardId, name: label.text, color: label.color })
+          .insert({ boardId: boardId, name: label.text, color: label.color })
           .select()
           .single();
 
         if (labelError) throw labelError;
-        labelId = newLabel.id;
-        setLabels([...labels, newLabel]);
+        labelId = newLabel.data?.id || newLabel.id;
+        setLabels([...labels, newLabel.data || newLabel]);
       }
 
       // Add card-label relation
-      const { error } = await supabase
+      const { error } = await api
         .from('card_labels')
-        .insert({ card_id: cardId, label_id: labelId });
+        .insert({ cardId: cardId, labelId: labelId });
 
-      if (error && !error.message.includes('duplicate')) throw error;
+      if (error && !error.message?.includes('duplicate')) throw error;
       
-      setCardLabels([...cardLabels, { card_id: cardId, label_id: labelId }]);
+      setCardLabels([...cardLabels, { cardId: cardId, labelId: labelId }]);
     } catch (error: any) {
       console.error('Add label error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -896,8 +896,8 @@ export default function BoardPage() {
     // Early return for better UX - RLS will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      await api.from('card_labels').delete().eq('card_id', cardId).eq('label_id', labelId);
-      setCardLabels(cardLabels.filter(cl => !(cl.card_id === cardId && cl.label_id === labelId)));
+      await api.from('card_labels').delete().eq('cardId', cardId).eq('labelId', labelId);
+      setCardLabels(cardLabels.filter(cl => !(cl.cardId === cardId && cl.labelId === labelId)));
     } catch (error: any) {
       console.error('Remove label error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -1322,28 +1322,28 @@ export default function BoardPage() {
         }}
         disabled={!effectiveCanEdit}
         boardLabels={labels}
-        attachments={editingCard ? cardAttachments.filter(a => a.card_id === editingCard.card.id) : []}
+        attachments={editingCard ? cardAttachments.filter(a => a.cardId === editingCard.card.id) : []}
         onAttachmentsChange={async () => {
           if (editingCard) {
-            const { data } = await supabase
+            const { data } = await api
               .from('card_attachments')
               .select('*')
-              .eq('card_id', editingCard.card.id);
+              .eq('cardId', editingCard.card.id);
             setCardAttachments(prev => [
-              ...prev.filter(a => a.card_id !== editingCard.card.id),
+              ...prev.filter(a => a.cardId !== editingCard.card.id),
               ...(data || [])
             ]);
           }
         }}
-        subtasks={editingCard ? cardSubtasks.filter(s => s.card_id === editingCard.card.id) : []}
+        subtasks={editingCard ? cardSubtasks.filter(s => s.cardId === editingCard.card.id) : []}
         onSubtasksChange={async () => {
           if (editingCard) {
-            const { data } = await supabase
+            const { data } = await api
               .from('card_subtasks')
               .select('*')
-              .eq('card_id', editingCard.card.id);
+              .eq('cardId', editingCard.card.id);
             setCardSubtasks(prev => [
-              ...prev.filter(s => s.card_id !== editingCard.card.id),
+              ...prev.filter(s => s.cardId !== editingCard.card.id),
               ...(data || [])
             ]);
           }

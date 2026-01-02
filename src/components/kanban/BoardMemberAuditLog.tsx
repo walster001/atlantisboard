@@ -12,22 +12,22 @@ import { usePermissions } from '@/hooks/usePermissions';
 
 interface AuditLogEntry {
   id: string;
-  board_id: string;
+  boardId: string;
   action: 'added' | 'removed' | 'role_changed';
-  target_user_id: string;
-  actor_user_id: string | null;
-  old_role: string | null;
-  new_role: string | null;
-  created_at: string;
-  target_profile?: {
-    full_name: string | null;
+  targetUserId: string;
+  actorUserId: string | null;
+  oldRole: string | null;
+  newRole: string | null;
+  createdAt: string;
+  targetProfile?: {
+    fullName: string | null;
     email: string;
-    avatar_url: string | null;
+    avatarUrl: string | null;
   };
-  actor_profile?: {
-    full_name: string | null;
+  actorProfile?: {
+    fullName: string | null;
     email: string;
-    avatar_url: string | null;
+    avatarUrl: string | null;
   };
 }
 
@@ -216,8 +216,8 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
   };
 
   const getActionText = (entry: AuditLogEntry) => {
-    const targetName = entry.target_profile?.full_name || entry.target_profile?.email || 'Unknown user';
-    const actorName = entry.actor_profile?.full_name || entry.actor_profile?.email || 'System';
+    const targetName = entry.targetProfile?.fullName || entry.targetProfile?.email || 'Unknown user';
+    const actorName = entry.actorProfile?.fullName || entry.actorProfile?.email || 'System';
 
     switch (entry.action) {
       case 'added':
@@ -333,15 +333,15 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm leading-relaxed">{getActionText(entry)}</p>
-                    <p className="text-xs text-muted-foreground mt-1" title={format(new Date(entry.created_at), 'PPpp')}>
-                      {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
+                    <p className="text-xs text-muted-foreground mt-1" title={format(new Date(entry.createdAt), 'PPpp')}>
+                      {formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true })}
                     </p>
                   </div>
 
                   {/* Actor avatar */}
-                  {entry.actor_profile && (
+                  {entry.actorProfile && (
                     <Avatar className="h-6 w-6 shrink-0">
-                      <AvatarImage src={entry.actor_profile.avatar_url || undefined} />
+                      <AvatarImage src={entry.actorProfile.avatarUrl || undefined} />
                       <AvatarFallback className="text-xs">
                         <User className="h-3 w-3" />
                       </AvatarFallback>

@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 
 interface BoardLabel {
   id: string;
-  board_id: string;
+  boardId: string;
   name: string;
   color: string;
 }

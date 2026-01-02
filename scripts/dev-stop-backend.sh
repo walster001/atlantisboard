@@ -21,6 +21,13 @@ BACKEND_DIR="$PROJECT_ROOT/backend"
 
 # PID files
 BACKEND_PID_FILE="$BACKEND_DIR/.dev-api.pid"
+FRONTEND_PID_FILE="$PROJECT_ROOT/.dev-frontend.pid"
+
+# Check for --no-prompt flag
+NO_PROMPT=false
+if [[ "$*" == *"--no-prompt"* ]]; then
+    NO_PROMPT=true
+fi
 
 cd "$PROJECT_ROOT"
 
@@ -43,6 +50,22 @@ else
     echo -e "${GREEN}✅ Backend API not running${NC}"
 fi
 
+# Stop frontend if running
+if [ -f "$FRONTEND_PID_FILE" ]; then
+    FRONTEND_PID=$(cat "$FRONTEND_PID_FILE")
+    if ps -p "$FRONTEND_PID" > /dev/null 2>&1; then
+        echo -e "${BLUE}   Stopping frontend (PID: $FRONTEND_PID)...${NC}"
+        kill "$FRONTEND_PID" 2>/dev/null || true
+        wait "$FRONTEND_PID" 2>/dev/null || true
+        echo -e "${GREEN}✅ Frontend stopped${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Frontend process not found (may have already stopped)${NC}"
+    fi
+    rm -f "$FRONTEND_PID_FILE"
+else
+    echo -e "${GREEN}✅ Frontend not running${NC}"
+fi
+
 # Stop Docker services
 echo ""
 echo -e "${BLUE}🐳 Stopping Docker services...${NC}"
@@ -56,24 +79,25 @@ fi
 
 echo -e "${GREEN}✅ Docker services stopped${NC}"
 
-# Ask about removing volumes
-echo ""
-read -p "Remove Docker volumes (this will delete all data)? (y/N): " -n 1 -r
-echo ""
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "${YELLOW}🗑️  Removing Docker volumes...${NC}"
-    cd "$BACKEND_DIR"
-    if docker compose version &> /dev/null 2>&1; then
-        docker compose down -v
-    else
-        docker-compose down -v
-    fi
+# Ask about removing volumes (unless --no-prompt flag is set)
+if [ "$NO_PROMPT" = false ]; then
+    echo ""
+    read -p "Remove Docker volumes (this will delete all data)? (y/N): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}🗑️  Removing Docker volumes...${NC}"
+        cd "$BACKEND_DIR"
+        if docker compose version &> /dev/null 2>&1; then
+            docker compose down -v
+        else
+            docker-compose down -v
+        fi
         echo -e "${GREEN}✅ Docker volumes removed${NC}"
     else
         echo -e "${GREEN}✅ Docker volumes preserved${NC}"
     fi
 else
-    echo -e "${GREEN}✅ Docker volumes preserved (restart mode)${NC}"
+    echo -e "${GREEN}✅ Docker volumes preserved (no-prompt mode)${NC}"
 fi
 
 # Summary

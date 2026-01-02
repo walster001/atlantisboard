@@ -50,7 +50,7 @@ export function subscribeRolePermissions(handlers: PermissionHandlers): Subscrip
 
 export function subscribeBoardMemberCustomRoles(boardId: string | null | undefined, handlers: BoardPermissionHandlers): SubscriptionCleanup {
   const topic = `permissions-member-custom-roles${boardId ? `-${boardId}` : ''}`;
-  const filter = boardId ? `board_id=eq.${boardId}` : undefined;
+  const filter = boardId ? `boardId=eq.${boardId}` : undefined;
 
   return subscribeToChanges(
     topic,
@@ -64,8 +64,8 @@ export function subscribeBoardMemberCustomRoles(boardId: string | null | undefin
           handlers.onChange?.(payload);
           const userId = handlers.currentUserId;
           if (userId) {
-            const record = (payload.new || payload.old) as { user_id?: string } | undefined;
-            if (record?.user_id === userId) {
+            const record = (payload.new || payload.old) as { userId?: string } | undefined;
+            if (record?.userId === userId) {
               handlers.onAffectsUser?.(payload);
             }
           }
@@ -82,7 +82,7 @@ export function subscribeBoardMembersForPermissions(boardId: string | null | und
   }
 
   const topic = `permissions-board-members-${boardId}`;
-  const filter = `board_id=eq.${boardId}`;
+  const filter = `boardId=eq.${boardId}`;
 
   return subscribeToChanges(
     topic,
@@ -95,7 +95,7 @@ export function subscribeBoardMembersForPermissions(boardId: string | null | und
           logRealtime(topic, 'board_members update', { id: payload.new?.id });
           handlers.onChange?.(payload);
           const userId = handlers.currentUserId;
-          if (userId && (payload.new as { user_id?: string } | undefined)?.user_id === userId) {
+          if (userId && (payload.new as { userId?: string } | undefined)?.userId === userId) {
             handlers.onAffectsUser?.(payload);
           }
         },
@@ -108,7 +108,7 @@ export function subscribeBoardMembersForPermissions(boardId: string | null | und
           logRealtime(topic, 'board_members delete', { id: payload.old?.id });
           handlers.onChange?.(payload);
           const userId = handlers.currentUserId;
-          if (userId && (payload.old as { user_id?: string } | undefined)?.user_id === userId) {
+          if (userId && (payload.old as { userId?: string } | undefined)?.userId === userId) {
             handlers.onAffectsUser?.(payload);
           }
         },

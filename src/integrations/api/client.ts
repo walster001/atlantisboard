@@ -3,6 +3,8 @@
  * Provides a compatibility layer that mimics Supabase client behavior
  */
 
+import { getRealtimeClient } from './realtime';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
 
 // Ensure base URL doesn't have trailing slash
@@ -219,7 +221,7 @@ class ApiClient {
               id: result.data.id,
               email: result.data.email,
               app_metadata: {
-                provider: 'email', // Will be updated when OAuth is implemented
+                provider: (result.data as any).provider || 'email', // Use provider from API response
               },
             },
           },
@@ -339,7 +341,6 @@ class ApiClient {
 
   // Realtime WebSocket client
   get realtime() {
-    const { getRealtimeClient } = require('./realtime');
     const client = getRealtimeClient(this.baseUrl);
     
     // Sync auth token

@@ -100,15 +100,60 @@ http://localhost:3000/api/auth/google/callback
 ## Troubleshooting
 
 ### "Refused to connect" Error
-- **Backend not running**: Start the backend server
+
+#### Backend Not Running
+The most common cause is the backend server not running. Start it with:
+
+**Using WSL (Recommended):**
+```bash
+cd backend
+chmod +x fix-and-start.sh
+./fix-and-start.sh
+```
+
+**Or manually:**
+```bash
+cd backend
+# Ensure Node.js 20+ is active
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+nvm use 22  # or nvm use 20
+
+# Fix .env line endings (Windows CRLF issue)
+sed -i 's/\r$//' .env
+
+# Rebuild native dependencies if needed
+npm rebuild bcrypt
+
+# Start server
+npm run dev
+```
+
+#### Node.js Version Mismatch
+If you see `SyntaxError` in `tsx` or `MODULE_NOT_FOUND` for `bcrypt`:
+- **Problem**: Node.js version is too old (needs 20+)
+- **Solution**: 
   ```bash
-  cd backend
-  npm run dev
-  # or
-  ./scripts/dev-start-backend.sh
+  nvm install 22  # or nvm install 20
+  nvm use 22
+  npm rebuild bcrypt
   ```
-- **Wrong port**: Verify backend is running on port 3000 (check `API_PORT` in `.env`)
-- **Firewall**: Check if firewall is blocking port 3000
+
+#### .env File Line Ending Issues
+If you see `Invalid enum value` for `NODE_ENV`:
+- **Problem**: Windows CRLF line endings in `.env` file
+- **Solution**:
+  ```bash
+  sed -i 's/\r$//' backend/.env
+  sed -i 's/\r//g' backend/.env
+  ```
+
+#### Wrong Port
+- Verify backend is running on port 3000 (check `API_PORT` in `.env`)
+- Check if port is in use: `netstat -tuln | grep :3000` (Linux) or `netstat -ano | findstr :3000` (Windows)
+
+#### Firewall
+- Check if firewall is blocking port 3000
 
 ### OAuth Route Returns 503
 - **Missing credentials**: Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `backend/.env`

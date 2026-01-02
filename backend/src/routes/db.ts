@@ -8,6 +8,7 @@ const router = Router();
 // Apply auth middleware to all routes
 router.use(authMiddleware);
 
+
 // Parse query parameters for Supabase-style filters
 function parseFilters(query: Record<string, string>) {
   const filters: Array<{ field: string; operator: string; value: unknown }> = [];
@@ -47,6 +48,7 @@ function applyFilters(
 ) {
   for (const filter of filters) {
     const { field, operator, value } = filter;
+    // Field names are already in camelCase
 
     switch (operator) {
       case 'eq':
@@ -144,7 +146,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
     // Apply filters
     applyFilters(query, filters);
 
-    // Apply select
+    // Apply select - field names are already in camelCase
     if (selectFields && selectFields !== '*') {
       const fields = selectFields.split(',').map((f) => f.trim());
       query.select = fields.reduce((acc, field) => {
@@ -153,7 +155,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
       }, {} as Record<string, boolean>);
     }
 
-    // Apply order
+    // Apply order - field names are already in camelCase
     if (orderBy) {
       const [field, direction] = orderBy.split('.');
       query.orderBy = {
@@ -174,6 +176,12 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
 
     res.json(data);
   } catch (error) {
+    // Log error details for debugging
+    console.error(`[DB Route] Error querying table ${req.params.table}:`, error);
+    if (error instanceof Error) {
+      console.error(`[DB Route] Error message: ${error.message}`);
+      console.error(`[DB Route] Error stack: ${error.stack}`);
+    }
     next(error);
   }
 });
@@ -196,7 +204,7 @@ router.post('/:table', async (req: Request, res: Response, next: NextFunction) =
     const body = req.body;
     const data = Array.isArray(body) ? body : [body];
 
-    // Insert records
+    // Insert records - data is already in camelCase
     const results = await Promise.all(
       data.map((record) => model.create({ data: record }))
     );
@@ -229,10 +237,13 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
     const where: any = {};
     applyFilters({ where }, filters);
 
+    // Update data is already in camelCase
+    const updateData = req.body;
+
     // Update records
     const result = await model.updateMany({
       where,
-      data: req.body,
+      data: updateData,
     });
 
     res.json(result);

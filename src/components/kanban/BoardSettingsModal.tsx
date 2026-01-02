@@ -19,21 +19,21 @@ import { BoardMemberAuditLog } from './BoardMemberAuditLog';
 import { cn } from '@/lib/utils';
 
 interface BoardMember {
-  user_id: string;
+  userId: string;
   role: 'admin' | 'manager' | 'viewer';
   profiles: {
     id: string;
     email: string;
-    full_name: string | null;
-    avatar_url: string | null;
+    fullName: string | null;
+    avatarUrl: string | null;
   };
 }
 
 interface AppUser {
   id: string;
   email: string;
-  full_name: string | null;
-  avatar_url: string | null;
+  fullName: string | null;
+  avatarUrl: string | null;
 }
 
 interface BoardTheme {
@@ -160,14 +160,14 @@ export function BoardSettingsModal({
   };
 
   // Get member IDs for quick lookup
-  const memberIds = new Set(members.map(m => m.user_id));
+  const memberIds = new Set(members.map(m => m.userId));
 
   // Filter non-member users based on search
   const filteredNonMembers = allUsers.filter((user) => {
     if (memberIds.has(user.id)) return false;
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
-    const name = user.full_name?.toLowerCase() || '';
+    const name = user.fullName?.toLowerCase() || '';
     const email = user.email?.toLowerCase() || '';
     return name.includes(query) || email.includes(query);
   });
@@ -176,7 +176,7 @@ export function BoardSettingsModal({
   const filteredMembers = members.filter((member) => {
     if (!memberSearchQuery.trim()) return true;
     const query = memberSearchQuery.toLowerCase();
-    const name = member.profiles.full_name?.toLowerCase() || '';
+    const name = member.profiles.fullName?.toLowerCase() || '';
     const email = member.profiles.email?.toLowerCase() || '';
     return name.includes(query) || email.includes(query);
   });
@@ -187,8 +187,8 @@ export function BoardSettingsModal({
       const assignRole = userRole === 'manager' ? 'viewer' : (pendingRoles[userId] || 'viewer');
 
       const { error } = await api.from('board_members').insert({
-        board_id: boardId,
-        user_id: userId,
+        boardId: boardId,
+        userId: userId,
         role: assignRole,
       });
 
@@ -210,7 +210,7 @@ export function BoardSettingsModal({
   const adminCount = members.filter(m => m.role === 'admin').length;
 
   const confirmRemoveMember = (userId: string, name: string) => {
-    const memberToRemove = members.find(m => m.user_id === userId);
+    const memberToRemove = members.find(m => m.userId === userId);
     
     // SECURITY: Managers cannot remove admins or other managers
     if (isManager && memberToRemove && (memberToRemove.role === 'admin' || memberToRemove.role === 'manager')) {
@@ -438,7 +438,7 @@ export function BoardSettingsModal({
                             >
                               <div className="flex items-center gap-3 min-w-0 flex-1">
                                 <Avatar className="h-9 w-9 shrink-0">
-                                  <AvatarImage src={user.avatar_url || undefined} />
+                                  <AvatarImage src={user.avatarUrl || undefined} />
                                   <AvatarFallback>
                                     <User className="h-4 w-4" />
                                   </AvatarFallback>
@@ -541,19 +541,19 @@ export function BoardSettingsModal({
                       <div className="divide-y">
                         {filteredMembers.map((member) => (
                           <div
-                            key={member.user_id}
+                            key={member.userId}
                             className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
                           >
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               <Avatar className="h-9 w-9 shrink-0">
-                                <AvatarImage src={member.profiles.avatar_url || undefined} />
+                                <AvatarImage src={member.profiles.avatarUrl || undefined} />
                                 <AvatarFallback>
                                   <User className="h-4 w-4" />
                                 </AvatarFallback>
                               </Avatar>
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-sm truncate">
-                                  {member.profiles.full_name || member.profiles.email || 'Unknown User'}
+                                  {member.profiles.fullName || member.profiles.email || 'Unknown User'}
                                 </p>
                                 {member.profiles.email && (
                                   <p className="text-xs text-muted-foreground truncate">{member.profiles.email}</p>
@@ -565,7 +565,7 @@ export function BoardSettingsModal({
                               {hasAdminCapabilities ? (
                                 <Select
                                   value={member.role}
-                                  onValueChange={(v) => updateRole(member.user_id, v as 'admin' | 'manager' | 'viewer')}
+                                  onValueChange={(v) => updateRole(member.userId, v as 'admin' | 'manager' | 'viewer')}
                                 >
                                   <SelectTrigger className="w-24 h-8 text-xs">
                                     <SelectValue />
@@ -585,7 +585,7 @@ export function BoardSettingsModal({
                                     if (v === 'viewer' && member.role === 'viewer') return;
                                     // Managers cannot promote anyone (including themselves)
                                     if (v !== 'viewer') return;
-                                    updateRole(member.user_id, 'viewer');
+                                    updateRole(member.userId, 'viewer');
                                   }}
                                   disabled={member.role === 'admin' || member.role === 'manager'}
                                 >
@@ -628,11 +628,11 @@ export function BoardSettingsModal({
                                       : "text-destructive hover:text-destructive hover:bg-destructive/10"
                                   )}
                                   onClick={() => confirmRemoveMember(
-                                    member.user_id, 
-                                    member.profiles.full_name || member.profiles.email || 'this user'
+                                    member.userId, 
+                                    member.profiles.fullName || member.profiles.email || 'this user'
                                   )}
                                   disabled={
-                                    removingUserId === member.user_id || 
+                                    removingUserId === member.userId || 
                                     (isManager && (member.role === 'admin' || member.role === 'manager'))
                                   }
                                   title={
@@ -641,7 +641,7 @@ export function BoardSettingsModal({
                                       : 'Remove member'
                                   }
                                 >
-                                  {removingUserId === member.user_id ? (
+                                  {removingUserId === member.userId ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                   ) : (
                                     <>

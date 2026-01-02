@@ -51,13 +51,13 @@ class MemberService {
 
     // Format response (hide email unless self or app admin)
     return members.map((member: { userId: string; role: string; user: { email: string; profile?: { id: string; fullName: string | null; avatarUrl: string | null } | null } }) => ({
-      user_id: member.userId,
+      userId: member.userId,
       role: member.role,
       profiles: {
         id: member.user.profile?.id ?? member.userId,
         email: userId === member.userId || isAppAdmin ? member.user.email : null,
-        full_name: member.user.profile?.fullName ?? null,
-        avatar_url: member.user.profile?.avatarUrl ?? null,
+        fullName: member.user.profile?.fullName ?? null,
+        avatarUrl: member.user.profile?.avatarUrl ?? null,
       },
     }));
   }
@@ -268,8 +268,8 @@ class MemberService {
     return users.map((user: { id: string; email: string; profile?: { fullName: string | null; avatarUrl: string | null } | null }) => ({
       id: user.id,
       email: user.email,
-      full_name: user.profile?.fullName ?? null,
-      avatar_url: user.profile?.avatarUrl ?? null,
+      fullName: user.profile?.fullName ?? null,
+      avatarUrl: user.profile?.avatarUrl ?? null,
     }));
   }
 }

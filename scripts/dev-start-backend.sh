@@ -25,10 +25,18 @@ BACKEND_LOG_FILE="$BACKEND_DIR/.dev-api.log"
 FRONTEND_PID_FILE="$PROJECT_ROOT/.dev-frontend.pid"
 FRONTEND_LOG_FILE="$PROJECT_ROOT/.dev-frontend.log"
 
+# Terminal settings (for cleanup)
+SAVED_STTY=""
+
 # Cleanup function
 cleanup() {
     echo ""
     echo -e "${YELLOW}🛑 Shutting down services...${NC}"
+    
+    # Restore terminal settings if we changed them
+    if [ -n "$SAVED_STTY" ] && [ -t 0 ]; then
+        stty "$SAVED_STTY" 2>/dev/null || true
+    fi
     
     # Stop backend API if running
     if [ -f "$BACKEND_PID_FILE" ]; then
@@ -50,6 +58,15 @@ cleanup() {
             wait "$FRONTEND_PID" 2>/dev/null || true
         fi
         rm -f "$FRONTEND_PID_FILE"
+    fi
+    
+    # Stop Docker containers (preserve volumes/data)
+    echo -e "${BLUE}   Stopping Docker containers...${NC}"
+    cd "$BACKEND_DIR"
+    if docker compose version &> /dev/null 2>&1; then
+        docker compose down 2>/dev/null || true
+    else
+        docker-compose down 2>/dev/null || true
     fi
     
     echo -e "${GREEN}✅ Cleanup complete${NC}"

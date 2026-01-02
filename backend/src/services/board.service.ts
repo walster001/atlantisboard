@@ -138,13 +138,13 @@ class BoardService {
 
     // Format members (hide email unless self or app admin)
     const formattedMembers = members.map((member: { userId: string; role: string; user: { email: string; profile?: { id: string; fullName: string | null; avatarUrl: string | null } | null } }) => ({
-      user_id: member.userId,
+      userId: member.userId,
       role: member.role,
       profiles: {
         id: member.user.profile?.id ?? member.userId,
         email: userId === member.userId || isAppAdmin ? member.user.email : null,
-        full_name: member.user.profile?.fullName ?? null,
-        avatar_url: member.user.profile?.avatarUrl ?? null,
+        fullName: member.user.profile?.fullName ?? null,
+        avatarUrl: member.user.profile?.avatarUrl ?? null,
       },
     }));
 
@@ -153,24 +153,14 @@ class BoardService {
         id: board.id,
         name: board.name,
         description: board.description,
-        background_color: board.backgroundColor,
-        workspace_id: board.workspaceId,
+        backgroundColor: board.backgroundColor,
+        workspaceId: board.workspaceId,
       },
-      user_role: userRole,
+      userRole: userRole,
       columns,
-      cards: cards.map((card: { id: string; columnId: string; createdBy: string | null; dueDate: Date | null; createdAt: Date; updatedAt: Date; [key: string]: any }) => ({
-        ...card,
-        column_id: card.columnId,
-        created_by: card.createdBy,
-        due_date: card.dueDate,
-        created_at: card.createdAt,
-        updated_at: card.updatedAt,
-      })),
+      cards,
       labels,
-      card_labels: cardLabels.map((cl: { cardId: string; labelId: string }) => ({
-        card_id: cl.cardId,
-        label_id: cl.labelId,
-      })),
+      cardLabels: cardLabels,
       members: formattedMembers,
     };
   }

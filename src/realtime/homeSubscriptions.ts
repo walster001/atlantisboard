@@ -11,7 +11,7 @@ type HomeHandlers = {
 
 export function subscribeHomeBoardMembership(userId: string, handlers: HomeHandlers): SubscriptionCleanup {
   const topic = `user-${userId}-board-membership`;
-  const filter = `user_id=eq.${userId}`;
+  const filter = `userId=eq.${userId}`;
 
   return subscribeToChanges(
     topic,
@@ -21,7 +21,7 @@ export function subscribeHomeBoardMembership(userId: string, handlers: HomeHandl
         table: 'board_members',
         filter,
         handler: (payload) => {
-          logRealtime(topic, 'board membership insert', { board_id: payload.new?.board_id });
+          logRealtime(topic, 'board membership insert', { boardId: payload.new?.boardId });
           handlers.onAdded?.(payload);
         },
       },
@@ -30,7 +30,7 @@ export function subscribeHomeBoardMembership(userId: string, handlers: HomeHandl
         table: 'board_members',
         filter,
         handler: (payload) => {
-          logRealtime(topic, 'board membership delete', { board_id: payload.old?.board_id });
+          logRealtime(topic, 'board membership delete', { boardId: payload.old?.boardId });
           handlers.onRemoved?.(payload);
         },
       },

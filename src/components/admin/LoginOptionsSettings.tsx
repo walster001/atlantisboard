@@ -81,7 +81,7 @@ export function LoginOptionsSettings() {
   const fetchSettings = async () => {
     try {
       // Fetch login style
-      const { data: appSettings, error: appError } = await supabase
+      const { data: appSettings, error: appError } = await api
         .from('app_settings')
         .select('login_style')
         .eq('id', 'default')
@@ -96,7 +96,7 @@ export function LoginOptionsSettings() {
       }
 
       // Check if MySQL is configured (admin only can see this)
-      const { data: mysqlData } = await supabase
+      const { data: mysqlData } = await api
         .from('mysql_config')
         .select('is_configured')
         .eq('id', 'default')
@@ -128,7 +128,7 @@ export function LoginOptionsSettings() {
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('app_settings')
         .upsert({
           id: 'default',

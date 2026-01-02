@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { api } from '@/integrations/api/client';
 
 interface UserProfile {
   id: string;
@@ -94,7 +95,7 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
 
   const fetchAllUsers = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('profiles')
         .select('id, email, fullName, avatarUrl, isAdmin')
         .order('fullName', { ascending: true, nullsFirst: false });
@@ -124,7 +125,7 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
     setSaving(true);
     try {
       const newAdminStatus = action === 'add';
-      const { error } = await supabase
+      const { error } = await api
         .from('profiles')
         .update({ isAdmin: newAdminStatus })
         .eq('id', targetUser.id);

@@ -15,12 +15,13 @@ import { usePermissionsData } from './usePermissionsData';
 import { PERMISSION_CATEGORIES, BUILT_IN_ROLE_PERMISSIONS, BOARD_LEVEL_CATEGORIES, CategoryStatus } from './types';
 import { PermissionKey } from '@/lib/permissions/types';
 import { useAuth } from '@/hooks/useAuth';
+import { api } from '@/integrations/api/client';
 
 interface AppAdmin {
   id: string;
   email: string;
-  full_name: string | null;
-  avatar_url: string | null;
+  fullName: string | null;
+  avatarUrl: string | null;
 }
 
 export function PermissionsSettings() {
@@ -54,11 +55,11 @@ export function PermissionsSettings() {
   const loadAppAdmins = useCallback(async () => {
     setLoadingAdmins(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('profiles')
-        .select('id, email, full_name, avatar_url')
-        .eq('is_admin', true)
-        .order('created_at', { ascending: true });
+        .select('id, email, fullName, avatarUrl')
+        .eq('isAdmin', true)
+        .order('createdAt', { ascending: true });
 
       if (error) throw error;
       setAppAdmins(data || []);

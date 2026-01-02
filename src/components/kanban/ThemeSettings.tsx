@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { api } from '@/integrations/api/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Plus, Check, Loader2, Trash2, Pencil, Copy } from 'lucide-react';
@@ -83,7 +84,7 @@ export function ThemeSettings({
   const fetchThemes = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('board_themes')
         .select('*');
 
@@ -92,8 +93,8 @@ export function ThemeSettings({
       // Sort themes: default themes in THEME_ORDER first, then custom themes alphabetically
       const allThemes = (data || []) as BoardTheme[];
       const sortedThemes = allThemes.sort((a, b) => {
-        const aIsDefault = a.is_default;
-        const bIsDefault = b.is_default;
+        const aIsDefault = a.isDefault;
+        const bIsDefault = b.isDefault;
         
         if (aIsDefault && bIsDefault) {
           // Both default - sort by THEME_ORDER
@@ -125,20 +126,20 @@ export function ThemeSettings({
       let backgroundColorUpdate: string | null = null;
       if (theme) {
         // Darken navbar color by 10% for the background
-        backgroundColorUpdate = darkenColor(theme.navbar_color, 0.1);
+        backgroundColorUpdate = darkenColor(theme.navbarColor, 0.1);
       }
       
-      const updateData: { theme_id: string | null; background_color?: string } = { 
-        theme_id: themeId 
+      const updateData: { themeId: string | null; backgroundColor?: string } = { 
+        themeId: themeId 
       };
       if (backgroundColorUpdate) {
-        updateData.background_color = backgroundColorUpdate;
+        updateData.backgroundColor = backgroundColorUpdate;
       }
       
-      const { error } = await supabase
+      const { error } = await api
         .from('boards')
-        .update(updateData)
-        .eq('id', boardId);
+        .eq('id', boardId)
+        .update(updateData);
 
       if (error) throw error;
       toast({ title: themeId ? 'Theme applied' : 'Theme removed' });
@@ -173,10 +174,10 @@ export function ThemeSettings({
     
     setDeleting(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('board_themes')
-        .delete()
-        .eq('id', themeToDelete.id);
+        .eq('id', themeToDelete.id)
+        .delete();
 
       if (error) throw error;
       toast({ title: 'Theme deleted' });
@@ -242,44 +243,44 @@ export function ThemeSettings({
                     {/* Theme preview */}
                     <div 
                       className="aspect-[4/3] rounded overflow-hidden mb-2 relative"
-                      style={{ backgroundColor: theme.column_color }}
+                      style={{ backgroundColor: theme.columnColor }}
                     >
                       {/* Mini navbar */}
                       <div 
                         className="h-4 flex items-center px-1.5 gap-1"
-                        style={{ backgroundColor: theme.navbar_color }}
+                        style={{ backgroundColor: theme.navbarColor }}
                       >
                         <div 
                           className="h-2 w-2 rounded-sm"
-                          style={{ backgroundColor: theme.board_icon_color }}
+                          style={{ backgroundColor: theme.boardIconColor }}
                         />
                         <div 
                           className="h-1 w-6 rounded"
-                          style={{ backgroundColor: theme.board_icon_color, opacity: 0.7 }}
+                          style={{ backgroundColor: theme.boardIconColor, opacity: 0.7 }}
                         />
                       </div>
                       {/* Mini columns */}
                       <div className="p-1.5 flex gap-1">
                         <div 
                           className="flex-1 rounded p-1 space-y-0.5"
-                          style={{ backgroundColor: theme.column_color }}
+                          style={{ backgroundColor: theme.columnColor }}
                         >
                           <div 
                             className="h-3 rounded shadow-sm"
-                            style={{ backgroundColor: theme.default_card_color || '#ffffff' }}
+                            style={{ backgroundColor: theme.defaultCardColor || '#ffffff' }}
                           />
                           <div 
                             className="h-3 rounded shadow-sm"
-                            style={{ backgroundColor: theme.default_card_color || '#ffffff' }}
+                            style={{ backgroundColor: theme.defaultCardColor || '#ffffff' }}
                           />
                         </div>
                         <div 
                           className="flex-1 rounded p-1 space-y-0.5"
-                          style={{ backgroundColor: theme.column_color }}
+                          style={{ backgroundColor: theme.columnColor }}
                         >
                           <div 
                             className="h-3 rounded shadow-sm"
-                            style={{ backgroundColor: theme.default_card_color || '#ffffff' }}
+                            style={{ backgroundColor: theme.defaultCardColor || '#ffffff' }}
                           />
                         </div>
                       </div>
@@ -300,7 +301,7 @@ export function ThemeSettings({
                         <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                       )}
                     </div>
-                    {theme.is_default && (
+                    {theme.isDefault && (
                       <p className="text-xs text-muted-foreground">Default</p>
                     )}
                   </button>
@@ -308,7 +309,7 @@ export function ThemeSettings({
 
                   {/* Duplicate action for app admins (available on all themes) */}
                   {canManageThemes && (
-                    <div className={`absolute top-1 ${theme.is_default ? 'left-1' : 'right-1'} flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
+                    <div className={`absolute top-1 ${theme.isDefault ? 'left-1' : 'right-1'} flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
                       <Button
                         variant="secondary"
                         size="icon"
@@ -325,7 +326,7 @@ export function ThemeSettings({
                   )}
 
                   {/* Edit/Delete actions for app admins (custom themes only) */}
-                  {canManageThemes && !theme.is_default && (
+                  {canManageThemes && !theme.isDefault && (
                     <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
                         variant="secondary"

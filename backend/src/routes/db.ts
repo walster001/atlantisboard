@@ -15,7 +15,7 @@ function parseFilters(query: Record<string, string>) {
 
   for (const [key, value] of Object.entries(query)) {
     // Skip special query parameters
-    if (['select', 'order', 'limit', 'offset'].includes(key)) {
+    if (['select', 'order', 'limit', 'offset', 'count'].includes(key)) {
       continue;
     }
 
@@ -137,6 +137,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
     const orderBy = req.query.order as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : undefined;
+    const countOnly = req.query.count === 'true' || req.query.count === '1';
 
     // Build query
     const query: any = {
@@ -145,6 +146,12 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
 
     // Apply filters
     applyFilters(query, filters);
+
+    // If count only, use count() method (much more efficient)
+    if (countOnly) {
+      const count = await model.count(query);
+      return res.json(count);
+    }
 
     // Apply select - field names are already in camelCase
     if (selectFields && selectFields !== '*') {

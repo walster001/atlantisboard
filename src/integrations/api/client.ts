@@ -393,6 +393,7 @@ class TableQuery {
   private orderBy?: { field: string; ascending: boolean };
   private limitCount?: number;
   private offsetCount?: number;
+  private countOnly: boolean = false;
 
   constructor(table: string, client: ApiClient) {
     this.table = table;
@@ -487,6 +488,13 @@ class TableQuery {
     return this;
   }
 
+  count(mode: 'exact' | 'estimated' = 'exact') {
+    this.countOnly = true;
+    // 'estimated' could be used for future optimization with approximate counts
+    // For now, we always use exact count
+    return this;
+  }
+
   private buildQueryParams(): string {
     const params = new URLSearchParams();
 
@@ -550,6 +558,13 @@ class TableQuery {
     onRejected?: (reason: unknown) => unknown
   ): Promise<{ data: T | null; error: Error | null }> {
     const query = this.buildQueryParams();
+    
+    // For count queries, return the number directly
+    if (this.countOnly) {
+      const result = await this.client.request<number>(`/db/${this.table}?${query}&count=true`);
+      return Promise.resolve({ data: result.data as unknown as T, error: result.error }).then(onFulfilled, onRejected);
+    }
+
     const result = await this.client.request<T[]>(`/db/${this.table}?${query}`);
 
     // Handle single() and maybeSingle()

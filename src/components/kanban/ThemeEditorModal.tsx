@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { api } from '@/integrations/api/client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,21 +101,21 @@ export function ThemeEditorModal({
       const sourceTheme = duplicatingTheme || editingTheme;
       if (sourceTheme) {
         setThemeName(duplicatingTheme ? `${sourceTheme.name} (Copy)` : sourceTheme.name);
-        setNavbarColor(sourceTheme.navbar_color);
+        setNavbarColor(sourceTheme.navbarColor);
         // Empty string means transparent, convert to null for state
-        setColumnColor(sourceTheme.column_color === '' ? null : sourceTheme.column_color);
-        setDefaultCardColor(sourceTheme.default_card_color);
-        setCardWindowColor(sourceTheme.card_window_color);
-        setCardWindowTextColor(sourceTheme.card_window_text_color);
-        setCardWindowButtonColor(sourceTheme.card_window_button_color || '#0079bf');
-        setCardWindowButtonTextColor(sourceTheme.card_window_button_text_color || '#ffffff');
-        setCardWindowButtonHoverColor(sourceTheme.card_window_button_hover_color || '#005a8c');
-        setCardWindowButtonHoverTextColor(sourceTheme.card_window_button_hover_text_color || '#ffffff');
-        setCardWindowIntelligentContrast(sourceTheme.card_window_intelligent_contrast || false);
-        setHomepageBoardColor(sourceTheme.homepage_board_color);
-        setBoardIconColor(sourceTheme.board_icon_color);
-        setScrollbarColor(sourceTheme.scrollbar_color);
-        setScrollbarTrackColor(sourceTheme.scrollbar_track_color);
+        setColumnColor(sourceTheme.columnColor === '' ? null : sourceTheme.columnColor);
+        setDefaultCardColor(sourceTheme.defaultCardColor);
+        setCardWindowColor(sourceTheme.cardWindowColor);
+        setCardWindowTextColor(sourceTheme.cardWindowTextColor);
+        setCardWindowButtonColor(sourceTheme.cardWindowButtonColor || '#0079bf');
+        setCardWindowButtonTextColor(sourceTheme.cardWindowButtonTextColor || '#ffffff');
+        setCardWindowButtonHoverColor(sourceTheme.cardWindowButtonHoverColor || '#005a8c');
+        setCardWindowButtonHoverTextColor(sourceTheme.cardWindowButtonHoverTextColor || '#ffffff');
+        setCardWindowIntelligentContrast(sourceTheme.cardWindowIntelligentContrast || false);
+        setHomepageBoardColor(sourceTheme.homepageBoardColor);
+        setBoardIconColor(sourceTheme.boardIconColor);
+        setScrollbarColor(sourceTheme.scrollbarColor);
+        setScrollbarTrackColor(sourceTheme.scrollbarTrackColor);
       } else {
         // Reset to defaults for new theme
         setThemeName('');
@@ -154,31 +155,31 @@ export function ThemeEditorModal({
     try {
       const themeData = {
         name: themeName.trim(),
-        navbar_color: navbarColor,
-        column_color: columnColor || '', // Empty string for transparent
-        default_card_color: defaultCardColor,
-        card_window_color: cardWindowColor,
-        card_window_text_color: cardWindowTextColor,
-        card_window_button_color: cardWindowButtonColor,
-        card_window_button_text_color: cardWindowButtonTextColor,
-        card_window_button_hover_color: cardWindowButtonHoverColor,
-        card_window_button_hover_text_color: cardWindowButtonHoverTextColor,
-        card_window_intelligent_contrast: cardWindowIntelligentContrast,
-        homepage_board_color: homepageBoardColor,
-        board_icon_color: boardIconColor,
-        scrollbar_color: scrollbarColor,
-        scrollbar_track_color: scrollbarTrackColor,
+        navbarColor: navbarColor,
+        columnColor: columnColor || '', // Empty string for transparent
+        defaultCardColor: defaultCardColor,
+        cardWindowColor: cardWindowColor,
+        cardWindowTextColor: cardWindowTextColor,
+        cardWindowButtonColor: cardWindowButtonColor,
+        cardWindowButtonTextColor: cardWindowButtonTextColor,
+        cardWindowButtonHoverColor: cardWindowButtonHoverColor,
+        cardWindowButtonHoverTextColor: cardWindowButtonHoverTextColor,
+        cardWindowIntelligentContrast: cardWindowIntelligentContrast,
+        homepageBoardColor: homepageBoardColor,
+        boardIconColor: boardIconColor,
+        scrollbarColor: scrollbarColor,
+        scrollbarTrackColor: scrollbarTrackColor,
       };
 
       if (editingTheme) {
-        const { error } = await supabase
+        const { error } = await api
           .from('board_themes')
-          .update(themeData)
-          .eq('id', editingTheme.id);
+          .eq('id', editingTheme.id)
+          .update(themeData);
         if (error) throw error;
         toast({ title: 'Theme updated' });
       } else {
-        const { error } = await supabase
+        const { error } = await api
           .from('board_themes')
           .insert(themeData);
         if (error) throw error;

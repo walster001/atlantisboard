@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/integrations/api/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -81,13 +82,13 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
 
   const fetchTotalCount = async () => {
     try {
-      const { count, error } = await supabase
+      const { data, error } = await api
         .from('board_member_audit_log')
-        .select('*', { count: 'exact', head: true })
-        .eq('board_id', boardId);
+        .eq('boardId', boardId)
+        .count();
 
       if (error) throw error;
-      setTotalCount(count || 0);
+      setTotalCount(data || 0);
     } catch (error) {
       console.error('Error fetching total count:', error);
     }
@@ -95,18 +96,18 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
 
   const fetchRetentionSetting = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('app_settings')
-        .select('audit_log_retention_days')
+        .select('auditLogRetentionDays')
         .eq('id', 'default')
         .maybeSingle();
 
       if (error) throw error;
       
-      if (data?.audit_log_retention_days === null) {
+      if (data?.auditLogRetentionDays === null || data?.auditLogRetentionDays === undefined) {
         setRetentionDays('never');
       } else {
-        setRetentionDays(String(data?.audit_log_retention_days || 'never'));
+        setRetentionDays(String(data.auditLogRetentionDays || 'never'));
       }
     } catch (error) {
       console.error('Error fetching retention setting:', error);
@@ -118,10 +119,10 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
     try {
       const retentionValue = value === 'never' ? null : parseInt(value, 10);
       
-      const { error } = await supabase
+      const { error } = await api
         .from('app_settings')
-        .update({ audit_log_retention_days: retentionValue })
-        .eq('id', 'default');
+        .eq('id', 'default')
+        .update({ auditLogRetentionDays: retentionValue });
 
       if (error) throw error;
       
@@ -146,39 +147,45 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
       const offset = page * PAGE_SIZE;
       
       // Fetch audit log entries with pagination
-      const { data: logData, error: logError } = await supabase
+      const { data: logData, error: logError } = await api
         .from('board_member_audit_log')
         .select('*')
-        .eq('board_id', boardId)
-        .order('created_at', { ascending: false })
+        .eq('boardId', boardId)
+        .order('createdAt', { ascending: false })
         .range(offset, offset + PAGE_SIZE - 1);
 
       if (logError) throw logError;
 
       // Get unique user IDs for profile lookup
       const userIds = new Set<string>();
-      logData?.forEach(entry => {
-        userIds.add(entry.target_user_id);
-        if (entry.actor_user_id) userIds.add(entry.actor_user_id);
+      logData?.forEach((entry: any) => {
+        userIds.add(entry.targetUserId);
+        if (entry.actorUserId) userIds.add(entry.actorUserId);
       });
 
       // Fetch profiles for all users
-      const { data: profiles, error: profileError } = await supabase
+      const { data: profiles, error: profileError } = await api
         .from('profiles')
-        .select('id, full_name, email, avatar_url')
+        .select('id, fullName, email, avatarUrl')
         .in('id', Array.from(userIds));
 
       if (profileError) throw profileError;
 
       // Create profile lookup map
-      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
 
       // Enrich entries with profile data
-      const enrichedEntries = (logData || []).map(entry => ({
-        ...entry,
+      const enrichedEntries = (logData || []).map((entry: any) => ({
+        id: entry.id,
+        boardId: entry.boardId,
         action: entry.action as 'added' | 'removed' | 'role_changed',
-        target_profile: profileMap.get(entry.target_user_id),
-        actor_profile: entry.actor_user_id ? profileMap.get(entry.actor_user_id) : undefined,
+        targetUserId: entry.targetUserId,
+        actorUserId: entry.actorUserId,
+        oldRole: entry.oldRole,
+        newRole: entry.newRole,
+        createdAt: entry.createdAt,
+        targetProfile: profileMap.get(entry.targetUserId),
+        actorProfile: entry.actorUserId ? profileMap.get(entry.actorUserId) : undefined,
       }));
 
       setEntries(enrichedEntries);
@@ -224,15 +231,15 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
         return (
           <span>
             <strong>{actorName}</strong> added <strong>{targetName}</strong> as{' '}
-            <Badge variant="secondary" className="text-xs px-1.5 py-0">{entry.new_role}</Badge>
+            <Badge variant="secondary" className="text-xs px-1.5 py-0">{entry.newRole}</Badge>
           </span>
         );
       case 'removed':
         return (
           <span>
             <strong>{actorName}</strong> removed <strong>{targetName}</strong>
-            {entry.old_role && (
-              <> (was <Badge variant="secondary" className="text-xs px-1.5 py-0">{entry.old_role}</Badge>)</>
+            {entry.oldRole && (
+              <> (was <Badge variant="secondary" className="text-xs px-1.5 py-0">{entry.oldRole}</Badge>)</>
             )}
           </span>
         );
@@ -240,9 +247,9 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
         return (
           <span>
             <strong>{actorName}</strong> changed <strong>{targetName}</strong>'s role from{' '}
-            <Badge variant="secondary" className="text-xs px-1.5 py-0">{entry.old_role}</Badge>
+            <Badge variant="secondary" className="text-xs px-1.5 py-0">{entry.oldRole}</Badge>
             {' → '}
-            <Badge variant="secondary" className="text-xs px-1.5 py-0">{entry.new_role}</Badge>
+            <Badge variant="secondary" className="text-xs px-1.5 py-0">{entry.newRole}</Badge>
           </span>
         );
       default:

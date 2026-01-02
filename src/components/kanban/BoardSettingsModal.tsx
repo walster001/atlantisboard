@@ -39,18 +39,18 @@ interface AppUser {
 interface BoardTheme {
   id: string;
   name: string;
-  navbar_color: string;
-  column_color: string;
-  default_card_color: string | null;
-  homepage_board_color: string;
-  board_icon_color: string;
-  scrollbar_color: string;
-  scrollbar_track_color: string;
+  navbarColor: string;
+  columnColor: string;
+  defaultCardColor: string | null;
+  homepageBoardColor: string;
+  boardIconColor: string;
+  scrollbarColor: string;
+  scrollbarTrackColor: string;
 }
 
 interface BoardLabel {
   id: string;
-  board_id: string;
+  boardId: string;
   name: string;
   color: string;
 }
@@ -144,10 +144,10 @@ export function BoardSettingsModal({
   const fetchAllUsers = async () => {
     setLoadingUsers(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('profiles')
-        .select('id, email, full_name, avatar_url')
-        .order('full_name', { ascending: true, nullsFirst: false });
+        .select('id, email, fullName, avatarUrl')
+        .order('fullName', { ascending: true });
 
       if (error) throw error;
       setAllUsers(data || []);
@@ -241,11 +241,11 @@ export function BoardSettingsModal({
     if (!userToRemove) return;
     setRemovingUserId(userToRemove.id);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('board_members')
-        .delete()
-        .eq('board_id', boardId)
-        .eq('user_id', userToRemove.id);
+        .eq('boardId', boardId)
+        .eq('userId', userToRemove.id)
+        .delete();
 
       if (error) throw error;
       
@@ -266,11 +266,11 @@ export function BoardSettingsModal({
   const updateRole = async (userId: string, newRole: 'admin' | 'manager' | 'viewer') => {
     if (!canChangeRoles) return;
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('board_members')
-        .update({ role: newRole })
-        .eq('board_id', boardId)
-        .eq('user_id', userId);
+        .eq('boardId', boardId)
+        .eq('userId', userId)
+        .update({ role: newRole });
 
       if (error) throw error;
       toast({ title: 'Role updated' });
@@ -445,7 +445,7 @@ export function BoardSettingsModal({
                                 </Avatar>
                                 <div className="min-w-0 flex-1">
                                   <p className="font-medium text-sm truncate">
-                                    {user.full_name || 'Unknown User'}
+                                    {user.fullName || 'Unknown User'}
                                   </p>
                                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                                 </div>

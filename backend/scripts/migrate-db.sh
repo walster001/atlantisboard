@@ -109,7 +109,7 @@ release_lock
 # Run database migrations
 echo ""
 echo "📊 Running database migrations..."
-npm run prisma:migrate
+npx prisma migrate deploy
 if [ $? -ne 0 ]; then
     echo "❌ Error: Database migrations failed"
     exit 1

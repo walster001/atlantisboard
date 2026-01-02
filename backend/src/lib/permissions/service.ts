@@ -164,6 +164,10 @@ class PermissionService {
     const { userId, isAppAdmin, boardId } = context;
     const permissions = new Set<PermissionKey>();
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'service.ts:163',message:'getUserPermissions entry',data:{userId,isAppAdmin,boardId},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
     // Add app-level permissions if user is app admin
     if (isAppAdmin) {
       APP_ADMIN_PERMISSIONS.forEach((perm) => permissions.add(perm));
@@ -171,6 +175,10 @@ class PermissionService {
 
     // Add board-level permissions if board context is provided
     if (boardId) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'service.ts:174',message:'Before prisma query',data:{boardId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+
       const membership = await prisma.boardMember.findUnique({
         where: {
           boardId_userId: {
@@ -179,23 +187,39 @@ class PermissionService {
           },
         },
         include: {
-          customRole: {
+          customRoles: {
             include: {
-              permissions: true,
+              role: {
+                include: {
+                  permissions: true,
+                },
+              },
             },
           },
         },
       });
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'service.ts:190',message:'After prisma query',data:{membershipExists:!!membership,hasCustomRoles:!!membership?.customRoles,customRolesLength:membership?.customRoles?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+
       if (membership) {
         // Add custom role permissions
         if (membership.customRoles && membership.customRoles.length > 0) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'service.ts:193',message:'Processing custom roles',data:{customRolesCount:membership.customRoles.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
+
           for (const customRoleAssignment of membership.customRoles) {
             customRoleAssignment.role.permissions.forEach((p: { permissionKey: string }) => {
               permissions.add(p.permissionKey as PermissionKey);
             });
           }
         } else {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'service.ts:199',message:'Using default role permissions',data:{role:membership.role},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
+
           // Add default role permissions
           const role: BoardRole = membership.role;
           const defaultPermissions = DEFAULT_ROLE_PERMISSIONS[role];
@@ -213,6 +237,10 @@ class PermissionService {
         });
       }
     }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'service.ts:217',message:'getUserPermissions exit',data:{permissionsCount:permissions.size},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
 
     return permissions;
   }

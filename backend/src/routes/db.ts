@@ -281,6 +281,11 @@ router.delete('/:table', async (req: Request, res: Response, next: NextFunction)
     const where: any = {};
     applyFilters({ where }, filters);
 
+    // Safety check: prevent deleting all records (empty where clause)
+    if (Object.keys(where).length === 0) {
+      throw new ValidationError('Delete operation requires at least one filter to prevent accidental deletion of all records');
+    }
+
     // Delete records
     const result = await model.deleteMany({ where });
 

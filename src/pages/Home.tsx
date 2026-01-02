@@ -540,7 +540,10 @@ export default function Home() {
 
   const deleteWorkspace = async (id: string) => {
     try {
-      const { error } = await api.from('workspaces').eq('id', id).delete();
+      // Use the service endpoint which properly handles workspace deletion with permissions
+      const { error } = await (api as any).request(`/workspaces/${id}`, {
+        method: 'DELETE',
+      });
       if (error) throw error;
       setDeleteWorkspaceConfirmOpen(false);
       setDeleteWorkspaceId(null);

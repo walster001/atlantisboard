@@ -6,7 +6,9 @@ async function main() {
   console.log('Seeding database...');
 
   // 1. Seed app_settings (required for app to function)
-  // Source: supabase/migrations/20251218122201_7ce7bb8e-272b-4040-a3e5-4b2a1b7b122b.sql
+  // Source: supabase/migrations/20251218122201_7ce7bb8e-272b-4940-a3e5-4b2a1b7b122b.sql
+  // Schema: backend/prisma/schema.prisma - AppSettings model
+  // The migration only inserts the id='default' row, all other fields use schema defaults
   console.log('Seeding app_settings...');
   await prisma.appSettings.upsert({
     where: { id: 'default' },
@@ -17,6 +19,10 @@ async function main() {
 
   // 2. Seed board_themes (required for board creation dialog)
   // Source: supabase/migrations/20251220051910_c64dae24-206c-4b30-b44f-fa072ea8b38e.sql
+  // Schema: backend/prisma/schema.prisma - BoardTheme model
+  // Note: cardWindowButtonColor, cardWindowButtonTextColor, cardWindowButtonHoverColor,
+  // cardWindowButtonHoverTextColor, and cardWindowIntelligentContrast use schema defaults
+  // (they are not in the migration INSERT statement)
   console.log('Seeding default board themes...');
   const themes = [
     {

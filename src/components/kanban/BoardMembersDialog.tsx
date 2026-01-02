@@ -12,7 +12,7 @@ import { Trash2, UserPlus, User } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { emailSchema } from '@/lib/validators';
 import { z } from 'zod';
-import { subscribeBoardMembers } from '@/realtime/boardSubscriptions';
+import { subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
 import { useAuth } from '@/hooks/useAuth';
 
 interface BoardMember {
@@ -30,6 +30,7 @@ interface BoardMembersDialogProps {
   open: boolean;
   onClose: () => void;
   boardId: string;
+  workspaceId: string | null;
   members: BoardMember[];
   userRole: 'admin' | 'manager' | 'viewer' | null;
   onMembersChange: () => void;
@@ -39,6 +40,7 @@ export function BoardMembersDialog({
   open,
   onClose,
   boardId,
+  workspaceId,
   members,
   userRole,
   onMembersChange,
@@ -49,27 +51,25 @@ export function BoardMembersDialog({
   const [role, setRole] = useState<'admin' | 'manager' | 'viewer'>('viewer');
   const [isAdding, setIsAdding] = useState(false);
 
-  // Subscribe to realtime board member updates when dialog is open
+  // Subscribe to realtime board member updates when dialog is open (using workspace subscription)
   // This ensures role changes are reflected immediately
   useEffect(() => {
-    if (!open || !boardId || !user) return;
+    if (!open || !boardId || !workspaceId || !user) return;
 
-    const cleanup = subscribeBoardMembers(boardId, {
-      onUpdate: (membershipRaw) => {
+    const cleanup = subscribeWorkspace(workspaceId, {
+      onMemberUpdate: (member, event) => {
+        const membership = member as { boardId?: string };
+        // Only process events for members in the current board
+        if (membership.boardId !== boardId) return;
+        
         // When a role is updated, refresh the members list
         // This ensures the UI reflects the new role immediately
-        onMembersChange();
-      },
-      onInsert: () => {
-        onMembersChange();
-      },
-      onDelete: () => {
         onMembersChange();
       },
     });
 
     return cleanup;
-  }, [open, boardId, user, onMembersChange]);
+  }, [open, boardId, workspaceId, user, onMembersChange]);
 
   // Use permission system for UI checks
   // SECURITY NOTE: These do NOT provide security - all permissions

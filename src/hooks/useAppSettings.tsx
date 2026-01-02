@@ -41,6 +41,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     try {
       // Use the public endpoint which works before authentication
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
+      console.log('[useAppSettings] Attempting to fetch from:', API_BASE_URL);
       const response = await fetch(`${API_BASE_URL}/app-settings`);
       
       if (!response.ok) {
@@ -74,7 +75,20 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       }
       fetchedRef.current = true;
     } catch (error: any) {
-      console.error('Error fetching app settings:', error);
+      // Check if it's a connection error (backend not running)
+      const isConnectionError = error?.message?.includes('Failed to fetch') || 
+                                 error?.message?.includes('ERR_CONNECTION_REFUSED') ||
+                                 error?.name === 'TypeError';
+      
+      if (isConnectionError) {
+        // Backend not running - log once at warn level instead of error
+        if (!fetchedRef.current) {
+          console.warn('[useAppSettings] Backend server not available. Using default settings.');
+        }
+      } else {
+        // Other errors - log normally
+        console.error('Error fetching app settings:', error);
+      }
       // Continue with default settings on error
       fetchedRef.current = true;
     } finally {

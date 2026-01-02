@@ -17,7 +17,7 @@ import { BoardBackgroundSettings } from './BoardBackgroundSettings';
 import { BoardLabelsSettings } from './BoardLabelsSettings';
 import { BoardMemberAuditLog } from './BoardMemberAuditLog';
 import { cn } from '@/lib/utils';
-import { subscribeBoardMembers } from '@/realtime/boardSubscriptions';
+import { subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
 
 interface BoardMember {
   userId: string;
@@ -60,6 +60,7 @@ interface BoardSettingsModalProps {
   open: boolean;
   onClose: () => void;
   boardId: string;
+  workspaceId: string | null;
   members: BoardMember[];
   userRole: 'admin' | 'manager' | 'viewer' | null;
   currentUserId: string | null;
@@ -152,81 +153,48 @@ export function BoardSettingsModal({
     }
   }, [members.length, open, canAddRemove]);
 
-  // Subscribe to realtime board member changes when modal is open
+  // Subscribe to realtime board member changes when modal is open (using workspace subscription)
   useEffect(() => {
-    if (!open || !boardId) return;
+    if (!open || !boardId || !workspaceId) return;
 
-    const cleanup = subscribeBoardMembers(boardId, {
-      onInsert: (membershipRaw) => {
-        console.log('[BoardSettingsModal] Member INSERT event received:', {
-          eventType: 'INSERT',
-          payload: membershipRaw,
-          hasUser: !!(membershipRaw as any).user,
-          hasProfile: !!(membershipRaw as any).user?.profile,
-          userId: (membershipRaw as any).userId,
-          role: (membershipRaw as any).role,
-        });
-        const newMembership = membershipRaw as { userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+    const cleanup = subscribeWorkspace(workspaceId, {
+      onMemberUpdate: (member, event) => {
+        const membership = member as { boardId?: string; userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+        // Only process events for members in the current board
+        if (membership.boardId !== boardId) return;
         
-        // Always refresh members list (even if payload is incomplete)
-        onMembersChange();
-        
-        // Only show toast if it's not the current user (they already see their own action in the UI)
-        // This prevents duplicate toasts when BoardPage also shows a toast
-        if (newMembership.userId && newMembership.userId !== currentUserId) {
-          const memberName = newMembership.user?.profile?.fullName || 
-                            newMembership.user?.profile?.email || 
-                            'a member';
-          const role = newMembership.role || 'viewer';
-          toast({
-            title: 'Member added',
-            description: `${memberName} added as ${role}`,
-          });
-        }
-      },
-      onDelete: (membershipRaw) => {
-        console.log('[BoardSettingsModal] Member DELETE event received:', {
-          eventType: 'DELETE',
-          payload: membershipRaw,
-          hasUser: !!(membershipRaw as any).user,
-          hasProfile: !!(membershipRaw as any).user?.profile,
-          userId: (membershipRaw as any).userId,
-        });
-        const deletedMembership = membershipRaw as { userId?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
-        
-        // Always refresh members list (even if payload is incomplete)
-        onMembersChange();
-        
-        // Only show toast if it's not the current user (they already see their own action in the UI)
-        // This prevents duplicate toasts when BoardPage also shows a toast
-        if (deletedMembership.userId && deletedMembership.userId !== currentUserId) {
-          const memberName = deletedMembership.user?.profile?.fullName || 
-                            deletedMembership.user?.profile?.email || 
-                            'a member';
-          toast({
-            title: 'Member removed',
-            description: `${memberName} removed from board`,
-          });
-        }
-      },
-      onUpdate: (membershipRaw, previousRaw) => {
-        console.log('[BoardSettingsModal] Member UPDATE event received:', {
-          eventType: 'UPDATE',
-          payload: membershipRaw,
-          previous: previousRaw,
-          hasUser: !!(membershipRaw as any).user,
-          hasProfile: !!(membershipRaw as any).user?.profile,
-          userId: (membershipRaw as any).userId,
-          role: (membershipRaw as any).role,
-        });
-        const updatedMembership = membershipRaw as { userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
-        const previousMembership = previousRaw as { role?: string };
-        
-        // Always refresh members list (even if payload is incomplete)
-        onMembersChange();
-        
-        // Only show toast if it's not the current user (they already see their own action in the UI)
-        // This prevents duplicate toasts when BoardPage also shows a toast
+        if (event.eventType === 'INSERT') {
+          const newMembership = membership;
+          onMembersChange();
+          if (newMembership.userId && newMembership.userId !== currentUserId) {
+            const memberName = newMembership.user?.profile?.fullName || 
+                              newMembership.user?.profile?.email || 
+                              'a member';
+            const role = newMembership.role || 'viewer';
+            toast({
+              title: 'Member added',
+              description: `${memberName} added as ${role}`,
+            });
+          }
+        } else if (event.eventType === 'DELETE') {
+          const deletedMembership = membership;
+          onMembersChange();
+          if (deletedMembership.userId && deletedMembership.userId !== currentUserId) {
+            const memberName = deletedMembership.user?.profile?.fullName || 
+                              deletedMembership.user?.profile?.email || 
+                              'a member';
+            toast({
+              title: 'Member removed',
+              description: `${memberName} removed from board`,
+            });
+          }
+        } else if (event.eventType === 'UPDATE') {
+          const updatedMembership = membership;
+          const previousMembership = event.old as { role?: string };
+          onMembersChange();
+          
+          // Only show toast if it's not the current user (they already see their own action in the UI)
+          // This prevents duplicate toasts when BoardPage also shows a toast
         if (updatedMembership.userId && updatedMembership.userId !== currentUserId) {
           const memberName = updatedMembership.user?.profile?.fullName || 
                             updatedMembership.user?.profile?.email || 
@@ -242,7 +210,7 @@ export function BoardSettingsModal({
     });
 
     return cleanup;
-  }, [open, boardId, onMembersChange, toast]);
+  }, [open, boardId, workspaceId, onMembersChange, toast, currentUserId]);
 
   const fetchAllUsers = async () => {
     setLoadingUsers(true);

@@ -84,6 +84,7 @@ export default function Auth() {
     const fetchPageData = async () => {
       try {
         const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
+        console.log('[Auth] Attempting to fetch from:', API_BASE_URL);
         const response = await fetch(`${API_BASE_URL}/app-settings`);
         if (!response.ok) {
           // Try to parse error response, but don't fail if it's not JSON
@@ -101,10 +102,19 @@ export default function Auth() {
         const result = data as unknown as AuthPageData;
         setPageData(result);
       } catch (error: any) {
-        // Log all errors for debugging (this endpoint should be public)
-        // But continue with defaults so the auth page still works
-        console.error('Error fetching auth page data:', error);
-        // Use defaults on error
+        // Check if it's a connection error (backend not running)
+        const isConnectionError = error?.message?.includes('Failed to fetch') || 
+                                   error?.message?.includes('ERR_CONNECTION_REFUSED') ||
+                                   error?.name === 'TypeError';
+        
+        if (isConnectionError) {
+          // Backend not running - log at warn level instead of error
+          console.warn('[Auth] Backend server not available. Using default page data.');
+        } else {
+          // Other errors - log normally
+          console.error('Error fetching auth page data:', error);
+        }
+        // Use defaults on error so the auth page still works
         setPageData({ settings: null, fonts: [] });
       } finally {
         setDataLoading(false);

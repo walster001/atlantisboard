@@ -662,17 +662,10 @@ class RealtimeServer {
       channels.push(`workspace:${resolvedWorkspaceId}`);
     }
 
-    // Backward compatibility: keep board-specific channels during migration
+    // Keep board channel for backward compatibility (temporary)
+    // Table-specific channels (board-${boardId}-cards, etc.) have been removed
     if (resolvedBoardId) {
       channels.push(`board:${resolvedBoardId}`);
-      // Table-specific channels for backward compatibility
-      if (table === 'cards') {
-        channels.push(`board-${resolvedBoardId}-cards`);
-      } else if (table === 'columns') {
-        channels.push(`board-${resolvedBoardId}-columns`);
-      } else if (table === 'boardMembers') {
-        channels.push(`board-${resolvedBoardId}-members`);
-      }
     }
 
     // Special handling for workspace membership and workspace changes
@@ -698,16 +691,8 @@ class RealtimeServer {
       channels.push('global');
     }
 
-    // Step 5: Determine entity metadata for hierarchy
-    const { entityType, parentId } = this.determineEntityMetadata(
-      table,
-      newRecord,
-      oldRecord,
-      resolvedBoardId,
-      resolvedWorkspaceId
-    );
-
-    // Broadcast to all relevant channels
+    // Step 5: Broadcast to all relevant channels
+    // Note: entityType and parentId are already determined in Step 3 above
     console.log('[Realtime] Emitting event:', {
       table,
       event,

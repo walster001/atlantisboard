@@ -18,7 +18,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
-import { subscribeHomeBoardMembership, subscribeHomeWorkspaceMembership, subscribeHomeBoards } from '@/realtime/homeSubscriptions';
 import { subscribeAllWorkspaces } from '@/realtime/workspaceSubscriptions';
 import { api } from '@/integrations/api/client';
 
@@ -393,105 +392,6 @@ export default function Home() {
     return cleanup;
   }, [user, workspaces, fetchData, toast]);
 
-  // Keep old subscriptions for backward compatibility during migration
-  // TODO: Remove after migration is complete
-  useEffect(() => {
-    if (!user) return;
-
-    const cleanupBoard = subscribeHomeBoardMembership(user.id, {
-      onAdded: () => {
-        fetchData();
-        toast({
-          title: 'Board access granted',
-          description: 'You have been added to a new board.',
-        });
-      },
-      onRemoved: () => {
-        fetchData();
-        toast({
-          title: 'Board access removed',
-          description: 'You have been removed from a board.',
-        });
-      },
-    });
-
-    return cleanupBoard;
-  }, [user, fetchData, toast]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const cleanupWorkspace = subscribeHomeWorkspaceMembership(user.id, {
-      onAdded: () => {
-        fetchData();
-        toast({
-          title: 'Workspace access granted',
-          description: 'You have been added to a new workspace.',
-        });
-      },
-      onRemoved: (payload) => {
-        const deletedMembership = payload.old as { workspaceId: string; userId: string };
-        const deletedWorkspaceId = deletedMembership.workspaceId;
-
-        setWorkspaces((prevWorkspaces) => prevWorkspaces.filter((w) => w.id !== deletedWorkspaceId));
-        setBoards((prevBoards) => {
-          const removedBoards = prevBoards.filter((b) => b.workspaceId === deletedWorkspaceId);
-          
-          setBoardRoles((prevRoles) => {
-            const updated = { ...prevRoles };
-            removedBoards.forEach((b) => {
-              delete updated[b.id];
-            });
-            return updated;
-          });
-
-          return prevBoards.filter((b) => b.workspaceId !== deletedWorkspaceId);
-        });
-
-        toast({
-          title: 'Workspace access removed',
-          description: 'You have been removed from a workspace.',
-        });
-      },
-    });
-
-    return cleanupWorkspace;
-  }, [user, fetchData, toast]);
-
-  useEffect(() => {
-    if (!user || workspaces.length === 0) return;
-
-    const workspaceIds = workspaces.map((w) => w.id);
-    const cleanupBoards = subscribeHomeBoards(workspaceIds, {
-      onInsert: (payload) => {
-        const newBoard = payload.new as Board;
-        setBoards((prevBoards) => {
-          if (prevBoards.some((b) => b.id === newBoard.id)) {
-            return prevBoards;
-          }
-          return [...prevBoards, newBoard];
-        });
-        fetchData();
-      },
-      onUpdate: (payload) => {
-        const updatedBoard = payload.new as Board;
-        setBoards((prevBoards) =>
-          prevBoards.map((b) => (b.id === updatedBoard.id ? updatedBoard : b))
-        );
-      },
-      onDelete: (payload) => {
-        const deletedBoard = payload.old as Board;
-        setBoards((prevBoards) => prevBoards.filter((b) => b.id !== deletedBoard.id));
-        setBoardRoles((prevRoles) => {
-          const updated = { ...prevRoles };
-          delete updated[deletedBoard.id];
-          return updated;
-        });
-      },
-    });
-
-    return cleanupBoards;
-  }, [user, workspaces, fetchData]);
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {

@@ -257,7 +257,21 @@ class RealtimeClient {
     if (!match) return true; // If filter is malformed, allow through
 
     const [, field, operator, value] = match;
-    const recordValue = record[field];
+    
+    // Prisma models use camelCase, but support both formats for backwards compatibility
+    // Convert snake_case to camelCase: board_id -> boardId
+    const camelCaseField = field.includes('_') 
+      ? field.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+      : null;
+    // Convert camelCase to snake_case: boardId -> board_id (for backwards compatibility)
+    const snakeCaseField = !field.includes('_') && /[A-Z]/.test(field)
+      ? field.replace(/([A-Z])/g, '_$1').toLowerCase()
+      : null;
+    
+    // Try camelCase first (Prisma format), then snake_case (backwards compatibility)
+    const recordValue = record[field] 
+      ?? (camelCaseField ? record[camelCaseField] : undefined)
+      ?? (snakeCaseField ? record[snakeCaseField] : undefined);
 
     if (operator === 'eq') {
       return String(recordValue) === value;

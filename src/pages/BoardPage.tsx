@@ -131,9 +131,6 @@ export default function BoardPage() {
   const refreshBoardMembers = useCallback(async () => {
     if (!boardId || !user) return;
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:418',message:'refreshBoardMembers called',data:{boardId,hasUser:!!user},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       const { data, error } = await api.rpc('get_board_member_profiles', {
         _board_id: boardId
       });
@@ -151,14 +148,8 @@ export default function BoardPage() {
         }
       }));
       setBoardMembers(transformedMembers);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:435',message:'refreshBoardMembers completed',data:{memberCount:transformedMembers.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
     } catch (error: any) {
       console.error('Error refreshing members:', error);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:438',message:'refreshBoardMembers error',data:{error:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
     }
   }, [boardId, user]);
 

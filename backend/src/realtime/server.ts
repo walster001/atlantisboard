@@ -312,20 +312,23 @@ class RealtimeServer {
         channels.push(`board-${resolvedBoardId}-members`);
       }
     } else if (table === 'board_members' && newRecord) {
-      resolvedBoardId = (newRecord as any).board_id;
+      // Prisma models use camelCase (boardId), not snake_case (board_id)
+      resolvedBoardId = (newRecord as any).boardId || (newRecord as any).board_id;
       if (resolvedBoardId) {
         channels.push(`board:${resolvedBoardId}`);
         channels.push(`board-${resolvedBoardId}-members`);
       }
     } else if (table === 'board_members' && oldRecord) {
-      resolvedBoardId = (oldRecord as any).board_id;
+      // Prisma models use camelCase (boardId), not snake_case (board_id)
+      resolvedBoardId = (oldRecord as any).boardId || (oldRecord as any).board_id;
       if (resolvedBoardId) {
         channels.push(`board:${resolvedBoardId}`);
         channels.push(`board-${resolvedBoardId}-members`);
       }
     } else if (table.startsWith('card_') && newRecord) {
       // For card-related tables, need to get boardId from card
-      const cardId = (newRecord as any).card_id;
+      // Prisma models use camelCase (cardId), not snake_case (card_id)
+      const cardId = (newRecord as any).cardId || (newRecord as any).card_id;
       if (cardId) {
         const card = await prisma.card.findUnique({
           where: { id: cardId },
@@ -339,23 +342,26 @@ class RealtimeServer {
           return; // Card not found, skip
         }
       } else {
-        return; // No card_id, skip
+        return; // No cardId, skip
       }
     } else if (table === 'columns' && newRecord) {
-      resolvedBoardId = (newRecord as any).board_id;
+      // Prisma models use camelCase (boardId), not snake_case (board_id)
+      resolvedBoardId = (newRecord as any).boardId || (newRecord as any).board_id;
       if (resolvedBoardId) {
         channels.push(`board:${resolvedBoardId}`);
         channels.push(`board-${resolvedBoardId}-columns`);
       }
     } else if (table === 'columns' && oldRecord) {
-      resolvedBoardId = (oldRecord as any).board_id;
+      // Prisma models use camelCase (boardId), not snake_case (board_id)
+      resolvedBoardId = (oldRecord as any).boardId || (oldRecord as any).board_id;
       if (resolvedBoardId) {
         channels.push(`board:${resolvedBoardId}`);
         channels.push(`board-${resolvedBoardId}-columns`);
       }
     } else if (table === 'cards' && newRecord) {
       // Get boardId from column
-      const columnId = (newRecord as any).column_id;
+      // Prisma models use camelCase (columnId), not snake_case (column_id)
+      const columnId = (newRecord as any).columnId || (newRecord as any).column_id;
       if (columnId) {
         const column = await prisma.column.findUnique({
           where: { id: columnId },
@@ -367,7 +373,8 @@ class RealtimeServer {
         }
       }
     } else if (table === 'cards' && oldRecord) {
-      const columnId = (oldRecord as any).column_id;
+      // Prisma models use camelCase (columnId), not snake_case (column_id)
+      const columnId = (oldRecord as any).columnId || (oldRecord as any).column_id;
       if (columnId) {
         const column = await prisma.column.findUnique({
           where: { id: columnId },

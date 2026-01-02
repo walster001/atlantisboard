@@ -988,11 +988,11 @@ export default function BoardPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-2 min-w-0">
-              {appSettings?.custom_board_logo_enabled && appSettings?.custom_board_logo_url ? (
+              {appSettings?.customBoardLogoEnabled && appSettings?.customBoardLogoUrl ? (
                 <img
-                  src={appSettings.custom_board_logo_url}
+                  src={appSettings.customBoardLogoUrl}
                   alt="Logo"
-                  style={{ width: appSettings.custom_board_logo_size, height: appSettings.custom_board_logo_size }}
+                  style={{ width: appSettings.customBoardLogoSize, height: appSettings.customBoardLogoSize }}
                   className="object-contain shrink-0"
                 />
               ) : (

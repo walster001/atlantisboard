@@ -155,7 +155,7 @@ export function BoardBackgroundSettings({
       if (uploadError) throw uploadError;
 
       // Get public URL
-      const { data: urlData } = api.storage
+      const { data: urlData } = await api.storage
         .from('branding')
         .getPublicUrl(filePath);
 
@@ -164,12 +164,12 @@ export function BoardBackgroundSettings({
       setBackgroundType('image');
       
       // Save to board
-      const { error } = await supabase
+      const { error } = await api
         .from('boards')
+        .eq('id', boardId)
         .update({ 
           background_color: publicUrl, // Store image URL in background_color field with prefix
-        })
-        .eq('id', boardId);
+        });
 
       if (error) throw error;
       

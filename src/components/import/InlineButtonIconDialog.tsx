@@ -177,7 +177,7 @@ export function InlineButtonIconDialog({
     setUploading(buttonId);
 
     try {
-      // Upload to Supabase storage
+      // Upload to MinIO storage
       const fileExt = file.name.split('.').pop() || 'png';
       const fileName = `inline-icon-${Date.now()}.${fileExt}`;
       const filePath = `import-icons/${fileName}`;
@@ -194,7 +194,7 @@ export function InlineButtonIconDialog({
       }
 
       // Get public URL
-      const { data: urlData } = api.storage
+      const { data: urlData } = await api.storage
         .from('branding')
         .getPublicUrl(filePath);
 

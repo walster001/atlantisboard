@@ -93,7 +93,7 @@ export function CardAttachmentSection({
         }
 
         // Get public URL
-        const { data: urlData } = api.storage
+        const { data: urlData } = await api.storage
           .from('card-attachments')
           .getPublicUrl(fileName);
 

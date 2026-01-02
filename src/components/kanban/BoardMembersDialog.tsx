@@ -87,13 +87,16 @@ export function BoardMembersDialog({
       // Managers can only add viewers
       const assignRole = userRole === 'manager' ? 'viewer' : role;
 
-      const { error } = await api.from('board_members').insert({
-        boardId: boardId,
-        userId: profile.id,
-        role: assignRole,
+      // Use proper API endpoint instead of generic db route
+      const result = await api.request(`/boards/${boardId}/members`, {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: profile.id,
+          role: assignRole,
+        }),
       });
 
-      if (error) throw error;
+      if (result.error) throw result.error;
 
       toast({ title: 'Member added!' });
       setEmail('');
@@ -112,13 +115,13 @@ export function BoardMembersDialog({
 
   const removeMember = async (userId: string) => {
     try {
-      const { error } = await api
-        .from('board_members')
-        .eq('boardId', boardId)
-        .eq('userId', userId)
-        .delete();
+      // Use proper API endpoint instead of generic db route
+      const result = await api.request(`/boards/${boardId}/members/${userId}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      if (result.error) throw result.error;
+      
       toast({ title: 'Member removed' });
       onMembersChange();
     } catch (error: any) {

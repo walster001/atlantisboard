@@ -76,7 +76,7 @@ export function CustomFontsSettings() {
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = api.storage
+      const { data: urlData } = await api.storage
         .from('fonts')
         .getPublicUrl(fileName);
 

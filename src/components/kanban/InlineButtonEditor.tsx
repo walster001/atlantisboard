@@ -117,7 +117,7 @@ export function InlineButtonEditor({
 
       if (error) throw error;
 
-      const { data: urlData } = api.storage
+      const { data: urlData } = await api.storage
         .from('branding')
         .getPublicUrl(filePath);
 

@@ -315,11 +315,17 @@ class ApiClient {
         return { data: paths, error: null };
       },
 
-      getPublicUrl: (path: string) => {
-        // For public buckets, construct URL directly
-        // For private buckets, this will need to be handled differently
-        const publicUrl = `${this.baseUrl}/storage/${bucket}/${encodeURIComponent(path)}/public-url`;
-        return { data: { publicUrl } };
+      getPublicUrl: async (path: string) => {
+        // Fetch the actual public URL from the backend
+        const result = await this.request<{ publicUrl: string }>(`/storage/${bucket}/${encodeURIComponent(path)}/public-url`, {
+          method: 'GET',
+        });
+
+        if (result.error) {
+          return { data: null, error: result.error };
+        }
+
+        return { data: { publicUrl: result.data?.publicUrl || '' } };
       },
 
       download: async (path: string) => {

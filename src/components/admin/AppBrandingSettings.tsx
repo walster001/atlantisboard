@@ -154,7 +154,7 @@ export function AppBrandingSettings() {
       const { error: uploadError } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
+      const { data: urlData } = await api.storage.from('branding').getPublicUrl(fileName);
       const { error } = await api.from('app_settings').update({ [urlKey]: urlData.publicUrl }).eq('id', 'default');
       if (error) throw error;
 

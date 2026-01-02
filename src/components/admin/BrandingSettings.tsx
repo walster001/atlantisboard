@@ -271,7 +271,7 @@ export function BrandingSettings() {
       const { error: uploadError } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
+      const { data: urlData } = await api.storage.from('branding').getPublicUrl(fileName);
       const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginLogoUrl: urlData.publicUrl });
       if (error) throw error;
 
@@ -330,7 +330,7 @@ export function BrandingSettings() {
       const { error: uploadError } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
+      const { data: urlData } = await api.storage.from('branding').getPublicUrl(fileName);
       const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginBackgroundImageUrl: urlData.publicUrl });
       if (error) throw error;
 

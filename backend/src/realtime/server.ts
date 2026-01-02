@@ -27,6 +27,11 @@ interface RealtimeEvent {
   payload: {
     new?: Record<string, unknown>;
     old?: Record<string, unknown>;
+    // Hierarchy metadata for parent-child model
+    entityType?: 'board' | 'column' | 'card' | 'cardDetail' | 'member' | 'workspace';
+    entityId?: string;
+    parentId?: string; // boardId for columns, columnId for cards, cardId for details
+    workspaceId?: string;
     [key: string]: unknown;
   };
 }
@@ -41,6 +46,10 @@ class RealtimeServer {
   // Key: `${userId}:${boardId}`, Value: { hasAccess: boolean, timestamp: number }
   private accessCache: Map<string, { hasAccess: boolean; timestamp: number }> = new Map();
   private readonly ACCESS_CACHE_TTL = 5000; // 5 seconds cache TTL
+  // Cache workspaceId lookups to reduce database queries
+  // Key: `${table}:${entityId}`, Value: { workspaceId: string, timestamp: number }
+  private workspaceIdCache: Map<string, { workspaceId: string; timestamp: number }> = new Map();
+  private readonly WORKSPACE_ID_CACHE_TTL = 30000; // 30 seconds cache TTL
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server, path: '/realtime' });
@@ -458,7 +467,133 @@ class RealtimeServer {
   }
 
   /**
+   * Resolve workspaceId for a given entity
+   * Uses caching to reduce database queries
+   */
+  private async resolveWorkspaceId(
+    table: string,
+    entityId: string | undefined,
+    boardId?: string,
+    columnId?: string,
+    cardId?: string
+  ): Promise<string | undefined> {
+    if (!entityId && !boardId && !columnId && !cardId) {
+      return undefined;
+    }
+
+    const now = Date.now();
+    let cacheKey: string | undefined;
+    let workspaceId: string | undefined;
+
+    // Check cache first
+    if (boardId) {
+      cacheKey = `board:${boardId}`;
+      const cached = this.workspaceIdCache.get(cacheKey);
+      if (cached && (now - cached.timestamp) < this.WORKSPACE_ID_CACHE_TTL) {
+        return cached.workspaceId;
+      }
+      // Fetch from database
+      const board = await prisma.board.findUnique({
+        where: { id: boardId },
+        select: { workspaceId: true },
+      });
+      workspaceId = board?.workspaceId;
+    } else if (columnId) {
+      cacheKey = `column:${columnId}`;
+      const cached = this.workspaceIdCache.get(cacheKey);
+      if (cached && (now - cached.timestamp) < this.WORKSPACE_ID_CACHE_TTL) {
+        return cached.workspaceId;
+      }
+      // Fetch from database: column → board → workspaceId
+      const column = await prisma.column.findUnique({
+        where: { id: columnId },
+        select: { boardId: true },
+      });
+      if (column?.boardId) {
+        const board = await prisma.board.findUnique({
+          where: { id: column.boardId },
+          select: { workspaceId: true },
+        });
+        workspaceId = board?.workspaceId;
+        // Cache board lookup too
+        if (workspaceId) {
+          this.workspaceIdCache.set(`board:${column.boardId}`, { workspaceId, timestamp: now });
+        }
+      }
+    } else if (cardId) {
+      cacheKey = `card:${cardId}`;
+      const cached = this.workspaceIdCache.get(cacheKey);
+      if (cached && (now - cached.timestamp) < this.WORKSPACE_ID_CACHE_TTL) {
+        return cached.workspaceId;
+      }
+      // Fetch from database: card → column → board → workspaceId
+      const card = await prisma.card.findUnique({
+        where: { id: cardId },
+        include: { column: { select: { boardId: true } } },
+      });
+      if (card?.column?.boardId) {
+        const board = await prisma.board.findUnique({
+          where: { id: card.column.boardId },
+          select: { workspaceId: true },
+        });
+        workspaceId = board?.workspaceId;
+        // Cache board and column lookups too
+        if (workspaceId) {
+          this.workspaceIdCache.set(`board:${card.column.boardId}`, { workspaceId, timestamp: now });
+          this.workspaceIdCache.set(`column:${card.columnId}`, { workspaceId, timestamp: now });
+        }
+      }
+    }
+
+    // Update cache
+    if (cacheKey && workspaceId) {
+      this.workspaceIdCache.set(cacheKey, { workspaceId, timestamp: now });
+    }
+
+    return workspaceId;
+  }
+
+  /**
+   * Determine entity type and hierarchy metadata for an event
+   */
+  private determineEntityMetadata(
+    table: string,
+    newRecord?: Record<string, unknown>,
+    oldRecord?: Record<string, unknown>,
+    boardId?: string,
+    workspaceId?: string
+  ): {
+    entityType: 'board' | 'column' | 'card' | 'cardDetail' | 'member' | 'workspace';
+    entityId: string | undefined;
+    parentId: string | undefined;
+  } {
+    const record = newRecord || oldRecord;
+    const entityId = (record as any)?.id || (record as any)?.userId;
+
+    if (table === 'boards') {
+      return { entityType: 'board', entityId, parentId: workspaceId };
+    } else if (table === 'columns') {
+      const columnBoardId = (record as any)?.boardId || (record as any)?.board_id || boardId;
+      return { entityType: 'column', entityId, parentId: columnBoardId };
+    } else if (table === 'cards') {
+      const cardColumnId = (record as any)?.columnId || (record as any)?.column_id;
+      return { entityType: 'card', entityId, parentId: cardColumnId };
+    } else if (table.startsWith('card_')) {
+      const cardId = (record as any)?.cardId || (record as any)?.card_id;
+      return { entityType: 'cardDetail', entityId, parentId: cardId };
+    } else if (table === 'boardMembers') {
+      return { entityType: 'member', entityId, parentId: boardId };
+    } else if (table === 'workspaceMembers' || table === 'workspaces') {
+      return { entityType: 'workspace', entityId, parentId: undefined };
+    }
+
+    // Default fallback
+    return { entityType: 'board', entityId, parentId: undefined };
+  }
+
+  /**
    * Emit database change event
+   * Refactored to use parent-child hierarchy: always emit to workspace channel first
    */
   async emitDatabaseChange(
     table: string,
@@ -470,168 +605,124 @@ class RealtimeServer {
     // #region agent log
     try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:317',message:'emitDatabaseChange entry',data:{table,event,hasNewRecord:!!newRecord,hasOldRecord:!!oldRecord,boardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n');}catch(e){}
     // #endregion
-    // Determine channels based on table and context
-    // Support both formats: board:${boardId} and board-${boardId}-${table}
-    // Also emit to workspace channels for board-level changes
-    const channels: string[] = [];
+    
+    // Step 1: Resolve entity IDs from records
+    const record = newRecord || oldRecord;
+    const entityId = (record as any)?.id || (record as any)?.userId;
+    
     let resolvedBoardId: string | undefined = boardId;
+    let resolvedColumnId: string | undefined;
+    let resolvedCardId: string | undefined;
     let resolvedWorkspaceId: string | undefined;
 
+    // Resolve IDs based on table type
+    if (table === 'boards') {
+      resolvedBoardId = entityId;
+      resolvedWorkspaceId = (record as any)?.workspaceId || (record as any)?.workspace_id;
+    } else if (table === 'columns') {
+      resolvedBoardId = (record as any)?.boardId || (record as any)?.board_id || boardId;
+      resolvedColumnId = entityId;
+    } else if (table === 'cards') {
+      resolvedColumnId = (record as any)?.columnId || (record as any)?.column_id;
+      resolvedCardId = entityId;
+    } else if (table.startsWith('card_')) {
+      // Card details: attachments, subtasks, assignees, labels
+      resolvedCardId = (record as any)?.cardId || (record as any)?.card_id;
+    } else if (table === 'boardMembers') {
+      resolvedBoardId = (record as any)?.boardId || (record as any)?.board_id || boardId;
+    } else if (table === 'workspaceMembers' || table === 'workspaces') {
+      resolvedWorkspaceId = (record as any)?.workspaceId || (record as any)?.workspace_id || entityId;
+    }
+
+    // Step 2: Resolve workspaceId using helper (with caching)
+    if (!resolvedWorkspaceId) {
+      resolvedWorkspaceId = await this.resolveWorkspaceId(
+        table,
+        entityId,
+        resolvedBoardId,
+        resolvedColumnId,
+        resolvedCardId
+      );
+    }
+
+    // Step 3: Determine entity metadata
+    const { entityType, parentId } = this.determineEntityMetadata(
+      table,
+      newRecord,
+      oldRecord,
+      resolvedBoardId,
+      resolvedWorkspaceId
+    );
+
+    // Step 4: Build channels - ALWAYS emit to workspace channel first (parent-child model)
+    const channels: string[] = [];
+    
+    // Primary channel: workspace (parent-child hierarchy)
+    if (resolvedWorkspaceId) {
+      channels.push(`workspace:${resolvedWorkspaceId}`);
+    }
+
+    // Backward compatibility: keep board-specific channels during migration
     if (resolvedBoardId) {
       channels.push(`board:${resolvedBoardId}`);
-      // Also emit to table-specific channels for compatibility
+      // Table-specific channels for backward compatibility
       if (table === 'cards') {
         channels.push(`board-${resolvedBoardId}-cards`);
       } else if (table === 'columns') {
         channels.push(`board-${resolvedBoardId}-columns`);
       } else if (table === 'boardMembers') {
-        const channel = `board-${resolvedBoardId}-members`;
-        console.log(`[Realtime] Adding boardMembers channel: ${channel}`);
-        channels.push(channel);
-        // Also emit to workspace channel for member changes
-        // Use resolvedBoardId (from parameter) instead of memberRecord.boardId
-        if (resolvedBoardId) {
-          const board = await prisma.board.findUnique({
-            where: { id: resolvedBoardId },
-            select: { workspaceId: true },
-          });
-          if (board?.workspaceId) {
-            channels.push(`workspace:${board.workspaceId}`);
-          }
-        }
-      } else if (table === 'boards') {
-        // For board changes, also emit to workspace channel
-        const boardRecord = (newRecord || oldRecord) as { workspaceId?: string };
-        if (boardRecord?.workspaceId) {
-          resolvedWorkspaceId = boardRecord.workspaceId;
-          channels.push(`workspace:${resolvedWorkspaceId}`);
-        }
+        channels.push(`board-${resolvedBoardId}-members`);
       }
-    } else if (table === 'boardMembers' && newRecord) {
-      // Prisma models use camelCase (boardId), not snake_case (board_id)
-      resolvedBoardId = (newRecord as any).boardId || (newRecord as any).board_id;
-      if (resolvedBoardId) {
-        channels.push(`board:${resolvedBoardId}`);
-        const channel = `board-${resolvedBoardId}-members`;
-        console.log(`[Realtime] Adding boardMembers channel from newRecord: ${channel}`);
-        channels.push(channel);
-        // Also emit to workspace channel for member changes
-        const board = await prisma.board.findUnique({
-          where: { id: resolvedBoardId },
-          select: { workspaceId: true },
-        });
-        if (board?.workspaceId) {
-          channels.push(`workspace:${board.workspaceId}`);
-        }
-      }
-    } else if (table === 'boardMembers' && oldRecord) {
-      // Prisma models use camelCase (boardId), not snake_case (board_id)
-      resolvedBoardId = (oldRecord as any).boardId || (oldRecord as any).board_id;
-      if (resolvedBoardId) {
-        channels.push(`board:${resolvedBoardId}`);
-        const channel = `board-${resolvedBoardId}-members`;
-        console.log(`[Realtime] Adding boardMembers channel from oldRecord: ${channel}`);
-        channels.push(channel);
-        // Also emit to workspace channel for member changes
-        const board = await prisma.board.findUnique({
-          where: { id: resolvedBoardId },
-          select: { workspaceId: true },
-        });
-        if (board?.workspaceId) {
-          channels.push(`workspace:${board.workspaceId}`);
-        }
-      }
-    } else if (table.startsWith('card_') && newRecord) {
-      // For card-related tables, need to get boardId from card
-      // Prisma models use camelCase (cardId), not snake_case (card_id)
-      const cardId = (newRecord as any).cardId || (newRecord as any).card_id;
-      if (cardId) {
-        const card = await prisma.card.findUnique({
-          where: { id: cardId },
-          include: { column: true },
-        });
-        if (card) {
-          resolvedBoardId = card.column.boardId;
-          channels.push(`board:${resolvedBoardId}`);
-          channels.push(`board-${resolvedBoardId}-cards`);
-        } else {
-          return; // Card not found, skip
-        }
-      } else {
-        return; // No cardId, skip
-      }
-    } else if (table === 'columns' && newRecord) {
-      // Prisma models use camelCase (boardId), not snake_case (board_id)
-      resolvedBoardId = (newRecord as any).boardId || (newRecord as any).board_id;
-      if (resolvedBoardId) {
-        channels.push(`board:${resolvedBoardId}`);
-        channels.push(`board-${resolvedBoardId}-columns`);
-      }
-    } else if (table === 'columns' && oldRecord) {
-      // Prisma models use camelCase (boardId), not snake_case (board_id)
-      resolvedBoardId = (oldRecord as any).boardId || (oldRecord as any).board_id;
-      if (resolvedBoardId) {
-        channels.push(`board:${resolvedBoardId}`);
-        channels.push(`board-${resolvedBoardId}-columns`);
-      }
-    } else if (table === 'cards' && newRecord) {
-      // Get boardId from column
-      // Prisma models use camelCase (columnId), not snake_case (column_id)
-      const columnId = (newRecord as any).columnId || (newRecord as any).column_id;
-      if (columnId) {
-        const column = await prisma.column.findUnique({
-          where: { id: columnId },
-        });
-        if (column) {
-          resolvedBoardId = column.boardId;
-          channels.push(`board:${resolvedBoardId}`);
-          channels.push(`board-${resolvedBoardId}-cards`);
-        }
-      }
-    } else if (table === 'cards' && oldRecord) {
-      // Prisma models use camelCase (columnId), not snake_case (column_id)
-      const columnId = (oldRecord as any).columnId || (oldRecord as any).column_id;
-      if (columnId) {
-        const column = await prisma.column.findUnique({
-          where: { id: columnId },
-        });
-        if (column) {
-          resolvedBoardId = column.boardId;
-          channels.push(`board:${resolvedBoardId}`);
-          channels.push(`board-${resolvedBoardId}-cards`);
-        }
-      }
-    } else if (table === 'workspaceMembers') {
-      // For workspace membership changes, emit to multiple channels
+    }
+
+    // Special handling for workspace membership and workspace changes
+    if (table === 'workspaceMembers') {
       const workspaceRecord = (newRecord || oldRecord) as { workspaceId?: string; userId?: string };
       if (workspaceRecord?.workspaceId) {
-        channels.push(`workspace:${workspaceRecord.workspaceId}`);
+        // Already added above, but ensure it's there
+        if (!channels.includes(`workspace:${workspaceRecord.workspaceId}`)) {
+          channels.push(`workspace:${workspaceRecord.workspaceId}`);
+        }
       }
-      // Emit to user-specific channels so the affected user receives the event
-      // Support both formats for compatibility
+      // Emit to user-specific channels
       if (workspaceRecord?.userId) {
         channels.push(`user:${workspaceRecord.userId}`);
         channels.push(`user-${workspaceRecord.userId}-workspace-membership`);
       }
-      // Also emit to global channel for filtered subscriptions
       channels.push('global');
-    } else {
-      // Global channel for app-level changes
+    } else if (table === 'workspaces') {
+      // Workspace changes - already added above
+      channels.push('global');
+    } else if (!resolvedWorkspaceId && !resolvedBoardId) {
+      // Global channel for app-level changes that don't belong to a workspace
       channels.push('global');
     }
+
+    // Step 5: Determine entity metadata for hierarchy
+    const { entityType, parentId } = this.determineEntityMetadata(
+      table,
+      newRecord,
+      oldRecord,
+      resolvedBoardId,
+      resolvedWorkspaceId
+    );
 
     // Broadcast to all relevant channels
     console.log('[Realtime] Emitting event:', {
       table,
       event,
       channels,
+      entityType,
+      entityId,
+      parentId,
+      workspaceId: resolvedWorkspaceId,
       hasNewRecord: !!newRecord,
       hasOldRecord: !!oldRecord,
       newRecordId: (newRecord as any)?.id || (newRecord as any)?.userId,
       oldRecordId: (oldRecord as any)?.id || (oldRecord as any)?.userId,
     });
     // #region agent log
-    try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:407',message:'channels determined',data:{table,event,channels,channelCount:channels.length,resolvedBoardId,resolvedWorkspaceId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n');}catch(e){}
+    try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:407',message:'channels determined',data:{table,event,channels,channelCount:channels.length,resolvedBoardId,resolvedWorkspaceId,entityType,entityId,parentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n');}catch(e){}
     // #endregion
 
     // Invalidate access cache when boardMembers change to ensure fresh access checks
@@ -642,6 +733,7 @@ class RealtimeServer {
       console.log(`[Realtime] Invalidated access cache for board ${resolvedBoardId} due to membership change`);
     }
 
+    // Step 6: Broadcast to all channels with hierarchy metadata
     for (const channel of channels) {
       await this.broadcast({
         event: event as 'INSERT' | 'UPDATE' | 'DELETE',
@@ -650,6 +742,11 @@ class RealtimeServer {
         payload: {
           new: newRecord,
           old: oldRecord,
+          // Hierarchy metadata for parent-child model
+          entityType,
+          entityId,
+          parentId,
+          workspaceId: resolvedWorkspaceId,
         },
       });
     }

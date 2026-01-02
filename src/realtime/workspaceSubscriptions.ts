@@ -1,0 +1,276 @@
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { subscribeToChanges, SubscriptionCleanup } from './realtimeClient';
+import { logRealtime } from './logger';
+
+type DbRecord = Record<string, unknown>;
+
+/**
+ * Workspace event handlers for parent-child hierarchy model
+ */
+export type WorkspaceHandlers = {
+  onBoardUpdate?: (board: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
+  onColumnUpdate?: (column: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
+  onCardUpdate?: (card: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
+  onCardDetailUpdate?: (detail: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
+  onMemberUpdate?: (member: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
+  onWorkspaceUpdate?: (workspace: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
+  // When parent (board) updates, refresh all children
+  onParentRefresh?: (parentType: 'board', parentId: string) => void;
+};
+
+/**
+ * Subscribe to a single workspace channel
+ * Receives all child updates (boards, columns, cards, members) through workspace
+ */
+export function subscribeWorkspace(
+  workspaceId: string,
+  handlers: WorkspaceHandlers
+): SubscriptionCleanup {
+  const topic = `workspace:${workspaceId}`;
+
+  return subscribeToChanges(
+    topic,
+    [
+      {
+        event: 'INSERT',
+        table: 'boards',
+        handler: (payload) => {
+          const board = payload.new as { workspaceId?: string };
+          if (board?.workspaceId === workspaceId) {
+            logRealtime(topic, 'board insert', payload.new);
+            handlers.onBoardUpdate?.(payload.new || {}, payload);
+          }
+        },
+      },
+      {
+        event: 'UPDATE',
+        table: 'boards',
+        handler: (payload) => {
+          const board = payload.new as { workspaceId?: string; id?: string };
+          if (board?.workspaceId === workspaceId) {
+            logRealtime(topic, 'board update', { id: board.id });
+            handlers.onBoardUpdate?.(payload.new || {}, payload);
+            // Parent update - refresh all children
+            if (board.id) {
+              handlers.onParentRefresh?.('board', board.id);
+            }
+          }
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'boards',
+        handler: (payload) => {
+          const board = payload.old as { workspaceId?: string };
+          if (board?.workspaceId === workspaceId) {
+            logRealtime(topic, 'board delete', payload.old);
+            handlers.onBoardUpdate?.(payload.old || {}, payload);
+          }
+        },
+      },
+      {
+        event: 'INSERT',
+        table: 'columns',
+        handler: (payload) => {
+          // Check if column belongs to a board in this workspace
+          const column = payload.new as { boardId?: string };
+          if (column?.boardId) {
+            // Verify board is in this workspace (will be filtered by event router)
+            logRealtime(topic, 'column insert', payload.new);
+            handlers.onColumnUpdate?.(payload.new || {}, payload);
+          }
+        },
+      },
+      {
+        event: 'UPDATE',
+        table: 'columns',
+        handler: (payload) => {
+          const column = payload.new as { boardId?: string; id?: string };
+          if (column?.boardId) {
+            logRealtime(topic, 'column update', { id: column.id });
+            handlers.onColumnUpdate?.(payload.new || {}, payload);
+          }
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'columns',
+        handler: (payload) => {
+          const column = payload.old as { boardId?: string };
+          if (column?.boardId) {
+            logRealtime(topic, 'column delete', payload.old);
+            handlers.onColumnUpdate?.(payload.old || {}, payload);
+          }
+        },
+      },
+      {
+        event: 'INSERT',
+        table: 'cards',
+        handler: (payload) => {
+          logRealtime(topic, 'card insert', payload.new);
+          handlers.onCardUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'UPDATE',
+        table: 'cards',
+        handler: (payload) => {
+          logRealtime(topic, 'card update', { id: payload.new?.id });
+          handlers.onCardUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'cards',
+        handler: (payload) => {
+          logRealtime(topic, 'card delete', payload.old);
+          handlers.onCardUpdate?.(payload.old || {}, payload);
+        },
+      },
+      {
+        event: 'INSERT',
+        table: 'boardMembers',
+        handler: (payload) => {
+          logRealtime(topic, 'member insert', payload.new);
+          handlers.onMemberUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'UPDATE',
+        table: 'boardMembers',
+        handler: (payload) => {
+          logRealtime(topic, 'member update', { id: payload.new?.userId });
+          handlers.onMemberUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'boardMembers',
+        handler: (payload) => {
+          logRealtime(topic, 'member delete', payload.old);
+          handlers.onMemberUpdate?.(payload.old || {}, payload);
+        },
+      },
+      // Card detail tables (attachments, subtasks, assignees, labels)
+      {
+        event: 'INSERT',
+        table: 'card_attachments',
+        handler: (payload) => {
+          logRealtime(topic, 'card attachment insert', payload.new);
+          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'UPDATE',
+        table: 'card_attachments',
+        handler: (payload) => {
+          logRealtime(topic, 'card attachment update', { id: payload.new?.id });
+          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'card_attachments',
+        handler: (payload) => {
+          logRealtime(topic, 'card attachment delete', payload.old);
+          handlers.onCardDetailUpdate?.(payload.old || {}, payload);
+        },
+      },
+      {
+        event: 'INSERT',
+        table: 'card_subtasks',
+        handler: (payload) => {
+          logRealtime(topic, 'card subtask insert', payload.new);
+          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'UPDATE',
+        table: 'card_subtasks',
+        handler: (payload) => {
+          logRealtime(topic, 'card subtask update', { id: payload.new?.id });
+          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'card_subtasks',
+        handler: (payload) => {
+          logRealtime(topic, 'card subtask delete', payload.old);
+          handlers.onCardDetailUpdate?.(payload.old || {}, payload);
+        },
+      },
+      {
+        event: 'INSERT',
+        table: 'card_assignees',
+        handler: (payload) => {
+          logRealtime(topic, 'card assignee insert', payload.new);
+          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'card_assignees',
+        handler: (payload) => {
+          logRealtime(topic, 'card assignee delete', payload.old);
+          handlers.onCardDetailUpdate?.(payload.old || {}, payload);
+        },
+      },
+      {
+        event: 'INSERT',
+        table: 'card_labels',
+        handler: (payload) => {
+          logRealtime(topic, 'card label insert', payload.new);
+          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'card_labels',
+        handler: (payload) => {
+          logRealtime(topic, 'card label delete', payload.old);
+          handlers.onCardDetailUpdate?.(payload.old || {}, payload);
+        },
+      },
+      // Workspace membership changes
+      {
+        event: 'INSERT',
+        table: 'workspaceMembers',
+        handler: (payload) => {
+          const membership = payload.new as { workspaceId?: string };
+          if (membership?.workspaceId === workspaceId) {
+            logRealtime(topic, 'workspace membership insert', payload.new);
+            handlers.onWorkspaceUpdate?.(payload.new || {}, payload);
+          }
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'workspaceMembers',
+        handler: (payload) => {
+          const membership = payload.old as { workspaceId?: string };
+          if (membership?.workspaceId === workspaceId) {
+            logRealtime(topic, 'workspace membership delete', payload.old);
+            handlers.onWorkspaceUpdate?.(payload.old || {}, payload);
+          }
+        },
+      },
+    ]
+  );
+}
+
+/**
+ * Subscribe to all workspaces a user has access to
+ * Automatically subscribes to new workspaces when user is added
+ */
+export function subscribeAllWorkspaces(
+  userId: string,
+  handlers: WorkspaceHandlers
+): SubscriptionCleanup {
+  // This will be implemented to fetch user's workspaces and subscribe to each
+  // For now, return a no-op cleanup
+  // TODO: Implement workspace fetching and dynamic subscription management
+  console.warn('[WorkspaceSubscriptions] subscribeAllWorkspaces not yet fully implemented');
+  return () => {};
+}
+

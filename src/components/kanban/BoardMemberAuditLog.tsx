@@ -159,20 +159,25 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
       // Get unique user IDs for profile lookup
       const userIds = new Set<string>();
       logData?.forEach((entry: any) => {
-        userIds.add(entry.targetUserId);
+        if (entry.targetUserId) userIds.add(entry.targetUserId);
         if (entry.actorUserId) userIds.add(entry.actorUserId);
       });
 
-      // Fetch profiles for all users
-      const { data: profiles, error: profileError } = await api
-        .from('profiles')
-        .select('id, fullName, email, avatarUrl')
-        .in('id', Array.from(userIds));
+      // Fetch profiles for all users (only if we have user IDs)
+      let profileMap = new Map();
+      if (userIds.size > 0) {
+        const { data: profiles, error: profileError } = await api
+          .from('profiles')
+          .select('id, fullName, email, avatarUrl')
+          .in('id', Array.from(userIds));
 
-      if (profileError) throw profileError;
-
-      // Create profile lookup map
-      const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
+        if (profileError) {
+          console.error('Error fetching profiles for audit log:', profileError);
+          // Continue with empty profile map rather than failing completely
+        } else {
+          profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
+        }
+      }
 
       // Enrich entries with profile data
       const enrichedEntries = (logData || []).map((entry: any) => ({
@@ -184,7 +189,7 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
         oldRole: entry.oldRole,
         newRole: entry.newRole,
         createdAt: entry.createdAt,
-        targetProfile: profileMap.get(entry.targetUserId),
+        targetProfile: entry.targetUserId ? profileMap.get(entry.targetUserId) : undefined,
         actorProfile: entry.actorUserId ? profileMap.get(entry.actorUserId) : undefined,
       }));
 
@@ -224,7 +229,11 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
 
   const getActionText = (entry: AuditLogEntry) => {
     const targetName = entry.targetProfile?.fullName || entry.targetProfile?.email || 'Unknown user';
-    const actorName = entry.actorProfile?.fullName || entry.actorProfile?.email || 'System';
+    // Use actor's full name, email, or fallback to "Unknown user" if actorUserId exists but profile is missing
+    // Only show "System" if actorUserId is actually null (truly system-generated action)
+    const actorName = entry.actorUserId 
+      ? (entry.actorProfile?.fullName || entry.actorProfile?.email || 'Unknown user')
+      : 'System';
 
     switch (entry.action) {
       case 'added':

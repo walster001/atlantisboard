@@ -461,15 +461,14 @@ export default function Home() {
           name: validated.name,
           description: validated.description,
           ownerId: user.id,
-        })
-        .select()
-        .single();
+        });
 
       if (error) throw error;
+      if (!workspace) throw new Error('Failed to create workspace');
 
       // Add owner as workspace member
       await api.from('workspace_members').insert({
-        workspaceId: workspace.data?.id || workspace.id,
+        workspaceId: workspace.id,
         userId: user.id,
       });
 
@@ -614,20 +613,19 @@ export default function Home() {
       const { data: board, error } = await api
         .from('boards')
         .insert({
-          workspace_id: selectedWorkspaceId,
+          workspaceId: selectedWorkspaceId,
           name: validated.name,
-          background_color: backgroundColor,
-          theme_id: selectedThemeId,
-        })
-        .select()
-        .single();
+          backgroundColor: backgroundColor,
+          themeId: selectedThemeId,
+        });
 
       if (error) throw error;
+      if (!board) throw new Error('Failed to create board');
 
       // Add creator as board admin
       await api.from('board_members').insert({
-        board_id: board.id,
-        user_id: user.id,
+        boardId: board.id,
+        userId: user.id,
         role: 'admin',
       });
 

@@ -8,6 +8,10 @@ interface User {
   app_metadata?: {
     provider?: string;
   };
+  user_metadata?: {
+    avatar_url?: string | null;
+    full_name?: string | null;
+  };
 }
 
 interface Session {
@@ -208,12 +212,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
-        setSession({
-          access_token: data.accessToken,
-          refresh_token: data.refreshToken,
-          user: data.user,
-        });
-        setUser(data.user);
+        // Fetch full user data including avatar
+        const sessionResult = await api.auth.getSession();
+        if (sessionResult.data?.session) {
+          setSession(sessionResult.data.session);
+          setUser(sessionResult.data.session.user);
+        } else {
+          // Fallback to basic user data if getSession fails
+          setSession({
+            access_token: data.accessToken,
+            refresh_token: data.refreshToken,
+            user: data.user,
+          });
+          setUser(data.user);
+        }
         setIsVerified(true);
         fetchAdminStatus(data.user.id);
       }
@@ -233,12 +245,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
-        setSession({
-          access_token: data.accessToken,
-          refresh_token: data.refreshToken,
-          user: data.user,
-        });
-        setUser(data.user);
+        // Fetch full user data including avatar
+        const sessionResult = await api.auth.getSession();
+        if (sessionResult.data?.session) {
+          setSession(sessionResult.data.session);
+          setUser(sessionResult.data.session.user);
+        } else {
+          // Fallback to basic user data if getSession fails
+          setSession({
+            access_token: data.accessToken,
+            refresh_token: data.refreshToken,
+            user: data.user,
+          });
+          setUser(data.user);
+        }
         setIsVerified(true);
         fetchAdminStatus(data.user.id);
       }

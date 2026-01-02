@@ -18,6 +18,15 @@ const signInSchema = z.object({
 });
 
 class AuthService {
+  /**
+   * Check if this will be the first user in the system.
+   * Should be called within a transaction to ensure atomicity.
+   */
+  private async isFirstUser(tx: Prisma.TransactionClient): Promise<boolean> {
+    const count = await tx.profile.count();
+    return count === 0;
+  }
+
   async signUp(data: z.infer<typeof signUpSchema>) {
     const validated = signUpSchema.parse(data);
 
@@ -44,11 +53,15 @@ class AuthService {
         },
       });
 
+      // Check if this is the first user - make them an admin
+      const isFirst = await this.isFirstUser(tx);
+
       const profile = await tx.profile.create({
         data: {
           id: user.id,
           email: validated.email,
           fullName: validated.fullName,
+          isAdmin: isFirst,
         },
       });
 
@@ -254,12 +267,16 @@ class AuthService {
         },
       });
 
+      // Check if this is the first user - make them an admin
+      const isFirst = await this.isFirstUser(tx);
+
       const profile = await tx.profile.create({
         data: {
           id: newUser.id,
           email,
           fullName: name,
           avatarUrl: avatarUrl,
+          isAdmin: isFirst,
         },
       });
 

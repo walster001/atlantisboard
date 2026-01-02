@@ -223,6 +223,10 @@ class ApiClient {
               app_metadata: {
                 provider: (result.data as any).provider || 'email', // Use provider from API response
               },
+              user_metadata: {
+                avatar_url: result.data.avatarUrl,
+                full_name: result.data.fullName,
+              },
             },
           },
         },

@@ -280,10 +280,10 @@ class RealtimeServer {
     // Also check if user is app admin
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { isAdmin: true },
+      include: { profile: true },
     });
 
-    return !!membership || !!user?.isAdmin;
+    return !!membership || !!user?.profile?.isAdmin;
   }
 
   /**

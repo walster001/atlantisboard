@@ -194,7 +194,6 @@ class BoardImportService {
         members: {
           create: {
             userId,
-            role: 'admin',
           },
         },
       },

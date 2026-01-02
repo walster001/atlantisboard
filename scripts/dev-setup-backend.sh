@@ -14,14 +14,152 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Get the project root directory
+# Default repository URL
+DEFAULT_REPO_URL="https://github.com/walster001/atlantisboard.git"
+
+# Parse command-line arguments
+AUTO_START=false
+REPO_URL=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --start|-s)
+            AUTO_START=true
+            shift
+            ;;
+        --repo-url)
+            REPO_URL="$2"
+            shift 2
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --start, -s          Automatically start dev servers after setup"
+            echo "  --repo-url URL       Repository URL to clone (if not in repo)"
+            echo "  --help, -h           Show this help message"
+            echo ""
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Check if we're in the AtlantisBoard repository
+# Look for key files that indicate we're in the right place
+IS_IN_REPO=false
+if [ -f "$SCRIPT_DIR/../package.json" ] && [ -d "$SCRIPT_DIR/../backend" ] && [ -f "$SCRIPT_DIR/../.nvmrc" ]; then
+    IS_IN_REPO=true
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+elif [ -f "$(pwd)/package.json" ] && [ -d "$(pwd)/backend" ] && [ -f "$(pwd)/.nvmrc" ]; then
+    IS_IN_REPO=true
+    PROJECT_ROOT="$(pwd)"
+fi
+
+# If not in repo, try to clone it
+if [ "$IS_IN_REPO" = false ]; then
+    echo -e "${BLUE}🚀 AtlantisBoard Backend - Development Setup${NC}"
+    echo ""
+    echo -e "${YELLOW}⚠️  Not in AtlantisBoard repository directory${NC}"
+    echo ""
+    
+    # Determine where to clone
+    if [ -n "$REPO_URL" ]; then
+        CLONE_URL="$REPO_URL"
+    else
+        echo -e "${BLUE}Repository URL (press Enter for default):${NC}"
+        echo -e "${YELLOW}  Default: $DEFAULT_REPO_URL${NC}"
+        read -p "> " USER_REPO_URL
+        CLONE_URL="${USER_REPO_URL:-$DEFAULT_REPO_URL}"
+    fi
+    
+    # Determine clone directory
+    CLONE_DIR="${CLONE_DIR:-$HOME/atlantisboard}"
+    echo ""
+    echo -e "${BLUE}Where would you like to clone the repository?${NC}"
+    echo -e "${YELLOW}  Default: $CLONE_DIR${NC}"
+    read -p "> " USER_CLONE_DIR
+    CLONE_DIR="${USER_CLONE_DIR:-$CLONE_DIR}"
+    
+    # Check if directory exists and is not empty
+    if [ -d "$CLONE_DIR" ] && [ "$(ls -A $CLONE_DIR 2>/dev/null)" ]; then
+        echo -e "${YELLOW}⚠️  Directory $CLONE_DIR already exists and is not empty${NC}"
+        read -p "Continue anyway? (y/N) " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${RED}Aborted${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Check if git is available
+    if ! command -v git &> /dev/null; then
+        echo -e "${BLUE}📦 Installing git...${NC}"
+        INSTALLED=false
+        if command -v apt-get &> /dev/null; then
+            if sudo apt-get update -qq && sudo apt-get install -y -qq git 2>/dev/null; then
+                echo -e "${GREEN}✅ git installed${NC}"
+                INSTALLED=true
+            fi
+        elif command -v yum &> /dev/null; then
+            if sudo yum install -y -q git 2>/dev/null; then
+                echo -e "${GREEN}✅ git installed${NC}"
+                INSTALLED=true
+            fi
+        elif command -v brew &> /dev/null; then
+            if brew install git 2>/dev/null; then
+                echo -e "${GREEN}✅ git installed${NC}"
+                INSTALLED=true
+            fi
+        fi
+        if [ "$INSTALLED" = false ]; then
+            echo -e "${RED}❌ Could not install git. Please install it manually.${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Clone repository
+    echo ""
+    echo -e "${BLUE}📥 Cloning repository from $CLONE_URL...${NC}"
+    if [ -d "$CLONE_DIR" ] && [ -d "$CLONE_DIR/.git" ]; then
+        echo -e "${YELLOW}⚠️  Directory $CLONE_DIR is already a git repository${NC}"
+        echo -e "${BLUE}   Updating instead of cloning...${NC}"
+        cd "$CLONE_DIR"
+        git pull 2>/dev/null || echo -e "${YELLOW}   Could not pull latest changes${NC}"
+    else
+        mkdir -p "$(dirname "$CLONE_DIR")"
+        if git clone "$CLONE_URL" "$CLONE_DIR"; then
+            echo -e "${GREEN}✅ Repository cloned${NC}"
+        else
+            echo -e "${RED}❌ Failed to clone repository${NC}"
+            exit 1
+        fi
+    fi
+    
+    PROJECT_ROOT="$CLONE_DIR"
+    cd "$PROJECT_ROOT"
+    
+    # Verify we're now in the right place
+    if [ ! -f "$PROJECT_ROOT/package.json" ] || [ ! -d "$PROJECT_ROOT/backend" ]; then
+        echo -e "${RED}❌ Cloned repository doesn't appear to be AtlantisBoard${NC}"
+        exit 1
+    fi
+else
+    PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
+    cd "$PROJECT_ROOT"
+fi
+
 BACKEND_DIR="$PROJECT_ROOT/backend"
 
-cd "$PROJECT_ROOT"
-
 echo -e "${BLUE}🚀 AtlantisBoard Backend - Development Setup${NC}"
+echo -e "${BLUE}   Working directory: $PROJECT_ROOT${NC}"
 echo ""
 
 # Check and install prerequisites automatically
@@ -81,19 +219,162 @@ if ! command -v curl &> /dev/null; then
     fi
 fi
 
-# Check Docker (cannot auto-install, requires user interaction)
-if ! command -v docker &> /dev/null; then
-    MISSING_DEPS+=("Docker (install from https://www.docker.com/products/docker-desktop)")
-elif ! docker ps &> /dev/null; then
-    echo -e "${YELLOW}⚠️  Docker is installed but not running${NC}"
-    echo -e "${YELLOW}   Please start Docker Desktop${NC}"
-    MISSING_DEPS+=("Docker (start Docker Desktop)")
+# Check and install Docker
+echo -e "${BLUE}🐳 Checking Docker...${NC}"
+DOCKER_INSTALLED=false
+DOCKER_RUNNING=false
+
+if command -v docker &> /dev/null; then
+    DOCKER_INSTALLED=true
+    if docker ps &> /dev/null; then
+        DOCKER_RUNNING=true
+        echo -e "${GREEN}✅ Docker is installed and running${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Docker is installed but not running${NC}"
+        # Try to start Docker service (Linux)
+        if command -v systemctl &> /dev/null; then
+            echo -e "${BLUE}   Attempting to start Docker service...${NC}"
+            if sudo systemctl start docker 2>/dev/null; then
+                sleep 2
+                if docker ps &> /dev/null; then
+                    DOCKER_RUNNING=true
+                    echo -e "${GREEN}✅ Docker service started${NC}"
+                fi
+            fi
+        fi
+        if [ "$DOCKER_RUNNING" = false ]; then
+            echo -e "${YELLOW}   Please start Docker Desktop or run: sudo systemctl start docker${NC}"
+            MISSING_DEPS+=("Docker (start Docker service)")
+        fi
+    fi
+else
+    echo -e "${BLUE}📦 Docker not found. Attempting to install...${NC}"
+    
+    # Detect OS
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux - try to install Docker Engine
+        echo -e "${BLUE}   Installing Docker Engine for Linux...${NC}"
+        
+        # Check if we can use apt-get
+        if command -v apt-get &> /dev/null; then
+            # Install prerequisites
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq \
+                ca-certificates \
+                curl \
+                gnupg \
+                lsb-release 2>/dev/null || true
+            
+            # Add Docker's official GPG key
+            sudo mkdir -p /etc/apt/keyrings
+            if curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null; then
+                # Set up repository
+                echo \
+                  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+                  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                
+                # Install Docker
+                if sudo apt-get update -qq && sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null; then
+                    DOCKER_INSTALLED=true
+                    # Start Docker service
+                    sudo systemctl start docker
+                    sudo systemctl enable docker
+                    # Add current user to docker group (requires logout/login)
+                    sudo usermod -aG docker "$USER" 2>/dev/null || true
+                    sleep 2
+                    if docker ps &> /dev/null 2>&1 || sudo docker ps &> /dev/null 2>&1; then
+                        DOCKER_RUNNING=true
+                        echo -e "${GREEN}✅ Docker installed and started${NC}"
+                        echo -e "${YELLOW}   Note: You may need to log out and back in for Docker to work without sudo${NC}"
+                    else
+                        echo -e "${YELLOW}⚠️  Docker installed but may require sudo or a logout/login${NC}"
+                    fi
+                else
+                    echo -e "${YELLOW}⚠️  Could not install Docker via apt-get${NC}"
+                fi
+            fi
+        elif command -v yum &> /dev/null; then
+            # RHEL/CentOS
+            echo -e "${BLUE}   Installing Docker Engine for RHEL/CentOS...${NC}"
+            if sudo yum install -y -q docker docker-compose-plugin 2>/dev/null; then
+                DOCKER_INSTALLED=true
+                sudo systemctl start docker
+                sudo systemctl enable docker
+                sudo usermod -aG docker "$USER" 2>/dev/null || true
+                sleep 2
+                if docker ps &> /dev/null 2>&1 || sudo docker ps &> /dev/null 2>&1; then
+                    DOCKER_RUNNING=true
+                    echo -e "${GREEN}✅ Docker installed and started${NC}"
+                fi
+            fi
+        fi
+        
+        # If still not installed, use convenience script
+        if [ "$DOCKER_INSTALLED" = false ]; then
+            echo -e "${YELLOW}⚠️  Attempting Docker installation via convenience script...${NC}"
+            if curl -fsSL https://get.docker.com -o /tmp/get-docker.sh && sudo sh /tmp/get-docker.sh; then
+                DOCKER_INSTALLED=true
+                sudo systemctl start docker
+                sudo usermod -aG docker "$USER" 2>/dev/null || true
+                sleep 2
+                if docker ps &> /dev/null 2>&1 || sudo docker ps &> /dev/null 2>&1; then
+                    DOCKER_RUNNING=true
+                    echo -e "${GREEN}✅ Docker installed via convenience script${NC}"
+                fi
+            fi
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if command -v brew &> /dev/null; then
+            echo -e "${BLUE}   Installing Docker via Homebrew...${NC}"
+            if brew install --cask docker 2>/dev/null; then
+                echo -e "${GREEN}✅ Docker Desktop installed${NC}"
+                echo -e "${YELLOW}   Please start Docker Desktop manually${NC}"
+                DOCKER_INSTALLED=true
+            else
+                echo -e "${YELLOW}⚠️  Could not install Docker via Homebrew${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  Homebrew not found. Please install Docker Desktop manually:${NC}"
+            echo -e "${YELLOW}   https://www.docker.com/products/docker-desktop${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Unsupported OS for automatic Docker installation${NC}"
+        echo -e "${YELLOW}   Please install Docker manually: https://www.docker.com/products/docker-desktop${NC}"
+    fi
+    
+    if [ "$DOCKER_INSTALLED" = false ]; then
+        MISSING_DEPS+=("Docker (install from https://www.docker.com/products/docker-desktop)")
+    elif [ "$DOCKER_RUNNING" = false ]; then
+        MISSING_DEPS+=("Docker (start Docker service)")
+    fi
 fi
 
 # Check Docker Compose
-if ! docker compose version &> /dev/null 2>&1 && ! command -v docker-compose &> /dev/null; then
-    MISSING_DEPS+=("Docker Compose (usually comes with Docker)")
+DOCKER_COMPOSE_AVAILABLE=false
+if docker compose version &> /dev/null 2>&1; then
+    DOCKER_COMPOSE_AVAILABLE=true
+    echo -e "${GREEN}✅ Docker Compose is available${NC}"
+elif command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_AVAILABLE=true
+    echo -e "${GREEN}✅ Docker Compose (legacy) is available${NC}"
+else
+    echo -e "${YELLOW}⚠️  Docker Compose not found${NC}"
+    if [ "$DOCKER_INSTALLED" = true ]; then
+        echo -e "${BLUE}   Docker Compose should be installed with Docker. Checking...${NC}"
+        # It might be available as a plugin
+        if docker compose version &> /dev/null 2>&1; then
+            DOCKER_COMPOSE_AVAILABLE=true
+            echo -e "${GREEN}✅ Docker Compose plugin found${NC}"
+        else
+            MISSING_DEPS+=("Docker Compose (usually comes with Docker)")
+        fi
+    else
+        MISSING_DEPS+=("Docker Compose (usually comes with Docker)")
+    fi
 fi
+
+echo ""
 
 # Check Node.js (will be handled by nvm section below if missing)
 if ! command -v node &> /dev/null; then
@@ -131,16 +412,61 @@ fi
 
 echo ""
 
+# Install nvm if not available
+echo -e "${BLUE}🔧 Checking nvm (Node Version Manager)...${NC}"
+NVM_AVAILABLE=false
+
+# Try to source nvm if available
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    source "$HOME/.nvm/nvm.sh"
+    if command -v nvm &> /dev/null || type nvm &> /dev/null; then
+        NVM_AVAILABLE=true
+    fi
+elif [ -s "$HOME/.bashrc" ]; then
+    source "$HOME/.bashrc" 2>/dev/null || true
+    if command -v nvm &> /dev/null || type nvm &> /dev/null; then
+        NVM_AVAILABLE=true
+    fi
+fi
+
+# Install nvm if not available
+if [ "$NVM_AVAILABLE" = false ]; then
+    echo -e "${BLUE}📦 nvm not found. Installing nvm...${NC}"
+    export NVM_DIR="$HOME/.nvm"
+    
+    if curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash; then
+        # Source nvm
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+        
+        if command -v nvm &> /dev/null || type nvm &> /dev/null; then
+            echo -e "${GREEN}✅ nvm installed${NC}"
+            NVM_AVAILABLE=true
+        else
+            echo -e "${YELLOW}⚠️  nvm installed but not available in current shell${NC}"
+            echo -e "${YELLOW}   Please restart your terminal or run: source ~/.bashrc${NC}"
+            # Try to source it anyway
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            NVM_AVAILABLE=true
+        fi
+    else
+        echo -e "${RED}❌ Failed to install nvm${NC}"
+        echo -e "${YELLOW}   Please install manually: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ nvm is available${NC}"
+fi
+
+echo ""
+
 # Ensure correct Node.js version (from .nvmrc) or install if missing
 if [ -f "$PROJECT_ROOT/.nvmrc" ]; then
     REQUIRED_NODE_VERSION=$(cat "$PROJECT_ROOT/.nvmrc" | tr -d '\n')
     echo -e "${BLUE}🔧 Ensuring Node.js version $REQUIRED_NODE_VERSION (from .nvmrc)...${NC}"
     
-    # Try to source nvm if available
-    if [ -s "$HOME/.nvm/nvm.sh" ]; then
-        source "$HOME/.nvm/nvm.sh"
-    elif [ -s "$HOME/.bashrc" ]; then
-        source "$HOME/.bashrc" 2>/dev/null || true
+    # Ensure nvm is sourced
+    if [ "$NVM_AVAILABLE" = true ]; then
+        [ -s "$HOME/.nvm/nvm.sh" ] && \. "$HOME/.nvm/nvm.sh"
     fi
     
     # Check if nvm is available
@@ -434,11 +760,28 @@ set -a
 source .env 2>/dev/null || true
 set +a
 
-# Start services
+# Start services (try with sudo if needed)
 if docker compose version &> /dev/null 2>&1; then
-    docker compose up -d
+    if docker compose up -d 2>/dev/null; then
+        :
+    elif sudo docker compose up -d 2>/dev/null; then
+        echo -e "${YELLOW}   Note: Using sudo for Docker commands${NC}"
+    else
+        echo -e "${RED}❌ Failed to start Docker services${NC}"
+        exit 1
+    fi
+elif command -v docker-compose &> /dev/null; then
+    if docker-compose up -d 2>/dev/null; then
+        :
+    elif sudo docker-compose up -d 2>/dev/null; then
+        echo -e "${YELLOW}   Note: Using sudo for Docker commands${NC}"
+    else
+        echo -e "${RED}❌ Failed to start Docker services${NC}"
+        exit 1
+    fi
 else
-    docker-compose up -d
+    echo -e "${RED}❌ Docker Compose not available${NC}"
+    exit 1
 fi
 
 echo -e "${GREEN}✅ Docker services started${NC}"
@@ -456,10 +799,20 @@ DB_USER=${POSTGRES_USER:-postgres}
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     # Try to find PostgreSQL container
-    CONTAINER_NAME=$(docker ps --format "{{.Names}}" | grep -E "postgres|atlantisboard.*postgres" | head -n1)
-    if [ -n "$CONTAINER_NAME" ] && docker exec "$CONTAINER_NAME" pg_isready -U "$DB_USER" -d "$DB_NAME" &> /dev/null 2>&1; then
-        POSTGRES_READY=true
-        break
+    if docker ps &> /dev/null 2>&1; then
+        CONTAINER_NAME=$(docker ps --format "{{.Names}}" | grep -E "postgres|atlantisboard.*postgres" | head -n1)
+    elif sudo docker ps &> /dev/null 2>&1; then
+        CONTAINER_NAME=$(sudo docker ps --format "{{.Names}}" | grep -E "postgres|atlantisboard.*postgres" | head -n1)
+    else
+        CONTAINER_NAME=""
+    fi
+    
+    if [ -n "$CONTAINER_NAME" ]; then
+        if docker exec "$CONTAINER_NAME" pg_isready -U "$DB_USER" -d "$DB_NAME" &> /dev/null 2>&1 || \
+           sudo docker exec "$CONTAINER_NAME" pg_isready -U "$DB_USER" -d "$DB_NAME" &> /dev/null 2>&1; then
+            POSTGRES_READY=true
+            break
+        fi
     fi
     RETRY_COUNT=$((RETRY_COUNT + 1))
     echo -n "."
@@ -528,18 +881,47 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}✅ Setup Complete!${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
-echo -e "${BLUE}Next steps:${NC}"
-echo ""
-echo -e "  1. Start all services:"
-echo -e "     ${GREEN}./scripts/dev-start-backend.sh${NC}"
-echo ""
-echo -e "  2. Access the application:"
-echo -e "     Frontend:    ${GREEN}http://127.0.0.1:8080${NC}"
-echo -e "     Backend API: ${GREEN}http://127.0.0.1:3000${NC}"
-echo -e "     MinIO Console: ${GREEN}http://127.0.0.1:9001${NC}"
-echo -e "     (Login: minioadmin / minioadmin)"
-echo ""
-echo -e "  3. Stop services:"
-echo -e "     ${GREEN}./scripts/dev-stop-backend.sh${NC}"
-echo ""
+
+# Check if we should auto-start dev servers
+if [ "$AUTO_START" = true ]; then
+    echo -e "${BLUE}🚀 Auto-starting development servers...${NC}"
+    echo ""
+    
+    # Check if dev-start-backend.sh exists
+    START_SCRIPT="$PROJECT_ROOT/scripts/dev-start-backend.sh"
+    if [ -f "$START_SCRIPT" ]; then
+        echo -e "${BLUE}Running: $START_SCRIPT${NC}"
+        echo ""
+        # Execute the start script
+        bash "$START_SCRIPT"
+    else
+        echo -e "${RED}❌ Start script not found: $START_SCRIPT${NC}"
+        echo -e "${YELLOW}   Please start manually:${NC}"
+        echo -e "${GREEN}   ./scripts/dev-start-backend.sh${NC}"
+        echo ""
+        echo -e "${BLUE}Access the application:${NC}"
+        echo -e "  Frontend:    ${GREEN}http://127.0.0.1:8080${NC}"
+        echo -e "  Backend API: ${GREEN}http://127.0.0.1:3000${NC}"
+        echo -e "  MinIO Console: ${GREEN}http://127.0.0.1:9001${NC}"
+        echo -e "  (Login: minioadmin / minioadmin)"
+    fi
+else
+    echo -e "${BLUE}Next steps:${NC}"
+    echo ""
+    echo -e "  1. Start all services:"
+    echo -e "     ${GREEN}./scripts/dev-start-backend.sh${NC}"
+    echo ""
+    echo -e "     Or run setup with auto-start:"
+    echo -e "     ${GREEN}./scripts/dev-setup-backend.sh --start${NC}"
+    echo ""
+    echo -e "  2. Access the application:"
+    echo -e "     Frontend:    ${GREEN}http://127.0.0.1:8080${NC}"
+    echo -e "     Backend API: ${GREEN}http://127.0.0.1:3000${NC}"
+    echo -e "     MinIO Console: ${GREEN}http://127.0.0.1:9001${NC}"
+    echo -e "     (Login: minioadmin / minioadmin)"
+    echo ""
+    echo -e "  3. Stop services:"
+    echo -e "     ${GREEN}./scripts/dev-stop-backend.sh${NC}"
+    echo ""
+fi
 

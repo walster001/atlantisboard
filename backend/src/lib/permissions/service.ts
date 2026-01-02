@@ -23,9 +23,13 @@ class PermissionService {
         },
       },
       include: {
-        customRole: {
+        customRoles: {
           include: {
-            permissions: true,
+            role: {
+              include: {
+                permissions: true,
+              },
+            },
           },
         },
       },
@@ -46,19 +50,30 @@ class PermissionService {
         },
       },
       include: {
-        customRole: {
+        customRoles: {
           include: {
-            permissions: true,
+            role: {
+              include: {
+                permissions: true,
+              },
+            },
           },
         },
       },
     });
 
-    if (!membership?.customRole) {
+    if (!membership?.customRoles || membership.customRoles.length === 0) {
       return new Set();
     }
 
-    return new Set(membership.customRole.permissions.map((p: { permissionKey: string }) => p.permissionKey as PermissionKey));
+    // Aggregate permissions from all custom roles
+    const allPermissions = new Set<PermissionKey>();
+    for (const customRoleAssignment of membership.customRoles) {
+      customRoleAssignment.role.permissions.forEach((p: { permissionKey: string }) => {
+        allPermissions.add(p.permissionKey as PermissionKey);
+      });
+    }
+    return allPermissions;
   }
 
   /**
@@ -94,9 +109,13 @@ class PermissionService {
         },
       },
       include: {
-        customRole: {
+        customRoles: {
           include: {
-            permissions: true,
+            role: {
+              include: {
+                permissions: true,
+              },
+            },
           },
         },
       },
@@ -107,10 +126,13 @@ class PermissionService {
     }
 
     // Check custom role permissions first
-    if (membership.customRole) {
-      const customPermissions = new Set(
-        membership.customRole.permissions.map((p: { permissionKey: string }) => p.permissionKey as PermissionKey)
-      );
+    if (membership.customRoles && membership.customRoles.length > 0) {
+      const customPermissions = new Set<PermissionKey>();
+      for (const customRoleAssignment of membership.customRoles) {
+        customRoleAssignment.role.permissions.forEach((p: { permissionKey: string }) => {
+          customPermissions.add(p.permissionKey as PermissionKey);
+        });
+      }
       if (customPermissions.has(permission)) {
         return true;
       }
@@ -167,10 +189,12 @@ class PermissionService {
 
       if (membership) {
         // Add custom role permissions
-        if (membership.customRole) {
-          membership.customRole.permissions.forEach((p: { permissionKey: string }) => {
-            permissions.add(p.permissionKey as PermissionKey);
-          });
+        if (membership.customRoles && membership.customRoles.length > 0) {
+          for (const customRoleAssignment of membership.customRoles) {
+            customRoleAssignment.role.permissions.forEach((p: { permissionKey: string }) => {
+              permissions.add(p.permissionKey as PermissionKey);
+            });
+          }
         } else {
           // Add default role permissions
           const role: BoardRole = membership.role;

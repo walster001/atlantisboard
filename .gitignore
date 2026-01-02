@@ -33,3 +33,5 @@ backend/.prisma-generate.lock
 *.njsproj
 *.sln
 *.sw?
+.dev-frontend.pid
+backend/.dev-api.log.pos

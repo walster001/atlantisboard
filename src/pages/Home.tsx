@@ -416,17 +416,23 @@ export default function Home() {
     try {
       const { data, error } = await api
         .from('board_themes')
-        .select('id, name, navbarColor, isDefault');
+        .select('*');
 
-      if (error) throw error;
-      
+      if (error) {
+        console.error('[fetchThemes] API error:', error);
+        throw error;
+      }
+
       // Sort themes: default themes in THEME_ORDER first, then custom themes alphabetically
       const THEME_ORDER = [
         'Ocean Blue', 'Sunset Orange', 'Forest Green', 'Ruby Red',
         'Royal Purple', 'Hot Pink', 'Mint Green', 'Teal',
       ];
       
+      // Prisma returns data in camelCase format matching the BoardTheme interface
       const allThemes = (data || []) as BoardTheme[];
+      console.log('[fetchThemes] Parsed themes:', allThemes);
+      
       const sortedThemes = allThemes.sort((a, b) => {
         if (a.isDefault && b.isDefault) {
           const aIndex = THEME_ORDER.indexOf(a.name);
@@ -449,7 +455,7 @@ export default function Home() {
       console.error('Fetch themes error:', error);
       toast({
         title: 'Error loading themes',
-        description: 'Failed to load board themes. Please try again.',
+        description: error?.message || 'Failed to load board themes. Please try again.',
         variant: 'destructive',
       });
     } finally {

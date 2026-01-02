@@ -59,10 +59,16 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Rate limiting
+// Exclude WebSocket upgrade path (/realtime) from rate limiting
+// Realtime updates should not be rate-limited as they are server-initiated events
 const limiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX_REQUESTS,
   message: 'Too many requests from this IP, please try again later.',
+  skip: (req) => {
+    // Skip rate limiting for WebSocket upgrade requests
+    return req.path === '/realtime' || req.headers.upgrade === 'websocket';
+  },
 });
 app.use('/api/', limiter);
 

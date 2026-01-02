@@ -267,16 +267,25 @@ export default function BoardPage() {
     cleanups.push(
       subscribeBoardColumns(boardId, {
         onInsert: (newColumnRaw) => {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:258',message:'column INSERT handler called',data:{columnId:(newColumnRaw as any)?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
+          console.log('[BoardPage] Column INSERT event received:', newColumnRaw);
           const newColumn = newColumnRaw as DbColumn;
+          // Verify the column belongs to this board
+          if (newColumn.boardId !== boardId) {
+            console.warn('[BoardPage] Column INSERT event for different board, ignoring:', {
+              columnBoardId: newColumn.boardId,
+              currentBoardId: boardId,
+            });
+            return;
+          }
           setColumns((prev) => {
-            if (prev.some((c) => c.id === newColumn.id)) return prev;
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:261',message:'setColumns called for INSERT',data:{columnId:newColumn.id,prevCount:prev.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-            // #endregion
-            return [...prev, newColumn];
+            if (prev.some((c) => c.id === newColumn.id)) {
+              console.log('[BoardPage] Column already in state, skipping insert');
+              return prev;
+            }
+            console.log('[BoardPage] Adding new column to state:', newColumn.id);
+            // Sort by position after adding
+            const updated = [...prev, newColumn];
+            return updated.sort((a, b) => a.position - b.position);
           });
         },
         onUpdate: (updatedColumnRaw, previousRaw) => {
@@ -312,7 +321,16 @@ export default function BoardPage() {
           });
         },
         onDelete: (deletedColumnRaw) => {
+          console.log('[BoardPage] Column DELETE event received:', deletedColumnRaw);
           const deletedColumn = deletedColumnRaw as DbColumn;
+          // Verify the column belongs to this board
+          if (deletedColumn.boardId !== boardId) {
+            console.warn('[BoardPage] Column DELETE event for different board, ignoring:', {
+              columnBoardId: deletedColumn.boardId,
+              currentBoardId: boardId,
+            });
+            return;
+          }
           setColumns((prev) => prev.filter((c) => c.id !== deletedColumn.id));
           setCards((prev) => prev.filter((c) => c.columnId !== deletedColumn.id));
         },
@@ -660,10 +678,14 @@ export default function BoardPage() {
   const updateCardColor = async (cardId: string, color: string | null) => {
     if (!effectiveCanEdit) return;
     try {
-      // Update via API - realtime handler will update state when event is received
-      await api.from('cards').update({ color }).eq('id', cardId);
-      // Don't optimistically update state - let realtime handler manage it
-      // This ensures consistency across all clients and avoids conflicts
+      // Use dedicated card route which emits realtime events
+      // The generic db route doesn't emit events, so we use the PATCH endpoint
+      const result = await api.request(`/cards/${cardId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ color }),
+      });
+      if (result.error) throw result.error;
+      // Realtime handler will update state when event is received
     } catch (error: any) {
       console.error('Update card color error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -674,10 +696,17 @@ export default function BoardPage() {
     if (!effectiveCanEdit || !boardId) return;
     try {
       const cardIds = cards.map(c => c.id);
-      // Update via API - realtime handler will update state when events are received
-      await api.from('cards').update({ color }).in('id', cardIds);
-      // Don't optimistically update state - let realtime handler manage it
-      // This ensures consistency across all clients and avoids conflicts
+      // Update each card individually using dedicated route to ensure realtime events are emitted
+      // This ensures each card update emits a realtime event
+      await Promise.all(
+        cardIds.map(cardId =>
+          api.request(`/cards/${cardId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ color }),
+          })
+        )
+      );
+      // Realtime handler will update state when events are received
       toast({ title: 'Success', description: 'Applied colour to all cards' });
     } catch (error: any) {
       console.error('Apply card color to all error:', error);
@@ -692,8 +721,13 @@ export default function BoardPage() {
       // When color is null from ColorPicker (transparent selection), save as empty string
       // Empty string means "explicitly transparent", null means "use theme default"
       const colorToSave = isClearing ? null : (color === null ? '' : color);
-      await api.from('columns').update({ color: colorToSave }).eq('id', columnId);
-      setColumns(prev => prev.map(c => c.id === columnId ? { ...c, color: colorToSave } : c));
+      // Use dedicated column route which emits realtime events
+      const result = await api.request(`/columns/${columnId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ color: colorToSave }),
+      });
+      if (result.error) throw result.error;
+      // Realtime handler will update state when event is received
     } catch (error: any) {
       console.error('Update column color error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });

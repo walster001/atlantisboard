@@ -182,23 +182,19 @@ export function InlineButtonIconDialog({
       const fileName = `inline-icon-${Date.now()}.${fileExt}`;
       const filePath = `import-icons/${fileName}`;
 
-      const { error } = await api.storage
+      const { error, data: uploadData } = await api.storage
         .from('branding')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
         });
 
-      if (error) {
-        throw new Error(error.message);
+      if (error || !uploadData) {
+        throw new Error(error?.message || 'Upload failed: No data returned');
       }
 
-      // Get public URL
-      const { data: urlData } = await api.storage
-        .from('branding')
-        .getPublicUrl(filePath);
-
-      const publicUrl = urlData.publicUrl;
+      // Use publicUrl from upload response
+      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
 
       // Update button with replacement URL
       setButtons((prev) =>

@@ -27,10 +27,11 @@ export function CustomFontsSettings() {
 
   const fetchFonts = async () => {
     try {
-      const { data, error } = await api
+      const result = await api
         .from('custom_fonts')
         .select('*')
         .order('createdAt', { ascending: false });
+      const { data, error } = result as { data: CustomFont[] | null; error: Error | null };
 
       if (error) throw error;
       setFonts(data || []);
@@ -70,15 +71,16 @@ export function CustomFontsSettings() {
     try {
       const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
       
-      const { error: uploadError } = await api.storage
+      const { error: uploadError, data: uploadData } = await api.storage
         .from('fonts')
         .upload(fileName, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError || !uploadData) {
+        throw uploadError || new Error('Upload failed: No data returned');
+      }
 
-      const { data: urlData } = await api.storage
-        .from('fonts')
-        .getPublicUrl(fileName);
+      // Use publicUrl from upload response
+      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
 
       // Extract font name from filename (remove extension and timestamp)
       const fontName = file.name.replace(/\.(ttf|otf|woff|woff2)$/i, '');
@@ -87,7 +89,7 @@ export function CustomFontsSettings() {
         .from('custom_fonts')
         .insert({
           name: fontName,
-          fontUrl: urlData.publicUrl,
+          fontUrl: publicUrl,
         });
 
       if (dbError) throw dbError;

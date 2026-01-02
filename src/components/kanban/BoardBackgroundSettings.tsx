@@ -78,7 +78,7 @@ export function BoardBackgroundSettings({
     if (!canEdit) return;
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('boards')
         .update({ 
           background_color: backgroundColor,
@@ -106,7 +106,7 @@ export function BoardBackgroundSettings({
     
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('boards')
         .update({ 
           background_color: themeColor,
@@ -148,18 +148,16 @@ export function BoardBackgroundSettings({
       const filePath = `board-backgrounds/${fileName}`;
 
       // Upload to storage
-      const { error: uploadError } = await api.storage
+      const { error: uploadError, data: uploadData } = await api.storage
         .from('branding')
         .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError || !uploadData) {
+        throw uploadError || new Error('Upload failed: No data returned');
+      }
 
-      // Get public URL
-      const { data: urlData } = await api.storage
-        .from('branding')
-        .getPublicUrl(filePath);
-
-      const publicUrl = urlData.publicUrl;
+      // Use publicUrl from upload response
+      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
       setImageUrl(publicUrl);
       setBackgroundType('image');
       
@@ -192,7 +190,7 @@ export function BoardBackgroundSettings({
     try {
       // Reset to theme navbar color or default
       const defaultColor = getDefaultBackgroundColor();
-      const { error } = await supabase
+      const { error } = await api
         .from('boards')
         .update({ 
           background_color: defaultColor,

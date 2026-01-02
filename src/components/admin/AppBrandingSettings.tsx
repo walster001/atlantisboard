@@ -151,15 +151,18 @@ export function AppBrandingSettings() {
       const fileExt = file.name.split('.').pop();
       const fileName = `${type}-logo-${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
-      if (uploadError) throw uploadError;
+      const { error: uploadError, data: uploadData } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
+      if (uploadError || !uploadData) {
+        throw uploadError || new Error('Upload failed: No data returned');
+      }
 
-      const { data: urlData } = await api.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await api.from('app_settings').update({ [urlKey]: urlData.publicUrl }).eq('id', 'default');
+      // Use publicUrl from upload response
+      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const { error } = await api.from('app_settings').update({ [urlKey]: publicUrl }).eq('id', 'default');
       if (error) throw error;
 
-      setSettings(prev => ({ ...prev, [urlKey]: urlData.publicUrl }));
-      setSavedSettings(prev => prev ? { ...prev, [urlKey]: urlData.publicUrl } : prev);
+      setSettings(prev => ({ ...prev, [urlKey]: publicUrl }));
+      setSavedSettings(prev => prev ? { ...prev, [urlKey]: publicUrl } : prev);
       await refreshSettings();
       toast({ title: 'Logo uploaded', description: `Your custom ${type} logo has been uploaded.` });
     } catch (error: any) {

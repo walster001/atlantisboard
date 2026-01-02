@@ -33,6 +33,10 @@ router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: 
     const { path } = req.body;
     const file = req.file;
 
+    if (!storageService.isConfigured()) {
+      throw new ValidationError('Storage is not configured. Please configure S3 storage settings.');
+    }
+
     if (!file) {
       throw new ValidationError('No file provided');
     }

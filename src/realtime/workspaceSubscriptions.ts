@@ -262,15 +262,30 @@ export function subscribeWorkspace(
 /**
  * Subscribe to all workspaces a user has access to
  * Automatically subscribes to new workspaces when user is added
+ * 
+ * Note: This function should be called with workspaceIds array from the component
+ * that has already fetched the user's workspaces. For dynamic subscription management,
+ * use subscribeWorkspace for individual workspaces.
  */
 export function subscribeAllWorkspaces(
-  userId: string,
+  workspaceIds: string[],
   handlers: WorkspaceHandlers
 ): SubscriptionCleanup {
-  // This will be implemented to fetch user's workspaces and subscribe to each
-  // For now, return a no-op cleanup
-  // TODO: Implement workspace fetching and dynamic subscription management
-  console.warn('[WorkspaceSubscriptions] subscribeAllWorkspaces not yet fully implemented');
-  return () => {};
+  if (workspaceIds.length === 0) {
+    return () => {}; // No workspaces, return no-op cleanup
+  }
+
+  const subscriptions: SubscriptionCleanup[] = [];
+
+  // Subscribe to each workspace
+  workspaceIds.forEach((workspaceId) => {
+    const cleanup = subscribeWorkspace(workspaceId, handlers);
+    subscriptions.push(cleanup);
+  });
+
+  // Return cleanup function that unsubscribes from all
+  return () => {
+    subscriptions.forEach((cleanup) => cleanup());
+  };
 }
 

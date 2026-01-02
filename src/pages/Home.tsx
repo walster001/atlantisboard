@@ -19,6 +19,7 @@ import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
 import { subscribeHomeBoardMembership, subscribeHomeWorkspaceMembership, subscribeHomeBoards } from '@/realtime/homeSubscriptions';
+import { subscribeAllWorkspaces } from '@/realtime/workspaceSubscriptions';
 import { api } from '@/integrations/api/client';
 
 interface Workspace {
@@ -293,8 +294,107 @@ export default function Home() {
     }
   }, [user]);
 
-  // Listen for real-time board_members changes for the current user
-  // This handles both when user is added to or removed from boards
+  // Unified workspace subscription using parent-child hierarchy
+  // Subscribes to all workspaces user has access to, receives all child updates
+  useEffect(() => {
+    if (!user || workspaces.length === 0) return;
+
+    const workspaceIds = workspaces.map((w) => w.id);
+    const cleanup = subscribeAllWorkspaces(workspaceIds, {
+      onBoardUpdate: (board, event) => {
+        const boardData = board as unknown as Board;
+        if (event.eventType === 'INSERT') {
+          // Only add if not already in the list
+          setBoards((prevBoards) => {
+            if (prevBoards.some((b) => b.id === boardData.id)) {
+              return prevBoards;
+            }
+            return [...prevBoards, boardData];
+          });
+          // Fetch data to get board roles
+          fetchData();
+        } else if (event.eventType === 'UPDATE') {
+          // Update board in the list
+          setBoards((prevBoards) =>
+            prevBoards.map((b) => (b.id === boardData.id ? boardData : b))
+          );
+        } else if (event.eventType === 'DELETE') {
+          // Remove board from list and its role
+          setBoards((prevBoards) => prevBoards.filter((b) => b.id !== boardData.id));
+          setBoardRoles((prevRoles) => {
+            const updated = { ...prevRoles };
+            delete updated[boardData.id];
+            return updated;
+          });
+        }
+      },
+      onMemberUpdate: (member, event) => {
+        const membership = member as { boardId?: string; userId?: string };
+        // Only process if it's the current user
+        if (membership.userId !== user.id) return;
+        
+        if (event.eventType === 'INSERT') {
+          // User added to a board - refresh data
+          fetchData();
+          toast({
+            title: 'Board access granted',
+            description: 'You have been added to a new board.',
+          });
+        } else if (event.eventType === 'DELETE') {
+          // User removed from a board - refresh data
+          fetchData();
+          toast({
+            title: 'Board access removed',
+            description: 'You have been removed from a board.',
+          });
+        }
+      },
+      onWorkspaceUpdate: (workspace, event) => {
+        const workspaceData = workspace as { workspaceId?: string; userId?: string };
+        // Only process if it's the current user
+        if (workspaceData.userId !== user.id) return;
+        
+        if (event.eventType === 'INSERT') {
+          // User added to a workspace - refresh data
+          fetchData();
+          toast({
+            title: 'Workspace access granted',
+            description: 'You have been added to a new workspace.',
+          });
+        } else if (event.eventType === 'DELETE') {
+          const deletedMembership = event.old as { workspaceId: string; userId: string };
+          const deletedWorkspaceId = deletedMembership.workspaceId;
+
+          // Remove workspace and all its boards
+          setWorkspaces((prevWorkspaces) => prevWorkspaces.filter((w) => w.id !== deletedWorkspaceId));
+          setBoards((prevBoards) => {
+            const removedBoards = prevBoards.filter((b) => b.workspaceId === deletedWorkspaceId);
+            
+            // Remove board roles for removed boards
+            setBoardRoles((prevRoles) => {
+              const updated = { ...prevRoles };
+              removedBoards.forEach((b) => {
+                delete updated[b.id];
+              });
+              return updated;
+            });
+
+            return prevBoards.filter((b) => b.workspaceId !== deletedWorkspaceId);
+          });
+
+          toast({
+            title: 'Workspace access removed',
+            description: 'You have been removed from a workspace.',
+          });
+        }
+      },
+    });
+
+    return cleanup;
+  }, [user, workspaces, fetchData, toast]);
+
+  // Keep old subscriptions for backward compatibility during migration
+  // TODO: Remove after migration is complete
   useEffect(() => {
     if (!user) return;
 
@@ -307,8 +407,6 @@ export default function Home() {
         });
       },
       onRemoved: () => {
-        // Refetch data from backend to ensure state is always consistent
-        // This handles workspace membership removal automatically via backend logic
         fetchData();
         toast({
           title: 'Board access removed',
@@ -320,8 +418,6 @@ export default function Home() {
     return cleanupBoard;
   }, [user, fetchData, toast]);
 
-  // Listen for real-time workspaceMembers changes for the current user
-  // This handles when user is added to or removed from workspaces
   useEffect(() => {
     if (!user) return;
 
@@ -337,12 +433,10 @@ export default function Home() {
         const deletedMembership = payload.old as { workspaceId: string; userId: string };
         const deletedWorkspaceId = deletedMembership.workspaceId;
 
-        // Remove workspace and all its boards
         setWorkspaces((prevWorkspaces) => prevWorkspaces.filter((w) => w.id !== deletedWorkspaceId));
         setBoards((prevBoards) => {
           const removedBoards = prevBoards.filter((b) => b.workspaceId === deletedWorkspaceId);
           
-          // Remove board roles for removed boards
           setBoardRoles((prevRoles) => {
             const updated = { ...prevRoles };
             removedBoards.forEach((b) => {
@@ -364,7 +458,6 @@ export default function Home() {
     return cleanupWorkspace;
   }, [user, fetchData, toast]);
 
-  // Listen for real-time board changes in user's workspaces
   useEffect(() => {
     if (!user || workspaces.length === 0) return;
 
@@ -372,26 +465,22 @@ export default function Home() {
     const cleanupBoards = subscribeHomeBoards(workspaceIds, {
       onInsert: (payload) => {
         const newBoard = payload.new as Board;
-        // Only add if not already in the list
         setBoards((prevBoards) => {
           if (prevBoards.some((b) => b.id === newBoard.id)) {
             return prevBoards;
           }
           return [...prevBoards, newBoard];
         });
-        // Fetch data to get board roles
         fetchData();
       },
       onUpdate: (payload) => {
         const updatedBoard = payload.new as Board;
-        // Update board in the list
         setBoards((prevBoards) =>
           prevBoards.map((b) => (b.id === updatedBoard.id ? updatedBoard : b))
         );
       },
       onDelete: (payload) => {
         const deletedBoard = payload.old as Board;
-        // Remove board from list and its role
         setBoards((prevBoards) => prevBoards.filter((b) => b.id !== deletedBoard.id));
         setBoardRoles((prevRoles) => {
           const updated = { ...prevRoles };

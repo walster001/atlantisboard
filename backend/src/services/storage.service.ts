@@ -51,7 +51,7 @@ class StorageService {
    */
   async upload(bucket: string, path: string, file: Buffer, contentType?: string): Promise<string> {
     if (!this.s3Client) {
-      throw new ValidationError('Storage not configured');
+      throw new ValidationError('Storage not configured. Please configure S3_ENDPOINT, S3_ACCESS_KEY, and S3_SECRET_KEY environment variables.');
     }
 
     const bucketName = this.getBucketName(bucket);
@@ -75,7 +75,11 @@ class StorageService {
       return path;
     } catch (error: any) {
       console.error('[Storage] Upload error:', error);
-      throw new ValidationError(`Failed to upload file: ${error.message}`);
+      const errorMessage = error.message || 'Unknown error';
+      if (error.name === 'NoSuchBucket') {
+        throw new ValidationError(`Bucket "${bucketName}" does not exist. Please create it in your MinIO/S3 storage.`);
+      }
+      throw new ValidationError(`Failed to upload file to ${bucket}: ${errorMessage}`);
     }
   }
 
@@ -84,7 +88,7 @@ class StorageService {
    */
   async getDownloadUrl(bucket: string, path: string, expiresIn: number = 3600): Promise<string> {
     if (!this.s3Client) {
-      throw new ValidationError('Storage not configured');
+      throw new ValidationError('Storage not configured. Please configure S3_ENDPOINT, S3_ACCESS_KEY, and S3_SECRET_KEY environment variables.');
     }
 
     const bucketName = this.getBucketName(bucket);
@@ -100,7 +104,10 @@ class StorageService {
       return url;
     } catch (error: any) {
       console.error('[Storage] Get URL error:', error);
-      throw new NotFoundError(`File not found: ${path}`);
+      if (error.name === 'NoSuchBucket' || error.name === 'NoSuchKey') {
+        throw new NotFoundError(`File not found: ${path}`);
+      }
+      throw new NotFoundError(`Failed to generate download URL: ${error.message || 'Unknown error'}`);
     }
   }
 
@@ -109,7 +116,8 @@ class StorageService {
    */
   getPublicUrl(bucket: string, path: string): string {
     if (!env.S3_ENDPOINT) {
-      return path; // Fallback to path if no endpoint configured
+      // If no endpoint configured, return a relative path that can be served by the API
+      return `/api/storage/${bucket}/${encodeURIComponent(path)}`;
     }
 
     const bucketName = this.getBucketName(bucket);
@@ -155,7 +163,7 @@ class StorageService {
    */
   async delete(bucket: string, path: string): Promise<void> {
     if (!this.s3Client) {
-      throw new ValidationError('Storage not configured');
+      throw new ValidationError('Storage not configured. Please configure S3_ENDPOINT, S3_ACCESS_KEY, and S3_SECRET_KEY environment variables.');
     }
 
     const bucketName = this.getBucketName(bucket);
@@ -169,7 +177,11 @@ class StorageService {
       await this.s3Client.send(command);
     } catch (error: any) {
       console.error('[Storage] Delete error:', error);
-      throw new ValidationError(`Failed to delete file: ${error.message}`);
+      const errorMessage = error.message || 'Unknown error';
+      if (error.name === 'NoSuchBucket') {
+        throw new ValidationError(`Bucket "${bucketName}" does not exist.`);
+      }
+      throw new ValidationError(`Failed to delete file from ${bucket}: ${errorMessage}`);
     }
   }
 

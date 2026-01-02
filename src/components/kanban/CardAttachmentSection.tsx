@@ -92,10 +92,8 @@ export function CardAttachmentSection({
           continue;
         }
 
-        // Get public URL
-        const { data: urlData } = await api.storage
-          .from('card-attachments')
-          .getPublicUrl(fileName);
+        // Use publicUrl from upload response
+        const publicUrl = uploadData.publicUrl || uploadData.fullPath;
 
         // Create attachment record
         const { error: insertError } = await api
@@ -103,7 +101,7 @@ export function CardAttachmentSection({
           .insert({
             card_id: cardId,
             file_name: file.name,
-            file_url: urlData.publicUrl,
+            file_url: publicUrl,
             file_size: file.size,
             file_type: file.type,
             uploaded_by: user.id,

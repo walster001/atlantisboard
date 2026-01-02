@@ -108,20 +108,20 @@ export function InlineButtonEditor({
       const fileName = `inline-icon-${Date.now()}.${fileExt}`;
       const filePath = `inline-icons/${fileName}`;
 
-      const { error } = await api.storage
+      const { error, data: uploadData } = await api.storage
         .from('branding')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
         });
 
-      if (error) throw error;
+      if (error || !uploadData) {
+        throw error || new Error('Upload failed: No data returned');
+      }
 
-      const { data: urlData } = await api.storage
-        .from('branding')
-        .getPublicUrl(filePath);
-
-      setIconUrl(urlData.publicUrl);
+      // Use publicUrl from upload response
+      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      setIconUrl(publicUrl);
       toast({ title: 'Icon uploaded' });
     } catch (error: any) {
       toast({

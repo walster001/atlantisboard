@@ -293,8 +293,15 @@ class ApiClient {
           return { data: null, error: result.error };
         }
 
-        const uploadResult = result.data as { path: string; url: string };
-        return { data: { path: uploadResult.path, fullPath: uploadResult.url }, error: null };
+        const uploadResult = result.data as { path: string; url: string; publicUrl: string };
+        return { 
+          data: { 
+            path: uploadResult.path, 
+            fullPath: uploadResult.url,
+            publicUrl: uploadResult.publicUrl 
+          }, 
+          error: null 
+        };
       },
 
       remove: async (paths: string[]) => {

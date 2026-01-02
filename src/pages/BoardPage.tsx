@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { BoardTheme } from '@/components/kanban/ThemeEditorModal';
 import { cn } from '@/lib/utils';
 import { subscribeBoardCards, subscribeBoardColumns, subscribeBoardMembers } from '@/realtime/boardSubscriptions';
+import { subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
 interface DbColumn {
   id: string;
   boardId: string;
@@ -172,12 +173,228 @@ export default function BoardPage() {
   const columnIdsRef = useRef<string[]>([]);
   columnIdsRef.current = columnIds;
 
-  // Unified realtime subscriptions for cards, columns, and board members
+  // Unified realtime subscription using workspace (parent-child hierarchy)
   useEffect(() => {
-    if (!boardId) return;
+    if (!boardId || !workspaceId) return;
 
     const cleanups: Array<() => void> = [];
 
+    // Subscribe to workspace - receives all child updates (boards, columns, cards, members)
+    cleanups.push(
+      subscribeWorkspace(workspaceId, {
+        onBoardUpdate: (board, event) => {
+          const boardData = board as { id?: string; workspaceId?: string };
+          // Only process events for the current board
+          if (boardData.id !== boardId) return;
+          
+          // If board is updated, refresh all children (parent refresh)
+          if (event.eventType === 'UPDATE') {
+            console.log('[BoardPage] Board UPDATE - refreshing all children');
+            fetchBoardData();
+          }
+        },
+        onColumnUpdate: (column, event) => {
+          const columnData = column as DbColumn;
+          // Only process events for columns in the current board
+          if (columnData.boardId !== boardId) return;
+          
+          if (event.eventType === 'INSERT') {
+            console.log('[BoardPage] Column INSERT event received:', columnData);
+            setColumns((prev) => {
+              if (prev.some((c) => c.id === columnData.id)) {
+                console.log('[BoardPage] Column already in state, skipping insert');
+                return prev;
+              }
+              console.log('[BoardPage] Adding new column to state:', columnData.id);
+              const updated = [...prev, columnData];
+              return updated.sort((a, b) => a.position - b.position);
+            });
+          } else if (event.eventType === 'UPDATE') {
+            const updatedColumn = columnData;
+            setColumns((prev) => {
+              const existingColumn = prev.find((c) => c.id === updatedColumn.id);
+              if (!existingColumn) {
+                return prev;
+              }
+              if (
+                existingColumn.title === updatedColumn.title &&
+                existingColumn.position === updatedColumn.position &&
+                existingColumn.color === updatedColumn.color
+              ) {
+                return prev;
+              }
+              const updated = prev.map((c) => (c.id === updatedColumn.id ? updatedColumn : c));
+              return updated.sort((a, b) => a.position - b.position);
+            });
+          } else if (event.eventType === 'DELETE') {
+            console.log('[BoardPage] Column DELETE event received:', columnData);
+            setColumns((prev) => prev.filter((c) => c.id !== columnData.id));
+            setCards((prev) => prev.filter((c) => c.columnId !== columnData.id));
+          }
+        },
+        onCardUpdate: (card, event) => {
+          const cardData = card as DbCard;
+          // Filter by checking if card's column belongs to current board
+          // We'll check against columnIdsRef to see if the column is in this board
+          const cardColumnId = cardData.columnId;
+          if (columnIdsRef.current.length > 0 && !columnIdsRef.current.includes(cardColumnId)) {
+            // Column not in this board, skip
+            return;
+          }
+          
+          if (event.eventType === 'INSERT') {
+            console.log('[BoardPage] Card INSERT event received:', {
+              cardId: cardData.id,
+              columnId: cardData.columnId,
+              hasColumnInRef: columnIdsRef.current.includes(cardData.columnId),
+            });
+            setCards((prev) => {
+              if (prev.some((c) => c.id === cardData.id)) {
+                console.log('[BoardPage] Card already in state, skipping insert');
+                return prev;
+              }
+              console.log('[BoardPage] Adding new card to state:', cardData.id);
+              return [...prev, cardData];
+            });
+          } else if (event.eventType === 'UPDATE') {
+            const updatedCard = cardData;
+            const previous = event.old as DbCard;
+            console.log('[BoardPage] Card UPDATE event received:', {
+              cardId: updatedCard.id,
+              columnId: updatedCard.columnId,
+              previousColumnId: previous?.columnId,
+            });
+            setCards((prev) => {
+              const existingCard = prev.find((c) => c.id === updatedCard.id);
+              if (!existingCard) {
+                console.log('[BoardPage] Card UPDATE - card not found in state, adding it:', updatedCard.id);
+                return [...prev, updatedCard];
+              }
+              return prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
+            });
+            setEditingCard((prev) => {
+              if (prev && prev.card.id === updatedCard.id) {
+                return {
+                  ...prev,
+                  card: {
+                    ...prev.card,
+                    title: updatedCard.title,
+                    description: updatedCard.description || undefined,
+                    dueDate: updatedCard.dueDate || undefined,
+                    color: updatedCard.color,
+                  },
+                };
+              }
+              return prev;
+            });
+          } else if (event.eventType === 'DELETE') {
+            const deletedCard = cardData;
+            setCards((prev) => prev.filter((c) => c.id !== deletedCard.id));
+            setEditingCard((prev) => {
+              if (prev && prev.card.id === deletedCard.id) {
+                return null;
+              }
+              return prev;
+            });
+          }
+        },
+        onMemberUpdate: (member, event) => {
+          const membership = member as { boardId?: string; userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+          // Only process events for members in the current board
+          if (membership.boardId !== boardId) return;
+          
+          if (event.eventType === 'INSERT') {
+            const newMembership = membership;
+            refreshBoardMembers();
+            if (newMembership.userId && newMembership.userId !== user?.id) {
+              const memberName = newMembership.user?.profile?.fullName || 
+                                newMembership.user?.profile?.email || 
+                                'a member';
+              const role = newMembership.role || 'viewer';
+              toast({
+                title: 'Member added',
+                description: `${memberName} added as ${role}`,
+              });
+            }
+          } else if (event.eventType === 'UPDATE') {
+            const updatedMembership = membership;
+            const previousMembership = event.old as { role?: string };
+            refreshBoardMembers();
+            
+            if (updatedMembership?.userId === user?.id && updatedMembership.role) {
+              const newRole = updatedMembership.role as 'admin' | 'manager' | 'viewer';
+              const oldRole = userRole;
+              setUserRole(newRole);
+              
+              if (newRole === 'viewer' && oldRole !== 'viewer') {
+                console.log('[BoardPage] User demoted to viewer, closing settings dialogs');
+                setSettingsModalOpen(false);
+                setMembersDialogOpen(false);
+                toast({
+                  title: 'Access changed',
+                  description: 'You have been demoted to viewer. Settings dialogs have been closed.',
+                  variant: 'destructive',
+                });
+              } else if (newRole !== 'viewer' && oldRole === 'viewer') {
+                toast({
+                  title: 'Access granted',
+                  description: `You have been promoted to ${newRole}. You can now access board settings.`,
+                });
+              }
+            } else if (updatedMembership.userId && updatedMembership.userId !== user?.id) {
+              const memberName = updatedMembership.user?.profile?.fullName || 
+                                updatedMembership.user?.profile?.email || 
+                                'a member';
+              const newRole = updatedMembership.role || 'viewer';
+              const oldRole = previousMembership?.role || 'viewer';
+              toast({
+                title: 'Role updated',
+                description: `${memberName} role changed from ${oldRole} to ${newRole}`,
+              });
+            }
+          } else if (event.eventType === 'DELETE') {
+            const deletedMember = membership;
+            if (deletedMember?.userId === user?.id) {
+              toast({
+                title: 'Access removed',
+                description: 'You have been removed from this board.',
+                variant: 'destructive',
+              });
+              navigate('/', {
+                state: {
+                  removedFromBoard: {
+                    boardId: boardId,
+                    workspaceId: workspaceId,
+                    timestamp: Date.now(),
+                  },
+                },
+              });
+            } else {
+              refreshBoardMembers();
+              if (deletedMember.userId) {
+                const memberName = deletedMember.user?.profile?.fullName || 
+                                  deletedMember.user?.profile?.email || 
+                                  'a member';
+                toast({
+                  title: 'Member removed',
+                  description: `${memberName} removed from board`,
+                });
+              }
+            }
+          }
+        },
+        onParentRefresh: (parentType, parentId) => {
+          // When board updates, refresh all children
+          if (parentType === 'board' && parentId === boardId) {
+            console.log('[BoardPage] Parent refresh triggered for board:', parentId);
+            fetchBoardData();
+          }
+        },
+      })
+    );
+
+    // Keep old subscriptions for backward compatibility during migration
+    // TODO: Remove after migration is complete
     cleanups.push(
       subscribeBoardCards(boardId, {
         onInsert: (newCard) => {
@@ -487,7 +704,7 @@ export default function BoardPage() {
     return () => {
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [boardId, user, refreshBoardMembers, navigate, workspaceId, toast]);
+  }, [boardId, workspaceId, user, refreshBoardMembers, navigate, toast, fetchBoardData, userRole]);
 
   const fetchBoardData = async () => {
     if (!boardId) return;

@@ -268,15 +268,18 @@ export function BrandingSettings() {
       const fileExt = file.name.split('.').pop();
       const fileName = `login-logo-${Date.now()}.${fileExt}`;
       
-      const { error: uploadError } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
-      if (uploadError) throw uploadError;
+      const { error: uploadError, data: uploadData } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
+      if (uploadError || !uploadData) {
+        throw uploadError || new Error('Upload failed: No data returned');
+      }
 
-      const { data: urlData } = await api.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginLogoUrl: urlData.publicUrl });
+      // Use publicUrl from upload response
+      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginLogoUrl: publicUrl });
       if (error) throw error;
 
-      setSettings(prev => ({ ...prev, customLoginLogoUrl: urlData.publicUrl }));
-      setSavedSettings(prev => prev ? { ...prev, customLoginLogoUrl: urlData.publicUrl } : prev);
+      setSettings(prev => ({ ...prev, customLoginLogoUrl: publicUrl }));
+      setSavedSettings(prev => prev ? { ...prev, customLoginLogoUrl: publicUrl } : prev);
       toast({ title: 'Logo uploaded', description: 'Your custom login logo has been uploaded.' });
     } catch (error: any) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
@@ -327,15 +330,18 @@ export function BrandingSettings() {
       const fileExt = file.name.split('.').pop();
       const fileName = `login-bg-${Date.now()}.${fileExt}`;
       
-      const { error: uploadError } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
-      if (uploadError) throw uploadError;
+      const { error: uploadError, data: uploadData } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
+      if (uploadError || !uploadData) {
+        throw uploadError || new Error('Upload failed: No data returned');
+      }
 
-      const { data: urlData } = await api.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginBackgroundImageUrl: urlData.publicUrl });
+      // Use publicUrl from upload response
+      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginBackgroundImageUrl: publicUrl });
       if (error) throw error;
 
-      setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: urlData.publicUrl }));
-      setSavedSettings(prev => prev ? { ...prev, customLoginBackgroundImageUrl: urlData.publicUrl } : prev);
+      setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: publicUrl }));
+      setSavedSettings(prev => prev ? { ...prev, customLoginBackgroundImageUrl: publicUrl } : prev);
       toast({ title: 'Background image uploaded', description: 'Your custom background image has been uploaded.' });
     } catch (error: any) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });

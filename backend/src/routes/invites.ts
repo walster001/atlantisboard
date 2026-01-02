@@ -82,6 +82,89 @@ const redeemInviteSchema = z.object({
 });
 
 /**
+ * GET /api/boards/:boardId/invites
+ * Get all recurring invite tokens for a board
+ */
+router.get('/boards/:boardId/invites', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  try {
+    const { boardId } = req.params;
+
+    // Check if user can view invites (board admin)
+    const canCreate = await prisma.$queryRaw<Array<{ can_create_board_invite: boolean }>>`
+      SELECT can_create_board_invite(${authReq.userId!}::uuid, ${boardId}::uuid) as can_create_board_invite
+    `;
+
+    if (!canCreate[0]?.can_create_board_invite) {
+      throw new ForbiddenError('You must be a board admin to view invite links');
+    }
+
+    // Fetch recurring links (link_type = 'recurring', expires_at is NULL)
+    const tokens = await prisma.boardInviteToken.findMany({
+      where: {
+        boardId,
+        linkType: 'recurring',
+      },
+      select: {
+        id: true,
+        token: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    res.json(tokens);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /api/boards/:boardId/invites/:tokenId
+ * Delete an invite token
+ */
+router.delete('/boards/:boardId/invites/:tokenId', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  try {
+    const { boardId, tokenId } = req.params;
+
+    // Check if user can delete invites (board admin)
+    const canCreate = await prisma.$queryRaw<Array<{ can_create_board_invite: boolean }>>`
+      SELECT can_create_board_invite(${authReq.userId!}::uuid, ${boardId}::uuid) as can_create_board_invite
+    `;
+
+    if (!canCreate[0]?.can_create_board_invite) {
+      throw new ForbiddenError('You must be a board admin to delete invite links');
+    }
+
+    // Verify the token belongs to this board before deleting
+    const token = await prisma.boardInviteToken.findFirst({
+      where: {
+        id: tokenId,
+        boardId,
+      },
+    });
+
+    if (!token) {
+      return res.status(404).json({ error: 'Invite token not found' });
+    }
+
+    await prisma.boardInviteToken.delete({
+      where: {
+        id: tokenId,
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * POST /api/invites/redeem
  * Redeem an invite token
  */

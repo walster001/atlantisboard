@@ -644,11 +644,17 @@ export default function Home() {
       if (!board) throw new Error('Failed to create board');
 
       // Add creator as board admin
-      await api.from('board_members').insert({
+      const { error: memberError } = await api.from('board_members').insert({
         boardId: board.id,
         userId: user.id,
         role: 'admin',
       });
+
+      if (memberError) {
+        console.error('Failed to add creator as board admin:', memberError);
+        // Don't throw - board is created, user can be added manually if needed
+        // But log the error for debugging
+      }
 
       setBoardDialogOpen(false);
       setNewBoardName('');

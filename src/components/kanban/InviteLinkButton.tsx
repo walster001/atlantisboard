@@ -33,8 +33,8 @@ interface InviteLinkButtonProps {
 interface ActiveRecurringLink {
   id: string;
   token: string;
-  expires_at: string | null;
-  created_at: string;
+  expiresAt: string | null;
+  createdAt: string;
 }
 
 export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButtonProps) {
@@ -66,13 +66,9 @@ export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButto
   const fetchActiveRecurringLinks = async () => {
     setIsLoadingLinks(true);
     try {
-      // Recurring links have no expiry (expires_at is NULL), so we don't filter by expiry
-      const { data, error } = await supabase
-        .from('board_invite_tokens')
-        .select('id, token, expires_at, created_at')
-        .eq('board_id', boardId)
-        .eq('link_type', 'recurring')
-        .order('created_at', { ascending: false });
+      const { data, error } = await api.request(`/boards/${boardId}/invites`, {
+        method: 'GET',
+      });
 
       if (error) {
         console.error('Error fetching recurring links:', error);
@@ -156,10 +152,9 @@ export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButto
   const deleteRecurringLink = async (tokenId: string) => {
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from('board_invite_tokens')
-        .delete()
-        .eq('id', tokenId);
+      const { error } = await api.request(`/boards/${boardId}/invites/${tokenId}`, {
+        method: 'DELETE',
+      });
 
       if (error) {
         throw error;
@@ -358,7 +353,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButto
                             ...{link.token.slice(-20)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {link.expires_at ? `Expires: ${formatExpiryTime(link.expires_at)}` : 'No expiry'}
+                            {link.expiresAt ? `Expires: ${formatExpiryTime(link.expiresAt)}` : 'No expiry'}
                           </p>
                         </div>
                         <div className="flex items-center gap-1">

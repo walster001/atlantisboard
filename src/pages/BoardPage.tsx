@@ -710,11 +710,10 @@ export default function BoardPage() {
       const position = columns.length;
       const { data, error } = await api
         .from('columns')
-        .insert({ boardId: boardId, title: validated.title, position })
-        .select()
-        .single();
+        .insert({ boardId: boardId, title: validated.title, position });
 
       if (error) throw error;
+      if (!data) throw new Error('Failed to create column');
       setColumns([...columns, data]);
       setNewColumnTitle('');
       setIsAddingColumn(false);
@@ -751,7 +750,8 @@ export default function BoardPage() {
     // Early return for better UX - RLS will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      await api.from('columns').delete().eq('id', columnId);
+      const { error } = await api.from('columns').eq('id', columnId).delete();
+      if (error) throw error;
       setColumns(columns.filter(c => c.id !== columnId));
       setCards(cards.filter(c => c.columnId !== columnId));
     } catch (error: any) {
@@ -767,17 +767,16 @@ export default function BoardPage() {
       // Validate input
       const validated = cardSchema.parse({ title });
       
-      const columnCards = cards.filter(c => c.column_id === columnId);
+      const columnCards = cards.filter(c => c.columnId === columnId);
       const position = columnCards.length;
       
       const { data, error } = await api
         .from('cards')
-        .insert({ columnId: columnId, title: validated.title, position, createdBy: user?.id })
-        .select()
-        .single();
+        .insert({ columnId: columnId, title: validated.title, position, createdBy: user?.id });
 
       if (error) throw error;
-      setCards([...cards, data.data || data]);
+      if (!data) throw new Error('Failed to create card');
+      setCards([...cards, data]);
     } catch (error: any) {
       console.error('Add card error:', error);
       if (error instanceof z.ZodError) {
@@ -849,9 +848,10 @@ export default function BoardPage() {
     // Early return for better UX - RLS will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      await api.from('cards').delete().eq('id', cardId);
+      const { error } = await api.from('cards').eq('id', cardId).delete();
+      if (error) throw error;
       setCards(cards.filter(c => c.id !== cardId));
-      setCardLabels(cardLabels.filter(cl => cl.card_id !== cardId));
+      setCardLabels(cardLabels.filter(cl => cl.cardId !== cardId));
     } catch (error: any) {
       console.error('Delete card error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -896,7 +896,8 @@ export default function BoardPage() {
     // Early return for better UX - RLS will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      await api.from('card_labels').delete().eq('cardId', cardId).eq('labelId', labelId);
+      const { error } = await api.from('card_labels').eq('cardId', cardId).eq('labelId', labelId).delete();
+      if (error) throw error;
       setCardLabels(cardLabels.filter(cl => !(cl.cardId === cardId && cl.labelId === labelId)));
     } catch (error: any) {
       console.error('Remove label error:', error);

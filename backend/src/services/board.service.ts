@@ -298,17 +298,24 @@ class BoardService {
     const context = permissionService.buildContext(userId, isAppAdmin, boardId);
     await permissionService.requirePermission('board.delete', context);
 
+    // Get full board data before deletion for event emission
     const board = await prisma.board.findUnique({
       where: { id: boardId },
-      select: { workspaceId: true },
     });
+
+    if (!board) {
+      throw new NotFoundError('Board not found');
+    }
 
     await prisma.board.delete({
       where: { id: boardId },
     });
 
-    // Emit board removal event to all workspace members
-    if (board?.workspaceId) {
+    // Emit DELETE event for realtime subscriptions
+    await emitDatabaseChange('boards', 'DELETE', undefined, board as any, boardId);
+
+    // Also emit custom event for backward compatibility
+    if (board.workspaceId) {
       await emitCustomEvent(`workspace:${board.workspaceId}`, 'board.removed', {
         boardId,
         workspaceId: board.workspaceId,

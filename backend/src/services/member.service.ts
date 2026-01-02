@@ -152,6 +152,14 @@ class MemberService {
     });
 
     // Emit board membership add event
+    console.log('[MemberService] Emitting boardMembers INSERT event:', {
+      table: 'boardMembers',
+      event: 'INSERT',
+      boardId: validated.boardId,
+      userId: validated.userId,
+      role: validated.role,
+      hasUserData: !!(member as any).user,
+    });
     await emitDatabaseChange('boardMembers', 'INSERT', member as any, undefined, validated.boardId);
 
     return member;
@@ -180,6 +188,13 @@ class MemberService {
           boardId_userId: {
             boardId,
             userId: targetUserId,
+          },
+        },
+        include: {
+          user: {
+            include: {
+              profile: true,
+            },
           },
         },
       }),
@@ -228,6 +243,23 @@ class MemberService {
     if (member.role === 'admin' && adminCount === 1) {
       throw new ValidationError('Cannot remove the last admin from a board');
     }
+
+    // Get member with user/profile data before deletion for event emission
+    const memberToDelete = await prisma.boardMember.findUnique({
+      where: {
+        boardId_userId: {
+          boardId,
+          userId: targetUserId,
+        },
+      },
+      include: {
+        user: {
+          include: {
+            profile: true,
+          },
+        },
+      },
+    });
 
     // Delete membership
     await prisma.boardMember.delete({
@@ -302,8 +334,15 @@ class MemberService {
       },
     });
 
-    // Emit removal event
-    await emitDatabaseChange('boardMembers', 'DELETE', undefined, member as any, boardId);
+    // Emit removal event (use memberToDelete which has user/profile data)
+    console.log('[MemberService] Emitting boardMembers DELETE event:', {
+      table: 'boardMembers',
+      event: 'DELETE',
+      boardId: boardId,
+      userId: targetUserId,
+      hasUserData: !!(memberToDelete as any)?.user,
+    });
+    await emitDatabaseChange('boardMembers', 'DELETE', undefined, memberToDelete as any, boardId);
 
     // If user was removed, notify them via custom event
     await emitCustomEvent(`board:${boardId}`, 'board.member.removed', {
@@ -401,6 +440,15 @@ class MemberService {
     });
 
     // Emit update event
+    console.log('[MemberService] Emitting boardMembers UPDATE event:', {
+      table: 'boardMembers',
+      event: 'UPDATE',
+      boardId: boardId,
+      userId: targetUserId,
+      oldRole: member.role,
+      newRole: role,
+      hasUserData: !!(updated as any).user,
+    });
     await emitDatabaseChange('boardMembers', 'UPDATE', updated as any, member as any, boardId);
 
     return updated;

@@ -17,6 +17,7 @@ import { BoardBackgroundSettings } from './BoardBackgroundSettings';
 import { BoardLabelsSettings } from './BoardLabelsSettings';
 import { BoardMemberAuditLog } from './BoardMemberAuditLog';
 import { cn } from '@/lib/utils';
+import { subscribeBoardMembers } from '@/realtime/boardSubscriptions';
 
 interface BoardMember {
   userId: string;
@@ -150,6 +151,89 @@ export function BoardSettingsModal({
       fetchAllUsers();
     }
   }, [members.length, open, canAddRemove]);
+
+  // Subscribe to realtime board member changes when modal is open
+  useEffect(() => {
+    if (!open || !boardId) return;
+
+    const cleanup = subscribeBoardMembers(boardId, {
+      onInsert: (membershipRaw) => {
+        console.log('[BoardSettingsModal] Member INSERT event received:', {
+          eventType: 'INSERT',
+          payload: membershipRaw,
+          hasUser: !!(membershipRaw as any).user,
+          hasProfile: !!(membershipRaw as any).user?.profile,
+          userId: (membershipRaw as any).userId,
+          role: (membershipRaw as any).role,
+        });
+        const newMembership = membershipRaw as { userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+        
+        // Always refresh members list (even if payload is incomplete)
+        onMembersChange();
+        
+        // Show toast with defensive handling for missing data
+        const memberName = newMembership.user?.profile?.fullName || 
+                          newMembership.user?.profile?.email || 
+                          'a member';
+        const role = newMembership.role || 'viewer';
+        toast({
+          title: 'Member added',
+          description: `${memberName} added as ${role}`,
+        });
+      },
+      onDelete: (membershipRaw) => {
+        console.log('[BoardSettingsModal] Member DELETE event received:', {
+          eventType: 'DELETE',
+          payload: membershipRaw,
+          hasUser: !!(membershipRaw as any).user,
+          hasProfile: !!(membershipRaw as any).user?.profile,
+          userId: (membershipRaw as any).userId,
+        });
+        const deletedMembership = membershipRaw as { userId?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+        
+        // Always refresh members list (even if payload is incomplete)
+        onMembersChange();
+        
+        // Show toast with defensive handling for missing data
+        const memberName = deletedMembership.user?.profile?.fullName || 
+                          deletedMembership.user?.profile?.email || 
+                          'a member';
+        toast({
+          title: 'Member removed',
+          description: `${memberName} removed from board`,
+        });
+      },
+      onUpdate: (membershipRaw, previousRaw) => {
+        console.log('[BoardSettingsModal] Member UPDATE event received:', {
+          eventType: 'UPDATE',
+          payload: membershipRaw,
+          previous: previousRaw,
+          hasUser: !!(membershipRaw as any).user,
+          hasProfile: !!(membershipRaw as any).user?.profile,
+          userId: (membershipRaw as any).userId,
+          role: (membershipRaw as any).role,
+        });
+        const updatedMembership = membershipRaw as { userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+        const previousMembership = previousRaw as { role?: string };
+        
+        // Always refresh members list (even if payload is incomplete)
+        onMembersChange();
+        
+        // Show toast with defensive handling for missing data
+        const memberName = updatedMembership.user?.profile?.fullName || 
+                          updatedMembership.user?.profile?.email || 
+                          'a member';
+        const newRole = updatedMembership.role || 'viewer';
+        const oldRole = previousMembership?.role || 'viewer';
+        toast({
+          title: 'Role updated',
+          description: `${memberName} role changed from ${oldRole} to ${newRole}`,
+        });
+      },
+    });
+
+    return cleanup;
+  }, [open, boardId, onMembersChange, toast]);
 
   const fetchAllUsers = async () => {
     setLoadingUsers(true);

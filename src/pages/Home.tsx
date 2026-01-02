@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
-import { subscribeHomeBoardMembership, subscribeHomeWorkspaceMembership } from '@/realtime/homeSubscriptions';
+import { subscribeHomeBoardMembership, subscribeHomeWorkspaceMembership, subscribeHomeBoards } from '@/realtime/homeSubscriptions';
 import { api } from '@/integrations/api/client';
 
 interface Workspace {
@@ -363,6 +363,46 @@ export default function Home() {
 
     return cleanupWorkspace;
   }, [user, fetchData, toast]);
+
+  // Listen for real-time board changes in user's workspaces
+  useEffect(() => {
+    if (!user || workspaces.length === 0) return;
+
+    const workspaceIds = workspaces.map((w) => w.id);
+    const cleanupBoards = subscribeHomeBoards(workspaceIds, {
+      onInsert: (payload) => {
+        const newBoard = payload.new as Board;
+        // Only add if not already in the list
+        setBoards((prevBoards) => {
+          if (prevBoards.some((b) => b.id === newBoard.id)) {
+            return prevBoards;
+          }
+          return [...prevBoards, newBoard];
+        });
+        // Fetch data to get board roles
+        fetchData();
+      },
+      onUpdate: (payload) => {
+        const updatedBoard = payload.new as Board;
+        // Update board in the list
+        setBoards((prevBoards) =>
+          prevBoards.map((b) => (b.id === updatedBoard.id ? updatedBoard : b))
+        );
+      },
+      onDelete: (payload) => {
+        const deletedBoard = payload.old as Board;
+        // Remove board from list and its role
+        setBoards((prevBoards) => prevBoards.filter((b) => b.id !== deletedBoard.id));
+        setBoardRoles((prevRoles) => {
+          const updated = { ...prevRoles };
+          delete updated[deletedBoard.id];
+          return updated;
+        });
+      },
+    });
+
+    return cleanupBoards;
+  }, [user, workspaces, fetchData]);
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {

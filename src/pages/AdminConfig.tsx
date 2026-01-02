@@ -44,34 +44,24 @@ export default function AdminConfig() {
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('configuration');
   const [activeSubTab, setActiveSubTab] = useState<string>('general');
 
-  // Check if we're in preview/development mode
-  const isPreviewMode = window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1';
-
   useEffect(() => {
-    // Skip auth redirect in preview mode
-    if (isPreviewMode) return;
-    
     if (!authLoading && !user) {
       navigate('/auth');
     }
-  }, [user, authLoading, navigate, isPreviewMode]);
+  }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    // Skip admin check in preview mode
-    if (isPreviewMode) return;
-    
     if (!authLoading && user && !isAppAdmin) {
       navigate('/');
     }
-  }, [user, authLoading, isAppAdmin, navigate, isPreviewMode]);
+  }, [user, authLoading, isAppAdmin, navigate]);
 
   // Reset sub-tab when main tab changes
   useEffect(() => {
     setActiveSubTab(tabConfig[activeMainTab].subTabs[0].id);
   }, [activeMainTab]);
 
-  if (authLoading && !isPreviewMode) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -79,7 +69,7 @@ export default function AdminConfig() {
     );
   }
 
-  if (!isAppAdmin && !isPreviewMode) {
+  if (!isAppAdmin) {
     return null;
   }
 

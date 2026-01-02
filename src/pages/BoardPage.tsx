@@ -78,10 +78,6 @@ export default function BoardPage() {
   const { isMobile, isTablet, isDesktop } = useResponsiveLayout();
   const { toast } = useToast();
 
-  // Check if we're in preview/development mode - bypass auth for testing
-  const isPreviewMode = window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1';
-
   const [boardName, setBoardName] = useState('');
   const [boardColor, setBoardColor] = useState('#0079bf');
   const [boardThemeId, setBoardThemeId] = useState<string | null>(null);
@@ -147,7 +143,12 @@ export default function BoardPage() {
           avatarUrl: m.profiles?.avatarUrl ?? null,
         }
       }));
+      console.log('[BoardPage] Refreshing board members, new count:', transformedMembers.length);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:150',message:'setBoardMembers called',data:{boardId,memberCount:transformedMembers.length,memberIds:transformedMembers.map(m=>m.userId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       setBoardMembers(transformedMembers);
+      console.log('[BoardPage] Board members state updated');
     } catch (error: any) {
       console.error('Error refreshing members:', error);
     }
@@ -155,20 +156,16 @@ export default function BoardPage() {
 
 
   useEffect(() => {
-    // Skip auth redirect in preview mode
-    if (isPreviewMode) return;
-    
     if (!authLoading && !user) {
       navigate('/auth');
     }
-  }, [user, authLoading, navigate, isPreviewMode]);
+  }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    // In preview mode, fetch board data even without user
-    if ((user || isPreviewMode) && boardId) {
+    if (user && boardId) {
       fetchBoardData();
     }
-  }, [user, boardId, isPreviewMode]);
+  }, [user, boardId]);
 
   // Memoize column IDs to prevent unnecessary subscription recreation
   const columnIds = useMemo(() => columns.map(c => c.id), [columns]);
@@ -177,27 +174,41 @@ export default function BoardPage() {
 
   // Unified realtime subscriptions for cards, columns, and board members
   useEffect(() => {
-    if (!boardId || (!user && !isPreviewMode)) return;
+    if (!boardId) return;
 
     const cleanups: Array<() => void> = [];
 
     cleanups.push(
       subscribeBoardCards(boardId, {
         onInsert: (newCard) => {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:191',message:'card INSERT handler called',data:{cardId:(newCard as any)?.id,columnId:(newCard as any)?.columnId,hasColumnInRef:columnIdsRef.current.includes((newCard as any)?.columnId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           const card = newCard as DbCard;
           if (columnIdsRef.current.length === 0 || columnIdsRef.current.includes(card.columnId)) {
             setCards((prev) => {
               if (prev.some((c) => c.id === card.id)) return prev;
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:195',message:'setCards called for INSERT',data:{cardId:card.id,prevCount:prev.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+              // #endregion
               return [...prev, card];
             });
           }
         },
         onUpdate: (updatedCardRaw, previousRaw) => {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:200',message:'card UPDATE handler called',data:{cardId:(updatedCardRaw as any)?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           const updatedCard = updatedCardRaw as DbCard;
           const previous = previousRaw as DbCard;
           setCards((prev) => {
             const existingCard = prev.find((c) => c.id === updatedCard.id);
-            if (!existingCard) return prev;
+            if (!existingCard) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:204',message:'card UPDATE - card not found in state',data:{cardId:updatedCard.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+              // #endregion
+              return prev;
+            }
 
             const hasChange =
               existingCard.title !== updatedCard.title ||
@@ -207,8 +218,16 @@ export default function BoardPage() {
               existingCard.columnId !== updatedCard.columnId ||
               existingCard.color !== updatedCard.color;
 
-            if (!hasChange) return prev;
+            if (!hasChange) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:215',message:'card UPDATE - no change detected',data:{cardId:updatedCard.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+              // #endregion
+              return prev;
+            }
 
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:217',message:'setCards called for UPDATE',data:{cardId:updatedCard.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
             return prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
           });
           setEditingCard((prev) => {
@@ -251,25 +270,45 @@ export default function BoardPage() {
     cleanups.push(
       subscribeBoardColumns(boardId, {
         onInsert: (newColumnRaw) => {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:258',message:'column INSERT handler called',data:{columnId:(newColumnRaw as any)?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           const newColumn = newColumnRaw as DbColumn;
           setColumns((prev) => {
             if (prev.some((c) => c.id === newColumn.id)) return prev;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:261',message:'setColumns called for INSERT',data:{columnId:newColumn.id,prevCount:prev.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
             return [...prev, newColumn];
           });
         },
         onUpdate: (updatedColumnRaw, previousRaw) => {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:265',message:'column UPDATE handler called',data:{columnId:(updatedColumnRaw as any)?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           const updatedColumn = updatedColumnRaw as DbColumn;
           setColumns((prev) => {
             const existingColumn = prev.find((c) => c.id === updatedColumn.id);
-            if (!existingColumn) return prev;
+            if (!existingColumn) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:268',message:'column UPDATE - column not found in state',data:{columnId:updatedColumn.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+              // #endregion
+              return prev;
+            }
 
             if (
               existingColumn.title === updatedColumn.title &&
               existingColumn.position === updatedColumn.position &&
               existingColumn.color === updatedColumn.color
             ) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:275',message:'column UPDATE - no change detected',data:{columnId:updatedColumn.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+              // #endregion
               return prev;
             }
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:277',message:'setColumns called for UPDATE',data:{columnId:updatedColumn.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
             return prev.map((c) => (c.id === updatedColumn.id ? updatedColumn : c));
           });
         },
@@ -281,23 +320,90 @@ export default function BoardPage() {
       })
     );
 
-    if (!isPreviewMode && user) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:289',message:'checking board members subscription condition',data:{hasUser:!!user,boardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    // Subscribe to board members if user exists (preview mode should not block realtime subscriptions)
+    if (user) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:290',message:'calling subscribeBoardMembers',data:{boardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       cleanups.push(
         subscribeBoardMembers(boardId, {
-          onInsert: () => {
-            // Always refresh members list when a new member is added
-            // This includes when the creator is added as admin after board creation
+          onInsert: (membershipRaw) => {
+            console.log('[BoardPage] Member INSERT event received:', {
+              eventType: 'INSERT',
+              payload: membershipRaw,
+              hasUser: !!(membershipRaw as any).user,
+              hasProfile: !!(membershipRaw as any).user?.profile,
+              userId: (membershipRaw as any).userId,
+              role: (membershipRaw as any).role,
+            });
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:289',message:'handler onInsert called',data:{hasPayload:!!membershipRaw,userId:(membershipRaw as any)?.userId,role:(membershipRaw as any)?.role,hasUser:!!(membershipRaw as any)?.user},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
+            const newMembership = membershipRaw as { userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+            
+            // Always refresh members list when a new member is added (even if payload is incomplete)
+            // This ensures UI is always in sync with backend
             refreshBoardMembers();
-          },
-          onUpdate: (membershipRaw) => {
-            const updatedMembership = membershipRaw as { boardId: string; userId: string; role: string };
-            if (updatedMembership?.userId === user.id) {
-              setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:302',message:'refreshBoardMembers called',data:{boardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
+            
+            // Only show toast if it's not the current user (they already see their own action)
+            if (newMembership.userId && newMembership.userId !== user.id) {
+              const memberName = newMembership.user?.profile?.fullName || 
+                                newMembership.user?.profile?.email || 
+                                'a member';
+              const role = newMembership.role || 'viewer';
+              toast({
+                title: 'Member added',
+                description: `${memberName} added as ${role}`,
+              });
             }
+          },
+          onUpdate: (membershipRaw, previousRaw) => {
+            console.log('[BoardPage] Member UPDATE event received:', {
+              eventType: 'UPDATE',
+              payload: membershipRaw,
+              previous: previousRaw,
+              hasUser: !!(membershipRaw as any).user,
+              hasProfile: !!(membershipRaw as any).user?.profile,
+              userId: (membershipRaw as any).userId,
+              role: (membershipRaw as any).role,
+            });
+            const updatedMembership = membershipRaw as { userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+            const previousMembership = previousRaw as { role?: string };
+            
+            // Always refresh members list (even if payload is incomplete)
             refreshBoardMembers();
+            
+            if (updatedMembership?.userId === user.id && updatedMembership.role) {
+              setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
+            } else if (updatedMembership.userId && updatedMembership.userId !== user.id) {
+              // Show toast for other users' role changes
+              const memberName = updatedMembership.user?.profile?.fullName || 
+                                updatedMembership.user?.profile?.email || 
+                                'a member';
+              const newRole = updatedMembership.role || 'viewer';
+              const oldRole = previousMembership?.role || 'viewer';
+              toast({
+                title: 'Role updated',
+                description: `${memberName} role changed from ${oldRole} to ${newRole}`,
+              });
+            }
           },
           onDelete: (membershipRaw) => {
-            const deletedMember = membershipRaw as { boardId?: string; userId?: string };
+            console.log('[BoardPage] Member DELETE event received:', {
+              eventType: 'DELETE',
+              payload: membershipRaw,
+              hasUser: !!(membershipRaw as any).user,
+              hasProfile: !!(membershipRaw as any).user?.profile,
+              userId: (membershipRaw as any).userId,
+            });
+            const deletedMember = membershipRaw as { userId?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+            
             if (deletedMember?.userId === user.id) {
               toast({
                 title: 'Access removed',
@@ -314,7 +420,19 @@ export default function BoardPage() {
                 },
               });
             } else {
+              // Always refresh members list (even if payload is incomplete)
               refreshBoardMembers();
+              
+              // Show toast for other users being removed
+              if (deletedMember.userId) {
+                const memberName = deletedMember.user?.profile?.fullName || 
+                                  deletedMember.user?.profile?.email || 
+                                  'a member';
+                toast({
+                  title: 'Member removed',
+                  description: `${memberName} removed from board`,
+                });
+              }
             }
           },
         })
@@ -324,14 +442,12 @@ export default function BoardPage() {
     return () => {
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [boardId, user, isPreviewMode, refreshBoardMembers, navigate, workspaceId, toast]);
+  }, [boardId, user, refreshBoardMembers, navigate, workspaceId, toast]);
 
   const fetchBoardData = async () => {
     if (!boardId) return;
     
-    // In preview mode without user, use a mock user ID
-    const effectiveUserId = user?.id || (isPreviewMode ? '00000000-0000-0000-0000-000000000000' : null);
-    if (!effectiveUserId) return;
+    if (!user?.id) return;
     
     setLoading(true);
 
@@ -339,7 +455,7 @@ export default function BoardPage() {
       // Single server-side call to get all board data
       const { data, error } = await api.rpc('get_board_data', {
         _board_id: boardId,
-        _user_id: effectiveUserId
+        _user_id: user.id
       });
 
       if (error) throw error;

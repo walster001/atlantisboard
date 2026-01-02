@@ -176,6 +176,9 @@ class RealtimeClient {
   }
 
   private handleMessage(message: any): void {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:178',message:'handleMessage entry',data:{hasChannel:!!message.channel,channel:message.channel,event:message.event,table:message.table,hasPayload:!!message.payload},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     // Handle system messages
     if (message.channel === 'system') {
       if (message.payload?.type === 'connected') {
@@ -200,32 +203,64 @@ class RealtimeClient {
 
     // Handle database change events
     if (message.event === 'INSERT' || message.event === 'UPDATE' || message.event === 'DELETE') {
-      const channelState = this.channels.get(message.channel);
-      if (channelState) {
-        // Find matching bindings
-        channelState.bindings.forEach((binding) => {
-          if (
-            binding.table === message.table &&
-            (binding.event === '*' || binding.event === message.event)
-          ) {
-            // Apply filter if present
-            if (binding.filter) {
-              // Simple filter matching (e.g., "board_id=eq.123")
-              const filterMatch = this.matchesFilter(message.payload.new || message.payload.old, binding.filter);
-              if (!filterMatch) {
-                return;
-              }
-            }
+      console.log('[Realtime] Received event:', {
+        channel: message.channel,
+        event: message.event,
+        table: message.table,
+        hasPayload: !!message.payload,
+        hasNew: !!message.payload?.new,
+        hasOld: !!message.payload?.old,
+      });
 
-            // Call handler
-            binding.handler({
-              eventType: message.event,
-              new: message.payload.new || null,
-              old: message.payload.old || null,
-            });
-          }
-        });
+      const channelState = this.channels.get(message.channel);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:212',message:'channel state lookup',data:{channel:message.channel,hasChannelState:!!channelState,state:channelState?.state,bindingCount:channelState?.bindings.length,totalChannels:this.channels.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      if (!channelState) {
+        console.log(`[Realtime] No channel state found for channel: ${message.channel}`);
+        return;
       }
+
+      console.log(`[Realtime] Channel state found: ${message.channel}, state: ${channelState.state}, bindings: ${channelState.bindings.length}`);
+
+      // Find matching bindings
+      channelState.bindings.forEach((binding, index) => {
+        const tableMatches = binding.table === message.table ||
+          (binding.table === 'boardMembers' && message.table === 'board_members') ||
+          (binding.table === 'board_members' && message.table === 'boardMembers') ||
+          (binding.table === 'workspaceMembers' && message.table === 'workspace_members') ||
+          (binding.table === 'workspace_members' && message.table === 'workspaceMembers');
+
+        const eventMatches = binding.event === '*' || binding.event === message.event;
+
+        console.log(`[Realtime] Binding ${index}: table=${binding.table}, event=${binding.event}, tableMatches=${tableMatches}, eventMatches=${eventMatches}`);
+
+        if (tableMatches && eventMatches) {
+          // Apply filter if present
+          if (binding.filter) {
+            const filterMatch = this.matchesFilter(message.payload.new || message.payload.old, binding.filter);
+            console.log(`[Realtime] Filter check: filter=${binding.filter}, match=${filterMatch}`);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:234',message:'filter check',data:{channel:message.channel,bindingIndex:index,filter:binding.filter,filterMatch,table:message.table,event:message.event},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+            if (!filterMatch) {
+              console.log(`[Realtime] Filter rejected event`);
+              return;
+            }
+          }
+
+          console.log(`[Realtime] Calling handler for binding ${index}`);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:243',message:'calling handler',data:{channel:message.channel,bindingIndex:index,table:message.table,event:message.event,hasNew:!!message.payload?.new,hasOld:!!message.payload?.old},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
+          // Call handler
+          binding.handler({
+            eventType: message.event,
+            new: message.payload.new || null,
+            old: message.payload.old || null,
+          });
+        }
+      });
     }
 
     // Handle custom events (e.g., board.removed)
@@ -250,11 +285,17 @@ class RealtimeClient {
   }
 
   private matchesFilter(record: Record<string, unknown> | null, filter: string): boolean {
-    if (!record) return false;
+    if (!record) {
+      console.log(`[Realtime] Filter match failed: record is null for filter ${filter}`);
+      return false;
+    }
 
     // Simple filter parser: "field=eq.value" or "field=neq.value"
     const match = filter.match(/^(\w+)=(eq|neq)\.(.+)$/);
-    if (!match) return true; // If filter is malformed, allow through
+    if (!match) {
+      console.log(`[Realtime] Filter malformed, allowing through: ${filter}`);
+      return true; // If filter is malformed, allow through
+    }
 
     const [, field, operator, value] = match;
     
@@ -273,10 +314,16 @@ class RealtimeClient {
       ?? (camelCaseField ? record[camelCaseField] : undefined)
       ?? (snakeCaseField ? record[snakeCaseField] : undefined);
 
+    console.log(`[Realtime] Filter check: field=${field}, operator=${operator}, value=${value}, recordValue=${recordValue}, camelCaseField=${camelCaseField}, snakeCaseField=${snakeCaseField}`);
+
     if (operator === 'eq') {
-      return String(recordValue) === value;
+      const matches = String(recordValue) === value;
+      console.log(`[Realtime] Filter eq result: ${matches} (${String(recordValue)} === ${value})`);
+      return matches;
     } else if (operator === 'neq') {
-      return String(recordValue) !== value;
+      const matches = String(recordValue) !== value;
+      console.log(`[Realtime] Filter neq result: ${matches} (${String(recordValue)} !== ${value})`);
+      return matches;
     }
 
     return true;
@@ -305,6 +352,9 @@ class RealtimeClient {
   }
 
   addChannel(topic: string, bindings: PostgresChangeBinding[], onStatus?: (status: RealtimeChannelState, error?: Error) => void): void {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:342',message:'addChannel called',data:{topic,bindingCount:bindings.length,bindings:bindings.map(b=>({table:b.table,event:b.event,filter:b.filter})),wsReadyState:this.ws?.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     const channelState: ChannelState = {
       topic,
       bindings,

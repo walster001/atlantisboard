@@ -96,6 +96,10 @@ export function subscribeBoardColumns(boardId: string, handlers: ColumnHandlers)
 
 export function subscribeBoardMembers(boardId: string, handlers: MemberHandlers): SubscriptionCleanup {
   const topic = `board-${boardId}-members`;
+  console.log(`[Realtime] Subscribing to board members channel: ${topic}`);
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'boardSubscriptions.ts:97',message:'subscribeBoardMembers called',data:{boardId,topic,filter:`boardId=eq.${boardId}`},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   // Use camelCase to match Prisma model field names
   const filter = `boardId=eq.${boardId}`;
 

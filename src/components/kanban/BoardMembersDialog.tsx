@@ -136,13 +136,12 @@ export function BoardMembersDialog({
     // App Admins can always change roles for self-management/testing
     if (!canChangeRolesEffective) return;
     try {
-      const { error } = await api
-        .from('board_members')
-        .update({ role: newRole })
-        .eq('boardId', boardId)
-        .eq('userId', userId);
+      const result = await api.request(`/boards/${boardId}/members/${userId}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role: newRole }),
+      });
 
-      if (error) throw error;
+      if (result.error) throw result.error;
       toast({ title: 'Role updated' });
       onMembersChange();
     } catch (error: any) {

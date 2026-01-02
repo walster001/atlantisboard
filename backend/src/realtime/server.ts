@@ -11,6 +11,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { prisma } from '../db/client.js';
 import { UnauthorizedError } from '../middleware/errorHandler.js';
+import { writeFileSync, appendFileSync } from 'fs';
 
 interface ClientConnection {
   ws: WebSocket;
@@ -229,6 +230,9 @@ class RealtimeServer {
    * Broadcast event to all clients subscribed to a channel
    */
   async broadcast(event: RealtimeEvent) {
+    // #region agent log
+    try{appendFileSync('e:\\atlantisboard\\.cursor\\debug.log',JSON.stringify({location:'server.ts:231',message:'broadcast entry',data:{channel:event.channel,table:event.table,event:event.event,clientCount:this.clients.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
+    // #endregion
     const { channel } = event;
     let sentCount = 0;
 
@@ -244,24 +248,46 @@ class RealtimeServer {
       }
     }
 
+    let subscribedClients = 0;
     for (const [ws, client] of this.clients.entries()) {
-      if (client.channels.has(channel)) {
+      const hasChannel = client.channels.has(channel);
+      // #region agent log
+      try{appendFileSync('e:\\atlantisboard\\.cursor\\debug.log',JSON.stringify({location:'server.ts:247',message:'checking client subscription',data:{userId:client.userId,channel,hasChannel,wsReadyState:ws.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
+      // #endregion
+      if (hasChannel) {
+        subscribedClients++;
         // For board channels, verify user has access
-        if (boardId) {
+        // Skip access check for membership events - they should always propagate
+        // (e.g., when a user is added, they need to receive the event even if access check hasn't updated yet)
+        if (boardId && event.table !== 'boardMembers') {
           const hasAccess = await this.checkBoardAccess(client.userId, boardId);
+          // #region agent log
+          try{appendFileSync('e:\\atlantisboard\\.cursor\\debug.log',JSON.stringify({location:'server.ts:252',message:'access check result',data:{userId:client.userId,boardId,hasAccess,table:event.table},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
+          // #endregion
           if (!hasAccess) {
             // Remove subscription if access revoked
+            console.log(`[Realtime] Access check blocked event for client ${client.userId} on channel ${channel}, table: ${event.table}`);
             client.channels.delete(channel);
             continue;
           }
         }
 
+        console.log(`[Realtime] Sending event to client ${client.userId} on channel ${channel}:`, {
+          table: event.table,
+          event: event.event,
+        });
+        // #region agent log
+        try{appendFileSync('e:\\atlantisboard\\.cursor\\debug.log',JSON.stringify({location:'server.ts:262',message:'sending event to client',data:{userId:client.userId,channel,table:event.table,event:event.event,wsReadyState:ws.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
+        // #endregion
         this.send(ws, event);
         sentCount++;
       }
     }
 
     console.log(`[Realtime] Broadcasted ${event.event} on ${channel} to ${sentCount} clients`);
+    // #region agent log
+    try{appendFileSync('e:\\atlantisboard\\.cursor\\debug.log',JSON.stringify({location:'server.ts:271',message:'broadcast complete',data:{channel,table:event.table,event:event.event,sentCount,subscribedClients,totalClients:this.clients.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
+    // #endregion
   }
 
   /**
@@ -296,10 +322,15 @@ class RealtimeServer {
     oldRecord?: Record<string, unknown>,
     boardId?: string
   ) {
+    // #region agent log
+    try{appendFileSync('e:\\atlantisboard\\.cursor\\debug.log',JSON.stringify({location:'server.ts:317',message:'emitDatabaseChange entry',data:{table,event,hasNewRecord:!!newRecord,hasOldRecord:!!oldRecord,boardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n');}catch(e){}
+    // #endregion
     // Determine channels based on table and context
     // Support both formats: board:${boardId} and board-${boardId}-${table}
+    // Also emit to workspace channels for board-level changes
     const channels: string[] = [];
     let resolvedBoardId: string | undefined = boardId;
+    let resolvedWorkspaceId: string | undefined;
 
     if (resolvedBoardId) {
       channels.push(`board:${resolvedBoardId}`);
@@ -309,21 +340,61 @@ class RealtimeServer {
       } else if (table === 'columns') {
         channels.push(`board-${resolvedBoardId}-columns`);
       } else if (table === 'boardMembers') {
-        channels.push(`board-${resolvedBoardId}-members`);
+        const channel = `board-${resolvedBoardId}-members`;
+        console.log(`[Realtime] Adding boardMembers channel: ${channel}`);
+        channels.push(channel);
+        // Also emit to workspace channel for member changes
+        // Use resolvedBoardId (from parameter) instead of memberRecord.boardId
+        if (resolvedBoardId) {
+          const board = await prisma.board.findUnique({
+            where: { id: resolvedBoardId },
+            select: { workspaceId: true },
+          });
+          if (board?.workspaceId) {
+            channels.push(`workspace:${board.workspaceId}`);
+          }
+        }
+      } else if (table === 'boards') {
+        // For board changes, also emit to workspace channel
+        const boardRecord = (newRecord || oldRecord) as { workspaceId?: string };
+        if (boardRecord?.workspaceId) {
+          resolvedWorkspaceId = boardRecord.workspaceId;
+          channels.push(`workspace:${resolvedWorkspaceId}`);
+        }
       }
     } else if (table === 'boardMembers' && newRecord) {
       // Prisma models use camelCase (boardId), not snake_case (board_id)
       resolvedBoardId = (newRecord as any).boardId || (newRecord as any).board_id;
       if (resolvedBoardId) {
         channels.push(`board:${resolvedBoardId}`);
-        channels.push(`board-${resolvedBoardId}-members`);
+        const channel = `board-${resolvedBoardId}-members`;
+        console.log(`[Realtime] Adding boardMembers channel from newRecord: ${channel}`);
+        channels.push(channel);
+        // Also emit to workspace channel for member changes
+        const board = await prisma.board.findUnique({
+          where: { id: resolvedBoardId },
+          select: { workspaceId: true },
+        });
+        if (board?.workspaceId) {
+          channels.push(`workspace:${board.workspaceId}`);
+        }
       }
     } else if (table === 'boardMembers' && oldRecord) {
       // Prisma models use camelCase (boardId), not snake_case (board_id)
       resolvedBoardId = (oldRecord as any).boardId || (oldRecord as any).board_id;
       if (resolvedBoardId) {
         channels.push(`board:${resolvedBoardId}`);
-        channels.push(`board-${resolvedBoardId}-members`);
+        const channel = `board-${resolvedBoardId}-members`;
+        console.log(`[Realtime] Adding boardMembers channel from oldRecord: ${channel}`);
+        channels.push(channel);
+        // Also emit to workspace channel for member changes
+        const board = await prisma.board.findUnique({
+          where: { id: resolvedBoardId },
+          select: { workspaceId: true },
+        });
+        if (board?.workspaceId) {
+          channels.push(`workspace:${board.workspaceId}`);
+        }
       }
     } else if (table.startsWith('card_') && newRecord) {
       // For card-related tables, need to get boardId from card
@@ -385,12 +456,32 @@ class RealtimeServer {
           channels.push(`board-${resolvedBoardId}-cards`);
         }
       }
+    } else if (table === 'workspaceMembers') {
+      // For workspace membership changes, emit to global channel
+      const workspaceRecord = (newRecord || oldRecord) as { workspaceId?: string };
+      if (workspaceRecord?.workspaceId) {
+        channels.push(`workspace:${workspaceRecord.workspaceId}`);
+      }
+      channels.push('global');
     } else {
       // Global channel for app-level changes
       channels.push('global');
     }
 
     // Broadcast to all relevant channels
+    console.log('[Realtime] Emitting event:', {
+      table,
+      event,
+      channels,
+      hasNewRecord: !!newRecord,
+      hasOldRecord: !!oldRecord,
+      newRecordId: (newRecord as any)?.id || (newRecord as any)?.userId,
+      oldRecordId: (oldRecord as any)?.id || (oldRecord as any)?.userId,
+    });
+    // #region agent log
+    try{appendFileSync('e:\\atlantisboard\\.cursor\\debug.log',JSON.stringify({location:'server.ts:407',message:'channels determined',data:{table,event,channels,channelCount:channels.length,resolvedBoardId,resolvedWorkspaceId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n');}catch(e){}
+    // #endregion
+
     for (const channel of channels) {
       await this.broadcast({
         event,

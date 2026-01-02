@@ -181,7 +181,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
     // Execute query
     const data = await model.findMany(query);
 
-    res.json(data);
+    return res.json(data);
   } catch (error) {
     // Log error details for debugging
     console.error(`[DB Route] Error querying table ${req.params.table}:`, error);
@@ -189,7 +189,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
       console.error(`[DB Route] Error message: ${error.message}`);
       console.error(`[DB Route] Error stack: ${error.stack}`);
     }
-    next(error);
+    return next(error);
   }
 });
 

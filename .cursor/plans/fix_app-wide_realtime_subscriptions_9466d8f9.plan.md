@@ -263,4 +263,3 @@ Based on code review, the issues stem from:
 - No page refresh required for any updates
 - Permissions update dynamically
 - Toast notifications appear for all actions
-- Removed users are redirected if viewing board

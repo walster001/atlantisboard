@@ -154,6 +154,121 @@ export default function BoardPage() {
     }
   }, [boardId, user]);
 
+  // Main board data fetch - defined here before useEffect to avoid hoisting issues
+  const fetchBoardData = useCallback(async () => {
+    if (!boardId) return;
+    
+    if (!user?.id) return;
+    
+    setLoading(true);
+
+    try {
+      // Single server-side call to get all board data
+      const { data, error } = await api.rpc('get_board_data', {
+        _board_id: boardId,
+        _user_id: user.id
+      });
+
+      if (error) throw error;
+      
+      // Cast JSON response to typed object
+      const result = data as {
+        error?: string;
+        board?: { id: string; name: string; description: string | null; backgroundColor: string | null; workspaceId: string; createdBy: string | null };
+        userRole?: string | null;
+        columns?: DbColumn[];
+        cards?: DbCard[];
+        labels?: DbLabel[];
+        cardLabels?: DbCardLabel[];
+        members?: Array<{ userId: string; role: string; profiles: { id: string; email: string | null; fullName: string | null; avatarUrl: string | null } }>;
+      };
+      
+      if (result?.error) {
+        if (result.error === 'Board not found') {
+          toast({ title: 'Board not found', variant: 'destructive' });
+          navigate('/');
+          return;
+        }
+        if (result.error === 'Access denied') {
+          setAccessDenied(true);
+          setLoading(false);
+          return;
+        }
+        throw new Error(result.error);
+      }
+
+      // Set all state from single response
+      setBoardName(result.board?.name || '');
+      setBoardColor(result.board?.backgroundColor || '#0079bf');
+      setWorkspaceId(result.board?.workspaceId || null);
+      setBoardCreatedBy(result.board?.createdBy || null);
+      setUserRole(result.userRole as 'admin' | 'manager' | 'viewer' | null);
+      setColumns(result.columns || []);
+
+      // Fetch themeId and theme data separately (not in RPC response)
+      const { data: boardData } = await api
+        .from('boards')
+        .select('themeId')
+        .eq('id', boardId)
+        .single();
+      
+      const themeId = boardData?.data?.themeId || null;
+      setBoardThemeId(themeId);
+      
+      // Fetch full theme data if theme is set
+      if (themeId) {
+        const { data: themeData } = await api
+          .from('board_themes')
+          .select('*')
+          .eq('id', themeId)
+          .single();
+        setBoardTheme(themeData?.data as BoardTheme | null);
+      } else {
+        setBoardTheme(null);
+      }
+      
+      setCards(result.cards || []);
+      setLabels(result.labels || []);
+      setCardLabels(result.cardLabels || []);
+
+      // Fetch card attachments and subtasks
+      const cardIds = (result.cards || []).map((c: DbCard) => c.id);
+      if (cardIds.length > 0) {
+        const [attachmentsResult, subtasksResult] = await Promise.all([
+          api
+            .from('card_attachments')
+            .select('*')
+            .in('cardId', cardIds),
+          api
+            .from('card_subtasks')
+            .select('*')
+            .in('cardId', cardIds)
+        ]);
+        setCardAttachments(attachmentsResult.data || []);
+        setCardSubtasks(subtasksResult.data || []);
+      }
+      
+      // Transform members to expected format
+      const transformedMembers: BoardMember[] = (result.members || []).map((m) => ({
+        userId: m.userId,
+        role: m.role as 'admin' | 'manager' | 'viewer',
+        profiles: {
+          id: m.profiles.id,
+          email: m.profiles.email || '',
+          fullName: m.profiles.fullName ?? null,
+          avatarUrl: m.profiles.avatarUrl ?? null,
+        }
+      }));
+      setBoardMembers(transformedMembers);
+      
+      setLoading(false);
+    } catch (error: any) {
+      console.error('Error fetching board data:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      setLoading(false);
+    }
+  }, [boardId, user, toast, navigate]);
+
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -396,120 +511,6 @@ export default function BoardPage() {
       cleanups.forEach((cleanup) => cleanup());
     };
   }, [boardId, workspaceId, user, refreshBoardMembers, navigate, toast, fetchBoardData, userRole]);
-
-  const fetchBoardData = async () => {
-    if (!boardId) return;
-    
-    if (!user?.id) return;
-    
-    setLoading(true);
-
-    try {
-      // Single server-side call to get all board data
-      const { data, error } = await api.rpc('get_board_data', {
-        _board_id: boardId,
-        _user_id: user.id
-      });
-
-      if (error) throw error;
-      
-      // Cast JSON response to typed object
-      const result = data as {
-        error?: string;
-        board?: { id: string; name: string; description: string | null; backgroundColor: string | null; workspaceId: string; createdBy: string | null };
-        userRole?: string | null;
-        columns?: DbColumn[];
-        cards?: DbCard[];
-        labels?: DbLabel[];
-        cardLabels?: DbCardLabel[];
-        members?: Array<{ userId: string; role: string; profiles: { id: string; email: string | null; fullName: string | null; avatarUrl: string | null } }>;
-      };
-      
-      if (result?.error) {
-        if (result.error === 'Board not found') {
-          toast({ title: 'Board not found', variant: 'destructive' });
-          navigate('/');
-          return;
-        }
-        if (result.error === 'Access denied') {
-          setAccessDenied(true);
-          setLoading(false);
-          return;
-        }
-        throw new Error(result.error);
-      }
-
-      // Set all state from single response
-      setBoardName(result.board?.name || '');
-      setBoardColor(result.board?.backgroundColor || '#0079bf');
-      setWorkspaceId(result.board?.workspaceId || null);
-      setBoardCreatedBy(result.board?.createdBy || null);
-      setUserRole(result.userRole as 'admin' | 'manager' | 'viewer' | null);
-      setColumns(result.columns || []);
-
-      // Fetch themeId and theme data separately (not in RPC response)
-      const { data: boardData } = await api
-        .from('boards')
-        .select('themeId')
-        .eq('id', boardId)
-        .single();
-      
-      const themeId = boardData?.data?.themeId || null;
-      setBoardThemeId(themeId);
-      
-      // Fetch full theme data if theme is set
-      if (themeId) {
-        const { data: themeData } = await api
-          .from('board_themes')
-          .select('*')
-          .eq('id', themeId)
-          .single();
-        setBoardTheme(themeData?.data as BoardTheme | null);
-      } else {
-        setBoardTheme(null);
-      }
-      
-      setCards(result.cards || []);
-      setLabels(result.labels || []);
-      setCardLabels(result.cardLabels || []);
-
-      // Fetch card attachments and subtasks
-      const cardIds = (result.cards || []).map((c: DbCard) => c.id);
-      if (cardIds.length > 0) {
-        const [attachmentsResult, subtasksResult] = await Promise.all([
-          api
-            .from('card_attachments')
-            .select('*')
-            .in('cardId', cardIds),
-          api
-            .from('card_subtasks')
-            .select('*')
-            .in('cardId', cardIds)
-        ]);
-        setCardAttachments(attachmentsResult.data || []);
-        setCardSubtasks(subtasksResult.data || []);
-      }
-      
-      // Transform members to expected format
-      const transformedMembers: BoardMember[] = (result.members || []).map((m) => ({
-        userId: m.userId,
-        role: m.role as 'admin' | 'manager' | 'viewer',
-        profiles: {
-          id: m.profiles.id,
-          email: m.profiles.email || '',
-          fullName: m.profiles.fullName,
-          avatarUrl: m.profiles.avatarUrl,
-        }
-      }));
-      setBoardMembers(transformedMembers);
-
-    } catch (error: any) {
-      console.error('Error fetching board:', error);
-      toast({ title: 'Error loading board', description: getUserFriendlyError(error), variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
   // Lightweight theme refresh - updates theme without triggering loading state

@@ -90,6 +90,7 @@ export function BoardSettingsModal({
   open,
   onClose,
   boardId,
+  workspaceId,
   members,
   userRole,
   currentUserId,
@@ -195,16 +196,17 @@ export function BoardSettingsModal({
           
           // Only show toast if it's not the current user (they already see their own action in the UI)
           // This prevents duplicate toasts when BoardPage also shows a toast
-        if (updatedMembership.userId && updatedMembership.userId !== currentUserId) {
-          const memberName = updatedMembership.user?.profile?.fullName || 
-                            updatedMembership.user?.profile?.email || 
-                            'a member';
-          const newRole = updatedMembership.role || 'viewer';
-          const oldRole = previousMembership?.role || 'viewer';
-          toast({
-            title: 'Role updated',
-            description: `${memberName} role changed from ${oldRole} to ${newRole}`,
-          });
+          if (updatedMembership.userId && updatedMembership.userId !== currentUserId) {
+            const memberName = updatedMembership.user?.profile?.fullName || 
+                              updatedMembership.user?.profile?.email || 
+                              'a member';
+            const newRole = updatedMembership.role || 'viewer';
+            const oldRole = previousMembership?.role || 'viewer';
+            toast({
+              title: 'Role updated',
+              description: `${memberName} role changed from ${oldRole} to ${newRole}`,
+            });
+          }
         }
       },
     });
@@ -221,7 +223,7 @@ export function BoardSettingsModal({
         .order('fullName', { ascending: true });
 
       if (error) throw error;
-      setAllUsers(data || []);
+      setAllUsers((data as AppUser[]) || []);
     } catch (error) {
       console.error('Failed to fetch users:', error);
       toast({ title: 'Error', description: 'Failed to load users', variant: 'destructive' });

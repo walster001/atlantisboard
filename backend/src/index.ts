@@ -99,10 +99,17 @@ app.use(errorHandler);
 
 // Start server
 const PORT = env.API_PORT;
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// Listen on all interfaces (0.0.0.0) to ensure accessibility via both localhost and 127.0.0.1
+const HOST = '0.0.0.0';
+const server = app.listen(PORT, HOST, () => {
+  console.log(`🚀 Server running on http://${HOST}:${PORT}`);
   console.log(`📝 Environment: ${env.NODE_ENV}`);
   console.log(`🌐 CORS origin: ${env.CORS_ORIGIN}`);
+  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+    console.log(`✅ Google OAuth: Configured`);
+  } else {
+    console.log(`⚠️  Google OAuth: Not configured (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET required)`);
+  }
 });
 
 // Initialize WebSocket server for realtime

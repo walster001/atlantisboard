@@ -157,6 +157,21 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
       }
     }
   );
+} else {
+  // Google OAuth not configured - return helpful error
+  router.get('/google', (_req: Request, res: Response) => {
+    res.status(503).json({
+      error: 'Google OAuth is not configured',
+      message: 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in environment variables',
+    });
+  });
+
+  router.get('/google/callback', (_req: Request, res: Response) => {
+    res.status(503).json({
+      error: 'Google OAuth is not configured',
+      message: 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in environment variables',
+    });
+  });
 }
 
 export default router;

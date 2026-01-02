@@ -9,8 +9,8 @@ import { Upload, X, Loader2, Type } from 'lucide-react';
 interface CustomFont {
   id: string;
   name: string;
-  font_url: string;
-  created_at: string;
+  fontUrl: string;
+  createdAt: string;
 }
 
 export function CustomFontsSettings() {
@@ -30,7 +30,7 @@ export function CustomFontsSettings() {
       const { data, error } = await api
         .from('custom_fonts')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('createdAt', { ascending: false });
 
       if (error) throw error;
       setFonts(data || []);
@@ -87,7 +87,7 @@ export function CustomFontsSettings() {
         .from('custom_fonts')
         .insert({
           name: fontName,
-          font_url: urlData.publicUrl,
+          fontUrl: urlData.publicUrl,
         });
 
       if (dbError) throw dbError;
@@ -116,7 +116,7 @@ export function CustomFontsSettings() {
     setDeleting(font.id);
     try {
       // Extract filename from URL
-      const fileName = font.font_url.split('/fonts/')[1];
+      const fileName = font.fontUrl.split('/fonts/')[1];
       if (fileName) {
         await api.storage.from('fonts').remove([fileName]);
       }
@@ -221,7 +221,7 @@ export function CustomFontsSettings() {
                     <div>
                       <p className="font-medium">{font.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Added {new Date(font.created_at).toLocaleDateString()}
+                        Added {new Date(font.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>

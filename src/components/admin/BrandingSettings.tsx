@@ -15,58 +15,58 @@ type LogoSize = 'small' | 'medium' | 'large';
 type BackgroundType = 'color' | 'image';
 
 interface AppSettings {
-  custom_login_logo_enabled: boolean;
-  custom_login_logo_url: string | null;
-  custom_login_logo_size: LogoSize;
-  custom_app_name_enabled: boolean;
-  custom_app_name: string | null;
-  custom_app_name_size: number;
-  custom_app_name_color: string;
-  custom_app_name_font: string;
-  custom_tagline_enabled: boolean;
-  custom_tagline: string | null;
-  custom_tagline_size: number;
-  custom_tagline_color: string;
-  custom_tagline_font: string;
-  custom_login_background_enabled: boolean;
-  custom_login_background_type: BackgroundType;
-  custom_login_background_color: string;
-  custom_login_background_image_url: string | null;
-  custom_login_box_background_color: string;
-  custom_google_button_background_color: string;
-  custom_google_button_text_color: string;
+  customLoginLogoEnabled: boolean;
+  customLoginLogoUrl: string | null;
+  customLoginLogoSize: LogoSize;
+  customAppNameEnabled: boolean;
+  customAppName: string | null;
+  customAppNameSize: number;
+  customAppNameColor: string;
+  customAppNameFont: string;
+  customTaglineEnabled: boolean;
+  customTagline: string | null;
+  customTaglineSize: number;
+  customTaglineColor: string;
+  customTaglineFont: string;
+  customLoginBackgroundEnabled: boolean;
+  customLoginBackgroundType: BackgroundType;
+  customLoginBackgroundColor: string;
+  customLoginBackgroundImageUrl: string | null;
+  customLoginBoxBackgroundColor: string;
+  customGoogleButtonBackgroundColor: string;
+  customGoogleButtonTextColor: string;
 }
 
 interface CustomFont {
   id: string;
   name: string;
-  font_url: string;
+  fontUrl: string;
 }
 
 const textSizes = Array.from({ length: 72 }, (_, i) => i + 1);
 
 export function BrandingSettings() {
   const [settings, setSettings] = useState<AppSettings>({
-    custom_login_logo_enabled: false,
-    custom_login_logo_url: null,
-    custom_login_logo_size: 'medium',
-    custom_app_name_enabled: false,
-    custom_app_name: null,
-    custom_app_name_size: 24,
-    custom_app_name_color: '#000000',
-    custom_app_name_font: 'default',
-    custom_tagline_enabled: false,
-    custom_tagline: null,
-    custom_tagline_size: 14,
-    custom_tagline_color: '#6b7280',
-    custom_tagline_font: 'default',
-    custom_login_background_enabled: false,
-    custom_login_background_type: 'color',
-    custom_login_background_color: '#f3f4f6',
-    custom_login_background_image_url: null,
-    custom_login_box_background_color: '#ffffff',
-    custom_google_button_background_color: '#ffffff',
-    custom_google_button_text_color: '#000000',
+    customLoginLogoEnabled: false,
+    customLoginLogoUrl: null,
+    customLoginLogoSize: 'medium',
+    customAppNameEnabled: false,
+    customAppName: null,
+    customAppNameSize: 24,
+    customAppNameColor: '#000000',
+    customAppNameFont: 'default',
+    customTaglineEnabled: false,
+    customTagline: null,
+    customTaglineSize: 14,
+    customTaglineColor: '#6b7280',
+    customTaglineFont: 'default',
+    customLoginBackgroundEnabled: false,
+    customLoginBackgroundType: 'color',
+    customLoginBackgroundColor: '#f3f4f6',
+    customLoginBackgroundImageUrl: null,
+    customLoginBoxBackgroundColor: '#ffffff',
+    customGoogleButtonBackgroundColor: '#ffffff',
+    customGoogleButtonTextColor: '#000000',
   });
   const [savedSettings, setSavedSettings] = useState<AppSettings | null>(null);
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
@@ -94,7 +94,7 @@ export function BrandingSettings() {
         style.textContent = `
           @font-face {
             font-family: '${font.name}';
-            src: url('${font.font_url}') format('woff2'), url('${font.font_url}') format('woff'), url('${font.font_url}') format('truetype');
+            src: url('${font.fontUrl}') format('woff2'), url('${font.fontUrl}') format('woff'), url('${font.fontUrl}') format('truetype');
             font-weight: normal;
             font-style: normal;
             font-display: swap;
@@ -116,31 +116,31 @@ export function BrandingSettings() {
       if (error) throw error;
       if (data) {
         const loadedSettings: AppSettings = {
-          custom_login_logo_enabled: data.custom_login_logo_enabled,
-          custom_login_logo_url: data.custom_login_logo_url,
-          custom_login_logo_size: (data.custom_login_logo_size as LogoSize) || 'medium',
-          custom_app_name_enabled: data.custom_app_name_enabled,
-          custom_app_name: data.custom_app_name,
-          custom_app_name_size: data.custom_app_name_size || 24,
-          custom_app_name_color: data.custom_app_name_color || '#000000',
-          custom_app_name_font: data.custom_app_name_font || 'default',
-          custom_tagline_enabled: data.custom_tagline_enabled,
-          custom_tagline: data.custom_tagline,
-          custom_tagline_size: data.custom_tagline_size || 14,
-          custom_tagline_color: data.custom_tagline_color || '#6b7280',
-          custom_tagline_font: data.custom_tagline_font || 'default',
-          custom_login_background_enabled: data.custom_login_background_enabled ?? false,
-          custom_login_background_type: (data.custom_login_background_type as BackgroundType) || 'color',
-          custom_login_background_color: data.custom_login_background_color || '#f3f4f6',
-          custom_login_background_image_url: data.custom_login_background_image_url,
-          custom_login_box_background_color: data.custom_login_box_background_color || '#ffffff',
-          custom_google_button_background_color: data.custom_google_button_background_color || '#ffffff',
-          custom_google_button_text_color: data.custom_google_button_text_color || '#000000',
+          customLoginLogoEnabled: data.data?.customLoginLogoEnabled ?? false,
+          customLoginLogoUrl: data.data?.customLoginLogoUrl,
+          customLoginLogoSize: (data.data?.customLoginLogoSize as LogoSize) || 'medium',
+          customAppNameEnabled: data.data?.customAppNameEnabled ?? false,
+          customAppName: data.data?.customAppName,
+          customAppNameSize: data.data?.customAppNameSize || 24,
+          customAppNameColor: data.data?.customAppNameColor || '#000000',
+          customAppNameFont: data.data?.customAppNameFont || 'default',
+          customTaglineEnabled: data.data?.customTaglineEnabled ?? false,
+          customTagline: data.data?.customTagline,
+          customTaglineSize: data.data?.customTaglineSize || 14,
+          customTaglineColor: data.data?.customTaglineColor || '#6b7280',
+          customTaglineFont: data.data?.customTaglineFont || 'default',
+          customLoginBackgroundEnabled: data.data?.customLoginBackgroundEnabled ?? false,
+          customLoginBackgroundType: (data.data?.customLoginBackgroundType as BackgroundType) || 'color',
+          customLoginBackgroundColor: data.data?.customLoginBackgroundColor || '#f3f4f6',
+          customLoginBackgroundImageUrl: data.data?.customLoginBackgroundImageUrl,
+          customLoginBoxBackgroundColor: data.data?.customLoginBoxBackgroundColor || '#ffffff',
+          customGoogleButtonBackgroundColor: data.data?.customGoogleButtonBackgroundColor || '#ffffff',
+          customGoogleButtonTextColor: data.data?.customGoogleButtonTextColor || '#000000',
         };
         setSettings(loadedSettings);
         setSavedSettings(loadedSettings);
-        setAppNameInput(data.custom_app_name || '');
-        setTaglineInput(data.custom_tagline || '');
+        setAppNameInput(data.data?.customAppName || '');
+        setTaglineInput(data.data?.customTagline || '');
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -153,7 +153,7 @@ export function BrandingSettings() {
     try {
       const { data, error } = await api
         .from('custom_fonts')
-        .select('id, name, font_url')
+        .select('id, name, fontUrl')
         .order('name');
 
       if (error) throw error;
@@ -172,24 +172,24 @@ export function BrandingSettings() {
   const hasUnsavedChanges = () => {
     if (!savedSettings) return false;
     return (
-      settings.custom_login_logo_enabled !== savedSettings.custom_login_logo_enabled ||
-      settings.custom_login_logo_size !== savedSettings.custom_login_logo_size ||
-      settings.custom_app_name_enabled !== savedSettings.custom_app_name_enabled ||
-      appNameInput.trim() !== (savedSettings.custom_app_name || '') ||
-      settings.custom_app_name_size !== savedSettings.custom_app_name_size ||
-      settings.custom_app_name_color !== savedSettings.custom_app_name_color ||
-      settings.custom_app_name_font !== savedSettings.custom_app_name_font ||
-      settings.custom_tagline_enabled !== savedSettings.custom_tagline_enabled ||
-      taglineInput.trim() !== (savedSettings.custom_tagline || '') ||
-      settings.custom_tagline_size !== savedSettings.custom_tagline_size ||
-      settings.custom_tagline_color !== savedSettings.custom_tagline_color ||
-      settings.custom_tagline_font !== savedSettings.custom_tagline_font ||
-      settings.custom_login_background_enabled !== savedSettings.custom_login_background_enabled ||
-      settings.custom_login_background_type !== savedSettings.custom_login_background_type ||
-      settings.custom_login_background_color !== savedSettings.custom_login_background_color ||
-      settings.custom_login_box_background_color !== savedSettings.custom_login_box_background_color ||
-      settings.custom_google_button_background_color !== savedSettings.custom_google_button_background_color ||
-      settings.custom_google_button_text_color !== savedSettings.custom_google_button_text_color
+      settings.customLoginLogoEnabled !== savedSettings.customLoginLogoEnabled ||
+      settings.customLoginLogoSize !== savedSettings.customLoginLogoSize ||
+      settings.customAppNameEnabled !== savedSettings.customAppNameEnabled ||
+      appNameInput.trim() !== (savedSettings.customAppName || '') ||
+      settings.customAppNameSize !== savedSettings.customAppNameSize ||
+      settings.customAppNameColor !== savedSettings.customAppNameColor ||
+      settings.customAppNameFont !== savedSettings.customAppNameFont ||
+      settings.customTaglineEnabled !== savedSettings.customTaglineEnabled ||
+      taglineInput.trim() !== (savedSettings.customTagline || '') ||
+      settings.customTaglineSize !== savedSettings.customTaglineSize ||
+      settings.customTaglineColor !== savedSettings.customTaglineColor ||
+      settings.customTaglineFont !== savedSettings.customTaglineFont ||
+      settings.customLoginBackgroundEnabled !== savedSettings.customLoginBackgroundEnabled ||
+      settings.customLoginBackgroundType !== savedSettings.customLoginBackgroundType ||
+      settings.customLoginBackgroundColor !== savedSettings.customLoginBackgroundColor ||
+      settings.customLoginBoxBackgroundColor !== savedSettings.customLoginBoxBackgroundColor ||
+      settings.customGoogleButtonBackgroundColor !== savedSettings.customGoogleButtonBackgroundColor ||
+      settings.customGoogleButtonTextColor !== savedSettings.customGoogleButtonTextColor
     );
   };
 
@@ -197,24 +197,24 @@ export function BrandingSettings() {
     setSaving(true);
     try {
       const updates = {
-        custom_login_logo_enabled: settings.custom_login_logo_enabled,
-        custom_login_logo_size: settings.custom_login_logo_size,
-        custom_app_name_enabled: settings.custom_app_name_enabled,
-        custom_app_name: appNameInput.trim() || null,
-        custom_app_name_size: settings.custom_app_name_size,
-        custom_app_name_color: settings.custom_app_name_color,
-        custom_app_name_font: settings.custom_app_name_font,
-        custom_tagline_enabled: settings.custom_tagline_enabled,
-        custom_tagline: taglineInput.trim() || null,
-        custom_tagline_size: settings.custom_tagline_size,
-        custom_tagline_color: settings.custom_tagline_color,
-        custom_tagline_font: settings.custom_tagline_font,
-        custom_login_background_enabled: settings.custom_login_background_enabled,
-        custom_login_background_type: settings.custom_login_background_type,
-        custom_login_background_color: settings.custom_login_background_color,
-        custom_login_box_background_color: settings.custom_login_box_background_color,
-        custom_google_button_background_color: settings.custom_google_button_background_color,
-        custom_google_button_text_color: settings.custom_google_button_text_color,
+        customLoginLogoEnabled: settings.customLoginLogoEnabled,
+        customLoginLogoSize: settings.customLoginLogoSize,
+        customAppNameEnabled: settings.customAppNameEnabled,
+        customAppName: appNameInput.trim() || null,
+        customAppNameSize: settings.customAppNameSize,
+        customAppNameColor: settings.customAppNameColor,
+        customAppNameFont: settings.customAppNameFont,
+        customTaglineEnabled: settings.customTaglineEnabled,
+        customTagline: taglineInput.trim() || null,
+        customTaglineSize: settings.customTaglineSize,
+        customTaglineColor: settings.customTaglineColor,
+        customTaglineFont: settings.customTaglineFont,
+        customLoginBackgroundEnabled: settings.customLoginBackgroundEnabled,
+        customLoginBackgroundType: settings.customLoginBackgroundType,
+        customLoginBackgroundColor: settings.customLoginBackgroundColor,
+        customLoginBoxBackgroundColor: settings.customLoginBoxBackgroundColor,
+        customGoogleButtonBackgroundColor: settings.customGoogleButtonBackgroundColor,
+        customGoogleButtonTextColor: settings.customGoogleButtonTextColor,
       };
 
       const { error } = await api
@@ -259,8 +259,8 @@ export function BrandingSettings() {
 
     setUploading(true);
     try {
-      if (settings.custom_login_logo_url) {
-        const oldPath = settings.custom_login_logo_url.split('/branding/')[1];
+      if (settings.customLoginLogoUrl) {
+        const oldPath = settings.customLoginLogoUrl.split('/branding/')[1];
         if (oldPath) await api.storage.from('branding').remove([oldPath]);
       }
 
@@ -271,11 +271,11 @@ export function BrandingSettings() {
       if (uploadError) throw uploadError;
 
       const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await api.from('app_settings').update({ custom_login_logo_url: urlData.publicUrl }).eq('id', 'default');
+      const { error } = await api.from('app_settings').update({ customLoginLogoUrl: urlData.publicUrl }).eq('id', 'default');
       if (error) throw error;
 
-      setSettings(prev => ({ ...prev, custom_login_logo_url: urlData.publicUrl }));
-      setSavedSettings(prev => prev ? { ...prev, custom_login_logo_url: urlData.publicUrl } : prev);
+      setSettings(prev => ({ ...prev, customLoginLogoUrl: urlData.publicUrl }));
+      setSavedSettings(prev => prev ? { ...prev, customLoginLogoUrl: urlData.publicUrl } : prev);
       toast({ title: 'Logo uploaded', description: 'Your custom login logo has been uploaded.' });
     } catch (error: any) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
@@ -286,15 +286,15 @@ export function BrandingSettings() {
   };
 
   const handleRemoveLogo = async () => {
-    if (!settings.custom_login_logo_url) return;
+    if (!settings.customLoginLogoUrl) return;
     setSaving(true);
     try {
-      const path = settings.custom_login_logo_url.split('/branding/')[1];
+      const path = settings.customLoginLogoUrl.split('/branding/')[1];
       if (path) await api.storage.from('branding').remove([path]);
-      const { error } = await api.from('app_settings').update({ custom_login_logo_url: null, custom_login_logo_enabled: false }).eq('id', 'default');
+      const { error } = await api.from('app_settings').update({ customLoginLogoUrl: null, customLoginLogoEnabled: false }).eq('id', 'default');
       if (error) throw error;
-      setSettings(prev => ({ ...prev, custom_login_logo_url: null, custom_login_logo_enabled: false }));
-      setSavedSettings(prev => prev ? { ...prev, custom_login_logo_url: null, custom_login_logo_enabled: false } : prev);
+      setSettings(prev => ({ ...prev, customLoginLogoUrl: null, customLoginLogoEnabled: false }));
+      setSavedSettings(prev => prev ? { ...prev, customLoginLogoUrl: null, customLoginLogoEnabled: false } : prev);
     } catch (error: any) {
       toast({ title: 'Error removing logo', description: error.message, variant: 'destructive' });
     } finally {
@@ -318,8 +318,8 @@ export function BrandingSettings() {
 
     setUploadingBgImage(true);
     try {
-      if (settings.custom_login_background_image_url) {
-        const oldPath = settings.custom_login_background_image_url.split('/branding/')[1];
+      if (settings.customLoginBackgroundImageUrl) {
+        const oldPath = settings.customLoginBackgroundImageUrl.split('/branding/')[1];
         if (oldPath) await api.storage.from('branding').remove([oldPath]);
       }
 
@@ -330,11 +330,11 @@ export function BrandingSettings() {
       if (uploadError) throw uploadError;
 
       const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await api.from('app_settings').update({ custom_login_background_image_url: urlData.publicUrl }).eq('id', 'default');
+      const { error } = await api.from('app_settings').update({ customLoginBackgroundImageUrl: urlData.publicUrl }).eq('id', 'default');
       if (error) throw error;
 
-      setSettings(prev => ({ ...prev, custom_login_background_image_url: urlData.publicUrl }));
-      setSavedSettings(prev => prev ? { ...prev, custom_login_background_image_url: urlData.publicUrl } : prev);
+      setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: urlData.publicUrl }));
+      setSavedSettings(prev => prev ? { ...prev, customLoginBackgroundImageUrl: urlData.publicUrl } : prev);
       toast({ title: 'Background image uploaded', description: 'Your custom background image has been uploaded.' });
     } catch (error: any) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
@@ -345,15 +345,15 @@ export function BrandingSettings() {
   };
 
   const handleRemoveBgImage = async () => {
-    if (!settings.custom_login_background_image_url) return;
+    if (!settings.customLoginBackgroundImageUrl) return;
     setSaving(true);
     try {
-      const path = settings.custom_login_background_image_url.split('/branding/')[1];
+      const path = settings.customLoginBackgroundImageUrl.split('/branding/')[1];
       if (path) await api.storage.from('branding').remove([path]);
-      const { error } = await api.from('app_settings').update({ custom_login_background_image_url: null }).eq('id', 'default');
+      const { error } = await api.from('app_settings').update({ customLoginBackgroundImageUrl: null }).eq('id', 'default');
       if (error) throw error;
-      setSettings(prev => ({ ...prev, custom_login_background_image_url: null }));
-      setSavedSettings(prev => prev ? { ...prev, custom_login_background_image_url: null } : prev);
+      setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: null }));
+      setSavedSettings(prev => prev ? { ...prev, customLoginBackgroundImageUrl: null } : prev);
     } catch (error: any) {
       toast({ title: 'Error removing background', description: error.message, variant: 'destructive' });
     } finally {
@@ -362,20 +362,20 @@ export function BrandingSettings() {
   };
 
   const getPreviewBackgroundStyles = () => {
-    if (!settings.custom_login_background_enabled) {
+    if (!settings.customLoginBackgroundEnabled) {
       return { className: 'bg-gradient-to-br from-muted via-background to-muted' };
     }
-    if (settings.custom_login_background_type === 'image' && settings.custom_login_background_image_url) {
+    if (settings.customLoginBackgroundType === 'image' && settings.customLoginBackgroundImageUrl) {
       return {
         style: {
-          backgroundImage: `url(${settings.custom_login_background_image_url})`,
+          backgroundImage: `url(${settings.customLoginBackgroundImageUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
         }
       };
     }
-    return { style: { backgroundColor: settings.custom_login_background_color } };
+    return { style: { backgroundColor: settings.customLoginBackgroundColor } };
   };
 
   if (loading) {
@@ -415,19 +415,19 @@ export function BrandingSettings() {
                 <Label htmlFor="bg-toggle" className="font-medium">Enable custom background</Label>
                 <Switch
                   id="bg-toggle"
-                  checked={settings.custom_login_background_enabled}
-                  onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, custom_login_background_enabled: enabled }))}
+                  checked={settings.customLoginBackgroundEnabled}
+                  onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, customLoginBackgroundEnabled: enabled }))}
                   disabled={saving}
                 />
               </div>
 
-              {settings.custom_login_background_enabled && (
+              {settings.customLoginBackgroundEnabled && (
                 <>
                   <div className="border-t pt-4">
                     <Label className="text-sm font-medium mb-2 block">Background Type</Label>
                     <Select
-                      value={settings.custom_login_background_type}
-                      onValueChange={(value) => setSettings(prev => ({ ...prev, custom_login_background_type: value as BackgroundType }))}
+                      value={settings.customLoginBackgroundType}
+                      onValueChange={(value) => setSettings(prev => ({ ...prev, customLoginBackgroundType: value as BackgroundType }))}
                       disabled={saving}
                     >
                       <SelectTrigger className="w-full">
@@ -440,35 +440,35 @@ export function BrandingSettings() {
                     </Select>
                   </div>
 
-                  {settings.custom_login_background_type === 'color' && (
+                  {settings.customLoginBackgroundType === 'color' && (
                     <div className="border-t pt-4">
                       <Label className="text-sm font-medium mb-2 block">Background Color</Label>
                       <div className="flex items-center gap-2">
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button variant="outline" size="icon" className="shrink-0">
-                              <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.custom_login_background_color }} />
+                              <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.customLoginBackgroundColor }} />
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-3" align="start">
                             <div className="space-y-2">
-                              <input type="color" value={settings.custom_login_background_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_login_background_color: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
-                              <Input value={settings.custom_login_background_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_login_background_color: e.target.value }))} className="font-mono text-sm" />
+                              <input type="color" value={settings.customLoginBackgroundColor} onChange={(e) => setSettings(prev => ({ ...prev, customLoginBackgroundColor: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
+                              <Input value={settings.customLoginBackgroundColor} onChange={(e) => setSettings(prev => ({ ...prev, customLoginBackgroundColor: e.target.value }))} className="font-mono text-sm" />
                             </div>
                           </PopoverContent>
                         </Popover>
-                        <Input value={settings.custom_login_background_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_login_background_color: e.target.value }))} className="font-mono text-sm" />
+                        <Input value={settings.customLoginBackgroundColor} onChange={(e) => setSettings(prev => ({ ...prev, customLoginBackgroundColor: e.target.value }))} className="font-mono text-sm" />
                       </div>
                     </div>
                   )}
 
-                  {settings.custom_login_background_type === 'image' && (
+                  {settings.customLoginBackgroundType === 'image' && (
                     <div className="border-t pt-4">
                       <Label className="text-sm font-medium mb-2 block">Background Image</Label>
-                      {settings.custom_login_background_image_url ? (
+                      {settings.customLoginBackgroundImageUrl ? (
                         <div className="space-y-2">
                           <div className="relative inline-block">
-                            <img src={settings.custom_login_background_image_url} alt="Background preview" className="max-h-24 max-w-full rounded-md border object-cover" />
+                            <img src={settings.customLoginBackgroundImageUrl} alt="Background preview" className="max-h-24 max-w-full rounded-md border object-cover" />
                             <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6" onClick={handleRemoveBgImage} disabled={saving}>
                               <X className="h-3 w-3" />
                             </Button>
@@ -505,17 +505,17 @@ export function BrandingSettings() {
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="icon" className="shrink-0">
-                        <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.custom_login_box_background_color }} />
+                        <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.customLoginBoxBackgroundColor }} />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-3" align="start">
                       <div className="space-y-2">
-                        <input type="color" value={settings.custom_login_box_background_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_login_box_background_color: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
-                        <Input value={settings.custom_login_box_background_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_login_box_background_color: e.target.value }))} className="font-mono text-sm" />
+                        <input type="color" value={settings.customLoginBoxBackgroundColor} onChange={(e) => setSettings(prev => ({ ...prev, customLoginBoxBackgroundColor: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
+                        <Input value={settings.customLoginBoxBackgroundColor} onChange={(e) => setSettings(prev => ({ ...prev, customLoginBoxBackgroundColor: e.target.value }))} className="font-mono text-sm" />
                       </div>
                     </PopoverContent>
                   </Popover>
-                  <Input value={settings.custom_login_box_background_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_login_box_background_color: e.target.value }))} className="font-mono text-sm" />
+                  <Input value={settings.customLoginBoxBackgroundColor} onChange={(e) => setSettings(prev => ({ ...prev, customLoginBoxBackgroundColor: e.target.value }))} className="font-mono text-sm" />
                 </div>
               </div>
 
@@ -525,17 +525,17 @@ export function BrandingSettings() {
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="icon" className="shrink-0">
-                        <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.custom_google_button_background_color }} />
+                        <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.customGoogleButtonBackgroundColor }} />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-3" align="start">
                       <div className="space-y-2">
-                        <input type="color" value={settings.custom_google_button_background_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_background_color: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
-                        <Input value={settings.custom_google_button_background_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_background_color: e.target.value }))} className="font-mono text-sm" />
+                        <input type="color" value={settings.customGoogleButtonBackgroundColor} onChange={(e) => setSettings(prev => ({ ...prev, customGoogleButtonBackgroundColor: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
+                        <Input value={settings.customGoogleButtonBackgroundColor} onChange={(e) => setSettings(prev => ({ ...prev, customGoogleButtonBackgroundColor: e.target.value }))} className="font-mono text-sm" />
                       </div>
                     </PopoverContent>
                   </Popover>
-                  <Input value={settings.custom_google_button_background_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_background_color: e.target.value }))} className="font-mono text-sm" />
+                  <Input value={settings.customGoogleButtonBackgroundColor} onChange={(e) => setSettings(prev => ({ ...prev, customGoogleButtonBackgroundColor: e.target.value }))} className="font-mono text-sm" />
                 </div>
               </div>
 
@@ -545,17 +545,17 @@ export function BrandingSettings() {
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="icon" className="shrink-0">
-                        <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.custom_google_button_text_color }} />
+                        <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.customGoogleButtonTextColor }} />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-3" align="start">
                       <div className="space-y-2">
-                        <input type="color" value={settings.custom_google_button_text_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_text_color: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
-                        <Input value={settings.custom_google_button_text_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_text_color: e.target.value }))} className="font-mono text-sm" />
+                        <input type="color" value={settings.customGoogleButtonTextColor} onChange={(e) => setSettings(prev => ({ ...prev, customGoogleButtonTextColor: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
+                        <Input value={settings.customGoogleButtonTextColor} onChange={(e) => setSettings(prev => ({ ...prev, customGoogleButtonTextColor: e.target.value }))} className="font-mono text-sm" />
                       </div>
                     </PopoverContent>
                   </Popover>
-                  <Input value={settings.custom_google_button_text_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_google_button_text_color: e.target.value }))} className="font-mono text-sm" />
+                  <Input value={settings.customGoogleButtonTextColor} onChange={(e) => setSettings(prev => ({ ...prev, customGoogleButtonTextColor: e.target.value }))} className="font-mono text-sm" />
                 </div>
               </div>
             </CardContent>
@@ -572,18 +572,18 @@ export function BrandingSettings() {
                 <Label htmlFor="logo-toggle" className="font-medium">Enable custom logo</Label>
                 <Switch
                   id="logo-toggle"
-                  checked={settings.custom_login_logo_enabled}
-                  onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, custom_login_logo_enabled: enabled }))}
-                  disabled={saving || !settings.custom_login_logo_url}
+                  checked={settings.customLoginLogoEnabled}
+                  onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, customLoginLogoEnabled: enabled }))}
+                  disabled={saving || !settings.customLoginLogoUrl}
                 />
               </div>
 
               <div className="border-t pt-4">
                 <Label className="text-sm font-medium mb-2 block">Logo Image</Label>
-                {settings.custom_login_logo_url ? (
+                {settings.customLoginLogoUrl ? (
                   <div className="space-y-2">
                     <div className="relative inline-block">
-                      <img src={settings.custom_login_logo_url} alt="Login logo preview" className="max-h-20 max-w-full rounded-md border bg-muted object-contain p-2" />
+                      <img src={settings.customLoginLogoUrl} alt="Login logo preview" className="max-h-20 max-w-full rounded-md border bg-muted object-contain p-2" />
                       <Button variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6" onClick={handleRemoveLogo} disabled={saving}>
                         <X className="h-3 w-3" />
                       </Button>
@@ -602,10 +602,10 @@ export function BrandingSettings() {
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
               </div>
 
-              {settings.custom_login_logo_url && (
+              {settings.customLoginLogoUrl && (
                 <div className="border-t pt-4">
                   <Label className="text-sm font-medium mb-2 block">Logo Size</Label>
-                  <Select value={settings.custom_login_logo_size} onValueChange={(value) => setSettings(prev => ({ ...prev, custom_login_logo_size: value as LogoSize }))} disabled={saving}>
+                  <Select value={settings.customLoginLogoSize} onValueChange={(value) => setSettings(prev => ({ ...prev, customLoginLogoSize: value as LogoSize }))} disabled={saving}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select size" />
                     </SelectTrigger>
@@ -631,8 +631,8 @@ export function BrandingSettings() {
                 <Label htmlFor="appname-toggle" className="font-medium">Enable custom app name</Label>
                 <Switch
                   id="appname-toggle"
-                  checked={settings.custom_app_name_enabled}
-                  onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, custom_app_name_enabled: enabled }))}
+                  checked={settings.customAppNameEnabled}
+                  onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, customAppNameEnabled: enabled }))}
                   disabled={saving || !appNameInput.trim()}
                 />
               </div>
@@ -646,7 +646,7 @@ export function BrandingSettings() {
                 <div className="border-t pt-4 space-y-3">
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Font</Label>
-                    <Select value={settings.custom_app_name_font} onValueChange={(value) => setSettings(prev => ({ ...prev, custom_app_name_font: value }))} disabled={saving}>
+                    <Select value={settings.customAppNameFont} onValueChange={(value) => setSettings(prev => ({ ...prev, customAppNameFont: value }))} disabled={saving}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select font" />
                       </SelectTrigger>
@@ -660,7 +660,7 @@ export function BrandingSettings() {
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Size & Color</Label>
                     <div className="flex items-center gap-2">
-                      <Select value={settings.custom_app_name_size.toString()} onValueChange={(value) => setSettings(prev => ({ ...prev, custom_app_name_size: parseInt(value) }))} disabled={saving}>
+                      <Select value={settings.customAppNameSize.toString()} onValueChange={(value) => setSettings(prev => ({ ...prev, customAppNameSize: parseInt(value) }))} disabled={saving}>
                         <SelectTrigger className="w-[80px]">
                           <SelectValue />
                         </SelectTrigger>
@@ -673,13 +673,13 @@ export function BrandingSettings() {
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button variant="outline" size="icon" className="shrink-0">
-                            <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.custom_app_name_color }} />
+                            <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.customAppNameColor }} />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-3" align="start">
                           <div className="space-y-2">
-                            <input type="color" value={settings.custom_app_name_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_app_name_color: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
-                            <Input value={settings.custom_app_name_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_app_name_color: e.target.value }))} className="font-mono text-sm" />
+                            <input type="color" value={settings.customAppNameColor} onChange={(e) => setSettings(prev => ({ ...prev, customAppNameColor: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
+                            <Input value={settings.customAppNameColor} onChange={(e) => setSettings(prev => ({ ...prev, customAppNameColor: e.target.value }))} className="font-mono text-sm" />
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -701,8 +701,8 @@ export function BrandingSettings() {
                 <Label htmlFor="tagline-toggle" className="font-medium">Enable custom tagline</Label>
                 <Switch
                   id="tagline-toggle"
-                  checked={settings.custom_tagline_enabled}
-                  onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, custom_tagline_enabled: enabled }))}
+                  checked={settings.customTaglineEnabled}
+                  onCheckedChange={(enabled) => setSettings(prev => ({ ...prev, customTaglineEnabled: enabled }))}
                   disabled={saving || !taglineInput.trim()}
                 />
               </div>
@@ -716,7 +716,7 @@ export function BrandingSettings() {
                 <div className="border-t pt-4 space-y-3">
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Font</Label>
-                    <Select value={settings.custom_tagline_font} onValueChange={(value) => setSettings(prev => ({ ...prev, custom_tagline_font: value }))} disabled={saving}>
+                    <Select value={settings.customTaglineFont} onValueChange={(value) => setSettings(prev => ({ ...prev, customTaglineFont: value }))} disabled={saving}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select font" />
                       </SelectTrigger>
@@ -730,7 +730,7 @@ export function BrandingSettings() {
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Size & Color</Label>
                     <div className="flex items-center gap-2">
-                      <Select value={settings.custom_tagline_size.toString()} onValueChange={(value) => setSettings(prev => ({ ...prev, custom_tagline_size: parseInt(value) }))} disabled={saving}>
+                      <Select value={settings.customTaglineSize.toString()} onValueChange={(value) => setSettings(prev => ({ ...prev, customTaglineSize: parseInt(value) }))} disabled={saving}>
                         <SelectTrigger className="w-[80px]">
                           <SelectValue />
                         </SelectTrigger>
@@ -743,13 +743,13 @@ export function BrandingSettings() {
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button variant="outline" size="icon" className="shrink-0">
-                            <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.custom_tagline_color }} />
+                            <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: settings.customTaglineColor }} />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-3" align="start">
                           <div className="space-y-2">
-                            <input type="color" value={settings.custom_tagline_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_tagline_color: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
-                            <Input value={settings.custom_tagline_color} onChange={(e) => setSettings(prev => ({ ...prev, custom_tagline_color: e.target.value }))} className="font-mono text-sm" />
+                            <input type="color" value={settings.customTaglineColor} onChange={(e) => setSettings(prev => ({ ...prev, customTaglineColor: e.target.value }))} className="w-full h-8 cursor-pointer rounded border-0" />
+                            <Input value={settings.customTaglineColor} onChange={(e) => setSettings(prev => ({ ...prev, customTaglineColor: e.target.value }))} className="font-mono text-sm" />
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -775,17 +775,17 @@ export function BrandingSettings() {
                 >
                   <div 
                     className="w-full max-w-[280px] rounded-lg shadow-lg"
-                    style={{ backgroundColor: settings.custom_login_box_background_color }}
+                    style={{ backgroundColor: settings.customLoginBoxBackgroundColor }}
                   >
                     <div className="p-4 text-center space-y-3">
-                      {settings.custom_login_logo_enabled && settings.custom_login_logo_url && (
+                      {settings.customLoginLogoEnabled && settings.customLoginLogoUrl && (
                         <div className="flex justify-center">
                           <img
-                            src={settings.custom_login_logo_url}
+                            src={settings.customLoginLogoUrl}
                             alt="Logo Preview"
                             className={`object-contain ${
-                              settings.custom_login_logo_size === 'small' ? 'w-[50px] h-[50px]' 
-                              : settings.custom_login_logo_size === 'large' ? 'w-[120px] h-[120px]' 
+                              settings.customLoginLogoSize === 'small' ? 'w-[50px] h-[50px]' 
+                              : settings.customLoginLogoSize === 'large' ? 'w-[120px] h-[120px]' 
                               : 'w-[80px] h-[80px]'
                             }`}
                           />
@@ -795,22 +795,22 @@ export function BrandingSettings() {
                         <h1 
                           className="font-bold text-center truncate" 
                           style={{ 
-                            fontSize: `${Math.min(settings.custom_app_name_enabled && appNameInput.trim() ? settings.custom_app_name_size : 24, 24)}px`, 
-                            color: settings.custom_app_name_enabled && appNameInput.trim() ? settings.custom_app_name_color : '#000000',
-                            fontFamily: settings.custom_app_name_enabled && appNameInput.trim() ? getFontFamily(settings.custom_app_name_font) : 'Inter, sans-serif',
+                            fontSize: `${Math.min(settings.customAppNameEnabled && appNameInput.trim() ? settings.customAppNameSize : 24, 24)}px`, 
+                            color: settings.customAppNameEnabled && appNameInput.trim() ? settings.customAppNameColor : '#000000',
+                            fontFamily: settings.customAppNameEnabled && appNameInput.trim() ? getFontFamily(settings.customAppNameFont) : 'Inter, sans-serif',
                           }}
                         >
-                          {settings.custom_app_name_enabled && appNameInput.trim() ? appNameInput : 'KanBoard'}
+                          {settings.customAppNameEnabled && appNameInput.trim() ? appNameInput : 'KanBoard'}
                         </h1>
                         <p 
                           className="text-center leading-relaxed line-clamp-2" 
                           style={{ 
-                            fontSize: `${Math.min(settings.custom_tagline_enabled && taglineInput.trim() ? settings.custom_tagline_size : 14, 14)}px`, 
-                            color: settings.custom_tagline_enabled && taglineInput.trim() ? settings.custom_tagline_color : '#6b7280',
-                            fontFamily: settings.custom_tagline_enabled && taglineInput.trim() ? getFontFamily(settings.custom_tagline_font) : 'Inter, sans-serif',
+                            fontSize: `${Math.min(settings.customTaglineEnabled && taglineInput.trim() ? settings.customTaglineSize : 14, 14)}px`, 
+                            color: settings.customTaglineEnabled && taglineInput.trim() ? settings.customTaglineColor : '#6b7280',
+                            fontFamily: settings.customTaglineEnabled && taglineInput.trim() ? getFontFamily(settings.customTaglineFont) : 'Inter, sans-serif',
                           }}
                         >
-                          {settings.custom_tagline_enabled && taglineInput.trim() ? taglineInput : 'Sign in to manage your boards'}
+                          {settings.customTaglineEnabled && taglineInput.trim() ? taglineInput : 'Sign in to manage your boards'}
                         </p>
                       </div>
                     </div>
@@ -818,8 +818,8 @@ export function BrandingSettings() {
                       <button 
                         className="w-full h-9 text-sm border rounded-md flex items-center justify-center gap-2"
                         style={{
-                          backgroundColor: settings.custom_google_button_background_color,
-                          color: settings.custom_google_button_text_color,
+                          backgroundColor: settings.customGoogleButtonBackgroundColor,
+                          color: settings.customGoogleButtonTextColor,
                         }}
                       >
                         <svg className="h-4 w-4" viewBox="0 0 24 24">

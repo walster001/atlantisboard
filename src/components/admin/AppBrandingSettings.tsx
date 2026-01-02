@@ -11,27 +11,27 @@ import { useToast } from '@/hooks/use-toast';
 import { Upload, X, Loader2, Image as ImageIcon, LayoutDashboard } from 'lucide-react';
 
 interface AppBrandingState {
-  custom_home_logo_enabled: boolean;
-  custom_home_logo_url: string | null;
-  custom_home_logo_size: number;
-  custom_board_logo_enabled: boolean;
-  custom_board_logo_url: string | null;
-  custom_board_logo_size: number;
-  custom_global_app_name_enabled: boolean;
-  custom_global_app_name: string | null;
+  customHomeLogoEnabled: boolean;
+  customHomeLogoUrl: string | null;
+  customHomeLogoSize: number;
+  customBoardLogoEnabled: boolean;
+  customBoardLogoUrl: string | null;
+  customBoardLogoSize: number;
+  customGlobalAppNameEnabled: boolean;
+  customGlobalAppName: string | null;
 }
 
 export function AppBrandingSettings() {
   const { refreshSettings } = useAppSettings();
   const [settings, setSettings] = useState<AppBrandingState>({
-    custom_home_logo_enabled: false,
-    custom_home_logo_url: null,
-    custom_home_logo_size: 40,
-    custom_board_logo_enabled: false,
-    custom_board_logo_url: null,
-    custom_board_logo_size: 40,
-    custom_global_app_name_enabled: false,
-    custom_global_app_name: null,
+    customHomeLogoEnabled: false,
+    customHomeLogoUrl: null,
+    customHomeLogoSize: 40,
+    customBoardLogoEnabled: false,
+    customBoardLogoUrl: null,
+    customBoardLogoSize: 40,
+    customGlobalAppNameEnabled: false,
+    customGlobalAppName: null,
   });
   const [savedSettings, setSavedSettings] = useState<AppBrandingState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,25 +51,25 @@ export function AppBrandingSettings() {
     try {
       const { data, error } = await api
         .from('app_settings')
-        .select('custom_home_logo_enabled, custom_home_logo_url, custom_home_logo_size, custom_board_logo_enabled, custom_board_logo_url, custom_board_logo_size, custom_global_app_name_enabled, custom_global_app_name')
+        .select('customHomeLogoEnabled, customHomeLogoUrl, customHomeLogoSize, customBoardLogoEnabled, customBoardLogoUrl, customBoardLogoSize, customGlobalAppNameEnabled, customGlobalAppName')
         .eq('id', 'default')
         .single();
 
       if (error) throw error;
       if (data) {
         const loadedSettings: AppBrandingState = {
-          custom_home_logo_enabled: data.custom_home_logo_enabled ?? false,
-          custom_home_logo_url: data.custom_home_logo_url,
-          custom_home_logo_size: data.custom_home_logo_size ?? 40,
-          custom_board_logo_enabled: data.custom_board_logo_enabled ?? false,
-          custom_board_logo_url: data.custom_board_logo_url,
-          custom_board_logo_size: data.custom_board_logo_size ?? 40,
-          custom_global_app_name_enabled: data.custom_global_app_name_enabled ?? false,
-          custom_global_app_name: data.custom_global_app_name,
+          customHomeLogoEnabled: data.data?.customHomeLogoEnabled ?? false,
+          customHomeLogoUrl: data.data?.customHomeLogoUrl,
+          customHomeLogoSize: data.data?.customHomeLogoSize ?? 40,
+          customBoardLogoEnabled: data.data?.customBoardLogoEnabled ?? false,
+          customBoardLogoUrl: data.data?.customBoardLogoUrl,
+          customBoardLogoSize: data.data?.customBoardLogoSize ?? 40,
+          customGlobalAppNameEnabled: data.data?.customGlobalAppNameEnabled ?? false,
+          customGlobalAppName: data.data?.customGlobalAppName,
         };
         setSettings(loadedSettings);
         setSavedSettings(loadedSettings);
-        setAppNameInput(data.custom_global_app_name || '');
+        setAppNameInput(data.data?.customGlobalAppName || '');
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -81,12 +81,12 @@ export function AppBrandingSettings() {
   const hasUnsavedChanges = () => {
     if (!savedSettings) return false;
     return (
-      settings.custom_home_logo_enabled !== savedSettings.custom_home_logo_enabled ||
-      settings.custom_home_logo_size !== savedSettings.custom_home_logo_size ||
-      settings.custom_board_logo_enabled !== savedSettings.custom_board_logo_enabled ||
-      settings.custom_board_logo_size !== savedSettings.custom_board_logo_size ||
-      settings.custom_global_app_name_enabled !== savedSettings.custom_global_app_name_enabled ||
-      appNameInput.trim() !== (savedSettings.custom_global_app_name || '')
+      settings.customHomeLogoEnabled !== savedSettings.customHomeLogoEnabled ||
+      settings.customHomeLogoSize !== savedSettings.customHomeLogoSize ||
+      settings.customBoardLogoEnabled !== savedSettings.customBoardLogoEnabled ||
+      settings.customBoardLogoSize !== savedSettings.customBoardLogoSize ||
+      settings.customGlobalAppNameEnabled !== savedSettings.customGlobalAppNameEnabled ||
+      appNameInput.trim() !== (savedSettings.customGlobalAppName || '')
     );
   };
 
@@ -94,12 +94,12 @@ export function AppBrandingSettings() {
     setSaving(true);
     try {
       const updates = {
-        custom_home_logo_enabled: settings.custom_home_logo_enabled,
-        custom_home_logo_size: settings.custom_home_logo_size,
-        custom_board_logo_enabled: settings.custom_board_logo_enabled,
-        custom_board_logo_size: settings.custom_board_logo_size,
-        custom_global_app_name_enabled: settings.custom_global_app_name_enabled,
-        custom_global_app_name: appNameInput.trim() || null,
+        customHomeLogoEnabled: settings.customHomeLogoEnabled,
+        customHomeLogoSize: settings.customHomeLogoSize,
+        customBoardLogoEnabled: settings.customBoardLogoEnabled,
+        customBoardLogoSize: settings.customBoardLogoSize,
+        customGlobalAppNameEnabled: settings.customGlobalAppNameEnabled,
+        customGlobalAppName: appNameInput.trim() || null,
       };
 
       const { error } = await api
@@ -109,7 +109,7 @@ export function AppBrandingSettings() {
 
       if (error) throw error;
 
-      const newSettings = { ...settings, custom_global_app_name: appNameInput.trim() || null };
+      const newSettings = { ...settings, customGlobalAppName: appNameInput.trim() || null };
       setSettings(newSettings);
       setSavedSettings(newSettings);
 
@@ -140,7 +140,7 @@ export function AppBrandingSettings() {
 
     setUploading(true);
     try {
-      const urlKey = type === 'home' ? 'custom_home_logo_url' : 'custom_board_logo_url';
+      const urlKey = type === 'home' ? 'customHomeLogoUrl' : 'customBoardLogoUrl';
       const currentUrl = settings[urlKey];
 
       if (currentUrl) {
@@ -170,8 +170,8 @@ export function AppBrandingSettings() {
   };
 
   const handleRemoveLogo = async (type: 'home' | 'board') => {
-    const urlKey = type === 'home' ? 'custom_home_logo_url' : 'custom_board_logo_url';
-    const enabledKey = type === 'home' ? 'custom_home_logo_enabled' : 'custom_board_logo_enabled';
+    const urlKey = type === 'home' ? 'customHomeLogoUrl' : 'customBoardLogoUrl';
+    const enabledKey = type === 'home' ? 'customHomeLogoEnabled' : 'customBoardLogoEnabled';
     const currentUrl = settings[urlKey];
 
     if (!currentUrl) return;
@@ -224,11 +224,11 @@ export function AppBrandingSettings() {
               <Label htmlFor="app-name-toggle" className="font-medium">Enable custom app name</Label>
               <Switch
                 id="app-name-toggle"
-                checked={settings.custom_global_app_name_enabled}
-                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, custom_global_app_name_enabled: checked }))}
+                checked={settings.customGlobalAppNameEnabled}
+                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, customGlobalAppNameEnabled: checked }))}
               />
             </div>
-            {settings.custom_global_app_name_enabled && (
+            {settings.customGlobalAppNameEnabled && (
               <div className="space-y-2">
                 <Label htmlFor="app-name-input">App Name</Label>
                 <Input
@@ -245,7 +245,7 @@ export function AppBrandingSettings() {
               <div className="flex items-center gap-2">
                 <LayoutDashboard className="h-6 w-6 text-primary" />
                 <span className="text-xl font-bold">
-                  {settings.custom_global_app_name_enabled && appNameInput.trim() ? appNameInput.trim() : 'KanBoard'}
+                  {settings.customGlobalAppNameEnabled && appNameInput.trim() ? appNameInput.trim() : 'KanBoard'}
                 </span>
               </div>
             </div>
@@ -263,18 +263,18 @@ export function AppBrandingSettings() {
               <Label htmlFor="home-logo-toggle" className="font-medium">Enable custom homepage logo</Label>
               <Switch
                 id="home-logo-toggle"
-                checked={settings.custom_home_logo_enabled}
-                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, custom_home_logo_enabled: checked }))}
-                disabled={!settings.custom_home_logo_url}
+                checked={settings.customHomeLogoEnabled}
+                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, customHomeLogoEnabled: checked }))}
+                disabled={!settings.customHomeLogoUrl}
               />
             </div>
 
             <div className="space-y-2">
               <Label>Logo Image</Label>
               <div className="flex items-center gap-3">
-                {settings.custom_home_logo_url ? (
+                {settings.customHomeLogoUrl ? (
                   <div className="relative w-16 h-16 border rounded-lg overflow-hidden bg-muted flex items-center justify-center">
-                    <img src={settings.custom_home_logo_url} alt="Home logo" className="max-w-full max-h-full object-contain" />
+                    <img src={settings.customHomeLogoUrl} alt="Home logo" className="max-w-full max-h-full object-contain" />
                     <button
                       onClick={() => handleRemoveLogo('home')}
                       className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5"
@@ -308,12 +308,12 @@ export function AppBrandingSettings() {
               </div>
             </div>
 
-            {settings.custom_home_logo_url && (
+            {settings.customHomeLogoUrl && (
               <div className="space-y-2">
-                <Label>Logo Size: {settings.custom_home_logo_size}px</Label>
+                <Label>Logo Size: {settings.customHomeLogoSize}px</Label>
                 <Slider
-                  value={[settings.custom_home_logo_size]}
-                  onValueChange={([value]) => setSettings(prev => ({ ...prev, custom_home_logo_size: value }))}
+                  value={[settings.customHomeLogoSize]}
+                  onValueChange={([value]) => setSettings(prev => ({ ...prev, customHomeLogoSize: value }))}
                   min={10}
                   max={100}
                   step={1}
@@ -322,18 +322,18 @@ export function AppBrandingSettings() {
               </div>
             )}
 
-            {settings.custom_home_logo_url && (
+            {settings.customHomeLogoUrl && (
               <div className="p-4 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground mb-2">Preview:</p>
                 <div className="flex items-center gap-2 bg-card p-2 rounded border">
                   <img
-                    src={settings.custom_home_logo_url}
+                    src={settings.customHomeLogoUrl}
                     alt="Home logo preview"
-                    style={{ width: settings.custom_home_logo_size, height: settings.custom_home_logo_size }}
+                    style={{ width: settings.customHomeLogoSize, height: settings.customHomeLogoSize }}
                     className="object-contain"
                   />
                   <span className="text-xl font-bold">
-                    {settings.custom_global_app_name_enabled && appNameInput.trim() ? appNameInput.trim() : 'KanBoard'}
+                    {settings.customGlobalAppNameEnabled && appNameInput.trim() ? appNameInput.trim() : 'KanBoard'}
                   </span>
                 </div>
               </div>
@@ -352,18 +352,18 @@ export function AppBrandingSettings() {
               <Label htmlFor="board-logo-toggle" className="font-medium">Enable custom board page logo</Label>
               <Switch
                 id="board-logo-toggle"
-                checked={settings.custom_board_logo_enabled}
-                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, custom_board_logo_enabled: checked }))}
-                disabled={!settings.custom_board_logo_url}
+                checked={settings.customBoardLogoEnabled}
+                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, customBoardLogoEnabled: checked }))}
+                disabled={!settings.customBoardLogoUrl}
               />
             </div>
 
             <div className="space-y-2">
               <Label>Logo Image</Label>
               <div className="flex items-center gap-3">
-                {settings.custom_board_logo_url ? (
+                {settings.customBoardLogoUrl ? (
                   <div className="relative w-16 h-16 border rounded-lg overflow-hidden bg-muted flex items-center justify-center">
-                    <img src={settings.custom_board_logo_url} alt="Board logo" className="max-w-full max-h-full object-contain" />
+                    <img src={settings.customBoardLogoUrl} alt="Board logo" className="max-w-full max-h-full object-contain" />
                     <button
                       onClick={() => handleRemoveLogo('board')}
                       className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5"
@@ -397,12 +397,12 @@ export function AppBrandingSettings() {
               </div>
             </div>
 
-            {settings.custom_board_logo_url && (
+            {settings.customBoardLogoUrl && (
               <div className="space-y-2">
-                <Label>Logo Size: {settings.custom_board_logo_size}px</Label>
+                <Label>Logo Size: {settings.customBoardLogoSize}px</Label>
                 <Slider
-                  value={[settings.custom_board_logo_size]}
-                  onValueChange={([value]) => setSettings(prev => ({ ...prev, custom_board_logo_size: value }))}
+                  value={[settings.customBoardLogoSize]}
+                  onValueChange={([value]) => setSettings(prev => ({ ...prev, customBoardLogoSize: value }))}
                   min={10}
                   max={100}
                   step={1}
@@ -411,14 +411,14 @@ export function AppBrandingSettings() {
               </div>
             )}
 
-            {settings.custom_board_logo_url && (
+            {settings.customBoardLogoUrl && (
               <div className="p-4 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground mb-2">Preview:</p>
                 <div className="flex items-center gap-2 bg-card p-2 rounded border">
                   <img
-                    src={settings.custom_board_logo_url}
+                    src={settings.customBoardLogoUrl}
                     alt="Board logo preview"
-                    style={{ width: settings.custom_board_logo_size, height: settings.custom_board_logo_size }}
+                    style={{ width: settings.customBoardLogoSize, height: settings.customBoardLogoSize }}
                     className="object-contain"
                   />
                   <span className="text-xl font-bold">Board Name</span>

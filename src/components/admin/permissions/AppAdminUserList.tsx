@@ -45,9 +45,9 @@ import { useAuth } from '@/hooks/useAuth';
 interface UserProfile {
   id: string;
   email: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  is_admin: boolean;
+  fullName: string | null;
+  avatarUrl: string | null;
+  isAdmin: boolean;
 }
 
 interface AppAdminUserListProps {
@@ -70,19 +70,19 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
 
   // Current app admins
   const currentAdmins = useMemo(
-    () => allUsers.filter(u => u.is_admin),
+    () => allUsers.filter(u => u.isAdmin),
     [allUsers]
   );
 
   // Non-admin users for the add dialog, filtered by search
   const nonAdminUsers = useMemo(() => {
-    const nonAdmins = allUsers.filter(u => !u.is_admin);
+    const nonAdmins = allUsers.filter(u => !u.isAdmin);
     if (!searchQuery.trim()) return nonAdmins;
     
     const query = searchQuery.toLowerCase();
     return nonAdmins.filter(u =>
       u.email.toLowerCase().includes(query) ||
-      (u.full_name?.toLowerCase() || '').includes(query)
+      (u.fullName?.toLowerCase() || '').includes(query)
     );
   }, [allUsers, searchQuery]);
 
@@ -96,11 +96,11 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, avatar_url, is_admin')
-        .order('full_name', { ascending: true, nullsFirst: false });
+        .select('id, email, fullName, avatarUrl, isAdmin')
+        .order('fullName', { ascending: true, nullsFirst: false });
 
       if (error) throw error;
-      setAllUsers(data || []);
+      setAllUsers(data?.data || data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
@@ -126,16 +126,16 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
       const newAdminStatus = action === 'add';
       const { error } = await supabase
         .from('profiles')
-        .update({ is_admin: newAdminStatus })
+        .update({ isAdmin: newAdminStatus })
         .eq('id', targetUser.id);
 
       if (error) throw error;
 
-      const displayName = targetUser.full_name || targetUser.email;
+      const displayName = targetUser.fullName || targetUser.email;
       
       // Update local state immediately for instant UI feedback
       setAllUsers(prev => prev.map(u => 
-        u.id === targetUser.id ? { ...u, is_admin: newAdminStatus } : u
+        u.id === targetUser.id ? { ...u, isAdmin: newAdminStatus } : u
       ));
       
       if (action === 'add') {
@@ -226,14 +226,14 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
                 <TableRow key={userProfile.id}>
                   <TableCell>
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={userProfile.avatar_url || undefined} />
+                      <AvatarImage src={userProfile.avatarUrl || undefined} />
                       <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                        {getInitials(userProfile.full_name, userProfile.email)}
+                        {getInitials(userProfile.fullName, userProfile.email)}
                       </AvatarFallback>
                     </Avatar>
                   </TableCell>
                   <TableCell className="font-medium">
-                    {userProfile.full_name || '—'}
+                    {userProfile.fullName || '—'}
                     {isSelf && (
                       <span className="ml-2 text-xs text-muted-foreground">(you)</span>
                     )}
@@ -252,7 +252,7 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
                               onClick={() => handleRemoveClick(userProfile)}
                               disabled={disabled}
                               className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              aria-label={`Remove App Admin from ${userProfile.full_name || userProfile.email}`}
+                              aria-label={`Remove App Admin from ${userProfile.fullName || userProfile.email}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -318,14 +318,14 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-9 w-9">
-                        <AvatarImage src={userProfile.avatar_url || undefined} />
+                        <AvatarImage src={userProfile.avatarUrl || undefined} />
                         <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                          {getInitials(userProfile.full_name, userProfile.email)}
+                          {getInitials(userProfile.fullName, userProfile.email)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="font-medium text-sm">
-                          {userProfile.full_name || '—'}
+                          {userProfile.fullName || '—'}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {userProfile.email}
@@ -364,12 +364,12 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
             <AlertDialogDescription>
               {confirmDialog.action === 'add' ? (
                 <>
-                  Are you sure you want to grant <strong>{confirmDialog.user?.full_name || confirmDialog.user?.email}</strong> App Admin privileges? 
+                  Are you sure you want to grant <strong>{confirmDialog.user?.fullName || confirmDialog.user?.email}</strong> App Admin privileges? 
                   They will have full access to all features and settings.
                 </>
               ) : (
                 <>
-                  Are you sure you want to remove <strong>{confirmDialog.user?.full_name || confirmDialog.user?.email}</strong> as an App Admin? 
+                  Are you sure you want to remove <strong>{confirmDialog.user?.fullName || confirmDialog.user?.email}</strong> as an App Admin? 
                   They will lose access to all admin features.
                 </>
               )}

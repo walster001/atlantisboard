@@ -306,37 +306,13 @@ export default function Home() {
           description: 'You have been added to a new board.',
         });
       },
-      onRemoved: (payload) => {
-        const deletedMembership = payload.old as { boardId: string; userId: string };
-        const deletedBoardId = deletedMembership.boardId;
-
-        setBoards((prevBoards) => {
-          const removedBoard = prevBoards.find((b) => b.id === deletedBoardId);
-          const workspaceId = removedBoard?.workspaceId;
-
-          const remainingBoardsInWorkspace = prevBoards.filter(
-            (b) => b.workspaceId === workspaceId && b.id !== deletedBoardId
-          );
-          const shouldRemoveWorkspace = workspaceId && remainingBoardsInWorkspace.length === 0;
-
-          if (shouldRemoveWorkspace) {
-            setWorkspaces((prevWorkspaces) => prevWorkspaces.filter((w) => w.id !== workspaceId));
-          }
-
-          toast({
-            title: 'Board access removed',
-            description: shouldRemoveWorkspace
-              ? 'You have been removed from a board and no longer have access to the workspace.'
-              : 'You have been removed from a board.',
-          });
-
-          return prevBoards.filter((b) => b.id !== deletedBoardId);
-        });
-
-        setBoardRoles((prev) => {
-          const updated = { ...prev };
-          delete updated[deletedBoardId];
-          return updated;
+      onRemoved: () => {
+        // Refetch data from backend to ensure state is always consistent
+        // This handles workspace membership removal automatically via backend logic
+        fetchData();
+        toast({
+          title: 'Board access removed',
+          description: 'You have been removed from a board.',
         });
       },
     });

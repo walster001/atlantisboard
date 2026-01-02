@@ -163,10 +163,10 @@ class MemberService {
     const context = permissionService.buildContext(userId, isAppAdmin, boardId);
     await permissionService.requirePermission('board.members.remove', context);
 
-    // Get board to check creator
+    // Get board to check creator and workspace
     const board = await prisma.board.findUnique({
       where: { id: boardId },
-      select: { createdBy: true },
+      select: { createdBy: true, workspaceId: true },
     });
 
     if (!board) {
@@ -238,6 +238,58 @@ class MemberService {
         },
       },
     });
+
+    // Check if user has any remaining boards in this workspace
+    const remainingBoardsInWorkspace = await prisma.boardMember.count({
+      where: {
+        userId: targetUserId,
+        board: {
+          workspaceId: board.workspaceId,
+        },
+      },
+    });
+
+    // If this was the last board in the workspace, remove workspace membership
+    // But skip if user is the workspace owner (owner should always have access)
+    if (remainingBoardsInWorkspace === 0) {
+      const workspace = await prisma.workspace.findUnique({
+        where: { id: board.workspaceId },
+        select: { ownerId: true },
+      });
+
+      if (workspace && workspace.ownerId !== targetUserId) {
+        // User is not the owner, remove workspace membership
+        const workspaceMember = await prisma.workspaceMember.findUnique({
+          where: {
+            workspaceId_userId: {
+              workspaceId: board.workspaceId,
+              userId: targetUserId,
+            },
+          },
+          include: {
+            user: {
+              include: {
+                profile: true,
+              },
+            },
+          },
+        });
+
+        if (workspaceMember) {
+          await prisma.workspaceMember.delete({
+            where: {
+              workspaceId_userId: {
+                workspaceId: board.workspaceId,
+                userId: targetUserId,
+              },
+            },
+          });
+
+          // Emit workspace membership removal event
+          await emitDatabaseChange('workspaceMembers', 'DELETE', undefined, workspaceMember as any);
+        }
+      }
+    }
 
     // Create audit log entry
     await prisma.boardMemberAuditLog.create({

@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
 import { ValidationError } from '../middleware/errorHandler.js';
+import { emitDatabaseChange } from '../realtime/emitter.js';
 
 const router = Router();
 
@@ -246,6 +247,28 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
 
     // Update data is already in camelCase
     const updateData = req.body;
+
+    // For profile updates, fetch old records to emit events
+    if (table === 'profiles' && updateData.isAdmin !== undefined) {
+      const oldProfiles = await model.findMany({ where });
+      const result = await model.updateMany({
+        where,
+        data: updateData,
+      });
+      
+      // Emit events for each updated profile
+      const updatedProfiles = await model.findMany({ where });
+      for (let i = 0; i < updatedProfiles.length; i++) {
+        const updated = updatedProfiles[i];
+        const old = oldProfiles[i];
+        if (old && updated.isAdmin !== old.isAdmin) {
+          // isAdmin changed - emit event
+          await emitDatabaseChange('profiles', 'UPDATE', updated as any, old as any);
+        }
+      }
+      
+      return res.json(result);
+    }
 
     // Update records
     const result = await model.updateMany({

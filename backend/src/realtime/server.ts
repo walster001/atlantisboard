@@ -551,11 +551,18 @@ class RealtimeServer {
         }
       }
     } else if (table === 'workspaceMembers') {
-      // For workspace membership changes, emit to global channel
-      const workspaceRecord = (newRecord || oldRecord) as { workspaceId?: string };
+      // For workspace membership changes, emit to multiple channels
+      const workspaceRecord = (newRecord || oldRecord) as { workspaceId?: string; userId?: string };
       if (workspaceRecord?.workspaceId) {
         channels.push(`workspace:${workspaceRecord.workspaceId}`);
       }
+      // Emit to user-specific channels so the affected user receives the event
+      // Support both formats for compatibility
+      if (workspaceRecord?.userId) {
+        channels.push(`user:${workspaceRecord.userId}`);
+        channels.push(`user-${workspaceRecord.userId}-workspace-membership`);
+      }
+      // Also emit to global channel for filtered subscriptions
       channels.push('global');
     } else {
       // Global channel for app-level changes

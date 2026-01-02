@@ -130,18 +130,19 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
     return subscribeBoardMemberCustomRoles(boardId, {
       currentUserId: user.id,
       onChange: (payload) => {
-        const record = (payload.new || payload.old) as { user_id?: string } | undefined;
-        if (record?.user_id === user.id) {
+        // Backend emits camelCase (userId), not snake_case (user_id)
+        const record = (payload.new || payload.old) as { userId?: string } | undefined;
+        if (record?.userId === user.id) {
           if (payload.eventType === 'DELETE') {
             handlePermissionChange({
               eventType: 'DELETE',
-              table: 'board_member_custom_roles',
+              table: 'boardMemberCustomRoles',
               old: payload.old as Record<string, unknown>,
             });
           } else {
             handlePermissionChange({
               eventType: payload.eventType as 'INSERT' | 'UPDATE',
-              table: 'board_member_custom_roles',
+              table: 'boardMemberCustomRoles',
               new: payload.new as Record<string, unknown>,
             });
           }
@@ -157,12 +158,13 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
     return subscribeBoardMembersForPermissions(boardId, {
       currentUserId: user.id,
       onChange: (payload) => {
-        const updatedMember = payload.new as { user_id?: string; role?: string };
-        if (updatedMember?.user_id === user.id) {
+        // Backend emits camelCase (userId), not snake_case (user_id)
+        const updatedMember = payload.new as { userId?: string; role?: string };
+        if (updatedMember?.userId === user.id) {
           console.log('[PermissionsRealtime] User role changed:', updatedMember.role);
           handlePermissionChange({
             eventType: payload.eventType as 'UPDATE' | 'DELETE',
-            table: 'board_members',
+            table: 'boardMembers',
             new: payload.new as Record<string, unknown>,
             old: payload.old as Record<string, unknown>,
           });

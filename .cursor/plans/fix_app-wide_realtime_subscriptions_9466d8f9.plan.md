@@ -25,13 +25,13 @@ todos:
     status: completed
   - id: phase3-1
     content: Fix permission realtime updates - ensure role changes trigger permission recalculation
-    status: pending
+    status: completed
   - id: phase3-2
     content: Fix app admin role updates - add realtime event emission for profile.isAdmin changes
-    status: pending
+    status: completed
   - id: phase3-3
     content: Fix workspace membership auto-add/remove - ensure events reach all affected clients
-    status: pending
+    status: completed
   - id: phase4-1
     content: Fix column state updates - review onUpdate handler logic for position changes
     status: pending

@@ -155,6 +155,7 @@ class BoardService {
         description: board.description,
         backgroundColor: board.backgroundColor,
         workspaceId: board.workspaceId,
+        createdBy: board.createdBy, // Include creator ID for frontend validation
       },
       userRole: userRole,
       columns,
@@ -201,6 +202,7 @@ class BoardService {
         backgroundColor: validated.backgroundColor ?? null,
         themeId: validated.themeId ?? null,
         position: (maxPosition._max.position ?? -1) + 1,
+        createdBy: userId, // Set board creator
       },
     });
 

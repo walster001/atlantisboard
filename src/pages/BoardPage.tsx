@@ -95,6 +95,7 @@ export default function BoardPage() {
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [boardCreatedBy, setBoardCreatedBy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
 
@@ -143,10 +144,10 @@ export default function BoardPage() {
         userId: m.userId,
         role: m.role as 'admin' | 'manager' | 'viewer',
         profiles: {
-          id: m.id,
-          email: m.email || '',
-          fullName: m.fullName,
-          avatarUrl: m.avatarUrl,
+          id: m.profiles?.id ?? m.userId,
+          email: m.profiles?.email || '',
+          fullName: m.profiles?.fullName ?? null,
+          avatarUrl: m.profiles?.avatarUrl ?? null,
         }
       }));
       setBoardMembers(transformedMembers);
@@ -359,7 +360,7 @@ export default function BoardPage() {
       // Cast JSON response to typed object
       const result = data as {
         error?: string;
-        board?: { id: string; name: string; description: string | null; backgroundColor: string | null; workspaceId: string };
+        board?: { id: string; name: string; description: string | null; backgroundColor: string | null; workspaceId: string; createdBy: string | null };
         userRole?: string | null;
         columns?: DbColumn[];
         cards?: DbCard[];
@@ -386,6 +387,7 @@ export default function BoardPage() {
       setBoardName(result.board?.name || '');
       setBoardColor(result.board?.backgroundColor || '#0079bf');
       setWorkspaceId(result.board?.workspaceId || null);
+      setBoardCreatedBy(result.board?.createdBy || null);
       setUserRole(result.userRole as 'admin' | 'manager' | 'viewer' | null);
       setColumns(result.columns || []);
 
@@ -1370,6 +1372,7 @@ export default function BoardPage() {
           members={boardMembers}
           userRole={userRole}
           currentUserId={user?.id || null}
+          boardCreatedBy={boardCreatedBy}
           currentThemeId={boardThemeId}
           currentTheme={boardTheme}
           currentBackgroundColor={isImageBackground ? '#0079bf' : boardColor}

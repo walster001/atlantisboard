@@ -62,6 +62,7 @@ interface BoardSettingsModalProps {
   members: BoardMember[];
   userRole: 'admin' | 'manager' | 'viewer' | null;
   currentUserId: string | null;
+  boardCreatedBy: string | null;
   currentThemeId: string | null;
   currentTheme: BoardTheme | null;
   currentBackgroundColor: string;
@@ -90,6 +91,7 @@ export function BoardSettingsModal({
   members,
   userRole,
   currentUserId,
+  boardCreatedBy,
   currentThemeId,
   currentTheme,
   currentBackgroundColor,
@@ -141,6 +143,14 @@ export function BoardSettingsModal({
     }
   }, [open, canAddRemove]);
 
+  // Refresh all users when members list changes (e.g., after add/remove)
+  // This ensures removed members appear in "All Users" panel
+  useEffect(() => {
+    if (open && canAddRemove) {
+      fetchAllUsers();
+    }
+  }, [members.length, open, canAddRemove]);
+
   const fetchAllUsers = async () => {
     setLoadingUsers(true);
     try {
@@ -176,8 +186,8 @@ export function BoardSettingsModal({
   const filteredMembers = members.filter((member) => {
     if (!memberSearchQuery.trim()) return true;
     const query = memberSearchQuery.toLowerCase();
-    const name = member.profiles.fullName?.toLowerCase() || '';
-    const email = member.profiles.email?.toLowerCase() || '';
+    const name = member.profiles?.fullName?.toLowerCase() || '';
+    const email = member.profiles?.email?.toLowerCase() || '';
     return name.includes(query) || email.includes(query);
   });
 
@@ -186,18 +196,30 @@ export function BoardSettingsModal({
     try {
       const assignRole = userRole === 'manager' ? 'viewer' : (pendingRoles[userId] || 'viewer');
 
-      const { error } = await api.from('board_members').insert({
-        boardId: boardId,
-        userId: userId,
-        role: assignRole,
+      // Use proper API endpoint instead of generic db route
+      const result = await api.request(`/boards/${boardId}/members`, {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: userId,
+          role: assignRole,
+        }),
       });
 
-      if (error) throw error;
+      if (result.error) throw result.error;
       
       // Member addition is detected via postgres_changes - no broadcast needed
       
       toast({ title: 'Member added!' });
+      
+      // Refresh members list to ensure UI updates correctly
       onMembersChange();
+      
+      // Clear pending role for this user
+      setPendingRoles(prev => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
     } catch (error: any) {
       console.error('Add member error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -211,6 +233,16 @@ export function BoardSettingsModal({
 
   const confirmRemoveMember = (userId: string, name: string) => {
     const memberToRemove = members.find(m => m.userId === userId);
+    
+    // Rule 1: Board creator cannot be removed by anyone (including self)
+    if (boardCreatedBy && userId === boardCreatedBy) {
+      toast({ 
+        title: 'Cannot remove board creator', 
+        description: 'The board creator cannot be removed from the board. Delete the board to remove access.',
+        variant: 'destructive' 
+      });
+      return;
+    }
     
     // SECURITY: Managers cannot remove admins or other managers
     if (isManager && memberToRemove && (memberToRemove.role === 'admin' || memberToRemove.role === 'manager')) {
@@ -241,19 +273,21 @@ export function BoardSettingsModal({
     if (!userToRemove) return;
     setRemovingUserId(userToRemove.id);
     try {
-      const { error } = await api
-        .from('board_members')
-        .eq('boardId', boardId)
-        .eq('userId', userToRemove.id)
-        .delete();
+      // Use proper API endpoint instead of generic db route
+      const result = await api.request(`/boards/${boardId}/members/${userToRemove.id}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      if (result.error) throw result.error;
       
       // Member removal is detected via postgres_changes in BoardPage
       // No need for broadcast - the realtime subscription handles it
       
       toast({ title: 'Member removed' });
+      
+      // Refresh members list and all users list to ensure UI updates correctly
       onMembersChange();
+      fetchAllUsers();
     } catch (error: any) {
       console.error('Remove member error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -266,13 +300,13 @@ export function BoardSettingsModal({
   const updateRole = async (userId: string, newRole: 'admin' | 'manager' | 'viewer') => {
     if (!canChangeRoles) return;
     try {
-      const { error } = await api
-        .from('board_members')
-        .eq('boardId', boardId)
-        .eq('userId', userId)
-        .update({ role: newRole });
+      // Use proper API endpoint instead of generic db route
+      const result = await api.request(`/boards/${boardId}/members/${userId}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role: newRole }),
+      });
 
-      if (error) throw error;
+      if (result.error) throw result.error;
       toast({ title: 'Role updated' });
       onMembersChange();
     } catch (error: any) {
@@ -546,16 +580,16 @@ export function BoardSettingsModal({
                           >
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               <Avatar className="h-9 w-9 shrink-0">
-                                <AvatarImage src={member.profiles.avatarUrl || undefined} />
+                                <AvatarImage src={member.profiles?.avatarUrl || undefined} />
                                 <AvatarFallback>
                                   <User className="h-4 w-4" />
                                 </AvatarFallback>
                               </Avatar>
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-sm truncate">
-                                  {member.profiles.fullName || member.profiles.email || 'Unknown User'}
+                                  {member.profiles?.fullName || member.profiles?.email || 'Unknown User'}
                                 </p>
-                                {member.profiles.email && (
+                                {member.profiles?.email && (
                                   <p className="text-xs text-muted-foreground truncate">{member.profiles.email}</p>
                                 )}
                               </div>
@@ -615,28 +649,32 @@ export function BoardSettingsModal({
                                   {member.role}
                                 </span>
                               )}
-                              {/* Remove button - Managers can only remove viewers */}
+                              {/* Remove button - Managers can only remove viewers, creator cannot be removed */}
                               {canAddRemove && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   className={cn(
                                     "h-8",
-                                    // Grey out for managers viewing admins/managers
-                                    isManager && (member.role === 'admin' || member.role === 'manager')
+                                    // Grey out for managers viewing admins/managers, or for board creator
+                                    (isManager && (member.role === 'admin' || member.role === 'manager')) ||
+                                    (boardCreatedBy && member.userId === boardCreatedBy)
                                       ? "text-muted-foreground/50 cursor-not-allowed"
                                       : "text-destructive hover:text-destructive hover:bg-destructive/10"
                                   )}
                                   onClick={() => confirmRemoveMember(
                                     member.userId, 
-                                    member.profiles.fullName || member.profiles.email || 'this user'
+                                    member.profiles?.fullName || member.profiles?.email || 'this user'
                                   )}
                                   disabled={
                                     removingUserId === member.userId || 
-                                    (isManager && (member.role === 'admin' || member.role === 'manager'))
+                                    (isManager && (member.role === 'admin' || member.role === 'manager')) ||
+                                    (boardCreatedBy && member.userId === boardCreatedBy)
                                   }
                                   title={
-                                    isManager && (member.role === 'admin' || member.role === 'manager')
+                                    boardCreatedBy && member.userId === boardCreatedBy
+                                      ? 'Board creator cannot be removed'
+                                      : isManager && (member.role === 'admin' || member.role === 'manager')
                                       ? 'Managers can only remove Viewers'
                                       : 'Remove member'
                                   }

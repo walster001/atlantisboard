@@ -123,18 +123,55 @@ class MemberService {
     const context = permissionService.buildContext(userId, isAppAdmin, boardId);
     await permissionService.requirePermission('board.members.remove', context);
 
-    // Get member to get old role
-    const member = await prisma.boardMember.findUnique({
-      where: {
-        boardId_userId: {
-          boardId,
-          userId: targetUserId,
-        },
-      },
+    // Get board to check creator
+    const board = await prisma.board.findUnique({
+      where: { id: boardId },
+      select: { createdBy: true },
     });
+
+    if (!board) {
+      throw new NotFoundError('Board not found');
+    }
+
+    // Get member to get old role and check current user's role
+    const [member, currentUserMember] = await Promise.all([
+      prisma.boardMember.findUnique({
+        where: {
+          boardId_userId: {
+            boardId,
+            userId: targetUserId,
+          },
+        },
+      }),
+      prisma.boardMember.findUnique({
+        where: {
+          boardId_userId: {
+            boardId,
+            userId,
+          },
+        },
+      }),
+    ]);
 
     if (!member) {
       throw new NotFoundError('Member not found');
+    }
+
+    // Rule 1: Board creator cannot be removed by anyone (including self)
+    if (board.createdBy === targetUserId) {
+      throw new ValidationError('The board creator cannot be removed from the board. Delete the board to remove access.');
+    }
+
+    // Rule 2: Role hierarchy enforcement - Managers cannot remove admins
+    // Only app admins can bypass this check
+    if (!isAppAdmin && currentUserMember) {
+      if (currentUserMember.role === 'manager' && member.role === 'admin') {
+        throw new ValidationError('Managers cannot remove admins from the board');
+      }
+      // Managers also cannot remove other managers
+      if (currentUserMember.role === 'manager' && member.role === 'manager') {
+        throw new ValidationError('Managers cannot remove other managers from the board');
+      }
     }
 
     // Cannot remove last admin
@@ -188,18 +225,40 @@ class MemberService {
     const context = permissionService.buildContext(userId, isAppAdmin, boardId);
     await permissionService.requirePermission('board.members.role.change', context);
 
-    // Get current member
-    const member = await prisma.boardMember.findUnique({
-      where: {
-        boardId_userId: {
-          boardId,
-          userId: targetUserId,
+    // Get current member and current user's member record
+    const [member, currentUserMember] = await Promise.all([
+      prisma.boardMember.findUnique({
+        where: {
+          boardId_userId: {
+            boardId,
+            userId: targetUserId,
+          },
         },
-      },
-    });
+      }),
+      prisma.boardMember.findUnique({
+        where: {
+          boardId_userId: {
+            boardId,
+            userId,
+          },
+        },
+      }),
+    ]);
 
     if (!member) {
       throw new NotFoundError('Member not found');
+    }
+
+    // Role hierarchy enforcement - Managers cannot change roles of admins
+    // Only app admins can bypass this check
+    if (!isAppAdmin && currentUserMember) {
+      if (currentUserMember.role === 'manager' && member.role === 'admin') {
+        throw new ValidationError('Managers cannot change the role of admins');
+      }
+      // Managers also cannot promote anyone to admin or manager
+      if (currentUserMember.role === 'manager' && (role === 'admin' || role === 'manager')) {
+        throw new ValidationError('Managers cannot assign admin or manager roles');
+      }
     }
 
     // Cannot change role of last admin

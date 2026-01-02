@@ -35,3 +35,4 @@ backend/.prisma-generate.lock
 *.sw?
 .dev-frontend.pid
 backend/.dev-api.log.pos
+.dev-frontend.log.pos

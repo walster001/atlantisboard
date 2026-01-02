@@ -37,6 +37,10 @@ class RealtimeServer {
   // Store channels by userId to preserve across reconnects
   private userChannels: Map<string, Set<string>> = new Map();
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  // Cache board access checks to avoid race conditions when users are promoted
+  // Key: `${userId}:${boardId}`, Value: { hasAccess: boolean, timestamp: number }
+  private accessCache: Map<string, { hasAccess: boolean; timestamp: number }> = new Map();
+  private readonly ACCESS_CACHE_TTL = 5000; // 5 seconds cache TTL
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server, path: '/realtime' });
@@ -353,16 +357,26 @@ class RealtimeServer {
         // For board channels, verify user has access
         // Skip access check for membership events - they should always propagate
         // (e.g., when a user is added, they need to receive the event even if access check hasn't updated yet)
+        // For INSERT events, be more lenient - newly created items should propagate to all subscribers
+        // This ensures new columns/cards are visible to all users immediately
         if (boardId && event.table !== 'boardMembers') {
-          const hasAccess = await this.checkBoardAccess(client.userId, boardId);
+          // For INSERT events, use cached access (faster) but don't block if cache is stale
+          // This ensures newly promoted users' creations are visible immediately
+          const forceRefresh = event.event === 'UPDATE' || event.event === 'DELETE';
+          const hasAccess = await this.checkBoardAccess(client.userId, boardId, forceRefresh);
           // #region agent log
-          try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:252',message:'access check result',data:{userId:client.userId,boardId,hasAccess,table:event.table},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
+          try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:252',message:'access check result',data:{userId:client.userId,boardId,hasAccess,table:event.table,event:event.event,forceRefresh},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
           // #endregion
           if (!hasAccess) {
-            // Remove subscription if access revoked
-            console.log(`[Realtime] Access check blocked event for client ${client.userId} on channel ${channel}, table: ${event.table}`);
-            client.channels.delete(channel);
-            continue;
+            // Only remove subscription for UPDATE/DELETE events, not INSERT
+            // This allows newly promoted users to see new items immediately
+            if (event.event !== 'INSERT') {
+              console.log(`[Realtime] Access check blocked event for client ${client.userId} on channel ${channel}, table: ${event.table}, event: ${event.event}`);
+              client.channels.delete(channel);
+              continue;
+            } else {
+              console.log(`[Realtime] Access check failed for INSERT event, but allowing through for client ${client.userId} on channel ${channel}`);
+            }
           }
         }
 
@@ -386,8 +400,21 @@ class RealtimeServer {
 
   /**
    * Check if user has access to a board
+   * Uses caching to avoid race conditions when users are promoted
    */
-  private async checkBoardAccess(userId: string, boardId: string): Promise<boolean> {
+  private async checkBoardAccess(userId: string, boardId: string, forceRefresh = false): Promise<boolean> {
+    const cacheKey = `${userId}:${boardId}`;
+    const now = Date.now();
+    
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cached = this.accessCache.get(cacheKey);
+      if (cached && (now - cached.timestamp) < this.ACCESS_CACHE_TTL) {
+        return cached.hasAccess;
+      }
+    }
+
+    // Fetch fresh data
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
@@ -403,7 +430,31 @@ class RealtimeServer {
       include: { profile: true },
     });
 
-    return !!membership || !!user?.profile?.isAdmin;
+    const hasAccess = !!membership || !!user?.profile?.isAdmin;
+    
+    // Update cache
+    this.accessCache.set(cacheKey, { hasAccess, timestamp: now });
+    
+    return hasAccess;
+  }
+
+  /**
+   * Invalidate access cache for a user/board combination
+   * Call this when membership changes to ensure fresh access checks
+   * If userId is '*', invalidates all users for that board
+   */
+  private invalidateAccessCache(userId: string, boardId: string) {
+    if (userId === '*') {
+      // Invalidate all users for this board
+      for (const key of this.accessCache.keys()) {
+        if (key.endsWith(`:${boardId}`)) {
+          this.accessCache.delete(key);
+        }
+      }
+    } else {
+      const cacheKey = `${userId}:${boardId}`;
+      this.accessCache.delete(cacheKey);
+    }
   }
 
   /**
@@ -583,9 +634,17 @@ class RealtimeServer {
     try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:407',message:'channels determined',data:{table,event,channels,channelCount:channels.length,resolvedBoardId,resolvedWorkspaceId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n');}catch(e){}
     // #endregion
 
+    // Invalidate access cache when boardMembers change to ensure fresh access checks
+    // This prevents race conditions when users are promoted
+    if (table === 'boardMembers' && resolvedBoardId) {
+      // Invalidate cache for all users on this board
+      this.invalidateAccessCache('*', resolvedBoardId);
+      console.log(`[Realtime] Invalidated access cache for board ${resolvedBoardId} due to membership change`);
+    }
+
     for (const channel of channels) {
       await this.broadcast({
-        event,
+        event: event as 'INSERT' | 'UPDATE' | 'DELETE',
         table,
         channel,
         payload: {

@@ -185,15 +185,24 @@ export default function BoardPage() {
           fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:191',message:'card INSERT handler called',data:{cardId:(newCard as any)?.id,columnId:(newCard as any)?.columnId,hasColumnInRef:columnIdsRef.current.includes((newCard as any)?.columnId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
           // #endregion
           const card = newCard as DbCard;
-          if (columnIdsRef.current.length === 0 || columnIdsRef.current.includes(card.columnId)) {
-            setCards((prev) => {
-              if (prev.some((c) => c.id === card.id)) return prev;
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:195',message:'setCards called for INSERT',data:{cardId:card.id,prevCount:prev.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-              // #endregion
-              return [...prev, card];
-            });
-          }
+          // Verify the card belongs to a column in this board
+          // If columnIdsRef is empty, we're still loading, so accept all cards
+          // If columnIdsRef has values, check if the column exists (it might be a newly created column)
+          // Always add the card - if the column doesn't exist, it will be filtered by the column component
+          console.log('[BoardPage] Card INSERT event received:', {
+            cardId: card.id,
+            columnId: card.columnId,
+            hasColumnInRef: columnIdsRef.current.includes(card.columnId),
+            columnIdsRefLength: columnIdsRef.current.length,
+          });
+          setCards((prev) => {
+            if (prev.some((c) => c.id === card.id)) {
+              console.log('[BoardPage] Card already in state, skipping insert');
+              return prev;
+            }
+            console.log('[BoardPage] Adding new card to state:', card.id);
+            return [...prev, card];
+          });
         },
         onUpdate: (updatedCardRaw, previousRaw) => {
           // #region agent log
@@ -740,8 +749,16 @@ export default function BoardPage() {
       const columnIds = columns.map(c => c.id);
       // When color is null from ColorPicker (transparent selection), save as empty string
       const colorToSave = color === null ? '' : color;
-      await api.from('columns').update({ color: colorToSave }).in('id', columnIds);
-      setColumns(prev => prev.map(c => ({ ...c, color: colorToSave })));
+      // Update each column individually using dedicated route to ensure realtime events are emitted
+      await Promise.all(
+        columnIds.map(columnId =>
+          api.request(`/columns/${columnId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ color: colorToSave }),
+          })
+        )
+      );
+      // Realtime handler will update state when events are received
       toast({ title: 'Success', description: 'Applied colour to all columns' });
     } catch (error: any) {
       console.error('Apply column color to all error:', error);
@@ -804,16 +821,9 @@ export default function BoardPage() {
     // Deduplicate
     const uniqueUpdates = allUpdates.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
 
-    // Update local state (optimistic)
-    setCards(prev => {
-      const others = prev.filter(c => 
-        c.columnId !== source.droppableId && c.columnId !== destination.droppableId
-      );
-      return [...others, ...uniqueUpdates.map(u => {
-        const original = prev.find(c => c.id === u.id);
-        return original ? { ...original, columnId: u.columnId, position: u.position } : null;
-      }).filter((c): c is DbCard => c !== null)];
-    });
+    // Don't update local state optimistically - rely on realtime events
+    // This prevents cards from reverting if there's a race condition
+    // The realtime handler will update state when events are received
 
     // Batch update in database (single server call)
     await api.rpc('batch_update_card_positions', {
@@ -879,8 +889,13 @@ export default function BoardPage() {
       // Validate input
       const validated = columnSchema.parse({ title });
       
-      await api.from('columns').update({ title: validated.title }).eq('id', columnId);
-      setColumns(columns.map(c => c.id === columnId ? { ...c, title: validated.title } : c));
+      // Use dedicated column route which emits realtime events
+      const result = await api.request(`/columns/${columnId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title: validated.title }),
+      });
+      if (result.error) throw result.error;
+      // Realtime handler will update state when event is received
     } catch (error: any) {
       console.error('Update column error:', error);
       if (error instanceof z.ZodError) {

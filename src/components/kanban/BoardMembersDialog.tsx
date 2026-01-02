@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '@/integrations/api/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ import { Trash2, UserPlus, User } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { emailSchema } from '@/lib/validators';
 import { z } from 'zod';
+import { subscribeBoardMembers } from '@/realtime/boardSubscriptions';
+import { useAuth } from '@/hooks/useAuth';
 
 interface BoardMember {
   userId: string;
@@ -42,9 +44,32 @@ export function BoardMembersDialog({
   onMembersChange,
 }: BoardMembersDialogProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'admin' | 'manager' | 'viewer'>('viewer');
   const [isAdding, setIsAdding] = useState(false);
+
+  // Subscribe to realtime board member updates when dialog is open
+  // This ensures role changes are reflected immediately
+  useEffect(() => {
+    if (!open || !boardId || !user) return;
+
+    const cleanup = subscribeBoardMembers(boardId, {
+      onUpdate: (membershipRaw) => {
+        // When a role is updated, refresh the members list
+        // This ensures the UI reflects the new role immediately
+        onMembersChange();
+      },
+      onInsert: () => {
+        onMembersChange();
+      },
+      onDelete: () => {
+        onMembersChange();
+      },
+    });
+
+    return cleanup;
+  }, [open, boardId, user, onMembersChange]);
 
   // Use permission system for UI checks
   // SECURITY NOTE: These do NOT provide security - all permissions

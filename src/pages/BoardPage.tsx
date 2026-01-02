@@ -306,7 +306,9 @@ export default function BoardPage() {
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:277',message:'setColumns called for UPDATE',data:{columnId:updatedColumn.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
             // #endregion
-            return prev.map((c) => (c.id === updatedColumn.id ? updatedColumn : c));
+            // Update the column and re-sort by position to ensure correct order after reorder operations
+            const updated = prev.map((c) => (c.id === updatedColumn.id ? updatedColumn : c));
+            return updated.sort((a, b) => a.position - b.position);
           });
         },
         onDelete: (deletedColumnRaw) => {

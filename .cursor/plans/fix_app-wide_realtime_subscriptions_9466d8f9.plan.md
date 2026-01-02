@@ -34,19 +34,19 @@ todos:
     status: completed
   - id: phase4-1
     content: Fix column state updates - review onUpdate handler logic for position changes
-    status: pending
+    status: completed
   - id: phase4-2
     content: Fix card state updates for moves - ensure columnIdsRef is updated and moves handled
-    status: pending
+    status: completed
   - id: phase4-3
     content: Add toast notifications - ensure all membership and role changes show toasts
-    status: pending
+    status: completed
   - id: phase4-4
     content: Fix redirect on member removal - ensure user removed from board is redirected
-    status: pending
+    status: completed
   - id: phase5-1
     content: Add comprehensive logging - verify events emitted, received, and state updated
-    status: pending
+    status: completed
   - id: phase5-2
     content: Test all scenarios - two users, role changes, moves, removals
     status: pending

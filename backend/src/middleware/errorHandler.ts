@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { Prisma } from '@prisma/client';
 
 export class AppError extends Error {
   constructor(
@@ -65,9 +66,43 @@ export function errorHandler(
 
   // Unknown errors
   console.error('Unhandled error:', err);
-  res.status(500).json({
+  
+  // Build error response
+  const errorResponse: any = {
     error: 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-  });
+  };
+  
+  // Include detailed error information in development
+  if (process.env.NODE_ENV === 'development') {
+    errorResponse.stack = err.stack;
+    errorResponse.message = err.message;
+    
+    // Include Prisma error details if it's a Prisma error
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      errorResponse.prismaError = {
+        code: err.code,
+        meta: err.meta,
+        message: err.message,
+      };
+    } else if (err instanceof Prisma.PrismaClientUnknownRequestError) {
+      errorResponse.prismaError = {
+        type: 'UnknownRequestError',
+        message: err.message,
+      };
+    } else if (err instanceof Prisma.PrismaClientRustPanicError) {
+      errorResponse.prismaError = {
+        type: 'RustPanicError',
+        message: err.message,
+      };
+    } else if (err instanceof Prisma.PrismaClientInitializationError) {
+      errorResponse.prismaError = {
+        type: 'InitializationError',
+        message: err.message,
+        errorCode: (err as any).errorCode,
+      };
+    }
+  }
+  
+  res.status(500).json(errorResponse);
 }
 

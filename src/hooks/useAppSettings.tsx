@@ -44,7 +44,16 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`${API_BASE_URL}/app-settings`);
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        // Try to parse error response, but don't fail if it's not JSON
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch {
+          // Response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();

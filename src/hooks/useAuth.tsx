@@ -83,6 +83,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const fetchAdminStatus = useCallback(async (userId: string) => {
+    console.log('[fetchAdminStatus] Starting, userId:', userId);
+    try {
+      console.log('[fetchAdminStatus] Making API call...');
+      const queryPromise = api
+        .from('profiles')
+        .select('isAdmin')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      console.log('[fetchAdminStatus] Query promise created, awaiting...');
+      
+      // Use .then() directly to test if promise resolves
+      const result = await new Promise<{ data: any; error: Error | null }>((resolve, reject) => {
+        queryPromise.then((res: any) => {
+          console.log('[fetchAdminStatus] .then() callback executed with result:', res);
+          resolve(res);
+        }).catch((err: any) => {
+          console.error('[fetchAdminStatus] .then() callback caught error:', err);
+          reject(err);
+        });
+      });
+      
+      console.log('[fetchAdminStatus] API result received:', result);
+      console.log('[fetchAdminStatus] Result keys:', Object.keys(result || {}));
+      console.log('[fetchAdminStatus] Result structure:', JSON.stringify(result, null, 2));
+      
+      const { data, error } = result;
+
+      if (error) {
+        console.error('[fetchAdminStatus] Error:', error);
+        setIsAppAdmin(false);
+        return;
+      }
+
+      if (data) {
+        console.log('[fetchAdminStatus] Data received:', data);
+        console.log('[fetchAdminStatus] Data type:', typeof data);
+        console.log('[fetchAdminStatus] Data keys:', Object.keys(data || {}));
+        console.log('[fetchAdminStatus] isAdmin value:', (data as any)?.isAdmin);
+        // Handle both possible response structures: direct object or { data: object }
+        const profile = data as any;
+        const isAdmin = profile?.isAdmin ?? profile?.data?.isAdmin ?? false;
+        console.log('[fetchAdminStatus] Extracted isAdmin:', isAdmin);
+        console.log('[fetchAdminStatus] Setting isAppAdmin to:', isAdmin);
+        setIsAppAdmin(isAdmin);
+      } else {
+        console.warn('[fetchAdminStatus] No profile data returned for user:', userId);
+        console.warn('[fetchAdminStatus] Result was:', result);
+        setIsAppAdmin(false);
+      }
+    } catch (error) {
+      console.error('[fetchAdminStatus] Exception caught:', error);
+      console.error('[fetchAdminStatus] Exception details:', error instanceof Error ? error.stack : error);
+      setIsAppAdmin(false);
+    }
+  }, []);
+
   // Handle OAuth callback from URL hash
   useEffect(() => {
     const hash = window.location.hash;
@@ -151,46 +209,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [verifyUserInDatabase, signOut]);
+  }, [verifyUserInDatabase, signOut, fetchAdminStatus]);
 
   // Initialize session on mount
   useEffect(() => {
     const initializeSession = async () => {
       try {
+        console.log('[useAuth] Initializing session...');
         const { data, error } = await api.auth.getSession();
+        console.log('[useAuth] Session data:', data, 'Error:', error);
 
         if (data?.session && !error) {
           setSession(data.session);
           setUser(data.session.user);
           
           if (data.session.user) {
+            console.log('[useAuth] User found, fetching admin status for:', data.session.user.id);
             fetchAdminStatus(data.session.user.id);
+          } else {
+            console.warn('[useAuth] Session exists but no user in session');
           }
         } else {
+          console.log('[useAuth] No session found');
           setSession(null);
           setUser(null);
         }
       } catch (error) {
-        console.error('Failed to initialize session:', error);
+        console.error('[useAuth] Failed to initialize session:', error);
       } finally {
         setLoading(false);
       }
     };
 
     initializeSession();
-  }, []);
+  }, [fetchAdminStatus]);
 
-  const fetchAdminStatus = async (userId: string) => {
-    const { data, error } = await api
-      .from('profiles')
-      .select('isAdmin')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (!error && data) {
-      setIsAppAdmin(data.isAdmin ?? false);
-    }
-  };
 
   const signInWithGoogle = async () => {
     setVerificationError(null);

@@ -86,7 +86,16 @@ export default function Auth() {
         const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
         const response = await fetch(`${API_BASE_URL}/app-settings`);
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          // Try to parse error response, but don't fail if it's not JSON
+          let errorMessage = `HTTP ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch {
+            // Response is not JSON, use status text
+            errorMessage = response.statusText || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
         const data = await response.json();
         const result = data as unknown as AuthPageData;

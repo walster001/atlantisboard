@@ -271,6 +271,22 @@ export function BoardSettingsModal({
 
   const removeMember = async () => {
     if (!userToRemove) return;
+    
+    // Verify the member still exists in the current members list before attempting removal
+    // This prevents attempting to remove a member that was already removed (stale UI state)
+    const memberStillExists = members.some(m => m.userId === userToRemove.id);
+    if (!memberStillExists) {
+      // Member no longer exists - refresh and close dialog
+      toast({ 
+        title: 'Member already removed', 
+        description: 'This member has already been removed from the board.',
+        variant: 'destructive' 
+      });
+      setUserToRemove(null);
+      onMembersChange(); // Refresh to ensure UI is up to date
+      return;
+    }
+    
     setRemovingUserId(userToRemove.id);
     try {
       // Use proper API endpoint instead of generic db route
@@ -290,7 +306,17 @@ export function BoardSettingsModal({
       fetchAllUsers();
     } catch (error: any) {
       console.error('Remove member error:', error);
-      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      // If member not found, refresh the members list to sync UI with backend state
+      if (error.message?.includes('not found') || error.message?.includes('Not found')) {
+        onMembersChange(); // Refresh members list to sync UI with backend
+        toast({ 
+          title: 'Member not found', 
+          description: 'The member may have already been removed. Refreshing the list...',
+          variant: 'destructive' 
+        });
+      } else {
+        toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+      }
     } finally {
       setRemovingUserId(null);
       setUserToRemove(null);

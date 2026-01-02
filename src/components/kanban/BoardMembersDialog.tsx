@@ -114,9 +114,9 @@ export function BoardMembersDialog({
     try {
       const { error } = await api
         .from('board_members')
-        .delete()
         .eq('boardId', boardId)
-        .eq('userId', userId);
+        .eq('userId', userId)
+        .delete();
 
       if (error) throw error;
       toast({ title: 'Member removed' });

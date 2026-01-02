@@ -123,8 +123,8 @@ export function CustomFontsSettings() {
 
       const { error } = await api
         .from('custom_fonts')
-        .delete()
-        .eq('id', font.id);
+        .eq('id', font.id)
+        .delete();
 
       if (error) throw error;
 

@@ -52,37 +52,37 @@ function applyFilters(
 
     switch (operator) {
       case 'eq':
-        query.where = { ...query.where, [field]: value };
+        query.where[field] = value;
         break;
       case 'neq':
-        query.where = { ...query.where, [field]: { not: value } };
+        query.where[field] = { not: value };
         break;
       case 'gt':
-        query.where = { ...query.where, [field]: { gt: value } };
+        query.where[field] = { gt: value };
         break;
       case 'gte':
-        query.where = { ...query.where, [field]: { gte: value } };
+        query.where[field] = { gte: value };
         break;
       case 'lt':
-        query.where = { ...query.where, [field]: { lt: value } };
+        query.where[field] = { lt: value };
         break;
       case 'lte':
-        query.where = { ...query.where, [field]: { lte: value } };
+        query.where[field] = { lte: value };
         break;
       case 'like':
-        query.where = { ...query.where, [field]: { contains: value as string } };
+        query.where[field] = { contains: value as string };
         break;
       case 'ilike':
-        query.where = { ...query.where, [field]: { contains: value as string, mode: 'insensitive' } };
+        query.where[field] = { contains: value as string, mode: 'insensitive' };
         break;
       case 'in':
-        query.where = { ...query.where, [field]: { in: Array.isArray(value) ? value : [value] } };
+        query.where[field] = { in: Array.isArray(value) ? value : [value] };
         break;
       case 'is':
         if (value === null) {
-          query.where = { ...query.where, [field]: null };
+          query.where[field] = null;
         } else {
-          query.where = { ...query.where, [field]: value };
+          query.where[field] = value;
         }
         break;
     }

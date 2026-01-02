@@ -217,10 +217,10 @@ export function BoardLabelsSettings({
     setDeleting(labelId);
     try {
       // First delete all card_labels associations
-      await api.from('card_labels').delete().eq('label_id', labelId);
+      await api.from('card_labels').eq('labelId', labelId).delete();
       
       // Then delete the label
-      const { error } = await api.from('labels').delete().eq('id', labelId);
+      const { error } = await api.from('labels').eq('id', labelId).delete();
 
       if (error) throw error;
       

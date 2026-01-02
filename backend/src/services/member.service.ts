@@ -154,6 +154,9 @@ class MemberService {
     ]);
 
     if (!member) {
+      // Log for debugging - member exists in UI but not in database
+      // This can happen if the UI state is stale or there's a data inconsistency
+      console.error(`[removeBoardMember] Member not found: boardId=${boardId}, targetUserId=${targetUserId}`);
       throw new NotFoundError('Member not found');
     }
 

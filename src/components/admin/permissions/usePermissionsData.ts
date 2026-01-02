@@ -153,7 +153,7 @@ export function usePermissionsData() {
       // First delete all permissions for this role
       const permQuery = api
         .from('role_permissions')
-        .eq('role_id', roleId);
+        .eq('roleId', roleId);
       await permQuery.delete();
 
       // Then delete the role
@@ -196,7 +196,7 @@ export function usePermissionsData() {
       // Delete existing permissions
       const deleteQuery = api
         .from('role_permissions')
-        .eq('role_id', roleId);
+        .eq('roleId', roleId);
       await deleteQuery.delete();
 
       // Insert new permissions
@@ -217,7 +217,7 @@ export function usePermissionsData() {
       const permResult = await api
         .from('role_permissions')
         .select('*')
-        .eq('role_id', roleId);
+        .eq('roleId', roleId);
 
       if (permResult.error) throw permResult.error;
 

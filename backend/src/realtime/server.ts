@@ -308,10 +308,8 @@ class RealtimeServer {
    * Extract UUID from channel name
    * Handles formats like:
    * - board:{uuid}
-   * - board-{uuid}-cards/columns/members
    * - workspace:{uuid}
-   * - user-{uuid}-board-membership
-   * - user-{uuid}-workspace-membership
+   * - user:{uuid}
    */
   private extractUuidFromChannel(channel: string, prefix: string): string | undefined {
     // UUID regex: 8-4-4-4-12 hexadecimal characters
@@ -663,7 +661,7 @@ class RealtimeServer {
     }
 
     // Keep board channel for backward compatibility (temporary)
-    // Table-specific channels (board-${boardId}-cards, etc.) have been removed
+    // TODO: Remove after full migration to workspace subscriptions
     if (resolvedBoardId) {
       channels.push(`board:${resolvedBoardId}`);
     }
@@ -680,7 +678,6 @@ class RealtimeServer {
       // Emit to user-specific channels
       if (workspaceRecord?.userId) {
         channels.push(`user:${workspaceRecord.userId}`);
-        channels.push(`user-${workspaceRecord.userId}-workspace-membership`);
       }
       channels.push('global');
     } else if (table === 'workspaces') {

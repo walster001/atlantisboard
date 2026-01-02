@@ -217,53 +217,28 @@ class RealtimeClient {
 
       const channelState = this.channels.get(message.channel);
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:212',message:'channel state lookup',data:{channel:message.channel,hasChannelState:!!channelState,state:channelState?.state,bindingCount:channelState?.bindings.length,totalChannels:this.channels.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:212',message:'channel state lookup',data:{channel:message.channel,hasChannelState:!!channelState,state:channelState?.state,bindingCount:channelState?.bindings.length,totalChannels:this.channels.size,allChannels:Array.from(this.channels.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       if (!channelState) {
-        console.log(`[Realtime] No channel state found for channel: ${message.channel}`);
+        console.warn(`[Realtime] No channel state found for channel: ${message.channel}. Available channels: ${Array.from(this.channels.keys()).join(', ')}`);
+        // Try to find a matching channel by prefix (for workspace channels that might have been recreated)
+        const matchingChannel = Array.from(this.channels.keys()).find(ch => 
+          message.channel.startsWith(ch) || ch.startsWith(message.channel)
+        );
+        if (matchingChannel) {
+          console.log(`[Realtime] Found matching channel: ${matchingChannel} for ${message.channel}`);
+          const matchedState = this.channels.get(matchingChannel);
+          if (matchedState) {
+            // Process with the matched channel state
+            this.processEventForChannel(matchedState, message);
+            return;
+          }
+        }
         return;
       }
-
-      console.log(`[Realtime] Channel state found: ${message.channel}, state: ${channelState.state}, bindings: ${channelState.bindings.length}`);
-
-      // Find matching bindings
-      channelState.bindings.forEach((binding, index) => {
-        const tableMatches = binding.table === message.table ||
-          (binding.table === 'boardMembers' && message.table === 'board_members') ||
-          (binding.table === 'board_members' && message.table === 'boardMembers') ||
-          (binding.table === 'workspaceMembers' && message.table === 'workspace_members') ||
-          (binding.table === 'workspace_members' && message.table === 'workspaceMembers');
-
-        const eventMatches = binding.event === '*' || binding.event === message.event;
-
-        console.log(`[Realtime] Binding ${index}: table=${binding.table}, event=${binding.event}, tableMatches=${tableMatches}, eventMatches=${eventMatches}`);
-
-        if (tableMatches && eventMatches) {
-          // Apply filter if present
-          if (binding.filter) {
-            const filterMatch = this.matchesFilter(message.payload.new || message.payload.old, binding.filter);
-            console.log(`[Realtime] Filter check: filter=${binding.filter}, match=${filterMatch}`);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:234',message:'filter check',data:{channel:message.channel,bindingIndex:index,filter:binding.filter,filterMatch,table:message.table,event:message.event},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-            // #endregion
-            if (!filterMatch) {
-              console.log(`[Realtime] Filter rejected event`);
-              return;
-            }
-          }
-
-          console.log(`[Realtime] Calling handler for binding ${index}`);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:243',message:'calling handler',data:{channel:message.channel,bindingIndex:index,table:message.table,event:message.event,hasNew:!!message.payload?.new,hasOld:!!message.payload?.old},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
-          // Call handler
-          binding.handler({
-            eventType: message.event,
-            new: message.payload.new || null,
-            old: message.payload.old || null,
-          });
-        }
-      });
+      
+      this.processEventForChannel(channelState, message);
+      return;
     }
 
     // Handle custom events (e.g., board.removed)
@@ -285,6 +260,49 @@ class RealtimeClient {
         }
       }
     }
+  }
+
+  private processEventForChannel(channelState: ChannelState, message: any): void {
+    console.log(`[Realtime] Channel state found: ${message.channel}, state: ${channelState.state}, bindings: ${channelState.bindings.length}`);
+
+    // Find matching bindings
+    channelState.bindings.forEach((binding, index) => {
+      const tableMatches = binding.table === message.table ||
+        (binding.table === 'boardMembers' && message.table === 'board_members') ||
+        (binding.table === 'board_members' && message.table === 'boardMembers') ||
+        (binding.table === 'workspaceMembers' && message.table === 'workspace_members') ||
+        (binding.table === 'workspace_members' && message.table === 'workspaceMembers');
+
+      const eventMatches = binding.event === '*' || binding.event === message.event;
+
+      console.log(`[Realtime] Binding ${index}: table=${binding.table}, event=${binding.event}, tableMatches=${tableMatches}, eventMatches=${eventMatches}`);
+
+      if (tableMatches && eventMatches) {
+        // Apply filter if present
+        if (binding.filter) {
+          const filterMatch = this.matchesFilter(message.payload.new || message.payload.old, binding.filter);
+          console.log(`[Realtime] Filter check: filter=${binding.filter}, match=${filterMatch}`);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:234',message:'filter check',data:{channel:message.channel,bindingIndex:index,filter:binding.filter,filterMatch,table:message.table,event:message.event},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+          if (!filterMatch) {
+            console.log(`[Realtime] Filter rejected event`);
+            return;
+          }
+        }
+
+        console.log(`[Realtime] Calling handler for binding ${index}`);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:243',message:'calling handler',data:{channel:message.channel,bindingIndex:index,table:message.table,event:message.event,hasNew:!!message.payload?.new,hasOld:!!message.payload?.old},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+        // Call handler
+        binding.handler({
+          eventType: message.event,
+          new: message.payload.new || null,
+          old: message.payload.old || null,
+        });
+      }
+    });
   }
 
   private matchesFilter(record: Record<string, unknown> | null, filter: string): boolean {
@@ -363,7 +381,7 @@ class RealtimeClient {
 
   addChannel(topic: string, bindings: PostgresChangeBinding[], onStatus?: (status: RealtimeChannelState, error?: Error) => void): void {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:342',message:'addChannel called',data:{topic,bindingCount:bindings.length,bindings:bindings.map(b=>({table:b.table,event:b.event,filter:b.filter})),wsReadyState:this.ws?.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:342',message:'addChannel called',data:{topic,bindingCount:bindings.length,bindings:bindings.map(b=>({table:b.table,event:b.event,filter:b.filter})),wsReadyState:this.ws?.readyState,existingChannels:Array.from(this.channels.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
     // #endregion
     const channelState: ChannelState = {
       topic,
@@ -372,14 +390,34 @@ class RealtimeClient {
       onStatus,
     };
 
-    this.channels.set(topic, channelState);
+    // Check if channel already exists and merge bindings if needed
+    const existingChannel = this.channels.get(topic);
+    if (existingChannel) {
+      console.warn(`[Realtime] Channel ${topic} already exists, merging bindings`);
+      // Merge bindings (avoid duplicates)
+      const existingBindingKeys = new Set(existingChannel.bindings.map(b => `${b.table}:${b.event}`));
+      bindings.forEach(binding => {
+        const key = `${binding.table}:${binding.event}`;
+        if (!existingBindingKeys.has(key)) {
+          existingChannel.bindings.push(binding);
+        }
+      });
+      // Update onStatus callback if provided
+      if (onStatus) {
+        existingChannel.onStatus = onStatus;
+      }
+    } else {
+      this.channels.set(topic, channelState);
+      console.log(`[Realtime] Added channel ${topic} to map. Total channels: ${this.channels.size}`);
+    }
 
     // Connect if not already connected
     if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
       this.connect();
     } else if (this.ws.readyState === WebSocket.OPEN) {
       // WebSocket is open, subscribe immediately
-      this.subscribeToChannel(channelState);
+      const channelToSubscribe = existingChannel || channelState;
+      this.subscribeToChannel(channelToSubscribe);
     }
     // If WebSocket is CONNECTING, the onopen handler will subscribe to all channels
     // No additional action needed here - the channel is already in this.channels

@@ -4,7 +4,7 @@
  * Middleware for protecting routes with permission checks.
  */
 
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.js';
 import { PermissionKey } from '../lib/permissions/types.js';
 import { permissionService } from '../lib/permissions/service.js';
@@ -14,7 +14,7 @@ import { ForbiddenError } from './errorHandler.js';
  * Middleware factory to require a specific permission
  */
 export function requirePermission(permission: PermissionKey) {
-  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, _res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
         throw new ForbiddenError('Authentication required');
@@ -44,7 +44,7 @@ export function requirePermission(permission: PermissionKey) {
  * Middleware factory to require any of the given permissions
  */
 export function requireAnyPermission(...permissions: PermissionKey[]) {
-  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, _res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
         throw new ForbiddenError('Authentication required');
@@ -83,7 +83,7 @@ export function requireAnyPermission(...permissions: PermissionKey[]) {
  * Middleware factory to require all of the given permissions
  */
 export function requireAllPermissions(...permissions: PermissionKey[]) {
-  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, _res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
         throw new ForbiddenError('Authentication required');

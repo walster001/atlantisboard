@@ -7,9 +7,10 @@ const router = Router();
 router.use(authMiddleware);
 
 // GET /api/home/data - Get home page data (replaces get_home_data function)
-router.get('/data', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/data', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const data = await homeService.getHomeData(req.userId!, req.user?.isAdmin ?? false);
+    const data = await homeService.getHomeData(authReq.userId!, authReq.user?.isAdmin ?? false);
     res.json(data);
   } catch (error) {
     next(error);

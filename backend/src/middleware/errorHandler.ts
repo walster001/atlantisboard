@@ -39,26 +39,28 @@ export class ValidationError extends AppError {
 
 export function errorHandler(
   err: Error | AppError,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
-) {
+  _next: NextFunction
+): void {
   // Zod validation errors
   if (err instanceof ZodError) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Validation error',
       details: err.errors.map((e) => ({
         path: e.path.join('.'),
         message: e.message,
       })),
     });
+    return;
   }
 
   // App errors
   if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
+    res.status(err.statusCode).json({
       error: err.message,
     });
+    return;
   }
 
   // Unknown errors

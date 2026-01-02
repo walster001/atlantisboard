@@ -178,7 +178,7 @@ class RealtimeServer {
 
     // Check board access for board channels
     if (channel.startsWith('board:')) {
-      const boardId = channel.substring(7);
+      // const _boardId = channel.substring(7); // Permission check will be done when emitting events
       // Permission check will be done when emitting events
       // For now, just allow subscription
     }

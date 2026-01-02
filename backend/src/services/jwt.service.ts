@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { prisma } from '../db/client.js';
 import { UnauthorizedError } from '../middleware/errorHandler.js';
@@ -17,9 +17,10 @@ class JWTService {
       type: 'access',
     };
 
-    return jwt.sign(payload, env.JWT_SECRET, {
+    const options = {
       expiresIn: env.JWT_ACCESS_EXPIRES_IN,
-    });
+    } as SignOptions;
+    return jwt.sign(payload, env.JWT_SECRET, options);
   }
 
   async generateRefreshToken(userId: string, email: string): Promise<string> {
@@ -29,9 +30,10 @@ class JWTService {
       type: 'refresh',
     };
 
-    const token = jwt.sign(payload, env.JWT_REFRESH_SECRET, {
+    const options = {
       expiresIn: env.JWT_REFRESH_EXPIRES_IN,
-    });
+    } as SignOptions;
+    const token = jwt.sign(payload, env.JWT_REFRESH_SECRET, options);
 
     // Store refresh token in database
     const expiresAt = new Date();

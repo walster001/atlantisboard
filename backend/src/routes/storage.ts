@@ -6,7 +6,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { storageService } from '../services/storage.service.js';
-import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
+import { ValidationError } from '../middleware/errorHandler.js';
 import { permissionService } from '../lib/permissions/service.js';
 
 const router = Router();
@@ -26,7 +26,8 @@ router.use(authMiddleware);
  * POST /api/storage/:bucket/upload
  * Upload a file to a storage bucket
  */
-router.post('/:bucket/upload', upload.single('file'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const { bucket } = req.params;
     const { path } = req.body;
@@ -54,8 +55,8 @@ router.post('/:bucket/upload', upload.single('file'), async (req: AuthRequest, r
 
         if (card) {
           const context = permissionService.buildContext(
-            req.userId!,
-            req.user?.isAdmin ?? false,
+            authReq.userId!,
+            authReq.user?.isAdmin ?? false,
             card.column.boardId
           );
           await permissionService.requirePermission('attachment.upload', context);
@@ -63,7 +64,7 @@ router.post('/:bucket/upload', upload.single('file'), async (req: AuthRequest, r
       }
     } else if (bucket === 'branding' || bucket === 'fonts') {
       // Admin-only for branding and fonts
-      const context = permissionService.buildContext(req.userId!, req.user?.isAdmin ?? false);
+      const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
       if (bucket === 'branding') {
         await permissionService.requirePermission('app.admin.branding.edit', context);
       } else if (bucket === 'fonts') {
@@ -88,7 +89,8 @@ router.post('/:bucket/upload', upload.single('file'), async (req: AuthRequest, r
  * GET /api/storage/:bucket/:path(*)
  * Download a file from storage
  */
-router.get('/:bucket/*', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/:bucket/*', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const { bucket } = req.params;
     const path = req.params[0]; // Get everything after bucket/
@@ -109,8 +111,8 @@ router.get('/:bucket/*', async (req: AuthRequest, res: Response, next: NextFunct
 
         if (card) {
           const context = permissionService.buildContext(
-            req.userId!,
-            req.user?.isAdmin ?? false,
+            authReq.userId!,
+            authReq.user?.isAdmin ?? false,
             card.column.boardId
           );
           await permissionService.requirePermission('attachment.download', context);
@@ -135,7 +137,8 @@ router.get('/:bucket/*', async (req: AuthRequest, res: Response, next: NextFunct
  * DELETE /api/storage/:bucket/:path(*)
  * Delete a file from storage
  */
-router.delete('/:bucket/*', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:bucket/*', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const { bucket } = req.params;
     const path = req.params[0];
@@ -156,15 +159,15 @@ router.delete('/:bucket/*', async (req: AuthRequest, res: Response, next: NextFu
 
         if (card) {
           const context = permissionService.buildContext(
-            req.userId!,
-            req.user?.isAdmin ?? false,
+            authReq.userId!,
+            authReq.user?.isAdmin ?? false,
             card.column.boardId
           );
           await permissionService.requirePermission('attachment.delete', context);
         }
       }
     } else if (bucket === 'branding' || bucket === 'fonts') {
-      const context = permissionService.buildContext(req.userId!, req.user?.isAdmin ?? false);
+      const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
       if (bucket === 'branding') {
         await permissionService.requirePermission('app.admin.branding.edit', context);
       } else if (bucket === 'fonts') {
@@ -185,7 +188,7 @@ router.delete('/:bucket/*', async (req: AuthRequest, res: Response, next: NextFu
  * GET /api/storage/:bucket/:path(*)/public-url
  * Get public URL for a file (for public buckets)
  */
-router.get('/:bucket/*/public-url', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/:bucket/*/public-url', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { bucket } = req.params;
     const path = req.params[0].replace(/\/public-url$/, '');

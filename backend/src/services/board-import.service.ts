@@ -6,7 +6,6 @@
  */
 
 import { prisma } from '../db/client.js';
-import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 
 // Emoji shortcode map (simplified - full map in original edge function)
 const EMOJI_SHORTCODE_MAP: Record<string, string> = {

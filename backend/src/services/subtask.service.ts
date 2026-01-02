@@ -1,7 +1,6 @@
 import { prisma } from '../db/client.js';
-import { NotFoundError, ForbiddenError } from '../middleware/errorHandler.js';
+import { NotFoundError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
-import { cardService } from './card.service.js';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
 
@@ -76,6 +75,8 @@ class SubtaskService {
       throw new NotFoundError('Subtask not found');
     }
 
+    const validated = updateSubtaskSchema.parse(data);
+
     // Check permission
     const context = permissionService.buildContext(userId, isAppAdmin, subtask.card.column.boardId);
     if (validated.completed !== undefined) {
@@ -83,8 +84,6 @@ class SubtaskService {
     } else {
       await permissionService.requirePermission('subtask.create', context);
     }
-
-    const validated = updateSubtaskSchema.parse(data);
 
     const updateData: any = {
       title: validated.title,

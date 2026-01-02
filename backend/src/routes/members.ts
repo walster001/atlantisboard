@@ -7,9 +7,10 @@ const router = Router();
 router.use(authMiddleware);
 
 // GET /api/boards/:boardId/members - Get board members
-router.get('/boards/:boardId/members', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/boards/:boardId/members', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const members = await memberService.getBoardMembers(req.userId!, req.params.boardId, req.user?.isAdmin ?? false);
+    const members = await memberService.getBoardMembers(authReq.userId!, req.params.boardId, authReq.user?.isAdmin ?? false);
     res.json(members);
   } catch (error) {
     next(error);
@@ -17,12 +18,13 @@ router.get('/boards/:boardId/members', async (req: AuthRequest, res: Response, n
 });
 
 // POST /api/boards/:boardId/members - Add board member
-router.post('/boards/:boardId/members', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/boards/:boardId/members', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const member = await memberService.addBoardMember(req.userId!, {
+    const member = await memberService.addBoardMember(authReq.userId!, {
       boardId: req.params.boardId,
       ...req.body,
-    }, req.user?.isAdmin ?? false);
+    }, authReq.user?.isAdmin ?? false);
     res.status(201).json(member);
   } catch (error) {
     next(error);
@@ -30,9 +32,10 @@ router.post('/boards/:boardId/members', async (req: AuthRequest, res: Response, 
 });
 
 // DELETE /api/boards/:boardId/members/:userId - Remove board member
-router.delete('/boards/:boardId/members/:userId', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/boards/:boardId/members/:userId', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const result = await memberService.removeBoardMember(req.userId!, req.params.boardId, req.params.userId, req.user?.isAdmin ?? false);
+    const result = await memberService.removeBoardMember(authReq.userId!, req.params.boardId, req.params.userId, authReq.user?.isAdmin ?? false);
     res.json(result);
   } catch (error) {
     next(error);
@@ -40,36 +43,38 @@ router.delete('/boards/:boardId/members/:userId', async (req: AuthRequest, res: 
 });
 
 // PATCH /api/boards/:boardId/members/:userId/role - Update member role
-router.patch('/boards/:boardId/members/:userId/role', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/boards/:boardId/members/:userId/role', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const { role } = req.body;
     if (!role || !['admin', 'manager', 'viewer'].includes(role)) {
       return res.status(400).json({ error: 'Valid role is required' });
     }
     const member = await memberService.updateBoardMemberRole(
-      req.userId!,
+      authReq.userId!,
       req.params.boardId,
       req.params.userId,
       role,
-      req.user?.isAdmin ?? false
+      authReq.user?.isAdmin ?? false
     );
-    res.json(member);
+    return res.json(member);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
 // GET /api/boards/:boardId/members/find - Find user by email
-router.get('/boards/:boardId/members/find', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/boards/:boardId/members/find', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const email = req.query.email as string;
     if (!email) {
       return res.status(400).json({ error: 'email is required' });
     }
-    const users = await memberService.findUserByEmail(req.userId!, email, req.params.boardId, req.user?.isAdmin ?? false);
-    res.json(users);
+    const users = await memberService.findUserByEmail(authReq.userId!, email, req.params.boardId, authReq.user?.isAdmin ?? false);
+    return res.json(users);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 

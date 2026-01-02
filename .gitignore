@@ -21,6 +21,7 @@ supabase/docker/.env
 # Development process files
 backend/.dev-api.pid
 backend/.dev-api.log
+backend/.prisma-generate.lock
 
 # Editor directories and files
 .vscode/*

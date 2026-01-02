@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js';
+import { Prisma } from '@prisma/client';
 import { passwordService } from './password.service.js';
 import { jwtService } from './jwt.service.js';
 import { mysqlVerificationService } from './mysql-verification.service.js';
@@ -33,7 +34,7 @@ class AuthService {
     const passwordHash = await passwordService.hash(validated.password);
 
     // Create user and profile in transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const user = await tx.user.create({
         data: {
           email: validated.email,
@@ -243,7 +244,7 @@ class AuthService {
     }
 
     // Create new user
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const newUser = await tx.user.create({
         data: {
           email,

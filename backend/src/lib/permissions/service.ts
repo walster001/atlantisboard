@@ -58,7 +58,7 @@ class PermissionService {
       return new Set();
     }
 
-    return new Set(membership.customRole.permissions.map((p) => p.permissionKey as PermissionKey));
+    return new Set(membership.customRole.permissions.map((p: { permissionKey: string }) => p.permissionKey as PermissionKey));
   }
 
   /**
@@ -68,7 +68,7 @@ class PermissionService {
     permission: PermissionKey,
     context: PermissionContext
   ): Promise<boolean> {
-    const { userId, isAppAdmin, boardId, boardRole } = context;
+    const { userId, isAppAdmin, boardId } = context;
 
     // App-level permissions require isAppAdmin flag
     if (isAppPermission(permission)) {
@@ -109,7 +109,7 @@ class PermissionService {
     // Check custom role permissions first
     if (membership.customRole) {
       const customPermissions = new Set(
-        membership.customRole.permissions.map((p) => p.permissionKey as PermissionKey)
+        membership.customRole.permissions.map((p: { permissionKey: string }) => p.permissionKey as PermissionKey)
       );
       if (customPermissions.has(permission)) {
         return true;
@@ -117,7 +117,7 @@ class PermissionService {
     }
 
     // Fall back to default role permissions
-    const role = membership.role;
+    const role: BoardRole = membership.role;
     const defaultPermissions = DEFAULT_ROLE_PERMISSIONS[role];
     return defaultPermissions.has(permission);
   }
@@ -168,13 +168,14 @@ class PermissionService {
       if (membership) {
         // Add custom role permissions
         if (membership.customRole) {
-          membership.customRole.permissions.forEach((p) => {
+          membership.customRole.permissions.forEach((p: { permissionKey: string }) => {
             permissions.add(p.permissionKey as PermissionKey);
           });
         } else {
           // Add default role permissions
-          const defaultPermissions = DEFAULT_ROLE_PERMISSIONS[membership.role];
-          defaultPermissions.forEach((perm) => permissions.add(perm));
+          const role: BoardRole = membership.role;
+          const defaultPermissions = DEFAULT_ROLE_PERMISSIONS[role];
+          defaultPermissions.forEach((perm: PermissionKey) => permissions.add(perm));
         }
       }
 

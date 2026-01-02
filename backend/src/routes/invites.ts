@@ -4,11 +4,10 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
-import { ValidationError, ForbiddenError, NotFoundError } from '../middleware/errorHandler.js';
+import { ForbiddenError } from '../middleware/errorHandler.js';
 import { prisma } from '../db/client.js';
 import { z } from 'zod';
-import { permissionService } from '../lib/permissions/service.js';
-import { realtimeEmitter } from '../realtime/emitter.js';
+import { emitCustomEvent } from '../realtime/emitter.js';
 
 const router = Router();
 
@@ -23,18 +22,16 @@ const generateInviteSchema = z.object({
  * POST /api/boards/:boardId/invites/generate
  * Generate an invite token for a board
  */
-router.post('/boards/:boardId/invites/generate', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/boards/:boardId/invites/generate', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const { boardId } = req.params;
     const validated = generateInviteSchema.parse(req.body);
     const { linkType } = validated;
 
-    // Check permission - must be board admin
-    const context = permissionService.buildContext(req.userId!, req.user?.isAdmin ?? false, boardId);
-    
     // Check if user can create invites (board admin)
     const canCreate = await prisma.$queryRaw<Array<{ can_create_board_invite: boolean }>>`
-      SELECT can_create_board_invite(${req.userId!}::uuid, ${boardId}::uuid) as can_create_board_invite
+      SELECT can_create_board_invite(${authReq.userId!}::uuid, ${boardId}::uuid) as can_create_board_invite
     `;
 
     if (!canCreate[0]?.can_create_board_invite) {
@@ -57,7 +54,7 @@ router.post('/boards/:boardId/invites/generate', async (req: AuthRequest, res: R
       data: {
         token,
         boardId,
-        createdBy: req.userId!,
+        createdBy: authReq.userId!,
         expiresAt,
         linkType,
       },
@@ -88,7 +85,8 @@ const redeemInviteSchema = z.object({
  * POST /api/invites/redeem
  * Redeem an invite token
  */
-router.post('/redeem', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/redeem', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const validated = redeemInviteSchema.parse(req.body);
     const { token } = validated;
@@ -101,7 +99,7 @@ router.post('/redeem', async (req: AuthRequest, res: Response, next: NextFunctio
       already_member?: boolean;
       board_id?: string;
     }>>`
-      SELECT * FROM validate_and_redeem_invite_token(${token}::text, ${req.userId!}::uuid)
+      SELECT * FROM validate_and_redeem_invite_token(${token}::text, ${authReq.userId!}::uuid)
     `;
 
     const redemptionResult = result[0];
@@ -122,21 +120,21 @@ router.post('/redeem', async (req: AuthRequest, res: Response, next: NextFunctio
 
     // Emit realtime event for board member addition
     if (redemptionResult.board_id && !redemptionResult.already_member) {
-      realtimeEmitter.emitCustomEvent(`board-${redemptionResult.board_id}`, 'board.member.added', {
+      await emitCustomEvent(`board-${redemptionResult.board_id}`, 'board.member.added', {
         boardId: redemptionResult.board_id,
-        userId: req.userId!,
+        userId: authReq.userId!,
         role: 'viewer',
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       boardId: redemptionResult.board_id,
       alreadyMember: redemptionResult.already_member || false,
       message: redemptionResult.message,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 

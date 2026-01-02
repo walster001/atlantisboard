@@ -4,7 +4,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
-import { ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
+import { ValidationError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { boardImportService } from '../services/board-import.service.js';
@@ -24,10 +24,11 @@ const importBoardSchema = z.object({
  * Import Wekan board(s)
  * Supports SSE streaming via ?stream=true query parameter
  */
-router.post('/import', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/import', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     // Check admin permission
-    const context = permissionService.buildContext(req.userId!, req.user?.isAdmin ?? false);
+    const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
     await permissionService.requirePermission('app.admin.access', context);
 
     const validated = importBoardSchema.parse(req.body);
@@ -58,7 +59,7 @@ router.post('/import', async (req: AuthRequest, res: Response, next: NextFunctio
 
       try {
         await boardImportService.importWekanBoard(
-          req.userId!,
+          authReq.userId!,
           wekanData,
           defaultCardColor || null,
           sendProgress,
@@ -81,7 +82,7 @@ router.post('/import', async (req: AuthRequest, res: Response, next: NextFunctio
     } else {
       // Non-streaming fallback
       const result = await boardImportService.importWekanBoard(
-        req.userId!,
+        authReq.userId!,
         wekanData,
         defaultCardColor || null
       );

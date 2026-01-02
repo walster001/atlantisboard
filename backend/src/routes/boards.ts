@@ -8,9 +8,10 @@ const router = Router();
 router.use(authMiddleware);
 
 // GET /api/boards - List user's boards
-router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const boards = await boardService.findAll(req.userId!, req.user?.isAdmin ?? false);
+    const boards = await boardService.findAll(authReq.userId!, authReq.user?.isAdmin ?? false);
     res.json(boards);
   } catch (error) {
     next(error);
@@ -18,9 +19,10 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
 });
 
 // GET /api/boards/:id - Get board by ID
-router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const board = await boardService.findById(req.userId!, req.params.id, req.user?.isAdmin ?? false);
+    const board = await boardService.findById(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(board);
   } catch (error) {
     next(error);
@@ -28,9 +30,10 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
 });
 
 // GET /api/boards/:id/data - Get complete board data (replaces get_board_data function)
-router.get('/:id/data', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/:id/data', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const data = await boardService.getBoardData(req.userId!, req.params.id, req.user?.isAdmin ?? false);
+    const data = await boardService.getBoardData(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(data);
   } catch (error) {
     next(error);
@@ -38,9 +41,10 @@ router.get('/:id/data', async (req: AuthRequest, res: Response, next: NextFuncti
 });
 
 // POST /api/boards - Create board
-router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const board = await boardService.create(req.userId!, req.body, req.user?.isAdmin ?? false);
+    const board = await boardService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(board);
   } catch (error) {
     next(error);
@@ -48,9 +52,10 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
 });
 
 // PATCH /api/boards/:id - Update board
-router.patch('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const board = await boardService.update(req.userId!, req.params.id, req.body, req.user?.isAdmin ?? false);
+    const board = await boardService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(board);
   } catch (error) {
     next(error);
@@ -58,9 +63,10 @@ router.patch('/:id', async (req: AuthRequest, res: Response, next: NextFunction)
 });
 
 // DELETE /api/boards/:id - Delete board
-router.delete('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const result = await boardService.delete(req.userId!, req.params.id, req.user?.isAdmin ?? false);
+    const result = await boardService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
   } catch (error) {
     next(error);
@@ -68,15 +74,16 @@ router.delete('/:id', async (req: AuthRequest, res: Response, next: NextFunction
 });
 
 // PATCH /api/boards/:id/position - Update board position
-router.patch('/:id/position', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id/position', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const { position, workspaceId } = req.body;
     const board = await boardService.updatePosition(
-      req.userId!,
+      authReq.userId!,
       req.params.id,
       position,
       workspaceId,
-      req.user?.isAdmin ?? false
+      authReq.user?.isAdmin ?? false
     );
     res.json(board);
   } catch (error) {

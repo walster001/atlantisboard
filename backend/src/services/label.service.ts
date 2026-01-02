@@ -1,7 +1,6 @@
 import { prisma } from '../db/client.js';
-import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
+import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
-import { boardService } from './board.service.js';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
 

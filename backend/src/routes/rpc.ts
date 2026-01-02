@@ -12,42 +12,48 @@ const router = Router();
 router.use(authMiddleware);
 
 // Map RPC function names to handlers
-const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any>> = {
-  get_home_data: async (req, params) => {
-    return homeService.getHomeData(req.userId!, req.user?.isAdmin ?? false);
+const rpcHandlers: Record<string, (req: Request, params: any) => Promise<any>> = {
+  get_home_data: async (req, _params) => {
+    const authReq = req as AuthRequest;
+    return homeService.getHomeData(authReq.userId!, authReq.user?.isAdmin ?? false);
   },
 
   get_board_data: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _board_id: boardId, _user_id: userId } = params;
-    return boardService.getBoardData(userId || req.userId!, boardId, req.user?.isAdmin ?? false);
+    return boardService.getBoardData(userId || authReq.userId!, boardId, authReq.user?.isAdmin ?? false);
   },
 
   get_board_member_profiles: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _board_id: boardId } = params;
-    return memberService.getBoardMembers(req.userId!, boardId, req.user?.isAdmin ?? false);
+    return memberService.getBoardMembers(authReq.userId!, boardId, authReq.user?.isAdmin ?? false);
   },
 
   find_user_by_email: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _email: email, _board_id: boardId } = params;
-    return memberService.findUserByEmail(req.userId!, email, boardId, req.user?.isAdmin ?? false);
+    return memberService.findUserByEmail(authReq.userId!, email, boardId, authReq.user?.isAdmin ?? false);
   },
 
   is_app_admin: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _user_id: userId } = params;
     const user = await prisma.user.findUnique({
-      where: { id: userId || req.userId! },
+      where: { id: userId || authReq.userId! },
       include: { profile: true },
     });
     return user?.profile?.isAdmin ?? false;
   },
 
   get_board_role: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _board_id: boardId, _user_id: userId } = params;
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || req.userId!,
+          userId: userId || authReq.userId!,
         },
       },
     });
@@ -55,12 +61,13 @@ const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any
   },
 
   is_board_member: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _board_id: boardId, _user_id: userId } = params;
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || req.userId!,
+          userId: userId || authReq.userId!,
         },
       },
     });
@@ -68,15 +75,16 @@ const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any
   },
 
   can_edit_board: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _board_id: boardId, _user_id: userId } = params;
-    if (req.user?.isAdmin) {
+    if (authReq.user?.isAdmin) {
       return true;
     }
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || req.userId!,
+          userId: userId || authReq.userId!,
         },
       },
     });
@@ -84,15 +92,16 @@ const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any
   },
 
   can_manage_members: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _board_id: boardId, _user_id: userId } = params;
-    if (req.user?.isAdmin) {
+    if (authReq.user?.isAdmin) {
       return true;
     }
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || req.userId!,
+          userId: userId || authReq.userId!,
         },
       },
     });
@@ -100,15 +109,16 @@ const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any
   },
 
   can_create_board_invite: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _board_id: boardId, _user_id: userId } = params;
-    if (req.user?.isAdmin) {
+    if (authReq.user?.isAdmin) {
       return true;
     }
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || req.userId!,
+          userId: userId || authReq.userId!,
         },
       },
     });
@@ -116,37 +126,40 @@ const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any
   },
 
   batch_update_column_positions: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _user_id: userId, _board_id: boardId, _updates: updates } = params;
     if (!Array.isArray(updates)) {
       throw new Error('Invalid updates parameter');
     }
     return columnService.reorder(
-      userId || req.userId!,
+      userId || authReq.userId!,
       boardId,
       updates.map((u: any) => ({ id: u.id, position: u.position })),
-      req.user?.isAdmin ?? false
+      authReq.user?.isAdmin ?? false
     );
   },
 
   batch_update_card_positions: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _user_id: userId, _updates: updates } = params;
     if (!Array.isArray(updates)) {
       throw new Error('Invalid updates parameter');
     }
     return cardService.reorder(
-      userId || req.userId!,
+      userId || authReq.userId!,
       updates.map((u: any) => ({ id: u.id, columnId: u.column_id, position: u.position })),
-      req.user?.isAdmin ?? false
+      authReq.user?.isAdmin ?? false
     );
   },
 
-  batch_update_board_positions: async (req, params) => {
-    const { _user_id: userId, _workspace_id: workspaceId, _updates: updates } = params;
+  batch_update_board_positions: async (_req, params) => {
+    const { _user_id: _userId, _workspace_id: _workspaceId, _updates: updates } = params;
     if (!Array.isArray(updates)) {
       throw new Error('Invalid updates parameter');
     }
-    const effectiveUserId = userId || req.userId!;
-    const isAppAdmin = req.user?.isAdmin ?? false;
+    // Variables computed but not used in current implementation
+    // const _effectiveUserId = userId || authReq.userId!;
+    // const _isAppAdmin = authReq.user?.isAdmin ?? false;
 
     // Update all board positions in transaction
     await prisma.$transaction(
@@ -163,7 +176,7 @@ const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any
       const board = await prisma.board.findUnique({ where: { id: update.id } });
       if (board) {
         // Check permission for each board
-        const context = { userId: effectiveUserId, isAppAdmin, boardId: board.id };
+        // Permission check is done at service level
         // Permission check is done at service level, but we need to verify access
         // For now, emit the event - the service will handle permission checks
       }
@@ -173,44 +186,46 @@ const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any
   },
 
   move_board_to_workspace: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _user_id: userId, _board_id: boardId, _new_workspace_id: newWorkspaceId, _new_position: newPosition } = params;
     return boardService.updatePosition(
-      userId || req.userId!,
+      userId || authReq.userId!,
       boardId,
       newPosition,
       newWorkspaceId,
-      req.user?.isAdmin ?? false
+      authReq.user?.isAdmin ?? false
     );
   },
 
   update_card: async (req, params) => {
+    const authReq = req as AuthRequest;
     const { _user_id: userId, _card_id: cardId, _title: title, _description: description, _due_date: dueDate } = params;
     return cardService.update(
-      userId || req.userId!,
+      userId || authReq.userId!,
       cardId,
       {
         title: title || undefined,
         description: description !== undefined ? description : undefined,
         dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       },
-      req.user?.isAdmin ?? false
+      authReq.user?.isAdmin ?? false
     );
   },
 
-  get_board_deletion_counts: async (req, params) => {
+  get_board_deletion_counts: async (_req, params) => {
     const { _board_id: boardId } = params;
     
     // Get column IDs for this board
     const columnIds = await prisma.column.findMany({
       where: { boardId },
       select: { id: true },
-    }).then(cols => cols.map(c => c.id));
+    }).then((cols: Array<{ id: string }>) => cols.map((c: { id: string }) => c.id));
 
     // Get card IDs in these columns
     const cardIds = await prisma.card.findMany({
       where: { columnId: { in: columnIds } },
       select: { id: true },
-    }).then(cards => cards.map(c => c.id));
+    }).then((cards: Array<{ id: string }>) => cards.map((c: { id: string }) => c.id));
 
     // Count related records
     const [columnsCount, cardsCount, membersCount, labelsCount, attachmentsCount] = await Promise.all([
@@ -230,26 +245,26 @@ const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any
     };
   },
 
-  get_workspace_deletion_counts: async (req, params) => {
+  get_workspace_deletion_counts: async (_req, params) => {
     const { _workspace_id: workspaceId } = params;
     
     // Get board IDs for this workspace
     const boardIds = await prisma.board.findMany({
       where: { workspaceId },
       select: { id: true },
-    }).then(boards => boards.map(b => b.id));
+    }).then((boards: Array<{ id: string }>) => boards.map((b: { id: string }) => b.id));
 
     // Get column IDs for these boards
     const columnIds = await prisma.column.findMany({
       where: { boardId: { in: boardIds } },
       select: { id: true },
-    }).then(cols => cols.map(c => c.id));
+    }).then((cols: Array<{ id: string }>) => cols.map((c: { id: string }) => c.id));
 
     // Get card IDs in these columns
     const cardIds = await prisma.card.findMany({
       where: { columnId: { in: columnIds } },
       select: { id: true },
-    }).then(cards => cards.map(c => c.id));
+    }).then((cards: Array<{ id: string }>) => cards.map((c: { id: string }) => c.id));
 
     // Count related records
     const [boardsCount, columnsCount, cardsCount, membersCount, labelsCount, attachmentsCount] = await Promise.all([
@@ -273,7 +288,8 @@ const rpcHandlers: Record<string, (req: AuthRequest, params: any) => Promise<any
 };
 
 // POST /api/rpc/:functionName - Call RPC function
-router.post('/:functionName', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:functionName', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const { functionName } = req.params;
     const handler = rpcHandlers[functionName];
@@ -282,10 +298,10 @@ router.post('/:functionName', async (req: AuthRequest, res: Response, next: Next
       return res.status(404).json({ error: `RPC function not found: ${functionName}` });
     }
 
-    const result = await handler(req, req.body);
-    res.json(result);
+    const result = await handler(authReq, req.body);
+    return res.json(result);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 

@@ -1,5 +1,5 @@
 import { prisma } from '../db/client.js';
-import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
+import { NotFoundError, ForbiddenError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange, emitCustomEvent } from '../realtime/emitter.js';
@@ -81,7 +81,7 @@ class BoardService {
     });
 
     // Get all cards in these columns
-    const columnIds = columns.map((c) => c.id);
+    const columnIds = columns.map((c: { id: string }) => c.id);
     const cards = await prisma.card.findMany({
       where: {
         columnId: { in: columnIds },
@@ -120,7 +120,7 @@ class BoardService {
     // Get card labels (many-to-many)
     const cardLabels = await prisma.cardLabel.findMany({
       where: {
-        cardId: { in: cards.map((c) => c.id) },
+        cardId: { in: cards.map((c: { id: string }) => c.id) },
       },
     });
 
@@ -137,7 +137,7 @@ class BoardService {
     });
 
     // Format members (hide email unless self or app admin)
-    const formattedMembers = members.map((member) => ({
+    const formattedMembers = members.map((member: { userId: string; role: string; user: { email: string; profile?: { id: string; fullName: string | null; avatarUrl: string | null } | null } }) => ({
       user_id: member.userId,
       role: member.role,
       profiles: {
@@ -158,7 +158,7 @@ class BoardService {
       },
       user_role: userRole,
       columns,
-      cards: cards.map((card) => ({
+      cards: cards.map((card: { id: string; columnId: string; createdBy: string | null; dueDate: Date | null; createdAt: Date; updatedAt: Date; [key: string]: any }) => ({
         ...card,
         column_id: card.columnId,
         created_by: card.createdBy,
@@ -167,7 +167,7 @@ class BoardService {
         updated_at: card.updatedAt,
       })),
       labels,
-      card_labels: cardLabels.map((cl) => ({
+      card_labels: cardLabels.map((cl: { cardId: string; labelId: string }) => ({
         card_id: cl.cardId,
         label_id: cl.labelId,
       })),
@@ -359,13 +359,16 @@ class BoardService {
       updateData.workspaceId = newWorkspaceId;
     }
 
+    // Get old board before update
+    const oldBoard = await prisma.board.findUnique({ where: { id: boardId } });
+    
     const updated = await prisma.board.update({
       where: { id: boardId },
       data: updateData,
     });
 
     // Emit update event
-    await emitDatabaseChange('boards', 'UPDATE', updated as any, board as any, boardId);
+    await emitDatabaseChange('boards', 'UPDATE', updated as any, oldBoard as any, boardId);
 
     return updated;
   }

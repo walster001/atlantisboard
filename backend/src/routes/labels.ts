@@ -7,23 +7,25 @@ const router = Router();
 router.use(authMiddleware);
 
 // GET /api/labels?boardId=:boardId - List labels for a board
-router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const boardId = req.query.boardId as string;
     if (!boardId) {
       return res.status(400).json({ error: 'boardId is required' });
     }
-    const labels = await labelService.findAll(req.userId!, boardId, req.user?.isAdmin ?? false);
-    res.json(labels);
+    const labels = await labelService.findAll(authReq.userId!, boardId, authReq.user?.isAdmin ?? false);
+    return res.json(labels);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
 // POST /api/labels - Create label
-router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const label = await labelService.create(req.userId!, req.body, req.user?.isAdmin ?? false);
+    const label = await labelService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(label);
   } catch (error) {
     next(error);
@@ -31,9 +33,10 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
 });
 
 // PATCH /api/labels/:id - Update label
-router.patch('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const label = await labelService.update(req.userId!, req.params.id, req.body, req.user?.isAdmin ?? false);
+    const label = await labelService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(label);
   } catch (error) {
     next(error);
@@ -41,9 +44,10 @@ router.patch('/:id', async (req: AuthRequest, res: Response, next: NextFunction)
 });
 
 // DELETE /api/labels/:id - Delete label
-router.delete('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const result = await labelService.delete(req.userId!, req.params.id, req.user?.isAdmin ?? false);
+    const result = await labelService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
   } catch (error) {
     next(error);
@@ -51,23 +55,25 @@ router.delete('/:id', async (req: AuthRequest, res: Response, next: NextFunction
 });
 
 // POST /api/labels/:id/assign - Assign label to card
-router.post('/:id/assign', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/assign', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const { cardId } = req.body;
     if (!cardId) {
       return res.status(400).json({ error: 'cardId is required' });
     }
-    const cardLabel = await labelService.assignToCard(req.userId!, cardId, req.params.id, req.user?.isAdmin ?? false);
-    res.status(201).json(cardLabel);
+    const cardLabel = await labelService.assignToCard(authReq.userId!, cardId, req.params.id, authReq.user?.isAdmin ?? false);
+    return res.status(201).json(cardLabel);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
 // DELETE /api/labels/:id/assign/:cardId - Remove label from card
-router.delete('/:id/assign/:cardId', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id/assign/:cardId', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const result = await labelService.removeFromCard(req.userId!, req.params.cardId, req.params.id, req.user?.isAdmin ?? false);
+    const result = await labelService.removeFromCard(authReq.userId!, req.params.cardId, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
   } catch (error) {
     next(error);

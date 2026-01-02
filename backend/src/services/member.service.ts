@@ -1,5 +1,5 @@
 import { prisma } from '../db/client.js';
-import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
+import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange, emitCustomEvent } from '../realtime/emitter.js';
@@ -10,9 +10,6 @@ const addBoardMemberSchema = z.object({
   role: z.enum(['admin', 'manager', 'viewer']).default('viewer'),
 });
 
-const updateBoardMemberRoleSchema = z.object({
-  role: z.enum(['admin', 'manager', 'viewer']),
-});
 
 class MemberService {
 
@@ -27,7 +24,8 @@ class MemberService {
       throw new NotFoundError('Board not found');
     }
 
-    const membership = await prisma.boardMember.findUnique({
+    // Check membership exists (not used but kept for future permission checks)
+    await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
@@ -52,7 +50,7 @@ class MemberService {
     });
 
     // Format response (hide email unless self or app admin)
-    return members.map((member) => ({
+    return members.map((member: { userId: string; role: string; user: { email: string; profile?: { id: string; fullName: string | null; avatarUrl: string | null } | null } }) => ({
       user_id: member.userId,
       role: member.role,
       profiles: {
@@ -267,7 +265,7 @@ class MemberService {
       },
     });
 
-    return users.map((user) => ({
+    return users.map((user: { id: string; email: string; profile?: { fullName: string | null; avatarUrl: string | null } | null }) => ({
       id: user.id,
       email: user.email,
       full_name: user.profile?.fullName ?? null,

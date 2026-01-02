@@ -1,8 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
 import { ValidationError } from '../middleware/errorHandler.js';
-import { z } from 'zod';
 
 const router = Router();
 
@@ -42,7 +41,7 @@ function parseFilters(query: Record<string, string>) {
 }
 
 // Apply filters to Prisma query
-function applyFilters<T>(
+function applyFilters(
   query: any,
   filters: Array<{ field: string; operator: string; value: unknown }>
 ) {
@@ -116,7 +115,7 @@ const tableModelMap: Record<string, keyof typeof prisma> = {
 };
 
 // GET /api/db/:table - Query table
-router.get('/:table', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/:table', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { table } = req.params;
     const modelName = tableModelMap[table];
@@ -127,7 +126,7 @@ router.get('/:table', async (req: AuthRequest, res: Response, next: NextFunction
 
     const model = (prisma as any)[modelName];
     if (!model) {
-      throw new ValidationError(`Model not found: ${modelName}`);
+      throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
 
     // Parse query parameters
@@ -180,7 +179,7 @@ router.get('/:table', async (req: AuthRequest, res: Response, next: NextFunction
 });
 
 // POST /api/db/:table - Insert records
-router.post('/:table', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:table', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { table } = req.params;
     const modelName = tableModelMap[table];
@@ -191,7 +190,7 @@ router.post('/:table', async (req: AuthRequest, res: Response, next: NextFunctio
 
     const model = (prisma as any)[modelName];
     if (!model) {
-      throw new ValidationError(`Model not found: ${modelName}`);
+      throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
 
     const body = req.body;
@@ -209,7 +208,7 @@ router.post('/:table', async (req: AuthRequest, res: Response, next: NextFunctio
 });
 
 // PATCH /api/db/:table - Update records
-router.patch('/:table', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:table', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { table } = req.params;
     const modelName = tableModelMap[table];
@@ -220,7 +219,7 @@ router.patch('/:table', async (req: AuthRequest, res: Response, next: NextFuncti
 
     const model = (prisma as any)[modelName];
     if (!model) {
-      throw new ValidationError(`Model not found: ${modelName}`);
+      throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
 
     // Parse filters from query
@@ -243,7 +242,7 @@ router.patch('/:table', async (req: AuthRequest, res: Response, next: NextFuncti
 });
 
 // DELETE /api/db/:table - Delete records
-router.delete('/:table', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:table', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { table } = req.params;
     const modelName = tableModelMap[table];
@@ -254,7 +253,7 @@ router.delete('/:table', async (req: AuthRequest, res: Response, next: NextFunct
 
     const model = (prisma as any)[modelName];
     if (!model) {
-      throw new ValidationError(`Model not found: ${modelName}`);
+      throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
 
     // Parse filters from query

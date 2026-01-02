@@ -43,7 +43,7 @@ model User {
   assignedBy    CardAssignee[] @relation("CardAssigner")
   completedSubtasks CardSubtask[] @relation("SubtaskCompleter")
   uploadedAttachments CardAttachment[]
-  createdThemes BoardTheme[]
+  createdThemes BoardTheme[] @relation("ThemeCreator")
   createdRoles  CustomRole[]
   createdInviteTokens BoardInviteToken[] @relation("InviteTokenCreator")
   usedInviteTokens BoardInviteToken[] @relation("InviteTokenUser")
@@ -207,11 +207,13 @@ model Board {
   themeId              String?  @map("theme_id")
   position              Int      @default(0)
   auditLogRetentionDays Int?      @map("audit_log_retention_days")
+  createdBy             String?  @map("created_by")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
   workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   theme                 BoardTheme? @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  creator               User?    @relation("BoardCreator", fields: [createdBy], references: [id])
   members               BoardMember[]
   columns               Column[]
   labels                Label[]
@@ -219,6 +221,7 @@ model Board {
   auditLogs             BoardMemberAuditLog[]
   importPendingAssignees ImportPendingAssignee[]
   importPendingAttachments ImportPendingAttachment[]
+  boardMemberCustomRoles BoardMemberCustomRole[]
 
   @@index([workspaceId])
   @@map("boards")
@@ -234,7 +237,7 @@ model BoardMember {
 
   board     Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
   user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customRoles BoardMemberCustomRole[]
+  customRoles BoardMemberCustomRole[] @relation("BoardMemberCustomRoles")
 
   @@unique([boardId, userId])
   @@index([boardId])
@@ -317,11 +320,15 @@ model BoardMemberCustomRole {
   boardId     String   @map("board_id")
   userId      String   @map("user_id")
   customRoleId String  @map("custom_role_id")
+  workspaceId String?  @map("workspace_id")
+  boardMemberId String? @map("board_member_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
   board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   role        CustomRole  @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  boardMember BoardMember? @relation("BoardMemberCustomRoles", fields: [boardMemberId], references: [id], onDelete: Cascade)
 
   @@unique([boardId, userId, customRoleId])
   @@index([boardId])

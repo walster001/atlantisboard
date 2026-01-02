@@ -1,7 +1,6 @@
 import { prisma } from '../db/client.js';
-import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
+import { NotFoundError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
-import { boardService } from './board.service.js';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
 
@@ -166,7 +165,7 @@ class ColumnService {
 
     // Emit update events for each column
     for (const update of updates) {
-      const oldColumn = existingColumns.find((c) => c.id === update.id);
+      const oldColumn = existingColumns.find((c: { id: string }) => c.id === update.id);
       if (oldColumn) {
         const updated = await prisma.column.findUnique({ where: { id: update.id } });
         if (updated) {

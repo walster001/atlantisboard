@@ -13,12 +13,13 @@ export interface AuthRequest extends Request {
 }
 
 export async function authMiddleware(
-  req: AuthRequest,
-  res: Response,
+  req: Request,
+  _res: Response,
   next: NextFunction
-) {
+): Promise<void> {
+  const authReq = req as AuthRequest;
   try {
-    const authHeader = req.headers.authorization;
+    const authHeader = authReq.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedError('Missing or invalid authorization header');
@@ -41,8 +42,8 @@ export async function authMiddleware(
       throw new UnauthorizedError('User not found');
     }
 
-    req.userId = user.id;
-    req.user = {
+    authReq.userId = user.id;
+    authReq.user = {
       id: user.id,
       email: user.email,
       isAdmin: user.profile?.isAdmin ?? false,
@@ -59,12 +60,13 @@ export async function authMiddleware(
 
 // Optional auth - doesn't fail if no token, but sets user if present
 export async function optionalAuthMiddleware(
-  req: AuthRequest,
-  res: Response,
+  req: Request,
+  _res: Response,
   next: NextFunction
-) {
+): Promise<void> {
+  const authReq = req as AuthRequest;
   try {
-    const authHeader = req.headers.authorization;
+    const authHeader = authReq.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return next();
@@ -80,8 +82,8 @@ export async function optionalAuthMiddleware(
       });
 
       if (user) {
-        req.userId = user.id;
-        req.user = {
+        authReq.userId = user.id;
+        authReq.user = {
           id: user.id,
           email: user.email,
           isAdmin: user.profile?.isAdmin ?? false,

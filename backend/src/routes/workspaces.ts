@@ -8,9 +8,10 @@ const router = Router();
 router.use(authMiddleware);
 
 // GET /api/workspaces - List user's workspaces
-router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const workspaces = await workspaceService.findAll(req.userId!);
+    const workspaces = await workspaceService.findAll(authReq.userId!);
     res.json(workspaces);
   } catch (error) {
     next(error);
@@ -18,9 +19,10 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
 });
 
 // GET /api/workspaces/:id - Get workspace by ID
-router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const workspace = await workspaceService.findById(req.userId!, req.params.id);
+    const workspace = await workspaceService.findById(authReq.userId!, req.params.id);
     res.json(workspace);
   } catch (error) {
     next(error);
@@ -28,9 +30,10 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
 });
 
 // POST /api/workspaces - Create workspace
-router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const workspace = await workspaceService.create(req.userId!, req.body, req.user?.isAdmin ?? false);
+    const workspace = await workspaceService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(workspace);
   } catch (error) {
     next(error);
@@ -38,9 +41,10 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
 });
 
 // PATCH /api/workspaces/:id - Update workspace
-router.patch('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const workspace = await workspaceService.update(req.userId!, req.params.id, req.body, req.user?.isAdmin ?? false);
+    const workspace = await workspaceService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(workspace);
   } catch (error) {
     next(error);
@@ -48,9 +52,10 @@ router.patch('/:id', async (req: AuthRequest, res: Response, next: NextFunction)
 });
 
 // DELETE /api/workspaces/:id - Delete workspace
-router.delete('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const result = await workspaceService.delete(req.userId!, req.params.id, req.user?.isAdmin ?? false);
+    const result = await workspaceService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
   } catch (error) {
     next(error);
@@ -58,23 +63,25 @@ router.delete('/:id', async (req: AuthRequest, res: Response, next: NextFunction
 });
 
 // POST /api/workspaces/:id/members - Add member
-router.post('/:id/members', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/members', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const { userId: memberUserId } = req.body;
     if (!memberUserId) {
       return res.status(400).json({ error: 'userId is required' });
     }
-    const member = await workspaceService.addMember(req.userId!, req.params.id, memberUserId);
-    res.status(201).json(member);
+    const member = await workspaceService.addMember(authReq.userId!, req.params.id, memberUserId);
+    return res.status(201).json(member);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
 // DELETE /api/workspaces/:id/members/:userId - Remove member
-router.delete('/:id/members/:userId', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id/members/:userId', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const result = await workspaceService.removeMember(req.userId!, req.params.id, req.params.userId);
+    const result = await workspaceService.removeMember(authReq.userId!, req.params.id, req.params.userId);
     res.json(result);
   } catch (error) {
     next(error);

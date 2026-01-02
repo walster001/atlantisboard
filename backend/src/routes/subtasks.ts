@@ -7,9 +7,10 @@ const router = Router();
 router.use(authMiddleware);
 
 // POST /api/subtasks - Create subtask
-router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const subtask = await subtaskService.create(req.userId!, req.body, req.user?.isAdmin ?? false);
+    const subtask = await subtaskService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(subtask);
   } catch (error) {
     next(error);
@@ -17,9 +18,10 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
 });
 
 // PATCH /api/subtasks/:id - Update subtask
-router.patch('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const subtask = await subtaskService.update(req.userId!, req.params.id, req.body, req.user?.isAdmin ?? false);
+    const subtask = await subtaskService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(subtask);
   } catch (error) {
     next(error);
@@ -27,9 +29,10 @@ router.patch('/:id', async (req: AuthRequest, res: Response, next: NextFunction)
 });
 
 // DELETE /api/subtasks/:id - Delete subtask
-router.delete('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    const result = await subtaskService.delete(req.userId!, req.params.id, req.user?.isAdmin ?? false);
+    const result = await subtaskService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
   } catch (error) {
     next(error);

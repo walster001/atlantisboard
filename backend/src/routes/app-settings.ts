@@ -6,7 +6,7 @@ import { ForbiddenError } from '../middleware/errorHandler.js';
 const router = Router();
 
 // GET /api/app-settings - Get app settings (public for auth page)
-router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const settings = await prisma.appSettings.findUnique({
       where: { id: 'default' },
@@ -44,7 +44,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         custom_google_button_text_color: settings.customGoogleButtonTextColor,
         login_style: settings.loginStyle,
       } : null,
-      fonts: fonts.map(font => ({
+      fonts: fonts.map((font: { id: string; name: string; fontUrl: string }) => ({
         id: font.id,
         name: font.name,
         font_url: font.fontUrl,
@@ -56,9 +56,10 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 });
 
 // PATCH /api/app-settings - Update app settings (admin only)
-router.patch('/', authMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
-    if (!req.user?.isAdmin) {
+    if (!authReq.user?.isAdmin) {
       throw new ForbiddenError('Admin access required');
     }
 

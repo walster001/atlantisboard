@@ -3,7 +3,6 @@ import { authService } from '../services/auth.service.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { ValidationError, UnauthorizedError } from '../middleware/errorHandler.js';
 import { prisma } from '../db/client.js';
-import { z } from 'zod';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { env } from '../config/env.js';
@@ -47,10 +46,11 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
 });
 
 // Get current user
-router.get('/me', authMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/me', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.userId! },
+      where: { id: authReq.userId! },
       include: { profile: true },
     });
 
@@ -71,7 +71,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response, next: 
 });
 
 // Sign out
-router.post('/signout', authMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/signout', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { refreshToken } = req.body;
     
@@ -110,7 +110,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
         clientSecret: env.GOOGLE_CLIENT_SECRET,
         callbackURL: env.GOOGLE_CALLBACK_URL || 'http://127.0.0.1:3000/api/auth/google/callback',
       },
-      async (accessToken, refreshToken, profile, done) => {
+      async (_accessToken, _refreshToken, profile, done) => {
         try {
           const result = await authService.findOrCreateGoogleUser(
             profile.id,
@@ -120,7 +120,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
           );
           done(null, result);
         } catch (error) {
-          done(error, null);
+          done(error, false);
         }
       }
     )

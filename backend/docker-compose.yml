@@ -2,8 +2,6 @@
 # Orchestrates: API Server, PostgreSQL, MinIO Storage
 # Usage: docker-compose up -d
 
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -34,7 +32,9 @@ services:
     container_name: atlantisboard-api
     restart: unless-stopped
     ports:
-      - "${API_PORT:-3000}:3000"
+      - target: 3000
+        published: "${API_PORT:-3000}"
+        protocol: tcp
     environment:
       # Database
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-atlantisboard}

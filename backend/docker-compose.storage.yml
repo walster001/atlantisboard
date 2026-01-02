@@ -1,7 +1,7 @@
 # MinIO S3-Compatible Storage for Local Development
 # Usage: docker-compose -f docker-compose.storage.yml up -d
 
-version: '3.8'
+# Docker Compose v2+ doesn't require version field
 
 services:
   minio:

@@ -8,7 +8,6 @@
 import {
   PermissionKey,
   BoardRole,
-  APP_PERMISSIONS,
 } from './types.js';
 
 /**

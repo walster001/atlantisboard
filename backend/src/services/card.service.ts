@@ -1,7 +1,6 @@
 import { prisma } from '../db/client.js';
-import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
+import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
-import { boardService } from './board.service.js';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
 
@@ -231,9 +230,9 @@ class CardService {
     });
 
     // Group by board and check permissions
-    const boardIds = [...new Set(cards.map((c) => c.column.boardId))];
+    const boardIds = [...new Set(cards.map((c: { column: { boardId: string } }) => c.column.boardId))];
     for (const boardId of boardIds) {
-      const context = permissionService.buildContext(userId, isAppAdmin, boardId);
+      const context = permissionService.buildContext(userId, isAppAdmin, boardId as string);
       await permissionService.requirePermission('card.move', context);
     }
 
@@ -258,7 +257,7 @@ class CardService {
 
     // Emit update events for each card
     for (const update of updates) {
-      const oldCard = existingCards.find((c) => c.id === update.id);
+      const oldCard = existingCards.find((c: { id: string }) => c.id === update.id);
       if (oldCard) {
         const updated = await prisma.card.findUnique({ where: { id: update.id }, include: { column: true } });
         if (updated) {

@@ -1,5 +1,4 @@
 import { prisma } from '../db/client.js';
-import { boardService } from './board.service.js';
 
 class HomeService {
   // Get home page data (replaces get_home_data function)
@@ -62,7 +61,7 @@ class HomeService {
       },
     });
 
-    const boardRoles = boardMemberships.reduce((acc, membership) => {
+    const boardRoles = boardMemberships.reduce((acc: Record<string, 'admin' | 'manager' | 'viewer'>, membership: { boardId: string; role: 'admin' | 'manager' | 'viewer' }) => {
       acc[membership.boardId] = membership.role;
       return acc;
     }, {} as Record<string, 'admin' | 'manager' | 'viewer'>);

@@ -67,7 +67,7 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -90,7 +90,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/boards', boardImportRoutes);
 
 // 404 handler
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 

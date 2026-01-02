@@ -6,34 +6,18 @@
  * 
  * Note: These types are generated from the Prisma schema and should be
  * kept in sync with the database schema.
+ * 
+ * IMPORTANT: Model types are not directly exported by Prisma client.
+ * Use Prisma.Payload or infer types from PrismaClient operations.
+ * For enum types, import directly from '@prisma/client'.
  */
 
-// Re-export Prisma client types
-export type {
-  User,
-  Profile,
-  Workspace,
-  WorkspaceMember,
-  Board,
-  BoardMember,
-  BoardTheme,
-  Column,
-  Card,
-  CardAssignee,
-  CardLabel,
-  CardAttachment,
-  CardSubtask,
-  Label,
-  CustomRole,
-  RolePermission,
-  BoardInviteToken,
-  BoardMemberAuditLog,
-  AppSettings,
-  CustomFont,
-} from '@prisma/client';
+// Re-export Prisma namespace for type access
+export { Prisma } from '@prisma/client';
 
-// Re-export enums
-export { BoardRole } from '@prisma/client';
+// Type helpers - these will be available after Prisma client is fully generated
+// For now, types should be inferred from PrismaClient operations or accessed via Prisma namespace
+export type PrismaTypes = typeof import('@prisma/client');
 
 // Type helpers for common patterns
 export type UserWithProfile = {

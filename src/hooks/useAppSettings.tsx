@@ -2,14 +2,14 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { api } from '@/integrations/api/client';
 
 interface AppSettings {
-  custom_home_logo_enabled: boolean;
-  custom_home_logo_url: string | null;
-  custom_home_logo_size: number;
-  custom_board_logo_enabled: boolean;
-  custom_board_logo_url: string | null;
-  custom_board_logo_size: number;
-  custom_global_app_name_enabled: boolean;
-  custom_global_app_name: string | null;
+  customHomeLogoEnabled: boolean;
+  customHomeLogoUrl: string | null;
+  customHomeLogoSize: number;
+  customBoardLogoEnabled: boolean;
+  customBoardLogoUrl: string | null;
+  customBoardLogoSize: number;
+  customGlobalAppNameEnabled: boolean;
+  customGlobalAppName: string | null;
 }
 
 interface AppSettingsContextType {
@@ -41,7 +41,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await api
         .from('app_settings')
-        .select('custom_home_logo_enabled, custom_home_logo_url, custom_home_logo_size, custom_board_logo_enabled, custom_board_logo_url, custom_board_logo_size, custom_global_app_name_enabled, custom_global_app_name')
+        .select('customHomeLogoEnabled, customHomeLogoUrl, customHomeLogoSize, customBoardLogoEnabled, customBoardLogoUrl, customBoardLogoSize, customGlobalAppNameEnabled, customGlobalAppName')
         .eq('id', 'default')
         .single();
 
@@ -78,8 +78,8 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchSettings]);
 
-  const appName = settings?.custom_global_app_name_enabled && settings?.custom_global_app_name
-    ? settings.custom_global_app_name
+  const appName = settings?.customGlobalAppNameEnabled && settings?.customGlobalAppName
+    ? settings.customGlobalAppName
     : defaultAppName;
 
   return (

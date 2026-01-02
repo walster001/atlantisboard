@@ -810,11 +810,11 @@ export default function Home() {
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {appSettings?.custom_home_logo_enabled && appSettings?.custom_home_logo_url ? (
+            {appSettings?.customHomeLogoEnabled && appSettings?.customHomeLogoUrl ? (
               <img
-                src={appSettings.custom_home_logo_url}
+                src={appSettings.customHomeLogoUrl}
                 alt="Logo"
-                style={{ width: appSettings.custom_home_logo_size, height: appSettings.custom_home_logo_size }}
+                style={{ width: appSettings.customHomeLogoSize, height: appSettings.customHomeLogoSize }}
                 className="object-contain"
               />
             ) : (

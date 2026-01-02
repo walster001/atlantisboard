@@ -105,11 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (provider === 'google') {
                 // Check login style
                 api.from('app_settings')
-                  .select('login_style')
+                  .select('loginStyle')
                   .eq('id', 'default')
                   .maybeSingle()
                   .then(({ data: settings }) => {
-                    if (settings?.login_style === 'google_verified') {
+                    if (settings?.loginStyle === 'google_verified') {
                       verifyUserInDatabase(session.user.email).then((result) => {
                         if (!result.verified) {
                           setVerificationError(result.message || 'User does not exist in database');
@@ -179,12 +179,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchAdminStatus = async (userId: string) => {
     const { data, error } = await api
       .from('profiles')
-      .select('is_admin')
+      .select('isAdmin')
       .eq('id', userId)
       .maybeSingle();
 
     if (!error && data) {
-      setIsAppAdmin(data.is_admin ?? false);
+      setIsAppAdmin(data.isAdmin ?? false);
     }
   };
 

@@ -14,7 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 type LoginStyle = 'local_accounts' | 'google_only' | 'google_verified';
 
 interface LoginOptionsState {
-  login_style: LoginStyle;
+  loginStyle: LoginStyle;
 }
 
 interface MySQLConfigState {
@@ -63,7 +63,7 @@ export function LoginOptionsSettings() {
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   
   const [settings, setSettings] = useState<LoginOptionsState>({
-    login_style: 'google_only',
+    loginStyle: 'google_only',
   });
 
   const [mysqlConfig, setMysqlConfig] = useState<MySQLConfigState>({
@@ -83,7 +83,7 @@ export function LoginOptionsSettings() {
       // Fetch login style
       const { data: appSettings, error: appError } = await api
         .from('app_settings')
-        .select('login_style')
+        .select('loginStyle')
         .eq('id', 'default')
         .maybeSingle();
 
@@ -91,18 +91,18 @@ export function LoginOptionsSettings() {
 
       if (appSettings) {
         setSettings({
-          login_style: (appSettings.login_style as LoginStyle) || 'google_only',
+          loginStyle: (appSettings.loginStyle as LoginStyle) || 'google_only',
         });
       }
 
       // Check if MySQL is configured (admin only can see this)
       const { data: mysqlData } = await api
         .from('mysql_config')
-        .select('is_configured')
+        .select('isConfigured')
         .eq('id', 'default')
         .maybeSingle();
 
-      setMysqlConfigured(mysqlData?.is_configured ?? false);
+      setMysqlConfigured(mysqlData?.isConfigured ?? false);
     } catch (error) {
       console.error('Error fetching login options:', error);
       toast({
@@ -117,7 +117,7 @@ export function LoginOptionsSettings() {
 
   const handleSave = async () => {
     // Prevent saving google_verified without configured database
-    if (settings.login_style === 'google_verified' && !mysqlConfigured) {
+    if (settings.loginStyle === 'google_verified' && !mysqlConfigured) {
       toast({
         title: 'Database not configured',
         description: 'You must configure and save the external database connection before enabling Google + Database Verification login.',
@@ -132,8 +132,8 @@ export function LoginOptionsSettings() {
         .from('app_settings')
         .upsert({
           id: 'default',
-          login_style: settings.login_style,
-          updated_at: new Date().toISOString(),
+          loginStyle: settings.loginStyle,
+          updatedAt: new Date().toISOString(),
         });
 
       if (error) throw error;
@@ -329,7 +329,7 @@ export function LoginOptionsSettings() {
     }
   };
 
-  const selectedOption = loginStyleOptions.find(opt => opt.value === settings.login_style);
+  const selectedOption = loginStyleOptions.find(opt => opt.value === settings.loginStyle);
 
   if (loading) {
     return (
@@ -369,9 +369,9 @@ export function LoginOptionsSettings() {
           <div className="space-y-2">
             <Label htmlFor="login-style">Authentication Method</Label>
             <Select
-              value={settings.login_style}
+              value={settings.loginStyle}
               onValueChange={(value: LoginStyle) => 
-                setSettings(prev => ({ ...prev, login_style: value }))
+                setSettings(prev => ({ ...prev, loginStyle: value }))
               }
             >
               <SelectTrigger id="login-style" className="w-full max-w-md">
@@ -399,7 +399,7 @@ export function LoginOptionsSettings() {
       </Card>
 
       {/* MySQL Configuration - Only shown when google_verified is selected */}
-      {settings.login_style === 'google_verified' && (
+      {settings.loginStyle === 'google_verified' && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

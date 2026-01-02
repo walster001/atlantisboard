@@ -12,33 +12,33 @@ import { Loader2 } from 'lucide-react';
 type LoginStyle = 'local_accounts' | 'google_only' | 'google_verified';
 
 interface AppSettings {
-  custom_login_logo_enabled: boolean;
-  custom_login_logo_url: string | null;
-  custom_login_logo_size: string;
-  custom_app_name_enabled: boolean;
-  custom_app_name: string | null;
-  custom_app_name_size: number;
-  custom_app_name_color: string;
-  custom_app_name_font: string;
-  custom_tagline_enabled: boolean;
-  custom_tagline: string | null;
-  custom_tagline_size: number;
-  custom_tagline_color: string;
-  custom_tagline_font: string;
-  custom_login_background_enabled: boolean;
-  custom_login_background_type: string;
-  custom_login_background_color: string;
-  custom_login_background_image_url: string | null;
-  custom_login_box_background_color: string;
-  custom_google_button_background_color: string;
-  custom_google_button_text_color: string;
-  login_style: LoginStyle;
+  customLoginLogoEnabled: boolean;
+  customLoginLogoUrl: string | null;
+  customLoginLogoSize: string;
+  customAppNameEnabled: boolean;
+  customAppName: string | null;
+  customAppNameSize: number;
+  customAppNameColor: string;
+  customAppNameFont: string;
+  customTaglineEnabled: boolean;
+  customTagline: string | null;
+  customTaglineSize: number;
+  customTaglineColor: string;
+  customTaglineFont: string;
+  customLoginBackgroundEnabled: boolean;
+  customLoginBackgroundType: string;
+  customLoginBackgroundColor: string;
+  customLoginBackgroundImageUrl: string | null;
+  customLoginBoxBackgroundColor: string;
+  customGoogleButtonBackgroundColor: string;
+  customGoogleButtonTextColor: string;
+  loginStyle: LoginStyle;
 }
 
 interface CustomFont {
   id: string;
   name: string;
-  font_url: string;
+  fontUrl: string;
 }
 
 interface AuthPageData {
@@ -195,7 +195,7 @@ export default function Auth() {
         style.textContent = `
           @font-face {
             font-family: '${font.name}';
-            src: url('${font.font_url}') format('woff2'), url('${font.font_url}') format('woff'), url('${font.font_url}') format('truetype');
+            src: url('${font.fontUrl}') format('woff2'), url('${font.fontUrl}') format('woff'), url('${font.fontUrl}') format('truetype');
             font-weight: normal;
             font-style: normal;
             font-display: swap;
@@ -268,41 +268,41 @@ export default function Auth() {
   }, [email, password, fullName, isSignUp, signInWithEmail, signUpWithEmail, toast]);
 
   // Get login style from settings
-  const loginStyle = pageData?.settings?.login_style || 'google_only';
+  const loginStyle = pageData?.settings?.loginStyle || 'google_only';
   const showLocalAuth = loginStyle === 'local_accounts';
 
   // Memoize computed values
   const brandingConfig = useMemo(() => {
     const settings = pageData?.settings;
-    const showCustomLogo = settings?.custom_login_logo_enabled && settings?.custom_login_logo_url;
-    const showCustomAppName = settings?.custom_app_name_enabled && settings?.custom_app_name;
-    const showCustomTagline = settings?.custom_tagline_enabled && settings?.custom_tagline;
-    const useCustomBackground = settings?.custom_login_background_enabled;
+    const showCustomLogo = settings?.customLoginLogoEnabled && settings?.customLoginLogoUrl;
+    const showCustomAppName = settings?.customAppNameEnabled && settings?.customAppName;
+    const showCustomTagline = settings?.customTaglineEnabled && settings?.customTagline;
+    const useCustomBackground = settings?.customLoginBackgroundEnabled;
     
     return {
       showCustomLogo,
-      logoUrl: settings?.custom_login_logo_url,
-      logoSize: logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium,
-      logoSizeClass: (logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium).className,
-      logoWidth: (logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium).width,
-      logoHeight: (logoSizeMap[settings?.custom_login_logo_size || 'medium'] || logoSizeMap.medium).height,
-      appName: showCustomAppName ? settings!.custom_app_name : 'KanBoard',
-      tagline: showCustomTagline ? settings!.custom_tagline : 'Sign in to manage your boards',
-      appNameSize: settings?.custom_app_name_size || 24,
-      appNameColor: settings?.custom_app_name_color || '#000000',
-      appNameFont: getFontFamily(settings?.custom_app_name_font),
-      taglineSize: settings?.custom_tagline_size || 14,
-      taglineColor: settings?.custom_tagline_color || '#6b7280',
-      taglineFont: getFontFamily(settings?.custom_tagline_font),
+      logoUrl: settings?.customLoginLogoUrl,
+      logoSize: logoSizeMap[settings?.customLoginLogoSize || 'medium'] || logoSizeMap.medium,
+      logoSizeClass: (logoSizeMap[settings?.customLoginLogoSize || 'medium'] || logoSizeMap.medium).className,
+      logoWidth: (logoSizeMap[settings?.customLoginLogoSize || 'medium'] || logoSizeMap.medium).width,
+      logoHeight: (logoSizeMap[settings?.customLoginLogoSize || 'medium'] || logoSizeMap.medium).height,
+      appName: showCustomAppName ? settings!.customAppName : 'KanBoard',
+      tagline: showCustomTagline ? settings!.customTagline : 'Sign in to manage your boards',
+      appNameSize: settings?.customAppNameSize || 24,
+      appNameColor: settings?.customAppNameColor || '#000000',
+      appNameFont: getFontFamily(settings?.customAppNameFont),
+      taglineSize: settings?.customTaglineSize || 14,
+      taglineColor: settings?.customTaglineColor || '#6b7280',
+      taglineFont: getFontFamily(settings?.customTaglineFont),
       // Background settings
       useCustomBackground,
-      backgroundType: settings?.custom_login_background_type || 'color',
-      backgroundColor: settings?.custom_login_background_color || '#f3f4f6',
-      backgroundImageUrl: settings?.custom_login_background_image_url,
+      backgroundType: settings?.customLoginBackgroundType || 'color',
+      backgroundColor: settings?.customLoginBackgroundColor || '#f3f4f6',
+      backgroundImageUrl: settings?.customLoginBackgroundImageUrl,
       // Box and button settings
-      boxBackgroundColor: settings?.custom_login_box_background_color || '#ffffff',
-      googleButtonBackgroundColor: settings?.custom_google_button_background_color || '#ffffff',
-      googleButtonTextColor: settings?.custom_google_button_text_color || '#000000',
+      boxBackgroundColor: settings?.customLoginBoxBackgroundColor || '#ffffff',
+      googleButtonBackgroundColor: settings?.customGoogleButtonBackgroundColor || '#ffffff',
+      googleButtonTextColor: settings?.customGoogleButtonTextColor || '#000000',
     };
   }, [pageData?.settings, getFontFamily]);
 
@@ -383,7 +383,7 @@ export default function Auth() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Local Auth Form - only shown when login_style is 'local_accounts' */}
+          {/* Local Auth Form - only shown when loginStyle is 'local_accounts' */}
           {showLocalAuth && (
             <>
               <form onSubmit={handleEmailAuth} className="space-y-4">

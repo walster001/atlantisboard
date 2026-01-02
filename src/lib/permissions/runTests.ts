@@ -85,13 +85,13 @@ export async function runServerValidation(): Promise<void> {
   console.log(`   🆔 ID: ${user.id}`);
   
   // Check if app admin
-  const { data: profile } = await supabase
+  const { data: profile } = await api
     .from('profiles')
-    .select('is_admin')
+    .select('isAdmin')
     .eq('id', user.id)
     .single();
   
-  console.log(`   👑 App Admin: ${profile?.is_admin ? 'Yes' : 'No'}`);
+  console.log(`   👑 App Admin: ${profile?.isAdmin ? 'Yes' : 'No'}`);
   
   // Get app-level permissions
   console.log('\n   📋 App-Level Permissions (no board context):');
@@ -109,10 +109,10 @@ export async function runServerValidation(): Promise<void> {
   
   // Get boards user has access to
   console.log('\n   📋 Checking Board Access:');
-  const { data: boards } = await supabase
+  const { data: boards } = await api
     .from('board_members')
-    .select('board_id, role, boards(name)')
-    .eq('user_id', user.id)
+    .select('boardId, role, boards(name)')
+    .eq('userId', user.id)
     .limit(3);
   
   if (!boards || boards.length === 0) {
@@ -125,7 +125,7 @@ export async function runServerValidation(): Promise<void> {
     console.log(`\n   📌 Board: ${boardName}`);
     console.log(`      Role: ${membership.role}`);
     
-    const boardPerms = await getServerUserPermissions(user.id, membership.board_id);
+    const boardPerms = await getServerUserPermissions(user.id, membership.boardId);
     const boardLevelPerms = boardPerms.permissions.filter(p => 
       !(APP_PERMISSIONS as readonly string[]).includes(p)
     );
@@ -133,7 +133,7 @@ export async function runServerValidation(): Promise<void> {
     console.log(`      Permissions: ${boardLevelPerms.length}`);
     
     // Compare with client
-    const clientPerms = testClientPermissionsForRole(membership.role as BoardRole, profile?.is_admin ?? false);
+    const clientPerms = testClientPermissionsForRole(membership.role as BoardRole, profile?.isAdmin ?? false);
     const clientPermList = Object.entries(clientPerms)
       .filter(([_, v]) => v)
       .map(([k]) => k)

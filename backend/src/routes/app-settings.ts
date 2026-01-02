@@ -21,34 +21,8 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
     });
 
     res.json({
-      settings: settings ? {
-        custom_login_logo_enabled: settings.customLoginLogoEnabled,
-        custom_login_logo_url: settings.customLoginLogoUrl,
-        custom_login_logo_size: settings.customLoginLogoSize,
-        custom_app_name_enabled: settings.customAppNameEnabled,
-        custom_app_name: settings.customAppName,
-        custom_app_name_size: settings.customAppNameSize,
-        custom_app_name_color: settings.customAppNameColor,
-        custom_app_name_font: settings.customAppNameFont,
-        custom_tagline_enabled: settings.customTaglineEnabled,
-        custom_tagline: settings.customTagline,
-        custom_tagline_size: settings.customTaglineSize,
-        custom_tagline_color: settings.customTaglineColor,
-        custom_tagline_font: settings.customTaglineFont,
-        custom_login_background_enabled: settings.customLoginBackgroundEnabled,
-        custom_login_background_type: settings.customLoginBackgroundType,
-        custom_login_background_color: settings.customLoginBackgroundColor,
-        custom_login_background_image_url: settings.customLoginBackgroundImageUrl,
-        custom_login_box_background_color: settings.customLoginBoxBackgroundColor,
-        custom_google_button_background_color: settings.customGoogleButtonBackgroundColor,
-        custom_google_button_text_color: settings.customGoogleButtonTextColor,
-        login_style: settings.loginStyle,
-      } : null,
-      fonts: fonts.map((font: { id: string; name: string; fontUrl: string }) => ({
-        id: font.id,
-        name: font.name,
-        font_url: font.fontUrl,
-      })),
+      settings: settings,
+      fonts: fonts,
     });
   } catch (error) {
     next(error);

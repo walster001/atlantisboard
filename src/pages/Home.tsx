@@ -348,9 +348,8 @@ export default function Home() {
     if (!pendingToken || !user) return;
 
     try {
-      const result = await api.request('/invites/redeem', {
-        method: 'POST',
-        body: JSON.stringify({ token: pendingToken }),
+      const result = await api.functions.invoke('redeem-invite-token', {
+        body: { token: pendingToken },
       });
       
       const { data, error } = result;
@@ -368,16 +367,24 @@ export default function Home() {
         return;
       }
 
-      if (!data.success) {
+      // Type the response data
+      const responseData = data as {
+        success: boolean;
+        message?: string;
+        alreadyMember?: boolean;
+        boardId?: string;
+      } | null;
+
+      if (!responseData || !responseData.success) {
         toast({
           title: 'Invite Error',
-          description: data.message || 'This invite link is no longer valid.',
+          description: responseData?.message || 'This invite link is no longer valid.',
           variant: 'destructive',
         });
         return;
       }
 
-      if (data.alreadyMember) {
+      if (responseData.alreadyMember) {
         toast({
           title: 'Already a member',
           description: 'You are already a member of this board.',
@@ -393,8 +400,8 @@ export default function Home() {
       fetchData();
 
       // Navigate to the board
-      if (data.boardId) {
-        navigate(`/board/${data.boardId}`);
+      if (responseData.boardId) {
+        navigate(`/board/${responseData.boardId}`);
       }
     } catch (error) {
       console.error('Error redeeming invite:', error);
@@ -409,7 +416,7 @@ export default function Home() {
     try {
       const { data, error } = await api
         .from('board_themes')
-        .select('id, name, navbar_color, is_default');
+        .select('id, name, navbarColor, isDefault');
 
       if (error) throw error;
       
@@ -421,25 +428,30 @@ export default function Home() {
       
       const allThemes = (data || []) as BoardTheme[];
       const sortedThemes = allThemes.sort((a, b) => {
-        if (a.is_default && b.is_default) {
+        if (a.isDefault && b.isDefault) {
           const aIndex = THEME_ORDER.indexOf(a.name);
           const bIndex = THEME_ORDER.indexOf(b.name);
           return aIndex - bIndex;
         }
-        if (a.is_default && !b.is_default) return -1;
-        if (!a.is_default && b.is_default) return 1;
+        if (a.isDefault && !b.isDefault) return -1;
+        if (!a.isDefault && b.isDefault) return 1;
         return a.name.localeCompare(b.name);
       });
       
       setAvailableThemes(sortedThemes);
       
-      // Set default theme (Ocean Blue) if not already selected
-      if (!selectedThemeId && sortedThemes.length > 0) {
-        const oceanBlue = sortedThemes.find(t => t.name === 'Ocean Blue' && t.is_default);
+      // Always set default theme (Ocean Blue) when dialog opens
+      if (sortedThemes.length > 0) {
+        const oceanBlue = sortedThemes.find(t => t.name === 'Ocean Blue' && t.isDefault);
         setSelectedThemeId(oceanBlue?.id || sortedThemes[0].id);
       }
     } catch (error: any) {
       console.error('Fetch themes error:', error);
+      toast({
+        title: 'Error loading themes',
+        description: 'Failed to load board themes. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setThemesLoading(false);
     }
@@ -472,10 +484,11 @@ export default function Home() {
         userId: user.id,
       });
 
-      setWorkspaces([workspace, ...workspaces]);
+      setWorkspaceDialogOpen(false);
       setNewWorkspaceName('');
       setNewWorkspaceDesc('');
-      setWorkspaceDialogOpen(false);
+      // Refresh data from server to ensure consistency
+      await fetchData();
       toast({ title: 'Workspace created!' });
     } catch (error: any) {
       console.error('Create workspace error:', error);
@@ -521,13 +534,13 @@ export default function Home() {
 
   const deleteWorkspace = async (id: string) => {
     try {
-      const { error } = await api.from('workspaces').delete().eq('id', id);
+      const { error } = await api.from('workspaces').eq('id', id).delete();
       if (error) throw error;
-      setWorkspaces(workspaces.filter((w) => w.id !== id));
-      setBoards(boards.filter((b) => b.workspaceId !== id));
       setDeleteWorkspaceConfirmOpen(false);
       setDeleteWorkspaceId(null);
       setDeletionCounts(null);
+      // Refresh data from server to ensure consistency
+      await fetchData();
       toast({ title: 'Workspace deleted' });
     } catch (error: any) {
       console.error('Delete workspace error:', error);
@@ -546,12 +559,13 @@ export default function Home() {
 
       const { error } = await api
         .from('workspaces')
-        .update({ name: validated.name })
-        .eq('id', editWorkspaceId);
+        .eq('id', editWorkspaceId)
+        .update({ name: validated.name });
       if (error) throw error;
-      setWorkspaces(workspaces.map((w) => (w.id === editWorkspaceId ? { ...w, name: validated.name } : w)));
       setRenameWorkspaceDialogOpen(false);
       setEditWorkspaceId(null);
+      // Refresh data from server to ensure consistency
+      await fetchData();
       toast({ title: 'Workspace renamed' });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -574,12 +588,13 @@ export default function Home() {
 
       const { error } = await api
         .from('workspaces')
-        .update({ description: validated.description })
-        .eq('id', editWorkspaceId);
+        .eq('id', editWorkspaceId)
+        .update({ description: validated.description });
       if (error) throw error;
-      setWorkspaces(workspaces.map((w) => (w.id === editWorkspaceId ? { ...w, description: validated.description } : w)));
       setEditWorkspaceDescDialogOpen(false);
       setEditWorkspaceId(null);
+      // Refresh data from server to ensure consistency
+      await fetchData();
       toast({ title: 'Description updated' });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -604,11 +619,11 @@ export default function Home() {
 
       const validated = boardSchema.parse({
         name: newBoardName,
-        background_color: selectedTheme.navbar_color,
+        background_color: selectedTheme.navbarColor,
       });
 
       // Set background color to slightly darker than navbar
-      const backgroundColor = darkenColor(selectedTheme.navbar_color, 0.1);
+      const backgroundColor = darkenColor(selectedTheme.navbarColor, 0.1);
 
       const { data: board, error } = await api
         .from('boards')
@@ -629,12 +644,13 @@ export default function Home() {
         role: 'admin',
       });
 
-      setBoards([board, ...boards]);
+      setBoardDialogOpen(false);
       setNewBoardName('');
       // Reset to Ocean Blue for next board
-      const oceanBlue = availableThemes.find(t => t.name === 'Ocean Blue' && t.is_default);
+      const oceanBlue = availableThemes.find(t => t.name === 'Ocean Blue' && t.isDefault);
       setSelectedThemeId(oceanBlue?.id || availableThemes[0]?.id || null);
-      setBoardDialogOpen(false);
+      // Refresh data from server to ensure consistency
+      await fetchData();
       toast({ title: 'Board created!' });
     } catch (error: any) {
       console.error('Create board error:', error);
@@ -648,12 +664,13 @@ export default function Home() {
 
   const deleteBoard = async (id: string) => {
     try {
-      const { error } = await api.from('boards').delete().eq('id', id);
+      const { error } = await api.from('boards').eq('id', id).delete();
       if (error) throw error;
-      setBoards(boards.filter((b) => b.id !== id));
       setDeleteConfirmOpen(false);
       setDeleteBoardId(null);
       setDeletionCounts(null);
+      // Refresh data from server to ensure consistency
+      await fetchData();
       toast({ title: 'Board deleted' });
     } catch (error: any) {
       console.error('Delete board error:', error);
@@ -667,12 +684,13 @@ export default function Home() {
       const validated = boardSchema.parse({ name: editBoardName, background_color: '#0079bf' });
       const { error } = await api
         .from('boards')
-        .update({ name: validated.name })
-        .eq('id', editBoardId);
+        .eq('id', editBoardId)
+        .update({ name: validated.name });
       if (error) throw error;
-      setBoards(boards.map((b) => (b.id === editBoardId ? { ...b, name: validated.name } : b)));
       setRenameBoardDialogOpen(false);
       setEditBoardId(null);
+      // Refresh data from server to ensure consistency
+      await fetchData();
       toast({ title: 'Board renamed' });
     } catch (error: any) {
       console.error('Rename board error:', error);
@@ -689,12 +707,13 @@ export default function Home() {
     try {
       const { error } = await api
         .from('boards')
-        .update({ description: editBoardDesc || null })
-        .eq('id', editBoardId);
+        .eq('id', editBoardId)
+        .update({ description: editBoardDesc || null });
       if (error) throw error;
-      setBoards(boards.map((b) => (b.id === editBoardId ? { ...b, description: editBoardDesc || null } : b)));
       setEditDescDialogOpen(false);
       setEditBoardId(null);
+      // Refresh data from server to ensure consistency
+      await fetchData();
       toast({ title: 'Description updated' });
     } catch (error: any) {
       console.error('Update description error:', error);
@@ -918,14 +937,20 @@ export default function Home() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        {(workspace.owner_id === user?.id || isAppAdmin) && (
+                        {(workspace.ownerId === user?.id || isAppAdmin) && (
                           <Dialog
                             open={boardDialogOpen && selectedWorkspaceId === workspace.id}
                             onOpenChange={(open) => {
                               setBoardDialogOpen(open);
                               if (open) {
                                 setSelectedWorkspaceId(workspace.id);
+                                setSelectedThemeId(null); // Reset theme selection
+                                setNewBoardName(''); // Reset board name
                                 fetchThemes();
+                              } else {
+                                setSelectedWorkspaceId(null);
+                                setSelectedThemeId(null);
+                                setNewBoardName('');
                               }
                             }}
                           >
@@ -955,6 +980,10 @@ export default function Home() {
                                     <div className="flex items-center justify-center py-4">
                                       <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                                     </div>
+                                  ) : availableThemes.length === 0 ? (
+                                    <div className="text-center py-4 text-sm text-muted-foreground">
+                                      No themes available
+                                    </div>
                                   ) : (
                                     <div className="grid grid-cols-2 gap-2 max-h-[240px] overflow-y-auto">
                                       {availableThemes.map((theme) => (
@@ -969,12 +998,12 @@ export default function Home() {
                                         >
                                           <div 
                                             className="w-6 h-6 rounded shrink-0"
-                                            style={{ backgroundColor: theme.navbar_color }}
+                                            style={{ backgroundColor: theme.navbarColor }}
                                           />
                                           <span className="text-sm font-medium truncate">
                                             {theme.name}
                                           </span>
-                                          {!theme.is_default && (
+                                          {!theme.isDefault && (
                                             <span className="text-xs text-muted-foreground ml-auto">Custom</span>
                                           )}
                                         </button>
@@ -982,14 +1011,14 @@ export default function Home() {
                                     </div>
                                   )}
                                 </div>
-                                <Button onClick={createBoard} className="w-full" disabled={!selectedThemeId}>
+                                <Button onClick={createBoard} className="w-full" disabled={!selectedThemeId || !newBoardName.trim()}>
                                   Create Board
                                 </Button>
                               </div>
                             </DialogContent>
                           </Dialog>
                         )}
-                        {(workspace.owner_id === user?.id || isAppAdmin) && (
+                        {(workspace.ownerId === user?.id || isAppAdmin) && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">

@@ -631,30 +631,23 @@ export default function Home() {
       // Set background color to slightly darker than navbar
       const backgroundColor = darkenColor(selectedTheme.navbarColor, 0.1);
 
-      const { data: board, error } = await api
-        .from('boards')
-        .insert({
+      // Use the service endpoint which automatically adds creator as admin
+      // Using api.request directly like other components (InviteLinkButton, etc.)
+      const { data: board, error } = await (api as any).request('/boards', {
+        method: 'POST',
+        body: JSON.stringify({
           workspaceId: selectedWorkspaceId,
           name: validated.name,
           backgroundColor: backgroundColor,
           themeId: selectedThemeId,
-        });
-
-      if (error) throw error;
-      if (!board) throw new Error('Failed to create board');
-
-      // Add creator as board admin
-      const { error: memberError } = await api.from('board_members').insert({
-        boardId: board.id,
-        userId: user.id,
-        role: 'admin',
+        }),
       });
 
-      if (memberError) {
-        console.error('Failed to add creator as board admin:', memberError);
-        // Don't throw - board is created, user can be added manually if needed
-        // But log the error for debugging
+      if (error) {
+        console.error('Board creation error details:', error);
+        throw error;
       }
+      if (!board) throw new Error('Failed to create board');
 
       setBoardDialogOpen(false);
       setNewBoardName('');

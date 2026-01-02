@@ -92,15 +92,9 @@ export default function Auth() {
         const result = data as unknown as AuthPageData;
         setPageData(result);
       } catch (error: any) {
-        // Only log non-401 errors (401 is expected when not authenticated for public endpoints)
-        // The app will work fine with default settings
-        const isAuthError = error?.status === 401 || 
-                           error?.code === 'PGRST116' || 
-                           error?.message?.includes('Invalid authentication credentials') ||
-                           error?.message?.includes('JWT');
-        if (!isAuthError) {
-          console.error('Error fetching auth page data:', error);
-        }
+        // Log all errors for debugging (this endpoint should be public)
+        // But continue with defaults so the auth page still works
+        console.error('Error fetching auth page data:', error);
         // Use defaults on error
         setPageData({ settings: null, fonts: [] });
       } finally {

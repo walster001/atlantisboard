@@ -39,25 +39,34 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     fetchingRef.current = true;
     setLoading(true);
     try {
-      const { data, error } = await api
-        .from('app_settings')
-        .select('customHomeLogoEnabled, customHomeLogoUrl, customHomeLogoSize, customBoardLogoEnabled, customBoardLogoUrl, customBoardLogoSize, customGlobalAppNameEnabled, customGlobalAppName')
-        .eq('id', 'default')
-        .single();
-
-      if (error) throw error;
-      setSettings(data);
+      // Use the public endpoint which works before authentication
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
+      const response = await fetch(`${API_BASE_URL}/app-settings`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Extract only the fields we need from settings
+      const settings = data.settings || null;
+      if (settings) {
+        setSettings({
+          customHomeLogoEnabled: settings.customHomeLogoEnabled ?? false,
+          customHomeLogoUrl: settings.customHomeLogoUrl ?? null,
+          customHomeLogoSize: settings.customHomeLogoSize ?? 40,
+          customBoardLogoEnabled: settings.customBoardLogoEnabled ?? false,
+          customBoardLogoUrl: settings.customBoardLogoUrl ?? null,
+          customBoardLogoSize: settings.customBoardLogoSize ?? 40,
+          customGlobalAppNameEnabled: settings.customGlobalAppNameEnabled ?? false,
+          customGlobalAppName: settings.customGlobalAppName ?? null,
+        });
+      }
       fetchedRef.current = true;
     } catch (error: any) {
-      // Only log non-401 errors (401 is expected when not authenticated for public endpoints)
-      // The app will work fine with default settings
-      const isAuthError = error?.status === 401 || 
-                         error?.code === 'PGRST116' || 
-                         error?.message?.includes('Invalid authentication credentials') ||
-                         error?.message?.includes('JWT');
-      if (!isAuthError) {
-        console.error('Error fetching app settings:', error);
-      }
+      console.error('Error fetching app settings:', error);
+      // Continue with default settings on error
       fetchedRef.current = true;
     } finally {
       setLoading(false);

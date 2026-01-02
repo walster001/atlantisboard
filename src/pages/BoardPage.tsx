@@ -292,6 +292,10 @@ export default function BoardPage() {
     if (!isPreviewMode && user) {
       cleanups.push(
         subscribeBoardMembers(boardId, {
+          onInsert: () => {
+            // Refresh members list when a new member is added (e.g., creator added as admin)
+            refreshBoardMembers();
+          },
           onUpdate: (membershipRaw) => {
             const updatedMembership = membershipRaw as { boardId: string; userId: string; role: string };
             if (updatedMembership?.userId === user.id) {
@@ -320,11 +324,10 @@ export default function BoardPage() {
               refreshBoardMembers();
             }
           },
-          onInsert: (membershipRaw) => {
-            const newMember = membershipRaw as { boardId: string; userId: string };
-            if (newMember.userId !== user.id) {
-              refreshBoardMembers();
-            }
+          onInsert: () => {
+            // Always refresh members list when a new member is added
+            // This includes when the creator is added as admin after board creation
+            refreshBoardMembers();
           },
         })
       );

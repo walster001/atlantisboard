@@ -8,14 +8,19 @@ const router = Router();
 // GET /api/app-settings - Get app settings (public for auth page)
 router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure default settings exist (idempotent)
-    const settings = await prisma.appSettings.upsert({
+    // Try to find existing settings first
+    let settings = await prisma.appSettings.findUnique({
       where: { id: 'default' },
-      update: {},
-      create: {
-        id: 'default',
-      },
     });
+
+    // If no settings exist, create default ones
+    if (!settings) {
+      settings = await prisma.appSettings.create({
+        data: {
+          id: 'default',
+        },
+      });
+    }
 
     const fonts = await prisma.customFont.findMany({
       select: {

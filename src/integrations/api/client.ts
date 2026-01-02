@@ -52,7 +52,8 @@ class ApiClient {
     this.setAuth(null, null);
   }
 
-  private async request<T>(
+  // Made public so TableQuery class can access it
+  async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<{ data: T | null; error: Error | null }> {
@@ -91,10 +92,11 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error', message: 'Unknown error' }));
+        const errorMessage = errorData.error || errorData.message || errorData.errors?.[0] || `HTTP ${response.status}`;
         return {
           data: null,
-          error: new Error(errorData.error || `HTTP ${response.status}`),
+          error: new Error(errorMessage),
         };
       }
 
@@ -259,6 +261,7 @@ class ApiClient {
         'import-wekan-board': '/boards/import',
         'save-mysql-config': '/admin/mysql-config',
         'test-mysql-connection': '/admin/mysql-config/test',
+        'create-board': '/boards',
       };
 
       const endpoint = functionMap[functionName] || `/functions/${functionName}`;
@@ -289,7 +292,8 @@ class ApiClient {
           return { data: null, error: result.error };
         }
 
-        return { data: { path: result.data.path, fullPath: result.data.url }, error: null };
+        const uploadResult = result.data as { path: string; url: string };
+        return { data: { path: uploadResult.path, fullPath: uploadResult.url }, error: null };
       },
 
       remove: async (paths: string[]) => {
@@ -562,7 +566,11 @@ class TableQuery {
     // For count queries, return the number directly
     if (this.countOnly) {
       const result = await this.client.request<number>(`/db/${this.table}?${query}&count=true`);
-      return Promise.resolve({ data: result.data as unknown as T, error: result.error }).then(onFulfilled, onRejected);
+      const response: { data: T | null; error: Error | null } = { 
+        data: (result.data ?? 0) as unknown as T, 
+        error: result.error 
+      };
+      return Promise.resolve(response) as Promise<{ data: T | null; error: Error | null }>;
     }
 
     const result = await this.client.request<T[]>(`/db/${this.table}?${query}`);
@@ -571,13 +579,16 @@ class TableQuery {
     if (this.limitCount === 1) {
       if (Array.isArray(result.data)) {
         if (result.data.length === 0) {
-          return Promise.resolve({ data: null, error: null }).then(onFulfilled, onRejected);
+          const response: { data: T | null; error: Error | null } = { data: null, error: null };
+          return Promise.resolve(response) as Promise<{ data: T | null; error: Error | null }>;
         }
-        return Promise.resolve({ data: result.data[0] as T, error: null }).then(onFulfilled, onRejected);
+        const response: { data: T | null; error: Error | null } = { data: result.data[0] as T, error: null };
+        return Promise.resolve(response) as Promise<{ data: T | null; error: Error | null }>;
       }
     }
 
-    return Promise.resolve(result).then(onFulfilled, onRejected);
+    const response: { data: T | null; error: Error | null } = { data: result.data as T | null, error: result.error };
+    return Promise.resolve(response) as Promise<{ data: T | null; error: Error | null }>;
   }
 }
 

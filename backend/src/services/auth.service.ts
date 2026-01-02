@@ -6,6 +6,24 @@ import { mysqlVerificationService } from './mysql-verification.service.js';
 import { ValidationError, UnauthorizedError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 
+/**
+ * Safely check if a table exists in the database
+ */
+async function tableExists(tableName: string): Promise<boolean> {
+  try {
+    const result = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = ${tableName}
+      ) as exists;
+    `;
+    return Array.isArray(result) && result[0]?.exists === true;
+  } catch {
+    return false;
+  }
+}
+
 const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
@@ -19,21 +37,80 @@ const signInSchema = z.object({
 
 class AuthService {
   /**
+   * Safely check if tables exist before querying
+   */
+  private async ensureTablesExist(): Promise<void> {
+    const usersExists = await tableExists('users');
+    const profilesExists = await tableExists('profiles');
+    
+    if (!usersExists || !profilesExists) {
+      throw new Error(
+        'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
+      );
+    }
+  }
+
+  /**
    * Check if this will be the first user in the system.
    * Should be called within a transaction to ensure atomicity.
+   * Returns true if there are no existing profiles (this will be the first).
    */
   private async isFirstUser(tx: Prisma.TransactionClient): Promise<boolean> {
-    const count = await tx.profile.count();
-    return count === 0;
+    try {
+      const count = await tx.profile.count();
+      return count === 0;
+    } catch (error: any) {
+      // If table doesn't exist or query fails, assume this is the first user
+      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+        return true;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Idempotent: Ensure the first user (if only one exists) is an admin.
+   * This handles the case where a user exists but wasn't made admin initially.
+   * Should be called within a transaction to ensure atomicity.
+   */
+  private async ensureFirstUserIsAdmin(tx: Prisma.TransactionClient, userId: string): Promise<void> {
+    try {
+      const profileCount = await tx.profile.count();
+      
+      // If there's only one profile and it's this user, make them admin
+      if (profileCount === 1) {
+        await tx.profile.update({
+          where: { id: userId },
+          data: { isAdmin: true },
+        });
+      }
+    } catch (error: any) {
+      // Silently fail - this is a best-effort operation
+      // Don't throw as this is idempotent and non-critical
+      console.warn('[AuthService] Could not ensure first user is admin:', error.message);
+    }
   }
 
   async signUp(data: z.infer<typeof signUpSchema>) {
     const validated = signUpSchema.parse(data);
 
+    // Ensure tables exist before querying
+    await this.ensureTablesExist();
+
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: validated.email },
-    });
+    let existingUser;
+    try {
+      existingUser = await prisma.user.findUnique({
+        where: { email: validated.email },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+        throw new Error(
+          'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
+        );
+      }
+      throw error;
+    }
 
     if (existingUser) {
       throw new ValidationError('User with this email already exists');
@@ -65,6 +142,9 @@ class AuthService {
         },
       });
 
+      // Idempotent: If this is the only user and somehow not admin, make them admin
+      await this.ensureFirstUserIsAdmin(tx, user.id);
+
       return { user, profile };
     });
 
@@ -93,11 +173,41 @@ class AuthService {
   async signIn(data: z.infer<typeof signInSchema>) {
     const validated = signInSchema.parse(data);
 
+    // Ensure tables exist before querying
+    await this.ensureTablesExist();
+
     // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: validated.email },
-      include: { profile: true },
-    });
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { email: validated.email },
+        include: { profile: true },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+        throw new Error(
+          'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
+        );
+      }
+      throw error;
+    }
+
+    // Idempotent: If this is the only user and not admin, make them admin
+    if (user && user.profile) {
+      try {
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          await this.ensureFirstUserIsAdmin(tx, user.id);
+        });
+        // Refresh user data after potential admin update
+        user = await prisma.user.findUnique({
+          where: { email: validated.email },
+          include: { profile: true },
+        });
+      } catch (error: any) {
+        // Silently fail - this is best-effort
+        console.warn('[AuthService] Could not ensure first user is admin on signin:', error.message);
+      }
+    }
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedError('Invalid email or password');
@@ -129,11 +239,24 @@ class AuthService {
   async refreshToken(refreshToken: string) {
     const payload = await jwtService.verifyRefreshToken(refreshToken);
 
+    // Ensure tables exist before querying
+    await this.ensureTablesExist();
+
     // Get user
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      include: { profile: true },
-    });
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: payload.userId },
+        include: { profile: true },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+        throw new Error(
+          'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
+        );
+      }
+      throw error;
+    }
 
     if (!user) {
       throw new UnauthorizedError('User not found');
@@ -162,9 +285,18 @@ class AuthService {
 
   async verifyEmailForGoogleAuth(email: string): Promise<{ verified: boolean; message?: string }> {
     // Check app settings for login style
-    const settings = await prisma.appSettings.findUnique({
-      where: { id: 'default' },
-    });
+    let settings;
+    try {
+      settings = await prisma.appSettings.findUnique({
+        where: { id: 'default' },
+      });
+    } catch (error: any) {
+      // If tables don't exist, default to allowing all (for initial setup)
+      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+        return { verified: true };
+      }
+      throw error;
+    }
 
     if (settings?.loginStyle !== 'google_verified') {
       // Not in verified mode, allow all
@@ -176,16 +308,47 @@ class AuthService {
   }
 
   async findOrCreateGoogleUser(googleId: string, email: string, name?: string, avatarUrl?: string) {
+    // Ensure tables exist before querying
+    await this.ensureTablesExist();
+
     // Check if user exists by provider ID
-    let user = await prisma.user.findFirst({
-      where: {
-        provider: 'google',
-        providerId: googleId,
-      },
-      include: { profile: true },
-    });
+    let user;
+    try {
+      user = await prisma.user.findFirst({
+        where: {
+          provider: 'google',
+          providerId: googleId,
+        },
+        include: { profile: true },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+        throw new Error(
+          'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
+        );
+      }
+      throw error;
+    }
 
     if (user) {
+      // Idempotent: If this is the only user and not admin, make them admin
+      try {
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          await this.ensureFirstUserIsAdmin(tx, user.id);
+        });
+        // Refresh user data after potential admin update
+        user = await prisma.user.findFirst({
+          where: {
+            provider: 'google',
+            providerId: googleId,
+          },
+          include: { profile: true },
+        });
+      } catch (error: any) {
+        // Silently fail - this is best-effort
+        console.warn('[AuthService] Could not ensure first user is admin:', error.message);
+      }
+
       // Update profile if needed
       if (name || avatarUrl) {
         await prisma.profile.update({
@@ -214,12 +377,36 @@ class AuthService {
     }
 
     // Check if user exists by email (might have signed up with email first)
-    user = await prisma.user.findUnique({
-      where: { email },
-      include: { profile: true },
-    });
+    try {
+      user = await prisma.user.findUnique({
+        where: { email },
+        include: { profile: true },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+        throw new Error(
+          'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
+        );
+      }
+      throw error;
+    }
 
     if (user) {
+      // Idempotent: If this is the only user and not admin, make them admin
+      try {
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          await this.ensureFirstUserIsAdmin(tx, user.id);
+        });
+        // Refresh user data after potential admin update
+        user = await prisma.user.findUnique({
+          where: { email },
+          include: { profile: true },
+        });
+      } catch (error: any) {
+        // Silently fail - this is best-effort
+        console.warn('[AuthService] Could not ensure first user is admin:', error.message);
+      }
+
       // Link Google account
       await prisma.user.update({
         where: { id: user.id },
@@ -279,6 +466,9 @@ class AuthService {
           isAdmin: isFirst,
         },
       });
+
+      // Idempotent: If this is the only user and somehow not admin, make them admin
+      await this.ensureFirstUserIsAdmin(tx, newUser.id);
 
       return { user: newUser, profile };
     });

@@ -111,36 +111,36 @@ export function BrandingSettings() {
         .from('app_settings')
         .select('*')
         .eq('id', 'default')
-        .single();
+        .single() as { data: any; error: Error | null };
 
       if (error) throw error;
       if (data) {
         const loadedSettings: AppSettings = {
-          customLoginLogoEnabled: data.data?.customLoginLogoEnabled ?? false,
-          customLoginLogoUrl: data.data?.customLoginLogoUrl,
-          customLoginLogoSize: (data.data?.customLoginLogoSize as LogoSize) || 'medium',
-          customAppNameEnabled: data.data?.customAppNameEnabled ?? false,
-          customAppName: data.data?.customAppName,
-          customAppNameSize: data.data?.customAppNameSize || 24,
-          customAppNameColor: data.data?.customAppNameColor || '#000000',
-          customAppNameFont: data.data?.customAppNameFont || 'default',
-          customTaglineEnabled: data.data?.customTaglineEnabled ?? false,
-          customTagline: data.data?.customTagline,
-          customTaglineSize: data.data?.customTaglineSize || 14,
-          customTaglineColor: data.data?.customTaglineColor || '#6b7280',
-          customTaglineFont: data.data?.customTaglineFont || 'default',
-          customLoginBackgroundEnabled: data.data?.customLoginBackgroundEnabled ?? false,
-          customLoginBackgroundType: (data.data?.customLoginBackgroundType as BackgroundType) || 'color',
-          customLoginBackgroundColor: data.data?.customLoginBackgroundColor || '#f3f4f6',
-          customLoginBackgroundImageUrl: data.data?.customLoginBackgroundImageUrl,
-          customLoginBoxBackgroundColor: data.data?.customLoginBoxBackgroundColor || '#ffffff',
-          customGoogleButtonBackgroundColor: data.data?.customGoogleButtonBackgroundColor || '#ffffff',
-          customGoogleButtonTextColor: data.data?.customGoogleButtonTextColor || '#000000',
+          customLoginLogoEnabled: data.customLoginLogoEnabled ?? false,
+          customLoginLogoUrl: data.customLoginLogoUrl,
+          customLoginLogoSize: (data.customLoginLogoSize as LogoSize) || 'medium',
+          customAppNameEnabled: data.customAppNameEnabled ?? false,
+          customAppName: data.customAppName,
+          customAppNameSize: data.customAppNameSize || 24,
+          customAppNameColor: data.customAppNameColor || '#000000',
+          customAppNameFont: data.customAppNameFont || 'default',
+          customTaglineEnabled: data.customTaglineEnabled ?? false,
+          customTagline: data.customTagline,
+          customTaglineSize: data.customTaglineSize || 14,
+          customTaglineColor: data.customTaglineColor || '#6b7280',
+          customTaglineFont: data.customTaglineFont || 'default',
+          customLoginBackgroundEnabled: data.customLoginBackgroundEnabled ?? false,
+          customLoginBackgroundType: (data.customLoginBackgroundType as BackgroundType) || 'color',
+          customLoginBackgroundColor: data.customLoginBackgroundColor || '#f3f4f6',
+          customLoginBackgroundImageUrl: data.customLoginBackgroundImageUrl,
+          customLoginBoxBackgroundColor: data.customLoginBoxBackgroundColor || '#ffffff',
+          customGoogleButtonBackgroundColor: data.customGoogleButtonBackgroundColor || '#ffffff',
+          customGoogleButtonTextColor: data.customGoogleButtonTextColor || '#000000',
         };
         setSettings(loadedSettings);
         setSavedSettings(loadedSettings);
-        setAppNameInput(data.data?.customAppName || '');
-        setTaglineInput(data.data?.customTagline || '');
+        setAppNameInput(data.customAppName || '');
+        setTaglineInput(data.customTagline || '');
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -151,10 +151,11 @@ export function BrandingSettings() {
 
   const fetchCustomFonts = async () => {
     try {
-      const { data, error } = await api
+      const result = await api
         .from('custom_fonts')
         .select('id, name, fontUrl')
         .order('name');
+      const { data, error } = result as { data: CustomFont[] | null; error: Error | null };
 
       if (error) throw error;
       setCustomFonts(data || []);
@@ -219,8 +220,8 @@ export function BrandingSettings() {
 
       const { error } = await api
         .from('app_settings')
-        .update(updates)
-        .eq('id', 'default');
+        .eq('id', 'default')
+        .update(updates);
 
       if (error) throw error;
 
@@ -271,7 +272,7 @@ export function BrandingSettings() {
       if (uploadError) throw uploadError;
 
       const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await api.from('app_settings').update({ customLoginLogoUrl: urlData.publicUrl }).eq('id', 'default');
+      const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginLogoUrl: urlData.publicUrl });
       if (error) throw error;
 
       setSettings(prev => ({ ...prev, customLoginLogoUrl: urlData.publicUrl }));
@@ -291,7 +292,7 @@ export function BrandingSettings() {
     try {
       const path = settings.customLoginLogoUrl.split('/branding/')[1];
       if (path) await api.storage.from('branding').remove([path]);
-      const { error } = await api.from('app_settings').update({ customLoginLogoUrl: null, customLoginLogoEnabled: false }).eq('id', 'default');
+      const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginLogoUrl: null, customLoginLogoEnabled: false });
       if (error) throw error;
       setSettings(prev => ({ ...prev, customLoginLogoUrl: null, customLoginLogoEnabled: false }));
       setSavedSettings(prev => prev ? { ...prev, customLoginLogoUrl: null, customLoginLogoEnabled: false } : prev);
@@ -330,7 +331,7 @@ export function BrandingSettings() {
       if (uploadError) throw uploadError;
 
       const { data: urlData } = api.storage.from('branding').getPublicUrl(fileName);
-      const { error } = await api.from('app_settings').update({ customLoginBackgroundImageUrl: urlData.publicUrl }).eq('id', 'default');
+      const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginBackgroundImageUrl: urlData.publicUrl });
       if (error) throw error;
 
       setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: urlData.publicUrl }));
@@ -350,7 +351,7 @@ export function BrandingSettings() {
     try {
       const path = settings.customLoginBackgroundImageUrl.split('/branding/')[1];
       if (path) await api.storage.from('branding').remove([path]);
-      const { error } = await api.from('app_settings').update({ customLoginBackgroundImageUrl: null }).eq('id', 'default');
+      const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginBackgroundImageUrl: null });
       if (error) throw error;
       setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: null }));
       setSavedSettings(prev => prev ? { ...prev, customLoginBackgroundImageUrl: null } : prev);

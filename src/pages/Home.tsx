@@ -416,12 +416,13 @@ export default function Home() {
     try {
       const { data, error } = await api
         .from('board_themes')
-        .select('*');
+        .select('*') as { data: BoardTheme[] | null; error: Error | null };
 
       if (error) {
         console.error('[fetchThemes] API error:', error);
         throw error;
       }
+
 
       // Sort themes: default themes in THEME_ORDER first, then custom themes alphabetically
       const THEME_ORDER = [
@@ -431,7 +432,6 @@ export default function Home() {
       
       // Prisma returns data in camelCase format matching the BoardTheme interface
       const allThemes = (data || []) as BoardTheme[];
-      console.log('[fetchThemes] Parsed themes:', allThemes);
       
       const sortedThemes = allThemes.sort((a, b) => {
         if (a.isDefault && b.isDefault) {

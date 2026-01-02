@@ -1,9 +1,96 @@
 import { PrismaClient } from '@prisma/client';
+import { execSync } from 'child_process';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
 const prisma = new PrismaClient();
 
+// Get the backend directory (parent of prisma directory)
+// When seed runs, __dirname will be backend/prisma, so parent is backend
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const backendDir = join(__dirname, '..');
+
+/**
+ * Check if a table exists in the database
+ */
+async function tableExists(tableName: string): Promise<boolean> {
+  try {
+    const result = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = ${tableName}
+      ) as exists;
+    `;
+    return Array.isArray(result) && result[0]?.exists === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ensure all database tables exist by running Prisma db push
+ * This is idempotent and safe to run multiple times
+ * Explicitly verifies critical tables like 'users' exist
+ */
+async function ensureTablesExist() {
+  console.log('🔧 Ensuring all database tables exist...');
+  
+  try {
+    // Use Prisma db push to sync schema to database
+    // This creates all tables, indexes, and constraints from schema.prisma
+    // --skip-generate: Skip generating Prisma Client (assumes it's already generated)
+    // --accept-data-loss: Accept data loss if schema changes require it
+    execSync('npx prisma db push --skip-generate --accept-data-loss', {
+      stdio: 'inherit',
+      cwd: backendDir,
+    });
+    console.log('✅ Prisma db push completed.\n');
+  } catch (error: any) {
+    console.error('❌ Error running prisma db push:', error.message);
+    console.log('⚠️  Attempting to verify tables manually...\n');
+  }
+  
+  // Explicitly verify critical tables exist
+  const criticalTables = [
+    'users',
+    'profiles',
+    'refresh_tokens',
+    'app_settings',
+    'custom_fonts',
+    'board_themes',
+  ];
+  
+  console.log('🔍 Verifying critical tables exist...');
+  const missingTables: string[] = [];
+  
+  for (const table of criticalTables) {
+    const exists = await tableExists(table);
+    if (!exists) {
+      missingTables.push(table);
+      console.log(`  ⚠️  Table '${table}' is missing`);
+    } else {
+      console.log(`  ✅ Table '${table}' exists`);
+    }
+  }
+  
+  if (missingTables.length > 0) {
+    console.error(`\n❌ Missing critical tables: ${missingTables.join(', ')}`);
+    console.error('   Please run: cd backend && npx prisma db push');
+    throw new Error(`Missing tables: ${missingTables.join(', ')}`);
+  }
+  
+  console.log('✅ All critical tables verified.\n');
+}
+
 async function main() {
-  console.log('Seeding database...');
+  console.log('🌱 Starting database seeding...\n');
+  
+  // First, ensure all tables exist
+  await ensureTablesExist();
+  
+  console.log('📦 Seeding data...');
 
   // 1. Seed app_settings (required for app to function)
   // Source: supabase/migrations/20251218122201_7ce7bb8e-272b-4940-a3e5-4b2a1b7b122b.sql

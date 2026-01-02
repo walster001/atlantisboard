@@ -228,6 +228,7 @@ class ApiClient {
               user_metadata: {
                 avatar_url: result.data.avatarUrl,
                 full_name: result.data.fullName,
+                is_admin: result.data.isAdmin, // Include admin status in user metadata
               },
             },
           },
@@ -557,7 +558,7 @@ class TableQuery {
     return result;
   }
 
-  async then<T>(
+  then<T>(
     onFulfilled?: (value: { data: T | null; error: Error | null }) => unknown,
     onRejected?: (reason: unknown) => unknown
   ): Promise<{ data: T | null; error: Error | null }> {
@@ -565,49 +566,56 @@ class TableQuery {
     const url = `/db/${this.table}?${query}`;
     console.log('[TableQuery.then] Executing query:', url);
     
-    try {
-      // For count queries, return the number directly
-      if (this.countOnly) {
-        const result = await this.client.request<number>(`${url}&count=true`);
-        const response: { data: T | null; error: Error | null } = { 
-          data: (result.data ?? 0) as unknown as T, 
-          error: result.error 
-        };
-        console.log('[TableQuery.then] Count query result:', response);
-        return Promise.resolve(response) as Promise<{ data: T | null; error: Error | null }>;
-      }
-
-      console.log('[TableQuery.then] Making request to:', url);
-      const result = await this.client.request<T[]>(url);
-      console.log('[TableQuery.then] Request completed, result:', result);
-
-      // Handle single() and maybeSingle()
-      if (this.limitCount === 1) {
-        if (Array.isArray(result.data)) {
-          if (result.data.length === 0) {
-            const response: { data: T | null; error: Error | null } = { data: null, error: null };
-            console.log('[TableQuery.then] Empty array result (maybeSingle):', response);
-            const resolved = Promise.resolve(response) as Promise<{ data: T | null; error: Error | null }>;
-            console.log('[TableQuery.then] Returning resolved promise for empty result');
-            return resolved;
-          }
-          const singleData = result.data[0] as T;
-          console.log('[TableQuery.then] Single result data:', singleData);
-          const response: { data: T | null; error: Error | null } = { data: singleData, error: null };
-          console.log('[TableQuery.then] Single result response:', response);
-          const resolved = Promise.resolve(response) as Promise<{ data: T | null; error: Error | null }>;
-          console.log('[TableQuery.then] Returning resolved promise for single result');
-          return resolved;
+    const promise = (async () => {
+      try {
+        // For count queries, return the number directly
+        if (this.countOnly) {
+          const result = await this.client.request<number>(`${url}&count=true`);
+          const response: { data: T | null; error: Error | null } = { 
+            data: (result.data ?? 0) as unknown as T, 
+            error: result.error 
+          };
+          console.log('[TableQuery.then] Count query result:', response);
+          return response;
         }
-      }
 
-      const response: { data: T | null; error: Error | null } = { data: result.data as T | null, error: result.error };
-      console.log('[TableQuery.then] Final response:', response);
-      return Promise.resolve(response) as Promise<{ data: T | null; error: Error | null }>;
-    } catch (error) {
-      console.error('[TableQuery.then] Exception in then():', error);
-      throw error;
+        console.log('[TableQuery.then] Making request to:', url);
+        const result = await this.client.request<T[]>(url);
+        console.log('[TableQuery.then] Request completed, result:', result);
+
+        // Handle single() and maybeSingle()
+        if (this.limitCount === 1) {
+          if (Array.isArray(result.data)) {
+            if (result.data.length === 0) {
+              const response: { data: T | null; error: Error | null } = { data: null, error: null };
+              console.log('[TableQuery.then] Empty array result (maybeSingle):', response);
+              return response;
+            }
+            const singleData = result.data[0] as T;
+            console.log('[TableQuery.then] Single result data:', singleData);
+            const response: { data: T | null; error: Error | null } = { data: singleData, error: null };
+            console.log('[TableQuery.then] Single result response:', response);
+            return response;
+          }
+        }
+
+        const response: { data: T | null; error: Error | null } = { data: result.data as T | null, error: result.error };
+        console.log('[TableQuery.then] Final response:', response);
+        return response;
+      } catch (error) {
+        console.error('[TableQuery.then] Exception in then():', error);
+        throw error;
+      }
+    })();
+
+    // Properly handle the callbacks for thenable protocol
+    // When await is used, JavaScript calls then() with callbacks
+    // We need to chain the promise and call the callbacks
+    if (onFulfilled || onRejected) {
+      return promise.then(onFulfilled, onRejected) as Promise<{ data: T | null; error: Error | null }>;
     }
+
+    return promise as Promise<{ data: T | null; error: Error | null }>;
   }
 }
 

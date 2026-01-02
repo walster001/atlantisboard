@@ -84,59 +84,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchAdminStatus = useCallback(async (userId: string) => {
-    console.log('[fetchAdminStatus] Starting, userId:', userId);
     try {
-      console.log('[fetchAdminStatus] Making API call...');
-      const queryPromise = api
-        .from('profiles')
-        .select('isAdmin')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      console.log('[fetchAdminStatus] Query promise created, awaiting...');
-      
-      // Use .then() directly to test if promise resolves
-      const result = await new Promise<{ data: any; error: Error | null }>((resolve, reject) => {
-        queryPromise.then((res: any) => {
-          console.log('[fetchAdminStatus] .then() callback executed with result:', res);
-          resolve(res);
-        }).catch((err: any) => {
-          console.error('[fetchAdminStatus] .then() callback caught error:', err);
-          reject(err);
-        });
-      });
-      
-      console.log('[fetchAdminStatus] API result received:', result);
-      console.log('[fetchAdminStatus] Result keys:', Object.keys(result || {}));
-      console.log('[fetchAdminStatus] Result structure:', JSON.stringify(result, null, 2));
-      
-      const { data, error } = result;
+      // Use /auth/me endpoint which returns isAdmin directly
+      const result = await api.request<{
+        id: string;
+        email: string;
+        fullName: string | null;
+        isAdmin: boolean;
+        avatarUrl: string | null;
+      }>('/auth/me');
 
-      if (error) {
-        console.error('[fetchAdminStatus] Error:', error);
+      if (result.error) {
+        console.error('[fetchAdminStatus] Error fetching admin status:', result.error);
         setIsAppAdmin(false);
         return;
       }
 
-      if (data) {
-        console.log('[fetchAdminStatus] Data received:', data);
-        console.log('[fetchAdminStatus] Data type:', typeof data);
-        console.log('[fetchAdminStatus] Data keys:', Object.keys(data || {}));
-        console.log('[fetchAdminStatus] isAdmin value:', (data as any)?.isAdmin);
-        // Handle both possible response structures: direct object or { data: object }
-        const profile = data as any;
-        const isAdmin = profile?.isAdmin ?? profile?.data?.isAdmin ?? false;
-        console.log('[fetchAdminStatus] Extracted isAdmin:', isAdmin);
-        console.log('[fetchAdminStatus] Setting isAppAdmin to:', isAdmin);
+      if (result.data) {
+        const isAdmin = result.data.isAdmin ?? false;
         setIsAppAdmin(isAdmin);
       } else {
-        console.warn('[fetchAdminStatus] No profile data returned for user:', userId);
-        console.warn('[fetchAdminStatus] Result was:', result);
+        console.warn('[fetchAdminStatus] No user data returned');
         setIsAppAdmin(false);
       }
     } catch (error) {
       console.error('[fetchAdminStatus] Exception caught:', error);
-      console.error('[fetchAdminStatus] Exception details:', error instanceof Error ? error.stack : error);
       setIsAppAdmin(false);
     }
   }, []);
@@ -163,6 +135,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             // Check verification if needed (for Google OAuth)
             if (session.user) {
+              // Extract admin status from user metadata if available
+              const isAdminFromMetadata = (session.user.user_metadata as any)?.is_admin ?? false;
+              if (isAdminFromMetadata) {
+                setIsAppAdmin(true);
+              } else {
+                // Fallback to fetching admin status if not in metadata
+                fetchAdminStatus(session.user.id);
+              }
+
               const provider = session.user.app_metadata?.provider;
               if (provider === 'google') {
                 // Check login style
@@ -188,7 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               } else {
                 setIsVerified(true);
               }
-              fetchAdminStatus(session.user.id);
             }
 
             // Clear hash from URL
@@ -224,8 +204,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(data.session.user);
           
           if (data.session.user) {
-            console.log('[useAuth] User found, fetching admin status for:', data.session.user.id);
-            fetchAdminStatus(data.session.user.id);
+            // Extract admin status from user metadata if available
+            const isAdminFromMetadata = (data.session.user.user_metadata as any)?.is_admin ?? false;
+            if (isAdminFromMetadata) {
+              setIsAppAdmin(true);
+            } else {
+              // Fallback to fetching admin status if not in metadata
+              console.log('[useAuth] User found, fetching admin status for:', data.session.user.id);
+              fetchAdminStatus(data.session.user.id);
+            }
           } else {
             console.warn('[useAuth] Session exists but no user in session');
           }
@@ -233,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('[useAuth] No session found');
           setSession(null);
           setUser(null);
+          setIsAppAdmin(false);
         }
       } catch (error) {
         console.error('[useAuth] Failed to initialize session:', error);
@@ -265,11 +253,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
-        // Fetch full user data including avatar
+        // Fetch full user data including avatar and admin status
         const sessionResult = await api.auth.getSession();
         if (sessionResult.data?.session) {
           setSession(sessionResult.data.session);
           setUser(sessionResult.data.session.user);
+          // Extract admin status from user metadata
+          const isAdminFromMetadata = (sessionResult.data.session.user.user_metadata as any)?.is_admin ?? false;
+          if (isAdminFromMetadata) {
+            setIsAppAdmin(true);
+          } else {
+            // Fallback: use isAdmin from sign-in response if available
+            setIsAppAdmin(data.user.isAdmin ?? false);
+          }
         } else {
           // Fallback to basic user data if getSession fails
           setSession({
@@ -278,9 +274,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user: data.user,
           });
           setUser(data.user);
+          // Use isAdmin from sign-in response
+          setIsAppAdmin(data.user.isAdmin ?? false);
         }
         setIsVerified(true);
-        fetchAdminStatus(data.user.id);
       }
 
       return { error: null };
@@ -298,11 +295,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
-        // Fetch full user data including avatar
+        // Fetch full user data including avatar and admin status
         const sessionResult = await api.auth.getSession();
         if (sessionResult.data?.session) {
           setSession(sessionResult.data.session);
           setUser(sessionResult.data.session.user);
+          // Extract admin status from user metadata
+          const isAdminFromMetadata = (sessionResult.data.session.user.user_metadata as any)?.is_admin ?? false;
+          if (isAdminFromMetadata) {
+            setIsAppAdmin(true);
+          } else {
+            // Fallback: use isAdmin from sign-up response if available
+            setIsAppAdmin(data.user.isAdmin ?? false);
+          }
         } else {
           // Fallback to basic user data if getSession fails
           setSession({
@@ -311,9 +316,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user: data.user,
           });
           setUser(data.user);
+          // Use isAdmin from sign-up response
+          setIsAppAdmin(data.user.isAdmin ?? false);
         }
         setIsVerified(true);
-        fetchAdminStatus(data.user.id);
       }
 
       return { error: null };

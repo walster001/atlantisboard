@@ -58,18 +58,18 @@ export function AppBrandingSettings() {
       if (error) throw error;
       if (data) {
         const loadedSettings: AppBrandingState = {
-          customHomeLogoEnabled: data.data?.customHomeLogoEnabled ?? false,
-          customHomeLogoUrl: data.data?.customHomeLogoUrl,
-          customHomeLogoSize: data.data?.customHomeLogoSize ?? 40,
-          customBoardLogoEnabled: data.data?.customBoardLogoEnabled ?? false,
-          customBoardLogoUrl: data.data?.customBoardLogoUrl,
-          customBoardLogoSize: data.data?.customBoardLogoSize ?? 40,
-          customGlobalAppNameEnabled: data.data?.customGlobalAppNameEnabled ?? false,
-          customGlobalAppName: data.data?.customGlobalAppName,
+          customHomeLogoEnabled: data.customHomeLogoEnabled ?? false,
+          customHomeLogoUrl: data.customHomeLogoUrl,
+          customHomeLogoSize: data.customHomeLogoSize ?? 40,
+          customBoardLogoEnabled: data.customBoardLogoEnabled ?? false,
+          customBoardLogoUrl: data.customBoardLogoUrl,
+          customBoardLogoSize: data.customBoardLogoSize ?? 40,
+          customGlobalAppNameEnabled: data.customGlobalAppNameEnabled ?? false,
+          customGlobalAppName: data.customGlobalAppName,
         };
         setSettings(loadedSettings);
         setSavedSettings(loadedSettings);
-        setAppNameInput(data.data?.customGlobalAppName || '');
+        setAppNameInput(data.customGlobalAppName || '');
       }
     } catch (error) {
       console.error('Error fetching settings:', error);

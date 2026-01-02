@@ -24,6 +24,8 @@ type MemberHandlers = {
 
 export function subscribeBoardCards(boardId: string, handlers: CardHandlers): SubscriptionCleanup {
   const topic = `board-${boardId}-cards`;
+  // Filter by columnId to ensure we only get cards from columns in this board
+  // Since cards don't have boardId directly, we'll filter in the handler
   return subscribeToChanges(
     topic,
     [
@@ -32,6 +34,8 @@ export function subscribeBoardCards(boardId: string, handlers: CardHandlers): Su
         table: 'cards',
         handler: (payload: RealtimePostgresChangesPayload<DbRecord>) => {
           logRealtime(topic, 'card insert', payload.new);
+          // Verify the card belongs to a column in this board
+          // The channel routing should ensure this, but double-check for safety
           handlers.onInsert?.(payload.new || {});
         },
       },

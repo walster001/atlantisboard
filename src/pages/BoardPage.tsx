@@ -205,38 +205,35 @@ export default function BoardPage() {
           });
         },
         onUpdate: (updatedCardRaw, previousRaw) => {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:200',message:'card UPDATE handler called',data:{cardId:(updatedCardRaw as any)?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
+          console.log('[BoardPage] Card UPDATE event received:', {
+            cardId: (updatedCardRaw as any)?.id,
+            columnId: (updatedCardRaw as any)?.columnId,
+            previousColumnId: (previousRaw as any)?.columnId,
+            position: (updatedCardRaw as any)?.position,
+            previousPosition: (previousRaw as any)?.position,
+          });
           const updatedCard = updatedCardRaw as DbCard;
           const previous = previousRaw as DbCard;
+          
+          // Always update the card - don't check for changes as this can cause issues with moves
+          // The realtime event is the source of truth
           setCards((prev) => {
             const existingCard = prev.find((c) => c.id === updatedCard.id);
             if (!existingCard) {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:204',message:'card UPDATE - card not found in state',data:{cardId:updatedCard.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-              // #endregion
-              return prev;
+              console.log('[BoardPage] Card UPDATE - card not found in state, adding it:', updatedCard.id);
+              // Card doesn't exist yet - add it (might be a move from another column)
+              return [...prev, updatedCard];
             }
 
-            const hasChange =
-              existingCard.title !== updatedCard.title ||
-              existingCard.description !== updatedCard.description ||
-              existingCard.dueDate !== updatedCard.dueDate ||
-              existingCard.position !== updatedCard.position ||
-              existingCard.columnId !== updatedCard.columnId ||
-              existingCard.color !== updatedCard.color;
-
-            if (!hasChange) {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:215',message:'card UPDATE - no change detected',data:{cardId:updatedCard.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-              // #endregion
-              return prev;
-            }
-
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:217',message:'setCards called for UPDATE',data:{cardId:updatedCard.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-            // #endregion
+            console.log('[BoardPage] Card UPDATE - updating card in state:', {
+              cardId: updatedCard.id,
+              oldColumnId: existingCard.columnId,
+              newColumnId: updatedCard.columnId,
+              oldPosition: existingCard.position,
+              newPosition: updatedCard.position,
+            });
+            
+            // Update the card with the new data from the realtime event
             return prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
           });
           setEditingCard((prev) => {
@@ -406,7 +403,29 @@ export default function BoardPage() {
             refreshBoardMembers();
             
             if (updatedMembership?.userId === user.id && updatedMembership.role) {
-              setUserRole(updatedMembership.role as 'admin' | 'manager' | 'viewer');
+              const newRole = updatedMembership.role as 'admin' | 'manager' | 'viewer';
+              const oldRole = userRole;
+              setUserRole(newRole);
+              
+              // Close board settings dialogs if user is demoted below required permissions
+              // Admin/Manager can access board settings, Viewer cannot
+              if (newRole === 'viewer' && oldRole !== 'viewer') {
+                // User was demoted to viewer - close settings dialogs
+                console.log('[BoardPage] User demoted to viewer, closing settings dialogs');
+                setSettingsModalOpen(false);
+                setMembersDialogOpen(false);
+                toast({
+                  title: 'Access changed',
+                  description: 'You have been demoted to viewer. Settings dialogs have been closed.',
+                  variant: 'destructive',
+                });
+              } else if (newRole !== 'viewer' && oldRole === 'viewer') {
+                // User was promoted from viewer - show success message
+                toast({
+                  title: 'Access granted',
+                  description: `You have been promoted to ${newRole}. You can now access board settings.`,
+                });
+              }
             } else if (updatedMembership.userId && updatedMembership.userId !== user.id) {
               // Show toast for other users' role changes
               const memberName = updatedMembership.user?.profile?.fullName || 

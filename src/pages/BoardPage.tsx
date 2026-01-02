@@ -285,7 +285,8 @@ export default function BoardPage() {
       cleanups.push(
         subscribeBoardMembers(boardId, {
           onInsert: () => {
-            // Refresh members list when a new member is added (e.g., creator added as admin)
+            // Always refresh members list when a new member is added
+            // This includes when the creator is added as admin after board creation
             refreshBoardMembers();
           },
           onUpdate: (membershipRaw) => {
@@ -315,11 +316,6 @@ export default function BoardPage() {
             } else {
               refreshBoardMembers();
             }
-          },
-          onInsert: () => {
-            // Always refresh members list when a new member is added
-            // This includes when the creator is added as admin after board creation
-            refreshBoardMembers();
           },
         })
       );

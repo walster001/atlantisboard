@@ -2,6 +2,7 @@ import { prisma } from '../db/client.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
+import { emitDatabaseChange } from '../realtime/emitter.js';
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1),
@@ -237,6 +238,9 @@ class WorkspaceService {
       },
     });
 
+    // Emit workspace membership add event
+    await emitDatabaseChange('workspaceMembers', 'INSERT', member as any, undefined);
+
     return member;
   }
 
@@ -258,6 +262,23 @@ class WorkspaceService {
       throw new ValidationError('Cannot remove workspace owner');
     }
 
+    // Get member before deletion for event emission
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId: memberUserId,
+        },
+      },
+      include: {
+        user: {
+          include: {
+            profile: true,
+          },
+        },
+      },
+    });
+
     await prisma.workspaceMember.delete({
       where: {
         workspaceId_userId: {
@@ -266,6 +287,11 @@ class WorkspaceService {
         },
       },
     });
+
+    // Emit workspace membership remove event
+    if (member) {
+      await emitDatabaseChange('workspaceMembers', 'DELETE', undefined, member as any);
+    }
 
     return { success: true };
   }

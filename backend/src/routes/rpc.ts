@@ -13,7 +13,7 @@ router.use(authMiddleware);
 
 // Map RPC function names to handlers
 const rpcHandlers: Record<string, (req: Request, params: any) => Promise<any>> = {
-  get_home_data: async (req, _params) => {
+  getHomeData: async (req, _params) => {
     const authReq = req as AuthRequest;
     return homeService.getHomeData(authReq.userId!, authReq.user?.isAdmin ?? false);
   },

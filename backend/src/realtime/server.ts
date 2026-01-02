@@ -308,17 +308,17 @@ class RealtimeServer {
         channels.push(`board-${resolvedBoardId}-cards`);
       } else if (table === 'columns') {
         channels.push(`board-${resolvedBoardId}-columns`);
-      } else if (table === 'board_members') {
+      } else if (table === 'boardMembers') {
         channels.push(`board-${resolvedBoardId}-members`);
       }
-    } else if (table === 'board_members' && newRecord) {
+    } else if (table === 'boardMembers' && newRecord) {
       // Prisma models use camelCase (boardId), not snake_case (board_id)
       resolvedBoardId = (newRecord as any).boardId || (newRecord as any).board_id;
       if (resolvedBoardId) {
         channels.push(`board:${resolvedBoardId}`);
         channels.push(`board-${resolvedBoardId}-members`);
       }
-    } else if (table === 'board_members' && oldRecord) {
+    } else if (table === 'boardMembers' && oldRecord) {
       // Prisma models use camelCase (boardId), not snake_case (board_id)
       resolvedBoardId = (oldRecord as any).boardId || (oldRecord as any).board_id;
       if (resolvedBoardId) {

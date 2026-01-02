@@ -89,10 +89,10 @@ export function subscribeBoardMembersForPermissions(boardId: string | null | und
     [
       {
         event: 'UPDATE',
-        table: 'board_members',
+        table: 'boardMembers',
         filter,
         handler: (payload) => {
-          logRealtime(topic, 'board_members update', { id: payload.new?.id });
+          logRealtime(topic, 'boardMembers update', { id: payload.new?.id });
           handlers.onChange?.(payload);
           const userId = handlers.currentUserId;
           if (userId && (payload.new as { userId?: string } | undefined)?.userId === userId) {
@@ -102,10 +102,10 @@ export function subscribeBoardMembersForPermissions(boardId: string | null | und
       },
       {
         event: 'DELETE',
-        table: 'board_members',
+        table: 'boardMembers',
         filter,
         handler: (payload) => {
-          logRealtime(topic, 'board_members delete', { id: payload.old?.id });
+          logRealtime(topic, 'boardMembers delete', { id: payload.old?.id });
           handlers.onChange?.(payload);
           const userId = handlers.currentUserId;
           if (userId && (payload.old as { userId?: string } | undefined)?.userId === userId) {

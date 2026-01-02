@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
-import { subscribeHomeBoardMembership } from '@/realtime/homeSubscriptions';
+import { subscribeHomeBoardMembership, subscribeHomeWorkspaceMembership } from '@/realtime/homeSubscriptions';
 import { api } from '@/integrations/api/client';
 
 interface Workspace {
@@ -270,7 +270,7 @@ export default function Home() {
     setLoading(true);
     try {
       // Single server-side call to get all home data
-      const { data, error } = await api.rpc('get_home_data', {
+      const { data, error } = await api.rpc('getHomeData', {
         _user_id: user.id
       });
 
@@ -298,7 +298,7 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
 
-    return subscribeHomeBoardMembership(user.id, {
+    const cleanupBoard = subscribeHomeBoardMembership(user.id, {
       onAdded: () => {
         fetchData();
         toast({
@@ -340,6 +340,52 @@ export default function Home() {
         });
       },
     });
+
+    return cleanupBoard;
+  }, [user, fetchData, toast]);
+
+  // Listen for real-time workspaceMembers changes for the current user
+  // This handles when user is added to or removed from workspaces
+  useEffect(() => {
+    if (!user) return;
+
+    const cleanupWorkspace = subscribeHomeWorkspaceMembership(user.id, {
+      onAdded: () => {
+        fetchData();
+        toast({
+          title: 'Workspace access granted',
+          description: 'You have been added to a new workspace.',
+        });
+      },
+      onRemoved: (payload) => {
+        const deletedMembership = payload.old as { workspaceId: string; userId: string };
+        const deletedWorkspaceId = deletedMembership.workspaceId;
+
+        // Remove workspace and all its boards
+        setWorkspaces((prevWorkspaces) => prevWorkspaces.filter((w) => w.id !== deletedWorkspaceId));
+        setBoards((prevBoards) => {
+          const removedBoards = prevBoards.filter((b) => b.workspaceId === deletedWorkspaceId);
+          
+          // Remove board roles for removed boards
+          setBoardRoles((prevRoles) => {
+            const updated = { ...prevRoles };
+            removedBoards.forEach((b) => {
+              delete updated[b.id];
+            });
+            return updated;
+          });
+
+          return prevBoards.filter((b) => b.workspaceId !== deletedWorkspaceId);
+        });
+
+        toast({
+          title: 'Workspace access removed',
+          description: 'You have been removed from a workspace.',
+        });
+      },
+    });
+
+    return cleanupWorkspace;
   }, [user, fetchData, toast]);
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
@@ -485,7 +531,7 @@ export default function Home() {
       if (!workspace) throw new Error('Failed to create workspace');
 
       // Add owner as workspace member
-      await api.from('workspace_members').insert({
+      await api.from('workspaceMembers').insert({
         workspaceId: workspace.id,
         userId: user.id,
       });

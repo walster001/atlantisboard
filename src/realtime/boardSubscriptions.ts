@@ -104,7 +104,7 @@ export function subscribeBoardMembers(boardId: string, handlers: MemberHandlers)
     [
       {
         event: 'UPDATE',
-        table: 'board_members',
+        table: 'boardMembers',
         filter,
         handler: (payload: RealtimePostgresChangesPayload<DbRecord>) => {
           logRealtime(topic, 'member update', { id: payload.new?.id });
@@ -113,7 +113,7 @@ export function subscribeBoardMembers(boardId: string, handlers: MemberHandlers)
       },
       {
         event: 'DELETE',
-        table: 'board_members',
+        table: 'boardMembers',
         filter,
         handler: (payload: RealtimePostgresChangesPayload<DbRecord>) => {
           logRealtime(topic, 'member delete', payload.old);
@@ -122,7 +122,7 @@ export function subscribeBoardMembers(boardId: string, handlers: MemberHandlers)
       },
       {
         event: 'INSERT',
-        table: 'board_members',
+        table: 'boardMembers',
         filter,
         handler: (payload: RealtimePostgresChangesPayload<DbRecord>) => {
           logRealtime(topic, 'member insert', payload.new);

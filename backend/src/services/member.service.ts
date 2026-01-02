@@ -84,7 +84,17 @@ class MemberService {
       throw new ValidationError('User is already a member of this board');
     }
 
-    // Create membership
+    // Get board to find workspace
+    const board = await prisma.board.findUnique({
+      where: { id: validated.boardId },
+      select: { workspaceId: true },
+    });
+
+    if (!board) {
+      throw new NotFoundError('Board not found');
+    }
+
+    // Create board membership
     const member = await prisma.boardMember.create({
       data: {
         boardId: validated.boardId,
@@ -100,6 +110,36 @@ class MemberService {
       },
     });
 
+    // Automatically add user to workspace if not already a member
+    const workspaceMembership = await prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId: board.workspaceId,
+          userId: validated.userId,
+        },
+      },
+    });
+
+    if (!workspaceMembership) {
+      // User is not a workspace member, add them automatically
+      const newWorkspaceMember = await prisma.workspaceMember.create({
+        data: {
+          workspaceId: board.workspaceId,
+          userId: validated.userId,
+        },
+        include: {
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+        },
+      });
+
+      // Emit workspace membership event
+      await emitDatabaseChange('workspaceMembers', 'INSERT', newWorkspaceMember as any, undefined);
+    }
+
     // Create audit log entry
     await prisma.boardMemberAuditLog.create({
       data: {
@@ -111,8 +151,8 @@ class MemberService {
       },
     });
 
-    // Emit add event
-    await emitDatabaseChange('board_members', 'INSERT', member as any, undefined, validated.boardId);
+    // Emit board membership add event
+    await emitDatabaseChange('boardMembers', 'INSERT', member as any, undefined, validated.boardId);
 
     return member;
   }
@@ -211,7 +251,7 @@ class MemberService {
     });
 
     // Emit removal event
-    await emitDatabaseChange('board_members', 'DELETE', undefined, member as any, boardId);
+    await emitDatabaseChange('boardMembers', 'DELETE', undefined, member as any, boardId);
 
     // If user was removed, notify them via custom event
     await emitCustomEvent(`board:${boardId}`, 'board.member.removed', {
@@ -309,7 +349,7 @@ class MemberService {
     });
 
     // Emit update event
-    await emitDatabaseChange('board_members', 'UPDATE', updated as any, member as any, boardId);
+    await emitDatabaseChange('boardMembers', 'UPDATE', updated as any, member as any, boardId);
 
     return updated;
   }

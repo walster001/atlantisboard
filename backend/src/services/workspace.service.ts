@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/er
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
+import { boardService } from './board.service.js';
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1),
@@ -180,6 +181,9 @@ class WorkspaceService {
         id: workspaceId,
         ownerId: userId,
       },
+      include: {
+        boards: true, // Include boards to get their IDs for cleanup
+      },
     });
 
     if (!workspace && !isAppAdmin) {
@@ -190,6 +194,21 @@ class WorkspaceService {
     const context = permissionService.buildContext(userId, isAppAdmin);
     await permissionService.requirePermission('app.workspace.delete', context);
 
+    // Delete all boards through the service to trigger cleanup
+    // This ensures attachments, inline button icons, and board backgrounds are cleaned up from MinIO
+    if (workspace && workspace.boards.length > 0) {
+      for (const board of workspace.boards) {
+        try {
+          await boardService.delete(userId, board.id, isAppAdmin);
+        } catch (error: any) {
+          // Log error but continue deleting other boards
+          // Partial cleanup is better than no cleanup
+          console.error(`[Workspace Deletion] Failed to delete board ${board.id}:`, error.message);
+        }
+      }
+    }
+
+    // Now delete the workspace (boards should already be deleted, but cascade will handle any remaining)
     await prisma.workspace.delete({
       where: { id: workspaceId },
     });

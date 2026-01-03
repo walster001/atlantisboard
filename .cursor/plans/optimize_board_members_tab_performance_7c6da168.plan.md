@@ -339,7 +339,3 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
 - Scroll performance: 60fps with virtualization
 - Memory usage: < 50MB for 400+ members (vs current ~200MB+)
 - No visible pagination UI - seamless infinite scroll experience
-
-## Implementation Order
-
-1. Backend pagination support with hasMore flag (Phase 1)

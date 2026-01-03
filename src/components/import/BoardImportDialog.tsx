@@ -430,16 +430,27 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           }
         );
 
-        if (!response.ok) {
+        // Check content type to determine if it's SSE
+        const contentType = response.headers.get('content-type') || '';
+        const isSSE = contentType.includes('text/event-stream');
+        
+        if (!response.ok && !isSSE) {
+          // Non-SSE error response - parse as JSON
           const errorText = await response.text();
           try {
             const errorJson = JSON.parse(errorText);
-            const errorMessage = errorJson.errors?.[0] || errorJson.error || 'Board import encountered an error. Some data may not have been imported.';
+            const errorMessage = errorJson.errors?.[0] || errorJson.error || errorJson.message || 'Board import encountered an error. Some data may not have been imported.';
             reject(new Error(errorMessage));
           } catch {
             reject(new Error(`Board import encountered an error. Please check your connection and try again.`));
           }
           return;
+        }
+        
+        // For SSE (or successful response), continue to read stream
+        if (!response.ok && isSSE) {
+          // SSE error - will be handled in stream reading below
+          // Continue to read the stream to get error message
         }
 
         const reader = response.body?.getReader();
@@ -484,7 +495,12 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                     createdIdsRef.current = data.createdIds;
                   }
                 } else if (data.type === 'result') {
+                  // Resolve with result (both success and error results)
                   resolve(data as ImportResult);
+                  return;
+                } else if (data.type === 'error') {
+                  // Handle explicit error type (if backend sends it)
+                  reject(new Error(data.message || data.error || 'Import failed'));
                   return;
                 }
               } catch (e) {

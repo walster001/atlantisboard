@@ -1,4 +1,4 @@
-import { useState, memo, useCallback, useRef } from 'react';
+import { useState, memo, useCallback, useRef, useEffect } from 'react';
 import { Draggable, Droppable } from '@hello-pangea/dnd';
 import { Column, Card } from '@/types/kanban';
 import { KanbanCard } from './KanbanCard';
@@ -86,7 +86,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Prevent scroll bounce at boundaries on desktop (wheel events only)
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+  const handleWheel = useCallback((e: WheelEvent) => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
@@ -100,6 +100,18 @@ export const KanbanColumn = memo(function KanbanColumn({
       e.stopPropagation();
     }
   }, []);
+
+  // Attach wheel event listener with passive: false to allow preventDefault
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleWheel]);
 
   // Effective column color: per-column override > theme > default
   // Empty string or 'transparent' means transparent (no color)
@@ -249,7 +261,6 @@ export const KanbanColumn = memo(function KanbanColumn({
                     (scrollContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
                   }}
                   {...provided.droppableProps}
-                  onWheel={handleWheel}
                   className={cn(
                     'min-h-[2rem] transition-all duration-200 rounded-lg flex-1 overflow-y-auto p-1 -m-1',
                     snapshot.isDraggingOver && 'drop-zone-active',

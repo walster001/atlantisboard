@@ -30,7 +30,9 @@ function convertEmojiShortcodes(text: string): string {
 function processCardDescription(description: string | null | undefined): string | null {
   if (!description) return null;
   let result = convertEmojiShortcodes(description);
-  // Additional processing can be added here (inline buttons, HTML cleanup, etc.)
+  // Note: Card descriptions may contain HTML with inline button image URLs that were
+  // replaced in the frontend (from /cdn URLs to MinIO URLs). These are preserved as-is.
+  // Additional processing can be added here (HTML cleanup, etc.) but should preserve URLs.
   return result.trim() || null;
 }
 
@@ -141,6 +143,83 @@ interface ImportResult {
   };
 }
 
+/**
+ * Validate and normalize Wekan data structure
+ * Handles both single board and array of boards
+ */
+function validateAndNormalizeWekanData(wekanData: any): { boards: WekanBoard[]; warnings: string[] } {
+  const warnings: string[] = [];
+
+  if (!wekanData) {
+    throw new Error('Wekan data is required');
+  }
+
+  // Handle null/undefined edge cases
+  if (wekanData === null || wekanData === undefined) {
+    throw new Error('Wekan data cannot be null or undefined');
+  }
+
+  // Handle both single board and array of boards
+  const rawBoards = Array.isArray(wekanData) ? wekanData : [wekanData];
+  const boards: WekanBoard[] = [];
+
+  for (let i = 0; i < rawBoards.length; i++) {
+    const rawBoard = rawBoards[i];
+    
+    // Skip null/undefined entries
+    if (!rawBoard || typeof rawBoard !== 'object') {
+      warnings.push(`Skipped invalid board at index ${i}: not an object`);
+      continue;
+    }
+
+    // Ensure required fields exist with defaults
+    const board: WekanBoard = {
+      _id: rawBoard._id || `board-${i}-${Date.now()}`,
+      title: rawBoard.title || rawBoard.name || 'Untitled Board',
+      description: rawBoard.description || undefined,
+      color: rawBoard.color || undefined,
+      labels: Array.isArray(rawBoard.labels) ? rawBoard.labels : [],
+      lists: Array.isArray(rawBoard.lists) ? rawBoard.lists : [],
+      cards: Array.isArray(rawBoard.cards) ? rawBoard.cards : [],
+      checklists: Array.isArray(rawBoard.checklists) ? rawBoard.checklists : [],
+    };
+
+    // Validate and normalize nested arrays
+    if (board.labels) {
+      board.labels = board.labels.filter((label: any) => {
+        if (!label || typeof label !== 'object') return false;
+        return label._id && (label.name || label.color);
+      });
+    }
+
+    if (board.lists) {
+      board.lists = board.lists.filter((list: any) => {
+        return list && typeof list === 'object' && (list._id || list.title || list.name);
+      });
+    }
+
+    if (board.cards) {
+      board.cards = board.cards.filter((card: any) => {
+        return card && typeof card === 'object' && (card._id || card.title || card.name);
+      });
+    }
+
+    if (board.checklists) {
+      board.checklists = board.checklists.filter((checklist: any) => {
+        return checklist && typeof checklist === 'object' && checklist._id && checklist.cardId;
+      });
+    }
+
+    boards.push(board);
+  }
+
+  if (boards.length === 0) {
+    throw new Error('No valid boards found in Wekan data');
+  }
+
+  return { boards, warnings };
+}
+
 class BoardImportService {
   async importWekanBoard(
     userId: string,
@@ -166,8 +245,24 @@ class BoardImportService {
 
     sendProgress?.({ type: 'progress', stage: 'parsing', current: 0, total: 0, detail: 'Parsing Wekan data...' });
 
-    // Handle both single board and array of boards
-    const boards: WekanBoard[] = Array.isArray(wekanData) ? wekanData : [wekanData];
+    // Validate and normalize Wekan data structure
+    let boards: WekanBoard[];
+    try {
+      const normalized = validateAndNormalizeWekanData(wekanData);
+      boards = normalized.boards;
+      result.warnings.push(...normalized.warnings);
+    } catch (validationError: any) {
+      console.error('[BoardImportService] Validation error:', {
+        error: validationError.message,
+        stack: validationError.stack,
+        userId,
+      });
+      result.success = false;
+      const errorMessage = validationError.message || 'Failed to validate Wekan data structure';
+      result.errors.push(errorMessage);
+      sendResult?.(result);
+      return result;
+    }
 
     // Calculate totals for progress
     let totalLabels = 0;
@@ -263,7 +358,11 @@ class BoardImportService {
         const cardIdMap = new Map<string, string>();
 
         // Create labels in batch
-        const boardLabels = wekanBoard.labels || [];
+        const boardLabels = (wekanBoard.labels || []).filter((label: any) => {
+          // Defensive check: ensure label has required properties
+          return label && (label._id || label.name || label.color);
+        });
+        
         if (boardLabels.length > 0) {
           const labelInserts = boardLabels.map((wekanLabel) => ({
             boardId: board.id,
@@ -291,7 +390,10 @@ class BoardImportService {
         }
 
         // Create columns (lists) in batch
-        const lists = wekanBoard.lists || [];
+        const lists = (wekanBoard.lists || []).filter((list: any) => {
+          // Defensive check: ensure list is valid
+          return list && typeof list === 'object';
+        });
         const sortedLists = [...lists]
           .filter(l => !l.archived)
           .sort((a, b) => (a.sort || 0) - (b.sort || 0));
@@ -323,7 +425,10 @@ class BoardImportService {
         }
 
         // Create cards in batches
-        const cards = wekanBoard.cards || [];
+        const cards = (wekanBoard.cards || []).filter((card: any) => {
+          // Defensive check: ensure card is valid
+          return card && typeof card === 'object' && (card.title || card.name);
+        });
         const sortedCards = [...cards]
           .filter(c => !c.archived)
           .sort((a, b) => (a.sort || 0) - (b.sort || 0));
@@ -365,8 +470,9 @@ class BoardImportService {
             const finalCardColor = cardColor || defaultCardColor;
 
             // Process description and title
+            // Card descriptions may contain replaced inline button image URLs - preserve them as-is
             const processedDescription = processCardDescription(wekanCard.description);
-            const processedTitle = processCardTitle(wekanCard.title);
+            const processedTitle = processCardTitle(wekanCard.title || 'Untitled Card');
 
             allCardInserts.push({
               insert: {
@@ -432,7 +538,10 @@ class BoardImportService {
         }
 
         // Create subtasks from checklists in batch
-        const checklists = wekanBoard.checklists || [];
+        const checklists = (wekanBoard.checklists || []).filter((checklist: any) => {
+          // Defensive check: ensure checklist is valid
+          return checklist && typeof checklist === 'object' && checklist.cardId;
+        });
         const allSubtaskInserts: Array<{
           cardId: string;
           title: string;
@@ -443,9 +552,15 @@ class BoardImportService {
 
         for (const checklist of checklists) {
           const cardId = cardIdMap.get(checklist.cardId);
-          if (!cardId) continue;
+          if (!cardId) {
+            result.warnings.push(`Skipped checklist for unknown card: ${checklist.cardId}`);
+            continue;
+          }
 
-          const items = checklist.items || [];
+          const items = (checklist.items || []).filter((item: any) => {
+            // Defensive check: ensure item is valid
+            return item && typeof item === 'object' && (item.title || item.name);
+          });
           const sortedItems = [...items].sort((a, b) => (a.sort || 0) - (b.sort || 0));
 
           for (let i = 0; i < sortedItems.length; i++) {

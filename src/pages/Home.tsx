@@ -133,7 +133,7 @@ export default function Home() {
     
     // Check for OAuth callback indicators in hash
     // PKCE flow uses 'code' parameter, implicit flow uses 'access_token'
-    // Supabase OAuth callbacks include: access_token, refresh_token, code, error, etc.
+    // OAuth callbacks include: access_token, refresh_token, code, error, etc.
     const isCallback = hash.includes('access_token') || 
            hash.includes('refresh_token') || 
            hash.includes('code=') ||  // PKCE flow uses code parameter
@@ -181,10 +181,10 @@ export default function Home() {
 
   useEffect(() => {
     // Don't redirect if we're processing an OAuth callback
-    // Wait for Supabase to process the hash fragments and establish the session
+    // Wait for the auth system to process the hash fragments and establish the session
     if (isOAuthCallback()) {
       console.log('[Home] OAuth callback detected, waiting for session establishment...');
-      // Give Supabase time to process the OAuth callback
+      // Give the auth system time to process the OAuth callback
       // The auth state change handler will update the user state
       // Wait longer if clock skew error is detected (retry logic is working)
       const waitTime = hasClockSkewError() ? 5000 : 2000; // Increased wait time to 2s default, 5s for clock skew

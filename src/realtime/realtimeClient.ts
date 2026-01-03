@@ -1,8 +1,8 @@
 import { api } from '@/integrations/api/client';
 import { logRealtime } from './logger';
 
-// Use API client's realtime instead of Supabase
-const supabase = {
+// Use API client's realtime
+const realtimeApi = {
   channel: (topic: string) => api.realtime.channel(topic),
   removeChannel: (channel: any) => api.realtime.removeChannel(channel),
 };
@@ -44,7 +44,7 @@ export function subscribeToChanges(
 ): SubscriptionCleanup {
   // Ensure setAuth token is available before creating channel
   // The channel will use the token when the websocket connects
-  const channel = supabase.channel(topic);
+  const channel = realtimeApi.channel(topic);
 
   bindings.forEach((binding) => {
     channel.on(
@@ -69,7 +69,7 @@ export function subscribeToChanges(
 
   return () => {
     logRealtime(topic, 'cleanup');
-    supabase.removeChannel(channel);
+    realtimeApi.removeChannel(channel);
   };
 }
 

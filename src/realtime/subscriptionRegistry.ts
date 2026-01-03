@@ -43,15 +43,25 @@ class SubscriptionRegistry {
       this.handlerSets.set(workspaceId, new Set());
     }
 
+    // If already subscribed, check if we need to recreate
+    if (this.subscriptions.has(workspaceId)) {
+      // Add handlers to set first
+      this.handlerSets.get(workspaceId)!.add(handlers);
+      
+      // Only recreate if handler structure changed (new handler types added)
+      const needsRecreation = this.detectHandlerStructureChange(workspaceId, handlers);
+      if (needsRecreation) {
+        this.updateSubscription(workspaceId);
+      }
+      // Otherwise, handlers are already in handlerSets and will be called via mergeHandlers
+      // The existing subscription will continue working
+      return () => {
+        this.removeWorkspaceHandlers(workspaceId, handlers);
+      };
+    }
+
     // Add handlers to set
     this.handlerSets.get(workspaceId)!.add(handlers);
-
-    // If already subscribed, merge handlers and update subscription
-    if (this.subscriptions.has(workspaceId)) {
-      // Update subscription with merged handlers
-      this.updateSubscription(workspaceId);
-      return;
-    }
 
     // Store handlers for persistence (keep first set for backward compatibility)
     this.handlers.set(workspaceId, handlers);

@@ -1,7 +1,7 @@
 /**
- * Realtime Client - Supabase-compatible WebSocket client
+ * Realtime Client - WebSocket client for real-time database changes
  * 
- * Provides a Supabase Realtime API-compatible interface for WebSocket connections.
+ * Provides a realtime API interface for WebSocket connections.
  */
 
 const isDev = import.meta.env.DEV;
@@ -513,7 +513,7 @@ export function getRealtimeClient(baseUrl: string): RealtimeClient {
   return realtimeClient;
 }
 
-// Re-export for compatibility with Supabase client shape
+// Re-export RealtimeClient
 export { RealtimeClient };
 
 export type { RealtimeChannel, RealtimePostgresChangesPayload, PostgresChangeHandler };

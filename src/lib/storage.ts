@@ -1,7 +1,7 @@
 /**
  * Storage Helper - Direct Backend S3/MinIO Storage Operations
  * 
- * Provides direct API calls to backend storage endpoints without Supabase abstraction.
+ * Provides direct API calls to backend storage endpoints.
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';

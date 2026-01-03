@@ -1,6 +1,6 @@
 /**
- * API Client - Replaces Supabase client
- * Provides a compatibility layer that mimics Supabase client behavior
+ * API Client - Main client for API and database operations
+ * Provides database query builder and realtime functionality
  */
 
 import { getRealtimeClient } from './realtime';
@@ -276,7 +276,7 @@ class ApiClient {
     },
   };
 
-  // Database methods (mimics Supabase .from() syntax)
+  // Database methods (provides .from() query builder syntax)
   from(table: string) {
     return new TableQuery(table, this);
   }
@@ -354,7 +354,7 @@ class ApiClient {
   }
 }
 
-// Table query builder (mimics Supabase query builder)
+// Table query builder for database queries
 class TableQuery {
   private table: string;
   private client: ApiClient;

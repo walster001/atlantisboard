@@ -130,7 +130,7 @@ export default function Auth() {
     
     // Check for OAuth callback indicators in hash
     // PKCE flow uses 'code' parameter, implicit flow uses 'access_token'
-    // Supabase OAuth callbacks include: access_token, refresh_token, code, error, etc.
+    // OAuth callbacks include: access_token, refresh_token, code, error, etc.
     const isCallback = hash.includes('access_token') || 
            hash.includes('refresh_token') || 
            hash.includes('code=') ||  // PKCE flow uses code parameter

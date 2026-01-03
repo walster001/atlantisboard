@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback 
 import { api } from '@/integrations/api/client';
 import { getRealtimeManager } from '@/lib/realtimeManager';
 
-// User type matching Supabase User structure for compatibility
+// User type structure for authentication
 interface User {
   id: string;
   email: string;

@@ -3,6 +3,7 @@ import { NotFoundError, ForbiddenError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange, emitCustomEvent } from '../realtime/emitter.js';
+import { storageService } from './storage.service.js';
 
 const createBoardSchema = z.object({
   workspaceId: z.string().uuid(),
@@ -18,6 +19,85 @@ const updateBoardSchema = z.object({
   backgroundColor: z.string().optional().nullable(),
   themeId: z.string().uuid().optional().nullable(),
 });
+
+/**
+ * Extract storage path from a storage URL
+ * Handles both MinIO/S3 format and API proxy format
+ */
+function extractStoragePathFromUrl(url: string, bucket: string): string | null {
+  if (!url) return null;
+  
+  // Try MinIO/S3 format first: ${prefix}-${bucket}/path
+  // Look for pattern like "-branding/" or "-fonts/" etc.
+  const minioPattern = `-${bucket}/`;
+  const minioIndex = url.indexOf(minioPattern);
+  if (minioIndex !== -1) {
+    const path = url.substring(minioIndex + minioPattern.length);
+    return path || null;
+  }
+  
+  // Fall back to API proxy format: /api/storage/${bucket}/path
+  const apiPattern = `/api/storage/${bucket}/`;
+  const apiIndex = url.indexOf(apiPattern);
+  if (apiIndex !== -1) {
+    const path = url.substring(apiIndex + apiPattern.length);
+    // Decode URI component in case it was encoded
+    try {
+      return decodeURIComponent(path) || null;
+    } catch {
+      return path || null;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Parse inline button data from base64-encoded data attribute
+ */
+function parseInlineButtonFromDataAttr(dataAttr: string): { iconUrl?: string } | null {
+  try {
+    // Decode base64
+    const decoded = Buffer.from(dataAttr, 'base64').toString('utf-8');
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract inline button icon URLs from card description
+ * Handles both [INLINE_BUTTON:base64data] format and legacy HTML format
+ */
+function extractInlineButtonIconsFromDescription(description: string | null): string[] {
+  if (!description) return [];
+  
+  const iconUrls: string[] = [];
+  
+  // Match [INLINE_BUTTON:base64data] format
+  const inlineButtonRegex = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g;
+  let match;
+  
+  while ((match = inlineButtonRegex.exec(description)) !== null) {
+    const base64Data = match[1];
+    const buttonData = parseInlineButtonFromDataAttr(base64Data);
+    if (buttonData?.iconUrl) {
+      iconUrls.push(buttonData.iconUrl);
+    }
+  }
+  
+  // Also check for legacy HTML format with img src
+  const imgSrcRegex = /<img[^>]*src=['"]([^'"]+)['"][^>]*>/gi;
+  while ((match = imgSrcRegex.exec(description)) !== null) {
+    const src = match[1];
+    // Only include if it looks like a storage URL (contains /cdn, /api/storage, or storage endpoint)
+    if (src.includes('/cdn') || src.includes('/api/storage') || src.includes('inline-icon') || src.includes('import-icons')) {
+      iconUrls.push(src);
+    }
+  }
+  
+  return iconUrls;
+}
 
 class BoardService {
   // Check if user is board member or app admin
@@ -298,13 +378,92 @@ class BoardService {
     const context = permissionService.buildContext(userId, isAppAdmin, boardId);
     await permissionService.requirePermission('board.delete', context);
 
-    // Get full board data before deletion for event emission
+    // Get full board data with all related data before deletion
     const board = await prisma.board.findUnique({
       where: { id: boardId },
+      include: {
+        columns: {
+          include: {
+            cards: {
+              include: {
+                attachments: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!board) {
       throw new NotFoundError('Board not found');
+    }
+
+    // Clean up MinIO files before deleting the board
+    if (storageService.isConfigured()) {
+      try {
+        const filesToDelete: Array<{ bucket: string; path: string }> = [];
+
+        // Collect all card attachments
+        for (const column of board.columns) {
+          for (const card of column.cards) {
+            // Add attachments
+            for (const attachment of card.attachments) {
+              const storagePath = extractStoragePathFromUrl(attachment.fileUrl, 'card-attachments');
+              if (storagePath) {
+                filesToDelete.push({ bucket: 'card-attachments', path: storagePath });
+              }
+            }
+
+            // Extract inline button icons from card description
+            const iconUrls = extractInlineButtonIconsFromDescription(card.description);
+            for (const iconUrl of iconUrls) {
+              // Determine bucket based on path pattern
+              let bucket = 'branding';
+              let storagePath: string | null = null;
+
+              // Check if it's an import icon or inline icon
+              if (iconUrl.includes('import-icons/')) {
+                storagePath = extractStoragePathFromUrl(iconUrl, 'branding');
+              } else if (iconUrl.includes('inline-icons/')) {
+                storagePath = extractStoragePathFromUrl(iconUrl, 'branding');
+              } else {
+                // Try to extract from URL
+                storagePath = extractStoragePathFromUrl(iconUrl, 'branding');
+              }
+
+              if (storagePath) {
+                filesToDelete.push({ bucket, path: storagePath });
+              }
+            }
+          }
+        }
+
+        // Check for board background image
+        if (board.backgroundColor) {
+          // Board backgrounds are stored in branding bucket with pattern board-backgrounds/{boardId}-bg-{timestamp}.{ext}
+          // The backgroundColor field might contain the full URL or just the path
+          const bgPath = extractStoragePathFromUrl(board.backgroundColor, 'branding');
+          if (bgPath && bgPath.includes('board-backgrounds/')) {
+            filesToDelete.push({ bucket: 'branding', path: bgPath });
+          }
+        }
+
+        // Delete all collected files (log errors but don't fail board deletion)
+        for (const file of filesToDelete) {
+          try {
+            await storageService.delete(file.bucket, file.path);
+            console.log(`[Board Deletion] Deleted file: ${file.bucket}/${file.path}`);
+          } catch (error: any) {
+            // Log error but continue with deletion
+            console.error(`[Board Deletion] Failed to delete file ${file.bucket}/${file.path}:`, error.message);
+          }
+        }
+
+        console.log(`[Board Deletion] Cleaned up ${filesToDelete.length} files from MinIO for board ${boardId}`);
+      } catch (error: any) {
+        // Log error but don't fail board deletion if cleanup fails
+        console.error(`[Board Deletion] Error during MinIO cleanup for board ${boardId}:`, error.message);
+      }
     }
 
     await prisma.board.delete({

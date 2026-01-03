@@ -237,5 +237,3 @@ Modify `src/hooks/usePermissionsRealtime.ts`:
 **Modified Files:**
 
 - `src/hooks/useAuth.tsx` - Connection lifecycle management
-- `src/integrations/api/realtime.ts` - Connection persistence, logging cleanup, reconnection optimization
-- `src/realtime/workspaceSubscriptions.ts` - Registry integration

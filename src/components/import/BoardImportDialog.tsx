@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -349,6 +349,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   
   // Track created IDs for rollback
   const createdIdsRef = useRef<{ workspaceId?: string; boardIds?: string[] }>({});
+  
+  // Track if we've already handled successful import completion
+  const completionHandledRef = useRef(false);
 
   // Handle RGB slider changes
   const handleRgbChange = (channel: 'r' | 'g' | 'b', value: string) => {
@@ -1037,11 +1040,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           title: 'Import completed',
           description: `Imported ${result.boardsCreated} board(s) with ${result.cardsCreated} card(s).`,
         });
-        onImportComplete();
-        // Auto-close after successful import
-        setTimeout(() => {
-          handleOpenChange(false);
-        }, 2000);
+        // importResult state change will trigger useEffect to close dialog and call onImportComplete
       } else {
         toast({
           title: 'Import failed',
@@ -1149,10 +1148,26 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     setDetectedInlineButtons([]);
     setShowInlineButtonDialog(false);
     setIconReplacements(new Map());
+    completionHandledRef.current = false; // Reset completion flag
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
+
+  // Handle successful import completion - close dialog and refresh data
+  useEffect(() => {
+    if (importResult?.success && !importing && !completionHandledRef.current) {
+      completionHandledRef.current = true;
+      // Close dialog immediately
+      onOpenChange(false);
+      // Call onImportComplete after a brief delay to ensure dialog closes first
+      const timeoutId = setTimeout(() => {
+        onImportComplete();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importResult?.success, importing]);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) resetDialog();

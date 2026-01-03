@@ -17,7 +17,7 @@ export const boardSchema = z.object({
     .trim()
     .min(1, 'Name is required')
     .max(100, 'Name must be less than 100 characters'),
-  background_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format'),
+  backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format'),
 });
 
 export const columnSchema = z.object({

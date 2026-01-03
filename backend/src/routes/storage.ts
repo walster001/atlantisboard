@@ -143,12 +143,34 @@ router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: 
         }
       }
     } else if (bucket === 'branding' || bucket === 'fonts') {
-      // Admin-only for branding and fonts
-      const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
-      if (bucket === 'branding') {
-        await permissionService.requirePermission('app.admin.branding.edit', context);
-      } else if (bucket === 'fonts') {
-        await permissionService.requirePermission('app.admin.fonts.edit', context);
+      // Check if this is a board background upload
+      if (bucket === 'branding' && path.startsWith('board-backgrounds/')) {
+        // Extract boardId from filename: board-backgrounds/${boardId}-bg-${timestamp}.${ext}
+        const filename = path.split('/').pop() || '';
+        const boardIdMatch = filename.match(/^([^-]+)-bg-/);
+        
+        if (boardIdMatch && boardIdMatch[1]) {
+          const boardId = boardIdMatch[1];
+          // Check board-level permission
+          const context = permissionService.buildContext(
+            authReq.userId!,
+            authReq.user?.isAdmin ?? false,
+            boardId
+          );
+          await permissionService.requirePermission('board.background.edit', context);
+        } else {
+          // Invalid board background path format, require app admin
+          const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
+          await permissionService.requirePermission('app.admin.branding.edit', context);
+        }
+      } else {
+        // Admin-only for other branding and fonts
+        const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
+        if (bucket === 'branding') {
+          await permissionService.requirePermission('app.admin.branding.edit', context);
+        } else if (bucket === 'fonts') {
+          await permissionService.requirePermission('app.admin.fonts.edit', context);
+        }
       }
     }
 

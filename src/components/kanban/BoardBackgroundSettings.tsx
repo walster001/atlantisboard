@@ -83,7 +83,7 @@ export function BoardBackgroundSettings({
         .from('boards')
         .eq('id', boardId)
         .update({ 
-          background_color: backgroundColor,
+          backgroundColor: backgroundColor,
           // Clear image when setting color (mutual exclusivity)
         });
 
@@ -111,7 +111,7 @@ export function BoardBackgroundSettings({
         .from('boards')
         .eq('id', boardId)
         .update({ 
-          background_color: themeColor,
+          backgroundColor: themeColor,
         });
 
       if (error) throw error;
@@ -165,7 +165,7 @@ export function BoardBackgroundSettings({
         .from('boards')
         .eq('id', boardId)
         .update({ 
-          background_color: publicUrl, // Store image URL in background_color field with prefix
+          backgroundColor: publicUrl, // Store image URL in backgroundColor field with prefix
         });
 
       if (error) throw error;
@@ -193,7 +193,7 @@ export function BoardBackgroundSettings({
         .from('boards')
         .eq('id', boardId)
         .update({ 
-          background_color: defaultColor,
+          backgroundColor: defaultColor,
         });
 
       if (error) throw error;

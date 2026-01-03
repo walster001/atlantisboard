@@ -798,7 +798,7 @@ export default function Home() {
 
       const validated = boardSchema.parse({
         name: newBoardName,
-        background_color: selectedTheme.navbarColor,
+        backgroundColor: selectedTheme.navbarColor,
       });
 
       // Set background color to slightly darker than navbar
@@ -859,7 +859,7 @@ export default function Home() {
   const renameBoard = async () => {
     if (!editBoardId) return;
     try {
-      const validated = boardSchema.parse({ name: editBoardName, background_color: '#0079bf' });
+      const validated = boardSchema.parse({ name: editBoardName, backgroundColor: '#0079bf' });
       const { error } = await api
         .from('boards')
         .eq('id', editBoardId)

@@ -369,8 +369,7 @@ export function MobileColumnCarousel({
       <div className="flex-1 min-h-0 px-4 pb-4">
         <div 
           className={cn(
-            "h-full rounded-xl p-3 flex flex-col",
-            !effectiveColumnColor && "bg-column"
+            "h-full rounded-xl p-3 flex flex-col"
           )}
           style={effectiveColumnColor ? { backgroundColor: effectiveColumnColor } : undefined}
         >
@@ -421,7 +420,14 @@ export function MobileColumnCarousel({
                 {!disabled && (
                   <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-9 w-9">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className={cn(
+                          "h-9 w-9",
+                          !effectiveColumnColor && "bg-muted/30 hover:bg-muted/50"
+                        )}
+                      >
                         <MoreHorizontal className="h-5 w-5" />
                       </Button>
                     </DropdownMenuTrigger>

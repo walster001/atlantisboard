@@ -151,8 +151,7 @@ export const KanbanColumn = memo(function KanbanColumn({
         >
           <div 
             className={cn(
-              "rounded-xl p-3 flex flex-col max-h-full overflow-hidden",
-              !effectiveColumnColor && "bg-column"
+              "rounded-xl p-3 flex flex-col max-h-full overflow-hidden"
             )}
             style={effectiveColumnColor ? { backgroundColor: effectiveColumnColor } : undefined}
           >
@@ -206,7 +205,14 @@ export const KanbanColumn = memo(function KanbanColumn({
                   {!disabled && (
                     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className={cn(
+                            "h-7 w-7",
+                            !effectiveColumnColor && "bg-muted/30 hover:bg-muted/50"
+                          )}
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

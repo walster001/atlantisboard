@@ -41,19 +41,36 @@ function processCardTitle(title: string): string {
   return convertEmojiShortcodes(title);
 }
 
+// Wekan color map - all 25 label colors from Wekan CSS
+// Colors extracted from: https://github.com/wekan/wekan/blob/2325a5c5322357103af1794c3a0a499e78d8d142/client/components/cards/labels.css
 const wekanColorMap: Record<string, string> = {
-  green: '#61bd4f',
-  yellow: '#f2d600',
-  orange: '#ff9f1a',
-  red: '#eb5a46',
-  purple: '#c377e0',
+  // Core Wekan colors (25 label colors)
+  white: '#ffffff',
+  green: '#3cb500',
+  yellow: '#fad900',
+  orange: '#ff9f19',
+  red: '#eb4646',
+  purple: '#a632db',
   blue: '#0079bf',
-  sky: '#00c2e0',
-  lime: '#51e898',
   pink: '#ff78cb',
-  black: '#344563',
-  white: '#b3bac5',
-  navy: '#026aa7',
+  sky: '#00c2e0',
+  black: '#4d4d4d',
+  lime: '#51e898',
+  silver: '#c0c0c0',
+  peachpuff: '#ffdab9',
+  crimson: '#dc143c',
+  plum: '#dda0dd',
+  darkgreen: '#006400',
+  slateblue: '#6a5acd',
+  magenta: '#ff00ff',
+  gold: '#ffd700',
+  navy: '#000080',
+  gray: '#808080',
+  saddlebrown: '#8b4513',
+  paleturquoise: '#afeeee',
+  mistyrose: '#ffe4e1',
+  indigo: '#4b0082',
+  // Default fallback color
   default: '#838c91',
 };
 
@@ -63,20 +80,34 @@ function getWekanColor(color: string | undefined | null): string {
     return wekanColorMap.default;
   }
   
+  // Normalize color input (lowercase, trim, handle spaces/underscores)
+  const normalizedColor = color.toLowerCase().trim().replace(/[\s_]+/g, '');
+  
   // If already a hex color, validate and return
-  if (color.startsWith('#')) {
+  if (normalizedColor.startsWith('#')) {
     // Validate hex format (3 or 6 digits)
     const hexPattern = /^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$/;
-    if (hexPattern.test(color)) {
-      return color;
+    if (hexPattern.test(normalizedColor)) {
+      // Expand 3-digit hex to 6 digits for consistency
+      if (normalizedColor.length === 4) {
+        const r = normalizedColor[1];
+        const g = normalizedColor[2];
+        const b = normalizedColor[3];
+        return `#${r}${r}${g}${g}${b}${b}`;
+      }
+      return normalizedColor;
     }
     // Invalid hex format, return default
     return wekanColorMap.default;
   }
   
-  // Try to map named color
-  const normalizedColor = color.toLowerCase().trim();
-  return wekanColorMap[normalizedColor] || wekanColorMap.default;
+  // Look up color name in wekanColorMap
+  if (wekanColorMap[normalizedColor]) {
+    return wekanColorMap[normalizedColor];
+  }
+  
+  // Fallback: return default gray
+  return wekanColorMap.default;
 }
 
 interface WekanLabel {

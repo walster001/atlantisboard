@@ -54,18 +54,18 @@ todos:
 
 - In `importWekanWithStreaming` function around line 497, when `data.type === 'result'`, transform the result before resolving:
   ```typescript
-      const transformedResult: ImportResult = {
-        success: data.success,
-        workspacesCreated: data.workspaces_created ?? 0,
-        boardsCreated: data.boards_created ?? 0,
-        columnsCreated: data.columns_created ?? 0,
-        cardsCreated: data.cards_created ?? 0,
-        labelsCreated: data.labels_created ?? 0,
-        subtasksCreated: data.subtasks_created ?? 0,
-        errors: data.errors ?? [],
-        warnings: data.warnings ?? [],
-      };
-      resolve(transformedResult);
+                  const transformedResult: ImportResult = {
+                    success: data.success,
+                    workspacesCreated: data.workspaces_created ?? 0,
+                    boardsCreated: data.boards_created ?? 0,
+                    columnsCreated: data.columns_created ?? 0,
+                    cardsCreated: data.cards_created ?? 0,
+                    labelsCreated: data.labels_created ?? 0,
+                    subtasksCreated: data.subtasks_created ?? 0,
+                    errors: data.errors ?? [],
+                    warnings: data.warnings ?? [],
+                  };
+                  resolve(transformedResult);
   ```
 
 
@@ -145,12 +145,3 @@ todos:
 - [ ] Wekan imports still work correctly
 
 ## Files to Modify
-
-1. `src/components/import/BoardImportDialog.tsx` - Fix metadata mapping and Trello color handling
-2. `backend/src/services/board-import.service.ts` - Fix Wekan color handling
-3. `src/components/import/InlineButtonIconDialog.tsx` - Fix icon replacement deletion
-
-## Notes
-
-- Do NOT modify board rendering UI, card UI, label UI, or realtime subscriptions
-- Maintain existing API contracts

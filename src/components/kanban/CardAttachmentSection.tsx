@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { api } from '@/integrations/api/client';
-import { uploadFile, deleteFile } from '@/lib/storage';
+import { uploadFile, deleteFile, extractStoragePathFromUrl } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Paperclip, Download, Trash2, Upload, FileIcon, Image as ImageIcon, File, Loader2, ExternalLink, Eye } from 'lucide-react';
@@ -134,9 +134,11 @@ export function CardAttachmentSection({
   const handleDelete = async (attachment: Attachment) => {
     try {
       // Extract the storage path from URL
-      const urlParts = attachment.file_url.split('/card-attachments/');
-      if (urlParts.length > 1) {
-        const storagePath = decodeURIComponent(urlParts[1]);
+      const storagePath = extractStoragePathFromUrl(attachment.file_url, 'card-attachments');
+      if (!storagePath) {
+        console.error('Failed to extract storage path from URL');
+        // Continue with database deletion even if storage path extraction fails
+      } else {
         const deleteResult = await deleteFile('card-attachments', storagePath);
         if (deleteResult.error) {
           console.error('Failed to delete attachment file:', deleteResult.error);

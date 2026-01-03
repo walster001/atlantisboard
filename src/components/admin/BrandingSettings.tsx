@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/integrations/api/client';
-import { uploadFile, deleteFile } from '@/lib/storage';
+import { uploadFile, deleteFile, extractStoragePathFromUrl } from '@/lib/storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -262,7 +262,7 @@ export function BrandingSettings() {
     setUploading(true);
     try {
       if (settings.customLoginLogoUrl) {
-        const oldPath = settings.customLoginLogoUrl.split('/branding/')[1];
+        const oldPath = extractStoragePathFromUrl(settings.customLoginLogoUrl, 'branding');
         if (oldPath) {
           const deleteResult = await deleteFile('branding', oldPath);
           if (deleteResult.error) {
@@ -299,12 +299,11 @@ export function BrandingSettings() {
     if (!settings.customLoginLogoUrl) return;
     setSaving(true);
     try {
-      const path = settings.customLoginLogoUrl.split('/branding/')[1];
-      if (path) {
-        const deleteResult = await deleteFile('branding', path);
-        if (deleteResult.error) {
-          console.error('Failed to delete logo:', deleteResult.error);
-        }
+      const path = extractStoragePathFromUrl(settings.customLoginLogoUrl, 'branding');
+      if (!path) return;
+      const deleteResult = await deleteFile('branding', path);
+      if (deleteResult.error) {
+        console.error('Failed to delete logo:', deleteResult.error);
       }
       const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginLogoUrl: null, customLoginLogoEnabled: false });
       if (error) throw error;
@@ -334,7 +333,7 @@ export function BrandingSettings() {
     setUploadingBgImage(true);
     try {
       if (settings.customLoginBackgroundImageUrl) {
-        const oldPath = settings.customLoginBackgroundImageUrl.split('/branding/')[1];
+        const oldPath = extractStoragePathFromUrl(settings.customLoginBackgroundImageUrl, 'branding');
         if (oldPath) {
           const deleteResult = await deleteFile('branding', oldPath);
           if (deleteResult.error) {
@@ -371,12 +370,11 @@ export function BrandingSettings() {
     if (!settings.customLoginBackgroundImageUrl) return;
     setSaving(true);
     try {
-      const path = settings.customLoginBackgroundImageUrl.split('/branding/')[1];
-      if (path) {
-        const deleteResult = await deleteFile('branding', path);
-        if (deleteResult.error) {
-          console.error('Failed to delete background:', deleteResult.error);
-        }
+      const path = extractStoragePathFromUrl(settings.customLoginBackgroundImageUrl, 'branding');
+      if (!path) return;
+      const deleteResult = await deleteFile('branding', path);
+      if (deleteResult.error) {
+        console.error('Failed to delete background:', deleteResult.error);
       }
       const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginBackgroundImageUrl: null });
       if (error) throw error;

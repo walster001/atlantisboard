@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { uploadFile } from '@/lib/storage';
+import { uploadFile, deleteFile, extractStoragePathFromUrl } from '@/lib/storage';
 import { Upload, Image, ExternalLink, Check, Loader2 } from 'lucide-react';
 
 // Detected inline button with internal /cdn image reference
@@ -172,6 +172,24 @@ export function InlineButtonIconDialog({
         variant: 'destructive',
       });
       return;
+    }
+
+    // Check if a previous upload exists and delete it
+    const button = buttons.find(b => b.id === buttonId);
+    if (button?.replacementUrl) {
+      const oldPath = extractStoragePathFromUrl(button.replacementUrl, 'branding');
+      if (oldPath) {
+        try {
+          const deleteResult = await deleteFile('branding', oldPath);
+          if (deleteResult.error) {
+            console.error('Failed to delete old icon file:', deleteResult.error);
+            // Continue with upload even if deletion fails
+          }
+        } catch (error) {
+          console.error('Error deleting old icon file:', error);
+          // Continue with upload even if deletion fails
+        }
+      }
     }
 
     setUploading(buttonId);

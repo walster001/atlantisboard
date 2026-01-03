@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ListTodo, Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
+import { getUserFriendlyError } from '@/lib/errorHandler';
 
 export interface Subtask {
   id: string;
@@ -66,13 +67,14 @@ export function CardSubtaskSection({
       // Get the max position
       const maxPosition = subtasks.reduce((max, s) => Math.max(max, s.position), -1);
 
-      const { error } = await api
-        .from('card_subtasks')
-        .insert({
-          card_id: cardId,
+      const { data, error } = await api.request('/subtasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          cardId,
           title: newTitle.trim(),
           position: maxPosition + 1,
-        });
+        }),
+      });
 
       if (error) throw error;
 
@@ -83,7 +85,7 @@ export function CardSubtaskSection({
     } catch (error: any) {
       toast({
         title: 'Error adding subtask',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       });
     } finally {
@@ -94,13 +96,12 @@ export function CardSubtaskSection({
   const handleToggleSubtask = async (subtask: Subtask) => {
     setTogglingId(subtask.id);
     try {
-      const query = api
-        .from('card_subtasks')
-        .eq('id', subtask.id);
-      const { error } = await query.update({
-        completed: !subtask.completed,
-        completed_at: !subtask.completed ? new Date().toISOString() : null,
-        completed_by: !subtask.completed ? user?.id : null,
+      // Service handles completedAt/completedBy automatically based on completed boolean
+      const { data, error } = await api.request(`/subtasks/${subtask.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          completed: !subtask.completed,
+        }),
       });
 
       if (error) throw error;
@@ -109,7 +110,7 @@ export function CardSubtaskSection({
     } catch (error: any) {
       toast({
         title: 'Error updating subtask',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       });
     } finally {
@@ -119,10 +120,9 @@ export function CardSubtaskSection({
 
   const handleDeleteSubtask = async (subtaskId: string) => {
     try {
-      const query = api
-        .from('card_subtasks')
-        .eq('id', subtaskId);
-      const { error } = await query.delete();
+      const { data, error } = await api.request(`/subtasks/${subtaskId}`, {
+        method: 'DELETE',
+      });
 
       if (error) throw error;
 
@@ -131,7 +131,7 @@ export function CardSubtaskSection({
     } catch (error: any) {
       toast({
         title: 'Error deleting subtask',
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: 'destructive',
       });
     }

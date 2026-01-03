@@ -1573,27 +1573,23 @@ export default function BoardPage() {
       const existingLabel = labels.find(l => l.id === label.id);
       
       if (!existingLabel) {
-        const newLabelResult = await api
-          .from('labels')
-          .insert({ boardId: boardId, name: label.text, color: label.color });
-        
-        const newLabel = newLabelResult.data as any;
-        const labelError = newLabelResult.error;
+        const { data: newLabel, error: labelError } = await api.request('/labels', {
+          method: 'POST',
+          body: JSON.stringify({ boardId, name: label.text || label.color, color: label.color }),
+        });
 
         if (labelError) throw labelError;
-        if (Array.isArray(newLabel) && newLabel.length > 0) {
-          labelId = newLabel[0].id;
-          setLabels([...labels, newLabel[0] as DbLabel]);
-        } else if (newLabel && typeof newLabel === 'object' && 'id' in newLabel) {
+        if (newLabel && typeof newLabel === 'object' && 'id' in newLabel) {
           labelId = newLabel.id;
           setLabels([...labels, newLabel as DbLabel]);
         }
       }
 
-      // Add card-label relation
-      const { error } = await api
-        .from('card_labels')
-        .insert({ cardId: cardId, labelId: labelId });
+      // Assign label to card using dedicated endpoint
+      const { data, error } = await api.request(`/labels/${labelId}/assign`, {
+        method: 'POST',
+        body: JSON.stringify({ cardId }),
+      });
 
       if (error && !error.message?.includes('duplicate')) throw error;
       
@@ -1605,10 +1601,12 @@ export default function BoardPage() {
   };
 
   const removeLabelFromCard = async (cardId: string, labelId: string) => {
-    // Early return for better UX - RLS will reject if user lacks permission
+    // Early return for better UX - permission checks will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      const { error } = await api.from('card_labels').eq('cardId', cardId).eq('labelId', labelId).delete();
+      const { data, error } = await api.request(`/labels/${labelId}/assign/${cardId}`, {
+        method: 'DELETE',
+      });
       if (error) throw error;
       setCardLabels(cardLabels.filter(cl => !(cl.cardId === cardId && cl.labelId === labelId)));
     } catch (error: any) {

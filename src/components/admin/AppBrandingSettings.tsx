@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/integrations/api/client';
 import { useAppSettings } from '@/hooks/useAppSettings';
-import { uploadFile, deleteFile } from '@/lib/storage';
+import { uploadFile, deleteFile, extractStoragePathFromUrl } from '@/lib/storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -145,7 +145,7 @@ export function AppBrandingSettings() {
       const currentUrl = settings[urlKey];
 
       if (currentUrl) {
-        const oldPath = currentUrl.split('/branding/')[1];
+        const oldPath = extractStoragePathFromUrl(currentUrl, 'branding');
         if (oldPath) {
           const deleteResult = await deleteFile('branding', oldPath);
           if (deleteResult.error) {
@@ -186,12 +186,11 @@ export function AppBrandingSettings() {
     if (!currentUrl) return;
     setSaving(true);
     try {
-      const path = currentUrl.split('/branding/')[1];
-      if (path) {
-        const deleteResult = await deleteFile('branding', path);
-        if (deleteResult.error) {
-          console.error('Failed to delete logo:', deleteResult.error);
-        }
+      const path = extractStoragePathFromUrl(currentUrl, 'branding');
+      if (!path) return;
+      const deleteResult = await deleteFile('branding', path);
+      if (deleteResult.error) {
+        console.error('Failed to delete logo:', deleteResult.error);
       }
       const { error } = await api.from('app_settings').eq('id', 'default').update({ [urlKey]: null, [enabledKey]: false });
       if (error) throw error;

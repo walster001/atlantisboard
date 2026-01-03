@@ -161,13 +161,14 @@ export function BoardLabelsSettings({
     
     setSaving(true);
     try {
-      const { error } = await api
-        .from('labels')
-        .insert({
-          board_id: boardId,
+      const { data, error } = await api.request('/labels', {
+        method: 'POST',
+        body: JSON.stringify({
+          boardId,
           name: newLabelName.trim(),
           color: selectedColor,
-        });
+        }),
+      });
 
       if (error) throw error;
       
@@ -192,13 +193,13 @@ export function BoardLabelsSettings({
     
     setSaving(true);
     try {
-      const { error } = await api
-        .from('labels')
-        .eq('id', labelId)
-        .update({
+      const { data, error } = await api.request(`/labels/${labelId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
           name: editLabelName.trim(),
           color: editSelectedColor,
-        });
+        }),
+      });
 
       if (error) throw error;
       
@@ -216,11 +217,10 @@ export function BoardLabelsSettings({
   const deleteLabel = async (labelId: string) => {
     setDeleting(labelId);
     try {
-      // First delete all card_labels associations
-      await api.from('card_labels').eq('labelId', labelId).delete();
-      
-      // Then delete the label
-      const { error } = await api.from('labels').eq('id', labelId).delete();
+      // Delete the label (Prisma cascade will handle card_labels deletion)
+      const { data, error } = await api.request(`/labels/${labelId}`, {
+        method: 'DELETE',
+      });
 
       if (error) throw error;
       

@@ -61,6 +61,45 @@ export async function uploadFile(
 }
 
 /**
+ * Extract storage path from a storage URL
+ * Handles both MinIO/S3 format and API proxy format
+ * 
+ * MinIO format: http://localhost:9000/atlantisboard-branding/path/to/file.png
+ * API proxy format: /api/storage/branding/path/to/file.png
+ * 
+ * @param url - The storage URL
+ * @param bucket - The bucket name (e.g., 'branding', 'fonts', 'card-attachments')
+ * @returns The storage path, or null if extraction fails
+ */
+export function extractStoragePathFromUrl(url: string, bucket: string): string | null {
+  if (!url) return null;
+  
+  // Try MinIO/S3 format first: ${prefix}-${bucket}/path
+  // Look for pattern like "-branding/" or "-fonts/" etc.
+  const minioPattern = `-${bucket}/`;
+  const minioIndex = url.indexOf(minioPattern);
+  if (minioIndex !== -1) {
+    const path = url.substring(minioIndex + minioPattern.length);
+    return path || null;
+  }
+  
+  // Fall back to API proxy format: /api/storage/${bucket}/path
+  const apiPattern = `/api/storage/${bucket}/`;
+  const apiIndex = url.indexOf(apiPattern);
+  if (apiIndex !== -1) {
+    const path = url.substring(apiIndex + apiPattern.length);
+    // Decode URI component in case it was encoded
+    try {
+      return decodeURIComponent(path) || null;
+    } catch {
+      return path || null;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Delete a file from storage
  */
 export async function deleteFile(

@@ -364,29 +364,36 @@ class BoardImportService {
         });
         
         if (boardLabels.length > 0) {
-          const labelInserts = boardLabels.map((wekanLabel) => ({
-            boardId: board.id,
-            name: (wekanLabel.name || wekanLabel.color || 'Unnamed').substring(0, 50),
-            color: getWekanColor(wekanLabel.color),
-          }));
+          try {
+            const labelInserts = boardLabels.map((wekanLabel) => ({
+              boardId: board.id,
+              name: (wekanLabel.name || wekanLabel.color || 'Unnamed').substring(0, 50),
+              color: getWekanColor(wekanLabel.color),
+            }));
 
-          const createdLabels = await prisma.label.createManyAndReturn({
-            data: labelInserts,
-          });
+            const createdLabels = await prisma.label.createManyAndReturn({
+              data: labelInserts,
+            });
 
-          // Map old IDs to new IDs based on insertion order
-          for (let i = 0; i < createdLabels.length; i++) {
-            labelIdMap.set(boardLabels[i]._id, createdLabels[i].id);
+            // Map old IDs to new IDs based on insertion order
+            for (let i = 0; i < createdLabels.length; i++) {
+              labelIdMap.set(boardLabels[i]._id, createdLabels[i].id);
+            }
+            result.labels_created += createdLabels.length;
+            processedLabels += boardLabels.length;
+            sendProgress?.({
+              type: 'progress',
+              stage: 'labels',
+              current: processedLabels,
+              total: totalLabels,
+              detail: `Created ${boardLabels.length} labels`,
+            });
+          } catch (labelError: any) {
+            console.error('Error creating labels:', labelError);
+            const errorMessage = labelError.message || 'Failed to create labels';
+            result.warnings.push(`Failed to create some labels: ${errorMessage}`);
+            // Continue import even if labels fail
           }
-          result.labels_created += createdLabels.length;
-          processedLabels += boardLabels.length;
-          sendProgress?.({
-            type: 'progress',
-            stage: 'labels',
-            current: processedLabels,
-            total: totalLabels,
-            detail: `Created ${boardLabels.length} labels`,
-          });
         }
 
         // Create columns (lists) in batch
@@ -529,9 +536,16 @@ class BoardImportService {
 
           // Insert all card labels for this batch at once
           if (cardLabelInserts.length > 0) {
-            await prisma.cardLabel.createMany({
-              data: cardLabelInserts,
-            });
+            try {
+              await prisma.cardLabel.createMany({
+                data: cardLabelInserts,
+              });
+            } catch (cardLabelError: any) {
+              console.error('Error creating card labels:', cardLabelError);
+              const errorMessage = cardLabelError.message || 'Failed to create card labels';
+              result.warnings.push(`Failed to create some card labels (batch ${Math.floor(batchStart / CARD_BATCH_SIZE) + 1}): ${errorMessage}`);
+              // Continue import even if card labels fail
+            }
           }
 
           processedCards += batch.length;
@@ -590,12 +604,19 @@ class BoardImportService {
             detail: `Subtasks batch ${Math.floor(batchStart / SUBTASK_BATCH_SIZE) + 1}/${Math.ceil(allSubtaskInserts.length / SUBTASK_BATCH_SIZE)}`,
           });
 
-          await prisma.cardSubtask.createMany({
-            data: batch,
-          });
+          try {
+            await prisma.cardSubtask.createMany({
+              data: batch,
+            });
 
-          result.subtasks_created += batch.length;
-          processedChecklists += batch.length;
+            result.subtasks_created += batch.length;
+            processedChecklists += batch.length;
+          } catch (subtaskError: any) {
+            console.error('Error creating subtasks batch:', subtaskError);
+            const errorMessage = subtaskError.message || 'Failed to create subtasks';
+            result.warnings.push(`Failed to create some subtasks (batch ${Math.floor(batchStart / SUBTASK_BATCH_SIZE) + 1}): ${errorMessage}`);
+            // Continue import even if this batch fails
+          }
         }
 
       } catch (boardError: any) {

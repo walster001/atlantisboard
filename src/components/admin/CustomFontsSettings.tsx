@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/integrations/api/client';
-import { uploadFile, deleteFile } from '@/lib/storage';
+import { uploadFile, deleteFile, extractStoragePathFromUrl } from '@/lib/storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -117,12 +117,11 @@ export function CustomFontsSettings() {
     setDeleting(font.id);
     try {
       // Extract filename from URL
-      const fileName = font.fontUrl.split('/fonts/')[1];
-      if (fileName) {
-        const deleteResult = await deleteFile('fonts', fileName);
-        if (deleteResult.error) {
-          console.error('Failed to delete font file:', deleteResult.error);
-        }
+      const fileName = extractStoragePathFromUrl(font.fontUrl, 'fonts');
+      if (!fileName) return;
+      const deleteResult = await deleteFile('fonts', fileName);
+      if (deleteResult.error) {
+        console.error('Failed to delete font file:', deleteResult.error);
       }
 
       const { error } = await api

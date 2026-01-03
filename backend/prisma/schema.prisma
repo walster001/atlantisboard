@@ -344,6 +344,7 @@ model Column {
   position  Int      @default(0)
   color     String?
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards     Card[]

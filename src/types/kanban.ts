@@ -33,6 +33,7 @@ export interface Card {
   labels: Label[];
   dueDate?: string;
   createdAt: string;
+  updatedAt?: string;
   color?: string | null;
 }
 

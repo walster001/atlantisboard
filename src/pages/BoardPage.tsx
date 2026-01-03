@@ -27,12 +27,15 @@ import { z } from 'zod';
 import { BoardTheme } from '@/components/kanban/ThemeEditorModal';
 import { cn } from '@/lib/utils';
 import { subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
+import type { RealtimePostgresChangesPayload } from '@/realtime/realtimeClient';
+import { normalizeTimestamp, isNewer, isEqual } from '@/lib/timestampUtils';
 interface DbColumn {
   id: string;
   boardId: string;
   title: string;
   position: number;
   color: string | null;
+  updatedAt?: string;
 }
 
 interface DbCard {
@@ -44,6 +47,7 @@ interface DbCard {
   dueDate: string | null;
   createdBy: string | null;
   color: string | null;
+  updatedAt?: string;
 }
 
 interface DbLabel {
@@ -205,6 +209,8 @@ export default function BoardPage() {
       setBoardCreatedBy(result.board?.createdBy || null);
       setUserRole(result.userRole as 'admin' | 'manager' | 'viewer' | null);
       setColumns(result.columns || []);
+      // Mark columns as loaded
+      columnsLoadedRef.current = true;
 
       // Fetch themeId and theme data separately (not in RPC response)
       const boardDataResult = await api
@@ -321,8 +327,104 @@ export default function BoardPage() {
     columnId: string;
     position: number;
     timestamp: number;
+    updatedAt: number; // Normalized timestamp for conflict resolution
   }
   const pendingCardUpdatesRef = useRef<Map<string, PendingCardUpdate>>(new Map());
+
+  // Buffer card events when columns are missing (event ordering safety)
+  interface BufferedCardEvent {
+    card: DbCard;
+    event: RealtimePostgresChangesPayload<Record<string, unknown>>;
+    timestamp: number;
+  }
+  const pendingCardEventsRef = useRef<BufferedCardEvent[]>([]);
+  const columnsLoadedRef = useRef(false);
+
+  // Process buffered card events when column state is ready
+  const processBufferedCardEvents = useCallback(() => {
+    if (pendingCardEventsRef.current.length === 0) return;
+    
+    const buffered = [...pendingCardEventsRef.current];
+    pendingCardEventsRef.current = [];
+    
+    // Get current columns state
+    const currentColumns = columns;
+    
+    buffered.forEach(({ card, event }) => {
+      const cardData = card as unknown as DbCard;
+      const cardColumnId = cardData.columnId;
+      const columnBelongsToBoard = currentColumns.some((c) => c.id === cardColumnId);
+      
+      if (columnBelongsToBoard || currentColumns.length === 0) {
+        // Column exists now, reprocess the event by calling the handler logic
+        console.log('[BoardPage] Processing buffered card event:', {
+          cardId: cardData.id,
+          columnId: cardColumnId,
+          eventType: event.eventType,
+        });
+        
+        // Manually trigger the update logic
+        if (event.eventType === 'INSERT') {
+          setCards((prev) => {
+            if (prev.some((c) => c.id === cardData.id)) {
+              return prev;
+            }
+            const updated = [...prev, cardData];
+            return updated.sort((a, b) => {
+              if (a.columnId !== b.columnId) {
+                return a.columnId.localeCompare(b.columnId);
+              }
+              return a.position - b.position;
+            });
+          });
+        } else if (event.eventType === 'UPDATE') {
+          const updatedCard = cardData;
+          setCards((prev) => {
+            const existingCard = prev.find((c) => c.id === updatedCard.id);
+            if (!existingCard) {
+              const updated = [...prev, updatedCard];
+              return updated.sort((a, b) => {
+                if (a.columnId !== b.columnId) {
+                  return a.columnId.localeCompare(b.columnId);
+                }
+                return a.position - b.position;
+              });
+            }
+            
+            // Apply timestamp-based conflict resolution
+            const incomingUpdatedAt = updatedCard.updatedAt || (updatedCard as any).updated_at;
+            const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
+            const localTimestamp = normalizeTimestamp(existingCard.updatedAt);
+            
+            if (isNewer(localTimestamp, incomingTimestamp)) {
+              return prev; // Keep local state
+            }
+            
+            let updated = prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
+            return updated.sort((a, b) => {
+              if (a.columnId !== b.columnId) {
+                return a.columnId.localeCompare(b.columnId);
+              }
+              return a.position - b.position;
+            });
+          });
+        } else if (event.eventType === 'DELETE') {
+          setCards((prev) => prev.filter((c) => c.id !== cardData.id));
+        }
+      } else {
+        // Still missing, keep buffered but limit retries
+        const age = Date.now() - (card as any).timestamp;
+        if (age < 5000) { // Only keep events less than 5 seconds old
+          pendingCardEventsRef.current.push({ card, event, timestamp: Date.now() });
+        } else {
+          console.warn('[BoardPage] Dropping buffered card event - column still missing after timeout:', {
+            cardId: cardData.id,
+            columnId: cardColumnId,
+          });
+        }
+      }
+    });
+  }, [columns]);
 
   // Unified realtime subscription using workspace (parent-child hierarchy)
   useEffect(() => {
@@ -349,6 +451,11 @@ export default function BoardPage() {
           // Only process events for columns in the current board
           if (columnData.boardId !== boardId) return;
           
+          // Extract updatedAt (handle both camelCase and snake_case)
+          const getUpdatedAt = (data: any): string | undefined => {
+            return data?.updatedAt || data?.updated_at;
+          };
+          
           if (event.eventType === 'INSERT') {
             console.log('[BoardPage] Column INSERT event received:', columnData);
             setColumns((prev) => {
@@ -358,7 +465,14 @@ export default function BoardPage() {
               }
               console.log('[BoardPage] Adding new column to state:', columnData.id);
               const updated = [...prev, columnData];
-              return updated.sort((a, b) => a.position - b.position);
+              const sorted = updated.sort((a, b) => a.position - b.position);
+              // Update columnIdsRef immediately
+              columnIdsRef.current = sorted.map(c => c.id);
+              // Process buffered card events now that column exists
+              setTimeout(() => {
+                processBufferedCardEvents();
+              }, 50);
+              return sorted;
             });
           } else if (event.eventType === 'UPDATE') {
             const updatedColumn = columnData;
@@ -367,6 +481,24 @@ export default function BoardPage() {
               if (!existingColumn) {
                 return prev;
               }
+              
+              // Timestamp-based conflict resolution for columns
+              const incomingUpdatedAt = getUpdatedAt(updatedColumn);
+              const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
+              const localUpdatedAt = getUpdatedAt(existingColumn);
+              const localTimestamp = normalizeTimestamp(localUpdatedAt);
+              
+              // If local state is newer, keep it
+              if (isNewer(localTimestamp, incomingTimestamp)) {
+                console.log('[BoardPage] Column UPDATE ignored - local state is newer:', {
+                  columnId: updatedColumn.id,
+                  localTimestamp,
+                  incomingTimestamp,
+                });
+                return prev;
+              }
+              
+              // Check if anything actually changed (skip if no changes)
               if (
                 existingColumn.title === updatedColumn.title &&
                 existingColumn.position === updatedColumn.position &&
@@ -374,40 +506,53 @@ export default function BoardPage() {
               ) {
                 return prev;
               }
+              
               const updated = prev.map((c) => (c.id === updatedColumn.id ? updatedColumn : c));
-              return updated.sort((a, b) => a.position - b.position);
+              const sorted = updated.sort((a, b) => a.position - b.position);
+              // Update columnIdsRef immediately
+              columnIdsRef.current = sorted.map(c => c.id);
+              return sorted;
             });
           } else if (event.eventType === 'DELETE') {
             console.log('[BoardPage] Column DELETE event received:', columnData);
-            setColumns((prev) => prev.filter((c) => c.id !== columnData.id));
+            setColumns((prev) => {
+              const filtered = prev.filter((c) => c.id !== columnData.id);
+              // Update columnIdsRef immediately
+              columnIdsRef.current = filtered.map(c => c.id);
+              return filtered;
+            });
             setCards((prev) => prev.filter((c) => c.columnId !== columnData.id));
           }
         },
         onCardUpdate: (card, event) => {
           const cardData = card as unknown as DbCard;
-          // Filter by checking if card's column belongs to current board
-          // Check if the column exists in the current board's columns
           const cardColumnId = cardData.columnId;
           const columnBelongsToBoard = columns.some((c) => c.id === cardColumnId);
           
-          // Only filter out events if:
-          // 1. We have columns loaded (columns.length > 0)
-          // 2. AND the column doesn't belong to this board
-          // This allows events during initial load or when columns are being created
-          // Also allow events for cards that might be moving between columns (columnId might change)
-          if (columns.length > 0 && !columnBelongsToBoard) {
-            // Column not in this board, but log for debugging
-            console.log('[BoardPage] Card event filtered - column not in board:', {
+          // Event buffering: If column doesn't exist and columns have been loaded, buffer the event
+          if (columnsLoadedRef.current && columns.length > 0 && !columnBelongsToBoard) {
+            console.log('[BoardPage] Card event buffered - column not in board:', {
               cardId: cardData.id,
               columnId: cardColumnId,
               boardId,
               loadedColumns: columns.length,
             });
+            pendingCardEventsRef.current.push({
+              card: cardData,
+              event,
+              timestamp: Date.now(),
+            });
+            // Set timeout to process buffered events after a short delay
+            setTimeout(() => {
+              processBufferedCardEvents();
+            }, 100);
             return;
           }
           
-          // If columns haven't loaded yet, we'll accept the event and let it update state
-          // The card will be filtered out later if needed when columns load
+          // Extract updatedAt from event (handle both camelCase and snake_case)
+          const getUpdatedAt = (data: any): string | undefined => {
+            return data?.updatedAt || data?.updated_at;
+          };
           
           if (event.eventType === 'INSERT') {
             console.log('[BoardPage] Card INSERT event received:', {
@@ -436,34 +581,79 @@ export default function BoardPage() {
             const previousColumnId = previous?.columnId;
             const columnChanged = previousColumnId && previousColumnId !== updatedCard.columnId;
             
-            // Check if this is a pending optimistic update from our own action
-            const pendingUpdate = pendingCardUpdatesRef.current.get(updatedCard.id);
-            if (pendingUpdate) {
-              // If realtime event matches our optimistic state, ignore it (echo of our action)
-              if (pendingUpdate.columnId === updatedCard.columnId && pendingUpdate.position === updatedCard.position) {
-                console.log('[BoardPage] Card UPDATE event ignored - matches optimistic state:', updatedCard.id);
-                pendingCardUpdatesRef.current.delete(updatedCard.id);
-                return;
-              }
-              // If realtime event differs, accept it (server correction or other user)
-              console.log('[BoardPage] Card UPDATE event differs from optimistic - accepting server state:', {
-                cardId: updatedCard.id,
-                optimistic: pendingUpdate,
-                server: { columnId: updatedCard.columnId, position: updatedCard.position },
-              });
-              pendingCardUpdatesRef.current.delete(updatedCard.id);
-            }
+            // Extract and normalize timestamps
+            const incomingUpdatedAt = getUpdatedAt(updatedCard);
+            const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
             
-            console.log('[BoardPage] Card UPDATE event received:', {
-              cardId: updatedCard.id,
-              columnId: updatedCard.columnId,
-              previousColumnId,
-              columnChanged,
-              position: updatedCard.position,
-            });
-            
+            // Get local card state for comparison
             setCards((prev) => {
               const existingCard = prev.find((c) => c.id === updatedCard.id);
+              
+              // Check pending optimistic update
+              const pendingUpdate = pendingCardUpdatesRef.current.get(updatedCard.id);
+              
+              if (pendingUpdate) {
+                // Compare timestamps for conflict resolution
+                const optimisticTimestamp = pendingUpdate.updatedAt;
+                const localTimestamp = existingCard?.updatedAt ? normalizeTimestamp(existingCard.updatedAt) : 0;
+                
+                // If realtime event matches our optimistic state exactly, ignore it (echo suppression)
+                if (pendingUpdate.columnId === updatedCard.columnId && 
+                    pendingUpdate.position === updatedCard.position &&
+                    isEqual(incomingTimestamp, optimisticTimestamp)) {
+                  console.log('[BoardPage] Card UPDATE event ignored - matches optimistic state:', updatedCard.id);
+                  pendingCardUpdatesRef.current.delete(updatedCard.id);
+                  return prev;
+                }
+                
+                // Timestamp-based conflict resolution
+                if (isNewer(optimisticTimestamp, incomingTimestamp)) {
+                  // Our optimistic update is newer - keep it, ignore incoming
+                  console.log('[BoardPage] Card UPDATE event ignored - optimistic update is newer:', {
+                    cardId: updatedCard.id,
+                    optimisticTimestamp,
+                    incomingTimestamp,
+                  });
+                  return prev;
+                } else if (isNewer(incomingTimestamp, optimisticTimestamp)) {
+                  // Incoming update is newer - accept it, clear optimistic
+                  console.log('[BoardPage] Card UPDATE event accepted - incoming is newer:', {
+                    cardId: updatedCard.id,
+                    optimisticTimestamp,
+                    incomingTimestamp,
+                  });
+                  pendingCardUpdatesRef.current.delete(updatedCard.id);
+                } else {
+                  // Timestamps equal or very close - check if it's our echo
+                  if (pendingUpdate.columnId === updatedCard.columnId && pendingUpdate.position === updatedCard.position) {
+                    console.log('[BoardPage] Card UPDATE event ignored - matches optimistic (equal timestamps):', updatedCard.id);
+                    pendingCardUpdatesRef.current.delete(updatedCard.id);
+                    return prev;
+                  }
+                  // Different state with equal timestamps - accept server state
+                  console.log('[BoardPage] Card UPDATE event accepted - different state, equal timestamps:', {
+                    cardId: updatedCard.id,
+                    optimistic: pendingUpdate,
+                    server: { columnId: updatedCard.columnId, position: updatedCard.position },
+                  });
+                  pendingCardUpdatesRef.current.delete(updatedCard.id);
+                }
+              } else if (existingCard) {
+                // No pending optimistic update - compare with local state
+                const localTimestamp = normalizeTimestamp(existingCard.updatedAt);
+                if (isNewer(localTimestamp, incomingTimestamp)) {
+                  // Local state is newer - keep it
+                  console.log('[BoardPage] Card UPDATE event ignored - local state is newer:', {
+                    cardId: updatedCard.id,
+                    localTimestamp,
+                    incomingTimestamp,
+                  });
+                  return prev;
+                }
+                // Incoming is newer or equal - accept it
+              }
+              
+              // Apply the update
               if (!existingCard) {
                 console.log('[BoardPage] Card UPDATE - card not found in state, adding it:', updatedCard.id);
                 const updated = [...prev, updatedCard];
@@ -629,6 +819,16 @@ export default function BoardPage() {
     };
   }, [boardId, workspaceId, user, refreshBoardMembers, navigate, toast, fetchBoardData, userRole]);
 
+  // Process buffered card events when columns change
+  useEffect(() => {
+    if (columnsLoadedRef.current && columns.length > 0 && pendingCardEventsRef.current.length > 0) {
+      // Small delay to ensure state is fully updated
+      const timeoutId = setTimeout(() => {
+        processBufferedCardEvents();
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [columns, processBufferedCardEvents]);
 
   // Lightweight theme refresh - updates theme without triggering loading state
   const refreshBoardTheme = async () => {
@@ -903,11 +1103,17 @@ export default function BoardPage() {
       const updated = prev.map((c) => {
         const update = uniqueUpdates.find((u) => u.id === c.id);
         if (update) {
-          // Track pending optimistic update
+          // Get current card's updatedAt or use current time
+          const currentUpdatedAt = c.updatedAt ? normalizeTimestamp(c.updatedAt) : now;
+          // Use current time for optimistic update (will be replaced by server timestamp)
+          const optimisticUpdatedAt = now;
+          
+          // Track pending optimistic update with normalized timestamp
           pendingCardUpdatesRef.current.set(c.id, {
             columnId: update.columnId,
             position: update.position,
             timestamp: now,
+            updatedAt: optimisticUpdatedAt,
           });
           return { ...c, columnId: update.columnId, position: update.position };
         }

@@ -146,54 +146,15 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
     try {
       const offset = page * PAGE_SIZE;
       
-      // Fetch audit log entries with pagination
-      const { data: logData, error: logError } = await api
-        .from('board_member_audit_log')
-        .select('*')
-        .eq('boardId', boardId)
-        .order('createdAt', { ascending: false })
-        .range(offset, offset + PAGE_SIZE - 1);
+      // Fetch audit log entries with resolved profiles from dedicated endpoint
+      const { data: logData, error: logError } = await api.request<AuditLogEntry[]>(
+        `/boards/${boardId}/audit-logs?limit=${PAGE_SIZE}&offset=${offset}`
+      );
 
       if (logError) throw logError;
 
-      // Get unique user IDs for profile lookup
-      const userIds = new Set<string>();
-      logData?.forEach((entry: any) => {
-        if (entry.targetUserId) userIds.add(entry.targetUserId);
-        if (entry.actorUserId) userIds.add(entry.actorUserId);
-      });
-
-      // Fetch profiles for all users (only if we have user IDs)
-      let profileMap = new Map();
-      if (userIds.size > 0) {
-        const { data: profiles, error: profileError } = await api
-          .from('profiles')
-          .select('id, fullName, email, avatarUrl')
-          .in('id', Array.from(userIds));
-
-        if (profileError) {
-          console.error('Error fetching profiles for audit log:', profileError);
-          // Continue with empty profile map rather than failing completely
-        } else {
-          profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
-        }
-      }
-
-      // Enrich entries with profile data
-      const enrichedEntries = (logData || []).map((entry: any) => ({
-        id: entry.id,
-        boardId: entry.boardId,
-        action: entry.action as 'added' | 'removed' | 'role_changed',
-        targetUserId: entry.targetUserId,
-        actorUserId: entry.actorUserId,
-        oldRole: entry.oldRole,
-        newRole: entry.newRole,
-        createdAt: entry.createdAt,
-        targetProfile: entry.targetUserId ? profileMap.get(entry.targetUserId) : undefined,
-        actorProfile: entry.actorUserId ? profileMap.get(entry.actorUserId) : undefined,
-      }));
-
-      setEntries(enrichedEntries);
+      // Data is already resolved with profiles from backend
+      setEntries(logData || []);
     } catch (error) {
       console.error('Error fetching audit log:', error);
     } finally {

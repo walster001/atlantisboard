@@ -38,6 +38,27 @@ router.get('/:boardId/members', async (req: Request, res: Response, next: NextFu
   }
 });
 
+// GET /api/boards/:boardId/audit-logs - Get board member audit logs
+router.get('/:boardId/audit-logs', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  try {
+    const { boardId } = req.params;
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : undefined;
+
+    const auditLogs = await memberService.getBoardMemberAuditLogs(
+      authReq.userId!,
+      boardId,
+      authReq.user?.isAdmin ?? false,
+      { page, limit, offset }
+    );
+    res.json(auditLogs);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/boards/:boardId/members/find - Find user by email
 router.get('/:boardId/members/find', async (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;

@@ -474,6 +474,99 @@ class MemberService {
       avatarUrl: user.profile?.avatarUrl ?? null,
     }));
   }
+
+  // Get board member audit logs
+  async getBoardMemberAuditLogs(
+    userId: string,
+    boardId: string,
+    isAppAdmin: boolean,
+    options: { page?: number; limit?: number; offset?: number } = {}
+  ) {
+    // Check board exists
+    const board = await prisma.board.findUnique({
+      where: { id: boardId },
+    });
+
+    if (!board) {
+      throw new NotFoundError('Board not found');
+    }
+
+    // Check permission
+    const context = permissionService.buildContext(userId, isAppAdmin, boardId);
+    await permissionService.requirePermission('board.settings.audit', context);
+
+    // Parse pagination options
+    const limit = options.limit ?? 20;
+    const offset = options.offset ?? (options.page ?? 0) * limit;
+
+    // Query audit logs with actor relation (includes User -> Profile)
+    const auditLogs = await prisma.boardMemberAuditLog.findMany({
+      where: { boardId },
+      include: {
+        actor: {
+          include: {
+            profile: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: limit,
+      skip: offset,
+    });
+
+    // Get unique target user IDs
+    const targetUserIds = [...new Set(auditLogs.map(log => log.targetUserId).filter(Boolean))];
+
+    // Query profiles for target users
+    const targetProfiles = await prisma.profile.findMany({
+      where: {
+        id: {
+          in: targetUserIds,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Create profile lookup map for targets
+    const targetProfileMap = new Map(
+      targetProfiles.map(profile => [
+        profile.id,
+        {
+          fullName: profile.fullName,
+          email: profile.user.email,
+          avatarUrl: profile.avatarUrl,
+        },
+      ])
+    );
+
+    // Format response with resolved profiles
+    return auditLogs.map(log => ({
+      id: log.id,
+      boardId: log.boardId,
+      action: log.action as 'added' | 'removed' | 'role_changed',
+      targetUserId: log.targetUserId,
+      actorUserId: log.actorUserId,
+      oldRole: log.oldRole,
+      newRole: log.newRole,
+      createdAt: log.createdAt.toISOString(),
+      targetProfile: log.targetUserId ? targetProfileMap.get(log.targetUserId) : undefined,
+      actorProfile: log.actor
+        ? {
+            fullName: log.actor.profile?.fullName ?? null,
+            email: log.actor.email,
+            avatarUrl: log.actor.profile?.avatarUrl ?? null,
+          }
+        : undefined,
+    }));
+  }
 }
 
 export const memberService = new MemberService();

@@ -182,7 +182,7 @@ function convertLegacyInlineButtons(content: string): string {
   
   // Pattern 2: Match original Wekan inline button format
   // <span style="...display:inline-flex..."><img src="..."><a href="...">text</a></span>
-  const wekanButtonRegex = /<span[^>]*style=['"][^'"]*display\s*:\s*inline-?flex[^'"]*['"][^>]*>([\s\S]*?)<\/span>/gi;
+  const wekanButtonRegex = /<span[^>]*style=['"][^'"]*display:\s*inline-?flex[^'"]*['"][^>]*>([\s\S]*?)<\/span>/gi;
   result = result.replace(wekanButtonRegex, (match, innerHtml) => {
     // Skip if already converted
     if (match.includes('INLINE_BUTTON:')) return match;
@@ -254,6 +254,15 @@ function htmlToMarkdown(html: string): string {
   // First, convert inline buttons to our format
   md = convertLegacyInlineButtons(md);
   
+  // Decode HTML entities before extracting content (prevents double-unescape)
+  md = md
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+  
   // Convert headers
   md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '# $1\n');
   md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '## $1\n');
@@ -288,8 +297,8 @@ function htmlToMarkdown(html: string): string {
     }) + '\n';
   });
   
-  // Convert links
-  md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)');
+  // Convert links (support both single and double quotes)
+  md = md.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)');
   
   // Convert blockquotes
   md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, content) => {
@@ -311,13 +320,6 @@ function htmlToMarkdown(html: string): string {
   // Clean up excessive newlines but preserve paragraph spacing
   md = md.replace(/\n{4,}/g, '\n\n\n');
   md = md.replace(/^\n+/, ''); // Remove leading newlines
-  md = md
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
   
   return md.trim();
 }

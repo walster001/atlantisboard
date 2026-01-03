@@ -430,7 +430,6 @@ class RealtimeServer {
    * Uses caching to reduce database queries
    */
   private async resolveWorkspaceId(
-    table: string,
     entityId: string | undefined,
     boardId?: string,
     columnId?: string,
@@ -592,7 +591,6 @@ class RealtimeServer {
     // Step 2: Resolve workspaceId using helper (with caching)
     if (!resolvedWorkspaceId) {
       resolvedWorkspaceId = await this.resolveWorkspaceId(
-        table,
         entityId,
         resolvedBoardId,
         resolvedColumnId,

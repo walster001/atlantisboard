@@ -319,9 +319,8 @@ function htmlToMarkdown(html: string): string {
   
   // Clean up excessive newlines but preserve paragraph spacing
   md = md.replace(/\n{4,}/g, '\n\n\n');
-  md = md.replace(/^\n+/, ''); // Remove leading newlines
   
-  return md.trim();
+  return md || '';
 }
 
 // ============================================================================

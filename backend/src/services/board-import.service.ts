@@ -83,8 +83,8 @@ function convertInlineButtonsToPlaceholders(
     return match; // Return original if no anchor found
   });
   
-  // Apply emoji conversion and trim
-  const finalDescription = convertEmojiShortcodes(processedDescription).trim() || null;
+  // Apply emoji conversion - preserve original formatting
+  const finalDescription = processedDescription ? convertEmojiShortcodes(processedDescription) : null;
   
   return { processedDescription: finalDescription, buttons };
 }

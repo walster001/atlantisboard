@@ -10,6 +10,7 @@ type RealtimeChannelState = 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERR
 
 interface RealtimePostgresChangesPayload<T = Record<string, unknown>> {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  table: string;
   new: T | null;
   old: T | null;
   errors?: string[];
@@ -312,6 +313,7 @@ class RealtimeClient {
         // Call handler
         binding.handler({
           eventType: message.event,
+          table: message.table,
           new: message.payload.new || null,
           old: message.payload.old || null,
         });

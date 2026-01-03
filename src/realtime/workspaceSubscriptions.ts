@@ -254,6 +254,40 @@ export function subscribeWorkspace(
           }
         },
       },
+      // Workspace entity changes
+      {
+        event: 'INSERT',
+        table: 'workspaces',
+        handler: (payload) => {
+          const workspace = payload.new as { id?: string };
+          if (workspace?.id === workspaceId) {
+            logRealtime(topic, 'workspace insert', payload.new);
+            handlers.onWorkspaceUpdate?.(payload.new || {}, payload);
+          }
+        },
+      },
+      {
+        event: 'UPDATE',
+        table: 'workspaces',
+        handler: (payload) => {
+          const workspace = payload.new as { id?: string };
+          if (workspace?.id === workspaceId) {
+            logRealtime(topic, 'workspace update', { id: workspace.id });
+            handlers.onWorkspaceUpdate?.(payload.new || {}, payload);
+          }
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'workspaces',
+        handler: (payload) => {
+          const workspace = payload.old as { id?: string };
+          if (workspace?.id === workspaceId) {
+            logRealtime(topic, 'workspace delete', payload.old);
+            handlers.onWorkspaceUpdate?.(payload.old || {}, payload);
+          }
+        },
+      },
       // Invite token changes
       {
         event: 'INSERT',

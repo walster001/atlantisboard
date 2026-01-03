@@ -420,7 +420,7 @@ export default function BoardPage() {
               return prev; // Keep local state
             }
             
-            let updated = prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
+            let updated = prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c));
             return updated.sort((a, b) => {
               if (a.columnId !== b.columnId) {
                 return a.columnId.localeCompare(b.columnId);
@@ -580,7 +580,7 @@ export default function BoardPage() {
                 return prev;
               }
               
-              const updated = prev.map((c) => (c.id === updatedColumn.id ? updatedColumn : c));
+              const updated = prev.map((c) => (c.id === updatedColumn.id ? { ...c, ...updatedColumn } : c));
               const sorted = updated.sort((a, b) => a.position - b.position);
               // Update columnIdsRef immediately
               columnIdsRef.current = sorted.map(c => c.id);
@@ -765,8 +765,8 @@ export default function BoardPage() {
                 });
               }
               
-              // Update the card
-              let updated = prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
+              // Update the card - merge with existing state
+              let updated = prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c));
               
               // If column changed, we need to ensure proper sorting
               // Sort cards by position within each column
@@ -805,6 +805,52 @@ export default function BoardPage() {
               return prev;
             });
           }
+        },
+        onCardDetailUpdate: (detail, event) => {
+          const detailData = detail as { cardId?: string; id?: string };
+          
+          // Only process if card belongs to current board
+          const card = cards.find(c => c.id === detailData.cardId);
+          if (!card) {
+            // Card not found in current board - might be buffered or from different board
+            return;
+          }
+          
+          // Verify card's column belongs to this board
+          if (!columnIdsRef.current.includes(card.columnId)) {
+            return;
+          }
+          
+          if (event.table === 'card_attachments') {
+            const attachment = detail as { id: string; cardId: string; fileName: string; fileUrl: string; fileSize: number | null; fileType: string | null; uploadedBy: string | null; createdAt: string };
+            if (event.eventType === 'INSERT') {
+              setCardAttachments((prev) => {
+                if (prev.some(a => a.id === attachment.id)) return prev;
+                return [...prev, attachment];
+              });
+            } else if (event.eventType === 'UPDATE') {
+              setCardAttachments((prev) =>
+                prev.map((a) => a.id === attachment.id ? { ...a, ...attachment } : a)
+              );
+            } else if (event.eventType === 'DELETE') {
+              setCardAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
+            }
+          } else if (event.table === 'card_subtasks') {
+            const subtask = detail as { id: string; cardId: string; title: string; completed: boolean; completedAt: string | null; completedBy: string | null; position: number; checklistName: string | null; createdAt: string };
+            if (event.eventType === 'INSERT') {
+              setCardSubtasks((prev) => {
+                if (prev.some(s => s.id === subtask.id)) return prev;
+                return [...prev, subtask];
+              });
+            } else if (event.eventType === 'UPDATE') {
+              setCardSubtasks((prev) =>
+                prev.map((s) => s.id === subtask.id ? { ...s, ...subtask } : s)
+              );
+            } else if (event.eventType === 'DELETE') {
+              setCardSubtasks((prev) => prev.filter((s) => s.id !== subtask.id));
+            }
+          }
+          // card_assignees and card_labels can be added if needed
         },
         onMemberUpdate: (member, event) => {
           const membership = member as { boardId?: string; userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };

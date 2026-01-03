@@ -330,6 +330,3 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
 3. **Search:** Should wait 500ms after typing stops, then show results
 4. **Scroll:** Should smoothly load more members when scrolling down
 5. **Add/Remove/Update:** Should update UI immediately, sync in background
-6. **Realtime:** Should still receive and display updates correctly
-
-## Performance Targets

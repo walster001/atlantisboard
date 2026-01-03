@@ -1513,14 +1513,25 @@ export default function BoardPage() {
       // Check if dueDate is explicitly null (meaning clear it) vs undefined (meaning don't update)
       const clearDueDate = 'dueDate' in updates && updates.dueDate === null;
       
-      const { data, error } = await api.rpc('update_card', {
+      // Build RPC params, only including fields that are actually in updates
+      const rpcParams: any = {
         _user_id: user.id,
         _card_id: cardId,
-        _title: updates.title || null,
-        _description: updates.description || null,
-        _due_date: updates.dueDate || null,
-        _clear_due_date: clearDueDate
-      });
+      };
+      
+      // Only include fields that are actually being updated
+      if ('title' in updates) {
+        rpcParams._title = updates.title || null;
+      }
+      if ('description' in updates) {
+        rpcParams._description = updates.description !== undefined ? updates.description : null;
+      }
+      if ('dueDate' in updates) {
+        rpcParams._due_date = updates.dueDate || null;
+        rpcParams._clear_due_date = clearDueDate;
+      }
+      
+      const { data, error } = await api.rpc('update_card', rpcParams);
 
       if (error) throw error;
       

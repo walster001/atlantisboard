@@ -20,10 +20,10 @@ todos: []
 
 - **Line 86**: In `handleSaveColor()` function
   ```typescript
-      // Change from:
-      background_color: backgroundColor,
-      // To:
-      backgroundColor: backgroundColor,
+        // Change from:
+        background_color: backgroundColor,
+        // To:
+        backgroundColor: backgroundColor,
   ```
 
 
@@ -31,10 +31,10 @@ todos: []
 
 - **Line 114**: In `handleFollowTheme()` function
   ```typescript
-      // Change from:
-      background_color: themeColor,
-      // To:
-      backgroundColor: themeColor,
+        // Change from:
+        background_color: themeColor,
+        // To:
+        backgroundColor: themeColor,
   ```
 
 
@@ -42,10 +42,10 @@ todos: []
 
 - **Line 168**: In `handleFileUpload()` function
   ```typescript
-      // Change from:
-      background_color: publicUrl,
-      // To:
-      backgroundColor: publicUrl,
+        // Change from:
+        background_color: publicUrl,
+        // To:
+        backgroundColor: publicUrl,
   ```
 
 
@@ -53,10 +53,10 @@ todos: []
 
 - **Line 196**: In `handleRemoveImage()` function
   ```typescript
-      // Change from:
-      background_color: defaultColor,
-      // To:
-      backgroundColor: defaultColor,
+        // Change from:
+        background_color: defaultColor,
+        // To:
+        backgroundColor: defaultColor,
   ```
 
 
@@ -84,16 +84,16 @@ export const boardSchema = z.object({
 
 - **Line 801**: In `createBoard()` function
   ```typescript
-      // Change from:
-      const validated = boardSchema.parse({
-        name: newBoardName,
-        background_color: selectedTheme.navbarColor,
-      });
-      // To:
-      const validated = boardSchema.parse({
-        name: newBoardName,
-        backgroundColor: selectedTheme.navbarColor,
-      });
+        // Change from:
+        const validated = boardSchema.parse({
+          name: newBoardName,
+          background_color: selectedTheme.navbarColor,
+        });
+        // To:
+        const validated = boardSchema.parse({
+          name: newBoardName,
+          backgroundColor: selectedTheme.navbarColor,
+        });
   ```
 
 
@@ -101,10 +101,10 @@ export const boardSchema = z.object({
 
 - **Line 862**: In `renameBoard()` function
   ```typescript
-      // Change from:
-      const validated = boardSchema.parse({ name: editBoardName, background_color: '#0079bf' });
-      // To:
-      const validated = boardSchema.parse({ name: editBoardName, backgroundColor: '#0079bf' });
+        // Change from:
+        const validated = boardSchema.parse({ name: editBoardName, background_color: '#0079bf' });
+        // To:
+        const validated = boardSchema.parse({ name: editBoardName, backgroundColor: '#0079bf' });
   ```
 
 
@@ -167,5 +167,3 @@ export const boardSchema = z.object({
 - [ ] Verify UI updates correctly after successful operations
 
 ## Notes
-
-- The regex validation in `validators.ts` correctly only allows hex colors (not URLs) since image uploads bypass validation

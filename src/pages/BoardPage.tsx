@@ -208,7 +208,10 @@ export default function BoardPage() {
       setWorkspaceId(result.board?.workspaceId || null);
       setBoardCreatedBy(result.board?.createdBy || null);
       setUserRole(result.userRole as 'admin' | 'manager' | 'viewer' | null);
-      setColumns(result.columns || []);
+      const initialColumns = result.columns || [];
+      setColumns(initialColumns);
+      // Update columnIdsRef immediately for synchronous access
+      columnIdsRef.current = initialColumns.map(c => c.id);
       // Mark columns as loaded
       columnsLoadedRef.current = true;
 
@@ -347,15 +350,15 @@ export default function BoardPage() {
     const buffered = [...pendingCardEventsRef.current];
     pendingCardEventsRef.current = [];
     
-    // Get current columns state
-    const currentColumns = columns;
+    // Use columnIdsRef for synchronous check (updated immediately in column INSERT handler)
+    const currentColumnIds = columnIdsRef.current;
     
     buffered.forEach(({ card, event }) => {
       const cardData = card as unknown as DbCard;
       const cardColumnId = cardData.columnId;
-      const columnBelongsToBoard = currentColumns.some((c) => c.id === cardColumnId);
+      const columnBelongsToBoard = currentColumnIds.includes(cardColumnId);
       
-      if (columnBelongsToBoard || currentColumns.length === 0) {
+      if (columnBelongsToBoard || currentColumnIds.length === 0) {
         // Column exists now, reprocess the event by calling the handler logic
         console.log('[BoardPage] Processing buffered card event:', {
           cardId: cardData.id,
@@ -527,15 +530,17 @@ export default function BoardPage() {
         onCardUpdate: (card, event) => {
           const cardData = card as unknown as DbCard;
           const cardColumnId = cardData.columnId;
-          const columnBelongsToBoard = columns.some((c) => c.id === cardColumnId);
+          // Use columnIdsRef for synchronous check (updated immediately in column INSERT handler)
+          const columnBelongsToBoard = columnIdsRef.current.includes(cardColumnId);
           
           // Event buffering: If column doesn't exist and columns have been loaded, buffer the event
-          if (columnsLoadedRef.current && columns.length > 0 && !columnBelongsToBoard) {
+          if (columnsLoadedRef.current && columnIdsRef.current.length > 0 && !columnBelongsToBoard) {
             console.log('[BoardPage] Card event buffered - column not in board:', {
               cardId: cardData.id,
               columnId: cardColumnId,
               boardId,
-              loadedColumns: columns.length,
+              loadedColumns: columnIdsRef.current.length,
+              columnIds: columnIdsRef.current,
             });
             pendingCardEventsRef.current.push({
               card: cardData,

@@ -559,9 +559,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           name: workspaceName,
           description: trelloData.desc || `Imported from Trello on ${new Date().toISOString()}`,
           ownerId: user.id,
-        })
-        .select()
-        .single();
+        });
 
       if (workspaceError) {
         result.errors.push(`Failed to create workspace: ${workspaceError.message}`);
@@ -576,11 +574,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         .insert({
           name: trelloData.name,
           description: trelloData.desc || null,
-          workspaceId: workspace.data?.id || workspace.id,
+          workspaceId: workspace?.id,
           backgroundColor: '#0079bf',
-        })
-        .select()
-        .single();
+        });
 
       if (boardError) {
         result.errors.push(`Failed to create board: ${boardError.message}`);
@@ -611,8 +607,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
         const { data: createdLabels, error: labelsError } = await api
           .from('labels')
-          .insert(labelInserts)
-          .select();
+          .insert(labelInserts);
 
         if (labelsError) {
           result.warnings.push(`Failed to create some labels: ${labelsError.message}`);
@@ -644,8 +639,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
         const { data: createdColumns, error: columnsError } = await api
           .from('columns')
-          .insert(columnInserts)
-          .select();
+          .insert(columnInserts);
 
         if (columnsError) {
           result.warnings.push(`Failed to create some columns: ${columnsError.message}`);
@@ -761,8 +755,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
         const { data: createdCards, error: cardsError } = await api
           .from('cards')
-          .insert(batch.map(b => b.insert))
-          .select();
+          .insert(batch.map(b => b.insert));
 
         if (cardsError) {
           result.warnings.push(`Failed to create some cards: ${cardsError.message}`);
@@ -898,10 +891,10 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     
     try {
       // Deleting the workspace will cascade delete boards, columns, cards, etc.
-      const { error } = await supabase
+      const { error } = await api
         .from('workspaces')
-        .delete()
-        .eq('id', workspaceId);
+        .eq('id', workspaceId)
+        .delete();
       
       if (error) {
         console.error('Rollback error:', error);

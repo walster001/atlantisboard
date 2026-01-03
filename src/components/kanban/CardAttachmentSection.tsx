@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { api } from '@/integrations/api/client';
+import { uploadFile, deleteFile } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Paperclip, Download, Trash2, Upload, FileIcon, Image as ImageIcon, File, Loader2, ExternalLink, Eye } from 'lucide-react';
@@ -79,21 +80,19 @@ export function CardAttachmentSection({
         const fileExt = file.name.split('.').pop();
         const fileName = `${cardId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
         
-        const { error: uploadError, data: uploadData } = await api.storage
-          .from('card-attachments')
-          .upload(fileName, file);
+        const uploadResult = await uploadFile('card-attachments', fileName, file);
 
-        if (uploadError || !uploadData) {
+        if (uploadResult.error || !uploadResult.data) {
           toast({
             title: 'Upload failed',
-            description: `Failed to upload ${file.name}: ${uploadError?.message || 'Unknown error'}`,
+            description: `Failed to upload ${file.name}: ${uploadResult.error?.message || 'Unknown error'}`,
             variant: 'destructive',
           });
           continue;
         }
 
         // Use publicUrl from upload response
-        const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+        const publicUrl = uploadResult.data.publicUrl;
 
         // Create attachment record
         const { error: insertError } = await api
@@ -138,13 +137,16 @@ export function CardAttachmentSection({
       const urlParts = attachment.file_url.split('/card-attachments/');
       if (urlParts.length > 1) {
         const storagePath = decodeURIComponent(urlParts[1]);
-        await api.storage.from('card-attachments').remove([storagePath]);
+        const deleteResult = await deleteFile('card-attachments', storagePath);
+        if (deleteResult.error) {
+          console.error('Failed to delete attachment file:', deleteResult.error);
+        }
       }
 
       const { error } = await api
         .from('card_attachments')
-        .delete()
-        .eq('id', attachment.id);
+        .eq('id', attachment.id)
+        .delete();
 
       if (error) throw error;
 

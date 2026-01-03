@@ -194,11 +194,11 @@ export function BoardLabelsSettings({
     try {
       const { error } = await api
         .from('labels')
+        .eq('id', labelId)
         .update({
           name: editLabelName.trim(),
           color: editSelectedColor,
-        })
-        .eq('id', labelId);
+        });
 
       if (error) throw error;
       

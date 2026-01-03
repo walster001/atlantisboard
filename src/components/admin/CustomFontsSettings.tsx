@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/integrations/api/client';
+import { uploadFile, deleteFile } from '@/lib/storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -71,16 +72,14 @@ export function CustomFontsSettings() {
     try {
       const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
       
-      const { error: uploadError, data: uploadData } = await api.storage
-        .from('fonts')
-        .upload(fileName, file);
+      const uploadResult = await uploadFile('fonts', fileName, file);
 
-      if (uploadError || !uploadData) {
-        throw uploadError || new Error('Upload failed: No data returned');
+      if (uploadResult.error || !uploadResult.data) {
+        throw uploadResult.error || new Error('Upload failed: No data returned');
       }
 
       // Use publicUrl from upload response
-      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const publicUrl = uploadResult.data.publicUrl;
 
       // Extract font name from filename (remove extension and timestamp)
       const fontName = file.name.replace(/\.(ttf|otf|woff|woff2)$/i, '');
@@ -120,7 +119,10 @@ export function CustomFontsSettings() {
       // Extract filename from URL
       const fileName = font.fontUrl.split('/fonts/')[1];
       if (fileName) {
-        await api.storage.from('fonts').remove([fileName]);
+        const deleteResult = await deleteFile('fonts', fileName);
+        if (deleteResult.error) {
+          console.error('Failed to delete font file:', deleteResult.error);
+        }
       }
 
       const { error } = await api

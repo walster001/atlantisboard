@@ -5,7 +5,7 @@
  * Supports MinIO for local development and AWS S3 or other S3-compatible services for production.
  */
 
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, CreateBucketCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
 import { env } from '../config/env.js';
@@ -47,6 +47,45 @@ class StorageService {
   }
 
   /**
+   * Ensure bucket exists, create it if it doesn't
+   */
+  private async ensureBucketExists(bucketName: string): Promise<void> {
+    if (!this.s3Client) {
+      throw new ValidationError('Storage not configured. Please configure S3_ENDPOINT, S3_ACCESS_KEY, and S3_SECRET_KEY environment variables.');
+    }
+
+    try {
+      // Check if bucket exists
+      const headCommand = new HeadBucketCommand({ Bucket: bucketName });
+      await this.s3Client.send(headCommand);
+      // Bucket exists, nothing to do
+    } catch (error: any) {
+      // Bucket doesn't exist or error checking
+      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+        try {
+          // Create the bucket
+          const createCommand = new CreateBucketCommand({ Bucket: bucketName });
+          await this.s3Client.send(createCommand);
+          console.log(`[Storage] Created bucket: ${bucketName}`);
+        } catch (createError: any) {
+          // Bucket might have been created by another request, or creation failed
+          if (createError.name === 'BucketAlreadyOwnedByYou' || createError.name === 'BucketAlreadyExists') {
+            // Bucket was created by another request, that's fine
+            console.log(`[Storage] Bucket already exists: ${bucketName}`);
+          } else {
+            console.error(`[Storage] Failed to create bucket ${bucketName}:`, createError);
+            throw new ValidationError(`Failed to create bucket "${bucketName}": ${createError.message || 'Unknown error'}`);
+          }
+        }
+      } else {
+        // Some other error occurred
+        console.error(`[Storage] Error checking bucket ${bucketName}:`, error);
+        throw error;
+      }
+    }
+  }
+
+  /**
    * Upload file to storage
    */
   async upload(bucket: string, path: string, file: Buffer, contentType?: string): Promise<string> {
@@ -55,6 +94,9 @@ class StorageService {
     }
 
     const bucketName = this.getBucketName(bucket);
+
+    // Ensure bucket exists before uploading
+    await this.ensureBucketExists(bucketName);
 
     try {
       const command = new PutObjectCommand({

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/integrations/api/client';
+import { uploadFile } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -46,8 +47,8 @@ export function BoardBackgroundSettings({
   
   // Get default background color - uses theme navbar color or fallback to #0079bf
   const getDefaultBackgroundColor = () => {
-    if (currentTheme?.navbar_color) {
-      return currentTheme.navbar_color;
+    if (currentTheme?.navbarColor) {
+      return currentTheme.navbarColor;
     }
     return '#0079bf';
   };
@@ -80,11 +81,11 @@ export function BoardBackgroundSettings({
     try {
       const { error } = await api
         .from('boards')
+        .eq('id', boardId)
         .update({ 
           background_color: backgroundColor,
           // Clear image when setting color (mutual exclusivity)
-        })
-        .eq('id', boardId);
+        });
 
       if (error) throw error;
       toast({ title: 'Background colour saved!' });
@@ -99,8 +100,8 @@ export function BoardBackgroundSettings({
 
   const handleFollowTheme = async () => {
     if (!canEdit || !currentTheme) return;
-    // Use navbar_color as it complements the board header
-    const themeColor = currentTheme.navbar_color || '#0079bf';
+    // Use navbarColor as it complements the board header
+    const themeColor = currentTheme.navbarColor || '#0079bf';
     setBackgroundColor(themeColor);
     setBackgroundType('color');
     
@@ -108,10 +109,10 @@ export function BoardBackgroundSettings({
     try {
       const { error } = await api
         .from('boards')
+        .eq('id', boardId)
         .update({ 
           background_color: themeColor,
-        })
-        .eq('id', boardId);
+        });
 
       if (error) throw error;
       toast({ title: 'Background set to theme colour!' });
@@ -148,16 +149,14 @@ export function BoardBackgroundSettings({
       const filePath = `board-backgrounds/${fileName}`;
 
       // Upload to storage
-      const { error: uploadError, data: uploadData } = await api.storage
-        .from('branding')
-        .upload(filePath, file);
+      const uploadResult = await uploadFile('branding', filePath, file);
 
-      if (uploadError || !uploadData) {
-        throw uploadError || new Error('Upload failed: No data returned');
+      if (uploadResult.error || !uploadResult.data) {
+        throw uploadResult.error || new Error('Upload failed: No data returned');
       }
 
       // Use publicUrl from upload response
-      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const publicUrl = uploadResult.data.publicUrl;
       setImageUrl(publicUrl);
       setBackgroundType('image');
       
@@ -192,10 +191,10 @@ export function BoardBackgroundSettings({
       const defaultColor = getDefaultBackgroundColor();
       const { error } = await api
         .from('boards')
+        .eq('id', boardId)
         .update({ 
           background_color: defaultColor,
-        })
-        .eq('id', boardId);
+        });
 
       if (error) throw error;
       
@@ -270,7 +269,7 @@ export function BoardBackgroundSettings({
                 Use Theme Colour
               </Button>
               <span className="text-xs text-muted-foreground">
-                ({currentTheme.navbar_color})
+                ({currentTheme.navbarColor})
               </span>
             </div>
           )}

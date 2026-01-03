@@ -93,7 +93,9 @@ export function BoardMembersDialog({
         .rpc('find_user_by_email', { _email: validEmail, _board_id: boardId });
 
       if (profileError) throw profileError;
-      if (!profiles || profiles.length === 0) {
+      
+      // Type guard: ensure profiles is an array
+      if (!profiles || !Array.isArray(profiles) || profiles.length === 0) {
         toast({ title: 'User not found', description: 'No user with that email exists.', variant: 'destructive' });
         setIsAdding(false);
         return;

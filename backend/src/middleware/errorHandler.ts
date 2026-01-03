@@ -64,8 +64,12 @@ export function errorHandler(
     return;
   }
 
-  // Unknown errors
-  console.error('Unhandled error:', err);
+  // Unknown errors - Always log full stack trace for debugging
+  console.error('Unhandled error:', {
+    message: err.message,
+    name: err.name,
+    stack: err.stack,
+  });
   
   // Build error response
   const errorResponse: any = {

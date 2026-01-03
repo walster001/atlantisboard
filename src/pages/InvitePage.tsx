@@ -161,16 +161,24 @@ export default function InvitePage() {
         throw error;
       }
 
-      if (!data.success) {
-        setErrorType(data.error as ErrorType);
-        setErrorMessage(data.message);
+      const response = data as { 
+        success: boolean; 
+        error?: ErrorType; 
+        message?: string; 
+        boardId?: string; 
+        alreadyMember?: boolean;
+      };
+      
+      if (!response.success) {
+        setErrorType(response.error as ErrorType);
+        setErrorMessage(response.message || '');
         setStatus('error');
         return;
       }
 
-      setBoardId(data.boardId);
+      setBoardId(response.boardId || null);
       
-      if (data.alreadyMember) {
+      if (response.alreadyMember) {
         setStatus('already_member');
         toast({
           title: 'Already a member',

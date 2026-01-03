@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
+import { uploadFile } from '@/lib/storage';
 import { Upload, Palette, ExternalLink, Type, Loader2, Trash2, Image } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -108,19 +109,14 @@ export function InlineButtonEditor({
       const fileName = `inline-icon-${Date.now()}.${fileExt}`;
       const filePath = `inline-icons/${fileName}`;
 
-      const { error, data: uploadData } = await api.storage
-        .from('branding')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+      const uploadResult = await uploadFile('branding', filePath, file);
 
-      if (error || !uploadData) {
-        throw error || new Error('Upload failed: No data returned');
+      if (uploadResult.error || !uploadResult.data) {
+        throw uploadResult.error || new Error('Upload failed: No data returned');
       }
 
       // Use publicUrl from upload response
-      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const publicUrl = uploadResult.data.publicUrl;
       setIconUrl(publicUrl);
       toast({ title: 'Icon uploaded' });
     } catch (error: any) {

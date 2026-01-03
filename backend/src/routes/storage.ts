@@ -33,16 +33,92 @@ router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: 
     const { path } = req.body;
     const file = req.file;
 
+    // Log upload attempt
+    console.log('[Storage Upload] Attempting upload:', {
+      bucket,
+      path,
+      userId: authReq.userId,
+      fileName: file?.originalname,
+      fileSize: file?.size,
+      fileType: file?.mimetype,
+    });
+
     if (!storageService.isConfigured()) {
-      throw new ValidationError('Storage is not configured. Please configure S3 storage settings.');
+      const error = new ValidationError('Storage is not configured. Please configure S3 storage settings.');
+      console.error('[Storage Upload] Storage not configured');
+      throw error;
     }
 
     if (!file) {
-      throw new ValidationError('No file provided');
+      const error = new ValidationError('No file provided');
+      console.error('[Storage Upload] No file provided in request');
+      throw error;
+    }
+
+    if (!file.buffer || file.buffer.length === 0) {
+      const error = new ValidationError('File buffer is empty');
+      console.error('[Storage Upload] File buffer is empty');
+      throw error;
     }
 
     if (!path) {
-      throw new ValidationError('Path is required');
+      const error = new ValidationError('Path is required');
+      console.error('[Storage Upload] Path not provided');
+      throw error;
+    }
+
+    // Validate file type and size based on bucket
+    if (bucket === 'branding') {
+      // Validate image file type
+      if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+        const error = new ValidationError('Only image files are allowed for branding uploads');
+        console.error('[Storage Upload] Invalid file type for branding:', file.mimetype);
+        throw error;
+      }
+
+      // Determine size limit based on path
+      let maxSize: number;
+      if (path.includes('inline-icon') || path.includes('import-icons')) {
+        maxSize = 500 * 1024; // 500KB for icons
+      } else if (path.includes('logo')) {
+        maxSize = 2 * 1024 * 1024; // 2MB for logos
+      } else {
+        maxSize = 5 * 1024 * 1024; // 5MB for backgrounds and other images
+      }
+
+      if (file.size > maxSize) {
+        const error = new ValidationError(`File size exceeds limit. Maximum size is ${Math.round(maxSize / 1024)}KB`);
+        console.error('[Storage Upload] File too large:', {
+          fileSize: file.size,
+          maxSize,
+          path,
+        });
+        throw error;
+      }
+    } else if (bucket === 'fonts') {
+      // Validate font file type by extension (MIME types vary between browsers)
+      const validExtensions = ['.ttf', '.otf', '.woff', '.woff2'];
+      const fileExtension = '.' + file.originalname.split('.').pop()?.toLowerCase();
+      if (!validExtensions.includes(fileExtension)) {
+        const error = new ValidationError('Only font files (.ttf, .otf, .woff, .woff2) are allowed');
+        console.error('[Storage Upload] Invalid file extension for fonts:', {
+          fileExtension,
+          fileName: file.originalname,
+          mimetype: file.mimetype,
+        });
+        throw error;
+      }
+
+      const maxSize = 5 * 1024 * 1024; // 5MB for fonts
+      if (file.size > maxSize) {
+        const error = new ValidationError(`File size exceeds limit. Maximum size is 5MB`);
+        console.error('[Storage Upload] Font file too large:', {
+          fileSize: file.size,
+          maxSize,
+          fileName: file.originalname,
+        });
+        throw error;
+      }
     }
 
     // Check permissions based on bucket
@@ -77,14 +153,35 @@ router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: 
     }
 
     // Upload file
+    console.log('[Storage Upload] Starting upload to storage service...');
     const fileUrl = await storageService.upload(bucket, path, file.buffer, file.mimetype);
+    const publicUrl = storageService.getPublicUrl(bucket, path);
+
+    console.log('[Storage Upload] Upload successful:', {
+      bucket,
+      path,
+      fileUrl,
+      publicUrl,
+    });
 
     res.json({
       path,
       url: fileUrl,
-      publicUrl: storageService.getPublicUrl(bucket, path),
+      publicUrl,
     });
-  } catch (error) {
+  } catch (error: any) {
+    // Log detailed error information
+    console.error('[Storage Upload] Upload failed:', {
+      bucket: req.params.bucket,
+      path: req.body?.path,
+      userId: (req as AuthRequest).userId,
+      error: error.message,
+      stack: error.stack,
+      name: error.name,
+      statusCode: error.statusCode,
+    });
+
+    // Pass error to error handler
     next(error);
   }
 });

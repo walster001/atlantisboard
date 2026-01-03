@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/integrations/api/client';
+import { uploadFile, deleteFile } from '@/lib/storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -262,19 +263,24 @@ export function BrandingSettings() {
     try {
       if (settings.customLoginLogoUrl) {
         const oldPath = settings.customLoginLogoUrl.split('/branding/')[1];
-        if (oldPath) await api.storage.from('branding').remove([oldPath]);
+        if (oldPath) {
+          const deleteResult = await deleteFile('branding', oldPath);
+          if (deleteResult.error) {
+            console.error('Failed to delete old logo:', deleteResult.error);
+          }
+        }
       }
 
       const fileExt = file.name.split('.').pop();
       const fileName = `login-logo-${Date.now()}.${fileExt}`;
       
-      const { error: uploadError, data: uploadData } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
-      if (uploadError || !uploadData) {
-        throw uploadError || new Error('Upload failed: No data returned');
+      const uploadResult = await uploadFile('branding', fileName, file);
+      if (uploadResult.error || !uploadResult.data) {
+        throw uploadResult.error || new Error('Upload failed: No data returned');
       }
 
       // Use publicUrl from upload response
-      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const publicUrl = uploadResult.data.publicUrl;
       const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginLogoUrl: publicUrl });
       if (error) throw error;
 
@@ -294,7 +300,12 @@ export function BrandingSettings() {
     setSaving(true);
     try {
       const path = settings.customLoginLogoUrl.split('/branding/')[1];
-      if (path) await api.storage.from('branding').remove([path]);
+      if (path) {
+        const deleteResult = await deleteFile('branding', path);
+        if (deleteResult.error) {
+          console.error('Failed to delete logo:', deleteResult.error);
+        }
+      }
       const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginLogoUrl: null, customLoginLogoEnabled: false });
       if (error) throw error;
       setSettings(prev => ({ ...prev, customLoginLogoUrl: null, customLoginLogoEnabled: false }));
@@ -324,19 +335,24 @@ export function BrandingSettings() {
     try {
       if (settings.customLoginBackgroundImageUrl) {
         const oldPath = settings.customLoginBackgroundImageUrl.split('/branding/')[1];
-        if (oldPath) await api.storage.from('branding').remove([oldPath]);
+        if (oldPath) {
+          const deleteResult = await deleteFile('branding', oldPath);
+          if (deleteResult.error) {
+            console.error('Failed to delete old background:', deleteResult.error);
+          }
+        }
       }
 
       const fileExt = file.name.split('.').pop();
       const fileName = `login-bg-${Date.now()}.${fileExt}`;
       
-      const { error: uploadError, data: uploadData } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
-      if (uploadError || !uploadData) {
-        throw uploadError || new Error('Upload failed: No data returned');
+      const uploadResult = await uploadFile('branding', fileName, file);
+      if (uploadResult.error || !uploadResult.data) {
+        throw uploadResult.error || new Error('Upload failed: No data returned');
       }
 
       // Use publicUrl from upload response
-      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const publicUrl = uploadResult.data.publicUrl;
       const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginBackgroundImageUrl: publicUrl });
       if (error) throw error;
 
@@ -356,7 +372,12 @@ export function BrandingSettings() {
     setSaving(true);
     try {
       const path = settings.customLoginBackgroundImageUrl.split('/branding/')[1];
-      if (path) await api.storage.from('branding').remove([path]);
+      if (path) {
+        const deleteResult = await deleteFile('branding', path);
+        if (deleteResult.error) {
+          console.error('Failed to delete background:', deleteResult.error);
+        }
+      }
       const { error } = await api.from('app_settings').eq('id', 'default').update({ customLoginBackgroundImageUrl: null });
       if (error) throw error;
       setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: null }));

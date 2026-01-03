@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/integrations/api/client';
+import { uploadFile } from '@/lib/storage';
 import { Upload, Image, ExternalLink, Check, Loader2 } from 'lucide-react';
 
 // Detected inline button with internal /cdn image reference
@@ -182,19 +182,14 @@ export function InlineButtonIconDialog({
       const fileName = `inline-icon-${Date.now()}.${fileExt}`;
       const filePath = `import-icons/${fileName}`;
 
-      const { error, data: uploadData } = await api.storage
-        .from('branding')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+      const uploadResult = await uploadFile('branding', filePath, file);
 
-      if (error || !uploadData) {
-        throw new Error(error?.message || 'Upload failed: No data returned');
+      if (uploadResult.error || !uploadResult.data) {
+        throw uploadResult.error || new Error('Upload failed: No data returned');
       }
 
       // Use publicUrl from upload response
-      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const publicUrl = uploadResult.data.publicUrl;
 
       // Update button with replacement URL
       setButtons((prev) =>

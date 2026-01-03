@@ -91,7 +91,7 @@ export function LoginOptionsSettings() {
 
       if (appSettings) {
         setSettings({
-          loginStyle: (appSettings.loginStyle as LoginStyle) || 'google_only',
+          loginStyle: ((appSettings as any).loginStyle as LoginStyle) || 'google_only',
         });
       }
 
@@ -102,7 +102,7 @@ export function LoginOptionsSettings() {
         .eq('id', 'default')
         .maybeSingle();
 
-      setMysqlConfigured(mysqlData?.isConfigured ?? false);
+      setMysqlConfigured((mysqlData as any)?.isConfigured ?? false);
     } catch (error) {
       console.error('Error fetching login options:', error);
       toast({
@@ -130,8 +130,8 @@ export function LoginOptionsSettings() {
     try {
       const { error } = await api
         .from('app_settings')
-        .upsert({
-          id: 'default',
+        .eq('id', 'default')
+        .update({
           loginStyle: settings.loginStyle,
           updatedAt: new Date().toISOString(),
         });
@@ -234,7 +234,7 @@ export function LoginOptionsSettings() {
 
       if (response.error) throw response.error;
 
-      const data = response.data;
+      const data = response.data as { success: boolean; message: string };
       setConnectionTestResult({
         success: data.success,
         message: data.message,
@@ -294,7 +294,7 @@ export function LoginOptionsSettings() {
 
       if (response.error) throw response.error;
 
-      const data = response.data;
+      const data = response.data as { error?: string };
       if (data.error) throw new Error(data.error);
 
       setMysqlConfigured(true);

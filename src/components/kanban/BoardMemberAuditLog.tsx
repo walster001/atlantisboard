@@ -88,7 +88,7 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
         .count();
 
       if (error) throw error;
-      setTotalCount(data || 0);
+      setTotalCount((data as number) ?? 0);
     } catch (error) {
       console.error('Error fetching total count:', error);
     }
@@ -104,10 +104,11 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
 
       if (error) throw error;
       
-      if (data?.auditLogRetentionDays === null || data?.auditLogRetentionDays === undefined) {
+      const settings = data as { auditLogRetentionDays: number | null } | null;
+      if (settings?.auditLogRetentionDays === null || settings?.auditLogRetentionDays === undefined) {
         setRetentionDays('never');
       } else {
-        setRetentionDays(String(data.auditLogRetentionDays || 'never'));
+        setRetentionDays(String(settings.auditLogRetentionDays || 'never'));
       }
     } catch (error) {
       console.error('Error fetching retention setting:', error);

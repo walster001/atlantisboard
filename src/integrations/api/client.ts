@@ -59,10 +59,19 @@ class ApiClient {
   ): Promise<{ data: T | null; error: Error | null }> {
     try {
       const url = `${this.baseUrl}${endpoint}`;
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      };
+      
+      // Detect if body is FormData
+      const isFormData = options.body instanceof FormData;
+      const headers: HeadersInit = {};
+
+      // Only set Content-Type for non-FormData requests
+      // When body is FormData, browser must set Content-Type with boundary automatically
+      if (!isFormData) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      // Merge with options.headers (allows overrides)
+      Object.assign(headers, options.headers || {});
 
       if (this.accessToken) {
         headers['Authorization'] = `Bearer ${this.accessToken}`;
@@ -77,11 +86,17 @@ class ApiClient {
       if (response.status === 401 && this.refreshToken) {
         const refreshed = await this.refreshAccessToken();
         if (refreshed) {
-          // Retry request with new token
-          headers['Authorization'] = `Bearer ${this.accessToken}`;
+          // Retry request with new token - rebuild headers with same logic
+          const retryHeaders: HeadersInit = {};
+          if (!isFormData) {
+            retryHeaders['Content-Type'] = 'application/json';
+          }
+          Object.assign(retryHeaders, options.headers || {});
+          retryHeaders['Authorization'] = `Bearer ${this.accessToken}`;
+          
           const retryResponse = await fetch(url, {
             ...options,
-            headers,
+            headers: retryHeaders,
           });
           
           if (retryResponse.ok) {
@@ -287,93 +302,7 @@ class ApiClient {
     },
   };
 
-  // Storage methods (mimics Supabase storage API)
-  storage = {
-    from: (bucket: string) => ({
-      upload: async (path: string, file: File | Blob, options?: { upsert?: boolean }) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('path', path);
-
-        const result = await this.request(`/storage/${bucket}/upload`, {
-          method: 'POST',
-          body: formData,
-          headers: {}, // Let browser set Content-Type with boundary for FormData
-        });
-
-        if (result.error) {
-          return { data: null, error: result.error };
-        }
-
-        const uploadResult = result.data as { path: string; url: string; publicUrl: string };
-        return { 
-          data: { 
-            path: uploadResult.path, 
-            fullPath: uploadResult.url,
-            publicUrl: uploadResult.publicUrl 
-          }, 
-          error: null 
-        };
-      },
-
-      remove: async (paths: string[]) => {
-        const results = await Promise.all(
-          paths.map(async (path) => {
-            const result = await this.request(`/storage/${bucket}/${encodeURIComponent(path)}`, {
-              method: 'DELETE',
-            });
-            return result;
-          })
-        );
-
-        const errors = results.filter((r) => r.error);
-        if (errors.length > 0) {
-          return { data: null, error: errors[0].error };
-        }
-
-        return { data: paths, error: null };
-      },
-
-      getPublicUrl: async (path: string) => {
-        // Fetch the actual public URL from the backend
-        const result = await this.request<{ publicUrl: string }>(`/storage/${bucket}/${encodeURIComponent(path)}/public-url`, {
-          method: 'GET',
-        });
-
-        if (result.error) {
-          return { data: null, error: result.error };
-        }
-
-        return { data: { publicUrl: result.data?.publicUrl || '' } };
-      },
-
-      download: async (path: string) => {
-        const result = await this.request(`/storage/${bucket}/${encodeURIComponent(path)}`, {
-          method: 'GET',
-        });
-
-        if (result.error) {
-          return { data: null, error: result.error };
-        }
-
-        // The endpoint redirects to signed URL, so we need to fetch it
-        const response = await fetch(`${this.baseUrl}/storage/${bucket}/${encodeURIComponent(path)}`, {
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-          },
-        });
-
-        if (!response.ok) {
-          return { data: null, error: new Error(`Download failed: ${response.statusText}`) };
-        }
-
-        const blob = await response.blob();
-        return { data: blob, error: null };
-      },
-    }),
-  };
-
-  // Realtime WebSocket client
+// Realtime WebSocket client
   get realtime() {
     const client = getRealtimeClient(this.baseUrl);
     

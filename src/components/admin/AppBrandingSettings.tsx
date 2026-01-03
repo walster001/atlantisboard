@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/integrations/api/client';
 import { useAppSettings } from '@/hooks/useAppSettings';
+import { uploadFile, deleteFile } from '@/lib/storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -53,7 +54,7 @@ export function AppBrandingSettings() {
         .from('app_settings')
         .select('customHomeLogoEnabled, customHomeLogoUrl, customHomeLogoSize, customBoardLogoEnabled, customBoardLogoUrl, customBoardLogoSize, customGlobalAppNameEnabled, customGlobalAppName')
         .eq('id', 'default')
-        .single();
+        .single() as { data: any; error: Error | null };
 
       if (error) throw error;
       if (data) {
@@ -104,8 +105,8 @@ export function AppBrandingSettings() {
 
       const { error } = await api
         .from('app_settings')
-        .update(updates)
-        .eq('id', 'default');
+        .eq('id', 'default')
+        .update(updates);
 
       if (error) throw error;
 
@@ -140,29 +141,34 @@ export function AppBrandingSettings() {
 
     setUploading(true);
     try {
-      const urlKey = type === 'home' ? 'customHomeLogoUrl' : 'customBoardLogoUrl';
+      const urlKey: keyof AppBrandingState = type === 'home' ? 'customHomeLogoUrl' : 'customBoardLogoUrl';
       const currentUrl = settings[urlKey];
 
       if (currentUrl) {
         const oldPath = currentUrl.split('/branding/')[1];
-        if (oldPath) await api.storage.from('branding').remove([oldPath]);
+        if (oldPath) {
+          const deleteResult = await deleteFile('branding', oldPath);
+          if (deleteResult.error) {
+            console.error('Failed to delete old logo:', deleteResult.error);
+          }
+        }
       }
 
       const fileExt = file.name.split('.').pop();
       const fileName = `${type}-logo-${Date.now()}.${fileExt}`;
 
-      const { error: uploadError, data: uploadData } = await api.storage.from('branding').upload(fileName, file, { upsert: true });
-      if (uploadError || !uploadData) {
-        throw uploadError || new Error('Upload failed: No data returned');
+      const uploadResult = await uploadFile('branding', fileName, file);
+      if (uploadResult.error || !uploadResult.data) {
+        throw uploadResult.error || new Error('Upload failed: No data returned');
       }
 
       // Use publicUrl from upload response
-      const publicUrl = uploadData.publicUrl || uploadData.fullPath;
+      const publicUrl = uploadResult.data.publicUrl;
       const { error } = await api.from('app_settings').eq('id', 'default').update({ [urlKey]: publicUrl });
       if (error) throw error;
 
-      setSettings(prev => ({ ...prev, [urlKey]: publicUrl }));
-      setSavedSettings(prev => prev ? { ...prev, [urlKey]: publicUrl } : prev);
+      setSettings(prev => ({ ...prev, [urlKey]: publicUrl } as AppBrandingState));
+      setSavedSettings(prev => prev ? ({ ...prev, [urlKey]: publicUrl } as AppBrandingState) : prev);
       await refreshSettings();
       toast({ title: 'Logo uploaded', description: `Your custom ${type} logo has been uploaded.` });
     } catch (error: any) {
@@ -173,19 +179,24 @@ export function AppBrandingSettings() {
   };
 
   const handleRemoveLogo = async (type: 'home' | 'board') => {
-    const urlKey = type === 'home' ? 'customHomeLogoUrl' : 'customBoardLogoUrl';
-    const enabledKey = type === 'home' ? 'customHomeLogoEnabled' : 'customBoardLogoEnabled';
+    const urlKey: keyof AppBrandingState = type === 'home' ? 'customHomeLogoUrl' : 'customBoardLogoUrl';
+    const enabledKey: keyof AppBrandingState = type === 'home' ? 'customHomeLogoEnabled' : 'customBoardLogoEnabled';
     const currentUrl = settings[urlKey];
 
     if (!currentUrl) return;
     setSaving(true);
     try {
       const path = currentUrl.split('/branding/')[1];
-      if (path) await api.storage.from('branding').remove([path]);
+      if (path) {
+        const deleteResult = await deleteFile('branding', path);
+        if (deleteResult.error) {
+          console.error('Failed to delete logo:', deleteResult.error);
+        }
+      }
       const { error } = await api.from('app_settings').eq('id', 'default').update({ [urlKey]: null, [enabledKey]: false });
       if (error) throw error;
-      setSettings(prev => ({ ...prev, [urlKey]: null, [enabledKey]: false }));
-      setSavedSettings(prev => prev ? { ...prev, [urlKey]: null, [enabledKey]: false } : prev);
+      setSettings(prev => ({ ...prev, [urlKey]: null, [enabledKey]: false } as AppBrandingState));
+      setSavedSettings(prev => prev ? ({ ...prev, [urlKey]: null, [enabledKey]: false } as AppBrandingState) : prev);
       await refreshSettings();
     } catch (error: any) {
       toast({ title: 'Error removing logo', description: error.message, variant: 'destructive' });

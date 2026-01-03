@@ -36,8 +36,15 @@ app.use(
   })
 );
 
-// Body parser
-app.use(express.json());
+// Body parser - Skip JSON parsing for file upload routes (they use multipart/form-data)
+app.use((req, res, next) => {
+  // Skip JSON parsing for storage upload routes (they need multipart/form-data)
+  if (req.path.match(/^\/api\/storage\/.*\/upload$/)) {
+    return next();
+  }
+  // Apply JSON parser for all other routes
+  express.json()(req, res, next);
+});
 app.use(express.urlencoded({ extended: true }));
 
 // Session for OAuth (Passport requires sessions)

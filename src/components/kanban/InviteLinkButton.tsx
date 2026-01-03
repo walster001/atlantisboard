@@ -129,7 +129,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
   const fetchActiveRecurringLinks = async () => {
     setIsLoadingLinks(true);
     try {
-      const { data, error } = await api.request(`/boards/${boardId}/invites`, {
+      const { data, error } = await api.request<ActiveRecurringLink[]>(`/boards/${boardId}/invites`, {
         method: 'GET',
       });
 
@@ -164,16 +164,17 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
 
       console.log('Generate invite response:', data);
 
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to generate invite link');
+      const response = data as { success: boolean; message?: string; token: string; expiresAt: string | null; linkType: 'one_time' | 'recurring' };
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to generate invite link');
       }
 
       // Construct the full invite URL
       const baseUrl = window.location.origin;
-      const fullLink = `${baseUrl}/invite/${data.token}`;
+      const fullLink = `${baseUrl}/invite/${response.token}`;
       setInviteLink(fullLink);
-      setExpiresAt(data.expiresAt);
-      setGeneratedLinkType(data.linkType);
+      setExpiresAt(response.expiresAt);
+      setGeneratedLinkType(response.linkType);
 
       // Refresh recurring links list if we just created one
       if (linkType === 'recurring') {

@@ -18,7 +18,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
-import { subscribeAllWorkspaces, subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
+import { subscribeAllWorkspacesViaRegistry, subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
+import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
 import { api } from '@/integrations/api/client';
 
 interface Workspace {
@@ -298,11 +299,13 @@ export default function Home() {
 
   // Unified workspace subscription using parent-child hierarchy
   // Subscribes to all workspaces user has access to, receives all child updates
+  // Subscriptions persist via registry - no cleanup on unmount
   useEffect(() => {
     if (!user || workspaces.length === 0) return;
 
     const workspaceIds = workspaces.map((w) => w.id);
-    const cleanup = subscribeAllWorkspaces(workspaceIds, {
+    // Subscribe via registry - subscriptions persist across navigation
+    subscribeAllWorkspacesViaRegistry(workspaceIds, {
       onBoardUpdate: (board, event) => {
         const boardData = board as unknown as Board;
         if (event.eventType === 'INSERT') {
@@ -359,53 +362,54 @@ export default function Home() {
         if (event.eventType === 'INSERT') {
           // User added to a workspace - dynamically subscribe to new workspace
           const newWorkspaceId = workspaceData.workspaceId;
-          if (newWorkspaceId && !workspaceSubscriptionsRef.current.has(newWorkspaceId)) {
-            console.log('[Home] Dynamically subscribing to new workspace:', newWorkspaceId);
-            // Subscribe to new workspace dynamically
-            const cleanup = subscribeWorkspace(newWorkspaceId, {
-              onBoardUpdate: (board, event) => {
-                const boardData = board as unknown as Board;
-                if (event.eventType === 'INSERT') {
-                  setBoards((prevBoards) => {
-                    if (prevBoards.some((b) => b.id === boardData.id)) {
-                      return prevBoards;
-                    }
-                    return [...prevBoards, boardData];
-                  });
-                  fetchData();
-                } else if (event.eventType === 'UPDATE') {
-                  setBoards((prevBoards) =>
-                    prevBoards.map((b) => (b.id === boardData.id ? boardData : b))
-                  );
-                } else if (event.eventType === 'DELETE') {
-                  setBoards((prevBoards) => prevBoards.filter((b) => b.id !== boardData.id));
-                  setBoardRoles((prevRoles) => {
-                    const updated = { ...prevRoles };
-                    delete updated[boardData.id];
-                    return updated;
-                  });
-                }
-              },
-              onMemberUpdate: (member, event) => {
-                const membership = member as { boardId?: string; userId?: string };
-                if (membership.userId !== user.id) return;
-                
-                if (event.eventType === 'INSERT') {
-                  fetchData();
-                  toast({
-                    title: 'Board access granted',
-                    description: 'You have been added to a new board.',
-                  });
-                } else if (event.eventType === 'DELETE') {
-                  fetchData();
-                  toast({
-                    title: 'Board access removed',
-                    description: 'You have been removed from a board.',
-                  });
-                }
-              },
-            });
-            workspaceSubscriptionsRef.current.set(newWorkspaceId, cleanup);
+          if (newWorkspaceId) {
+            const registry = getSubscriptionRegistry();
+            if (!registry.isSubscribed(newWorkspaceId)) {
+              // Subscribe to new workspace via registry
+              subscribeWorkspaceViaRegistry(newWorkspaceId, {
+                onBoardUpdate: (board, event) => {
+                  const boardData = board as unknown as Board;
+                  if (event.eventType === 'INSERT') {
+                    setBoards((prevBoards) => {
+                      if (prevBoards.some((b) => b.id === boardData.id)) {
+                        return prevBoards;
+                      }
+                      return [...prevBoards, boardData];
+                    });
+                    fetchData();
+                  } else if (event.eventType === 'UPDATE') {
+                    setBoards((prevBoards) =>
+                      prevBoards.map((b) => (b.id === boardData.id ? boardData : b))
+                    );
+                  } else if (event.eventType === 'DELETE') {
+                    setBoards((prevBoards) => prevBoards.filter((b) => b.id !== boardData.id));
+                    setBoardRoles((prevRoles) => {
+                      const updated = { ...prevRoles };
+                      delete updated[boardData.id];
+                      return updated;
+                    });
+                  }
+                },
+                onMemberUpdate: (member, event) => {
+                  const membership = member as { boardId?: string; userId?: string };
+                  if (membership.userId !== user.id) return;
+                  
+                  if (event.eventType === 'INSERT') {
+                    fetchData();
+                    toast({
+                      title: 'Board access granted',
+                      description: 'You have been added to a new board.',
+                    });
+                  } else if (event.eventType === 'DELETE') {
+                    fetchData();
+                    toast({
+                      title: 'Board access removed',
+                      description: 'You have been removed from a board.',
+                    });
+                  }
+                },
+              });
+            }
           }
           
           // User added to a workspace - refresh data
@@ -443,7 +447,8 @@ export default function Home() {
       },
     });
 
-    return cleanup;
+    // No cleanup - subscriptions persist via registry
+    // Only unsubscribe on workspace access revocation (handled in onWorkspaceUpdate DELETE handler)
   }, [user, workspaces, fetchData, toast]);
 
 

@@ -26,7 +26,8 @@ import { useDragScroll } from '@/hooks/useDragScroll';
 import { z } from 'zod';
 import { BoardTheme } from '@/components/kanban/ThemeEditorModal';
 import { cn } from '@/lib/utils';
-import { subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
+import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
+import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
 import type { RealtimePostgresChangesPayload } from '@/realtime/realtimeClient';
 import { normalizeTimestamp, isNewer, isEqual } from '@/lib/timestampUtils';
 interface DbColumn {
@@ -449,14 +450,12 @@ export default function BoardPage() {
   }, [columns]);
 
   // Unified realtime subscription using workspace (parent-child hierarchy)
+  // Subscription persists via registry - no cleanup on unmount
   useEffect(() => {
     if (!boardId || !workspaceId) return;
 
-    const cleanups: Array<() => void> = [];
-
-    // Subscribe to workspace - receives all child updates (boards, columns, cards, members)
-    cleanups.push(
-      subscribeWorkspace(workspaceId, {
+    // Subscribe to workspace via registry - subscription persists across navigation
+    subscribeWorkspaceViaRegistry(workspaceId, {
         onBoardUpdate: (board, event) => {
           const boardData = board as { id?: string; workspaceId?: string };
           // Only process events for the current board
@@ -913,12 +912,11 @@ export default function BoardPage() {
             fetchBoardData();
           }
         },
-      })
+      }
     );
 
-    return () => {
-      cleanups.forEach((cleanup) => cleanup());
-    };
+    // No cleanup - subscription persists via registry
+    // Only unsubscribe on workspace access revocation (handled elsewhere)
   }, [boardId, workspaceId, user, refreshBoardMembers, navigate, toast, fetchBoardData, userRole]);
 
   // Process buffered card events when columns change

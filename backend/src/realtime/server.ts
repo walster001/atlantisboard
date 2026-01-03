@@ -697,21 +697,69 @@ class RealtimeServer {
       console.log(`[Realtime] Invalidated access cache for board ${resolvedBoardId} due to membership change`);
     }
 
-    // Step 6: Broadcast to all channels with hierarchy metadata
+    // Step 6: Build optimized payload
+    let payload: Record<string, unknown>;
+    
+    if (event === 'UPDATE' && newRecord && oldRecord) {
+      // Differential update: send only changed fields
+      const changedFields: Record<string, unknown> = {};
+      const newRecordObj = newRecord as Record<string, unknown>;
+      const oldRecordObj = oldRecord as Record<string, unknown>;
+      
+      // Compare all fields and include only changed ones
+      const allKeys = new Set([...Object.keys(newRecordObj), ...Object.keys(oldRecordObj)]);
+      for (const key of allKeys) {
+        const newValue = newRecordObj[key];
+        const oldValue = oldRecordObj[key];
+        
+        // Deep comparison for objects/arrays (simplified - just JSON stringify)
+        if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
+          changedFields[key] = newValue;
+        }
+      }
+      
+      // Always include id for UPDATE events
+      payload = {
+        changedFields,
+        id: entityId,
+        // Hierarchy metadata for parent-child model
+        entityType,
+        parentId,
+        workspaceId: resolvedWorkspaceId,
+        // Include full record for backward compatibility (can be removed later)
+        new: newRecord,
+        old: oldRecord,
+      };
+    } else if (event === 'DELETE' && oldRecord) {
+      // Minimal payload for DELETE events
+      payload = {
+        id: entityId,
+        entityType,
+        parentId,
+        workspaceId: resolvedWorkspaceId,
+        // Include old record for backward compatibility
+        old: oldRecord,
+      };
+    } else {
+      // INSERT or fallback: send full record
+      payload = {
+        new: newRecord,
+        old: oldRecord,
+        // Hierarchy metadata for parent-child model
+        entityType,
+        entityId,
+        parentId,
+        workspaceId: resolvedWorkspaceId,
+      };
+    }
+
+    // Step 7: Broadcast to all channels with optimized payload
     for (const channel of channels) {
       await this.broadcast({
         event: event as 'INSERT' | 'UPDATE' | 'DELETE',
         table,
         channel,
-        payload: {
-          new: newRecord,
-          old: oldRecord,
-          // Hierarchy metadata for parent-child model
-          entityType,
-          entityId,
-          parentId,
-          workspaceId: resolvedWorkspaceId,
-        },
+        payload,
       });
     }
   }

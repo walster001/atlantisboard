@@ -1,5 +1,6 @@
 import { subscribeToChanges, SubscriptionCleanup, RealtimePostgresChangesPayload } from './realtimeClient';
 import { logRealtime } from './logger';
+import { getSubscriptionRegistry } from './subscriptionRegistry';
 
 /**
  * Workspace event handlers for parent-child hierarchy model
@@ -309,5 +310,33 @@ export function subscribeAllWorkspaces(
   return () => {
     subscriptions.forEach((cleanup) => cleanup());
   };
+}
+
+/**
+ * Subscribe to all workspaces via subscription registry
+ * Subscriptions persist across navigation and component unmounts
+ * Only unsubscribes on explicit logout or workspace access revocation
+ */
+export function subscribeAllWorkspacesViaRegistry(
+  workspaceIds: string[],
+  handlers: WorkspaceHandlers
+): void {
+  const registry = getSubscriptionRegistry();
+  workspaceIds.forEach((workspaceId) => {
+    registry.subscribeWorkspace(workspaceId, handlers);
+  });
+}
+
+/**
+ * Subscribe to a workspace via subscription registry
+ * Subscription persists across navigation and component unmounts
+ * Only unsubscribes on explicit logout or workspace access revocation
+ */
+export function subscribeWorkspaceViaRegistry(
+  workspaceId: string,
+  handlers: WorkspaceHandlers
+): void {
+  const registry = getSubscriptionRegistry();
+  registry.subscribeWorkspace(workspaceId, handlers);
 }
 

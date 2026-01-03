@@ -6,6 +6,7 @@
  */
 
 import { getRealtimeClient } from '@/integrations/api/realtime';
+import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
 
@@ -28,9 +29,12 @@ class RealtimeManager {
   }
 
   /**
-   * Disconnect the realtime connection
+   * Disconnect the realtime connection and clear all subscriptions
    */
   disconnect(): void {
+    // Clear all workspace subscriptions
+    getSubscriptionRegistry().unsubscribeAll();
+    // Disconnect WebSocket connection
     this.client.disconnect();
     this.isInitialized = false;
   }

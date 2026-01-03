@@ -12,49 +12,49 @@ todos:
       - create-realtime-manager
   - id: update-api-client-realtime
     content: Update src/integrations/api/realtime.ts for external connection management, remove auto-connect from addChannel()
-    status: in_progress
+    status: completed
     dependencies:
       - create-realtime-manager
   - id: create-subscription-registry
     content: Create src/realtime/subscriptionRegistry.ts - Global workspace subscription registry
-    status: pending
+    status: completed
   - id: update-workspace-subscriptions
     content: Update src/realtime/workspaceSubscriptions.ts to integrate with subscription registry
-    status: pending
+    status: completed
     dependencies:
       - create-subscription-registry
   - id: update-home-component
     content: Update src/pages/Home.tsx to use subscription registry, remove cleanup from useEffect
-    status: pending
+    status: completed
     dependencies:
       - create-subscription-registry
       - update-workspace-subscriptions
   - id: update-board-page
     content: Update src/pages/BoardPage.tsx to use subscription registry, remove cleanup from useEffect
-    status: pending
+    status: completed
     dependencies:
       - create-subscription-registry
       - update-workspace-subscriptions
   - id: cleanup-client-logs
     content: Remove high-frequency console.log statements from src/integrations/api/realtime.ts (lines 211, 285, 297, 303, 308, 313, 329, 336, 357, 361, 365)
-    status: pending
+    status: completed
   - id: cleanup-server-logs
     content: Remove high-frequency console.log statements from backend/src/realtime/server.ts (lines 390, 402, 693)
-    status: pending
+    status: completed
   - id: cleanup-component-logs
     content: Remove high-frequency realtime event logging from src/pages/BoardPage.tsx and src/hooks/usePermissionsRealtime.ts
-    status: pending
+    status: completed
   - id: optimize-reconnection
     content: Update src/integrations/api/realtime.ts to prevent duplicate subscriptions on reconnect (track server-restored channels)
-    status: pending
+    status: completed
     dependencies:
       - update-api-client-realtime
   - id: optimize-payloads
     content: Update backend/src/realtime/server.ts to send only changed fields for UPDATE events (differential updates)
-    status: pending
+    status: completed
   - id: add-client-persistence
     content: Add localStorage persistence for channel subscriptions in src/integrations/api/realtime.ts and subscription registry
-    status: pending
+    status: completed
     dependencies:
       - create-subscription-registry
       - update-api-client-realtime
@@ -228,5 +228,3 @@ Modify `src/hooks/usePermissionsRealtime.ts`:
 - Rollback: Changes are mostly additive, can revert if issues arise
 
 ## Files to Modify
-
-**New Files:**

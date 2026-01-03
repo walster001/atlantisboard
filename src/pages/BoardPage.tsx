@@ -105,6 +105,7 @@ export default function BoardPage() {
   // Real-time permissions updates - triggers refetch when permissions change
   usePermissionsRealtime({
     boardId,
+    workspaceId,
     onPermissionsUpdated: useCallback(() => {
       console.log('[BoardPage] Permissions updated, refetching board data...');
       fetchBoardData();
@@ -133,7 +134,7 @@ export default function BoardPage() {
 
       if (error) throw error;
 
-      const transformedMembers: BoardMember[] = (data || []).map((m: any) => ({
+      const transformedMembers: BoardMember[] = (Array.isArray(data) ? data : []).map((m: any) => ({
         userId: m.userId,
         role: m.role as 'admin' | 'manager' | 'viewer',
         profiles: {
@@ -206,23 +207,51 @@ export default function BoardPage() {
       setColumns(result.columns || []);
 
       // Fetch themeId and theme data separately (not in RPC response)
-      const { data: boardData } = await api
+      const boardDataResult = await api
         .from('boards')
         .select('themeId')
         .eq('id', boardId)
         .single();
       
-      const themeId = boardData?.data?.themeId || null;
+      const themeId = (boardDataResult.data as { themeId?: string | null } | null)?.themeId || null;
       setBoardThemeId(themeId);
       
       // Fetch full theme data if theme is set
       if (themeId) {
-        const { data: themeData } = await api
+        const themeDataResult = await api
           .from('board_themes')
           .select('*')
           .eq('id', themeId)
           .single();
-        setBoardTheme(themeData?.data as BoardTheme | null);
+        // Transform snake_case to camelCase for BoardTheme
+        const themeRow = themeDataResult.data as any;
+        if (themeRow) {
+          const theme: BoardTheme = {
+            id: themeRow.id,
+            name: themeRow.name,
+            isDefault: themeRow.is_default,
+            navbarColor: themeRow.navbar_color,
+            columnColor: themeRow.column_color,
+            defaultCardColor: themeRow.default_card_color,
+            cardWindowColor: themeRow.card_window_color,
+            cardWindowTextColor: themeRow.card_window_text_color,
+            cardWindowButtonColor: themeRow.card_window_button_color,
+            cardWindowButtonTextColor: themeRow.card_window_button_text_color,
+            cardWindowButtonHoverColor: themeRow.card_window_button_hover_color,
+            cardWindowButtonHoverTextColor: themeRow.card_window_button_hover_text_color,
+            cardWindowIntelligentContrast: themeRow.card_window_intelligent_contrast,
+            homepageBoardColor: themeRow.homepage_board_color,
+            boardIconColor: themeRow.board_icon_color,
+            scrollbarColor: themeRow.scrollbar_color,
+            scrollbarTrackColor: themeRow.scrollbar_track_color,
+            createdBy: themeRow.created_by,
+            createdAt: themeRow.created_at,
+            updatedAt: themeRow.updated_at,
+          };
+          setBoardTheme(theme);
+        } else {
+          setBoardTheme(null);
+        }
       } else {
         setBoardTheme(null);
       }
@@ -244,8 +273,8 @@ export default function BoardPage() {
             .select('*')
             .in('cardId', cardIds)
         ]);
-        setCardAttachments(attachmentsResult.data || []);
-        setCardSubtasks(subtasksResult.data || []);
+        setCardAttachments((attachmentsResult.data as typeof cardAttachments) || []);
+        setCardSubtasks((subtasksResult.data as typeof cardSubtasks) || []);
       }
       
       // Transform members to expected format
@@ -308,7 +337,7 @@ export default function BoardPage() {
           }
         },
         onColumnUpdate: (column, event) => {
-          const columnData = column as DbColumn;
+          const columnData = column as unknown as DbColumn;
           // Only process events for columns in the current board
           if (columnData.boardId !== boardId) return;
           
@@ -347,11 +376,15 @@ export default function BoardPage() {
           }
         },
         onCardUpdate: (card, event) => {
-          const cardData = card as DbCard;
+          const cardData = card as unknown as DbCard;
           // Filter by checking if card's column belongs to current board
-          // We'll check against columnIdsRef to see if the column is in this board
+          // Check if the column exists in the current board's columns
           const cardColumnId = cardData.columnId;
-          if (columnIdsRef.current.length > 0 && !columnIdsRef.current.includes(cardColumnId)) {
+          const columnBelongsToBoard = columns.some((c) => c.id === cardColumnId);
+          
+          // If we have columns loaded and the column doesn't belong to this board, skip
+          // But allow if columns haven't loaded yet (columnIdsRef might be empty initially)
+          if (columns.length > 0 && !columnBelongsToBoard) {
             // Column not in this board, skip
             return;
           }
@@ -360,7 +393,7 @@ export default function BoardPage() {
             console.log('[BoardPage] Card INSERT event received:', {
               cardId: cardData.id,
               columnId: cardData.columnId,
-              hasColumnInRef: columnIdsRef.current.includes(cardData.columnId),
+              columnBelongsToBoard,
             });
             setCards((prev) => {
               if (prev.some((c) => c.id === cardData.id)) {
@@ -368,24 +401,58 @@ export default function BoardPage() {
                 return prev;
               }
               console.log('[BoardPage] Adding new card to state:', cardData.id);
-              return [...prev, cardData];
+              const updated = [...prev, cardData];
+              // Sort cards by position within each column
+              return updated.sort((a, b) => {
+                if (a.columnId !== b.columnId) {
+                  return a.columnId.localeCompare(b.columnId);
+                }
+                return a.position - b.position;
+              });
             });
           } else if (event.eventType === 'UPDATE') {
             const updatedCard = cardData;
-            const previous = event.old as DbCard;
+            const previous = event.old as unknown as DbCard;
+            const previousColumnId = previous?.columnId;
+            const columnChanged = previousColumnId && previousColumnId !== updatedCard.columnId;
+            
             console.log('[BoardPage] Card UPDATE event received:', {
               cardId: updatedCard.id,
               columnId: updatedCard.columnId,
-              previousColumnId: previous?.columnId,
+              previousColumnId,
+              columnChanged,
+              position: updatedCard.position,
             });
+            
             setCards((prev) => {
               const existingCard = prev.find((c) => c.id === updatedCard.id);
               if (!existingCard) {
                 console.log('[BoardPage] Card UPDATE - card not found in state, adding it:', updatedCard.id);
-                return [...prev, updatedCard];
+                const updated = [...prev, updatedCard];
+                // Sort cards by position within each column
+                return updated.sort((a, b) => {
+                  if (a.columnId !== b.columnId) {
+                    return a.columnId.localeCompare(b.columnId);
+                  }
+                  return a.position - b.position;
+                });
               }
-              return prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
+              
+              // Update the card
+              let updated = prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
+              
+              // If column changed, we need to ensure proper sorting
+              // Sort cards by position within each column
+              updated = updated.sort((a, b) => {
+                if (a.columnId !== b.columnId) {
+                  return a.columnId.localeCompare(b.columnId);
+                }
+                return a.position - b.position;
+              });
+              
+              return updated;
             });
+            
             setEditingCard((prev) => {
               if (prev && prev.card.id === updatedCard.id) {
                 return {
@@ -517,23 +584,52 @@ export default function BoardPage() {
   const refreshBoardTheme = async () => {
     if (!boardId) return;
     try {
-      const { data: boardData } = await api
+      const boardDataResult = await api
         .from('boards')
         .select('themeId, backgroundColor')
         .eq('id', boardId)
         .single();
       
-      const themeId = boardData?.data?.themeId || null;
+      const boardData = boardDataResult.data as { themeId?: string | null; backgroundColor?: string | null } | null;
+      const themeId = boardData?.themeId || null;
       setBoardThemeId(themeId);
-      setBoardColor(boardData?.data?.backgroundColor || '#0079bf');
+      setBoardColor(boardData?.backgroundColor || '#0079bf');
       
       if (themeId) {
-        const { data: themeData } = await api
+        const themeDataResult = await api
           .from('board_themes')
           .select('*')
           .eq('id', themeId)
           .single();
-        setBoardTheme(themeData?.data as BoardTheme | null);
+        // Transform snake_case to camelCase for BoardTheme
+        const themeRow = themeDataResult.data as any;
+        if (themeRow) {
+          const theme: BoardTheme = {
+            id: themeRow.id,
+            name: themeRow.name,
+            isDefault: themeRow.is_default,
+            navbarColor: themeRow.navbar_color,
+            columnColor: themeRow.column_color,
+            defaultCardColor: themeRow.default_card_color,
+            cardWindowColor: themeRow.card_window_color,
+            cardWindowTextColor: themeRow.card_window_text_color,
+            cardWindowButtonColor: themeRow.card_window_button_color,
+            cardWindowButtonTextColor: themeRow.card_window_button_text_color,
+            cardWindowButtonHoverColor: themeRow.card_window_button_hover_color,
+            cardWindowButtonHoverTextColor: themeRow.card_window_button_hover_text_color,
+            cardWindowIntelligentContrast: themeRow.card_window_intelligent_contrast,
+            homepageBoardColor: themeRow.homepage_board_color,
+            boardIconColor: themeRow.board_icon_color,
+            scrollbarColor: themeRow.scrollbar_color,
+            scrollbarTrackColor: themeRow.scrollbar_track_color,
+            createdBy: themeRow.created_by,
+            createdAt: themeRow.created_at,
+            updatedAt: themeRow.updated_at,
+          };
+          setBoardTheme(theme);
+        } else {
+          setBoardTheme(null);
+        }
       } else {
         setBoardTheme(null);
       }
@@ -546,13 +642,14 @@ export default function BoardPage() {
   const refreshBoardBackground = async () => {
     if (!boardId) return;
     try {
-      const { data: boardData } = await supabase
+      const boardDataResult = await api
         .from('boards')
-        .select('background_color')
+        .select('backgroundColor')
         .eq('id', boardId)
         .single();
       
-      setBoardColor(boardData?.background_color || '#0079bf');
+      const boardData = boardDataResult.data as { backgroundColor?: string | null } | null;
+      setBoardColor(boardData?.backgroundColor || '#0079bf');
     } catch (error: any) {
       console.error('Error refreshing background:', error);
     }
@@ -562,13 +659,13 @@ export default function BoardPage() {
   const refreshLabels = async () => {
     if (!boardId) return;
     try {
-      const { data: labelsData, error } = await supabase
+      const labelsResult = await api
         .from('labels')
         .select('*')
-        .eq('board_id', boardId);
+        .eq('boardId', boardId);
       
-      if (error) throw error;
-      setLabels(labelsData || []);
+      if (labelsResult.error) throw labelsResult.error;
+      setLabels((labelsResult.data as DbLabel[]) || []);
     } catch (error: any) {
       console.error('Error refreshing labels:', error);
     }
@@ -955,15 +1052,21 @@ export default function BoardPage() {
       const existingLabel = labels.find(l => l.id === label.id);
       
       if (!existingLabel) {
-        const { data: newLabel, error: labelError } = await api
+        const newLabelResult = await api
           .from('labels')
-          .insert({ boardId: boardId, name: label.text, color: label.color })
-          .select()
-          .single();
+          .insert({ boardId: boardId, name: label.text, color: label.color });
+        
+        const newLabel = newLabelResult.data as any;
+        const labelError = newLabelResult.error;
 
         if (labelError) throw labelError;
-        labelId = newLabel.data?.id || newLabel.id;
-        setLabels([...labels, newLabel.data || newLabel]);
+        if (Array.isArray(newLabel) && newLabel.length > 0) {
+          labelId = newLabel[0].id;
+          setLabels([...labels, newLabel[0] as DbLabel]);
+        } else if (newLabel && typeof newLabel === 'object' && 'id' in newLabel) {
+          labelId = newLabel.id;
+          setLabels([...labels, newLabel as DbLabel]);
+        }
       }
 
       // Add card-label relation
@@ -1057,8 +1160,8 @@ export default function BoardPage() {
       <header 
         className="flex-shrink-0 z-10 backdrop-blur-sm"
         style={{ 
-          backgroundColor: boardTheme?.navbar_color 
-            ? sanitizeColor(boardTheme.navbar_color) 
+          backgroundColor: boardTheme?.navbarColor 
+            ? sanitizeColor(boardTheme.navbarColor) 
             : 'rgba(0, 0, 0, 0.2)' 
         }}
       >
@@ -1081,7 +1184,7 @@ export default function BoardPage() {
               ) : (
                 <LayoutGrid 
                   className="h-5 w-5 shrink-0 hidden sm:block" 
-                  style={{ color: boardTheme?.board_icon_color || 'white' }}
+                  style={{ color: boardTheme?.boardIconColor || 'white' }}
                 />
               )}
               <h1 className="text-base md:text-xl font-bold text-white truncate">{boardName}</h1>
@@ -1205,10 +1308,10 @@ export default function BoardPage() {
               onReorderColumns={reorderColumns}
               onRefresh={fetchBoardData}
               disabled={!effectiveCanEdit}
-              themeColumnColor={boardTheme?.column_color}
-              themeCardColor={boardTheme?.default_card_color}
-              themeScrollbarColor={boardTheme?.scrollbar_color}
-              themeScrollbarTrackColor={boardTheme?.scrollbar_track_color}
+              themeColumnColor={boardTheme?.columnColor}
+              themeCardColor={boardTheme?.defaultCardColor}
+              themeScrollbarColor={boardTheme?.scrollbarColor}
+              themeScrollbarTrackColor={boardTheme?.scrollbarTrackColor}
             />
             {/* Mobile Add Column FAB */}
             {effectiveCanEdit && (
@@ -1235,14 +1338,14 @@ export default function BoardPage() {
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: boardTheme 
-              ? `${boardTheme.scrollbar_color} ${boardTheme.scrollbar_track_color}` 
+              ? `${boardTheme.scrollbarColor} ${boardTheme.scrollbarTrackColor}` 
               : undefined,
           }}
         >
           <style>{boardTheme ? `
             .board-scroll-area::-webkit-scrollbar { width: 8px; height: 8px; }
-            .board-scroll-area::-webkit-scrollbar-track { background: ${boardTheme.scrollbar_track_color}; }
-            .board-scroll-area::-webkit-scrollbar-thumb { background: ${boardTheme.scrollbar_color}; border-radius: 4px; }
+            .board-scroll-area::-webkit-scrollbar-track { background: ${boardTheme.scrollbarTrackColor}; }
+            .board-scroll-area::-webkit-scrollbar-thumb { background: ${boardTheme.scrollbarColor}; border-radius: 4px; }
           ` : ''}</style>
           <DragDropContext onDragEnd={onDragEnd}>
             <Droppable droppableId="board" type="column" direction="horizontal">
@@ -1275,10 +1378,10 @@ export default function BoardPage() {
                       onUpdateCardColor={updateCardColor}
                       onApplyCardColorToAll={applyCardColorToAll}
                       disabled={!effectiveCanEdit}
-                      themeColumnColor={boardTheme?.column_color}
-                      themeCardColor={boardTheme?.default_card_color}
-                      themeScrollbarColor={boardTheme?.scrollbar_color}
-                      themeScrollbarTrackColor={boardTheme?.scrollbar_track_color}
+                      themeColumnColor={boardTheme?.columnColor}
+                      themeCardColor={boardTheme?.defaultCardColor}
+                      themeScrollbarColor={boardTheme?.scrollbarColor}
+                      themeScrollbarTrackColor={boardTheme?.scrollbarTrackColor}
                     />
                   ))}
                   {provided.placeholder}
@@ -1410,40 +1513,66 @@ export default function BoardPage() {
           }
         }}
         disabled={!effectiveCanEdit}
-        boardLabels={labels}
-        attachments={editingCard ? cardAttachments.filter(a => a.cardId === editingCard.card.id) : []}
+        boardLabels={labels.map(l => ({
+          id: l.id,
+          board_id: l.boardId,
+          name: l.name,
+          color: l.color,
+        }))}
+        attachments={editingCard ? cardAttachments.filter(a => a.cardId === editingCard.card.id).map(a => ({
+          id: a.id,
+          card_id: a.cardId,
+          file_name: a.fileName,
+          file_url: a.fileUrl,
+          file_size: a.fileSize,
+          file_type: a.fileType,
+          uploaded_by: a.uploadedBy,
+          created_at: a.createdAt,
+        })) : []}
         onAttachmentsChange={async () => {
           if (editingCard) {
-            const { data } = await api
+            const attachmentsResult = await api
               .from('card_attachments')
               .select('*')
               .eq('cardId', editingCard.card.id);
+            const attachments = (attachmentsResult.data || []) as typeof cardAttachments;
             setCardAttachments(prev => [
               ...prev.filter(a => a.cardId !== editingCard.card.id),
-              ...(data || [])
+              ...attachments
             ]);
           }
         }}
-        subtasks={editingCard ? cardSubtasks.filter(s => s.cardId === editingCard.card.id) : []}
+        subtasks={editingCard ? cardSubtasks.filter(s => s.cardId === editingCard.card.id).map(s => ({
+          id: s.id,
+          card_id: s.cardId,
+          title: s.title,
+          completed: s.completed,
+          completed_at: s.completedAt,
+          completed_by: s.completedBy,
+          position: s.position,
+          checklist_name: s.checklistName,
+          created_at: s.createdAt,
+        })) : []}
         onSubtasksChange={async () => {
           if (editingCard) {
-            const { data } = await api
+            const subtasksResult = await api
               .from('card_subtasks')
               .select('*')
               .eq('cardId', editingCard.card.id);
+            const subtasks = (subtasksResult.data || []) as typeof cardSubtasks;
             setCardSubtasks(prev => [
               ...prev.filter(s => s.cardId !== editingCard.card.id),
-              ...(data || [])
+              ...subtasks
             ]);
           }
         }}
-        themeCardWindowColor={boardTheme?.card_window_color}
-        themeCardWindowTextColor={boardTheme?.card_window_text_color}
-        themeCardWindowButtonColor={boardTheme?.card_window_button_color}
-        themeCardWindowButtonTextColor={boardTheme?.card_window_button_text_color}
-        themeCardWindowButtonHoverColor={boardTheme?.card_window_button_hover_color}
-        themeCardWindowButtonHoverTextColor={boardTheme?.card_window_button_hover_text_color}
-        themeCardWindowIntelligentContrast={boardTheme?.card_window_intelligent_contrast}
+        themeCardWindowColor={boardTheme?.cardWindowColor}
+        themeCardWindowTextColor={boardTheme?.cardWindowTextColor}
+        themeCardWindowButtonColor={boardTheme?.cardWindowButtonColor}
+        themeCardWindowButtonTextColor={boardTheme?.cardWindowButtonTextColor}
+        themeCardWindowButtonHoverColor={boardTheme?.cardWindowButtonHoverColor}
+        themeCardWindowButtonHoverTextColor={boardTheme?.cardWindowButtonHoverTextColor}
+        themeCardWindowIntelligentContrast={boardTheme?.cardWindowIntelligentContrast}
       />
 
       {/* Board Settings Modal */}

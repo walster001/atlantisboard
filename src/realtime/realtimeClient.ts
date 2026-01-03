@@ -16,7 +16,7 @@ type RealtimeChannel = {
   unsubscribe: () => RealtimeChannel;
 };
 
-type RealtimePostgresChangesPayload<T = Record<string, unknown>> = {
+export type RealtimePostgresChangesPayload<T = Record<string, unknown>> = {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE';
   new: T | null;
   old: T | null;

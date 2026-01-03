@@ -24,6 +24,7 @@ import {
 
 interface UsePermissionsRealtimeOptions {
   boardId?: string | null;
+  workspaceId?: string | null;
   /**
    * Callback when permissions are updated.
    * Use this to refetch board data or recalculate UI state.
@@ -44,7 +45,7 @@ interface PermissionChangePayload {
 }
 
 export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = {}) {
-  const { boardId, onPermissionsUpdated, onAccessRevoked } = options;
+  const { boardId, workspaceId, onPermissionsUpdated, onAccessRevoked } = options;
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -151,11 +152,11 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
     });
   }, [user, boardId, handlePermissionChange]);
 
-  // Subscribe to board_members role changes (board-specific)
+  // Subscribe to board_members role changes (using workspace channel)
   useEffect(() => {
-    if (!user || !boardId) return;
+    if (!user || !boardId || !workspaceId) return;
 
-    return subscribeBoardMembersForPermissions(boardId, {
+    return subscribeBoardMembersForPermissions(boardId, workspaceId, {
       currentUserId: user.id,
       onChange: (payload) => {
         // Backend emits camelCase (userId), not snake_case (user_id)
@@ -176,7 +177,7 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
         }
       },
     });
-  }, [user, boardId, handlePermissionChange, handleAccessRevoked]);
+  }, [user, boardId, workspaceId, handlePermissionChange, handleAccessRevoked]);
 
   return {
     // Expose method to manually trigger permission recalculation

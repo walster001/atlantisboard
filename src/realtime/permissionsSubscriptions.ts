@@ -1,16 +1,15 @@
-import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { logRealtime } from './logger';
-import { subscribeToChanges, SubscriptionCleanup } from './realtimeClient';
+import { subscribeToChanges, SubscriptionCleanup, RealtimePostgresChangesPayload } from './realtimeClient';
 
 type DbRecord = Record<string, unknown>;
 
 type PermissionHandlers = {
-  onChange?: (payload: RealtimePostgresChangesPayload<DbRecord>) => void;
+  onChange?: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
 };
 
 type BoardPermissionHandlers = {
-  onChange?: (payload: RealtimePostgresChangesPayload<DbRecord>) => void;
-  onAffectsUser?: (payload: RealtimePostgresChangesPayload<DbRecord>) => void;
+  onChange?: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+  onAffectsUser?: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
   currentUserId?: string;
 };
 
@@ -75,14 +74,18 @@ export function subscribeBoardMemberCustomRoles(boardId: string | null | undefin
   );
 }
 
-export function subscribeBoardMembersForPermissions(boardId: string | null | undefined, handlers: BoardPermissionHandlers): SubscriptionCleanup {
-  if (!boardId) {
+export function subscribeBoardMembersForPermissions(
+  boardId: string | null | undefined,
+  workspaceId: string | null | undefined,
+  handlers: BoardPermissionHandlers
+): SubscriptionCleanup {
+  if (!boardId || !workspaceId) {
     // Return no-op cleanup to keep callsites simple
     return () => {};
   }
 
-  const topic = `permissions-board-members-${boardId}`;
-  const filter = `boardId=eq.${boardId}`;
+  // Use workspace channel instead of board-specific channel
+  const topic = `workspace:${workspaceId}`;
 
   return subscribeToChanges(
     topic,
@@ -90,12 +93,17 @@ export function subscribeBoardMembersForPermissions(boardId: string | null | und
       {
         event: 'UPDATE',
         table: 'boardMembers',
-        filter,
         handler: (payload) => {
-          logRealtime(topic, 'boardMembers update', { id: payload.new?.id });
+          // Filter by boardId within the handler
+          const member = payload.new as { boardId?: string; userId?: string } | undefined;
+          if (member?.boardId !== boardId) {
+            return; // Not for this board, skip
+          }
+          
+          logRealtime(topic, 'boardMembers update', { id: member?.userId, boardId });
           handlers.onChange?.(payload);
           const userId = handlers.currentUserId;
-          if (userId && (payload.new as { userId?: string } | undefined)?.userId === userId) {
+          if (userId && member?.userId === userId) {
             handlers.onAffectsUser?.(payload);
           }
         },
@@ -103,12 +111,17 @@ export function subscribeBoardMembersForPermissions(boardId: string | null | und
       {
         event: 'DELETE',
         table: 'boardMembers',
-        filter,
         handler: (payload) => {
-          logRealtime(topic, 'boardMembers delete', { id: payload.old?.id });
+          // Filter by boardId within the handler
+          const member = payload.old as { boardId?: string; userId?: string } | undefined;
+          if (member?.boardId !== boardId) {
+            return; // Not for this board, skip
+          }
+          
+          logRealtime(topic, 'boardMembers delete', { id: member?.userId, boardId });
           handlers.onChange?.(payload);
           const userId = handlers.currentUserId;
-          if (userId && (payload.old as { userId?: string } | undefined)?.userId === userId) {
+          if (userId && member?.userId === userId) {
             handlers.onAffectsUser?.(payload);
           }
         },

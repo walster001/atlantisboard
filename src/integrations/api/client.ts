@@ -92,6 +92,18 @@ class ApiClient {
       }
 
       if (!response.ok) {
+        // Handle rate limiting specifically
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After') || response.headers.get('X-RateLimit-Reset');
+          const errorMessage = retryAfter 
+            ? `Too many requests. Please try again in ${retryAfter} seconds.`
+            : 'Too many requests. Please try again later.';
+          return {
+            data: null,
+            error: new Error(errorMessage),
+          };
+        }
+        
         const errorData = await response.json().catch(() => ({ error: 'Unknown error', message: 'Unknown error' }));
         const errorMessage = errorData.error || errorData.message || errorData.errors?.[0] || `HTTP ${response.status}`;
         return {

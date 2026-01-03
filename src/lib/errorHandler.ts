@@ -27,6 +27,9 @@ export function getUserFriendlyError(error: any): string {
   if (message.includes('timeout')) {
     return 'Request timed out. Please try again.';
   }
+  if (message.includes('too many requests') || message.includes('rate limit')) {
+    return error?.message || 'Too many requests. Please wait a moment and try again.';
+  }
   
   // Generic fallback - don't expose actual error
   return 'An error occurred. Please try again.';

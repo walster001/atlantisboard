@@ -382,12 +382,24 @@ export default function BoardPage() {
           const cardColumnId = cardData.columnId;
           const columnBelongsToBoard = columns.some((c) => c.id === cardColumnId);
           
-          // If we have columns loaded and the column doesn't belong to this board, skip
-          // But allow if columns haven't loaded yet (columnIdsRef might be empty initially)
+          // Only filter out events if:
+          // 1. We have columns loaded (columns.length > 0)
+          // 2. AND the column doesn't belong to this board
+          // This allows events during initial load or when columns are being created
+          // Also allow events for cards that might be moving between columns (columnId might change)
           if (columns.length > 0 && !columnBelongsToBoard) {
-            // Column not in this board, skip
+            // Column not in this board, but log for debugging
+            console.log('[BoardPage] Card event filtered - column not in board:', {
+              cardId: cardData.id,
+              columnId: cardColumnId,
+              boardId,
+              loadedColumns: columns.length,
+            });
             return;
           }
+          
+          // If columns haven't loaded yet, we'll accept the event and let it update state
+          // The card will be filtered out later if needed when columns load
           
           if (event.eventType === 'INSERT') {
             console.log('[BoardPage] Card INSERT event received:', {
@@ -846,11 +858,27 @@ export default function BoardPage() {
     // Deduplicate
     const uniqueUpdates = allUpdates.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
 
-    // Don't update local state optimistically - rely on realtime events
-    // This prevents cards from reverting if there's a race condition
-    // The realtime handler will update state when events are received
+    // Update positions locally (optimistic) - like column reordering does
+    // This prevents cards from visually reverting while waiting for realtime events
+    setCards((prev) => {
+      const updated = prev.map((c) => {
+        const update = uniqueUpdates.find((u) => u.id === c.id);
+        if (update) {
+          return { ...c, columnId: update.columnId, position: update.position };
+        }
+        return c;
+      });
+      // Sort cards by position within each column
+      return updated.sort((a, b) => {
+        if (a.columnId !== b.columnId) {
+          return a.columnId.localeCompare(b.columnId);
+        }
+        return a.position - b.position;
+      });
+    });
 
     // Batch update in database (single server call)
+    // Realtime events will sync final state, but optimistic update provides immediate feedback
     await api.rpc('batch_update_card_positions', {
       _user_id: user.id,
       _updates: uniqueUpdates
@@ -888,13 +916,19 @@ export default function BoardPage() {
       const validated = columnSchema.parse({ title: newColumnTitle });
 
       const position = columns.length;
-      const { data, error } = await api
-        .from('columns')
-        .insert({ boardId: boardId, title: validated.title, position });
+      // Use dedicated column route which emits realtime events
+      const result = await api.request('/columns', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          boardId: boardId, 
+          title: validated.title, 
+          position 
+        }),
+      });
 
-      if (error) throw error;
-      if (!data) throw new Error('Failed to create column');
-      setColumns([...columns, data]);
+      if (result.error) throw result.error;
+      if (!result.data) throw new Error('Failed to create column');
+      // Realtime handler will update state when event is received
       setNewColumnTitle('');
       setIsAddingColumn(false);
     } catch (error: any) {
@@ -935,10 +969,12 @@ export default function BoardPage() {
     // Early return for better UX - RLS will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      const { error } = await api.from('columns').eq('id', columnId).delete();
-      if (error) throw error;
-      setColumns(columns.filter(c => c.id !== columnId));
-      setCards(cards.filter(c => c.columnId !== columnId));
+      // Use dedicated column route which emits realtime events
+      const result = await api.request(`/columns/${columnId}`, {
+        method: 'DELETE',
+      });
+      if (result.error) throw result.error;
+      // Realtime handler will update state when event is received
     } catch (error: any) {
       console.error('Delete column error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
@@ -955,13 +991,20 @@ export default function BoardPage() {
       const columnCards = cards.filter(c => c.columnId === columnId);
       const position = columnCards.length;
       
-      const { data, error } = await api
-        .from('cards')
-        .insert({ columnId: columnId, title: validated.title, position, createdBy: user?.id });
+      // Use dedicated card route which emits realtime events
+      const result = await api.request('/cards', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          columnId: columnId, 
+          title: validated.title, 
+          position,
+          createdBy: user?.id 
+        }),
+      });
 
-      if (error) throw error;
-      if (!data) throw new Error('Failed to create card');
-      setCards([...cards, data]);
+      if (result.error) throw result.error;
+      if (!result.data) throw new Error('Failed to create card');
+      // Realtime handler will update state when event is received
     } catch (error: any) {
       console.error('Add card error:', error);
       if (error instanceof z.ZodError) {
@@ -1033,10 +1076,12 @@ export default function BoardPage() {
     // Early return for better UX - RLS will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      const { error } = await api.from('cards').eq('id', cardId).delete();
-      if (error) throw error;
-      setCards(cards.filter(c => c.id !== cardId));
-      setCardLabels(cardLabels.filter(cl => cl.cardId !== cardId));
+      // Use dedicated card route which emits realtime events
+      const result = await api.request(`/cards/${cardId}`, {
+        method: 'DELETE',
+      });
+      if (result.error) throw result.error;
+      // Realtime handler will update state when event is received
     } catch (error: any) {
       console.error('Delete card error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });

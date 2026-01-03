@@ -74,8 +74,16 @@ const limiter = rateLimit({
       return true;
     }
     
-    // Skip rate limiting for all realtime-related API endpoints
-    // These endpoints trigger realtime broadcasts and should not be throttled
+    // Only skip rate limiting for write operations (POST, PATCH, DELETE) on realtime-related endpoints
+    // GET requests should still be rate-limited as they don't trigger realtime events
+    const method = req.method.toUpperCase();
+    const isWriteOperation = method === 'POST' || method === 'PATCH' || method === 'DELETE';
+    
+    if (!isWriteOperation) {
+      return false; // Rate limit all GET requests
+    }
+    
+    // Skip rate limiting for all realtime-related API endpoints that trigger broadcasts
     const path = req.path.toLowerCase();
     
     // Realtime WebSocket path
@@ -83,51 +91,65 @@ const limiter = rateLimit({
       return true;
     }
     
-    // Board, card, and column operations that trigger realtime events
-    if (path.includes('/boards/') && (
-      path.includes('/members/') || // Member operations (permissions updates)
-      path.includes('/columns') ||  // Column operations
-      path.includes('/cards') ||    // Card operations
-      path.includes('/labels') ||   // Label operations
-      path.includes('/subtasks')    // Subtask operations
-    )) {
+    // Permissions-related tables in /api/db/:table
+    // These tables trigger realtime events for permissions updates
+    if (path.startsWith('/api/db/')) {
+      const table = path.replace('/api/db/', '').split('?')[0].toLowerCase();
+      const permissionsTables = [
+        'custom_roles',
+        'role_permissions',
+        'board_member_custom_roles',
+        'profiles'
+      ];
+      if (permissionsTables.includes(table)) {
+        return true;
+      }
+    }
+    
+    // All write operations on boards endpoints (boards, members, columns, cards, labels, subtasks)
+    // Match both /api/boards and /api/boards/* paths
+    if (path === '/api/boards' || path.startsWith('/api/boards/')) {
       return true;
     }
     
-    // Direct member operations
-    if (path.includes('/members/') && (
-      path.includes('/role') ||      // Role updates (permissions)
-      path.includes('/boards/')      // Board member operations
-    )) {
+    // All write operations on cards endpoints
+    // Match both /api/cards and /api/cards/* paths
+    if (path === '/api/cards' || path.startsWith('/api/cards/')) {
       return true;
     }
     
-    // Cards endpoints
-    if (path.startsWith('/api/cards/')) {
+    // All write operations on columns endpoints
+    // Match both /api/columns and /api/columns/* paths
+    if (path === '/api/columns' || path.startsWith('/api/columns/')) {
       return true;
     }
     
-    // Columns endpoints
-    if (path.startsWith('/api/columns/')) {
+    // All write operations on labels endpoints
+    // Match both /api/labels and /api/labels/* paths
+    if (path === '/api/labels' || path.startsWith('/api/labels/')) {
       return true;
     }
     
-    // Labels endpoints
-    if (path.startsWith('/api/labels/')) {
+    // All write operations on subtasks endpoints
+    // Match both /api/subtasks and /api/subtasks/* paths
+    if (path === '/api/subtasks' || path.startsWith('/api/subtasks/')) {
       return true;
     }
     
-    // Subtasks endpoints
-    if (path.startsWith('/api/subtasks/')) {
+    // All write operations on members endpoints (board and workspace members)
+    // Match both /api/members and /api/members/* paths
+    if (path === '/api/members' || path.startsWith('/api/members/')) {
       return true;
     }
     
-    // Workspace operations that trigger realtime events
-    if (path.startsWith('/api/workspaces/') && (
-      path.includes('/members') ||   // Workspace member operations
-      path.endsWith('/') ||          // Workspace updates
-      path.match(/\/workspaces\/[^/]+$/) // Workspace updates
-    )) {
+    // All write operations on workspaces endpoints (workspaces and workspace members)
+    // Match both /api/workspaces and /api/workspaces/* paths
+    if (path === '/api/workspaces' || path.startsWith('/api/workspaces/')) {
+      return true;
+    }
+    
+    // POST on invites endpoints (invite redemption triggers realtime member events)
+    if (path.startsWith('/api/invites/') && method === 'POST') {
       return true;
     }
     

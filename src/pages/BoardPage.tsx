@@ -150,9 +150,6 @@ export default function BoardPage() {
         }
       }));
       console.log('[BoardPage] Refreshing board members, new count:', transformedMembers.length);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BoardPage.tsx:150',message:'setBoardMembers called',data:{boardId,memberCount:transformedMembers.length,memberIds:transformedMembers.map(m=>m.userId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       setBoardMembers(transformedMembers);
       console.log('[BoardPage] Board members state updated');
     } catch (error: any) {

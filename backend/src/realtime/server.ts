@@ -11,7 +11,6 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { prisma } from '../db/client.js';
 import { UnauthorizedError } from '../middleware/errorHandler.js';
-import { appendFileSync } from 'fs';
 
 interface ClientConnection {
   ws: WebSocket;
@@ -142,9 +141,6 @@ class RealtimeServer {
       this.userChannels.set(user.id, existingChannels);
 
       this.clients.set(ws, client);
-      // #region agent log
-      try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:101',message:'Client connected',data:{userId:user.id,preservedChannels:existingChannels.size,channels:Array.from(existingChannels)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
-      // #endregion
       
       // Notify client of restored subscriptions so frontend can sync its channel state
       // This ensures frontend knows about channels even if it lost its local state
@@ -227,9 +223,6 @@ class RealtimeServer {
   }
 
   private handleSubscribe(client: ClientConnection, channel: string) {
-    // #region agent log
-    try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:166',message:'handleSubscribe entry',data:{userId:client.userId,channel,wsReadyState:client.ws.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
-    // #endregion
     // Validate channel format
     if (!channel || typeof channel !== 'string') {
       this.send(client.ws, {
@@ -256,9 +249,6 @@ class RealtimeServer {
       this.userChannels.set(client.userId, new Set());
     }
     this.userChannels.get(client.userId)!.add(channel);
-    // #region agent log
-    try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:187',message:'channel added to client',data:{userId:client.userId,channel,totalChannels:client.channels.size,allChannels:Array.from(client.channels)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
-    // #endregion
     console.log(`[Realtime] Client ${client.userId} subscribed to ${channel}`);
 
     this.send(client.ws, {
@@ -318,23 +308,14 @@ class RealtimeServer {
     if (channel.startsWith(`${prefix}:`)) {
       // Format: prefix:{uuid}
       const uuid = channel.substring(prefix.length + 1);
-      // #region agent log
-      try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:extractUuidFromChannel',message:'UUID extracted from colon format',data:{channel,prefix,uuid},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})+'\n');}catch(e){}
-      // #endregion
       return uuid;
     } else if (channel.startsWith(`${prefix}-`)) {
       // Format: prefix-{uuid}-...
       const match = channel.match(uuidRegex);
       if (match) {
         const uuid = match[0];
-        // #region agent log
-        try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:extractUuidFromChannel',message:'UUID extracted from dash format',data:{channel,prefix,uuid},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})+'\n');}catch(e){}
-        // #endregion
         return uuid;
       }
-      // #region agent log
-      try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:extractUuidFromChannel',message:'UUID not found in dash format',data:{channel,prefix},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})+'\n');}catch(e){}
-      // #endregion
     }
     
     return undefined;
@@ -344,9 +325,6 @@ class RealtimeServer {
    * Broadcast event to all clients subscribed to a channel
    */
   async broadcast(event: RealtimeEvent) {
-    // #region agent log
-    try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:231',message:'broadcast entry',data:{channel:event.channel,table:event.table,event:event.event,clientCount:this.clients.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
-    // #endregion
     const { channel } = event;
     let sentCount = 0;
 
@@ -356,9 +334,6 @@ class RealtimeServer {
     let subscribedClients = 0;
     for (const [ws, client] of this.clients.entries()) {
       const hasChannel = client.channels.has(channel);
-      // #region agent log
-      try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:287',message:'checking client subscription',data:{userId:client.userId,channel,hasChannel,wsReadyState:ws.readyState,totalChannels:client.channels.size,allChannels:Array.from(client.channels)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
-      // #endregion
       if (hasChannel) {
         subscribedClients++;
         // For board channels, verify user has access
@@ -371,9 +346,6 @@ class RealtimeServer {
           // This ensures newly promoted users' creations are visible immediately
           const forceRefresh = event.event === 'UPDATE' || event.event === 'DELETE';
           const hasAccess = await this.checkBoardAccess(client.userId, boardId, forceRefresh);
-          // #region agent log
-          try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:252',message:'access check result',data:{userId:client.userId,boardId,hasAccess,table:event.table,event:event.event,forceRefresh},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
-          // #endregion
           if (!hasAccess) {
             // Only remove subscription for UPDATE/DELETE events, not INSERT
             // This allows newly promoted users to see new items immediately
@@ -387,17 +359,11 @@ class RealtimeServer {
           }
         }
 
-        // #region agent log
-        try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:262',message:'sending event to client',data:{userId:client.userId,channel,table:event.table,event:event.event,wsReadyState:ws.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
-        // #endregion
         this.send(ws, event);
         sentCount++;
       }
     }
 
-    // #region agent log
-    try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:271',message:'broadcast complete',data:{channel,table:event.table,event:event.event,sentCount,subscribedClients,totalClients:this.clients.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
-    // #endregion
   }
 
   /**
@@ -595,10 +561,6 @@ class RealtimeServer {
     oldRecord?: Record<string, unknown>,
     boardId?: string
   ) {
-    // #region agent log
-    try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:317',message:'emitDatabaseChange entry',data:{table,event,hasNewRecord:!!newRecord,hasOldRecord:!!oldRecord,boardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n');}catch(e){}
-    // #endregion
-    
     // Step 1: Resolve entity IDs from records
     const record = newRecord || oldRecord;
     const entityId = (record as any)?.id || (record as any)?.userId;
@@ -685,9 +647,6 @@ class RealtimeServer {
 
     // Step 5: Broadcast to all relevant channels
     // Note: entityType and parentId are already determined in Step 3 above
-    // #region agent log
-    try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:407',message:'channels determined',data:{table,event,channels,channelCount:channels.length,resolvedBoardId,resolvedWorkspaceId,entityType,entityId,parentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n');}catch(e){}
-    // #endregion
 
     // Invalidate access cache when boardMembers change to ensure fresh access checks
     // This prevents race conditions when users are promoted

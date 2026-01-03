@@ -123,10 +123,6 @@ class RealtimeClient {
     this.ws.onopen = () => {
       if (isDev) console.log('[Realtime] Connected');
       this.reconnectAttempts = 0;
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:103',message:'WebSocket OPEN - resubscribing channels',data:{channelCount:this.channels.size,channels:Array.from(this.channels.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       this.serverRestoredChannels.clear(); // Reset on new connection
       
       // Wait a short time for server to send restored channel notifications
@@ -209,9 +205,6 @@ class RealtimeClient {
   }
 
   private handleMessage(message: any): void {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:178',message:'handleMessage entry',data:{hasChannel:!!message.channel,channel:message.channel,event:message.event,table:message.table,hasPayload:!!message.payload},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     // Handle system messages
     if (message.channel === 'system') {
       if (message.payload?.type === 'connected') {
@@ -239,9 +232,6 @@ class RealtimeClient {
     // Handle database change events
     if (message.event === 'INSERT' || message.event === 'UPDATE' || message.event === 'DELETE') {
       const channelState = this.channels.get(message.channel);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:212',message:'channel state lookup',data:{channel:message.channel,hasChannelState:!!channelState,state:channelState?.state,bindingCount:channelState?.bindings.length,totalChannels:this.channels.size,allChannels:Array.from(this.channels.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       if (!channelState) {
         // Check if channel is workspace channel and use prefix matching only for workspace channels
         if (message.channel.startsWith('workspace:')) {
@@ -315,16 +305,10 @@ class RealtimeClient {
         // Apply filter if present
         if (binding.filter) {
           const filterMatch = this.matchesFilter(message.payload.new || message.payload.old, binding.filter);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:234',message:'filter check',data:{channel:message.channel,bindingIndex:index,filter:binding.filter,filterMatch,table:message.table,event:message.event},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
           if (!filterMatch) {
             return;
           }
         }
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:243',message:'calling handler',data:{channel:message.channel,bindingIndex:index,table:message.table,event:message.event,hasNew:!!message.payload?.new,hasOld:!!message.payload?.old},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
         // Call handler
         binding.handler({
           eventType: message.event,
@@ -380,17 +364,10 @@ class RealtimeClient {
 
   private subscribeToChannel(channelState: ChannelState): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:336',message:'sending SUBSCRIBE message',data:{channel:channelState.topic,wsReadyState:this.ws.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       this.send({
         type: 'subscribe',
         channel: channelState.topic,
       });
-    } else {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:336',message:'SUBSCRIBE skipped - WS not open',data:{channel:channelState.topic,wsReadyState:this.ws?.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
     }
   }
 
@@ -404,9 +381,6 @@ class RealtimeClient {
   }
 
   addChannel(topic: string, bindings: PostgresChangeBinding[], onStatus?: (status: RealtimeChannelState, error?: Error) => void): void {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:342',message:'addChannel called',data:{topic,bindingCount:bindings.length,bindings:bindings.map(b=>({table:b.table,event:b.event,filter:b.filter})),wsReadyState:this.ws?.readyState,existingChannels:Array.from(this.channels.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     const channelState: ChannelState = {
       topic,
       bindings,

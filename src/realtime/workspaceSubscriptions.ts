@@ -1,19 +1,16 @@
-import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
-import { subscribeToChanges, SubscriptionCleanup } from './realtimeClient';
+import { subscribeToChanges, SubscriptionCleanup, RealtimePostgresChangesPayload } from './realtimeClient';
 import { logRealtime } from './logger';
-
-type DbRecord = Record<string, unknown>;
 
 /**
  * Workspace event handlers for parent-child hierarchy model
  */
 export type WorkspaceHandlers = {
-  onBoardUpdate?: (board: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-  onColumnUpdate?: (column: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-  onCardUpdate?: (card: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-  onCardDetailUpdate?: (detail: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-  onMemberUpdate?: (member: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-  onWorkspaceUpdate?: (workspace: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
+  onBoardUpdate?: (board: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+  onColumnUpdate?: (column: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+  onCardUpdate?: (card: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+  onCardDetailUpdate?: (detail: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+  onMemberUpdate?: (member: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+  onWorkspaceUpdate?: (workspace: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
   // When parent (board) updates, refresh all children
   onParentRefresh?: (parentType: 'board', parentId: string) => void;
 };

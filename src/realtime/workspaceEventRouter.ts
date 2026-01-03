@@ -5,11 +5,9 @@
  * Filters events by boardId when viewing a specific board.
  */
 
-import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { RealtimePostgresChangesPayload } from './realtimeClient';
 
-type DbRecord = Record<string, unknown>;
-
-interface WorkspaceEventPayload extends RealtimePostgresChangesPayload<DbRecord> {
+interface WorkspaceEventPayload extends RealtimePostgresChangesPayload<Record<string, unknown>> {
   entityType?: 'board' | 'column' | 'card' | 'cardDetail' | 'member' | 'workspace';
   entityId?: string;
   parentId?: string;
@@ -30,12 +28,12 @@ export function routeWorkspaceEvent(
   payload: WorkspaceEventPayload,
   context: EventRouterContext,
   handlers: {
-    onBoard?: (board: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-    onColumn?: (column: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-    onCard?: (card: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-    onCardDetail?: (detail: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-    onMember?: (member: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
-    onWorkspace?: (workspace: DbRecord, event: RealtimePostgresChangesPayload<DbRecord>) => void;
+    onBoard?: (board: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+    onColumn?: (column: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+    onCard?: (card: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+    onCardDetail?: (detail: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+    onMember?: (member: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+    onWorkspace?: (workspace: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
     onParentRefresh?: (parentType: 'board', parentId: string) => void;
   }
 ): boolean {

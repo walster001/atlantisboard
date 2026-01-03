@@ -2038,16 +2038,7 @@ export default function BoardPage() {
           name: l.name,
           color: l.color,
         }))}
-        attachments={editingCard ? cardAttachments.filter(a => a.cardId === editingCard.card.id).map(a => ({
-          id: a.id,
-          card_id: a.cardId,
-          file_name: a.fileName,
-          file_url: a.fileUrl,
-          file_size: a.fileSize,
-          file_type: a.fileType,
-          uploaded_by: a.uploadedBy,
-          created_at: a.createdAt,
-        })) : []}
+        attachments={editingCard ? cardAttachments.filter(a => a.cardId === editingCard.card.id) : []}
         onAttachmentsChange={async () => {
           if (editingCard) {
             const attachmentsResult = await api

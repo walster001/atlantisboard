@@ -59,13 +59,13 @@ interface BoardLabel {
 
 interface Attachment {
   id: string;
-  card_id: string;
-  file_name: string;
-  file_url: string;
-  file_size: number | null;
-  file_type: string | null;
-  uploaded_by: string | null;
-  created_at: string;
+  cardId: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number | null;
+  fileType: string | null;
+  uploadedBy: string | null;
+  createdAt: string;
 }
 
 interface CardDetailModalProps {

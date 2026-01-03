@@ -43,9 +43,10 @@ app.use((req, res, next) => {
     return next();
   }
   // Apply JSON parser for all other routes
-  express.json()(req, res, next);
+  // 50MB limit to handle large board imports with inline button icons and many cards
+  express.json({ limit: '50mb' })(req, res, next);
 });
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Session for OAuth (Passport requires sessions)
 app.use(

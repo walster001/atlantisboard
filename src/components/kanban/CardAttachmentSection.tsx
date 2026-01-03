@@ -9,13 +9,13 @@ import { cn } from '@/lib/utils';
 
 interface Attachment {
   id: string;
-  card_id: string;
-  file_name: string;
-  file_url: string;
-  file_size: number | null;
-  file_type: string | null;
-  uploaded_by: string | null;
-  created_at: string;
+  cardId: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number | null;
+  fileType: string | null;
+  uploadedBy: string | null;
+  createdAt: string;
 }
 
 interface CardAttachmentSectionProps {
@@ -98,12 +98,12 @@ export function CardAttachmentSection({
         const { error: insertError } = await api
           .from('card_attachments')
           .insert({
-            card_id: cardId,
-            file_name: file.name,
-            file_url: publicUrl,
-            file_size: file.size,
-            file_type: file.type,
-            uploaded_by: user.id,
+            cardId: cardId,
+            fileName: file.name,
+            fileUrl: publicUrl,
+            fileSize: file.size,
+            fileType: file.type,
+            uploadedBy: user.id,
           });
 
         if (insertError) {
@@ -134,7 +134,7 @@ export function CardAttachmentSection({
   const handleDelete = async (attachment: Attachment) => {
     try {
       // Extract the storage path from URL
-      const storagePath = extractStoragePathFromUrl(attachment.file_url, 'card-attachments');
+      const storagePath = extractStoragePathFromUrl(attachment.fileUrl, 'card-attachments');
       if (!storagePath) {
         console.error('Failed to extract storage path from URL');
         // Continue with database deletion even if storage path extraction fails
@@ -165,8 +165,8 @@ export function CardAttachmentSection({
 
   const handleDownload = (attachment: Attachment) => {
     const link = document.createElement('a');
-    link.href = attachment.file_url;
-    link.download = attachment.file_name;
+    link.href = attachment.fileUrl;
+    link.download = attachment.fileName;
     link.target = '_blank';
     document.body.appendChild(link);
     link.click();
@@ -174,12 +174,12 @@ export function CardAttachmentSection({
   };
 
   const handlePreview = (attachment: Attachment) => {
-    if (isImageType(attachment.file_type)) {
-      setPreviewUrl(attachment.file_url);
-      setPreviewName(attachment.file_name);
+    if (isImageType(attachment.fileType)) {
+      setPreviewUrl(attachment.fileUrl);
+      setPreviewName(attachment.fileName);
     } else {
       // Open in new tab for non-images
-      window.open(attachment.file_url, '_blank');
+      window.open(attachment.fileUrl, '_blank');
     }
   };
 
@@ -251,8 +251,8 @@ export function CardAttachmentSection({
       ) : (
         <div className="space-y-2">
           {attachments.map((attachment) => {
-            const FileIconComponent = getFileIcon(attachment.file_type);
-            const isImage = isImageType(attachment.file_type);
+            const FileIconComponent = getFileIcon(attachment.fileType);
+            const isImage = isImageType(attachment.fileType);
             
             return (
               <div
@@ -262,8 +262,8 @@ export function CardAttachmentSection({
                 {isImage ? (
                   <div className="h-10 w-10 rounded overflow-hidden flex-shrink-0 bg-muted">
                     <img
-                      src={attachment.file_url}
-                      alt={attachment.file_name}
+                      src={attachment.fileUrl}
+                      alt={attachment.fileName}
                       className="h-full w-full object-cover cursor-pointer"
                       onClick={() => handlePreview(attachment)}
                     />
@@ -275,9 +275,9 @@ export function CardAttachmentSection({
                 )}
                 
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{attachment.file_name}</p>
+                  <p className="text-sm font-medium truncate">{attachment.fileName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatFileSize(attachment.file_size)}
+                    {formatFileSize(attachment.fileSize)}
                   </p>
                 </div>
 

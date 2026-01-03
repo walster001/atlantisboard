@@ -426,6 +426,70 @@ class RealtimeServer {
   }
 
   /**
+   * Generate cache key for an entity
+   * Supports entity-based keys: card:${id}, column:${id}, board:${id}
+   */
+  private getCacheKey(entityType: 'board' | 'column' | 'card', entityId: string): string {
+    return `${entityType}:${entityId}`;
+  }
+
+  /**
+   * Invalidate workspaceId cache for entities
+   * Call this when cards/columns/boards are moved or deleted
+   */
+  private invalidateWorkspaceIdCache(entityType: 'board' | 'column' | 'card', entityId: string) {
+    const cacheKey = this.getCacheKey(entityType, entityId);
+    this.workspaceIdCache.delete(cacheKey);
+  }
+
+  /**
+   * Cascade invalidate workspaceId cache for related entities
+   * When a column is moved, invalidate all cards in that column
+   * When a board is moved, invalidate all columns and cards in that board
+   */
+  private async invalidateWorkspaceIdCacheCascade(
+    entityType: 'board' | 'column' | 'card',
+    entityId: string
+  ): Promise<void> {
+    // Invalidate the entity itself
+    this.invalidateWorkspaceIdCache(entityType, entityId);
+    
+    if (entityType === 'board') {
+      // Invalidate all columns in this board
+      const columns = await prisma.column.findMany({
+        where: { boardId: entityId },
+        select: { id: true },
+      });
+      columns.forEach(col => {
+        this.invalidateWorkspaceIdCache('column', col.id);
+      });
+      
+      // Invalidate all cards in this board (via columns)
+      // Query cards directly with columnId IN (...) for efficiency
+      if (columns.length > 0) {
+        const columnIds = columns.map(col => col.id);
+        const cards = await prisma.card.findMany({
+          where: { columnId: { in: columnIds } },
+          select: { id: true },
+        });
+        cards.forEach(card => {
+          this.invalidateWorkspaceIdCache('card', card.id);
+        });
+      }
+    } else if (entityType === 'column') {
+      // Invalidate all cards in this column
+      const cards = await prisma.card.findMany({
+        where: { columnId: entityId },
+        select: { id: true },
+      });
+      cards.forEach(card => {
+        this.invalidateWorkspaceIdCache('card', card.id);
+      });
+    }
+    // Cards don't cascade to anything
+  }
+
+  /**
    * Resolve workspaceId for a given entity
    * Uses caching to reduce database queries
    */
@@ -445,7 +509,7 @@ class RealtimeServer {
 
     // Check cache first
     if (boardId) {
-      cacheKey = `board:${boardId}`;
+      cacheKey = this.getCacheKey('board', boardId);
       const cached = this.workspaceIdCache.get(cacheKey);
       if (cached && (now - cached.timestamp) < this.WORKSPACE_ID_CACHE_TTL) {
         return cached.workspaceId;
@@ -457,7 +521,7 @@ class RealtimeServer {
       });
       workspaceId = board?.workspaceId;
     } else if (columnId) {
-      cacheKey = `column:${columnId}`;
+      cacheKey = this.getCacheKey('column', columnId);
       const cached = this.workspaceIdCache.get(cacheKey);
       if (cached && (now - cached.timestamp) < this.WORKSPACE_ID_CACHE_TTL) {
         return cached.workspaceId;
@@ -475,14 +539,35 @@ class RealtimeServer {
         workspaceId = board?.workspaceId;
         // Cache board lookup too
         if (workspaceId) {
-          this.workspaceIdCache.set(`board:${column.boardId}`, { workspaceId, timestamp: now });
+          this.workspaceIdCache.set(this.getCacheKey('board', column.boardId), { workspaceId, timestamp: now });
         }
       }
     } else if (cardId) {
-      cacheKey = `card:${cardId}`;
+      cacheKey = this.getCacheKey('card', cardId);
       const cached = this.workspaceIdCache.get(cacheKey);
       if (cached && (now - cached.timestamp) < this.WORKSPACE_ID_CACHE_TTL) {
-        return cached.workspaceId;
+        // Cache validation: Only validate if cache is getting old (within 5 seconds of expiry)
+        // This provides a safety check without adding overhead to every lookup
+        const cacheAge = now - cached.timestamp;
+        const validationThreshold = this.WORKSPACE_ID_CACHE_TTL - 5000; // Validate if within 5s of expiry
+        if (cacheAge > validationThreshold) {
+          // Cache is getting old - verify card still exists and hasn't been moved
+          const card = await prisma.card.findUnique({
+            where: { id: cardId },
+            select: { columnId: true },
+          });
+          if (!card) {
+            // Card was deleted - invalidate cache
+            this.workspaceIdCache.delete(cacheKey);
+            // Fall through to fresh lookup (which will return undefined)
+          } else {
+            // Card exists - cache is still valid, return it
+            return cached.workspaceId;
+          }
+        } else {
+          // Cache is fresh - trust it without validation
+          return cached.workspaceId;
+        }
       }
       // Fetch from database: card → column → board → workspaceId
       const card = await prisma.card.findUnique({
@@ -495,10 +580,12 @@ class RealtimeServer {
           select: { workspaceId: true },
         });
         workspaceId = board?.workspaceId;
-        // Cache board and column lookups too
+        // Cache board, column, and card lookups for better performance
+        // This is especially important for card_* tables (attachments, subtasks, etc.)
         if (workspaceId) {
-          this.workspaceIdCache.set(`board:${card.column.boardId}`, { workspaceId, timestamp: now });
-          this.workspaceIdCache.set(`column:${card.columnId}`, { workspaceId, timestamp: now });
+          this.workspaceIdCache.set(this.getCacheKey('board', card.column.boardId), { workspaceId, timestamp: now });
+          this.workspaceIdCache.set(this.getCacheKey('column', card.columnId), { workspaceId, timestamp: now });
+          this.workspaceIdCache.set(this.getCacheKey('card', cardId), { workspaceId, timestamp: now });
         }
       }
     }
@@ -652,6 +739,62 @@ class RealtimeServer {
       // Invalidate cache for all users on this board
       this.invalidateAccessCache('*', resolvedBoardId);
       console.log(`[Realtime] Invalidated access cache for board ${resolvedBoardId} due to membership change`);
+    }
+
+    // Invalidate workspaceId cache when cards/columns/boards are moved or deleted
+    // Use cascade invalidation when entities actually move (boardId/workspaceId changes)
+    if (event === 'DELETE') {
+      const entityId = (record as any)?.id;
+      if (entityId) {
+        if (table === 'boards') {
+          await this.invalidateWorkspaceIdCacheCascade('board', entityId);
+        } else if (table === 'columns') {
+          await this.invalidateWorkspaceIdCacheCascade('column', entityId);
+        } else if (table === 'cards') {
+          this.invalidateWorkspaceIdCache('card', entityId);
+        }
+      }
+    } else if (event === 'UPDATE' && newRecord && oldRecord) {
+      const entityId = (record as any)?.id;
+      if (entityId) {
+        // Check if column moved to different board
+        if (table === 'columns') {
+          const oldBoardId = (oldRecord as any)?.boardId || (oldRecord as any)?.board_id;
+          const newBoardId = (newRecord as any)?.boardId || (newRecord as any)?.board_id;
+          if (oldBoardId && newBoardId && oldBoardId !== newBoardId) {
+            // Column moved to different board - cascade invalidate
+            await this.invalidateWorkspaceIdCacheCascade('column', entityId);
+          } else {
+            // Column updated but didn't move - just invalidate the column itself
+            this.invalidateWorkspaceIdCache('column', entityId);
+          }
+        }
+        // Check if board moved to different workspace
+        else if (table === 'boards') {
+          const oldWorkspaceId = (oldRecord as any)?.workspaceId || (oldRecord as any)?.workspace_id;
+          const newWorkspaceId = (newRecord as any)?.workspaceId || (newRecord as any)?.workspace_id;
+          if (oldWorkspaceId && newWorkspaceId && oldWorkspaceId !== newWorkspaceId) {
+            // Board moved to different workspace - cascade invalidate
+            await this.invalidateWorkspaceIdCacheCascade('board', entityId);
+          } else {
+            // Board updated but didn't move - just invalidate the board itself
+            this.invalidateWorkspaceIdCache('board', entityId);
+          }
+        }
+        // Check if card moved to different column (which might be in different board)
+        else if (table === 'cards') {
+          const oldColumnId = (oldRecord as any)?.columnId || (oldRecord as any)?.column_id;
+          const newColumnId = (newRecord as any)?.columnId || (newRecord as any)?.column_id;
+          if (oldColumnId && newColumnId && oldColumnId !== newColumnId) {
+            // Card moved to different column - invalidate card cache
+            // Note: We don't cascade from cards, but we should invalidate the card itself
+            this.invalidateWorkspaceIdCache('card', entityId);
+          } else {
+            // Card updated but didn't move - just invalidate the card itself
+            this.invalidateWorkspaceIdCache('card', entityId);
+          }
+        }
+      }
     }
 
     // Step 6: Build optimized payload

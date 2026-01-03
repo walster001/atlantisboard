@@ -218,13 +218,3 @@ Modify `src/hooks/usePermissionsRealtime.ts`:
 3. **Performance**: Monitor console output, verify reduced logging
 4. **Reconnection**: Simulate network disconnect, verify no duplicate subscriptions
 5. **Payload Optimization**: Verify UPDATE events send only changed fields
-6. **State Persistence**: Refresh page, verify subscriptions restored
-
-## Migration Notes
-
-- Backward compatible: Server continues to send full records (client handles both)
-- Gradual rollout: Can deploy backend payload optimization separately
-- Monitoring: Add metrics for connection lifetime, subscription counts
-- Rollback: Changes are mostly additive, can revert if issues arise
-
-## Files to Modify

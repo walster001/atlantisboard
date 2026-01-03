@@ -333,5 +333,3 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
 6. **Realtime:** Should still receive and display updates correctly
 
 ## Performance Targets
-
-- Initial load: < 1 second for first 50 members

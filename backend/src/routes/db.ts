@@ -6,6 +6,164 @@ import { emitDatabaseChange } from '../realtime/emitter.js';
 
 const router = Router();
 
+/**
+ * Resolve workspaceId for a given table and record
+ * Supports both camelCase (Prisma) and snake_case (database) field names for compatibility
+ * Handles different table types: boards, columns, cards, card_* tables, etc.
+ */
+async function resolveWorkspaceIdForTable(
+  table: string,
+  record: Record<string, unknown>
+): Promise<string | undefined> {
+  // Support both camelCase and snake_case field names
+  const getField = (camelCase: string, snakeCase: string): unknown => {
+    return (record as any)[camelCase] ?? (record as any)[snakeCase];
+  };
+
+  const boardId = getField('boardId', 'board_id') as string | undefined;
+  const cardId = getField('cardId', 'card_id') as string | undefined;
+  const columnId = getField('columnId', 'column_id') as string | undefined;
+  const workspaceId = getField('workspaceId', 'workspace_id') as string | undefined;
+
+  // Direct workspaceId
+  if (workspaceId) {
+    return workspaceId;
+  }
+
+  // Boards have workspaceId directly
+  if (table === 'boards' && boardId) {
+    const board = await prisma.board.findUnique({
+      where: { id: boardId },
+      select: { workspaceId: true },
+    });
+    return board?.workspaceId;
+  }
+
+  // Columns: column → board → workspaceId
+  if (table === 'columns' && columnId) {
+    const column = await prisma.column.findUnique({
+      where: { id: columnId },
+      select: { boardId: true },
+    });
+    if (column?.boardId) {
+      const board = await prisma.board.findUnique({
+        where: { id: column.boardId },
+        select: { workspaceId: true },
+      });
+      return board?.workspaceId;
+    }
+  }
+
+  // Cards: card → column → board → workspaceId
+  if (table === 'cards' && cardId) {
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      include: { column: { select: { boardId: true } } },
+    });
+    if (card?.column?.boardId) {
+      const board = await prisma.board.findUnique({
+        where: { id: card.column.boardId },
+        select: { workspaceId: true },
+      });
+      return board?.workspaceId;
+    }
+  }
+
+  // Card detail tables (card_attachments, card_subtasks, etc.): cardId → column → board → workspaceId
+  if (table.startsWith('card_') && cardId) {
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      include: { column: { select: { boardId: true } } },
+    });
+    if (card?.column?.boardId) {
+      const board = await prisma.board.findUnique({
+        where: { id: card.column.boardId },
+        select: { workspaceId: true },
+      });
+      return board?.workspaceId;
+    }
+  }
+
+  // Board members: boardId → workspaceId
+  if (table === 'boardMembers' || table === 'board_members') {
+    if (boardId) {
+      const board = await prisma.board.findUnique({
+        where: { id: boardId },
+        select: { workspaceId: true },
+      });
+      return board?.workspaceId;
+    }
+  }
+
+  // Workspace members and workspaces: workspaceId is direct
+  if (table === 'workspaceMembers' || table === 'workspace_members' || table === 'workspaces') {
+    return workspaceId;
+  }
+
+  return undefined;
+}
+
+/**
+ * Resolve boardId for a given table and record
+ * Supports both camelCase and snake_case field names
+ */
+async function resolveBoardIdForTable(
+  table: string,
+  record: Record<string, unknown>
+): Promise<string | undefined> {
+  const getField = (camelCase: string, snakeCase: string): unknown => {
+    return (record as any)[camelCase] ?? (record as any)[snakeCase];
+  };
+
+  const boardId = getField('boardId', 'board_id') as string | undefined;
+  const cardId = getField('cardId', 'card_id') as string | undefined;
+  const columnId = getField('columnId', 'column_id') as string | undefined;
+
+  // Direct boardId
+  if (boardId) {
+    return boardId;
+  }
+
+  // Boards: id is boardId
+  if (table === 'boards') {
+    return (record.id || record.userId) as string | undefined;
+  }
+
+  // Columns: columnId → boardId
+  if (table === 'columns' && columnId) {
+    const column = await prisma.column.findUnique({
+      where: { id: columnId },
+      select: { boardId: true },
+    });
+    return column?.boardId;
+  }
+
+  // Cards: cardId → column → boardId
+  if (table === 'cards' && cardId) {
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      include: { column: { select: { boardId: true } } },
+    });
+    return card?.column?.boardId;
+  }
+
+  // Card detail tables: cardId → column → boardId
+  if (table.startsWith('card_') && cardId) {
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      include: { column: { select: { boardId: true } } },
+    });
+    return card?.column?.boardId;
+  }
+
+  // Board members: boardId is direct
+  if (table === 'boardMembers' || table === 'board_members') {
+    return boardId;
+  }
+
+  return undefined;
+}
+
 // Apply auth middleware to all routes
 router.use(authMiddleware);
 
@@ -217,9 +375,31 @@ router.post('/:table', async (req: Request, res: Response, next: NextFunction) =
     const data = Array.isArray(body) ? body : [body];
 
     // Insert records - data is already in camelCase
+    // Prisma returns records in camelCase format automatically
     const results = await Promise.all(
       data.map((record) => model.create({ data: record }))
     );
+
+    // Emit realtime events for each inserted record
+    // Wrap in try-catch to ensure DB operation succeeds even if realtime fails
+    for (const result of results) {
+      try {
+        // Resolve boardId and workspaceId for proper channel routing
+        const boardId = await resolveBoardIdForTable(table, result as Record<string, unknown>);
+        
+        // Emit INSERT event - Prisma records are already in camelCase
+        await emitDatabaseChange(
+          table,
+          'INSERT',
+          result as Record<string, unknown>,
+          undefined,
+          boardId
+        );
+      } catch (realtimeError) {
+        // Log warning but don't block the operation
+        console.warn(`[DB Route] Failed to emit realtime event for ${table} INSERT:`, realtimeError);
+      }
+    }
 
     res.status(201).json(Array.isArray(body) ? results : results[0]);
   } catch (error) {
@@ -252,33 +432,53 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
     // Update data is already in camelCase
     const updateData = req.body;
 
-    // For profile updates, fetch old records to emit events
-    if (table === 'profiles' && updateData.isAdmin !== undefined) {
-      const oldProfiles = await model.findMany({ where });
-      const result = await model.updateMany({
-        where,
-        data: updateData,
-      });
-      
-      // Emit events for each updated profile
-      const updatedProfiles = await model.findMany({ where });
-      for (let i = 0; i < updatedProfiles.length; i++) {
-        const updated = updatedProfiles[i];
-        const old = oldProfiles[i];
-        if (old && updated.isAdmin !== old.isAdmin) {
-          // isAdmin changed - emit event
-          await emitDatabaseChange('profiles', 'UPDATE', updated as any, old as any);
-        }
-      }
-      
-      return res.json(result);
-    }
+    // Fetch old records before update for event emission
+    // Prisma returns records in camelCase format automatically
+    const oldRecords = await model.findMany({ where });
 
     // Update records
     const result = await model.updateMany({
       where,
       data: updateData,
     });
+
+    // Fetch updated records after update for event emission
+    const updatedRecords = await model.findMany({ where });
+
+    // Emit realtime events for each updated record
+    // Match old and new records by ID (or userId for some tables)
+    for (const updated of updatedRecords) {
+      try {
+        // Find matching old record
+        const oldRecord = oldRecords.find((old: any) => {
+          // Match by id or userId depending on table type
+          if (old.id && updated.id) {
+            return old.id === updated.id;
+          }
+          if (old.userId && updated.userId) {
+            return old.userId === updated.userId;
+          }
+          return false;
+        });
+
+        if (oldRecord) {
+          // Resolve boardId for proper channel routing
+          const boardId = await resolveBoardIdForTable(table, updated as Record<string, unknown>);
+          
+          // Emit UPDATE event - both records are in camelCase from Prisma
+          await emitDatabaseChange(
+            table,
+            'UPDATE',
+            updated as Record<string, unknown>,
+            oldRecord as Record<string, unknown>,
+            boardId
+          );
+        }
+      } catch (realtimeError) {
+        // Log warning but don't block the operation
+        console.warn(`[DB Route] Failed to emit realtime event for ${table} UPDATE:`, realtimeError);
+      }
+    }
 
     res.json(result);
   } catch (error) {
@@ -313,8 +513,32 @@ router.delete('/:table', async (req: Request, res: Response, next: NextFunction)
       throw new ValidationError('Delete operation requires at least one filter to prevent accidental deletion of all records');
     }
 
+    // Fetch records before deletion for event emission
+    // Prisma returns records in camelCase format automatically
+    const recordsToDelete = await model.findMany({ where });
+
     // Delete records
     const result = await model.deleteMany({ where });
+
+    // Emit realtime events for each deleted record
+    for (const record of recordsToDelete) {
+      try {
+        // Resolve boardId for proper channel routing
+        const boardId = await resolveBoardIdForTable(table, record as Record<string, unknown>);
+        
+        // Emit DELETE event - record is in camelCase from Prisma
+        await emitDatabaseChange(
+          table,
+          'DELETE',
+          undefined,
+          record as Record<string, unknown>,
+          boardId
+        );
+      } catch (realtimeError) {
+        // Log warning but don't block the operation
+        console.warn(`[DB Route] Failed to emit realtime event for ${table} DELETE:`, realtimeError);
+      }
+    }
 
     res.json(result);
   } catch (error) {

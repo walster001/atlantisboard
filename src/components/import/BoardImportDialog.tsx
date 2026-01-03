@@ -423,7 +423,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     wekanData: any,
     onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void,
     defaultColor: string | null,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    iconReplacements?: Map<string, string>
   ): Promise<ImportResult> => {
     return new Promise(async (resolve, reject) => {
       try {
@@ -434,6 +435,14 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           return;
         }
 
+        // Convert Map to Record for JSON serialization
+        const iconReplacementsRecord: Record<string, string> = {};
+        if (iconReplacements) {
+          iconReplacements.forEach((value, key) => {
+            iconReplacementsRecord[key] = value;
+          });
+        }
+
         const response = await fetch(
           `${apiBaseUrl}/boards/import?stream=true`,
           {
@@ -442,7 +451,11 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${accessToken}`,
             },
-            body: JSON.stringify({ wekanData, defaultCardColor: defaultColor }),
+            body: JSON.stringify({ 
+              wekanData, 
+              defaultCardColor: defaultColor,
+              iconReplacements: iconReplacementsRecord
+            }),
             signal,
           }
         );
@@ -1029,7 +1042,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         // Apply icon replacements to Wekan data before import
         const modifiedData = applyIconReplacements(jsonData, replacements);
         // For Wekan, use streaming SSE to get real-time progress
-        result = await importWekanWithStreaming(modifiedData, updateProgress, defaultCardColor, abortControllerRef.current.signal);
+        // Pass iconReplacements map so backend can use replacement URLs in placeholders
+        result = await importWekanWithStreaming(modifiedData, updateProgress, defaultCardColor, abortControllerRef.current.signal, replacements);
       }
 
       updateProgress('complete');

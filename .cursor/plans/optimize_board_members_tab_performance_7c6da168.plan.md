@@ -324,6 +324,3 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
 - **Permission checks:** No changes to permission logic
 
 ## Testing Considerations
-
-1. **Small boards (< 50 members):** Should work exactly as before, no infinite scroll
-2. **Large boards (400+ members):** Should load first 50 quickly, load more on scroll

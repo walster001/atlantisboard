@@ -27,13 +27,66 @@ function convertEmojiShortcodes(text: string): string {
   return result;
 }
 
-function processCardDescription(description: string | null | undefined): string | null {
-  if (!description) return null;
-  let result = convertEmojiShortcodes(description);
-  // Note: Card descriptions may contain HTML with inline button image URLs that were
-  // replaced in the frontend (from /cdn URLs to MinIO URLs). These are preserved as-is.
-  // Additional processing can be added here (HTML cleanup, etc.) but should preserve URLs.
-  return result.trim() || null;
+function convertInlineButtonsToPlaceholders(
+  description: string | null | undefined,
+  wekanCardId: string,
+  iconReplacements?: Record<string, string>
+): { processedDescription: string | null; buttons: InlineButtonPlaceholderData[] } {
+  if (!description) return { processedDescription: null, buttons: [] };
+  
+  const buttons: InlineButtonPlaceholderData[] = [];
+  let buttonIndex = 0;
+  
+  // Regex to match Wekan inline button format (matches import code style)
+  const wekanButtonRegex = /<span[^>]*style=["'][^"']*display:\s*inline-?flex[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
+  
+  const processedDescription = description.replace(wekanButtonRegex, (match, innerHtml) => {
+    // Extract components from inner HTML
+    const imgMatch = innerHtml.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/i);
+    const anchorMatch = innerHtml.match(/<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+    const bgColorMatch = match.match(/background(?:-color)?\s*:\s*([^;"']+)/i);
+    const textColorMatch = innerHtml.match(/(?:^|[^-])color\s*:\s*([^;"']+)/i) || match.match(/(?:^|[^-])color\s*:\s*([^;"']+)/i);
+    
+    if (anchorMatch) {
+      const originalIconUrl = imgMatch?.[1] || '';
+      // Use replacement URL if available, otherwise use original
+      const finalIconUrl = iconReplacements?.[originalIconUrl] || originalIconUrl;
+      
+      // Create button metadata with updated iconUrl
+      const buttonMetadata = {
+        iconUrl: finalIconUrl,
+        linkUrl: anchorMatch[1] || '',
+        linkText: (anchorMatch[2]?.replace(/<[^>]*>/g, '') || 'Button').trim(),
+        textColor: textColorMatch?.[1]?.trim() || '#579DFF',
+        backgroundColor: bgColorMatch?.[1]?.trim() || '#1D2125',
+        iconSize: 16,
+      };
+      
+      // Encode metadata as base64
+      const encodedMetadata = Buffer.from(JSON.stringify(buttonMetadata)).toString('base64');
+      const placeholder = `[INLINE_BUTTON_PLACEHOLDER:${wekanCardId}:${buttonIndex}:${encodedMetadata}]`;
+      
+      buttons.push({
+        wekanCardId,
+        buttonIndex,
+        iconUrl: finalIconUrl, // Store updated iconUrl
+        linkUrl: anchorMatch[1] || '',
+        linkText: (anchorMatch[2]?.replace(/<[^>]*>/g, '') || 'Button').trim(),
+        textColor: textColorMatch?.[1]?.trim() || '#579DFF',
+        backgroundColor: bgColorMatch?.[1]?.trim() || '#1D2125',
+      });
+      
+      buttonIndex++;
+      return placeholder;
+    }
+    
+    return match; // Return original if no anchor found
+  });
+  
+  // Apply emoji conversion and trim
+  const finalDescription = convertEmojiShortcodes(processedDescription).trim() || null;
+  
+  return { processedDescription: finalDescription, buttons };
 }
 
 function processCardTitle(title: string): string {
@@ -129,6 +182,16 @@ interface WekanChecklist {
   title: string;
   items: WekanChecklistItem[];
   sort?: number;
+}
+
+interface InlineButtonPlaceholderData {
+  wekanCardId: string;
+  buttonIndex: number;
+  iconUrl: string;
+  linkUrl: string;
+  linkText: string;
+  textColor: string;
+  backgroundColor: string;
 }
 
 interface WekanCard {
@@ -273,7 +336,8 @@ class BoardImportService {
     wekanData: any,
     defaultCardColor: string | null,
     sendProgress?: (update: ProgressUpdate) => void,
-    sendResult?: (result: ImportResult) => void
+    sendResult?: (result: ImportResult) => void,
+    iconReplacements?: Record<string, string>
   ): Promise<ImportResult> {
     const createdIds: { workspaceId?: string; boardIds: string[] } = { boardIds: [] };
 
@@ -500,6 +564,9 @@ class BoardImportService {
           insert: any;
           wekanCard: WekanCard;
         }> = [];
+        
+        // Map to store inline button data keyed by Wekan card ID
+        const inlineButtonData = new Map<string, InlineButtonPlaceholderData[]>();
 
         for (const [listId, listCards] of cardsByList) {
           const columnId = columnIdMap.get(listId);
@@ -525,9 +592,18 @@ class BoardImportService {
             // Ensure finalCardColor is string | null (never undefined)
             const finalCardColor: string | null = cardColor || defaultCardColor || null;
 
-            // Process description and title
-            // Card descriptions may contain replaced inline button image URLs - preserve them as-is
-            const processedDescription = processCardDescription(wekanCard.description);
+            // Process description with inline button placeholder conversion
+            const { processedDescription, buttons } = convertInlineButtonsToPlaceholders(
+              wekanCard.description,
+              wekanCard._id,
+              iconReplacements // Pass replacements map
+            );
+            
+            // Store button data if any buttons were found
+            if (buttons.length > 0) {
+              inlineButtonData.set(wekanCard._id, buttons);
+            }
+            
             const processedTitle = processCardTitle(wekanCard.title || 'Untitled Card');
 
             allCardInserts.push({
@@ -598,6 +674,125 @@ class BoardImportService {
           }
 
           processedCards += batch.length;
+        }
+
+        // Convert inline button placeholders to actual inline button markdown
+        if (inlineButtonData.size > 0) {
+          try {
+            sendProgress?.({
+              type: 'progress',
+              stage: 'cards',
+              current: totalCards,
+              total: totalCards,
+              detail: 'Converting inline buttons...',
+            });
+
+            const UPDATE_BATCH_SIZE = 50;
+            const updateBatch: Array<{ cardId: string; description: string }> = [];
+
+            // First, collect all card updates
+            for (const [wekanCardId, buttons] of inlineButtonData.entries()) {
+              const newCardId = cardIdMap.get(wekanCardId);
+              if (!newCardId) {
+                result.warnings.push(`Could not find new card ID for Wekan card ${wekanCardId} during inline button conversion`);
+                continue;
+              }
+
+              // Fetch the current card to get its description
+              const card = await prisma.card.findUnique({ where: { id: newCardId } });
+              if (!card || !card.description) {
+                result.warnings.push(`Card ${newCardId} not found or has no description for inline button conversion`);
+                continue;
+              }
+
+              let updatedDescription = card.description;
+
+              // Replace each placeholder with inline button markdown
+              for (const button of buttons) {
+                try {
+                  // Placeholder format is [INLINE_BUTTON_PLACEHOLDER:wekanCardId:buttonIndex:base64data]
+                  // We need to match the exact placeholder that was created
+                  const placeholderPattern = new RegExp(
+                    `\\[INLINE_BUTTON_PLACEHOLDER:${wekanCardId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:${button.buttonIndex}:[^\\]]+\\]`,
+                    'g'
+                  );
+                  
+                  // Try to extract metadata from placeholder if it exists
+                  const placeholderMatch = updatedDescription.match(placeholderPattern);
+                  let buttonMetadata = null;
+                  
+                  if (placeholderMatch && placeholderMatch[0]) {
+                    // Extract base64data from placeholder: [INLINE_BUTTON_PLACEHOLDER:wekanCardId:buttonIndex:base64data]
+                    const placeholderParts = placeholderMatch[0].match(/\[INLINE_BUTTON_PLACEHOLDER:[^:]+:\d+:([^\]]+)\]/);
+                    if (placeholderParts && placeholderParts[1]) {
+                      try {
+                        // Decode metadata from placeholder
+                        buttonMetadata = JSON.parse(Buffer.from(placeholderParts[1], 'base64').toString());
+                      } catch (decodeError) {
+                        console.warn(`Failed to decode metadata from placeholder for card ${newCardId}, button ${button.buttonIndex}, using stored button data`);
+                      }
+                    }
+                  }
+                  
+                  // Use decoded metadata if available, otherwise fall back to stored button data
+                  const finalButtonData = buttonMetadata || {
+                    iconUrl: button.iconUrl,
+                    linkUrl: button.linkUrl,
+                    linkText: button.linkText,
+                    textColor: button.textColor,
+                    backgroundColor: button.backgroundColor,
+                    iconSize: 16,
+                  };
+                  
+                  // Create inline button data structure matching frontend interface
+                  const buttonData = {
+                    id: `wekan-btn-${newCardId}-${button.buttonIndex}`,
+                    iconUrl: finalButtonData.iconUrl,
+                    iconSize: finalButtonData.iconSize || 16,
+                    linkUrl: finalButtonData.linkUrl,
+                    linkText: finalButtonData.linkText,
+                    textColor: finalButtonData.textColor,
+                    backgroundColor: finalButtonData.backgroundColor,
+                  };
+
+                  // Base64 encode the button data
+                  const encodedData = Buffer.from(JSON.stringify(buttonData)).toString('base64');
+                  const inlineButtonMarkdown = `[INLINE_BUTTON:${encodedData}]`;
+
+                  // Replace placeholder with inline button markdown
+                  updatedDescription = updatedDescription.replace(placeholderPattern, inlineButtonMarkdown);
+                } catch (buttonError: any) {
+                  console.error(`Error processing inline button for card ${newCardId}, button ${button.buttonIndex}:`, buttonError);
+                  result.warnings.push(`Failed to convert inline button ${button.buttonIndex} for card "${card.title}": ${buttonError.message || 'Unknown error'}`);
+                }
+              }
+
+              // Add to update batch
+              updateBatch.push({ cardId: newCardId, description: updatedDescription });
+            }
+
+            // Execute updates in batches
+            for (let batchStart = 0; batchStart < updateBatch.length; batchStart += UPDATE_BATCH_SIZE) {
+              const batch = updateBatch.slice(batchStart, batchStart + UPDATE_BATCH_SIZE);
+              
+              await Promise.all(
+                batch.map(({ cardId, description }) =>
+                  prisma.card.update({
+                    where: { id: cardId },
+                    data: { description },
+                  })
+                )
+              );
+            }
+          } catch (updateError: any) {
+            console.error('[BoardImportService] Error converting inline button placeholders:', {
+              error: updateError.message,
+              stack: updateError.stack,
+              boardId: board.id,
+            });
+            result.warnings.push(`Failed to convert some inline buttons: ${updateError.message || 'Unknown error'}`);
+            // Continue import even if inline button conversion fails
+          }
         }
 
         // Create subtasks from checklists in batch

@@ -17,6 +17,7 @@ router.use(authMiddleware);
 const importBoardSchema = z.object({
   wekanData: z.any(), // Wekan board data (can be single board or array)
   defaultCardColor: z.string().nullable().optional(),
+  iconReplacements: z.record(z.string(), z.string()).optional(), // Map of original URL -> replacement URL
 }).passthrough(); // Allow extra fields without throwing - supports future extensibility
 
 /**
@@ -133,7 +134,7 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
       return;
     }
 
-    const { wekanData, defaultCardColor } = validated;
+    const { wekanData, defaultCardColor, iconReplacements } = validated;
 
     if (!wekanData) {
       const error = new ValidationError('No Wekan data provided');
@@ -164,7 +165,8 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
           wekanData,
           defaultCardColor || null,
           sendProgress,
-          sendResult
+          sendResult,
+          iconReplacements || {}
         );
       } catch (error: any) {
         // Ensure SSE stream is properly closed on errors
@@ -218,7 +220,10 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
       const result = await boardImportService.importWekanBoard(
         authReq.userId!,
         wekanData,
-        defaultCardColor || null
+        defaultCardColor || null,
+        undefined,
+        undefined,
+        iconReplacements || {}
       );
       res.json(result);
     }

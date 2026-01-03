@@ -690,6 +690,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           boardId: board.data?.id || board.id,
           title: list.name,
           position: i,
+          color: '#ffffff', // Default to white
         }));
 
         const { data: createdColumns, error: columnsError } = await api

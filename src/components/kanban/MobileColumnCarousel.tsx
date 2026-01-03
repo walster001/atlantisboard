@@ -61,6 +61,7 @@ interface MobileColumnCarouselProps {
   themeCardColor?: string | null;
   themeScrollbarColor?: string;
   themeScrollbarTrackColor?: string;
+  themeIsDefault?: boolean;
 }
 
 export function MobileColumnCarousel({
@@ -81,6 +82,7 @@ export function MobileColumnCarousel({
   themeCardColor,
   themeScrollbarColor,
   themeScrollbarTrackColor,
+  themeIsDefault,
 }: MobileColumnCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isAddingCard, setIsAddingCard] = useState(false);
@@ -274,11 +276,13 @@ export function MobileColumnCarousel({
   }
 
   // Calculate effective column color
+  // Effective column color: per-column override > custom theme > default white
   const isColumnTransparent = activeColumn.color === '' || activeColumn.color === 'transparent';
   const isThemeTransparent = themeColumnColor === '' || themeColumnColor === 'transparent';
-  const effectiveColumnColor = isColumnTransparent 
-    ? null 
-    : (activeColumn.color || (isThemeTransparent ? null : themeColumnColor) || undefined);
+  
+  const effectiveColumnColor = isColumnTransparent
+    ? null
+    : (activeColumn.color || (themeIsDefault === false && !isThemeTransparent && themeColumnColor ? themeColumnColor : '#ffffff'));
     
   const columnTextMode = effectiveColumnColor ? getContrastTextColor(effectiveColumnColor) : 'dark';
   const isLightText = columnTextMode === 'light';

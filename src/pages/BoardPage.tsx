@@ -1836,6 +1836,7 @@ export default function BoardPage() {
               themeCardColor={boardTheme?.defaultCardColor}
               themeScrollbarColor={boardTheme?.scrollbarColor}
               themeScrollbarTrackColor={boardTheme?.scrollbarTrackColor}
+              themeIsDefault={boardTheme?.isDefault ?? false}
             />
             {/* Mobile Add Column FAB */}
             {effectiveCanEdit && (
@@ -1906,6 +1907,7 @@ export default function BoardPage() {
                       themeCardColor={boardTheme?.defaultCardColor}
                       themeScrollbarColor={boardTheme?.scrollbarColor}
                       themeScrollbarTrackColor={boardTheme?.scrollbarTrackColor}
+                      themeIsDefault={boardTheme?.isDefault ?? false}
                     />
                   ))}
                   {provided.placeholder}

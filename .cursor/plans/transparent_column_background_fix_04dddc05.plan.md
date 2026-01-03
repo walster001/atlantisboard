@@ -43,11 +43,14 @@ When columns are set to transparent (no background color), the `bg-column` class
 - **Line 209:** Add conditional styling to menu button when column is transparent
 - Update the Button className to include conditional background:
     ```tsx
-                className={cn(
-                  "h-7 w-7",
-                  !effectiveColumnColor && "bg-muted/30 hover:bg-muted/50"
-                )}
+                    className={cn(
+                      "h-7 w-7",
+                      !effectiveColumnColor && "bg-muted/30 hover:bg-muted/50"
+                    )}
     ```
+
+
+
 
 - This provides subtle visibility for the menu button on transparent columns
 
@@ -61,11 +64,14 @@ When columns are set to transparent (no background color), the `bg-column` class
 - **Line 424:** Add conditional styling to menu button when column is transparent
 - Update the Button className to include conditional background:
     ```tsx
-                className={cn(
-                  "h-9 w-9",
-                  !effectiveColumnColor && "bg-muted/30 hover:bg-muted/50"
-                )}
+                    className={cn(
+                      "h-9 w-9",
+                      !effectiveColumnColor && "bg-muted/30 hover:bg-muted/50"
+                    )}
     ```
+
+
+
 
 - This provides subtle visibility for the menu button on transparent columns (mobile)
 
@@ -79,4 +85,3 @@ When columns are set to transparent (no background color), the `bg-column` class
 ## Testing Considerations
 
 - Verify transparent columns show no background
-- Verify menu button is visible and accessible on transparent columns

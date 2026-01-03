@@ -39,7 +39,7 @@ class ColumnService {
       data: {
         boardId: validated.boardId,
         title: validated.title,
-        color: validated.color ?? null,
+        color: validated.color ?? '#ffffff',
         position,
       },
     });

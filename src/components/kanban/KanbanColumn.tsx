@@ -58,6 +58,7 @@ interface KanbanColumnProps {
   themeCardColor?: string | null;
   themeScrollbarColor?: string;
   themeScrollbarTrackColor?: string;
+  themeIsDefault?: boolean;
 }
 
 export const KanbanColumn = memo(function KanbanColumn({
@@ -77,6 +78,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   themeCardColor,
   themeScrollbarColor,
   themeScrollbarTrackColor,
+  themeIsDefault,
 }: KanbanColumnProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(column.title);
@@ -113,14 +115,19 @@ export const KanbanColumn = memo(function KanbanColumn({
     };
   }, [handleWheel]);
 
-  // Effective column color: per-column override > theme > default
-  // Empty string or 'transparent' means transparent (no color)
+  // Effective column color: per-column override > custom theme > default white
+  // Empty string or 'transparent' means explicitly transparent (no color)
   const isColumnTransparent = column.color === '' || column.color === 'transparent';
   const isThemeTransparent = themeColumnColor === '' || themeColumnColor === 'transparent';
-  // If column has explicit transparent, use that; else if column has color, use it; else check theme
-  const effectiveColumnColor = isColumnTransparent 
-    ? null 
-    : (column.color || (isThemeTransparent ? null : themeColumnColor) || undefined);
+  
+  // Determine effective color:
+  // 1. If column explicitly transparent, use null
+  // 2. If column has color, use it
+  // 3. If custom theme (not default) has column color, use theme color
+  // 4. Otherwise default to white
+  const effectiveColumnColor = isColumnTransparent
+    ? null
+    : (column.color || (themeIsDefault === false && !isThemeTransparent && themeColumnColor ? themeColumnColor : '#ffffff'));
     
   // Calculate text color based on column background luminance
   const columnTextMode = effectiveColumnColor ? getContrastTextColor(effectiveColumnColor) : 'dark';

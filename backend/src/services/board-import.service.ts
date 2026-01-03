@@ -521,6 +521,7 @@ class BoardImportService {
             boardId: board.id,
             title: (wekanList.title || 'Untitled').substring(0, 100),
             position: i,
+            color: '#ffffff', // Default to white
           }));
 
           const createdColumns = await prisma.column.createManyAndReturn({

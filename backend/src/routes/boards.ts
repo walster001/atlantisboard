@@ -5,6 +5,8 @@ import { memberService } from '../services/member.service.js';
 import { ForbiddenError } from '../middleware/errorHandler.js';
 import { prisma } from '../db/client.js';
 import { z } from 'zod';
+import { permissionService } from '../lib/permissions/service.js';
+import { emitDatabaseChange } from '../realtime/emitter.js';
 
 const router = Router();
 
@@ -129,14 +131,13 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
     const validated = generateInviteSchema.parse(req.body);
     const { linkType } = validated;
 
-    // Check if user can create invites (board admin)
-    const canCreate = await prisma.$queryRaw<Array<{ can_create_board_invite: boolean }>>`
-      SELECT can_create_board_invite(${authReq.userId!}::uuid, ${boardId}::uuid) as can_create_board_invite
-    `;
-
-    if (!canCreate[0]?.can_create_board_invite) {
-      throw new ForbiddenError('You must be a board admin to generate invite links');
-    }
+    // Check if user can create invites using permission service
+    const context = permissionService.buildContext(
+      authReq.userId!,
+      authReq.user?.isAdmin ?? false,
+      boardId
+    );
+    await permissionService.requirePermission('board.invite.create', context);
 
     // Generate cryptographically secure token
     const randomBytes = new Uint8Array(32);
@@ -163,8 +164,12 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
         token: true,
         expiresAt: true,
         linkType: true,
+        createdAt: true,
       },
     });
+
+    // Emit realtime event for invite link creation
+    await emitDatabaseChange('boardInviteToken', 'INSERT', insertedToken as any, undefined, boardId);
 
     res.json({
       success: true,
@@ -173,6 +178,13 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
       linkType: insertedToken.linkType,
     });
   } catch (error) {
+    console.error('[POST /boards/:boardId/invites/generate] Error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: (req as AuthRequest).userId,
+      boardId: req.params.boardId,
+      linkType: req.body?.linkType,
+    });
     next(error);
   }
 });
@@ -183,14 +195,13 @@ router.get('/:boardId/invites', async (req: Request, res: Response, next: NextFu
   try {
     const { boardId } = req.params;
 
-    // Check if user can view invites (board admin)
-    const canCreate = await prisma.$queryRaw<Array<{ can_create_board_invite: boolean }>>`
-      SELECT can_create_board_invite(${authReq.userId!}::uuid, ${boardId}::uuid) as can_create_board_invite
-    `;
-
-    if (!canCreate[0]?.can_create_board_invite) {
-      throw new ForbiddenError('You must be a board admin to view invite links');
-    }
+    // Check if user can view invites using permission service
+    const context = permissionService.buildContext(
+      authReq.userId!,
+      authReq.user?.isAdmin ?? false,
+      boardId
+    );
+    await permissionService.requirePermission('board.invite.create', context);
 
     // Fetch recurring links (link_type = 'recurring', expires_at is NULL)
     const tokens = await prisma.boardInviteToken.findMany({
@@ -211,6 +222,12 @@ router.get('/:boardId/invites', async (req: Request, res: Response, next: NextFu
 
     res.json(tokens);
   } catch (error) {
+    console.error('[GET /boards/:boardId/invites] Error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: (req as AuthRequest).userId,
+      boardId: req.params.boardId,
+    });
     next(error);
   }
 });
@@ -221,14 +238,13 @@ router.delete('/:boardId/invites/:tokenId', async (req: Request, res: Response, 
   try {
     const { boardId, tokenId } = req.params;
 
-    // Check if user can delete invites (board admin)
-    const canCreate = await prisma.$queryRaw<Array<{ can_create_board_invite: boolean }>>`
-      SELECT can_create_board_invite(${authReq.userId!}::uuid, ${boardId}::uuid) as can_create_board_invite
-    `;
-
-    if (!canCreate[0]?.can_create_board_invite) {
-      throw new ForbiddenError('You must be a board admin to delete invite links');
-    }
+    // Check if user can delete invites using permission service
+    const context = permissionService.buildContext(
+      authReq.userId!,
+      authReq.user?.isAdmin ?? false,
+      boardId
+    );
+    await permissionService.requirePermission('board.invite.delete', context);
 
     // Verify the token belongs to this board before deleting
     const token = await prisma.boardInviteToken.findFirst({
@@ -248,8 +264,18 @@ router.delete('/:boardId/invites/:tokenId', async (req: Request, res: Response, 
       },
     });
 
+    // Emit realtime event for invite link deletion
+    await emitDatabaseChange('boardInviteToken', 'DELETE', undefined, token as any, boardId);
+
     res.json({ success: true });
   } catch (error) {
+    console.error('[DELETE /boards/:boardId/invites/:tokenId] Error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: (req as AuthRequest).userId,
+      boardId: req.params.boardId,
+      tokenId: req.params.tokenId,
+    });
     next(error);
   }
 });

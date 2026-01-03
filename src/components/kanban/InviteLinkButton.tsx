@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link2, Copy, Check, Loader2, Trash2, Users, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,10 +24,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
 
 interface InviteLinkButtonProps {
   boardId: string;
   canGenerateInvite: boolean;
+  workspaceId?: string | null;
 }
 
 interface ActiveRecurringLink {
@@ -37,7 +39,7 @@ interface ActiveRecurringLink {
   createdAt: string;
 }
 
-export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButtonProps) {
+export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: InviteLinkButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -50,11 +52,72 @@ export function InviteLinkButton({ boardId, canGenerateInvite }: InviteLinkButto
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const subscriptionCleanupRef = useRef<(() => void) | null>(null);
 
   // Don't render anything if user can't generate invites (server-side check happens in REST endpoint)
   if (!canGenerateInvite) {
     return null;
   }
+
+  // Subscribe to realtime invite events when dialog is open and workspaceId is available
+  useEffect(() => {
+    if (isOpen && workspaceId) {
+      const cleanup = subscribeWorkspace(workspaceId, {
+        onInviteUpdate: (invite, event) => {
+          const inviteData = invite as { boardId?: string; id?: string; token?: string; linkType?: string; expiresAt?: string | null; createdAt?: string };
+          
+          // Only process invites for this board
+          if (inviteData.boardId !== boardId) return;
+
+          if (event.eventType === 'INSERT') {
+            // New invite link created - if it's recurring, add to list
+            if (inviteData.linkType === 'recurring') {
+              setActiveRecurringLinks((prev) => {
+                // Check if already in list
+                if (prev.find(l => l.id === inviteData.id)) {
+                  return prev;
+                }
+                // Add to list
+                return [
+                  {
+                    id: inviteData.id!,
+                    token: inviteData.token!,
+                    expiresAt: inviteData.expiresAt,
+                    createdAt: inviteData.createdAt || new Date().toISOString(),
+                  },
+                  ...prev,
+                ];
+              });
+            }
+          } else if (event.eventType === 'DELETE') {
+            // Invite link deleted - remove from list
+            setActiveRecurringLinks((prev) => prev.filter(l => l.id !== inviteData.id));
+            
+            // Clear generated link if it was the deleted one
+            if (inviteLink && inviteData.token && inviteLink.includes(inviteData.token)) {
+              setInviteLink(null);
+              setExpiresAt(null);
+              setGeneratedLinkType(null);
+            }
+          }
+        },
+      });
+      subscriptionCleanupRef.current = cleanup;
+
+      return () => {
+        if (subscriptionCleanupRef.current) {
+          subscriptionCleanupRef.current();
+          subscriptionCleanupRef.current = null;
+        }
+      };
+    } else {
+      // Cleanup subscription when dialog closes
+      if (subscriptionCleanupRef.current) {
+        subscriptionCleanupRef.current();
+        subscriptionCleanupRef.current = null;
+      }
+    }
+  }, [isOpen, workspaceId, boardId, inviteLink]);
 
   // Fetch active recurring links when dialog opens
   useEffect(() => {

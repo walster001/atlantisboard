@@ -158,7 +158,7 @@ export function AppBrandingSettings() {
 
       // Use publicUrl from upload response
       const publicUrl = uploadData.publicUrl || uploadData.fullPath;
-      const { error } = await api.from('app_settings').update({ [urlKey]: publicUrl }).eq('id', 'default');
+      const { error } = await api.from('app_settings').eq('id', 'default').update({ [urlKey]: publicUrl });
       if (error) throw error;
 
       setSettings(prev => ({ ...prev, [urlKey]: publicUrl }));
@@ -182,7 +182,7 @@ export function AppBrandingSettings() {
     try {
       const path = currentUrl.split('/branding/')[1];
       if (path) await api.storage.from('branding').remove([path]);
-      const { error } = await api.from('app_settings').update({ [urlKey]: null, [enabledKey]: false }).eq('id', 'default');
+      const { error } = await api.from('app_settings').eq('id', 'default').update({ [urlKey]: null, [enabledKey]: false });
       if (error) throw error;
       setSettings(prev => ({ ...prev, [urlKey]: null, [enabledKey]: false }));
       setSavedSettings(prev => prev ? { ...prev, [urlKey]: null, [enabledKey]: false } : prev);

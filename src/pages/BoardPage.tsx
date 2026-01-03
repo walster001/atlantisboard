@@ -1716,7 +1716,7 @@ export default function BoardPage() {
             {isDesktop && (
               <>
                 {boardId && effectiveCanEdit && (
-                  <InviteLinkButton boardId={boardId} canGenerateInvite={effectiveCanEdit} />
+                  <InviteLinkButton boardId={boardId} canGenerateInvite={effectiveCanEdit} workspaceId={workspaceId} />
                 )}
                 {effectiveCanManage && (
                   <Button
@@ -1782,7 +1782,7 @@ export default function BoardPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-popover w-56">
                     {boardId && effectiveCanEdit && (
-                      <InviteLinkButton boardId={boardId} canGenerateInvite={effectiveCanEdit} />
+                      <InviteLinkButton boardId={boardId} canGenerateInvite={effectiveCanEdit} workspaceId={workspaceId} />
                     )}
                     {isAppAdmin && (
                       <DropdownMenuItem onClick={() => navigate('/admin/config')}>

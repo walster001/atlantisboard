@@ -27,14 +27,18 @@ function parseFilters(query: Record<string, string>) {
       filters.push({
         field: key,
         operator,
-        value: filterValue === 'null' ? null : filterValue,
+        value: filterValue === 'null' ? null : 
+               filterValue === 'true' ? true :
+               filterValue === 'false' ? false : filterValue,
       });
     } else {
       // Simple equality
       filters.push({
         field: key,
         operator: 'eq',
-        value: value === 'null' ? null : value,
+        value: value === 'null' ? null : 
+               value === 'true' ? true :
+               value === 'false' ? false : value,
       });
     }
   }

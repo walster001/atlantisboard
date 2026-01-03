@@ -11,6 +11,7 @@ export type WorkspaceHandlers = {
   onCardDetailUpdate?: (detail: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
   onMemberUpdate?: (member: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
   onWorkspaceUpdate?: (workspace: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+  onInviteUpdate?: (invite: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
   // When parent (board) updates, refresh all children
   onParentRefresh?: (parentType: 'board', parentId: string) => void;
 };
@@ -249,6 +250,30 @@ export function subscribeWorkspace(
           if (membership?.workspaceId === workspaceId) {
             logRealtime(topic, 'workspace membership delete', payload.old);
             handlers.onWorkspaceUpdate?.(payload.old || {}, payload);
+          }
+        },
+      },
+      // Invite token changes
+      {
+        event: 'INSERT',
+        table: 'board_invite_tokens',
+        handler: (payload) => {
+          const invite = payload.new as { boardId?: string };
+          if (invite?.boardId) {
+            // Verify board is in this workspace (will be filtered by event router)
+            logRealtime(topic, 'invite token insert', payload.new);
+            handlers.onInviteUpdate?.(payload.new || {}, payload);
+          }
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'board_invite_tokens',
+        handler: (payload) => {
+          const invite = payload.old as { boardId?: string };
+          if (invite?.boardId) {
+            logRealtime(topic, 'invite token delete', payload.old);
+            handlers.onInviteUpdate?.(payload.old || {}, payload);
           }
         },
       },

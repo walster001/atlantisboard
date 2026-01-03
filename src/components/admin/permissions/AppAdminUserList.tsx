@@ -98,7 +98,7 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
       const { data, error } = await api
         .from('profiles')
         .select('id, email, fullName, avatarUrl, isAdmin')
-        .order('fullName', { ascending: true, nullsFirst: false });
+        .order('fullName', { ascending: true });
 
       if (error) throw error;
       setAllUsers(data || []);
@@ -127,8 +127,8 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
       const newAdminStatus = action === 'add';
       const { error } = await api
         .from('profiles')
-        .update({ isAdmin: newAdminStatus })
-        .eq('id', targetUser.id);
+        .eq('id', targetUser.id)
+        .update({ isAdmin: newAdminStatus });
 
       if (error) throw error;
 

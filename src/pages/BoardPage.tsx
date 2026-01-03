@@ -599,12 +599,23 @@ export default function BoardPage() {
         onCardUpdate: (card, event) => {
           const cardData = card as unknown as DbCard;
           const cardColumnId = cardData.columnId;
-          // Use columnIdsRef for synchronous check (updated immediately in column INSERT handler)
+          
+          // Check if column belongs to board - use ref for synchronous check
           const columnBelongsToBoard = columnIdsRef.current.includes(cardColumnId);
           
-          // Event buffering: If column doesn't exist and columns have been loaded, buffer the event
-          if (columnsLoadedRef.current && columnIdsRef.current.length > 0 && !columnBelongsToBoard) {
-            // Card event buffered - column not in board
+          // If columns aren't loaded yet, buffer the event (will be processed after columns load)
+          if (!columnsLoadedRef.current) {
+            pendingCardEventsRef.current.push({
+              card: cardData,
+              event,
+              timestamp: Date.now(),
+            });
+            return;
+          }
+          
+          // If columns are loaded but column doesn't exist, buffer the event
+          // (might be a new column that hasn't been processed yet)
+          if (columnIdsRef.current.length > 0 && !columnBelongsToBoard) {
             pendingCardEventsRef.current.push({
               card: cardData,
               event,
@@ -617,6 +628,7 @@ export default function BoardPage() {
             return;
           }
           
+          // Columns are loaded and column exists (or no columns yet) - process normally
           // Extract updatedAt from event
           const getUpdatedAt = (data: any): string | undefined => {
             return data?.updatedAt;

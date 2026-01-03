@@ -46,6 +46,11 @@ export function subscribeWorkspace(
         table: 'boards',
         handler: (payload) => {
           const board = payload.new as { workspaceId?: string; id?: string };
+          const oldBoard = payload.old as { workspaceId?: string; id?: string };
+          const oldWorkspaceId = oldBoard?.workspaceId;
+          const newWorkspaceId = board?.workspaceId;
+          
+          // Process if board belongs to this workspace (new workspaceId)
           if (board?.workspaceId === workspaceId) {
             logRealtime(topic, 'board update', { id: board.id });
             handlers.onBoardUpdate?.(payload.new || {}, payload);
@@ -53,6 +58,17 @@ export function subscribeWorkspace(
             if (board.id) {
               handlers.onParentRefresh?.('board', board.id);
             }
+          }
+          // Also process if board was moved FROM this workspace (old workspaceId)
+          // This allows the old workspace to remove the board from its list
+          else if (oldWorkspaceId === workspaceId && newWorkspaceId !== workspaceId) {
+            logRealtime(topic, 'board moved from workspace', { 
+              id: board.id, 
+              from: oldWorkspaceId, 
+              to: newWorkspaceId 
+            });
+            // Pass old board data so Home.tsx can remove it
+            handlers.onBoardUpdate?.(payload.old || {}, payload);
           }
         },
       },

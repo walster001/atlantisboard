@@ -329,4 +329,3 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
 2. **Large boards (400+ members):** Should load first 50 quickly, load more on scroll
 3. **Search:** Should wait 500ms after typing stops, then show results
 4. **Scroll:** Should smoothly load more members when scrolling down
-5. **Add/Remove/Update:** Should update UI immediately, sync in background

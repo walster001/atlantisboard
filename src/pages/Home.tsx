@@ -319,10 +319,38 @@ export default function Home() {
           // Fetch data to get board roles
           fetchData();
         } else if (event.eventType === 'UPDATE') {
-          // Update board in the list - merge with existing state
-          setBoards((prevBoards) =>
-            prevBoards.map((b) => (b.id === boardData.id ? { ...b, ...boardData } : b))
-          );
+          const oldBoard = event.old as unknown as Board | null;
+          const newWorkspaceId = boardData.workspaceId;
+          const oldWorkspaceId = oldBoard?.workspaceId;
+          
+          // Check if workspace changed
+          if (oldWorkspaceId && newWorkspaceId && oldWorkspaceId !== newWorkspaceId) {
+            // Board moved to different workspace
+            setBoards((prevBoards) => {
+              // Check if this board exists in the old workspace's list
+              const existingBoard = prevBoards.find((b) => b.id === boardData.id);
+              
+              // If board exists with old workspaceId, remove it (moved away)
+              if (existingBoard && existingBoard.workspaceId === oldWorkspaceId) {
+                return prevBoards.filter((b) => !(b.id === boardData.id && b.workspaceId === oldWorkspaceId));
+              }
+              
+              // If board doesn't exist or has different workspaceId, add/update it
+              // This handles the case where the new workspace receives the update
+              if (!existingBoard || existingBoard.workspaceId !== newWorkspaceId) {
+                const filtered = prevBoards.filter((b) => b.id !== boardData.id);
+                return [...filtered, boardData];
+              }
+              
+              // Normal update (workspaceId didn't change)
+              return prevBoards.map((b) => (b.id === boardData.id ? { ...b, ...boardData } : b));
+            });
+          } else {
+            // Normal update - merge with existing state
+            setBoards((prevBoards) =>
+              prevBoards.map((b) => (b.id === boardData.id ? { ...b, ...boardData } : b))
+            );
+          }
         } else if (event.eventType === 'DELETE') {
           // Remove board from list and its role
           setBoards((prevBoards) => prevBoards.filter((b) => b.id !== boardData.id));

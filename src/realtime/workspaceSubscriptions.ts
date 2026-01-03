@@ -331,12 +331,13 @@ export function subscribeAllWorkspacesViaRegistry(
  * Subscribe to a workspace via subscription registry
  * Subscription persists across navigation and component unmounts
  * Only unsubscribes on explicit logout or workspace access revocation
+ * Returns cleanup function to remove handlers when component unmounts (prevents memory leaks)
  */
 export function subscribeWorkspaceViaRegistry(
   workspaceId: string,
   handlers: WorkspaceHandlers
-): void {
+): SubscriptionCleanup {
   const registry = getSubscriptionRegistry();
-  registry.subscribeWorkspace(workspaceId, handlers);
+  return registry.subscribeWorkspace(workspaceId, handlers);
 }
 

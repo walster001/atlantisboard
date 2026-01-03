@@ -12,7 +12,7 @@ import { Trash2, UserPlus, User } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { emailSchema } from '@/lib/validators';
 import { z } from 'zod';
-import { subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
+import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
 import { useAuth } from '@/hooks/useAuth';
 
 interface BoardMember {
@@ -51,12 +51,12 @@ export function BoardMembersDialog({
   const [role, setRole] = useState<'admin' | 'manager' | 'viewer'>('viewer');
   const [isAdding, setIsAdding] = useState(false);
 
-  // Subscribe to realtime board member updates when dialog is open (using workspace subscription)
-  // This ensures role changes are reflected immediately
+  // Subscribe to realtime board member updates when dialog is open (using workspace subscription via registry)
+  // Cleanup removes handlers but subscription persists via registry
   useEffect(() => {
     if (!open || !boardId || !workspaceId || !user) return;
 
-    const cleanup = subscribeWorkspace(workspaceId, {
+    const cleanup = subscribeWorkspaceViaRegistry(workspaceId, {
       onMemberUpdate: (member, event) => {
         const membership = member as { boardId?: string };
         // Only process events for members in the current board

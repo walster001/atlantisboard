@@ -17,7 +17,7 @@ import { BoardBackgroundSettings } from './BoardBackgroundSettings';
 import { BoardLabelsSettings } from './BoardLabelsSettings';
 import { BoardMemberAuditLog } from './BoardMemberAuditLog';
 import { cn } from '@/lib/utils';
-import { subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
+import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
 
 interface BoardMember {
   userId: string;
@@ -154,11 +154,12 @@ export function BoardSettingsModal({
     }
   }, [members.length, open, canAddRemove]);
 
-  // Subscribe to realtime board member changes when modal is open (using workspace subscription)
+  // Subscribe to realtime board member changes when modal is open (using workspace subscription via registry)
+  // Cleanup removes handlers but subscription persists via registry
   useEffect(() => {
     if (!open || !boardId || !workspaceId) return;
 
-    const cleanup = subscribeWorkspace(workspaceId, {
+    const cleanup = subscribeWorkspaceViaRegistry(workspaceId, {
       onMemberUpdate: (member, event) => {
         const membership = member as { boardId?: string; userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
         // Only process events for members in the current board

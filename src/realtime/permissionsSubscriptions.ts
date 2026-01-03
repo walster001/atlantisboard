@@ -1,5 +1,7 @@
 import { logRealtime } from './logger';
 import { subscribeToChanges, SubscriptionCleanup, RealtimePostgresChangesPayload } from './realtimeClient';
+import { subscribeWorkspaceViaRegistry } from './workspaceSubscriptions';
+import { getSubscriptionRegistry } from './subscriptionRegistry';
 
 type DbRecord = Record<string, unknown>;
 
@@ -15,62 +17,55 @@ type BoardPermissionHandlers = {
 
 export function subscribeCustomRoles(handlers: PermissionHandlers): SubscriptionCleanup {
   const topic = 'permissions-custom-roles';
-  return subscribeToChanges(
+  const registry = getSubscriptionRegistry();
+  
+  return registry.subscribeGlobal(
     topic,
-    [
-      {
-        event: '*',
-        table: 'custom_roles',
-        handler: (payload) => {
-          logRealtime(topic, `custom_roles ${payload.eventType}`, { id: payload.new?.id ?? payload.old?.id });
-          handlers.onChange?.(payload);
-        },
-      },
-    ]
+    'custom_roles',
+    '*',
+    (payload) => {
+      logRealtime(topic, `custom_roles ${payload.eventType}`, { id: payload.new?.id ?? payload.old?.id });
+      handlers.onChange?.(payload);
+    }
   );
 }
 
 export function subscribeRolePermissions(handlers: PermissionHandlers): SubscriptionCleanup {
   const topic = 'permissions-role-permissions';
-  return subscribeToChanges(
+  const registry = getSubscriptionRegistry();
+  
+  return registry.subscribeGlobal(
     topic,
-    [
-      {
-        event: '*',
-        table: 'role_permissions',
-        handler: (payload) => {
-          logRealtime(topic, `role_permissions ${payload.eventType}`, { role_id: payload.new?.role_id ?? payload.old?.role_id });
-          handlers.onChange?.(payload);
-        },
-      },
-    ]
+    'role_permissions',
+    '*',
+    (payload) => {
+      logRealtime(topic, `role_permissions ${payload.eventType}`, { role_id: payload.new?.role_id ?? payload.old?.role_id });
+      handlers.onChange?.(payload);
+    }
   );
 }
 
 export function subscribeBoardMemberCustomRoles(boardId: string | null | undefined, handlers: BoardPermissionHandlers): SubscriptionCleanup {
   const topic = `permissions-member-custom-roles${boardId ? `-${boardId}` : ''}`;
   const filter = boardId ? `boardId=eq.${boardId}` : undefined;
+  const registry = getSubscriptionRegistry();
 
-  return subscribeToChanges(
+  return registry.subscribeGlobal(
     topic,
-    [
-      {
-        event: '*',
-        table: 'board_member_custom_roles',
-        ...(filter ? { filter } : {}),
-        handler: (payload) => {
-          logRealtime(topic, `board_member_custom_roles ${payload.eventType}`, { id: payload.new?.id ?? payload.old?.id });
-          handlers.onChange?.(payload);
-          const userId = handlers.currentUserId;
-          if (userId) {
-            const record = (payload.new || payload.old) as { userId?: string } | undefined;
-            if (record?.userId === userId) {
-              handlers.onAffectsUser?.(payload);
-            }
-          }
-        },
-      },
-    ]
+    'board_member_custom_roles',
+    '*',
+    (payload) => {
+      logRealtime(topic, `board_member_custom_roles ${payload.eventType}`, { id: payload.new?.id ?? payload.old?.id });
+      handlers.onChange?.(payload);
+      const userId = handlers.currentUserId;
+      if (userId) {
+        const record = (payload.new || payload.old) as { userId?: string } | undefined;
+        if (record?.userId === userId) {
+          handlers.onAffectsUser?.(payload);
+        }
+      }
+    },
+    filter
   );
 }
 
@@ -84,49 +79,35 @@ export function subscribeBoardMembersForPermissions(
     return () => {};
   }
 
-  // Use workspace channel instead of board-specific channel
+  // Use workspace subscription via registry instead of direct subscribeToChanges
+  // This prevents duplicate subscriptions and WebSocket disconnects
   const topic = `workspace:${workspaceId}`;
 
-  return subscribeToChanges(
-    topic,
-    [
-      {
-        event: 'UPDATE',
-        table: 'boardMembers',
-        handler: (payload) => {
-          // Filter by boardId within the handler
-          const member = payload.new as { boardId?: string; userId?: string } | undefined;
-          if (member?.boardId !== boardId) {
-            return; // Not for this board, skip
-          }
-          
-          logRealtime(topic, 'boardMembers update', { id: member?.userId, boardId });
-          handlers.onChange?.(payload);
-          const userId = handlers.currentUserId;
-          if (userId && member?.userId === userId) {
-            handlers.onAffectsUser?.(payload);
-          }
-        },
-      },
-      {
-        event: 'DELETE',
-        table: 'boardMembers',
-        handler: (payload) => {
-          // Filter by boardId within the handler
-          const member = payload.old as { boardId?: string; userId?: string } | undefined;
-          if (member?.boardId !== boardId) {
-            return; // Not for this board, skip
-          }
-          
-          logRealtime(topic, 'boardMembers delete', { id: member?.userId, boardId });
-          handlers.onChange?.(payload);
-          const userId = handlers.currentUserId;
-          if (userId && member?.userId === userId) {
-            handlers.onAffectsUser?.(payload);
-          }
-        },
-      },
-    ]
-  );
+  subscribeWorkspaceViaRegistry(workspaceId, {
+    onMemberUpdate: (member, event) => {
+      // Filter by boardId within the handler
+      const memberData = member as { boardId?: string; userId?: string } | undefined;
+      if (memberData?.boardId !== boardId) {
+        return; // Not for this board, skip
+      }
+
+      // Convert to RealtimePostgresChangesPayload format for handlers
+      const payload: RealtimePostgresChangesPayload<Record<string, unknown>> = {
+        eventType: event.eventType,
+        new: event.new,
+        old: event.old,
+      };
+
+      logRealtime(topic, `boardMembers ${event.eventType}`, { id: memberData?.userId, boardId });
+      handlers.onChange?.(payload);
+      const userId = handlers.currentUserId;
+      if (userId && memberData?.userId === userId) {
+        handlers.onAffectsUser?.(payload);
+      }
+    },
+  });
+
+  // Return no-op cleanup since registry manages subscription lifecycle
+  return () => {};
 }
 

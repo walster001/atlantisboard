@@ -24,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
+import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
 
 interface InviteLinkButtonProps {
   boardId: string;
@@ -52,17 +52,17 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
-  const subscriptionCleanupRef = useRef<(() => void) | null>(null);
 
   // Don't render anything if user can't generate invites (server-side check happens in REST endpoint)
   if (!canGenerateInvite) {
     return null;
   }
 
-  // Subscribe to realtime invite events when dialog is open and workspaceId is available
+  // Subscribe to realtime invite events when dialog is open and workspaceId is available (using workspace subscription via registry)
+  // Cleanup removes handlers but subscription persists via registry
   useEffect(() => {
     if (isOpen && workspaceId) {
-      const cleanup = subscribeWorkspace(workspaceId, {
+      const cleanup = subscribeWorkspaceViaRegistry(workspaceId, {
         onInviteUpdate: (invite, event) => {
           const inviteData = invite as { boardId?: string; id?: string; token?: string; linkType?: string; expiresAt?: string | null; createdAt?: string };
           
@@ -102,20 +102,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
           }
         },
       });
-      subscriptionCleanupRef.current = cleanup;
-
-      return () => {
-        if (subscriptionCleanupRef.current) {
-          subscriptionCleanupRef.current();
-          subscriptionCleanupRef.current = null;
-        }
-      };
-    } else {
-      // Cleanup subscription when dialog closes
-      if (subscriptionCleanupRef.current) {
-        subscriptionCleanupRef.current();
-        subscriptionCleanupRef.current = null;
-      }
+      return cleanup;
     }
   }, [isOpen, workspaceId, boardId, inviteLink]);
 

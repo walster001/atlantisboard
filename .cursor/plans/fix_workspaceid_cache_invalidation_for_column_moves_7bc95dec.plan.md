@@ -188,6 +188,8 @@ private async invalidateWorkspaceIdCacheCascade(
 }
 ```
 
+
+
 ### Detection of Column/Board Moves
 
 ```typescript
@@ -201,6 +203,8 @@ if (table === 'columns' && event === 'UPDATE' && newRecord && oldRecord) {
   }
 }
 ```
+
+
 
 ## Performance Considerations
 
@@ -227,4 +231,3 @@ if (table === 'columns' && event === 'UPDATE' && newRecord && oldRecord) {
 ## Migration Notes
 
 - Backward compatible: Existing cache entries will expire naturally
-- No breaking changes to event payloads or channels

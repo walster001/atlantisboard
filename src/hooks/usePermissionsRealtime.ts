@@ -60,8 +60,6 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
       return;
     }
     lastUpdateRef.current = now;
-
-    console.log('[PermissionsRealtime] Permission change detected:', payload.table, payload.eventType);
     
     // Notify that permissions have been updated
     if (onPermissionsUpdated) {

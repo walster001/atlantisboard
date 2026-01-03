@@ -464,7 +464,7 @@ export default function BoardPage() {
           
           // If board is updated, refresh all children (parent refresh)
           if (event.eventType === 'UPDATE') {
-            console.log('[BoardPage] Board UPDATE - refreshing all children');
+            // Board UPDATE - refreshing all children
             fetchBoardData();
           }
         },
@@ -479,13 +479,10 @@ export default function BoardPage() {
           };
           
           if (event.eventType === 'INSERT') {
-            console.log('[BoardPage] Column INSERT event received:', columnData);
             setColumns((prev) => {
               if (prev.some((c) => c.id === columnData.id)) {
-                console.log('[BoardPage] Column already in state, skipping insert');
                 return prev;
               }
-              console.log('[BoardPage] Adding new column to state:', columnData.id);
               const updated = [...prev, columnData];
               const sorted = updated.sort((a, b) => a.position - b.position);
               // Update columnIdsRef immediately
@@ -519,7 +516,7 @@ export default function BoardPage() {
               
               if (timestampMatches && colorMatches) {
                 // This is part of the batch - buffer it
-                console.log('[BoardPage] Column color UPDATE event buffered for batch:', updatedColumn.id);
+                // Column color UPDATE event buffered for batch
                 bufferedColumnColorEventsRef.current.push({
                   entity: updatedColumn,
                   event,
@@ -533,12 +530,6 @@ export default function BoardPage() {
                 
                 if (allReceived || bufferAge > 200) {
                   // Apply all buffered updates at once
-                  console.log('[BoardPage] Applying batched column color updates:', {
-                    count: bufferedColumnColorEventsRef.current.length,
-                    allReceived,
-                    bufferAge,
-                  });
-                  
                   setColumns((prev) => {
                     const updated = prev.map((c) => {
                       const bufferedEvent = bufferedColumnColorEventsRef.current.find(
@@ -581,11 +572,6 @@ export default function BoardPage() {
               
               // If local state is newer, keep it
               if (isNewer(localTimestamp, incomingTimestamp)) {
-                console.log('[BoardPage] Column UPDATE ignored - local state is newer:', {
-                  columnId: updatedColumn.id,
-                  localTimestamp,
-                  incomingTimestamp,
-                });
                 return prev;
               }
               
@@ -605,7 +591,6 @@ export default function BoardPage() {
               return sorted;
             });
           } else if (event.eventType === 'DELETE') {
-            console.log('[BoardPage] Column DELETE event received:', columnData);
             setColumns((prev) => {
               const filtered = prev.filter((c) => c.id !== columnData.id);
               // Update columnIdsRef immediately
@@ -623,13 +608,7 @@ export default function BoardPage() {
           
           // Event buffering: If column doesn't exist and columns have been loaded, buffer the event
           if (columnsLoadedRef.current && columnIdsRef.current.length > 0 && !columnBelongsToBoard) {
-            console.log('[BoardPage] Card event buffered - column not in board:', {
-              cardId: cardData.id,
-              columnId: cardColumnId,
-              boardId,
-              loadedColumns: columnIdsRef.current.length,
-              columnIds: columnIdsRef.current,
-            });
+            // Card event buffered - column not in board
             pendingCardEventsRef.current.push({
               card: cardData,
               event,
@@ -648,17 +627,10 @@ export default function BoardPage() {
           };
           
           if (event.eventType === 'INSERT') {
-            console.log('[BoardPage] Card INSERT event received:', {
-              cardId: cardData.id,
-              columnId: cardData.columnId,
-              columnBelongsToBoard,
-            });
             setCards((prev) => {
               if (prev.some((c) => c.id === cardData.id)) {
-                console.log('[BoardPage] Card already in state, skipping insert');
                 return prev;
               }
-              console.log('[BoardPage] Adding new card to state:', cardData.id);
               const updated = [...prev, cardData];
               // Sort cards by position within each column
               return updated.sort((a, b) => {
@@ -695,7 +667,6 @@ export default function BoardPage() {
               
               if (timestampMatches && colorMatches) {
                 // This is part of the batch - buffer it
-                console.log('[BoardPage] Card color UPDATE event buffered for batch:', updatedCard.id);
                 bufferedCardColorEventsRef.current.push({
                   entity: updatedCard,
                   event,
@@ -709,12 +680,6 @@ export default function BoardPage() {
                 
                 if (allReceived || bufferAge > 200) {
                   // Apply all buffered updates at once
-                  console.log('[BoardPage] Applying batched card color updates:', {
-                    count: bufferedCardColorEventsRef.current.length,
-                    allReceived,
-                    bufferAge,
-                  });
-                  
                   setCards((prev) => {
                     const updated = prev.map((c) => {
                       const bufferedEvent = bufferedCardColorEventsRef.current.find(
@@ -760,9 +725,8 @@ export default function BoardPage() {
                 
                 // If realtime event matches our optimistic state exactly, ignore it (echo suppression)
                 if (pendingUpdate.columnId === updatedCard.columnId && 
-                    pendingUpdate.position === updatedCard.position &&
+                    pendingUpdate.position === updatedCard.position && 
                     isEqual(incomingTimestamp, optimisticTimestamp)) {
-                  console.log('[BoardPage] Card UPDATE event ignored - matches optimistic state:', updatedCard.id);
                   pendingCardUpdatesRef.current.delete(updatedCard.id);
                   return prev;
                 }
@@ -770,33 +734,17 @@ export default function BoardPage() {
                 // Timestamp-based conflict resolution
                 if (isNewer(optimisticTimestamp, incomingTimestamp)) {
                   // Our optimistic update is newer - keep it, ignore incoming
-                  console.log('[BoardPage] Card UPDATE event ignored - optimistic update is newer:', {
-                    cardId: updatedCard.id,
-                    optimisticTimestamp,
-                    incomingTimestamp,
-                  });
                   return prev;
                 } else if (isNewer(incomingTimestamp, optimisticTimestamp)) {
                   // Incoming update is newer - accept it, clear optimistic
-                  console.log('[BoardPage] Card UPDATE event accepted - incoming is newer:', {
-                    cardId: updatedCard.id,
-                    optimisticTimestamp,
-                    incomingTimestamp,
-                  });
                   pendingCardUpdatesRef.current.delete(updatedCard.id);
                 } else {
                   // Timestamps equal or very close - check if it's our echo
                   if (pendingUpdate.columnId === updatedCard.columnId && pendingUpdate.position === updatedCard.position) {
-                    console.log('[BoardPage] Card UPDATE event ignored - matches optimistic (equal timestamps):', updatedCard.id);
                     pendingCardUpdatesRef.current.delete(updatedCard.id);
                     return prev;
                   }
                   // Different state with equal timestamps - accept server state
-                  console.log('[BoardPage] Card UPDATE event accepted - different state, equal timestamps:', {
-                    cardId: updatedCard.id,
-                    optimistic: pendingUpdate,
-                    server: { columnId: updatedCard.columnId, position: updatedCard.position },
-                  });
                   pendingCardUpdatesRef.current.delete(updatedCard.id);
                 }
               } else if (existingCard) {
@@ -804,11 +752,6 @@ export default function BoardPage() {
                 const localTimestamp = normalizeTimestamp(existingCard.updatedAt);
                 if (isNewer(localTimestamp, incomingTimestamp)) {
                   // Local state is newer - keep it
-                  console.log('[BoardPage] Card UPDATE event ignored - local state is newer:', {
-                    cardId: updatedCard.id,
-                    localTimestamp,
-                    incomingTimestamp,
-                  });
                   return prev;
                 }
                 // Incoming is newer or equal - accept it
@@ -816,7 +759,6 @@ export default function BoardPage() {
               
               // Apply the update
               if (!existingCard) {
-                console.log('[BoardPage] Card UPDATE - card not found in state, adding it:', updatedCard.id);
                 const updated = [...prev, updatedCard];
                 // Sort cards by position within each column
                 return updated.sort((a, b) => {

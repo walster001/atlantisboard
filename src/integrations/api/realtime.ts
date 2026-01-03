@@ -4,6 +4,8 @@
  * Provides a Supabase Realtime API-compatible interface for WebSocket connections.
  */
 
+const isDev = import.meta.env.DEV;
+
 type RealtimeChannelState = 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR';
 
 interface RealtimePostgresChangesPayload<T = Record<string, unknown>> {
@@ -60,6 +62,7 @@ class RealtimeClient {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private messageQueue: Map<string, any[]> = new Map(); // Queue messages for channels not yet registered
   private pendingUnsubscribes: Set<string> = new Set(); // Track channels pending unsubscribe
+  private serverRestoredChannels: Set<string> = new Set(); // Track channels restored by server on reconnect
 
   constructor(baseUrl: string) {
     // Convert HTTP URL to WebSocket URL
@@ -76,6 +79,21 @@ class RealtimeClient {
       this.disconnect();
       this.connect();
     }
+  }
+
+  /**
+   * Ensure connection is established (doesn't reconnect if already connected)
+   */
+  ensureConnected(): void {
+    if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
+      return; // Already connecting or connected
+    }
+    
+    if (!this.accessToken) {
+      return; // No token, cannot connect (will be initialized via realtimeManager)
+    }
+    
+    this.connect();
   }
 
   private connect(): void {
@@ -103,16 +121,26 @@ class RealtimeClient {
     if (!this.ws) return;
 
     this.ws.onopen = () => {
-      console.log('[Realtime] Connected');
+      if (isDev) console.log('[Realtime] Connected');
       this.reconnectAttempts = 0;
       
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:103',message:'WebSocket OPEN - resubscribing channels',data:{channelCount:this.channels.size,channels:Array.from(this.channels.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
       // #endregion
-      // Resubscribe to all channels
-      this.channels.forEach((channelState) => {
-        this.subscribeToChannel(channelState);
-      });
+      this.serverRestoredChannels.clear(); // Reset on new connection
+      
+      // Wait a short time for server to send restored channel notifications
+      // Then subscribe only to channels not restored by server
+      setTimeout(() => {
+        this.channels.forEach((channelState) => {
+          // Only subscribe if server didn't already restore this channel
+          if (!this.serverRestoredChannels.has(channelState.topic)) {
+            this.subscribeToChannel(channelState);
+          }
+        });
+        // Clear restored channels set after resubscription check
+        this.serverRestoredChannels.clear();
+      }, 100);
 
       // Start heartbeat
       this.startHeartbeat();
@@ -132,7 +160,7 @@ class RealtimeClient {
     };
 
     this.ws.onclose = () => {
-      console.log('[Realtime] Disconnected');
+      if (isDev) console.log('[Realtime] Disconnected');
       this.stopHeartbeat();
       
       // Reconnect if not intentionally closed
@@ -150,7 +178,7 @@ class RealtimeClient {
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
     
-    console.log(`[Realtime] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+    if (isDev) console.log(`[Realtime] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
     
     this.reconnectTimer = setTimeout(() => {
       this.connect();
@@ -187,7 +215,7 @@ class RealtimeClient {
     // Handle system messages
     if (message.channel === 'system') {
       if (message.payload?.type === 'connected') {
-        console.log('[Realtime] Connection confirmed');
+        if (isDev) console.log('[Realtime] Connection confirmed');
       } else if (message.payload?.type === 'pong') {
         // Heartbeat response
       } else if (message.payload?.type === 'subscribed') {
@@ -196,6 +224,8 @@ class RealtimeClient {
           channelState.state = 'SUBSCRIBED';
           channelState.onStatus?.('SUBSCRIBED');
         }
+        // Track server-restored channels to prevent duplicate subscriptions
+        this.serverRestoredChannels.add(message.payload.channel);
       } else if (message.payload?.type === 'unsubscribed') {
         const channelState = this.channels.get(message.payload.channel);
         if (channelState) {
@@ -208,15 +238,6 @@ class RealtimeClient {
 
     // Handle database change events
     if (message.event === 'INSERT' || message.event === 'UPDATE' || message.event === 'DELETE') {
-      console.log('[Realtime] Received event:', {
-        channel: message.channel,
-        event: message.event,
-        table: message.table,
-        hasPayload: !!message.payload,
-        hasNew: !!message.payload?.new,
-        hasOld: !!message.payload?.old,
-      });
-
       const channelState = this.channels.get(message.channel);
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:212',message:'channel state lookup',data:{channel:message.channel,hasChannelState:!!channelState,state:channelState?.state,bindingCount:channelState?.bindings.length,totalChannels:this.channels.size,allChannels:Array.from(this.channels.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -229,7 +250,6 @@ class RealtimeClient {
             ch.startsWith(workspacePrefix) && (message.channel.startsWith(ch) || ch.startsWith(message.channel))
           );
           if (matchingChannel) {
-            console.log(`[Realtime] Found matching workspace channel: ${matchingChannel} for ${message.channel}`);
             const matchedState = this.channels.get(matchingChannel);
             if (matchedState) {
               // Process with the matched channel state
@@ -246,7 +266,6 @@ class RealtimeClient {
           if (queue.length < 50) { // Limit queue size
             queue.push(message);
             this.messageQueue.set(message.channel, queue);
-            console.log(`[Realtime] Queued message for channel: ${message.channel} (queue size: ${queue.length})`);
           } else {
             console.warn(`[Realtime] Message queue full for channel: ${message.channel}, dropping message`);
           }
@@ -282,8 +301,6 @@ class RealtimeClient {
   }
 
   private processEventForChannel(channelState: ChannelState, message: any): void {
-    console.log(`[Realtime] Channel state found: ${message.channel}, state: ${channelState.state}, bindings: ${channelState.bindings.length}`);
-
     // Find matching bindings
     channelState.bindings.forEach((binding, index) => {
       const tableMatches = binding.table === message.table ||
@@ -294,23 +311,17 @@ class RealtimeClient {
 
       const eventMatches = binding.event === '*' || binding.event === message.event;
 
-      console.log(`[Realtime] Binding ${index}: table=${binding.table}, event=${binding.event}, tableMatches=${tableMatches}, eventMatches=${eventMatches}`);
-
       if (tableMatches && eventMatches) {
         // Apply filter if present
         if (binding.filter) {
           const filterMatch = this.matchesFilter(message.payload.new || message.payload.old, binding.filter);
-          console.log(`[Realtime] Filter check: filter=${binding.filter}, match=${filterMatch}`);
           // #region agent log
           fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:234',message:'filter check',data:{channel:message.channel,bindingIndex:index,filter:binding.filter,filterMatch,table:message.table,event:message.event},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
           // #endregion
           if (!filterMatch) {
-            console.log(`[Realtime] Filter rejected event`);
             return;
           }
         }
-
-        console.log(`[Realtime] Calling handler for binding ${index}`);
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:243',message:'calling handler',data:{channel:message.channel,bindingIndex:index,table:message.table,event:message.event,hasNew:!!message.payload?.new,hasOld:!!message.payload?.old},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
         // #endregion
@@ -326,14 +337,12 @@ class RealtimeClient {
 
   private matchesFilter(record: Record<string, unknown> | null, filter: string): boolean {
     if (!record) {
-      console.log(`[Realtime] Filter match failed: record is null for filter ${filter}`);
       return false;
     }
 
     // Simple filter parser: "field=eq.value" or "field=neq.value"
     const match = filter.match(/^(\w+)=(eq|neq)\.(.+)$/);
     if (!match) {
-      console.log(`[Realtime] Filter malformed, allowing through: ${filter}`);
       return true; // If filter is malformed, allow through
     }
 
@@ -354,15 +363,11 @@ class RealtimeClient {
       ?? (camelCaseField ? record[camelCaseField] : undefined)
       ?? (snakeCaseField ? record[snakeCaseField] : undefined);
 
-    console.log(`[Realtime] Filter check: field=${field}, operator=${operator}, value=${value}, recordValue=${recordValue}, camelCaseField=${camelCaseField}, snakeCaseField=${snakeCaseField}`);
-
     if (operator === 'eq') {
       const matches = String(recordValue) === value;
-      console.log(`[Realtime] Filter eq result: ${matches} (${String(recordValue)} === ${value})`);
       return matches;
     } else if (operator === 'neq') {
       const matches = String(recordValue) !== value;
-      console.log(`[Realtime] Filter neq result: ${matches} (${String(recordValue)} !== ${value})`);
       return matches;
     }
 
@@ -427,14 +432,14 @@ class RealtimeClient {
       }
     } else {
       this.channels.set(topic, channelState);
-      console.log(`[Realtime] Added channel ${topic} to map. Total channels: ${this.channels.size}`);
+      if (isDev) console.log(`[Realtime] Added channel ${topic} to map. Total channels: ${this.channels.size}`);
     }
 
-    // Connect if not already connected
-    if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
-      this.connect();
-    } else if (this.ws.readyState === WebSocket.OPEN) {
-      // WebSocket is open, subscribe immediately
+    // Ensure connection is established (doesn't reconnect if already connected)
+    this.ensureConnected();
+    
+    // If WebSocket is open, subscribe immediately
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       const channelToSubscribe = existingChannel || channelState;
       this.subscribeToChannel(channelToSubscribe);
     }
@@ -464,6 +469,7 @@ class RealtimeClient {
     }
 
     this.channels.clear();
+    this.serverRestoredChannels.clear();
   }
 }
 

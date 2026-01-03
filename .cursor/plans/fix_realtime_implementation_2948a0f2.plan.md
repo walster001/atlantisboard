@@ -4,15 +4,15 @@ overview: Comprehensive fix for realtime WebSocket implementation addressing con
 todos:
   - id: create-realtime-manager
     content: Create src/lib/realtimeManager.ts - Global WebSocket connection lifecycle manager
-    status: pending
+    status: completed
   - id: update-auth-provider
     content: Update src/hooks/useAuth.tsx to initialize/disconnect realtime connection on login/logout
-    status: pending
+    status: completed
     dependencies:
       - create-realtime-manager
   - id: update-api-client-realtime
     content: Update src/integrations/api/realtime.ts for external connection management, remove auto-connect from addChannel()
-    status: pending
+    status: in_progress
     dependencies:
       - create-realtime-manager
   - id: create-subscription-registry
@@ -230,10 +230,3 @@ Modify `src/hooks/usePermissionsRealtime.ts`:
 ## Files to Modify
 
 **New Files:**
-
-- `src/lib/realtimeManager.ts` - Global connection manager
-- `src/realtime/subscriptionRegistry.ts` - Subscription registry
-
-**Modified Files:**
-
-- `src/hooks/useAuth.tsx` - Connection lifecycle management

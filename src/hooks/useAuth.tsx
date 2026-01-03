@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { api } from '@/integrations/api/client';
+import { getRealtimeManager } from '@/lib/realtimeManager';
 
 // User type matching Supabase User structure for compatibility
 interface User {
@@ -76,6 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       // Always clear local state
       api.clearAuth();
+      // Disconnect realtime connection
+      getRealtimeManager().disconnect();
       setSession(null);
       setUser(null);
       setIsAppAdmin(false);
@@ -133,6 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(session);
             setUser(session.user);
             setLoading(false);
+
+            // Initialize realtime connection
+            if (session.accessToken) {
+              getRealtimeManager().initialize(session.accessToken);
+            }
 
             // Check verification if needed (for Google OAuth)
             if (session.user) {
@@ -204,6 +212,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(data.session);
           setUser(data.session.user);
           
+          // Initialize realtime connection
+          if (data.session.accessToken) {
+            getRealtimeManager().initialize(data.session.accessToken);
+          }
+          
           if (data.session.user) {
             // Extract admin status from user metadata if available
             const isAdminFromMetadata = data.session.user.userMetadata?.isAdmin ?? false;
@@ -259,6 +272,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (sessionResult.data?.session) {
           setSession(sessionResult.data.session);
           setUser(sessionResult.data.session.user);
+          // Initialize realtime connection
+          getRealtimeManager().initialize(sessionResult.data.session.accessToken);
           // Extract admin status from user metadata
           const isAdminFromMetadata = sessionResult.data.session.user.userMetadata?.isAdmin ?? false;
           if (isAdminFromMetadata) {
@@ -269,12 +284,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } else {
           // Fallback to basic user data if getSession fails
-          setSession({
+          const session = {
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
             user: data.user,
-          });
+          };
+          setSession(session);
           setUser(data.user);
+          // Initialize realtime connection
+          getRealtimeManager().initialize(data.accessToken);
           // Use isAdmin from sign-in response
           setIsAppAdmin(data.user.isAdmin ?? false);
         }
@@ -301,6 +319,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (sessionResult.data?.session) {
           setSession(sessionResult.data.session);
           setUser(sessionResult.data.session.user);
+          // Initialize realtime connection
+          getRealtimeManager().initialize(sessionResult.data.session.accessToken);
           // Extract admin status from user metadata
           const isAdminFromMetadata = sessionResult.data.session.user.userMetadata?.isAdmin ?? false;
           if (isAdminFromMetadata) {
@@ -311,12 +331,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } else {
           // Fallback to basic user data if getSession fails
-          setSession({
+          const session = {
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
             user: data.user,
-          });
+          };
+          setSession(session);
           setUser(data.user);
+          // Initialize realtime connection
+          getRealtimeManager().initialize(data.accessToken);
           // Use isAdmin from sign-up response
           setIsAppAdmin(data.user.isAdmin ?? false);
         }

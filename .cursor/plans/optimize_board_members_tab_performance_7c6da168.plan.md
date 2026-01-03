@@ -335,7 +335,3 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
 ## Performance Targets
 
 - Initial load: < 1 second for first 50 members
-- Search response: < 200ms after 500ms debounce completes
-- Scroll performance: 60fps with virtualization
-- Memory usage: < 50MB for 400+ members (vs current ~200MB+)
-- No visible pagination UI - seamless infinite scroll experience

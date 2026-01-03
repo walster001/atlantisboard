@@ -387,10 +387,6 @@ class RealtimeServer {
           }
         }
 
-        console.log(`[Realtime] Sending event to client ${client.userId} on channel ${channel}:`, {
-          table: event.table,
-          event: event.event,
-        });
         // #region agent log
         try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:262',message:'sending event to client',data:{userId:client.userId,channel,table:event.table,event:event.event,wsReadyState:ws.readyState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
         // #endregion
@@ -399,7 +395,6 @@ class RealtimeServer {
       }
     }
 
-    console.log(`[Realtime] Broadcasted ${event.event} on ${channel} to ${sentCount} clients`);
     // #region agent log
     try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:271',message:'broadcast complete',data:{channel,table:event.table,event:event.event,sentCount,subscribedClients,totalClients:this.clients.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n');}catch(e){}
     // #endregion
@@ -690,19 +685,6 @@ class RealtimeServer {
 
     // Step 5: Broadcast to all relevant channels
     // Note: entityType and parentId are already determined in Step 3 above
-    console.log('[Realtime] Emitting event:', {
-      table,
-      event,
-      channels,
-      entityType,
-      entityId,
-      parentId,
-      workspaceId: resolvedWorkspaceId,
-      hasNewRecord: !!newRecord,
-      hasOldRecord: !!oldRecord,
-      newRecordId: (newRecord as any)?.id || (newRecord as any)?.userId,
-      oldRecordId: (oldRecord as any)?.id || (oldRecord as any)?.userId,
-    });
     // #region agent log
     try{appendFileSync('/mnt/e/atlantisboard/.cursor/debug.log',JSON.stringify({location:'server.ts:407',message:'channels determined',data:{table,event,channels,channelCount:channels.length,resolvedBoardId,resolvedWorkspaceId,entityType,entityId,parentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n');}catch(e){}
     // #endregion

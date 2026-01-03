@@ -485,7 +485,8 @@ class BoardImportService {
 
       } catch (boardError: any) {
         console.error('Error processing board:', boardError);
-        result.errors.push(`Error processing board: ${boardError.message}`);
+        const errorMessage = boardError.message || 'Failed to process board data';
+        result.errors.push(`Failed to save board data: ${errorMessage}`);
       }
     }
 

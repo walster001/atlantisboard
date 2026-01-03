@@ -66,10 +66,11 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
           sendResult
         );
       } catch (error: any) {
+        const errorMessage = error.message || 'Board import encountered an error. Some data may not have been imported.';
         sendResult({
           type: 'result',
           success: false,
-          errors: [error.message || 'An unexpected error occurred'],
+          errors: [errorMessage],
           workspaces_created: 0,
           boards_created: 0,
           columns_created: 0,

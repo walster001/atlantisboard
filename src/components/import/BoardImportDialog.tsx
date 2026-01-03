@@ -266,7 +266,7 @@ function rgbToHex(r: number, g: number, b: number): string {
   }).join('');
 }
 
-type ImportStage = 'idle' | 'parsing' | 'validating' | 'workspace' | 'board' | 'members' | 'labels' | 'columns' | 'cards' | 'card_labels' | 'subtasks' | 'attachments' | 'assignees' | 'finalizing' | 'complete';
+type ImportStage = 'idle' | 'parsing' | 'validating' | 'workspace' | 'board' | 'members' | 'labels' | 'columns' | 'cards' | 'card_labels' | 'subtasks' | 'assignees' | 'finalizing' | 'complete';
 
 interface ProgressState {
   stage: ImportStage;
@@ -287,7 +287,6 @@ const stageLabels: Record<ImportStage, string> = {
   cards: 'Importing cards...',
   card_labels: 'Applying card labels...',
   subtasks: 'Creating subtasks...',
-  attachments: 'Recording attachments...',
   assignees: 'Recording assignee mappings...',
   finalizing: 'Finalizing import...',
   complete: 'Import complete!',
@@ -305,7 +304,6 @@ const stageWeights: Record<ImportStage, number> = {
   cards: 75,
   card_labels: 80,
   subtasks: 88,
-  attachments: 93,
   assignees: 97,
   finalizing: 99,
   complete: 100,
@@ -436,16 +434,17 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           const errorText = await response.text();
           try {
             const errorJson = JSON.parse(errorText);
-            reject(new Error(errorJson.errors?.[0] || 'Import failed'));
+            const errorMessage = errorJson.errors?.[0] || errorJson.error || 'Board import encountered an error. Some data may not have been imported.';
+            reject(new Error(errorMessage));
           } catch {
-            reject(new Error(`Import failed: ${response.status}`));
+            reject(new Error(`Board import encountered an error. Please check your connection and try again.`));
           }
           return;
         }
 
         const reader = response.body?.getReader();
         if (!reader) {
-          reject(new Error('No response body'));
+          reject(new Error('Import did not complete. Please try again.'));
           return;
         }
 
@@ -475,7 +474,6 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                     'columns': 'columns',
                     'cards': 'cards',
                     'subtasks': 'subtasks',
-                    'attachments': 'attachments',
                     'complete': 'complete',
                   };
                   const stage = stageMap[data.stage] || 'parsing';
@@ -497,7 +495,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         }
 
         // If we get here without a result, something went wrong
-        reject(new Error('Stream ended without result'));
+        reject(new Error('Import did not complete. Please try again.'));
       } catch (error) {
         reject(error);
       }
@@ -983,19 +981,19 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         });
         updateProgress('idle');
       }
-    } catch (error: any) {
-      // Don't show error toast if it was an abort
-      if (error.name === 'AbortError') {
-        return;
-      }
-      console.error('Import error:', error);
-      toast({
-        title: 'Import failed',
-        description: error.message || 'An unexpected error occurred.',
-        variant: 'destructive',
-      });
-      updateProgress('idle');
-    } finally {
+      } catch (error: any) {
+        // Don't show error toast if it was an abort
+        if (error.name === 'AbortError') {
+          return;
+        }
+        console.error('Import error:', error);
+        toast({
+          title: 'Import failed',
+          description: error.message || 'Board import encountered an error. Some data may not have been imported.',
+          variant: 'destructive',
+        });
+        updateProgress('idle');
+      } finally {
       setImporting(false);
       abortControllerRef.current = null;
     }

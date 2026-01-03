@@ -5,18 +5,19 @@ import { api } from '@/integrations/api/client';
 interface User {
   id: string;
   email: string;
-  app_metadata?: {
+  appMetadata?: {
     provider?: string;
   };
-  user_metadata?: {
-    avatar_url?: string | null;
-    full_name?: string | null;
+  userMetadata?: {
+    avatarUrl?: string | null;
+    fullName?: string | null;
+    isAdmin?: boolean;
   };
 }
 
 interface Session {
-  access_token: string;
-  refresh_token: string;
+  accessToken: string;
+  refreshToken: string;
   user: User;
 }
 
@@ -136,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Check verification if needed (for Google OAuth)
             if (session.user) {
               // Extract admin status from user metadata if available
-              const isAdminFromMetadata = (session.user.user_metadata as any)?.is_admin ?? false;
+              const isAdminFromMetadata = session.user.userMetadata?.isAdmin ?? false;
               if (isAdminFromMetadata) {
                 setIsAppAdmin(true);
               } else {
@@ -144,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 fetchAdminStatus(session.user.id);
               }
 
-              const provider = session.user.app_metadata?.provider;
+              const provider = session.user.appMetadata?.provider;
               if (provider === 'google') {
                 // Check login style
                 api.from('app_settings')
@@ -205,7 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           if (data.session.user) {
             // Extract admin status from user metadata if available
-            const isAdminFromMetadata = (data.session.user.user_metadata as any)?.is_admin ?? false;
+            const isAdminFromMetadata = data.session.user.userMetadata?.isAdmin ?? false;
             if (isAdminFromMetadata) {
               setIsAppAdmin(true);
             } else {
@@ -259,7 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(sessionResult.data.session);
           setUser(sessionResult.data.session.user);
           // Extract admin status from user metadata
-          const isAdminFromMetadata = (sessionResult.data.session.user.user_metadata as any)?.is_admin ?? false;
+          const isAdminFromMetadata = sessionResult.data.session.user.userMetadata?.isAdmin ?? false;
           if (isAdminFromMetadata) {
             setIsAppAdmin(true);
           } else {
@@ -269,8 +270,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           // Fallback to basic user data if getSession fails
           setSession({
-            access_token: data.accessToken,
-            refresh_token: data.refreshToken,
+            accessToken: data.accessToken,
+            refreshToken: data.refreshToken,
             user: data.user,
           });
           setUser(data.user);
@@ -301,7 +302,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(sessionResult.data.session);
           setUser(sessionResult.data.session.user);
           // Extract admin status from user metadata
-          const isAdminFromMetadata = (sessionResult.data.session.user.user_metadata as any)?.is_admin ?? false;
+          const isAdminFromMetadata = sessionResult.data.session.user.userMetadata?.isAdmin ?? false;
           if (isAdminFromMetadata) {
             setIsAppAdmin(true);
           } else {
@@ -311,8 +312,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           // Fallback to basic user data if getSession fails
           setSession({
-            access_token: data.accessToken,
-            refresh_token: data.refreshToken,
+            accessToken: data.accessToken,
+            refreshToken: data.refreshToken,
             user: data.user,
           });
           setUser(data.user);

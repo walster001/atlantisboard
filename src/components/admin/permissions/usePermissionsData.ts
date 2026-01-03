@@ -77,8 +77,8 @@ export function usePermissionsData() {
   // Get permissions for a specific role
   const getRolePermissions = useCallback((roleId: string): Set<PermissionKey> => {
     const perms = rolePermissions
-      .filter(rp => rp.role_id === roleId)
-      .map(rp => rp.permission_key);
+      .filter(rp => rp.roleId === roleId)
+      .map(rp => rp.permissionKey);
     return new Set(perms);
   }, [rolePermissions]);
 
@@ -165,7 +165,7 @@ export function usePermissionsData() {
       if (error) throw error;
 
       setCustomRoles(prev => prev.filter(r => r.id !== roleId));
-      setRolePermissions(prev => prev.filter(rp => rp.role_id !== roleId));
+      setRolePermissions(prev => prev.filter(rp => rp.roleId !== roleId));
       
       toast({
         title: 'Role deleted',
@@ -224,7 +224,7 @@ export function usePermissionsData() {
       const newPerms = (permResult.data as RolePermission[]) || [];
 
       setRolePermissions(prev => [
-        ...prev.filter(rp => rp.role_id !== roleId),
+        ...prev.filter(rp => rp.roleId !== roleId),
         ...newPerms,
       ]);
 

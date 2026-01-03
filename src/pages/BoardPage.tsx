@@ -119,7 +119,7 @@ export default function BoardPage() {
       navigate('/', {
         state: {
           permissionsRevoked: {
-            board_id: boardId,
+            boardId: boardId,
             timestamp: Date.now()
           }
         }
@@ -414,7 +414,7 @@ export default function BoardPage() {
             }
             
             // Apply timestamp-based conflict resolution
-            const incomingUpdatedAt = updatedCard.updatedAt || (updatedCard as any).updated_at;
+            const incomingUpdatedAt = updatedCard.updatedAt;
             const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
             const localTimestamp = normalizeTimestamp(existingCard.updatedAt);
             
@@ -473,9 +473,9 @@ export default function BoardPage() {
           // Only process events for columns in the current board
           if (columnData.boardId !== boardId) return;
           
-          // Extract updatedAt (handle both camelCase and snake_case)
+          // Extract updatedAt
           const getUpdatedAt = (data: any): string | undefined => {
-            return data?.updatedAt || data?.updated_at;
+            return data?.updatedAt;
           };
           
           if (event.eventType === 'INSERT') {
@@ -642,9 +642,9 @@ export default function BoardPage() {
             return;
           }
           
-          // Extract updatedAt from event (handle both camelCase and snake_case)
+          // Extract updatedAt from event
           const getUpdatedAt = (data: any): string | undefined => {
-            return data?.updatedAt || data?.updated_at;
+            return data?.updatedAt;
           };
           
           if (event.eventType === 'INSERT') {
@@ -924,8 +924,7 @@ export default function BoardPage() {
             }
           } else if (event.eventType === 'DELETE') {
             const deletedMember = membership;
-            // Handle both camelCase (userId) and snake_case (user_id) field names
-            const deletedUserId = deletedMember?.userId ?? (deletedMember as any)?.user_id;
+            const deletedUserId = deletedMember?.userId;
             
             console.log('[BoardPage] Member DELETE event received:', {
               deletedUserId,
@@ -1731,12 +1730,12 @@ export default function BoardPage() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="gap-2 text-white hover:bg-white/20">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={user?.user_metadata?.avatar_url} />
+                        <AvatarImage src={user?.userMetadata?.avatarUrl} />
                         <AvatarFallback className="bg-white/20">
                           <User className="h-4 w-4" />
                         </AvatarFallback>
                       </Avatar>
-                      <span className="hidden sm:inline">{user?.user_metadata?.full_name || user?.email}</span>
+                      <span className="hidden sm:inline">{user?.userMetadata?.fullName || user?.email}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-popover">
@@ -2034,7 +2033,7 @@ export default function BoardPage() {
         disabled={!effectiveCanEdit}
         boardLabels={labels.map(l => ({
           id: l.id,
-          board_id: l.boardId,
+          boardId: l.boardId,
           name: l.name,
           color: l.color,
         }))}
@@ -2054,14 +2053,14 @@ export default function BoardPage() {
         }}
         subtasks={editingCard ? cardSubtasks.filter(s => s.cardId === editingCard.card.id).map(s => ({
           id: s.id,
-          card_id: s.cardId,
+          cardId: s.cardId,
           title: s.title,
           completed: s.completed,
-          completed_at: s.completedAt,
-          completed_by: s.completedBy,
+          completedAt: s.completedAt,
+          completedBy: s.completedBy,
           position: s.position,
-          checklist_name: s.checklistName,
-          created_at: s.createdAt,
+          checklistName: s.checklistName,
+          createdAt: s.createdAt,
         })) : []}
         onSubtasksChange={async () => {
           if (editingCard) {

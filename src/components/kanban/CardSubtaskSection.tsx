@@ -12,14 +12,14 @@ import { getUserFriendlyError } from '@/lib/errorHandler';
 
 export interface Subtask {
   id: string;
-  card_id: string;
+  cardId: string;
   title: string;
   completed: boolean;
-  completed_at: string | null;
-  completed_by: string | null;
+  completedAt: string | null;
+  completedBy: string | null;
   position: number;
-  checklist_name: string | null;
-  created_at: string;
+  checklistName: string | null;
+  createdAt: string;
 }
 
 interface CardSubtaskSectionProps {

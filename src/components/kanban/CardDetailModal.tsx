@@ -52,7 +52,7 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 
 interface BoardLabel {
   id: string;
-  board_id: string;
+  boardId: string;
   name: string;
   color: string;
 }

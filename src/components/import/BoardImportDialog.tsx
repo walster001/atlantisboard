@@ -21,12 +21,12 @@ import {
 } from './InlineButtonIconDialog';
 interface ImportResult {
   success: boolean;
-  workspaces_created: number;
-  boards_created: number;
-  columns_created: number;
-  cards_created: number;
-  labels_created: number;
-  subtasks_created: number;
+  workspacesCreated: number;
+  boardsCreated: number;
+  columnsCreated: number;
+  cardsCreated: number;
+  labelsCreated: number;
+  subtasksCreated: number;
   errors: string[];
   warnings: string[];
 }
@@ -536,12 +536,12 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const importTrelloBoard = async (trelloData: TrelloBoard, onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void, defaultColor: string | null): Promise<ImportResult> => {
     const result: ImportResult = {
       success: false,
-      workspaces_created: 0,
-      boards_created: 0,
-      columns_created: 0,
-      cards_created: 0,
-      labels_created: 0,
-      subtasks_created: 0,
+      workspacesCreated: 0,
+      boardsCreated: 0,
+      columnsCreated: 0,
+      cardsCreated: 0,
+      labelsCreated: 0,
+      subtasksCreated: 0,
       errors: [],
       warnings: [],
     };
@@ -579,7 +579,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         result.errors.push(`Failed to create workspace: ${workspaceError.message}`);
         return result;
       }
-      result.workspaces_created = 1;
+      result.workspacesCreated = 1;
 
       onProgress('board', 0, 0, 'Creating board...');
       // Create board
@@ -596,7 +596,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         result.errors.push(`Failed to create board: ${boardError.message}`);
         return result;
       }
-      result.boards_created = 1;
+      result.boardsCreated = 1;
 
       // Add current user as board admin
       await api.from('board_members').insert({
@@ -630,9 +630,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           for (let i = 0; i < labels.length; i++) {
             labelMap.set(validLabels[i].id, labels[i].id);
           }
-          result.labels_created = labels.length;
+          result.labelsCreated = labels.length;
         }
-        onProgress('labels', trelloLabels.length, trelloLabels.length, `Created ${result.labels_created} labels`);
+        onProgress('labels', trelloLabels.length, trelloLabels.length, `Created ${result.labelsCreated} labels`);
       }
 
       // Create columns in batch
@@ -662,9 +662,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           for (let i = 0; i < columns.length; i++) {
             columnMap.set(sortedLists[i].id, columns[i].id);
           }
-          result.columns_created = columns.length;
+          result.columnsCreated = columns.length;
         }
-        onProgress('columns', sortedLists.length, sortedLists.length, `Created ${result.columns_created} columns`);
+        onProgress('columns', sortedLists.length, sortedLists.length, `Created ${result.columnsCreated} columns`);
       }
 
       // Build checklist map
@@ -785,7 +785,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
             const trelloCard = batch[i].trelloCard;
             const newCardId = cards[i].id;
             cardIdMap.set(trelloCard.id, newCardId);
-            result.cards_created++;
+            result.cardsCreated++;
 
             // Collect card labels for batch insert
             for (const labelId of trelloCard.idLabels) {
@@ -855,7 +855,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         if (subtasksError) {
           result.warnings.push('Failed to create some subtasks');
         } else {
-          result.subtasks_created += batch.length;
+          result.subtasksCreated += batch.length;
         }
       }
 
@@ -982,7 +982,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       if (result.success) {
         toast({
           title: 'Import completed',
-          description: `Imported ${result.boards_created} board(s) with ${result.cards_created} card(s).`,
+          description: `Imported ${result.boardsCreated} board(s) with ${result.cardsCreated} card(s).`,
         });
         onImportComplete();
         // Auto-close after successful import
@@ -1404,12 +1404,12 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
                 {importResult.success && (
                   <div className="text-sm space-y-1">
-                    <p>✓ Workspaces: {importResult.workspaces_created}</p>
-                    <p>✓ Boards: {importResult.boards_created}</p>
-                    <p>✓ Columns: {importResult.columns_created}</p>
-                    <p>✓ Cards: {importResult.cards_created}</p>
-                    <p>✓ Labels: {importResult.labels_created}</p>
-                    <p>✓ Subtasks: {importResult.subtasks_created}</p>
+                    <p>✓ Workspaces: {importResult.workspacesCreated}</p>
+                    <p>✓ Boards: {importResult.boardsCreated}</p>
+                    <p>✓ Columns: {importResult.columnsCreated}</p>
+                    <p>✓ Cards: {importResult.cardsCreated}</p>
+                    <p>✓ Labels: {importResult.labelsCreated}</p>
+                    <p>✓ Subtasks: {importResult.subtasksCreated}</p>
                   </div>
                 )}
 

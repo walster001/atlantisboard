@@ -226,21 +226,21 @@ export default function Home() {
     const state = location.state as { removedFromBoard?: { boardId: string; workspaceId: string | null; timestamp: number } } | null;
     
     if (state?.removedFromBoard && user) {
-      const { boardId: board_id, workspaceId: workspace_id } = state.removedFromBoard;
+      const { boardId, workspaceId } = state.removedFromBoard;
       
       // Remove the board from state
       setBoards(prev => {
-        const updatedBoards = prev.filter(b => b.id !== board_id);
+        const updatedBoards = prev.filter(b => b.id !== boardId);
         
         // Check if we need to remove the workspace too
-        if (workspace_id) {
+        if (workspaceId) {
           const remainingBoardsInWorkspace = updatedBoards.filter(
-            b => b.workspaceId === workspace_id
+            b => b.workspaceId === workspaceId
           );
           
           if (remainingBoardsInWorkspace.length === 0) {
             setWorkspaces(prevWorkspaces => 
-              prevWorkspaces.filter(w => w.id !== workspace_id)
+              prevWorkspaces.filter(w => w.id !== workspaceId)
             );
           }
         }
@@ -251,7 +251,7 @@ export default function Home() {
       // Remove from board roles
       setBoardRoles(prev => {
         const updated = { ...prev };
-        delete updated[board_id];
+        delete updated[boardId];
         return updated;
       });
       
@@ -956,12 +956,12 @@ export default function Home() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarImage src={user?.userMetadata?.avatarUrl} />
                   <AvatarFallback>
                     <User className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
-                <span className="hidden sm:inline">{user?.user_metadata?.full_name || user?.email}</span>
+                <span className="hidden sm:inline">{user?.userMetadata?.fullName || user?.email}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

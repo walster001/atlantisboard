@@ -244,18 +244,18 @@ class ApiClient {
       return {
         data: {
           session: {
-            access_token: this.accessToken,
-            refresh_token: this.refreshToken,
+            accessToken: this.accessToken,
+            refreshToken: this.refreshToken,
             user: {
               id: result.data.id,
               email: result.data.email,
-              app_metadata: {
+              appMetadata: {
                 provider: (result.data as any).provider || 'email', // Use provider from API response
               },
-              user_metadata: {
-                avatar_url: result.data.avatarUrl,
-                full_name: result.data.fullName,
-                is_admin: result.data.isAdmin, // Include admin status in user metadata
+              userMetadata: {
+                avatarUrl: result.data.avatarUrl,
+                fullName: result.data.fullName,
+                isAdmin: result.data.isAdmin, // Include admin status in user metadata
               },
             },
           },

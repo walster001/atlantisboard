@@ -8,17 +8,17 @@ export interface CustomRole {
   id: string;
   name: string;
   description: string | null;
-  is_system: boolean;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string | null;
 }
 
 export interface RolePermission {
   id: string;
-  role_id: string | null;
-  permission_key: PermissionKey;
-  created_at: string;
+  roleId: string | null;
+  permissionKey: PermissionKey;
+  createdAt: string;
 }
 
 export interface PermissionCategoryConfig {

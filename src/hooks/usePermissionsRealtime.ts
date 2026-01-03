@@ -84,7 +84,7 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
       navigate('/', {
         state: {
           permissionsRevoked: {
-            board_id: boardId,
+            boardId: boardId,
             timestamp: Date.now()
           }
         }

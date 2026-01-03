@@ -316,6 +316,14 @@ export default function BoardPage() {
   const columnIdsRef = useRef<string[]>([]);
   columnIdsRef.current = columnIds;
 
+  // Track pending optimistic card updates to prevent race conditions
+  interface PendingCardUpdate {
+    columnId: string;
+    position: number;
+    timestamp: number;
+  }
+  const pendingCardUpdatesRef = useRef<Map<string, PendingCardUpdate>>(new Map());
+
   // Unified realtime subscription using workspace (parent-child hierarchy)
   useEffect(() => {
     if (!boardId || !workspaceId) return;
@@ -427,6 +435,24 @@ export default function BoardPage() {
             const previous = event.old as unknown as DbCard;
             const previousColumnId = previous?.columnId;
             const columnChanged = previousColumnId && previousColumnId !== updatedCard.columnId;
+            
+            // Check if this is a pending optimistic update from our own action
+            const pendingUpdate = pendingCardUpdatesRef.current.get(updatedCard.id);
+            if (pendingUpdate) {
+              // If realtime event matches our optimistic state, ignore it (echo of our action)
+              if (pendingUpdate.columnId === updatedCard.columnId && pendingUpdate.position === updatedCard.position) {
+                console.log('[BoardPage] Card UPDATE event ignored - matches optimistic state:', updatedCard.id);
+                pendingCardUpdatesRef.current.delete(updatedCard.id);
+                return;
+              }
+              // If realtime event differs, accept it (server correction or other user)
+              console.log('[BoardPage] Card UPDATE event differs from optimistic - accepting server state:', {
+                cardId: updatedCard.id,
+                optimistic: pendingUpdate,
+                server: { columnId: updatedCard.columnId, position: updatedCard.position },
+              });
+              pendingCardUpdatesRef.current.delete(updatedCard.id);
+            }
             
             console.log('[BoardPage] Card UPDATE event received:', {
               cardId: updatedCard.id,
@@ -547,12 +573,17 @@ export default function BoardPage() {
             }
           } else if (event.eventType === 'DELETE') {
             const deletedMember = membership;
-            if (deletedMember?.userId === user?.id) {
-              toast({
-                title: 'Access removed',
-                description: 'You have been removed from this board.',
-                variant: 'destructive',
-              });
+            // Handle both camelCase (userId) and snake_case (user_id) field names
+            const deletedUserId = deletedMember?.userId ?? (deletedMember as any)?.user_id;
+            
+            console.log('[BoardPage] Member DELETE event received:', {
+              deletedUserId,
+              currentUserId: user?.id,
+              matches: deletedUserId === user?.id,
+            });
+            
+            if (deletedUserId === user?.id) {
+              // Navigate first to ensure redirect happens even if toast fails
               navigate('/', {
                 state: {
                   removedFromBoard: {
@@ -562,9 +593,16 @@ export default function BoardPage() {
                   },
                 },
               });
+              
+              // Show toast after navigation
+              toast({
+                title: 'Access removed',
+                description: 'You have been removed from this board.',
+                variant: 'destructive',
+              });
             } else {
               refreshBoardMembers();
-              if (deletedMember.userId) {
+              if (deletedUserId) {
                 const memberName = deletedMember.user?.profile?.fullName || 
                                   deletedMember.user?.profile?.email || 
                                   'a member';
@@ -860,10 +898,17 @@ export default function BoardPage() {
 
     // Update positions locally (optimistic) - like column reordering does
     // This prevents cards from visually reverting while waiting for realtime events
+    const now = Date.now();
     setCards((prev) => {
       const updated = prev.map((c) => {
         const update = uniqueUpdates.find((u) => u.id === c.id);
         if (update) {
+          // Track pending optimistic update
+          pendingCardUpdatesRef.current.set(c.id, {
+            columnId: update.columnId,
+            position: update.position,
+            timestamp: now,
+          });
           return { ...c, columnId: update.columnId, position: update.position };
         }
         return c;

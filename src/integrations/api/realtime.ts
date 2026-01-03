@@ -58,6 +58,8 @@ class RealtimeClient {
   private reconnectDelay = 1000;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private messageQueue: Map<string, any[]> = new Map(); // Queue messages for channels not yet registered
+  private pendingUnsubscribes: Set<string> = new Set(); // Track channels pending unsubscribe
 
   constructor(baseUrl: string) {
     // Convert HTTP URL to WebSocket URL
@@ -220,19 +222,36 @@ class RealtimeClient {
       fetch('http://127.0.0.1:7242/ingest/a8444a6b-d39b-4910-bf7c-06b0f9241b8a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'realtime.ts:212',message:'channel state lookup',data:{channel:message.channel,hasChannelState:!!channelState,state:channelState?.state,bindingCount:channelState?.bindings.length,totalChannels:this.channels.size,allChannels:Array.from(this.channels.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       if (!channelState) {
-        console.warn(`[Realtime] No channel state found for channel: ${message.channel}. Available channels: ${Array.from(this.channels.keys()).join(', ')}`);
-        // Try to find a matching channel by prefix (for workspace channels that might have been recreated)
-        const matchingChannel = Array.from(this.channels.keys()).find(ch => 
-          message.channel.startsWith(ch) || ch.startsWith(message.channel)
-        );
-        if (matchingChannel) {
-          console.log(`[Realtime] Found matching channel: ${matchingChannel} for ${message.channel}`);
-          const matchedState = this.channels.get(matchingChannel);
-          if (matchedState) {
-            // Process with the matched channel state
-            this.processEventForChannel(matchedState, message);
-            return;
+        // Check if channel is workspace channel and use prefix matching only for workspace channels
+        if (message.channel.startsWith('workspace:')) {
+          const workspacePrefix = message.channel.split(':')[0] + ':';
+          const matchingChannel = Array.from(this.channels.keys()).find(ch => 
+            ch.startsWith(workspacePrefix) && (message.channel.startsWith(ch) || ch.startsWith(message.channel))
+          );
+          if (matchingChannel) {
+            console.log(`[Realtime] Found matching workspace channel: ${matchingChannel} for ${message.channel}`);
+            const matchedState = this.channels.get(matchingChannel);
+            if (matchedState) {
+              // Process with the matched channel state
+              this.processEventForChannel(matchedState, message);
+              return;
+            }
           }
+        }
+        
+        // Queue message if channel not found (might be registered soon)
+        // Only queue if channel looks like a workspace/board channel (not system messages)
+        if (message.channel && !message.channel.startsWith('system')) {
+          const queue = this.messageQueue.get(message.channel) || [];
+          if (queue.length < 50) { // Limit queue size
+            queue.push(message);
+            this.messageQueue.set(message.channel, queue);
+            console.log(`[Realtime] Queued message for channel: ${message.channel} (queue size: ${queue.length})`);
+          } else {
+            console.warn(`[Realtime] Message queue full for channel: ${message.channel}, dropping message`);
+          }
+        } else {
+          console.warn(`[Realtime] No channel state found for channel: ${message.channel}. Available channels: ${Array.from(this.channels.keys()).join(', ')}`);
         }
         return;
       }
@@ -425,7 +444,10 @@ class RealtimeClient {
 
   removeChannel(topic: string): void {
     this.unsubscribeFromChannel(topic);
-    this.channels.delete(topic);
+    // Mark as pending unsubscribe - will be removed after unsubscribe confirmation
+    this.pendingUnsubscribes.add(topic);
+    // Clear any queued messages for this channel
+    this.messageQueue.delete(topic);
   }
 
   disconnect(): void {

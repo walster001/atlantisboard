@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
-import { subscribeAllWorkspaces } from '@/realtime/workspaceSubscriptions';
+import { subscribeAllWorkspaces, subscribeWorkspace } from '@/realtime/workspaceSubscriptions';
 import { api } from '@/integrations/api/client';
 
 interface Workspace {
@@ -81,6 +81,9 @@ export default function Home() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [boards, setBoards] = useState<Board[]>([]);
   const [boardRoles, setBoardRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
+  
+  // Track dynamic workspace subscriptions
+  const workspaceSubscriptionsRef = useRef<Map<string, () => void>>(new Map());
   const [loading, setLoading] = useState(true);
   
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
@@ -354,6 +357,57 @@ export default function Home() {
         if (workspaceData.userId !== user.id) return;
         
         if (event.eventType === 'INSERT') {
+          // User added to a workspace - dynamically subscribe to new workspace
+          const newWorkspaceId = workspaceData.workspaceId;
+          if (newWorkspaceId && !workspaceSubscriptionsRef.current.has(newWorkspaceId)) {
+            console.log('[Home] Dynamically subscribing to new workspace:', newWorkspaceId);
+            // Subscribe to new workspace dynamically
+            const cleanup = subscribeWorkspace(newWorkspaceId, {
+              onBoardUpdate: (board, event) => {
+                const boardData = board as unknown as Board;
+                if (event.eventType === 'INSERT') {
+                  setBoards((prevBoards) => {
+                    if (prevBoards.some((b) => b.id === boardData.id)) {
+                      return prevBoards;
+                    }
+                    return [...prevBoards, boardData];
+                  });
+                  fetchData();
+                } else if (event.eventType === 'UPDATE') {
+                  setBoards((prevBoards) =>
+                    prevBoards.map((b) => (b.id === boardData.id ? boardData : b))
+                  );
+                } else if (event.eventType === 'DELETE') {
+                  setBoards((prevBoards) => prevBoards.filter((b) => b.id !== boardData.id));
+                  setBoardRoles((prevRoles) => {
+                    const updated = { ...prevRoles };
+                    delete updated[boardData.id];
+                    return updated;
+                  });
+                }
+              },
+              onMemberUpdate: (member, event) => {
+                const membership = member as { boardId?: string; userId?: string };
+                if (membership.userId !== user.id) return;
+                
+                if (event.eventType === 'INSERT') {
+                  fetchData();
+                  toast({
+                    title: 'Board access granted',
+                    description: 'You have been added to a new board.',
+                  });
+                } else if (event.eventType === 'DELETE') {
+                  fetchData();
+                  toast({
+                    title: 'Board access removed',
+                    description: 'You have been removed from a board.',
+                  });
+                }
+              },
+            });
+            workspaceSubscriptionsRef.current.set(newWorkspaceId, cleanup);
+          }
+          
           // User added to a workspace - refresh data
           fetchData();
           toast({

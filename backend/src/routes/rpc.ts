@@ -147,7 +147,7 @@ const rpcHandlers: Record<string, (req: Request, params: any) => Promise<any>> =
     }
     return cardService.reorder(
       userId || authReq.userId!,
-      updates.map((u: any) => ({ id: u.id, columnId: u.column_id, position: u.position })),
+      updates.map((u: any) => ({ id: u.id, columnId: u.columnId ?? u.column_id, position: u.position })),
       authReq.user?.isAdmin ?? false
     );
   },

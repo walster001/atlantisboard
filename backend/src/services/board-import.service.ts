@@ -58,9 +58,25 @@ const wekanColorMap: Record<string, string> = {
 };
 
 function getWekanColor(color: string | undefined | null): string {
-  if (!color) return wekanColorMap.default;
-  if (color.startsWith('#')) return color;
-  return wekanColorMap[color.toLowerCase()] || wekanColorMap.default;
+  // Handle null, undefined, or empty string
+  if (!color || color.trim() === '') {
+    return wekanColorMap.default;
+  }
+  
+  // If already a hex color, validate and return
+  if (color.startsWith('#')) {
+    // Validate hex format (3 or 6 digits)
+    const hexPattern = /^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$/;
+    if (hexPattern.test(color)) {
+      return color;
+    }
+    // Invalid hex format, return default
+    return wekanColorMap.default;
+  }
+  
+  // Try to map named color
+  const normalizedColor = color.toLowerCase().trim();
+  return wekanColorMap[normalizedColor] || wekanColorMap.default;
 }
 
 interface WekanLabel {
@@ -473,8 +489,10 @@ class BoardImportService {
             }
 
             // Determine card color
+            // getWekanColor always returns a valid hex string, but for cards we want null if no color specified
             const cardColor = wekanCard.color ? getWekanColor(wekanCard.color) : null;
-            const finalCardColor = cardColor || defaultCardColor;
+            // Ensure finalCardColor is string | null (never undefined)
+            const finalCardColor: string | null = cardColor || defaultCardColor || null;
 
             // Process description and title
             // Card descriptions may contain replaced inline button image URLs - preserve them as-is

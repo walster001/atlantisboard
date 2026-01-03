@@ -16,6 +16,7 @@ export interface DetectedInlineButton {
   cardTitle?: string;
   occurrenceCount: number; // How many times this imgSrc appears
   replacementUrl?: string; // After upload
+  replacementPath?: string; // Storage path for deletion (e.g., 'import-icons/filename.png')
 }
 
 interface InlineButtonIconDialogProps {
@@ -144,11 +145,12 @@ export function InlineButtonIconDialog({
 
   useEffect(() => {
     if (open) {
-      // Create copies with reset replacement URLs
+      // Create copies with reset replacement URLs and paths
       setButtons(detectedButtons.map((btn, index) => ({
         ...btn,
         id: `btn-${index}-${Date.now()}`,
         replacementUrl: undefined,
+        replacementPath: undefined,
       })));
       fileInputRefs.current = {};
     }
@@ -176,7 +178,20 @@ export function InlineButtonIconDialog({
 
     // Check if a previous upload exists and delete it
     const button = buttons.find(b => b.id === buttonId);
-    if (button?.replacementUrl) {
+    if (button?.replacementPath) {
+      // Use stored path directly for reliable deletion
+      try {
+        const deleteResult = await deleteFile('branding', button.replacementPath);
+        if (deleteResult.error) {
+          console.error('Failed to delete old icon file:', deleteResult.error);
+          // Continue with upload even if deletion fails
+        }
+      } catch (error) {
+        console.error('Error deleting old icon file:', error);
+        // Continue with upload even if deletion fails
+      }
+    } else if (button?.replacementUrl) {
+      // Fallback to URL extraction if path not stored (for backwards compatibility)
       const oldPath = extractStoragePathFromUrl(button.replacementUrl, 'branding');
       if (oldPath) {
         try {
@@ -209,10 +224,12 @@ export function InlineButtonIconDialog({
       // Use publicUrl from upload response
       const publicUrl = uploadResult.data.publicUrl;
 
-      // Update button with replacement URL
+      // Update button with replacement URL and path for future deletion
       setButtons((prev) =>
         prev.map((btn) =>
-          btn.id === buttonId ? { ...btn, replacementUrl: publicUrl } : btn
+          btn.id === buttonId 
+            ? { ...btn, replacementUrl: publicUrl, replacementPath: filePath }
+            : btn
         )
       );
 

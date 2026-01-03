@@ -227,11 +227,25 @@ const trelloColorMap: Record<string, string> = {
 
 // Helper function to get color - handles hex values directly or maps named colors
 function getTrelloColor(color: string | undefined | null): string {
-  if (!color) return '#6b7280';
-  // If it's already a hex color, use it directly
-  if (color.startsWith('#')) return color;
-  // Try to find in color map, otherwise use default
-  return trelloColorMap[color.toLowerCase()] || '#6b7280';
+  // Handle null, undefined, or empty string
+  if (!color || color.trim() === '') {
+    return '#6b7280';
+  }
+  
+  // If already a hex color, validate and return
+  if (color.startsWith('#')) {
+    // Validate hex format (3 or 6 digits)
+    const hexPattern = /^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$/;
+    if (hexPattern.test(color)) {
+      return color;
+    }
+    // Invalid hex format, return default
+    return '#6b7280';
+  }
+  
+  // Try to map named color
+  const normalizedColor = color.toLowerCase().trim();
+  return trelloColorMap[normalizedColor] || '#6b7280';
 }
 
 // Preset colors for default card color picker
@@ -495,8 +509,19 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                     createdIdsRef.current = data.createdIds;
                   }
                 } else if (data.type === 'result') {
-                  // Resolve with result (both success and error results)
-                  resolve(data as ImportResult);
+                  // Transform snake_case to camelCase for ImportResult interface
+                  const transformedResult: ImportResult = {
+                    success: data.success ?? false,
+                    workspacesCreated: data.workspaces_created ?? 0,
+                    boardsCreated: data.boards_created ?? 0,
+                    columnsCreated: data.columns_created ?? 0,
+                    cardsCreated: data.cards_created ?? 0,
+                    labelsCreated: data.labels_created ?? 0,
+                    subtasksCreated: data.subtasks_created ?? 0,
+                    errors: data.errors ?? [],
+                    warnings: data.warnings ?? [],
+                  };
+                  resolve(transformedResult);
                   return;
                 } else if (data.type === 'error') {
                   // Handle explicit error type (if backend sends it)
@@ -721,13 +746,36 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           // Determine card color from cover
           let cardColor: string | null = null;
           if (card.cover?.color) {
-            if (trelloColorMap[card.cover.color]) {
-              cardColor = trelloColorMap[card.cover.color];
-            } else if (card.cover.color.startsWith('#')) {
-              cardColor = card.cover.color;
-            } else if (card.cover.color.startsWith('rgb')) {
-              cardColor = card.cover.color;
-            } else {
+            const coverColor = card.cover.color.trim();
+            
+            // Try Trello color map first
+            if (trelloColorMap[coverColor.toLowerCase()]) {
+              cardColor = trelloColorMap[coverColor.toLowerCase()];
+            } 
+            // Check if it's a valid hex color
+            else if (coverColor.startsWith('#')) {
+              const hexPattern = /^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$/;
+              if (hexPattern.test(coverColor)) {
+                cardColor = coverColor;
+              }
+              // Invalid hex format, ignore
+            } 
+            // Handle rgb() format - convert to hex if possible
+            else if (coverColor.startsWith('rgb')) {
+              // Try to parse rgb() format
+              const rgbMatch = coverColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+              if (rgbMatch) {
+                const r = parseInt(rgbMatch[1], 10);
+                const g = parseInt(rgbMatch[2], 10);
+                const b = parseInt(rgbMatch[3], 10);
+                if (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255) {
+                  cardColor = rgbToHex(r, g, b);
+                }
+              }
+              // If rgb parsing fails, ignore
+            } 
+            // Try CSS named colors
+            else {
               const cssColorMap: Record<string, string> = {
                 red: '#ff0000', green: '#008000', blue: '#0000ff', yellow: '#ffff00',
                 orange: '#ffa500', purple: '#800080', pink: '#ffc0cb', black: '#000000',
@@ -735,11 +783,16 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                 magenta: '#ff00ff', lime: '#00ff00', navy: '#000080', teal: '#008080',
                 maroon: '#800000', olive: '#808000', aqua: '#00ffff', silver: '#c0c0c0',
               };
-              cardColor = cssColorMap[card.cover.color.toLowerCase()] || card.cover.color;
+              const normalizedColor = coverColor.toLowerCase();
+              if (cssColorMap[normalizedColor]) {
+                cardColor = cssColorMap[normalizedColor];
+              }
+              // If no match found, ignore (cardColor remains null)
             }
           }
 
-          const finalCardColor = cardColor || defaultColor;
+          // Ensure finalCardColor is string | null (never undefined)
+          const finalCardColor: string | null = cardColor || defaultColor || null;
 
           allCardInserts.push({
             insert: {

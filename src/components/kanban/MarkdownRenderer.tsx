@@ -243,6 +243,95 @@ function isHtmlContent(content: string): boolean {
 }
 
 /**
+ * Convert nested HTML lists to markdown, preserving indentation.
+ * Processes lists from innermost to outermost to handle nesting correctly.
+ */
+function convertNestedListsToMarkdown(html: string): string {
+  if (!html) return html;
+  
+  let result = html;
+  let previousResult = '';
+  let iterations = 0;
+  const maxIterations = 50; // Safety limit to prevent infinite loops
+  
+  // Process lists iteratively from innermost (deepest) to outermost
+  while (result !== previousResult && iterations < maxIterations) {
+    previousResult = result;
+    iterations++;
+    
+    // Match innermost lists (those that don't contain another ul/ol tag)
+    // This regex uses negative lookahead to find lists without nested lists inside
+    const listRegex = /<(ul|ol)[^>]*>((?:(?!<(?:ul|ol)[^>]*>)[\s\S]*?)<\/(ul|ol)>/gi;
+    const matches: Array<{ match: string; openTag: string; content: string; closeTag: string; index: number }> = [];
+    
+    // Collect all matches with their positions
+    let match;
+    while ((match = listRegex.exec(result)) !== null) {
+      matches.push({
+        match: match[0],
+        openTag: match[1],
+        content: match[2],
+        closeTag: match[3],
+        index: match.index,
+      });
+    }
+    
+    // Process matches in reverse order (from end to start) to avoid index shifting issues
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const { match: fullMatch, openTag, content, closeTag, index } = matches[i];
+      
+      // Verify opening and closing tags match
+      if (openTag.toLowerCase() !== closeTag.toLowerCase()) {
+        continue; // Mismatched tags, skip this match
+      }
+      
+      const isOrdered = openTag.toLowerCase() === 'ol';
+      
+      // Calculate nesting depth by counting list tags before this match
+      const beforeMatch = result.substring(0, index);
+      const depth = (beforeMatch.match(/<(ul|ol)[^>]*>/gi) || []).length;
+      const indent = '  '.repeat(depth); // 2 spaces per nesting level
+      
+      // Extract and convert list items
+      let itemIndex = 0;
+      const markdown = content.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (liMatch, liContent) => {
+        // Clean up list item content
+        // First, handle paragraph tags
+        let cleanContent = liContent.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1');
+        
+        // Convert line breaks to spaces (but preserve structure)
+        cleanContent = cleanContent.replace(/<br\s*\/?>/gi, ' ');
+        
+        // Remove other HTML tags but preserve text content and inline button placeholders
+        // We need to be careful not to break [INLINE_BUTTON:...] placeholders
+        // Since inline buttons are already converted, we just need to preserve them
+        cleanContent = cleanContent.replace(/<[^>]+>/g, '');
+        
+        // Trim whitespace but preserve intentional spacing
+        cleanContent = cleanContent.trim();
+        
+        // Skip empty list items
+        if (!cleanContent) return '';
+        
+        // Format based on list type with proper indentation
+        if (isOrdered) {
+          itemIndex++;
+          return `${indent}${itemIndex}. ${cleanContent}\n`;
+        } else {
+          return `${indent}- ${cleanContent}\n`;
+        }
+      });
+      
+      // Replace the match in the result string
+      const replacement = markdown.trim() ? markdown + '\n' : '';
+      result = result.substring(0, index) + replacement + result.substring(index + fullMatch.length);
+    }
+  }
+  
+  return result;
+}
+
+/**
  * Convert HTML content to Markdown for safe rendering.
  * This handles legacy HTML descriptions from imports.
  */
@@ -285,17 +374,8 @@ function htmlToMarkdown(html: string): string {
   md = md.replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```');
   md = md.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, '```\n$1\n```');
   
-  // Convert lists
-  md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, content) => {
-    return content.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n') + '\n';
-  });
-  md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, content) => {
-    let index = 0;
-    return content.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, () => {
-      index++;
-      return `${index}. $1\n`;
-    }) + '\n';
-  });
+  // Convert lists with proper nesting support
+  md = convertNestedListsToMarkdown(md);
   
   // Convert links (support both single and double quotes)
   md = md.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)');

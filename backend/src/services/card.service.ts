@@ -269,6 +269,64 @@ class CardService {
     return { success: true };
   }
 
+  async batchUpdateColor(userId: string, boardId: string, cardIds: string[], color: string | null, isAppAdmin: boolean) {
+    // Check permission
+    const context = permissionService.buildContext(userId, isAppAdmin, boardId);
+    await permissionService.requirePermission('card.edit', context);
+
+    // Verify all cards belong to the board
+    const cards = await prisma.card.findMany({
+      where: { id: { in: cardIds } },
+      include: {
+        column: true,
+      },
+    });
+
+    // Verify all cards are in the specified board
+    const invalidCards = cards.filter((c) => c.column.boardId !== boardId);
+    if (invalidCards.length > 0) {
+      throw new ValidationError('Some cards do not belong to the specified board');
+    }
+
+    // Get existing cards for old values
+    const existingCards = await prisma.card.findMany({
+      where: { id: { in: cardIds } },
+      include: { column: true },
+    });
+
+    // Generate shared timestamp for all updates
+    const sharedTimestamp = new Date();
+
+    // Update all cards in transaction with shared timestamp
+    await prisma.$transaction(
+      cardIds.map((cardId) =>
+        prisma.card.update({
+          where: { id: cardId },
+          data: {
+            color,
+            updatedAt: sharedTimestamp,
+          },
+        })
+      )
+    );
+
+    // Emit update events for each card with identical timestamps
+    for (const cardId of cardIds) {
+      const oldCard = existingCards.find((c) => c.id === cardId);
+      if (oldCard) {
+        const updated = await prisma.card.findUnique({ 
+          where: { id: cardId },
+          include: { column: true },
+        });
+        if (updated) {
+          await emitDatabaseChange('cards', 'UPDATE', updated as any, oldCard as any, boardId);
+        }
+      }
+    }
+
+    return { success: true, updatedAt: sharedTimestamp.toISOString() };
+  }
+
   // Card assignees
   async addAssignee(userId: string, cardId: string, assigneeUserId: string, isAppAdmin: boolean) {
     const card = await prisma.card.findUnique({

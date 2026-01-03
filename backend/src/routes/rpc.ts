@@ -212,6 +212,36 @@ const rpcHandlers: Record<string, (req: Request, params: any) => Promise<any>> =
     );
   },
 
+  batch_update_card_colors: async (req, params) => {
+    const authReq = req as AuthRequest;
+    const { _user_id: userId, _board_id: boardId, _card_ids: cardIds, _color: color } = params;
+    if (!Array.isArray(cardIds)) {
+      throw new Error('Invalid card_ids parameter');
+    }
+    return cardService.batchUpdateColor(
+      userId || authReq.userId!,
+      boardId,
+      cardIds,
+      color ?? null,
+      authReq.user?.isAdmin ?? false
+    );
+  },
+
+  batch_update_column_colors: async (req, params) => {
+    const authReq = req as AuthRequest;
+    const { _user_id: userId, _board_id: boardId, _column_ids: columnIds, _color: color } = params;
+    if (!Array.isArray(columnIds)) {
+      throw new Error('Invalid column_ids parameter');
+    }
+    return columnService.batchUpdateColor(
+      userId || authReq.userId!,
+      boardId,
+      columnIds,
+      color ?? null,
+      authReq.user?.isAdmin ?? false
+    );
+  },
+
   get_board_deletion_counts: async (_req, params) => {
     const { _board_id: boardId } = params;
     

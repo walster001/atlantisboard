@@ -343,6 +343,25 @@ export default function BoardPage() {
   const pendingCardEventsRef = useRef<BufferedCardEvent[]>([]);
   const columnsLoadedRef = useRef(false);
 
+  // Track pending batch color operations for event batching
+  interface PendingBatchColorOperation {
+    color: string | null;
+    entityIds: string[];
+    timestamp: number;
+    updatedAt: string | null; // Server timestamp from batch operation
+  }
+  const pendingBatchCardColorRef = useRef<PendingBatchColorOperation | null>(null);
+  const pendingBatchColumnColorRef = useRef<PendingBatchColorOperation | null>(null);
+  
+  // Buffer for batched color update events
+  interface BufferedColorEvent {
+    entity: DbCard | DbColumn;
+    event: RealtimePostgresChangesPayload<Record<string, unknown>>;
+    timestamp: number;
+  }
+  const bufferedCardColorEventsRef = useRef<BufferedColorEvent[]>([]);
+  const bufferedColumnColorEventsRef = useRef<BufferedColorEvent[]>([]);
+
   // Process buffered card events when column state is ready
   const processBufferedCardEvents = useCallback(() => {
     if (pendingCardEventsRef.current.length === 0) return;
@@ -479,6 +498,75 @@ export default function BoardPage() {
             });
           } else if (event.eventType === 'UPDATE') {
             const updatedColumn = columnData;
+            
+            // Check if this is a color update that's part of a batch operation
+            const batchOp = pendingBatchColumnColorRef.current;
+            const previous = event.old as unknown as DbColumn;
+            const isColorUpdate = previous?.color !== updatedColumn.color;
+            
+            if (isColorUpdate && batchOp && batchOp.entityIds.includes(updatedColumn.id)) {
+              // Check if timestamp matches batch operation (within tolerance)
+              const incomingUpdatedAt = getUpdatedAt(updatedColumn);
+              const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
+              const batchTimestamp = batchOp.updatedAt ? normalizeTimestamp(batchOp.updatedAt) : null;
+              const timestampMatches = batchTimestamp && (
+                isEqual(incomingTimestamp, batchTimestamp) || 
+                Math.abs(incomingTimestamp - batchTimestamp) < 1000 // 1 second tolerance
+              );
+              
+              // Check if color matches
+              const colorMatches = updatedColumn.color === batchOp.color;
+              
+              if (timestampMatches && colorMatches) {
+                // This is part of the batch - buffer it
+                console.log('[BoardPage] Column color UPDATE event buffered for batch:', updatedColumn.id);
+                bufferedColumnColorEventsRef.current.push({
+                  entity: updatedColumn,
+                  event,
+                  timestamp: Date.now(),
+                });
+                
+                // Check if we've received all expected events or timeout
+                const receivedIds = bufferedColumnColorEventsRef.current.map(e => (e.entity as DbColumn).id);
+                const allReceived = batchOp.entityIds.every(id => receivedIds.includes(id));
+                const bufferAge = Date.now() - batchOp.timestamp;
+                
+                if (allReceived || bufferAge > 200) {
+                  // Apply all buffered updates at once
+                  console.log('[BoardPage] Applying batched column color updates:', {
+                    count: bufferedColumnColorEventsRef.current.length,
+                    allReceived,
+                    bufferAge,
+                  });
+                  
+                  setColumns((prev) => {
+                    const updated = prev.map((c) => {
+                      const bufferedEvent = bufferedColumnColorEventsRef.current.find(
+                        e => (e.entity as DbColumn).id === c.id
+                      );
+                      if (bufferedEvent) {
+                        return bufferedEvent.entity as DbColumn;
+                      }
+                      return c;
+                    });
+                    
+                    const sorted = updated.sort((a, b) => a.position - b.position);
+                    // Update columnIdsRef immediately
+                    columnIdsRef.current = sorted.map(c => c.id);
+                    return sorted;
+                  });
+                  
+                  // Clear buffer
+                  bufferedColumnColorEventsRef.current = [];
+                  return;
+                }
+                
+                // Wait for more events or timeout
+                return;
+              }
+            }
+            
+            // Not a batched color update - process normally
             setColumns((prev) => {
               const existingColumn = prev.find((c) => c.id === updatedColumn.id);
               if (!existingColumn) {
@@ -590,6 +678,74 @@ export default function BoardPage() {
             const incomingUpdatedAt = getUpdatedAt(updatedCard);
             const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
             
+            // Check if this is a color update that's part of a batch operation
+            const batchOp = pendingBatchCardColorRef.current;
+            const isColorUpdate = previous?.color !== updatedCard.color;
+            
+            if (isColorUpdate && batchOp && batchOp.entityIds.includes(updatedCard.id)) {
+              // Check if timestamp matches batch operation (within tolerance)
+              const batchTimestamp = batchOp.updatedAt ? normalizeTimestamp(batchOp.updatedAt) : null;
+              const timestampMatches = batchTimestamp && (
+                isEqual(incomingTimestamp, batchTimestamp) || 
+                Math.abs(incomingTimestamp - batchTimestamp) < 1000 // 1 second tolerance
+              );
+              
+              // Check if color matches
+              const colorMatches = updatedCard.color === batchOp.color;
+              
+              if (timestampMatches && colorMatches) {
+                // This is part of the batch - buffer it
+                console.log('[BoardPage] Card color UPDATE event buffered for batch:', updatedCard.id);
+                bufferedCardColorEventsRef.current.push({
+                  entity: updatedCard,
+                  event,
+                  timestamp: Date.now(),
+                });
+                
+                // Check if we've received all expected events or timeout
+                const receivedIds = bufferedCardColorEventsRef.current.map(e => (e.entity as DbCard).id);
+                const allReceived = batchOp.entityIds.every(id => receivedIds.includes(id));
+                const bufferAge = Date.now() - batchOp.timestamp;
+                
+                if (allReceived || bufferAge > 200) {
+                  // Apply all buffered updates at once
+                  console.log('[BoardPage] Applying batched card color updates:', {
+                    count: bufferedCardColorEventsRef.current.length,
+                    allReceived,
+                    bufferAge,
+                  });
+                  
+                  setCards((prev) => {
+                    const updated = prev.map((c) => {
+                      const bufferedEvent = bufferedCardColorEventsRef.current.find(
+                        e => (e.entity as DbCard).id === c.id
+                      );
+                      if (bufferedEvent) {
+                        return bufferedEvent.entity as DbCard;
+                      }
+                      return c;
+                    });
+                    
+                    // Sort cards by position within each column
+                    return updated.sort((a, b) => {
+                      if (a.columnId !== b.columnId) {
+                        return a.columnId.localeCompare(b.columnId);
+                      }
+                      return a.position - b.position;
+                    });
+                  });
+                  
+                  // Clear buffer
+                  bufferedCardColorEventsRef.current = [];
+                  return;
+                }
+                
+                // Wait for more events or timeout
+                return;
+              }
+            }
+            
+            // Not a batched color update - process normally
             // Get local card state for comparison
             setCards((prev) => {
               const existingCard = prev.find((c) => c.id === updatedCard.id);
@@ -982,24 +1138,55 @@ export default function BoardPage() {
   };
 
   const applyCardColorToAll = async (color: string | null) => {
-    if (!effectiveCanEdit || !boardId) return;
+    if (!effectiveCanEdit || !boardId || !user) return;
     try {
       const cardIds = cards.map(c => c.id);
-      // Update each card individually using dedicated route to ensure realtime events are emitted
-      // This ensures each card update emits a realtime event
-      await Promise.all(
-        cardIds.map(cardId =>
-          api.request(`/cards/${cardId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ color }),
-          })
-        )
-      );
-      // Realtime handler will update state when events are received
+      if (cardIds.length === 0) return;
+
+      // Apply optimistic update immediately - update all cards in a single state update
+      setCards((prev) => prev.map((c) => ({ ...c, color })));
+
+      // Track batch operation
+      const batchTimestamp = Date.now();
+      pendingBatchCardColorRef.current = {
+        color,
+        entityIds: cardIds,
+        timestamp: batchTimestamp,
+        updatedAt: null,
+      };
+
+      // Clear any existing buffered events
+      bufferedCardColorEventsRef.current = [];
+
+      // Call batch RPC endpoint
+      const { data, error } = await api.rpc('batch_update_card_colors', {
+        _user_id: user.id,
+        _board_id: boardId,
+        _card_ids: cardIds,
+        _color: color,
+      });
+
+      if (error) throw error;
+
+      // Store the server timestamp from the batch operation
+      const result = data as { success?: boolean; updatedAt?: string };
+      if (result?.updatedAt && pendingBatchCardColorRef.current) {
+        pendingBatchCardColorRef.current.updatedAt = result.updatedAt;
+      }
+
+      // Realtime events will arrive and be batched by the handler
       toast({ title: 'Success', description: 'Applied colour to all cards' });
     } catch (error: any) {
       console.error('Apply card color to all error:', error);
+      // Revert optimistic update on error
+      fetchBoardData();
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    } finally {
+      // Clear batch tracking after a delay to allow events to arrive
+      setTimeout(() => {
+        pendingBatchCardColorRef.current = null;
+        bufferedCardColorEventsRef.current = [];
+      }, 500);
     }
   };
 
@@ -1024,25 +1211,58 @@ export default function BoardPage() {
   };
 
   const applyColumnColorToAll = async (color: string | null) => {
-    if (!effectiveCanEdit || !boardId) return;
+    if (!effectiveCanEdit || !boardId || !user) return;
     try {
       const columnIds = columns.map(c => c.id);
+      if (columnIds.length === 0) return;
+
       // When color is null from ColorPicker (transparent selection), save as empty string
       const colorToSave = color === null ? '' : color;
-      // Update each column individually using dedicated route to ensure realtime events are emitted
-      await Promise.all(
-        columnIds.map(columnId =>
-          api.request(`/columns/${columnId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ color: colorToSave }),
-          })
-        )
-      );
-      // Realtime handler will update state when events are received
+
+      // Apply optimistic update immediately - update all columns in a single state update
+      setColumns((prev) => prev.map((c) => ({ ...c, color: colorToSave })));
+
+      // Track batch operation
+      const batchTimestamp = Date.now();
+      pendingBatchColumnColorRef.current = {
+        color: colorToSave,
+        entityIds: columnIds,
+        timestamp: batchTimestamp,
+        updatedAt: null,
+      };
+
+      // Clear any existing buffered events
+      bufferedColumnColorEventsRef.current = [];
+
+      // Call batch RPC endpoint
+      const { data, error } = await api.rpc('batch_update_column_colors', {
+        _user_id: user.id,
+        _board_id: boardId,
+        _column_ids: columnIds,
+        _color: colorToSave,
+      });
+
+      if (error) throw error;
+
+      // Store the server timestamp from the batch operation
+      const result = data as { success?: boolean; updatedAt?: string };
+      if (result?.updatedAt && pendingBatchColumnColorRef.current) {
+        pendingBatchColumnColorRef.current.updatedAt = result.updatedAt;
+      }
+
+      // Realtime events will arrive and be batched by the handler
       toast({ title: 'Success', description: 'Applied colour to all columns' });
     } catch (error: any) {
       console.error('Apply column color to all error:', error);
+      // Revert optimistic update on error
+      fetchBoardData();
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    } finally {
+      // Clear batch tracking after a delay to allow events to arrive
+      setTimeout(() => {
+        pendingBatchColumnColorRef.current = null;
+        bufferedColumnColorEventsRef.current = [];
+      }, 500);
     }
   };
 

@@ -176,6 +176,57 @@ class ColumnService {
 
     return { success: true };
   }
+
+  async batchUpdateColor(userId: string, boardId: string, columnIds: string[], color: string | null, isAppAdmin: boolean) {
+    // Check permission
+    const context = permissionService.buildContext(userId, isAppAdmin, boardId);
+    await permissionService.requirePermission('column.edit', context);
+
+    // Verify all columns belong to the board
+    const columns = await prisma.column.findMany({
+      where: { id: { in: columnIds } },
+    });
+
+    // Verify all columns are in the specified board
+    const invalidColumns = columns.filter((c) => c.boardId !== boardId);
+    if (invalidColumns.length > 0) {
+      throw new NotFoundError('Some columns do not belong to the specified board');
+    }
+
+    // Get existing columns for old values
+    const existingColumns = await prisma.column.findMany({
+      where: { id: { in: columnIds } },
+    });
+
+    // Generate shared timestamp for all updates
+    const sharedTimestamp = new Date();
+
+    // Update all columns in transaction with shared timestamp
+    await prisma.$transaction(
+      columnIds.map((columnId) =>
+        prisma.column.update({
+          where: { id: columnId },
+          data: {
+            color,
+            updatedAt: sharedTimestamp,
+          },
+        })
+      )
+    );
+
+    // Emit update events for each column with identical timestamps
+    for (const columnId of columnIds) {
+      const oldColumn = existingColumns.find((c) => c.id === columnId);
+      if (oldColumn) {
+        const updated = await prisma.column.findUnique({ where: { id: columnId } });
+        if (updated) {
+          await emitDatabaseChange('columns', 'UPDATE', updated as any, oldColumn as any, boardId);
+        }
+      }
+    }
+
+    return { success: true, updatedAt: sharedTimestamp.toISOString() };
+  }
 }
 
 export const columnService = new ColumnService();

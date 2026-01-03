@@ -328,4 +328,3 @@ useEffect(() => {
 ## Performance Considerations
 
 - Handler merging adds minimal overhead
-- Registry lookups are O(1) Map operations

@@ -344,11 +344,14 @@ class MemberService {
     });
     await emitDatabaseChange('boardMembers', 'DELETE', undefined, memberToDelete as any, boardId);
 
-    // If user was removed, notify them via custom event
-    await emitCustomEvent(`board:${boardId}`, 'board.member.removed', {
-      userId: targetUserId,
-      boardId,
-    });
+    // If user was removed, notify them via custom event to workspace channel
+    if (board.workspaceId) {
+      await emitCustomEvent(`workspace:${board.workspaceId}`, 'board.member.removed', {
+        userId: targetUserId,
+        boardId,
+        workspaceId: board.workspaceId,
+      });
+    }
 
     return { success: true };
   }

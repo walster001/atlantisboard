@@ -473,18 +473,13 @@ class BoardService {
     // Emit DELETE event for realtime subscriptions
     await emitDatabaseChange('boards', 'DELETE', undefined, board as any, boardId);
 
-    // Also emit custom event for backward compatibility
+    // Emit custom event to workspace channel
     if (board.workspaceId) {
       await emitCustomEvent(`workspace:${board.workspaceId}`, 'board.removed', {
         boardId,
         workspaceId: board.workspaceId,
       });
     }
-
-    // Also emit to board channel (for clients currently viewing the board)
-    await emitCustomEvent(`board:${boardId}`, 'board.removed', {
-      boardId,
-    });
 
     return { success: true };
   }

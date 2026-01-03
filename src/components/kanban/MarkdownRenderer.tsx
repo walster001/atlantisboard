@@ -261,7 +261,7 @@ function convertNestedListsToMarkdown(html: string): string {
     
     // Match innermost lists (those that don't contain another ul/ol tag)
     // This regex uses negative lookahead to find lists without nested lists inside
-    const listRegex = /<(ul|ol)[^>]*>((?:(?!<(?:ul|ol)[^>]*>)[\s\S]*?)<\/(ul|ol)>/gi;
+    const listRegex = /<(ul|ol)[^>]*>((?:(?!<(?:ul|ol)[^>]*>)[\s\S]*?))<\/(ul|ol)>/gi;
     const matches: Array<{ match: string; openTag: string; content: string; closeTag: string; index: number }> = [];
     
     // Collect all matches with their positions

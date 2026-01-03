@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { uploadFile, deleteFile, extractStoragePathFromUrl } from '@/lib/storage';
+import { uploadFile } from '@/lib/storage';
 import { Upload, Image, ExternalLink, Check, Loader2 } from 'lucide-react';
 
 // Detected inline button with internal /cdn image reference
@@ -16,7 +16,8 @@ export interface DetectedInlineButton {
   cardTitle?: string;
   occurrenceCount: number; // How many times this imgSrc appears
   replacementUrl?: string; // After upload
-  replacementPath?: string; // Storage path for deletion (e.g., 'import-icons/filename.png')
+  localFile?: File; // Local file before upload
+  localPreviewUrl?: string; // Object URL for preview
 }
 
 interface InlineButtonIconDialogProps {
@@ -142,19 +143,54 @@ export function InlineButtonIconDialog({
   const [buttons, setButtons] = useState<DetectedInlineButton[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const objectUrlRefs = useRef<Record<string, string>>({}); // Track object URLs for cleanup
 
   useEffect(() => {
     if (open) {
-      // Create copies with reset replacement URLs and paths
+      // Create copies with reset replacement URLs
       setButtons(detectedButtons.map((btn, index) => ({
         ...btn,
         id: `btn-${index}-${Date.now()}`,
         replacementUrl: undefined,
-        replacementPath: undefined,
+        localFile: undefined,
+        localPreviewUrl: undefined,
       })));
       fileInputRefs.current = {};
+      // Clear object URLs when dialog opens (defensive cleanup)
+      Object.values(objectUrlRefs.current).forEach(url => {
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+      });
+      objectUrlRefs.current = {};
     }
   }, [open, detectedButtons]);
+
+  // Cleanup object URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      // Cleanup all object URLs
+      Object.values(objectUrlRefs.current).forEach(url => {
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+      });
+      objectUrlRefs.current = {};
+    };
+  }, []);
+
+  // Cleanup when dialog closes without completing
+  useEffect(() => {
+    if (!open) {
+      // Cleanup all object URLs when dialog closes
+      Object.values(objectUrlRefs.current).forEach(url => {
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+      });
+      objectUrlRefs.current = {};
+    }
+  }, [open]);
 
   const handleFileSelect = async (buttonId: string, imgSrc: string, file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -176,80 +212,100 @@ export function InlineButtonIconDialog({
       return;
     }
 
-    // Check if a previous upload exists and delete it
+    // Cleanup previous object URL if exists
     const button = buttons.find(b => b.id === buttonId);
-    if (button?.replacementPath) {
-      // Use stored path directly for reliable deletion
-      try {
-        const deleteResult = await deleteFile('branding', button.replacementPath);
-        if (deleteResult.error) {
-          console.error('Failed to delete old icon file:', deleteResult.error);
-          // Continue with upload even if deletion fails
-        }
-      } catch (error) {
-        console.error('Error deleting old icon file:', error);
-        // Continue with upload even if deletion fails
-      }
-    } else if (button?.replacementUrl) {
-      // Fallback to URL extraction if path not stored (for backwards compatibility)
-      const oldPath = extractStoragePathFromUrl(button.replacementUrl, 'branding');
-      if (oldPath) {
-        try {
-          const deleteResult = await deleteFile('branding', oldPath);
-          if (deleteResult.error) {
-            console.error('Failed to delete old icon file:', deleteResult.error);
-            // Continue with upload even if deletion fails
-          }
-        } catch (error) {
-          console.error('Error deleting old icon file:', error);
-          // Continue with upload even if deletion fails
-        }
-      }
+    if (button?.localPreviewUrl && objectUrlRefs.current[buttonId]) {
+      URL.revokeObjectURL(objectUrlRefs.current[buttonId]);
+      delete objectUrlRefs.current[buttonId];
     }
 
-    setUploading(buttonId);
+    // Create object URL for preview
+    const previewUrl = URL.createObjectURL(file);
+    objectUrlRefs.current[buttonId] = previewUrl;
 
-    try {
-      // Upload to MinIO storage
-      const fileExt = file.name.split('.').pop() || 'png';
-      const fileName = `inline-icon-${Date.now()}.${fileExt}`;
-      const filePath = `import-icons/${fileName}`;
+    // Store file locally (don't upload yet)
+    setButtons((prev) =>
+      prev.map((btn) =>
+        btn.id === buttonId 
+          ? { ...btn, localFile: file, localPreviewUrl: previewUrl }
+          : btn
+      )
+    );
 
-      const uploadResult = await uploadFile('branding', filePath, file);
-
-      if (uploadResult.error || !uploadResult.data) {
-        throw uploadResult.error || new Error('Upload failed: No data returned');
-      }
-
-      // Use publicUrl from upload response
-      const publicUrl = uploadResult.data.publicUrl;
-
-      // Update button with replacement URL and path for future deletion
-      setButtons((prev) =>
-        prev.map((btn) =>
-          btn.id === buttonId 
-            ? { ...btn, replacementUrl: publicUrl, replacementPath: filePath }
-            : btn
-        )
-      );
-
-      toast({
-        title: 'Icon uploaded',
-        description: 'The replacement icon has been uploaded.',
-      });
-    } catch (error: any) {
-      console.error('Upload error:', error);
-      toast({
-        title: 'Upload failed',
-        description: error.message || 'Failed to upload icon.',
-        variant: 'destructive',
-      });
-    } finally {
-      setUploading(null);
-    }
+    toast({
+      title: 'File selected',
+      description: 'File will be uploaded when you click "Continue with replacements".',
+    });
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    // Upload all files that have been selected
+    const filesToUpload = buttons.filter(btn => btn.localFile && !btn.replacementUrl);
+    
+    if (filesToUpload.length > 0) {
+      setUploading('all');
+      
+      try {
+        const uploadPromises = filesToUpload.map(async (button) => {
+          if (!button.localFile) return null;
+
+          const fileExt = button.localFile.name.split('.').pop() || 'png';
+          const fileName = `inline-icon-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const filePath = `import-icons/${fileName}`;
+
+          const uploadResult = await uploadFile('branding', filePath, button.localFile);
+
+          if (uploadResult.error || !uploadResult.data) {
+            throw uploadResult.error || new Error('Upload failed: No data returned');
+          }
+
+          const publicUrl = uploadResult.data.publicUrl;
+
+          // Update button with replacement URL
+          return {
+            buttonId: button.id,
+            replacementUrl: publicUrl,
+          };
+        });
+
+        const uploadResults = await Promise.all(uploadPromises);
+
+        // Update buttons with uploaded URLs
+        setButtons((prev) =>
+          prev.map((btn) => {
+            const result = uploadResults.find(r => r?.buttonId === btn.id);
+            if (result) {
+              return {
+                ...btn,
+                replacementUrl: result.replacementUrl,
+              };
+            }
+            return btn;
+          })
+        );
+
+        // Cleanup object URLs after successful upload
+        uploadResults.forEach(result => {
+          if (result && objectUrlRefs.current[result.buttonId]) {
+            URL.revokeObjectURL(objectUrlRefs.current[result.buttonId]);
+            delete objectUrlRefs.current[result.buttonId];
+          }
+        });
+
+      } catch (error: any) {
+        console.error('Upload error:', error);
+        toast({
+          title: 'Upload failed',
+          description: error.message || 'Failed to upload one or more icons.',
+          variant: 'destructive',
+        });
+        setUploading(null);
+        return; // Don't proceed if upload fails
+      } finally {
+        setUploading(null);
+      }
+    }
+
     // Build replacement map: imgSrc -> replacementUrl
     const replacements = new Map<string, string>();
     for (const btn of buttons) {
@@ -262,11 +318,19 @@ export function InlineButtonIconDialog({
   };
 
   const handleSkip = () => {
+    // Cleanup all object URLs before skipping
+    Object.values(objectUrlRefs.current).forEach(url => {
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
+    });
+    objectUrlRefs.current = {};
+    
     // Complete with no replacements - parent handles closing
     onComplete(new Map());
   };
 
-  const uploadedCount = buttons.filter((b) => b.replacementUrl).length;
+  const uploadedCount = buttons.filter((b) => b.replacementUrl || b.localFile).length;
   const totalOccurrences = buttons.reduce((sum, b) => sum + b.occurrenceCount, 0);
 
   return (
@@ -300,9 +364,9 @@ export function InlineButtonIconDialog({
                       border: '1px solid #3d444d',
                     }}
                   >
-                    {button.replacementUrl ? (
+                    {(button.replacementUrl || button.localPreviewUrl) ? (
                       <img
-                        src={button.replacementUrl}
+                        src={button.replacementUrl || button.localPreviewUrl}
                         alt="icon"
                         className="h-4 w-4 object-contain"
                       />
@@ -367,14 +431,14 @@ export function InlineButtonIconDialog({
                     variant="outline"
                     size="sm"
                     onClick={() => fileInputRefs.current[button.id]?.click()}
-                    disabled={uploading === button.id}
+                    disabled={uploading === button.id || uploading === 'all'}
                   >
                     {uploading === button.id ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Uploading...
                       </>
-                    ) : button.replacementUrl ? (
+                    ) : (button.replacementUrl || button.localFile) ? (
                       <>
                         <Check className="h-4 w-4 mr-2 text-green-500" />
                         Change Icon
@@ -382,7 +446,7 @@ export function InlineButtonIconDialog({
                     ) : (
                       <>
                         <Upload className="h-4 w-4 mr-2" />
-                        Upload Icon
+                        Select Icon
                       </>
                     )}
                   </Button>
@@ -390,6 +454,12 @@ export function InlineButtonIconDialog({
                     <span className="text-xs text-green-600 flex items-center gap-1">
                       <Check className="h-3 w-3" />
                       Uploaded
+                    </span>
+                  )}
+                  {button.localFile && !button.replacementUrl && (
+                    <span className="text-xs text-blue-600 flex items-center gap-1">
+                      <Image className="h-3 w-3" />
+                      Selected (will upload on continue)
                     </span>
                   )}
                 </div>
@@ -400,13 +470,22 @@ export function InlineButtonIconDialog({
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
           <div className="text-sm text-muted-foreground mr-auto">
-            {uploadedCount} of {buttons.length} unique icons replaced
+            {uploadedCount} of {buttons.length} unique icons {buttons.some(b => b.localFile && !b.replacementUrl) ? 'selected' : 'replaced'}
           </div>
-          <Button variant="outline" onClick={handleSkip}>
+          <Button variant="outline" onClick={handleSkip} disabled={uploading === 'all'}>
             Skip (keep broken icons)
           </Button>
-          <Button onClick={handleComplete}>
-            {uploadedCount === buttons.length ? 'Continue' : 'Continue with replacements'}
+          <Button onClick={handleComplete} disabled={uploading === 'all'}>
+            {uploading === 'all' ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : uploadedCount === buttons.length ? (
+              'Continue'
+            ) : (
+              'Continue with replacements'
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

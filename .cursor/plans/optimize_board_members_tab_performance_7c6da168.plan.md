@@ -322,5 +322,3 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
 - **API compatibility:** Backend returns all members if no pagination params (existing behavior)
 - **Realtime updates:** Continue to work - update local state optimistically
 - **Permission checks:** No changes to permission logic
-
-## Testing Considerations

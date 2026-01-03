@@ -232,8 +232,19 @@ class ApiClient {
       }>('/auth/me');
       
       if (result.error) {
+        // Check if it's a 401 error (session expired)
+        const is401 = result.error.message?.includes('401') || 
+                     result.error.message?.includes('Unauthorized') ||
+                     result.error.message?.includes('Session expired');
+        
         this.clearAuth();
-        return { data: { session: null }, error: result.error };
+        
+        // Return a clear 401 error message for better detection
+        const error = is401 
+          ? new Error('401: Session expired') 
+          : result.error;
+        
+        return { data: { session: null }, error };
       }
 
       if (!result.data) {

@@ -117,6 +117,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Helper to check if we're processing an OAuth callback
+  const isOAuthCallback = useCallback(() => {
+    const hash = window.location.hash;
+    if (!hash) return false;
+    return hash.includes('access_token') || hash.includes('refresh_token') || hash.includes('code=');
+  }, []);
+
   // Handle OAuth callback from URL hash
   useEffect(() => {
     const hash = window.location.hash;
@@ -184,6 +191,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             window.history.replaceState(null, '', window.location.pathname);
           } else if (error) {
             console.error('Failed to get session:', error);
+            // Check for 401 error during OAuth callback
+            const is401 = error.message?.includes('401') || 
+                         error.message?.includes('Unauthorized') ||
+                         error.message?.includes('Session expired');
+            
+            if (is401) {
+              console.log('[useAuth] Session expired during OAuth callback, redirecting to login');
+              // Clear auth state
+              setSession(null);
+              setUser(null);
+              setIsAppAdmin(false);
+              setIsVerified(false);
+              api.clearAuth();
+              // Redirect to login page
+              window.location.replace('/auth');
+            }
             setLoading(false);
           }
         });
@@ -204,9 +227,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeSession = async () => {
       try {
+        // Don't initialize if we're processing an OAuth callback
+        if (isOAuthCallback()) {
+          console.log('[useAuth] OAuth callback detected, skipping session initialization');
+          setLoading(false);
+          return;
+        }
+
         console.log('[useAuth] Initializing session...');
         const { data, error } = await api.auth.getSession();
         console.log('[useAuth] Session data:', data, 'Error:', error);
+
+        // Check for 401 error (session expired)
+        if (error) {
+          const is401 = error.message?.includes('401') || 
+                       error.message?.includes('Unauthorized') ||
+                       error.message?.includes('Session expired');
+          
+          if (is401) {
+            console.log('[useAuth] Session expired (401), redirecting to login');
+            // Clear all auth state
+            setSession(null);
+            setUser(null);
+            setIsAppAdmin(false);
+            setIsVerified(false);
+            api.clearAuth();
+            
+            // Redirect to login page if not already there
+            if (window.location.pathname !== '/auth') {
+              window.location.replace('/auth');
+            }
+            setLoading(false);
+            return;
+          }
+        }
 
         if (data?.session && !error) {
           setSession(data.session);
@@ -244,7 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initializeSession();
-  }, [fetchAdminStatus]);
+  }, [fetchAdminStatus, isOAuthCallback]);
 
 
   const signInWithGoogle = async () => {

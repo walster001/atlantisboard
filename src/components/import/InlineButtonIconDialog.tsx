@@ -189,6 +189,8 @@ export function InlineButtonIconDialog({
         }
       });
       objectUrlRefs.current = {};
+      // Clear buttons state to remove stale local file references
+      setButtons([]);
     }
   }, [open]);
 

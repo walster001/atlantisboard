@@ -99,6 +99,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }>('/auth/me');
 
       if (result.error) {
+        // Check if it's a 401 error (session expired)
+        const is401 = result.error.message?.includes('401') || 
+                     result.error.message?.includes('Unauthorized') ||
+                     result.error.message?.includes('Session expired');
+        
+        if (is401) {
+          console.log('[fetchAdminStatus] Session expired (401), clearing user state');
+          // Clear user state - redirect will be handled by client.ts
+          setSession(null);
+          setUser(null);
+          setIsAppAdmin(false);
+          setIsVerified(false);
+          api.clearAuth();
+          return;
+        }
+        
         console.error('[fetchAdminStatus] Error fetching admin status:', result.error);
         setIsAppAdmin(false);
         return;

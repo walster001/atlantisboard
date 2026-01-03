@@ -103,10 +103,43 @@ class ApiClient {
             const data = await retryResponse.json();
             return { data, error: null };
           }
+          
+          // If retry also fails with 401, fall through to handle 401 below
+          if (retryResponse.status === 401) {
+            // Clear auth and handle redirect for /auth/me
+            this.clearAuth();
+            if (endpoint === '/auth/me' && typeof window !== 'undefined' && window.location.pathname !== '/auth') {
+              console.log('[ApiClient] Session expired on /auth/me after refresh retry, redirecting to login');
+              window.location.replace('/auth');
+            }
+            const errorData = await retryResponse.json().catch(() => ({ error: 'Unauthorized', message: 'Session expired' }));
+            const errorMessage = errorData.error || errorData.message || 'Session expired';
+            return {
+              data: null,
+              error: new Error(errorMessage),
+            };
+          }
+        } else {
+          // Refresh failed - clear auth and handle redirect for /auth/me
+          this.clearAuth();
+          if (endpoint === '/auth/me' && typeof window !== 'undefined' && window.location.pathname !== '/auth') {
+            console.log('[ApiClient] Token refresh failed on /auth/me, redirecting to login');
+            window.location.replace('/auth');
+          }
         }
       }
 
       if (!response.ok) {
+        // Handle 401 errors (after refresh attempt failed or no refresh token)
+        if (response.status === 401) {
+          this.clearAuth();
+          // For /auth/me endpoint, always redirect to login on 401
+          if (endpoint === '/auth/me' && typeof window !== 'undefined' && window.location.pathname !== '/auth') {
+            console.log('[ApiClient] 401 Unauthorized on /auth/me, redirecting to login');
+            window.location.replace('/auth');
+          }
+        }
+        
         // Handle rate limiting specifically
         if (response.status === 429) {
           const retryAfter = response.headers.get('Retry-After') || response.headers.get('X-RateLimit-Reset');

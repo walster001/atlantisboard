@@ -314,10 +314,3 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
 2. **Infinite Scroll:** Load more members automatically when user scrolls near bottom
 3. **Debounced Search:** Wait 500ms after user stops typing before executing search
 4. **Virtualization:** Only render visible items (20-30 at a time) for performance
-5. **Backward Compatible:** Small boards (< 50 members) work exactly as before
-
-## Backward Compatibility
-
-- **BoardPage integration:** Members prop still works - if < 50 members and no search, use prop directly
-- **API compatibility:** Backend returns all members if no pagination params (existing behavior)
-- **Realtime updates:** Continue to work - update local state optimistically

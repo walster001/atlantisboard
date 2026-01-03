@@ -22,6 +22,7 @@ const RECENT_COLORS_KEY = 'kanban-recent-colors';
 const MAX_RECENT_COLORS = 5;
 
 const PRESET_COLORS = [
+  '#ffffff', // white (default column color)
   '#ef4444', // red
   '#f97316', // orange
   '#eab308', // yellow

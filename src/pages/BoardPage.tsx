@@ -30,6 +30,7 @@ import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions
 import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
 import type { RealtimePostgresChangesPayload } from '@/realtime/realtimeClient';
 import { normalizeTimestamp, isNewer, isEqual } from '@/lib/timestampUtils';
+import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
 interface DbColumn {
   id: string;
   boardId: string;
@@ -305,6 +306,154 @@ export default function BoardPage() {
     }
   }, [boardId, user, toast, navigate]);
 
+  // Silent fetch for realtime updates (no loading spinner to prevent UI flicker)
+  const silentFetchBoardData = useCallback(async () => {
+    if (!boardId) return;
+    
+    if (!user?.id) return;
+
+    try {
+      // Single server-side call to get all board data
+      const { data, error } = await api.rpc('get_board_data', {
+        _board_id: boardId,
+        _user_id: user.id
+      });
+
+      if (error) throw error;
+      
+      // Cast JSON response to typed object
+      const result = data as {
+        error?: string;
+        board?: { id: string; name: string; description: string | null; backgroundColor: string | null; workspaceId: string; createdBy: string | null };
+        userRole?: string | null;
+        columns?: DbColumn[];
+        cards?: DbCard[];
+        labels?: DbLabel[];
+        cardLabels?: DbCardLabel[];
+        members?: Array<{ userId: string; role: string; profiles: { id: string; email: string | null; fullName: string | null; avatarUrl: string | null } }>;
+      };
+      
+      if (result?.error) {
+        if (result.error === 'Board not found') {
+          toast({ title: 'Board not found', variant: 'destructive' });
+          navigate('/');
+          return;
+        }
+        if (result.error === 'Access denied') {
+          setAccessDenied(true);
+          return;
+        }
+        throw new Error(result.error);
+      }
+
+      // Set all state from single response
+      setBoardName(result.board?.name || '');
+      setBoardColor(result.board?.backgroundColor || '#0079bf');
+      setWorkspaceId(result.board?.workspaceId || null);
+      setBoardCreatedBy(result.board?.createdBy || null);
+      setUserRole(result.userRole as 'admin' | 'manager' | 'viewer' | null);
+      const initialColumns = result.columns || [];
+      setColumns(initialColumns);
+      // Update columnIdsRef immediately for synchronous access
+      columnIdsRef.current = initialColumns.map(c => c.id);
+      // Mark columns as loaded
+      columnsLoadedRef.current = true;
+
+      // Fetch themeId and theme data separately (not in RPC response)
+      const boardDataResult = await api
+        .from('boards')
+        .select('themeId')
+        .eq('id', boardId)
+        .single();
+      
+      const themeId = (boardDataResult.data as { themeId?: string | null } | null)?.themeId || null;
+      setBoardThemeId(themeId);
+      
+      // Fetch full theme data if theme is set
+      if (themeId) {
+        const themeDataResult = await api
+          .from('board_themes')
+          .select('*')
+          .eq('id', themeId)
+          .single();
+        // Transform snake_case to camelCase for BoardTheme
+        const themeRow = themeDataResult.data as any;
+        if (themeRow) {
+          const theme: BoardTheme = {
+            id: themeRow.id,
+            name: themeRow.name,
+            isDefault: themeRow.is_default,
+            navbarColor: themeRow.navbar_color,
+            columnColor: themeRow.column_color,
+            defaultCardColor: themeRow.default_card_color,
+            cardWindowColor: themeRow.card_window_color,
+            cardWindowTextColor: themeRow.card_window_text_color,
+            cardWindowButtonColor: themeRow.card_window_button_color,
+            cardWindowButtonTextColor: themeRow.card_window_button_text_color,
+            cardWindowButtonHoverColor: themeRow.card_window_button_hover_color,
+            cardWindowButtonHoverTextColor: themeRow.card_window_button_hover_text_color,
+            cardWindowIntelligentContrast: themeRow.card_window_intelligent_contrast,
+            homepageBoardColor: themeRow.homepage_board_color,
+            boardIconColor: themeRow.board_icon_color,
+            scrollbarColor: themeRow.scrollbar_color,
+            scrollbarTrackColor: themeRow.scrollbar_track_color,
+            createdBy: themeRow.created_by,
+            createdAt: themeRow.created_at,
+            updatedAt: themeRow.updated_at,
+          };
+          setBoardTheme(theme);
+        } else {
+          setBoardTheme(null);
+        }
+      } else {
+        setBoardTheme(null);
+      }
+      
+      setCards(result.cards || []);
+      setLabels(result.labels || []);
+      setCardLabels(result.cardLabels || []);
+
+      // Fetch card attachments and subtasks
+      const cardIds = (result.cards || []).map((c: DbCard) => c.id);
+      if (cardIds.length > 0) {
+        const [attachmentsResult, subtasksResult] = await Promise.all([
+          api
+            .from('card_attachments')
+            .select('*')
+            .in('cardId', cardIds),
+          api
+            .from('card_subtasks')
+            .select('*')
+            .in('cardId', cardIds)
+        ]);
+        setCardAttachments((attachmentsResult.data as typeof cardAttachments) || []);
+        setCardSubtasks((subtasksResult.data as typeof cardSubtasks) || []);
+      }
+      
+      // Transform members to expected format
+      const transformedMembers: BoardMember[] = (result.members || []).map((m) => ({
+        userId: m.userId,
+        role: m.role as 'admin' | 'manager' | 'viewer',
+        profiles: {
+          id: m.profiles.id,
+          email: m.profiles.email || '',
+          fullName: m.profiles.fullName ?? null,
+          avatarUrl: m.profiles.avatarUrl ?? null,
+        }
+      }));
+      setBoardMembers(transformedMembers);
+    } catch (error: any) {
+      console.error('Error fetching board data:', error);
+      toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
+    }
+  }, [boardId, user, toast, navigate]);
+
+  // Debounced silent fetch for realtime updates
+  const debouncedFetchBoardData = useSilentDebouncedFetch(silentFetchBoardData);
+
+  // Debounced refresh for board members
+  const debouncedRefreshBoardMembers = useSilentDebouncedFetch(refreshBoardMembers);
+
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -454,14 +603,45 @@ export default function BoardPage() {
     // Subscribe to workspace via registry - subscription persists across navigation
     subscribeWorkspaceViaRegistry(workspaceId, {
         onBoardUpdate: (board, event) => {
-          const boardData = board as { id?: string; workspaceId?: string };
-          // Only process events for the current board
-          if (boardData.id !== boardId) return;
+          // Get board ID from event payload (more reliable than board parameter)
+          const eventBoardId = (event.new as { id?: string })?.id || 
+                               (event.old as { id?: string })?.id ||
+                               (board as { id?: string })?.id;
           
-          // If board is updated, refresh all children (parent refresh)
+          // Only process events for the current board
+          if (eventBoardId !== boardId) return;
+          
           if (event.eventType === 'UPDATE') {
-            // Board UPDATE - refreshing all children
-            fetchBoardData();
+            const boardData = event.new as { name?: string; backgroundColor?: string; description?: string | null } | null;
+            const oldBoard = event.old as { name?: string; backgroundColor?: string; description?: string | null } | null;
+            
+            if (!boardData) {
+              // No new data - use refetch
+              debouncedFetchBoardData();
+              return;
+            }
+            
+            // Check if only simple properties changed (name, color, description)
+            const simplePropsChanged = 
+              (oldBoard?.name !== boardData.name) ||
+              (oldBoard?.backgroundColor !== boardData.backgroundColor) ||
+              (oldBoard?.description !== boardData.description);
+            
+            if (simplePropsChanged) {
+              // Simple property update - use incremental state update
+              setBoardName(boardData.name || '');
+              setBoardColor(boardData.backgroundColor || '#0079bf');
+              // Note: description is not stored in separate state, so we refetch for it
+              if (oldBoard?.description !== boardData.description) {
+                debouncedFetchBoardData();
+              }
+            } else {
+              // Unknown change - use refetch to be safe
+              debouncedFetchBoardData();
+            }
+          } else if (event.eventType === 'DELETE') {
+            // Board deleted - navigate away or show error
+            debouncedFetchBoardData();
           }
         },
         onColumnUpdate: (column, event) => {
@@ -871,7 +1051,7 @@ export default function BoardPage() {
           
           if (event.eventType === 'INSERT') {
             const newMembership = membership;
-            refreshBoardMembers();
+            debouncedRefreshBoardMembers(); // Use debounced version
             if (newMembership.userId && newMembership.userId !== user?.id) {
               const memberName = newMembership.user?.profile?.fullName || 
                                 newMembership.user?.profile?.email || 
@@ -885,7 +1065,7 @@ export default function BoardPage() {
           } else if (event.eventType === 'UPDATE') {
             const updatedMembership = membership;
             const previousMembership = event.old as { role?: string };
-            refreshBoardMembers();
+            debouncedRefreshBoardMembers(); // Use debounced version
             
             if (updatedMembership?.userId === user?.id && updatedMembership.role) {
               const newRole = updatedMembership.role as 'admin' | 'manager' | 'viewer';
@@ -947,7 +1127,7 @@ export default function BoardPage() {
                 variant: 'destructive',
               });
             } else {
-              refreshBoardMembers();
+              debouncedRefreshBoardMembers(); // Use debounced version
               if (deletedUserId) {
                 const memberName = deletedMember.user?.profile?.fullName || 
                                   deletedMember.user?.profile?.email || 
@@ -972,7 +1152,7 @@ export default function BoardPage() {
 
     // No cleanup - subscription persists via registry
     // Only unsubscribe on workspace access revocation (handled elsewhere)
-  }, [boardId, workspaceId, user, refreshBoardMembers, navigate, toast, fetchBoardData, userRole]);
+  }, [boardId, workspaceId, user, debouncedRefreshBoardMembers, navigate, toast, debouncedFetchBoardData, userRole]);
 
   // Process buffered card events when columns change
   useEffect(() => {

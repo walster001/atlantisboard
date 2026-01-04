@@ -89,7 +89,7 @@ export function usePermissionsData() {
       
       const insertResult = await api
         .from('custom_roles')
-        .insert({ name, description, is_system: false });
+        .insert({ name, description, isSystem: false });
       
       if (insertResult.error) throw insertResult.error;
       
@@ -202,8 +202,8 @@ export function usePermissionsData() {
       // Insert new permissions
       if (permissions.size > 0) {
         const permissionRows = Array.from(permissions).map(key => ({
-          role_id: roleId,
-          permission_key: key as PermissionKey,
+          roleId: roleId,
+          permissionKey: key as PermissionKey,
         }));
 
         const { error } = await api

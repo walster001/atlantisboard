@@ -320,30 +320,35 @@ export default function Home() {
           fetchData();
         } else if (event.eventType === 'UPDATE') {
           const oldBoard = event.old as unknown as Board | null;
-          const newWorkspaceId = boardData.workspaceId;
+          const newWorkspaceId = (event.new as Board | null)?.workspaceId || boardData.workspaceId;
           const oldWorkspaceId = oldBoard?.workspaceId;
           
           // Check if workspace changed
           if (oldWorkspaceId && newWorkspaceId && oldWorkspaceId !== newWorkspaceId) {
             // Board moved to different workspace
             setBoards((prevBoards) => {
-              // Check if this board exists in the old workspace's list
-              const existingBoard = prevBoards.find((b) => b.id === boardData.id);
+              // Remove board from old workspace
+              const filtered = prevBoards.filter((b) => !(b.id === boardData.id && b.workspaceId === oldWorkspaceId));
               
-              // If board exists with old workspaceId, remove it (moved away)
-              if (existingBoard && existingBoard.workspaceId === oldWorkspaceId) {
-                return prevBoards.filter((b) => !(b.id === boardData.id && b.workspaceId === oldWorkspaceId));
+              // Check if old workspace is now empty
+              const oldWorkspaceBoards = filtered.filter(b => b.workspaceId === oldWorkspaceId);
+              if (oldWorkspaceBoards.length === 0) {
+                // Remove workspace if empty
+                setWorkspaces(prev => prev.filter(w => w.id !== oldWorkspaceId));
+                // Unsubscribe from empty workspace
+                const registry = getSubscriptionRegistry();
+                registry.unsubscribeWorkspace(oldWorkspaceId);
               }
               
-              // If board doesn't exist or has different workspaceId, add/update it
-              // This handles the case where the new workspace receives the update
-              if (!existingBoard || existingBoard.workspaceId !== newWorkspaceId) {
-                const filtered = prevBoards.filter((b) => b.id !== boardData.id);
-                return [...filtered, boardData];
+              // Add board to new workspace (if it doesn't already exist)
+              const existingInNew = filtered.find(b => b.id === boardData.id && b.workspaceId === newWorkspaceId);
+              if (!existingInNew) {
+                // Use event.new data if available, otherwise fallback to boardData
+                const updatedBoard = (event.new as Board) || boardData;
+                return [...filtered, updatedBoard];
               }
               
-              // Normal update (workspaceId didn't change)
-              return prevBoards.map((b) => (b.id === boardData.id ? { ...b, ...boardData } : b));
+              return filtered;
             });
           } else {
             // Normal update - merge with existing state
@@ -497,6 +502,10 @@ export default function Home() {
 
               return prevBoards.filter((b) => b.workspaceId !== deletedWorkspaceId);
             });
+
+            // Unsubscribe from workspace
+            const registry = getSubscriptionRegistry();
+            registry.unsubscribeWorkspace(deletedWorkspaceId);
 
             toast({
               title: 'Workspace access removed',

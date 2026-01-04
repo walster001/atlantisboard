@@ -96,9 +96,7 @@ Multiple files have realtime subscription handlers that can cause stale closures
 
 ### Phase 6: Fix permissionsSubscriptions.ts
 
-**File**: `src/realtime/permissionsSubscriptions.ts`
-
-Fix `subscribeBoardMembersForPermissions` function:
+**File**: `src/realtime/permissionsSubscriptions.ts`Fix `subscribeBoardMembersForPermissions` function:
 
 1. Store the cleanup function returned from `subscribeWorkspaceViaRegistry`
 2. Return the actual cleanup function instead of no-op
@@ -114,9 +112,7 @@ Fix `subscribeBoardMembersForPermissions` function:
 
 ### Phase 7: Fix usePermissionsRealtime.ts
 
-**File**: `src/hooks/usePermissionsRealtime.ts`
-
-Wrap inline handlers with stable references:
+**File**: `src/hooks/usePermissionsRealtime.ts`Wrap inline handlers with stable references:
 
 1. For `subscribeBoardMembersForPermissions` (line 157): Create stable handlers using `useStableRealtimeHandlers` or use `useRef` to store handlers
 2. The handlers reference `user.id`, `handlePermissionChange`, `handleAccessRevoked` which are already in dependencies, but inline handlers can still be stale
@@ -141,7 +137,6 @@ Wrap inline handlers with stable references:
 ## Files Changed
 
 - `src/pages/BoardPage.tsx` - Add missing stableHandlers definition
-
 - `src/pages/Home.tsx` - Fix nested subscription to use nestedStableHandlers
 - `src/components/kanban/InviteLinkButton.tsx` - Wrap handlers with useStableRealtimeHandlers
 - `src/components/kanban/BoardMembersDialog.tsx` - Wrap handlers with useStableRealtimeHandlers
@@ -210,4 +205,3 @@ After thorough analysis of the codebase, all realtime subscription issues have b
 - All component subscriptions will have proper cleanup
 - All handler closures will reference latest values via refs
 - Event batching will prevent channel queue overflow
-- Handler deduplication will prevent processing stale events

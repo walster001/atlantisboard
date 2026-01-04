@@ -359,13 +359,12 @@ export default function Home() {
   // Create stable handlers with batching and stable references
   const stableHandlers = useStableRealtimeHandlers({
     onBoardUpdate: (board, event) => {
-      const boardData = board as unknown as Board;
       if (event.eventType === 'INSERT') {
         // New board - use silent refetch to get board roles and ensure consistency
         debouncedFetchData();
       } else if (event.eventType === 'UPDATE') {
-        const boardData = event.new as Board | null;
-        const oldBoard = event.old as Board | null;
+        const boardData = event.new as unknown as Board | null;
+        const oldBoard = event.old as unknown as Board | null;
         
         if (!boardData) {
           // No new data - use refetch
@@ -419,10 +418,10 @@ export default function Home() {
     },
     onWorkspaceUpdate: (workspace, event) => {
       // Check table to distinguish between workspace entity and membership updates
-      if (event.table === 'workspaces') {
-        // Handle workspace entity updates (name, description, etc.)
-        const workspaceEntity = event.new as Workspace | null;
-        const oldWorkspace = event.old as Workspace | null;
+        if (event.table === 'workspaces') {
+          // Handle workspace entity updates (name, description, etc.)
+          const workspaceEntity = event.new as unknown as Workspace | null;
+          const oldWorkspace = event.old as unknown as Workspace | null;
         
         if (event.eventType === 'UPDATE' && workspaceEntity) {
           // Simple property update - use incremental state update
@@ -519,129 +518,6 @@ export default function Home() {
       nestedSubscriptionCleanupRef.current.clear();
     };
   }, [user, workspaces, stableHandlers]);
-      onBoardUpdate: (board, event) => {
-        const boardData = board as unknown as Board;
-        if (event.eventType === 'INSERT') {
-          // New board - use silent refetch to get board roles and ensure consistency
-          debouncedFetchData();
-        } else if (event.eventType === 'UPDATE') {
-          const boardData = event.new as Board | null;
-          const oldBoard = event.old as Board | null;
-          
-          if (!boardData) {
-            // No new data - use refetch
-            debouncedFetchData();
-            return;
-          }
-          
-          // Check if this is a simple property update (name, description, backgroundColor)
-          const oldWorkspaceId = oldBoard?.workspaceId;
-          const newWorkspaceId = boardData.workspaceId;
-          const isWorkspaceMove = oldWorkspaceId && newWorkspaceId && oldWorkspaceId !== newWorkspaceId;
-          
-          // Check if only simple properties changed
-          const simplePropsChanged = 
-            (oldBoard?.name !== boardData.name) ||
-            (oldBoard?.description !== boardData.description) ||
-            (oldBoard?.backgroundColor !== boardData.backgroundColor) ||
-            (oldBoard?.position !== boardData.position);
-          
-          if (isWorkspaceMove || !simplePropsChanged) {
-            // Complex change (workspace move, or unknown change) - use refetch
-            debouncedFetchData();
-          } else {
-            // Simple property update - use incremental state update
-            setBoards((prev) =>
-              prev.map((b) => (b.id === boardData.id ? { ...b, ...boardData } : b))
-            );
-          }
-        } else if (event.eventType === 'DELETE') {
-          debouncedFetchData();
-        }
-      },
-      onMemberUpdate: (member, event) => {
-        const membership = member as { boardId?: string; userId?: string };
-        // Only process if it's the current user
-        if (membership.userId !== user.id) return;
-        
-        if (event.eventType === 'INSERT') {
-          debouncedFetchData();
-          toast({
-            title: 'Board access granted',
-            description: 'You have been added to a new board.',
-          });
-        } else if (event.eventType === 'DELETE') {
-          debouncedFetchData();
-          toast({
-            title: 'Board access removed',
-            description: 'You have been removed from a board.',
-          });
-        }
-      },
-      onWorkspaceUpdate: (workspace, event) => {
-        // Check table to distinguish between workspace entity and membership updates
-        if (event.table === 'workspaces') {
-          // Handle workspace entity updates (name, description, etc.)
-          const workspaceEntity = event.new as Workspace | null;
-          const oldWorkspace = event.old as Workspace | null;
-          
-          if (event.eventType === 'UPDATE' && workspaceEntity) {
-            // Simple property update - use incremental state update
-            setWorkspaces((prev) =>
-              prev.map((w) => (w.id === workspaceEntity.id ? { ...w, ...workspaceEntity } : w))
-            );
-          } else if (event.eventType === 'DELETE') {
-            // Workspace deleted - use refetch to ensure all related data is cleaned up
-            debouncedFetchData();
-          }
-        } else if (event.table === 'workspaceMembers') {
-          // Handle workspace membership updates
-          const workspaceData = workspace as { workspaceId?: string; userId?: string };
-          // Only process if it's the current user
-          if (workspaceData.userId !== user.id) return;
-          
-          if (event.eventType === 'INSERT') {
-            // User added to a workspace - dynamically subscribe to new workspace
-            const newWorkspaceId = workspaceData.workspaceId;
-            if (newWorkspaceId) {
-            const registry = getSubscriptionRegistry();
-            if (!registry.isSubscribed(newWorkspaceId)) {
-              // Subscribe to new workspace via registry with stable handlers
-              const nestedCleanup = subscribeWorkspaceViaRegistry(newWorkspaceId, nestedStableHandlers);
-              nestedSubscriptionCleanupRef.current.set(newWorkspaceId, nestedCleanup);
-            }
-            }
-            
-            // User added to a workspace - refresh data
-            debouncedFetchData();
-            toast({
-              title: 'Workspace access granted',
-              description: 'You have been added to a new workspace.',
-            });
-          } else if (event.eventType === 'DELETE') {
-            const deletedMembership = event.old as { workspaceId: string; userId: string };
-            const deletedWorkspaceId = deletedMembership.workspaceId;
-
-            // Unsubscribe from workspace
-            const registry = getSubscriptionRegistry();
-            registry.unsubscribeWorkspace(deletedWorkspaceId);
-
-            // Use refetch to ensure all related data is cleaned up
-            debouncedFetchData();
-
-            toast({
-              title: 'Workspace access removed',
-              description: 'You have been removed from a workspace.',
-            });
-          }
-        }
-      },
-    });
-
-    // No cleanup - subscriptions persist via registry
-    // Only unsubscribe on workspace access revocation (handled in onWorkspaceUpdate DELETE handler)
-  }, [user, workspaces, debouncedFetchData, toast]);
-
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {

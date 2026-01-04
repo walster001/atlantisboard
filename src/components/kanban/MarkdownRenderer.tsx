@@ -341,15 +341,15 @@ function convertNestedListsToMarkdown(html: string): string {
         if (!cleanContent) return '';
         
         // Format based on list type with proper indentation
-        // Escape list markers to prevent markdown parsing (treat as plain text)
+        // Use format that won't be parsed as markdown lists (parentheses for ordered, bullet for unordered)
         if (isOrdered) {
           // Use value attribute if present, otherwise use sequential index
           const displayNumber = itemNumber !== null ? itemNumber : (++itemIndex);
-          // Escape period: "1\. Item" instead of "1. Item" to prevent markdown list parsing
-          return `${indent}${displayNumber}\\. ${cleanContent}\n`;
+          // Use parentheses instead of period: "1) Item" instead of "1. Item" to prevent markdown list parsing
+          return `${indent}${displayNumber}) ${cleanContent}\n`;
         } else {
-          // Escape dash: "\\- Item" instead of "- Item" to prevent markdown list parsing
-          return `${indent}\\- ${cleanContent}\n`;
+          // Use bullet character instead of dash: "• Item" instead of "- Item" to prevent markdown list parsing
+          return `${indent}• ${cleanContent}\n`;
         }
       });
       

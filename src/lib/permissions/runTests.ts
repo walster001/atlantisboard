@@ -121,7 +121,7 @@ export async function runServerValidation(): Promise<void> {
   }
   
   for (const membership of boards) {
-    const boardName = (membership.boards as any)?.name || 'Unknown';
+    const boardName = (membership.boards as { name?: string } | null)?.name || 'Unknown';
     console.log(`\n   📌 Board: ${boardName}`);
     console.log(`      Role: ${membership.role}`);
     
@@ -179,8 +179,19 @@ export async function runAllPermissionTests(): Promise<void> {
 }
 
 // Auto-register on window for easy console access
+interface PermissionTestWindow {
+  permissionTests?: {
+    runAll: () => Promise<void>;
+    runClient: () => void;
+    runServer: () => Promise<void>;
+    validateClient: () => { valid: boolean; issues: string[] };
+    getMatrix: () => ReturnType<typeof generatePermissionMatrix>;
+    printMatrix: () => void;
+  };
+}
+
 if (typeof window !== 'undefined') {
-  (window as any).permissionTests = {
+  (window as Window & PermissionTestWindow).permissionTests = {
     runAll: runAllPermissionTests,
     runClient: runClientValidation,
     runServer: runServerValidation,

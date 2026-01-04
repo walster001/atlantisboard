@@ -85,7 +85,7 @@ function InlineButton({ data, onClick }: InlineButtonProps) {
       role="button"
       tabIndex={0}
       onClick={handleClick}
-      onKeyDown={(e) => e.key === 'Enter' && handleClick(e as any)}
+      onKeyDown={(e) => e.key === 'Enter' && handleClick(e as React.MouseEvent)}
       className="inline-flex items-center gap-1 px-2 py-1 text-sm cursor-pointer transition-all hover:opacity-85 hover:-translate-y-0.5 my-0.5 mx-0.5"
       style={{
         backgroundColor: data.backgroundColor || '#1D2125',

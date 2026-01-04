@@ -167,10 +167,10 @@ export async function testServerPermission(
   permission: PermissionKey
 ): Promise<{ hasPermission: boolean; error?: string }> {
   try {
-    // Cast permission to the expected type
+    // PermissionKey type should match the RPC parameter type
     const { data, error } = await api.rpc('has_permission', {
       _user_id: userId,
-      _permission: permission as any,
+      _permission: permission,
       _board_id: boardId,
     });
 
@@ -274,21 +274,23 @@ export async function runPermissionTests(
 // PERMISSION MATRIX
 // ============================================================================
 
-/**
- * Generate a complete permission matrix for documentation/testing.
- */
-export function generatePermissionMatrix(): Record<PermissionKey, {
+interface PermissionMatrixEntry {
   admin: boolean;
   manager: boolean;
   viewer: boolean;
   appAdminOnly: boolean;
   requiresBoard: boolean;
-}> {
+}
+
+/**
+ * Generate a complete permission matrix for documentation/testing.
+ */
+export function generatePermissionMatrix(): Record<PermissionKey, PermissionMatrixEntry> {
   const adminResults = testClientPermissionsForRole('admin', false);
   const managerResults = testClientPermissionsForRole('manager', false);
   const viewerResults = testClientPermissionsForRole('viewer', false);
   
-  const matrix: Record<string, any> = {};
+  const matrix: Record<string, PermissionMatrixEntry> = {};
   
   for (const permission of ALL_PERMISSIONS) {
     matrix[permission] = {
@@ -300,7 +302,7 @@ export function generatePermissionMatrix(): Record<PermissionKey, {
     };
   }
   
-  return matrix as Record<PermissionKey, any>;
+  return matrix as Record<PermissionKey, PermissionMatrixEntry>;
 }
 
 /**

@@ -1,27 +1,30 @@
 import { api } from '@/integrations/api/client';
 import { logRealtime } from './logger';
+import type { RealtimePostgresChangesPayload, PostgresChangeHandler } from '@/integrations/api/realtime';
 
 // Use API client's realtime
 const realtimeApi = {
   channel: (topic: string) => api.realtime.channel(topic),
-  removeChannel: (channel: any) => api.realtime.removeChannel(channel),
+  removeChannel: (channel: { topic: string } | string) => api.realtime.removeChannel(channel),
 };
 
-// Type compatibility
+type RealtimeChannelState = 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR';
+
 type RealtimeChannel = {
   topic: string;
-  state: 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR';
-  on: (event: 'postgres_changes', config: any, handler: any) => RealtimeChannel;
-  subscribe: (callback?: (status: any, error?: Error) => void) => RealtimeChannel;
+  state: RealtimeChannelState;
+  on: (
+    event: 'postgres_changes',
+    config: {
+      event: 'INSERT' | 'UPDATE' | 'DELETE' | '*';
+      schema?: string;
+      table: string;
+      filter?: string;
+    },
+    handler: PostgresChangeHandler
+  ) => RealtimeChannel;
+  subscribe: (callback?: (status: RealtimeChannelState, error?: Error) => void) => RealtimeChannel;
   unsubscribe: () => RealtimeChannel;
-};
-
-export type RealtimePostgresChangesPayload<T = Record<string, unknown>> = {
-  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
-  table: string;
-  new: T | null;
-  old: T | null;
-  errors?: string[];
 };
 
 type PostgresChangeBinding = {

@@ -1660,7 +1660,15 @@ export default function BoardPage() {
       const clearDueDate = 'dueDate' in updates && updates.dueDate === null;
       
       // Build RPC params, only including fields that are actually in updates
-      const rpcParams: any = {
+      interface UpdateCardRpcParams {
+        _user_id: string;
+        _card_id: string;
+        _title?: string | null;
+        _description?: string | null;
+        _due_date?: string | null;
+        _clear_due_date?: boolean;
+      }
+      const rpcParams: UpdateCardRpcParams = {
         _user_id: user.id,
         _card_id: cardId,
       };

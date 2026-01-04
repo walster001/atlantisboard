@@ -377,10 +377,10 @@ class ApiClient {
       channel: (topic: string) => {
         return client.channel(topic);
       },
-      removeChannel: (channel: any) => {
+      removeChannel: (channel: { topic: string } | string) => {
         if (typeof channel === 'string') {
           client.removeChannel(channel);
-        } else if (channel?.topic) {
+        } else {
           client.removeChannel(channel.topic);
         }
       },

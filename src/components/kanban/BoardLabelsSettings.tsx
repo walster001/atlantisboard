@@ -10,6 +10,7 @@ import { Loader2, Plus, Pencil, Trash2, Pipette, X, Check } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { LABEL_COLORS, LabelColorName } from '@/types/kanban';
 import { cn } from '@/lib/utils';
+import '@/types/browser'; // Import browser API types
 
 interface BoardLabel {
   id: string;
@@ -126,9 +127,9 @@ export function BoardLabelsSettings({
   };
 
   const handleEyedropper = async (isEdit = false) => {
-    if ('EyeDropper' in window) {
+    if (window.EyeDropper) {
       try {
-        const eyeDropper = new (window as any).EyeDropper();
+        const eyeDropper = new window.EyeDropper();
         const result = await eyeDropper.open();
         handleCustomHexChange(result.sRGBHex, isEdit);
       } catch (e) {

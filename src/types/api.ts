@@ -54,6 +54,18 @@ export interface CardResponse {
   updatedAt?: string;
 }
 
+// Card insert type (for creating cards)
+export interface CardInsert {
+  columnId: string;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  position: number;
+  priority: 'none' | 'low' | 'medium' | 'high';
+  createdBy: string;
+  color: string | null;
+}
+
 // Label types (database schema)
 export interface LabelResponse {
   id: string;

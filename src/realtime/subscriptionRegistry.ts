@@ -43,7 +43,7 @@ class SubscriptionRegistry {
    */
   subscribeWorkspace(workspaceId: string, handlers: WorkspaceHandlers): () => void {
     // Extract handler ID if present (from useStableRealtimeHandlers)
-    const handlerId = (handlers as any).__handlerId;
+    const handlerId = (handlers as { __handlerId?: string }).__handlerId;
     
     // If handler has an ID and we've seen it before, remove the old one first
     if (handlerId && this.handlerIdToHandler.has(handlerId)) {
@@ -307,7 +307,7 @@ class SubscriptionRegistry {
     }
 
     // Call cleanup function if handler has one
-    const cleanupFn = (handlers as any).__cleanup;
+    const cleanupFn = (handlers as { __cleanup?: () => void }).__cleanup;
     if (cleanupFn && typeof cleanupFn === 'function') {
       cleanupFn();
     }
@@ -626,7 +626,7 @@ class SubscriptionRegistry {
   unsubscribeAll(): void {
     // Call cleanup functions for all handlers
     this.handlerIdToHandler.forEach((handlers) => {
-      const cleanupFn = (handlers as any).__cleanup;
+      const cleanupFn = (handlers as { __cleanup?: () => void }).__cleanup;
       if (cleanupFn && typeof cleanupFn === 'function') {
         cleanupFn();
       }

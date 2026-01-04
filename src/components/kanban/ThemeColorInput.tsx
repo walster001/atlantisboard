@@ -158,8 +158,7 @@ export function ThemeColorInput({
     }
 
     try {
-      // @ts-ignore - EyeDropper API
-      const eyeDropper = new window.EyeDropper();
+      const eyeDropper = new window.EyeDropper!();
       const result = await eyeDropper.open();
       const color = result.sRGBHex;
       onChange(color);

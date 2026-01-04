@@ -7,10 +7,10 @@ export interface BatchedEvent<T> {
   sequence?: number; // Optional sequence number for ordering
 }
 
-export interface EventBatcherOptions {
+export interface EventBatcherOptions<T = Record<string, unknown>> {
   batchDelayMs?: number; // Default: 50ms
   maxBatchSize?: number; // Default: 100
-  deduplicateBy?: (event: BatchedEvent<any>) => string; // Entity ID for deduplication
+  deduplicateBy?: (event: BatchedEvent<T>) => string; // Entity ID for deduplication
 }
 
 export interface EventBatcherResult<T> {
@@ -24,7 +24,7 @@ export interface EventBatcherResult<T> {
  */
 export function createEventBatcher<T>(
   handler: (events: BatchedEvent<T>[]) => void,
-  options?: EventBatcherOptions
+  options?: EventBatcherOptions<T>
 ): EventBatcherResult<T> {
   const batchDelayMs = options?.batchDelayMs ?? 50;
   const maxBatchSize = options?.maxBatchSize ?? 100;
@@ -116,8 +116,8 @@ export function createEventBatcher<T>(
     event: RealtimePostgresChangesPayload<Record<string, unknown>>
   ) => {
     // Extract sequence number or timestamp from event if available
-    const eventTimestamp = (event.new as any)?.updatedAt 
-      ? new Date((event.new as any).updatedAt).getTime()
+    const eventTimestamp = (event.new as { updatedAt?: string })?.updatedAt 
+      ? new Date((event.new as { updatedAt: string }).updatedAt).getTime()
       : Date.now();
     
     const batchedEvent: BatchedEvent<T> = {

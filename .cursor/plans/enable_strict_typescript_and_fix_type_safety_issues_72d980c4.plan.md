@@ -524,5 +524,3 @@ npm run lint
 
 - Work incrementally - enable strict mode options one at a time
 - Fix errors as they appear during strict mode enablement
-- Use type guards for runtime type checking where needed
-- Prefer `unknown` over `any` for error handling

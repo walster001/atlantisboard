@@ -17,6 +17,7 @@ import { Slider } from '@/components/ui/slider';
 import { Calendar as CalendarIcon, X, Tag, Pipette } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import '@/types/browser'; // Import browser API types
 
 // Helper functions for color conversion
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -118,7 +119,7 @@ export function CardEditDialog({
   const handleEyedropper = async () => {
     if ('EyeDropper' in window) {
       try {
-        const eyeDropper = new (window as any).EyeDropper();
+        const eyeDropper = new window.EyeDropper!();
         const result = await eyeDropper.open();
         handleCustomHexChange(result.sRGBHex);
       } catch (e) {

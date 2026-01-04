@@ -62,13 +62,15 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
       // Skip batching if disabled for this handler
       if (disableBatching.includes(key)) {
         // No batching - use handler directly but wrap to access latest ref
-        stable[key] = ((...args: any[]) => {
+        // Type assertion needed because we're wrapping handlers with different signatures
+        stable[key] = ((...args: Parameters<NonNullable<T[typeof key]>>) => {
           // Access latest handler from ref
           const currentHandler = handlersRef.current[key];
           if (currentHandler) {
-            (currentHandler as any)(...args);
+            // Type assertion: currentHandler has the same type as T[typeof key]
+            (currentHandler as NonNullable<T[typeof key]>)(...args);
           }
-        }) as any;
+        }) as T[typeof key];
         continue;
       }
 
@@ -80,21 +82,21 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
         batchingOptions = {
           batchDelayMs: 16,
           maxBatchSize: 50,
-          deduplicateBy: (e) => (e.entity as any)?.id || '',
+          deduplicateBy: (e) => (e.entity as { id?: string })?.id || '',
         };
       } else if (key === 'onColumnUpdate') {
         // High frequency - batch quickly
         batchingOptions = {
           batchDelayMs: 16,
           maxBatchSize: 50,
-          deduplicateBy: (e) => (e.entity as any)?.id || '',
+          deduplicateBy: (e) => (e.entity as { id?: string })?.id || '',
         };
       } else if (key === 'onBoardUpdate') {
         // Medium frequency - adaptive batching
         batchingOptions = {
           batchDelayMs: 50,
           maxBatchSize: 100,
-          deduplicateBy: (e) => (e.entity as any)?.id || '',
+          deduplicateBy: (e) => (e.entity as { id?: string })?.id || '',
         };
       } else if (key === 'onMemberUpdate') {
         // Lower frequency - longer delay
@@ -102,7 +104,7 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
           batchDelayMs: 100,
           maxBatchSize: 100,
           deduplicateBy: (e) => {
-            const entity = e.entity as any;
+            const entity = e.entity as { userId?: string; boardId?: string };
             return `${entity?.userId || ''}_${entity?.boardId || ''}`;
           },
         };

@@ -21,6 +21,7 @@ import {
   replaceInlineButtonImagesInWekanData,
 } from './InlineButtonIconDialog';
 import type { WekanBoard, WekanExport, TrelloBoard } from './types';
+import type { CardInsert } from '@/types/api';
 interface ImportResult {
   success: boolean;
   workspacesCreated: number;
@@ -344,8 +345,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       return;
     }
     try {
-      // @ts-ignore - EyeDropper API
-      const eyeDropper = new window.EyeDropper();
+      const eyeDropper = new window.EyeDropper!();
       const result = await eyeDropper.open();
       const hex = result.sRGBHex;
       setCustomHex(hex);
@@ -374,7 +374,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   };
 
   const importWekanWithStreaming = async (
-    wekanData: any,
+    wekanData: WekanExport,
     onProgress: (stage: ImportStage, current?: number, total?: number, detail?: string) => void,
     defaultColor: string | null,
     signal?: AbortSignal,
@@ -686,7 +686,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
       // Prepare all card inserts
       const allCardInserts: Array<{
-        insert: any;
+        insert: CardInsert;
         trelloCard: TrelloCard;
       }> = [];
 
@@ -979,7 +979,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   };
 
   // Proceed with the actual import
-  const proceedWithImport = async (jsonData: any, replacements: Map<string, string>) => {
+  const proceedWithImport = async (jsonData: WekanExport | TrelloBoard, replacements: Map<string, string>) => {
     // Create new abort controller for this import
     abortControllerRef.current = new AbortController();
     // Reset tracked IDs for new import

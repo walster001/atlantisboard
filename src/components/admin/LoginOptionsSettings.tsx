@@ -91,7 +91,7 @@ export function LoginOptionsSettings() {
 
       if (appSettings) {
         setSettings({
-          loginStyle: ((appSettings as any).loginStyle as LoginStyle) || 'google_only',
+          loginStyle: ((appSettings as { loginStyle?: LoginStyle }).loginStyle as LoginStyle) || 'google_only',
         });
       }
 
@@ -102,7 +102,7 @@ export function LoginOptionsSettings() {
         .eq('id', 'default')
         .maybeSingle();
 
-      setMysqlConfigured((mysqlData as any)?.isConfigured ?? false);
+      setMysqlConfigured((mysqlData as { isConfigured?: boolean } | null)?.isConfigured ?? false);
     } catch (error) {
       console.error('Error fetching login options:', error);
       toast({

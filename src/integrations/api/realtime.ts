@@ -61,7 +61,7 @@ class RealtimeClient {
   private reconnectDelay = 1000;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatInterval: NodeJS.Timeout | null = null;
-  private messageQueue: Map<string, any[]> = new Map(); // Queue messages for channels not yet registered
+  private messageQueue: Map<string, WebSocketMessage[]> = new Map(); // Queue messages for channels not yet registered
   private pendingUnsubscribes: Set<string> = new Set(); // Track channels pending unsubscribe
   private serverRestoredChannels: Set<string> = new Set(); // Track channels restored by server on reconnect
 
@@ -199,13 +199,13 @@ class RealtimeClient {
     }
   }
 
-  private send(message: any): void {
+  private send(message: WebSocketMessage): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     }
   }
 
-  private handleMessage(message: any): void {
+  private handleMessage(message: WebSocketMessage): void {
     // Handle system messages
     if (message.channel === 'system') {
       if (message.payload?.type === 'connected') {
@@ -291,7 +291,7 @@ class RealtimeClient {
     }
   }
 
-  private processEventForChannel(channelState: ChannelState, message: any): void {
+  private processEventForChannel(channelState: ChannelState, message: WebSocketMessage): void {
     // Find matching bindings
     channelState.bindings.forEach((binding, index) => {
       const tableMatches = binding.table === message.table ||
@@ -454,6 +454,22 @@ interface ChannelState {
   bindings: PostgresChangeBinding[];
   state: RealtimeChannelState;
   onStatus?: (status: RealtimeChannelState, error?: Error) => void;
+}
+
+// WebSocket message types
+interface WebSocketMessage {
+  type?: string;
+  channel?: string;
+  event?: 'INSERT' | 'UPDATE' | 'DELETE' | 'CUSTOM';
+  table?: string;
+  payload?: {
+    type?: string;
+    channel?: string;
+    new?: Record<string, unknown>;
+    old?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 
 class RealtimeChannelImpl implements RealtimeChannel {

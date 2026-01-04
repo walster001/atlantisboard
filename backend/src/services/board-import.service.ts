@@ -48,9 +48,17 @@ function convertInlineButtonsToPlaceholders(
     const textColorMatch = innerHtml.match(/(?:^|[^-])color\s*:\s*([^;"']+)/i) || match.match(/(?:^|[^-])color\s*:\s*([^;"']+)/i);
     
     if (anchorMatch) {
-      const originalIconUrl = imgMatch?.[1] || '';
-      // Use replacement URL if available, otherwise use original
-      const finalIconUrl = iconReplacements?.[originalIconUrl] || originalIconUrl;
+      const iconUrlFromHtml = imgMatch?.[1] || '';
+
+      // Determine final icon URL: if it's a /cdn URL, look up replacement
+      // Otherwise, it's already been replaced by frontend, use as-is
+      let finalIconUrl = iconUrlFromHtml;
+
+      if (iconReplacements && iconUrlFromHtml.startsWith('/cdn')) {
+        // Original /cdn URL - look up replacement
+        finalIconUrl = iconReplacements[iconUrlFromHtml] || iconUrlFromHtml;
+      }
+      // If not /cdn, it's already a replacement URL from frontend, use it
       
       // Create button metadata with updated iconUrl
       const buttonMetadata = {

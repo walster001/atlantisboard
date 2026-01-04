@@ -350,6 +350,230 @@ export default function Home() {
               
               return filtered;
             });
+            
+            // Check if new workspace exists in state
+            const workspaceExists = workspaces.some(w => w.id === newWorkspaceId);
+            if (!workspaceExists) {
+              // Workspace doesn't exist - fetch it
+              // fetchData() will be called to refresh all data including the new workspace
+              // This works because getHomeData returns workspaces where user has board access
+              fetchData();
+              
+              // Subscribe to new workspace if not already subscribed
+              const registry = getSubscriptionRegistry();
+              if (!registry.isSubscribed(newWorkspaceId)) {
+                subscribeWorkspaceViaRegistry(newWorkspaceId, {
+                  onBoardUpdate: (board, event) => {
+                    const boardData = board as unknown as Board;
+                    if (event.eventType === 'INSERT') {
+                      // Only add if not already in the list
+                      setBoards((prevBoards) => {
+                        if (prevBoards.some((b) => b.id === boardData.id)) {
+                          return prevBoards;
+                        }
+                        return [...prevBoards, boardData];
+                      });
+                      // Fetch data to get board roles
+                      fetchData();
+                    } else if (event.eventType === 'UPDATE') {
+                      const oldBoard = event.old as unknown as Board | null;
+                      const movedNewWorkspaceId = (event.new as Board | null)?.workspaceId || boardData.workspaceId;
+                      const movedOldWorkspaceId = oldBoard?.workspaceId;
+                      
+                      // Check if workspace changed
+                      if (movedOldWorkspaceId && movedNewWorkspaceId && movedOldWorkspaceId !== movedNewWorkspaceId) {
+                        // Board moved to different workspace
+                        setBoards((prevBoards) => {
+                          // Remove board from old workspace
+                          const filtered = prevBoards.filter((b) => !(b.id === boardData.id && b.workspaceId === movedOldWorkspaceId));
+                          
+                          // Check if old workspace is now empty
+                          const oldWorkspaceBoards = filtered.filter(b => b.workspaceId === movedOldWorkspaceId);
+                          if (oldWorkspaceBoards.length === 0) {
+                            // Remove workspace if empty
+                            setWorkspaces(prev => prev.filter(w => w.id !== movedOldWorkspaceId));
+                            // Unsubscribe from empty workspace
+                            const registry = getSubscriptionRegistry();
+                            registry.unsubscribeWorkspace(movedOldWorkspaceId);
+                          }
+                          
+                          // Add board to new workspace (if it doesn't already exist)
+                          const existingInNew = filtered.find(b => b.id === boardData.id && b.workspaceId === movedNewWorkspaceId);
+                          if (!existingInNew) {
+                            // Use event.new data if available, otherwise fallback to boardData
+                            const updatedBoard = (event.new as Board) || boardData;
+                            return [...filtered, updatedBoard];
+                          }
+                          
+                          return filtered;
+                        });
+                      } else {
+                        // Normal update - merge with existing state
+                        setBoards((prevBoards) =>
+                          prevBoards.map((b) => (b.id === boardData.id ? { ...b, ...boardData } : b))
+                        );
+                      }
+                    } else if (event.eventType === 'DELETE') {
+                      // Remove board from list and its role
+                      setBoards((prevBoards) => prevBoards.filter((b) => b.id !== boardData.id));
+                      setBoardRoles((prevRoles) => {
+                        const updated = { ...prevRoles };
+                        delete updated[boardData.id];
+                        return updated;
+                      });
+                    }
+                  },
+                  onMemberUpdate: (member, event) => {
+                    const membership = member as { boardId?: string; userId?: string };
+                    // Only process if it's the current user
+                    if (membership.userId !== user.id) return;
+                    
+                    if (event.eventType === 'INSERT') {
+                      // User added to a board - refresh data
+                      fetchData();
+                      toast({
+                        title: 'Board access granted',
+                        description: 'You have been added to a new board.',
+                      });
+                    } else if (event.eventType === 'DELETE') {
+                      // User removed from a board - refresh data
+                      fetchData();
+                      toast({
+                        title: 'Board access removed',
+                        description: 'You have been removed from a board.',
+                      });
+                    }
+                  },
+                  onWorkspaceUpdate: (workspace, event) => {
+                    // Check table to distinguish between workspace entity and membership updates
+                    if (event.table === 'workspaces') {
+                      // Handle workspace entity updates (name, description, etc.)
+                      const workspaceEntity = workspace as Workspace;
+                      
+                      if (event.eventType === 'UPDATE') {
+                        // Merge workspace state
+                        setWorkspaces((prev) =>
+                          prev.map((w) => (w.id === workspaceEntity.id ? { ...w, ...workspaceEntity } : w))
+                        );
+                      } else if (event.eventType === 'DELETE') {
+                        // Remove workspace and all its boards
+                        setWorkspaces((prevWorkspaces) => prevWorkspaces.filter((w) => w.id !== workspaceEntity.id));
+                        setBoards((prevBoards) => {
+                          const removedBoards = prevBoards.filter((b) => b.workspaceId === workspaceEntity.id);
+                          
+                          // Remove board roles for removed boards
+                          setBoardRoles((prevRoles) => {
+                            const updated = { ...prevRoles };
+                            removedBoards.forEach((b) => {
+                              delete updated[b.id];
+                            });
+                            return updated;
+                          });
+
+                          return prevBoards.filter((b) => b.workspaceId !== workspaceEntity.id);
+                        });
+                      }
+                      // INSERT for workspace entity is unlikely but could be handled here if needed
+                    } else if (event.table === 'workspaceMembers') {
+                      // Handle workspace membership updates
+                      const workspaceData = workspace as { workspaceId?: string; userId?: string };
+                      // Only process if it's the current user
+                      if (workspaceData.userId !== user.id) return;
+                      
+                      if (event.eventType === 'INSERT') {
+                        // User added to a workspace - dynamically subscribe to new workspace
+                        const addedWorkspaceId = workspaceData.workspaceId;
+                        if (addedWorkspaceId) {
+                          const registry = getSubscriptionRegistry();
+                          if (!registry.isSubscribed(addedWorkspaceId)) {
+                            // Subscribe to new workspace via registry
+                            subscribeWorkspaceViaRegistry(addedWorkspaceId, {
+                              onBoardUpdate: (board, event) => {
+                                const boardData = board as unknown as Board;
+                                if (event.eventType === 'INSERT') {
+                                  setBoards((prevBoards) => {
+                                    if (prevBoards.some((b) => b.id === boardData.id)) {
+                                      return prevBoards;
+                                    }
+                                    return [...prevBoards, boardData];
+                                  });
+                                  fetchData();
+                                } else if (event.eventType === 'UPDATE') {
+                                  setBoards((prevBoards) =>
+                                    prevBoards.map((b) => (b.id === boardData.id ? { ...b, ...boardData } : b))
+                                  );
+                                } else if (event.eventType === 'DELETE') {
+                                  setBoards((prevBoards) => prevBoards.filter((b) => b.id !== boardData.id));
+                                  setBoardRoles((prevRoles) => {
+                                    const updated = { ...prevRoles };
+                                    delete updated[boardData.id];
+                                    return updated;
+                                  });
+                                }
+                              },
+                              onMemberUpdate: (member, event) => {
+                                const membership = member as { boardId?: string; userId?: string };
+                                if (membership.userId !== user.id) return;
+                                
+                                if (event.eventType === 'INSERT') {
+                                  fetchData();
+                                  toast({
+                                    title: 'Board access granted',
+                                    description: 'You have been added to a new board.',
+                                  });
+                                } else if (event.eventType === 'DELETE') {
+                                  fetchData();
+                                  toast({
+                                    title: 'Board access removed',
+                                    description: 'You have been removed from a board.',
+                                  });
+                                }
+                              },
+                            });
+                          }
+                        }
+                        
+                        // User added to a workspace - refresh data
+                        fetchData();
+                        toast({
+                          title: 'Workspace access granted',
+                          description: 'You have been added to a new workspace.',
+                        });
+                      } else if (event.eventType === 'DELETE') {
+                        const deletedMembership = event.old as { workspaceId: string; userId: string };
+                        const deletedWorkspaceId = deletedMembership.workspaceId;
+
+                        // Remove workspace and all its boards
+                        setWorkspaces((prevWorkspaces) => prevWorkspaces.filter((w) => w.id !== deletedWorkspaceId));
+                        setBoards((prevBoards) => {
+                          const removedBoards = prevBoards.filter((b) => b.workspaceId === deletedWorkspaceId);
+                          
+                          // Remove board roles for removed boards
+                          setBoardRoles((prevRoles) => {
+                            const updated = { ...prevRoles };
+                            removedBoards.forEach((b) => {
+                              delete updated[b.id];
+                            });
+                            return updated;
+                          });
+
+                          return prevBoards.filter((b) => b.workspaceId !== deletedWorkspaceId);
+                        });
+
+                        // Unsubscribe from workspace
+                        const registry = getSubscriptionRegistry();
+                        registry.unsubscribeWorkspace(deletedWorkspaceId);
+
+                        toast({
+                          title: 'Workspace access removed',
+                          description: 'You have been removed from a workspace.',
+                        });
+                      }
+                    }
+                  },
+                });
+              }
+            }
           } else {
             // Normal update - merge with existing state
             setBoards((prevBoards) =>

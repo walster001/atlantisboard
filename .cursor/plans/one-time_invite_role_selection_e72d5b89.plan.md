@@ -143,4 +143,3 @@ Allow users to specify a role (default or custom) when generating one-time invit
 
 1. `backend/prisma/schema.prisma` - Add fields to BoardInviteToken
 2. `backend/src/routes/boards.ts` - Update invite generation, add custom roles endpoint
-3. `backend/src/routes/invites.ts` - Update redemption logic

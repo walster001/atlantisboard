@@ -326,14 +326,24 @@ export default function Home() {
           // Check if workspace changed
           if (oldWorkspaceId && newWorkspaceId && oldWorkspaceId !== newWorkspaceId) {
             // Board moved to different workspace
+            // Check if user is a member of this board (only process if they are)
+            const userIsMemberOfBoard = boards.some(b => b.id === boardData.id);
+            
+            if (!userIsMemberOfBoard) {
+              // User is not a member - this update doesn't affect them
+              return;
+            }
+            
+            // User is a member - process the move
             setBoards((prevBoards) => {
               // Remove board from old workspace
               const filtered = prevBoards.filter((b) => !(b.id === boardData.id && b.workspaceId === oldWorkspaceId));
               
-              // Check if old workspace is now empty
+              // Check if old workspace is now empty FOR THIS USER
               const oldWorkspaceBoards = filtered.filter(b => b.workspaceId === oldWorkspaceId);
               if (oldWorkspaceBoards.length === 0) {
-                // Remove workspace if empty
+                // User had boards in this workspace, now has none
+                // Remove workspace (user only had access through board membership)
                 setWorkspaces(prev => prev.filter(w => w.id !== oldWorkspaceId));
                 // Unsubscribe from empty workspace
                 const registry = getSubscriptionRegistry();
@@ -351,7 +361,7 @@ export default function Home() {
               return filtered;
             });
             
-            // Check if new workspace exists in state
+            // Check if new workspace exists in state (only for member boards)
             const workspaceExists = workspaces.some(w => w.id === newWorkspaceId);
             if (!workspaceExists) {
               // Workspace doesn't exist - fetch it
@@ -383,14 +393,24 @@ export default function Home() {
                       // Check if workspace changed
                       if (movedOldWorkspaceId && movedNewWorkspaceId && movedOldWorkspaceId !== movedNewWorkspaceId) {
                         // Board moved to different workspace
+                        // Check if user is a member of this board (only process if they are)
                         setBoards((prevBoards) => {
+                          const userIsMemberOfBoard = prevBoards.some(b => b.id === boardData.id);
+                          
+                          if (!userIsMemberOfBoard) {
+                            // User is not a member - this update doesn't affect them
+                            return prevBoards;
+                          }
+                          
+                          // User is a member - process the move
                           // Remove board from old workspace
                           const filtered = prevBoards.filter((b) => !(b.id === boardData.id && b.workspaceId === movedOldWorkspaceId));
                           
-                          // Check if old workspace is now empty
+                          // Check if old workspace is now empty FOR THIS USER
                           const oldWorkspaceBoards = filtered.filter(b => b.workspaceId === movedOldWorkspaceId);
                           if (oldWorkspaceBoards.length === 0) {
-                            // Remove workspace if empty
+                            // User had boards in this workspace, now has none
+                            // Remove workspace (user only had access through board membership)
                             setWorkspaces(prev => prev.filter(w => w.id !== movedOldWorkspaceId));
                             // Unsubscribe from empty workspace
                             const registry = getSubscriptionRegistry();

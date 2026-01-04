@@ -177,7 +177,7 @@ export function BoardLabelsSettings({
       setSelectedColor(LABEL_COLORS.blue);
       setIsAdding(false);
       onLabelsChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Create label error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     } finally {
@@ -206,7 +206,7 @@ export function BoardLabelsSettings({
       toast({ title: 'Label updated' });
       setEditingLabelId(null);
       onLabelsChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update label error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     } finally {
@@ -226,7 +226,7 @@ export function BoardLabelsSettings({
       
       toast({ title: 'Label deleted' });
       onLabelsChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete label error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     } finally {

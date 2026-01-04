@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload } from 'lucide-react';
 import { BoardImportDialog } from '@/components/import/BoardImportDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getUserFriendlyError } from '@/lib/errorHandler';
+import { getUserFriendlyError, getErrorMessage, getErrorName } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
 import { subscribeAllWorkspacesViaRegistry, subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
@@ -292,7 +292,7 @@ export default function Home() {
       setWorkspaces(result?.workspaces || []);
       setBoards(result?.boards || []);
       setBoardRoles(result?.boardRoles || {});
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
@@ -320,7 +320,7 @@ export default function Home() {
       setWorkspaces(result?.workspaces || []);
       setBoards(result?.boards || []);
       setBoardRoles(result?.boardRoles || {});
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching data:', error);
     }
   }, [user]);
@@ -628,11 +628,12 @@ export default function Home() {
         const oceanBlue = sortedThemes.find(t => t.name === 'Ocean Blue' && t.isDefault);
         setSelectedThemeId(oceanBlue?.id || sortedThemes[0].id);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fetch themes error:', error);
+      const errorMessage = getErrorMessage(error);
       toast({
         title: 'Error loading themes',
-        description: error?.message || 'Failed to load board themes. Please try again.',
+        description: errorMessage || 'Failed to load board themes. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -673,7 +674,7 @@ export default function Home() {
       // Refresh data from server to ensure consistency
       await fetchData();
       toast({ title: 'Workspace created!' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Create workspace error:', error);
       if (error instanceof z.ZodError) {
         toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
@@ -728,7 +729,7 @@ export default function Home() {
       // Refresh data from server to ensure consistency
       await fetchData();
       toast({ title: 'Workspace deleted' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete workspace error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
@@ -753,7 +754,7 @@ export default function Home() {
       // Refresh data from server to ensure consistency
       await fetchData();
       toast({ title: 'Workspace renamed' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof z.ZodError) {
         toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
       } else {
@@ -782,7 +783,7 @@ export default function Home() {
       // Refresh data from server to ensure consistency
       await fetchData();
       toast({ title: 'Description updated' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof z.ZodError) {
         toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
       } else {
@@ -837,7 +838,7 @@ export default function Home() {
       // Refresh data from server to ensure consistency
       await fetchData();
       toast({ title: 'Board created!' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Create board error:', error);
       if (error instanceof z.ZodError) {
         toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
@@ -857,7 +858,7 @@ export default function Home() {
       // Refresh data from server to ensure consistency
       await fetchData();
       toast({ title: 'Board deleted' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete board error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
@@ -877,7 +878,7 @@ export default function Home() {
       // Refresh data from server to ensure consistency
       await fetchData();
       toast({ title: 'Board renamed' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Rename board error:', error);
       if (error instanceof z.ZodError) {
         toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
@@ -900,7 +901,7 @@ export default function Home() {
       // Refresh data from server to ensure consistency
       await fetchData();
       toast({ title: 'Description updated' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update description error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }

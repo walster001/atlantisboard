@@ -118,7 +118,7 @@ export function AppBrandingSettings() {
       await refreshSettings();
 
       toast({ title: 'Settings saved', description: 'App branding settings have been updated.' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({ title: 'Error saving settings', description: error.message, variant: 'destructive' });
     } finally {
       setSaving(false);
@@ -171,7 +171,7 @@ export function AppBrandingSettings() {
       setSavedSettings(prev => prev ? ({ ...prev, [urlKey]: publicUrl } as AppBrandingState) : prev);
       await refreshSettings();
       toast({ title: 'Logo uploaded', description: `Your custom ${type} logo has been uploaded.` });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
     } finally {
       setUploading(false);
@@ -197,7 +197,7 @@ export function AppBrandingSettings() {
       setSettings(prev => ({ ...prev, [urlKey]: null, [enabledKey]: false } as AppBrandingState));
       setSavedSettings(prev => prev ? ({ ...prev, [urlKey]: null, [enabledKey]: false } as AppBrandingState) : prev);
       await refreshSettings();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({ title: 'Error removing logo', description: error.message, variant: 'destructive' });
     } finally {
       setSaving(false);

@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { uploadFile } from '@/lib/storage';
+import { getErrorMessage } from '@/lib/errorHandler';
 import { Upload, Image, ExternalLink, Check, Loader2 } from 'lucide-react';
 
 // Detected inline button with internal /cdn image reference
@@ -294,11 +295,12 @@ export function InlineButtonIconDialog({
           }
         });
 
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Upload error:', error);
+        const errorMessage = getErrorMessage(error);
         toast({
           title: 'Upload failed',
-          description: error.message || 'Failed to upload one or more icons.',
+          description: errorMessage || 'Failed to upload one or more icons.',
           variant: 'destructive',
         });
         setUploading(null);

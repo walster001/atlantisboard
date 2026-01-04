@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { UserPlus, User, X, Search, UserMinus, Loader2, Palette, ImageIcon, Tag, Settings2, History } from 'lucide-react';
-import { getUserFriendlyError } from '@/lib/errorHandler';
+import { getUserFriendlyError, getErrorMessage } from '@/lib/errorHandler';
 import { ThemeSettings } from './ThemeSettings';
 import { BoardBackgroundSettings } from './BoardBackgroundSettings';
 import { BoardLabelsSettings } from './BoardLabelsSettings';
@@ -294,7 +294,7 @@ export function BoardSettingsModal({
         delete next[userId];
         return next;
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Add member error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     } finally {
@@ -378,10 +378,11 @@ export function BoardSettingsModal({
       // Refresh members list and all users list to ensure UI updates correctly
       onMembersChange();
       fetchAllUsers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Remove member error:', error);
       // If member not found, refresh the members list to sync UI with backend state
-      if (error.message?.includes('not found') || error.message?.includes('Not found')) {
+      const errorMessage = getErrorMessage(error);
+      if (errorMessage.includes('not found') || errorMessage.includes('Not found')) {
         onMembersChange(); // Refresh members list to sync UI with backend
         toast({ 
           title: 'Member not found', 
@@ -409,7 +410,7 @@ export function BoardSettingsModal({
       if (result.error) throw result.error;
       toast({ title: 'Role updated' });
       onMembersChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update role error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }

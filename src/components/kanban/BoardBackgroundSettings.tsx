@@ -90,7 +90,7 @@ export function BoardBackgroundSettings({
       if (error) throw error;
       toast({ title: 'Background colour saved!' });
       onBackgroundChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Save background colour error:', error);
       toast({ title: 'Error', description: 'Failed to save background colour', variant: 'destructive' });
     } finally {
@@ -117,7 +117,7 @@ export function BoardBackgroundSettings({
       if (error) throw error;
       toast({ title: 'Background set to theme colour!' });
       onBackgroundChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Follow theme error:', error);
       toast({ title: 'Error', description: 'Failed to apply theme colour', variant: 'destructive' });
     } finally {
@@ -172,7 +172,7 @@ export function BoardBackgroundSettings({
       
       toast({ title: 'Background image uploaded!' });
       onBackgroundChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Upload error:', error);
       toast({ title: 'Error', description: 'Failed to upload image', variant: 'destructive' });
     } finally {
@@ -203,7 +203,7 @@ export function BoardBackgroundSettings({
       setBackgroundColor(defaultColor);
       toast({ title: 'Background image removed' });
       onBackgroundChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Remove image error:', error);
       toast({ title: 'Error', description: 'Failed to remove image', variant: 'destructive' });
     } finally {

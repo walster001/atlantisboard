@@ -37,7 +37,7 @@ export function usePermissionsData() {
 
       setCustomRoles((rolesResult.data as CustomRole[]) || []);
       setRolePermissions((permissionsResult.data as RolePermission[]) || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error loading permissions',
         description: error.message,
@@ -104,7 +104,7 @@ export function usePermissionsData() {
       });
       
       return data;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error creating role',
         description: error.message,
@@ -133,7 +133,7 @@ export function usePermissionsData() {
       );
       
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error updating role',
         description: error.message,
@@ -173,7 +173,7 @@ export function usePermissionsData() {
       });
       
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error deleting role',
         description: error.message,
@@ -234,7 +234,7 @@ export function usePermissionsData() {
       });
       
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error saving permissions',
         description: error.message,

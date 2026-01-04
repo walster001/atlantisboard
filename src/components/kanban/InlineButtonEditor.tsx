@@ -119,7 +119,7 @@ export function InlineButtonEditor({
       const publicUrl = uploadResult.data.publicUrl;
       setIconUrl(publicUrl);
       toast({ title: 'Icon uploaded' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Upload failed',
         description: error.message,

@@ -234,7 +234,7 @@ export function BrandingSettings() {
         title: 'Settings saved',
         description: 'Branding settings have been updated.',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error saving settings',
         description: error.message,
@@ -287,7 +287,7 @@ export function BrandingSettings() {
       setSettings(prev => ({ ...prev, customLoginLogoUrl: publicUrl }));
       setSavedSettings(prev => prev ? { ...prev, customLoginLogoUrl: publicUrl } : prev);
       toast({ title: 'Logo uploaded', description: 'Your custom login logo has been uploaded.' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
     } finally {
       setUploading(false);
@@ -309,7 +309,7 @@ export function BrandingSettings() {
       if (error) throw error;
       setSettings(prev => ({ ...prev, customLoginLogoUrl: null, customLoginLogoEnabled: false }));
       setSavedSettings(prev => prev ? { ...prev, customLoginLogoUrl: null, customLoginLogoEnabled: false } : prev);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({ title: 'Error removing logo', description: error.message, variant: 'destructive' });
     } finally {
       setSaving(false);
@@ -358,7 +358,7 @@ export function BrandingSettings() {
       setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: publicUrl }));
       setSavedSettings(prev => prev ? { ...prev, customLoginBackgroundImageUrl: publicUrl } : prev);
       toast({ title: 'Background image uploaded', description: 'Your custom background image has been uploaded.' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
     } finally {
       setUploadingBgImage(false);
@@ -380,7 +380,7 @@ export function BrandingSettings() {
       if (error) throw error;
       setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: null }));
       setSavedSettings(prev => prev ? { ...prev, customLoginBackgroundImageUrl: null } : prev);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({ title: 'Error removing background', description: error.message, variant: 'destructive' });
     } finally {
       setSaving(false);

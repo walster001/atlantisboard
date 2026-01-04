@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, CheckCircle, XCircle, Clock, AlertTriangle, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/lib/errorHandler';
 
 type InviteStatus = 'loading' | 'needs_auth' | 'redeeming' | 'success' | 'already_member' | 'error';
 type ErrorType = 'invalid_token' | 'expired' | 'already_used' | 'deleted' | 'generic';
@@ -199,18 +200,19 @@ export default function InvitePage() {
           description,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error redeeming invite:', error);
       sessionStorage.removeItem('pendingInviteToken');
       
-      if (error.message) {
+      const errorMessage = getErrorMessage(error);
+      if (errorMessage) {
         try {
-          const parsed = JSON.parse(error.message);
+          const parsed = JSON.parse(errorMessage);
           setErrorType(parsed.error as ErrorType);
           setErrorMessage(parsed.message);
         } catch {
           setErrorType('generic');
-          setErrorMessage(error.message || 'An unexpected error occurred');
+          setErrorMessage(errorMessage || 'An unexpected error occurred');
         }
       } else {
         setErrorType('generic');
@@ -244,11 +246,12 @@ export default function InvitePage() {
       await api.auth.signInWithOAuth('google');
       // Note: signInWithOAuth redirects the page, so setIsSigningIn(false) won't execute
       // This is expected behavior
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Google sign in error:', error);
+      const errorMessage = getErrorMessage(error);
       toast({
         title: 'Sign in failed',
-        description: error?.message || 'Failed to initiate Google sign in',
+        description: errorMessage || 'Failed to initiate Google sign in',
         variant: 'destructive',
       });
       setIsSigningIn(false);

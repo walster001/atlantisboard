@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
+import { getErrorMessage } from '@/lib/errorHandler';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -246,11 +247,12 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
       if (linkType === 'recurring') {
         fetchActiveRecurringLinks();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error generating invite link:', error);
+      const errorMessage = getErrorMessage(error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to generate invite link',
+        description: errorMessage || 'Failed to generate invite link',
         variant: 'destructive',
       });
     } finally {
@@ -304,7 +306,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
         setExpiresAt(null);
         setGeneratedLinkType(null);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting link:', error);
       toast({
         title: 'Error',

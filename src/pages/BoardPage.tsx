@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card as CardType, Label } from '@/types/kanban';
 import { BoardMembersDialog } from '@/components/kanban/BoardMembersDialog';
 import { BoardSettingsModal } from '@/components/kanban/BoardSettingsModal';
-import { getUserFriendlyError } from '@/lib/errorHandler';
+import { getUserFriendlyError, getErrorMessage, getErrorName } from '@/lib/errorHandler';
 import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
 import { useDragScroll } from '@/hooks/useDragScroll';
 import { z } from 'zod';
@@ -154,7 +154,7 @@ export default function BoardPage() {
       console.log('[BoardPage] Refreshing board members, new count:', transformedMembers.length);
       setBoardMembers(transformedMembers);
       console.log('[BoardPage] Board members state updated');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error refreshing members:', error);
     }
   }, [boardId, user]);
@@ -300,7 +300,7 @@ export default function BoardPage() {
       setBoardMembers(transformedMembers);
       
       setLoading(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching board data:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
       setLoading(false);
@@ -443,7 +443,7 @@ export default function BoardPage() {
         }
       }));
       setBoardMembers(transformedMembers);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching board data:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
@@ -1227,7 +1227,7 @@ export default function BoardPage() {
       } else {
         setBoardTheme(null);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error refreshing theme:', error);
     }
   };
@@ -1244,7 +1244,7 @@ export default function BoardPage() {
       
       const boardData = boardDataResult.data as { backgroundColor?: string | null } | null;
       setBoardColor(boardData?.backgroundColor || '#0079bf');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error refreshing background:', error);
     }
   };
@@ -1260,7 +1260,7 @@ export default function BoardPage() {
       
       if (labelsResult.error) throw labelsResult.error;
       setLabels((labelsResult.data as DbLabel[]) || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error refreshing labels:', error);
     }
   };
@@ -1314,7 +1314,7 @@ export default function BoardPage() {
       });
       if (result.error) throw result.error;
       // Realtime handler will update state when event is received
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update card color error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
@@ -1359,7 +1359,7 @@ export default function BoardPage() {
 
       // Realtime events will arrive and be batched by the handler
       toast({ title: 'Success', description: 'Applied colour to all cards' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Apply card color to all error:', error);
       // Revert optimistic update on error
       fetchBoardData();
@@ -1387,7 +1387,7 @@ export default function BoardPage() {
       });
       if (result.error) throw result.error;
       // Realtime handler will update state when event is received
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update column color error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
@@ -1435,7 +1435,7 @@ export default function BoardPage() {
 
       // Realtime events will arrive and be batched by the handler
       toast({ title: 'Success', description: 'Applied colour to all columns' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Apply column color to all error:', error);
       // Revert optimistic update on error
       fetchBoardData();
@@ -1590,7 +1590,7 @@ export default function BoardPage() {
       // Realtime handler will update state when event is received
       setNewColumnTitle('');
       setIsAddingColumn(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Add column error:', error);
       if (error instanceof z.ZodError) {
         toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
@@ -1614,7 +1614,7 @@ export default function BoardPage() {
       });
       if (result.error) throw result.error;
       // Realtime handler will update state when event is received
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update column error:', error);
       if (error instanceof z.ZodError) {
         toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
@@ -1634,7 +1634,7 @@ export default function BoardPage() {
       });
       if (result.error) throw result.error;
       // Realtime handler will update state when event is received
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete column error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
@@ -1664,7 +1664,7 @@ export default function BoardPage() {
       if (result.error) throw result.error;
       if (!result.data) throw new Error('Failed to create card');
       // Realtime handler will update state when event is received
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Add card error:', error);
       if (error instanceof z.ZodError) {
         toast({ title: 'Validation Error', description: error.errors[0].message, variant: 'destructive' });
@@ -1730,7 +1730,7 @@ export default function BoardPage() {
       }
       // Realtime subscription will handle syncing if needed
       // No need to call setCards again here - the optimistic update is already done
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update card error:', error);
       // Revert optimistic update on error by refetching
       fetchBoardData();
@@ -1752,7 +1752,7 @@ export default function BoardPage() {
       });
       if (result.error) throw result.error;
       // Realtime handler will update state when event is received
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete card error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
@@ -1788,7 +1788,7 @@ export default function BoardPage() {
       if (error && !error.message?.includes('duplicate')) throw error;
       
       setCardLabels([...cardLabels, { cardId: cardId, labelId: labelId }]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Add label error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
@@ -1803,7 +1803,7 @@ export default function BoardPage() {
       });
       if (error) throw error;
       setCardLabels(cardLabels.filter(cl => !(cl.cardId === cardId && cl.labelId === labelId)));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Remove label error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }

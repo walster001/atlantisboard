@@ -99,7 +99,7 @@ export function CustomFontsSettings() {
         title: 'Font uploaded',
         description: `"${fontName}" has been added to your custom fonts.`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Upload failed',
         description: error.message,
@@ -137,7 +137,7 @@ export function CustomFontsSettings() {
         title: 'Font deleted',
         description: `"${font.name}" has been removed.`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Delete failed',
         description: error.message,

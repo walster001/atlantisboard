@@ -13,6 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { getErrorMessage, getErrorName } from '@/lib/errorHandler';
 import {
   InlineButtonIconDialog,
   DetectedInlineButton,
@@ -931,8 +932,9 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
       onProgress('finalizing', 0, 0, 'Finalizing import...');
       result.success = true;
-    } catch (error: any) {
-      result.errors.push(`Unexpected error: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      result.errors.push(`Unexpected error: ${errorMessage}`);
     }
 
     return result;
@@ -1064,17 +1066,18 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         });
         updateProgress('idle');
       }
-      } catch (error: any) {
+    } catch (error: unknown) {
         // Don't show error toast if it was an abort
-        if (error.name === 'AbortError') {
+        if (getErrorName(error) === 'AbortError') {
           return;
         }
         
         // Check if it's an auth error - redirect will happen, don't show toast
-        const isAuthError = error.message?.includes('401') || 
-                           error.message?.includes('Unauthorized') ||
-                           error.message?.includes('Session expired') ||
-                           error.message?.includes('Token expired');
+        const errorMessage = getErrorMessage(error);
+        const isAuthError = errorMessage.includes('401') || 
+                           errorMessage.includes('Unauthorized') ||
+                           errorMessage.includes('Session expired') ||
+                           errorMessage.includes('Token expired');
         
         if (isAuthError) {
           console.log('[BoardImportDialog] Auth error detected, redirect will happen');
@@ -1089,7 +1092,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         console.error('Import error:', error);
         toast({
           title: 'Import failed',
-          description: error.message || 'Board import encountered an error. Some data may not have been imported.',
+          description: errorMessage || 'Board import encountered an error. Some data may not have been imported.',
           variant: 'destructive',
         });
         updateProgress('idle');
@@ -1159,12 +1162,13 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
       // No inline buttons detected or Trello import - proceed directly
       proceedWithImport(jsonData, new Map());
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Check if it's an auth error - redirect will happen, don't show toast
-      const isAuthError = error.message?.includes('401') || 
-                         error.message?.includes('Unauthorized') ||
-                         error.message?.includes('Session expired') ||
-                         error.message?.includes('Token expired');
+      const errorMessage = getErrorMessage(error);
+      const isAuthError = errorMessage.includes('401') || 
+                         errorMessage.includes('Unauthorized') ||
+                         errorMessage.includes('Session expired') ||
+                         errorMessage.includes('Token expired');
       
       if (isAuthError) {
         console.log('[BoardImportDialog] Auth error detected in file handling, redirect will happen');

@@ -138,7 +138,7 @@ export function BoardMembersDialog({
       toast({ title: 'Member added!' });
       setEmail('');
       onMembersChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Add member error:', error);
       if (error instanceof z.ZodError) {
         toast({ title: 'Invalid Email', description: error.errors[0].message, variant: 'destructive' });
@@ -161,7 +161,7 @@ export function BoardMembersDialog({
       
       toast({ title: 'Member removed' });
       onMembersChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Remove member error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }
@@ -181,7 +181,7 @@ export function BoardMembersDialog({
       if (result.error) throw result.error;
       toast({ title: 'Role updated' });
       onMembersChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update role error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     }

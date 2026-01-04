@@ -74,7 +74,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
         });
       }
       fetchedRef.current = true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Check if it's a connection error (backend not running)
       const isConnectionError = error?.message?.includes('Failed to fetch') || 
                                  error?.message?.includes('ERR_CONNECTION_REFUSED') ||

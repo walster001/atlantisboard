@@ -188,7 +188,7 @@ export function ThemeEditorModal({
       
       onThemeSaved();
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Save theme error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     } finally {

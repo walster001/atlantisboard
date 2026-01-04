@@ -82,7 +82,7 @@ export function CardSubtaskSection({
       setIsAdding(false);
       onSubtasksChange();
       toast({ title: 'Subtask added' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error adding subtask',
         description: getUserFriendlyError(error),
@@ -107,7 +107,7 @@ export function CardSubtaskSection({
       if (error) throw error;
 
       onSubtasksChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error updating subtask',
         description: getUserFriendlyError(error),
@@ -128,7 +128,7 @@ export function CardSubtaskSection({
 
       onSubtasksChange();
       toast({ title: 'Subtask deleted' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error deleting subtask',
         description: getUserFriendlyError(error),

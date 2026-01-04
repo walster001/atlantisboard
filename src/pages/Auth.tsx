@@ -101,11 +101,13 @@ export default function Auth() {
         const data = await response.json();
         const result = data as unknown as AuthPageData;
         setPageData(result);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Check if it's a connection error (backend not running)
-        const isConnectionError = error?.message?.includes('Failed to fetch') || 
-                                   error?.message?.includes('ERR_CONNECTION_REFUSED') ||
-                                   error?.name === 'TypeError';
+        const errorMessage = error && typeof error === 'object' && 'message' in error ? String(error.message) : '';
+        const errorName = error && typeof error === 'object' && 'name' in error ? String(error.name) : '';
+        const isConnectionError = errorMessage.includes('Failed to fetch') || 
+                                   errorMessage.includes('ERR_CONNECTION_REFUSED') ||
+                                   errorName === 'TypeError';
         
         if (isConnectionError) {
           // Backend not running - log at warn level instead of error

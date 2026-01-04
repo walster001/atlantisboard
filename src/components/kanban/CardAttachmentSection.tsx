@@ -117,7 +117,7 @@ export function CardAttachmentSection({
 
       toast({ title: 'Files uploaded successfully' });
       onAttachmentsChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Upload error',
         description: error.message,
@@ -154,7 +154,7 @@ export function CardAttachmentSection({
 
       toast({ title: 'Attachment deleted' });
       onAttachmentsChange();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Delete failed',
         description: error.message,

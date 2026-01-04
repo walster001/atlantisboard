@@ -109,7 +109,7 @@ export function ThemeSettings({
       });
       
       setThemes(sortedThemes);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fetch themes error:', error);
       toast({ title: 'Error', description: 'Failed to load themes', variant: 'destructive' });
     } finally {
@@ -144,7 +144,7 @@ export function ThemeSettings({
       if (error) throw error;
       toast({ title: themeId ? 'Theme applied' : 'Theme removed' });
       onThemeApplied();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Apply theme error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     } finally {
@@ -182,7 +182,7 @@ export function ThemeSettings({
       if (error) throw error;
       toast({ title: 'Theme deleted' });
       fetchThemes();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete theme error:', error);
       toast({ title: 'Error', description: getUserFriendlyError(error), variant: 'destructive' });
     } finally {

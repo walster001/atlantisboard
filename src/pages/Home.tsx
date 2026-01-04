@@ -23,22 +23,7 @@ import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
 import { api } from '@/integrations/api/client';
 import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
 import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
-
-interface Workspace {
-  id: string;
-  name: string;
-  description: string | null;
-  ownerId: string;
-}
-
-interface Board {
-  id: string;
-  workspaceId: string;
-  name: string;
-  description: string | null;
-  backgroundColor: string;
-  position: number;
-}
+import type { WorkspaceResponse as Workspace, BoardResponse as Board, HomeDataResponse } from '@/types/api';
 
 interface BoardTheme {
   id: string;
@@ -283,11 +268,7 @@ export default function Home() {
       if (error) throw error;
 
       // Cast JSON response to typed object
-      const result = data as {
-        workspaces?: Workspace[];
-        boards?: Board[];
-        boardRoles?: Record<string, 'admin' | 'manager' | 'viewer'>;
-      };
+      const result = data as HomeDataResponse;
 
       setWorkspaces(result?.workspaces || []);
       setBoards(result?.boards || []);
@@ -311,11 +292,7 @@ export default function Home() {
       if (error) throw error;
 
       // Cast JSON response to typed object
-      const result = data as {
-        workspaces?: Workspace[];
-        boards?: Board[];
-        boardRoles?: Record<string, 'admin' | 'manager' | 'viewer'>;
-      };
+      const result = data as HomeDataResponse;
 
       setWorkspaces(result?.workspaces || []);
       setBoards(result?.boards || []);

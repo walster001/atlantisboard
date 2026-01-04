@@ -1,18 +1,33 @@
 import { subscribeToChanges, SubscriptionCleanup, RealtimePostgresChangesPayload } from './realtimeClient';
 import { logRealtime } from './logger';
 import { getSubscriptionRegistry } from './subscriptionRegistry';
+import type {
+  BoardResponse,
+  ColumnResponse,
+  CardResponse,
+  BoardMemberResponse,
+  WorkspaceResponse,
+  InviteTokenResponse,
+  CardAttachmentResponse,
+  CardSubtaskResponse,
+  CardLabelResponse,
+  CardAssigneeResponse,
+} from '@/types/api';
+
+// Union type for card detail entities
+type CardDetailEntity = CardAttachmentResponse | CardSubtaskResponse | CardLabelResponse | CardAssigneeResponse;
 
 /**
  * Workspace event handlers for parent-child hierarchy model
  */
 export type WorkspaceHandlers = {
-  onBoardUpdate?: (board: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
-  onColumnUpdate?: (column: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
-  onCardUpdate?: (card: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
-  onCardDetailUpdate?: (detail: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
-  onMemberUpdate?: (member: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
-  onWorkspaceUpdate?: (workspace: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
-  onInviteUpdate?: (invite: Record<string, unknown>, event: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
+  onBoardUpdate?: (board: BoardResponse, event: RealtimePostgresChangesPayload<BoardResponse>) => void;
+  onColumnUpdate?: (column: ColumnResponse, event: RealtimePostgresChangesPayload<ColumnResponse>) => void;
+  onCardUpdate?: (card: CardResponse, event: RealtimePostgresChangesPayload<CardResponse>) => void;
+  onCardDetailUpdate?: (detail: CardDetailEntity, event: RealtimePostgresChangesPayload<CardDetailEntity>) => void;
+  onMemberUpdate?: (member: BoardMemberResponse, event: RealtimePostgresChangesPayload<BoardMemberResponse>) => void;
+  onWorkspaceUpdate?: (workspace: WorkspaceResponse | WorkspaceMemberResponse, event: RealtimePostgresChangesPayload<WorkspaceResponse | WorkspaceMemberResponse>) => void;
+  onInviteUpdate?: (invite: InviteTokenResponse, event: RealtimePostgresChangesPayload<InviteTokenResponse>) => void;
   // When parent (board) updates, refresh all children
   onParentRefresh?: (parentType: 'board', parentId: string) => void;
 };
@@ -34,10 +49,10 @@ export function subscribeWorkspace(
         event: 'INSERT',
         table: 'boards',
         handler: (payload) => {
-          const board = payload.new as { workspaceId?: string };
-          if (board?.workspaceId === workspaceId) {
+          const board = payload.new as BoardResponse | null;
+          if (board?.workspaceId === workspaceId && payload.new) {
             logRealtime(topic, 'board insert', payload.new);
-            handlers.onBoardUpdate?.(payload.new || {}, payload);
+            handlers.onBoardUpdate?.(payload.new, payload as RealtimePostgresChangesPayload<BoardResponse>);
           }
         },
       },

@@ -20,6 +20,7 @@ import {
   scanWekanDataForInlineButtons,
   replaceInlineButtonImagesInWekanData,
 } from './InlineButtonIconDialog';
+import type { WekanBoard, WekanExport, TrelloBoard } from './types';
 interface ImportResult {
   success: boolean;
   workspacesCreated: number;
@@ -41,7 +42,7 @@ interface BoardImportDialogProps {
 type ImportSource = 'wekan' | 'trello' | 'csv';
 
 // Format detection functions
-function isWekanFormat(data: any): boolean {
+function isWekanFormat(data: unknown): data is WekanExport {
   // Wekan exports have these distinctive properties
   // They can be a single board object or an array of boards
   const checkBoard = (board: any) => {
@@ -69,13 +70,16 @@ function isWekanFormat(data: any): boolean {
   return checkBoard(data);
 }
 
-function isTrelloFormat(data: any): boolean {
+function isTrelloFormat(data: unknown): data is TrelloBoard {
   // Trello exports have these distinctive properties
   // Trello is always a single board object (not an array)
   if (Array.isArray(data)) return false;
+  if (!data || typeof data !== 'object') return false;
+  
+  const d = data as Record<string, unknown>;
   
   // Trello boards have 'idOrganization', 'idMemberCreator', or 'closed' at root level
-  if (data.idOrganization !== undefined || data.idMemberCreator !== undefined) return true;
+  if (d.idOrganization !== undefined || d.idMemberCreator !== undefined) return true;
   
   // Trello cards have 'idList' (not 'listId' like Wekan)
   if (data.cards && Array.isArray(data.cards) && data.cards[0]?.idList !== undefined) {
@@ -95,7 +99,7 @@ function isTrelloFormat(data: any): boolean {
   return false;
 }
 
-function getFormatMismatchError(selectedFormat: ImportSource, data: any): string | null {
+function getFormatMismatchError(selectedFormat: ImportSource, data: unknown): string | null {
   const isWekan = isWekanFormat(data);
   const isTrello = isTrelloFormat(data);
   
@@ -110,78 +114,7 @@ function getFormatMismatchError(selectedFormat: ImportSource, data: any): string
   return null;
 }
 
-// Trello JSON types
-interface TrelloLabel {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
-interface TrelloCheckItem {
-  id: string;
-  name: string;
-  state: 'complete' | 'incomplete';
-  pos: number;
-}
-
-interface TrelloChecklist {
-  id: string;
-  name: string;
-  idCard: string;
-  checkItems: TrelloCheckItem[];
-}
-
-interface TrelloAttachment {
-  id: string;
-  name: string;
-  url: string;
-  bytes: number | null;
-  mimeType: string | null;
-  date: string;
-}
-
-interface TrelloMember {
-  id: string;
-  fullName: string;
-  username: string;
-}
-
-interface TrelloCard {
-  id: string;
-  name: string;
-  desc: string;
-  due: string | null;
-  dueComplete: boolean;
-  idList: string;
-  idLabels: string[];
-  idMembers: string[];
-  pos: number;
-  dateLastActivity: string;
-  attachments?: TrelloAttachment[];
-  closed: boolean;
-  cover?: {
-    color?: string | null;
-    brightness?: string;
-  };
-}
-
-interface TrelloList {
-  id: string;
-  name: string;
-  pos: number;
-  closed: boolean;
-}
-
-interface TrelloBoard {
-  id: string;
-  name: string;
-  desc: string;
-  lists: TrelloList[];
-  cards: TrelloCard[];
-  labels: TrelloLabel[];
-  checklists: TrelloChecklist[];
-  members?: TrelloMember[];
-}
+// Trello JSON types are now imported from ./types
 
 // Color mapping from Trello to hex - comprehensive list
 const trelloColorMap: Record<string, string> = {
@@ -340,7 +273,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const [customHex, setCustomHex] = useState('#3b82f6');
   
   // Inline button icon replacement state
-  const [parsedWekanData, setParsedWekanData] = useState<any>(null);
+  const [parsedWekanData, setParsedWekanData] = useState<WekanExport | null>(null);
   const [detectedInlineButtons, setDetectedInlineButtons] = useState<DetectedInlineButton[]>([]);
   const [showInlineButtonDialog, setShowInlineButtonDialog] = useState(false);
   const [iconReplacements, setIconReplacements] = useState<Map<string, string>>(new Map());

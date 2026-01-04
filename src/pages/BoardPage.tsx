@@ -32,39 +32,14 @@ import type { RealtimePostgresChangesPayload } from '@/realtime/realtimeClient';
 import { normalizeTimestamp, isNewer, isEqual } from '@/lib/timestampUtils';
 import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
 import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
-interface DbColumn {
-  id: string;
-  boardId: string;
-  title: string;
-  position: number;
-  color: string | null;
-  updatedAt?: string;
-}
-
-interface DbCard {
-  id: string;
-  columnId: string;
-  title: string;
-  description: string | null;
-  position: number;
-  dueDate: string | null;
-  createdBy: string | null;
-  color: string | null;
-  updatedAt?: string;
-}
-
-interface DbLabel {
-  id: string;
-  boardId: string;
-  name: string;
-  color: string;
-}
-
-interface DbCardLabel {
-  cardId: string;
-  labelId: string;
-}
-
+import type {
+  ColumnResponse as DbColumn,
+  CardResponse as DbCard,
+  LabelResponse as DbLabel,
+  CardLabelResponse as DbCardLabel,
+  BoardMemberResponse,
+  BoardDataResponse,
+} from '@/types/api';
 
 interface BoardMember {
   userId: string;
@@ -93,8 +68,8 @@ export default function BoardPage() {
   const [cards, setCards] = useState<DbCard[]>([]);
   const [labels, setLabels] = useState<DbLabel[]>([]);
   const [cardLabels, setCardLabels] = useState<DbCardLabel[]>([]);
-  const [cardAttachments, setCardAttachments] = useState<{ id: string; cardId: string; fileName: string; fileUrl: string; fileSize: number | null; fileType: string | null; uploadedBy: string | null; createdAt: string }[]>([]);
-  const [cardSubtasks, setCardSubtasks] = useState<{ id: string; cardId: string; title: string; completed: boolean; completedAt: string | null; completedBy: string | null; position: number; checklistName: string | null; createdAt: string }[]>([]);
+  const [cardAttachments, setCardAttachments] = useState<CardAttachmentResponse[]>([]);
+  const [cardSubtasks, setCardSubtasks] = useState<CardSubtaskResponse[]>([]);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -177,16 +152,7 @@ export default function BoardPage() {
       if (error) throw error;
       
       // Cast JSON response to typed object
-      const result = data as {
-        error?: string;
-        board?: { id: string; name: string; description: string | null; backgroundColor: string | null; workspaceId: string; createdBy: string | null };
-        userRole?: string | null;
-        columns?: DbColumn[];
-        cards?: DbCard[];
-        labels?: DbLabel[];
-        cardLabels?: DbCardLabel[];
-        members?: Array<{ userId: string; role: string; profiles: { id: string; email: string | null; fullName: string | null; avatarUrl: string | null } }>;
-      };
+      const result = data as BoardDataResponse;
       
       if (result?.error) {
         if (result.error === 'Board not found') {
@@ -282,8 +248,8 @@ export default function BoardPage() {
             .select('*')
             .in('cardId', cardIds)
         ]);
-        setCardAttachments((attachmentsResult.data as typeof cardAttachments) || []);
-        setCardSubtasks((subtasksResult.data as typeof cardSubtasks) || []);
+        setCardAttachments((attachmentsResult.data as CardAttachmentResponse[]) || []);
+        setCardSubtasks((subtasksResult.data as CardSubtaskResponse[]) || []);
       }
       
       // Transform members to expected format
@@ -323,16 +289,7 @@ export default function BoardPage() {
       if (error) throw error;
       
       // Cast JSON response to typed object
-      const result = data as {
-        error?: string;
-        board?: { id: string; name: string; description: string | null; backgroundColor: string | null; workspaceId: string; createdBy: string | null };
-        userRole?: string | null;
-        columns?: DbColumn[];
-        cards?: DbCard[];
-        labels?: DbLabel[];
-        cardLabels?: DbCardLabel[];
-        members?: Array<{ userId: string; role: string; profiles: { id: string; email: string | null; fullName: string | null; avatarUrl: string | null } }>;
-      };
+      const result = data as BoardDataResponse;
       
       if (result?.error) {
         if (result.error === 'Board not found') {
@@ -427,8 +384,8 @@ export default function BoardPage() {
             .select('*')
             .in('cardId', cardIds)
         ]);
-        setCardAttachments((attachmentsResult.data as typeof cardAttachments) || []);
-        setCardSubtasks((subtasksResult.data as typeof cardSubtasks) || []);
+        setCardAttachments((attachmentsResult.data as CardAttachmentResponse[]) || []);
+        setCardSubtasks((subtasksResult.data as CardSubtaskResponse[]) || []);
       }
       
       // Transform members to expected format
@@ -2241,7 +2198,7 @@ export default function BoardPage() {
               .from('card_attachments')
               .select('*')
               .eq('cardId', editingCard.card.id);
-            const attachments = (attachmentsResult.data || []) as typeof cardAttachments;
+            const attachments = (attachmentsResult.data || []) as CardAttachmentResponse[];
             setCardAttachments(prev => [
               ...prev.filter(a => a.cardId !== editingCard.card.id),
               ...attachments
@@ -2265,7 +2222,7 @@ export default function BoardPage() {
               .from('card_subtasks')
               .select('*')
               .eq('cardId', editingCard.card.id);
-            const subtasks = (subtasksResult.data || []) as typeof cardSubtasks;
+            const subtasks = (subtasksResult.data || []) as CardSubtaskResponse[];
             setCardSubtasks(prev => [
               ...prev.filter(s => s.cardId !== editingCard.card.id),
               ...subtasks

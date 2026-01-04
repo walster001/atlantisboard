@@ -745,10 +745,9 @@ class BoardImportService {
                     iconSize: 16,
                   };
                   
-                  // If metadata was decoded but has original URL, replace with stored replacement URL
-                  if (buttonMetadata && buttonMetadata.iconUrl !== button.iconUrl) {
-                    finalButtonData.iconUrl = button.iconUrl; // Use replacement URL from stored data
-                  }
+                  // Always use replacement URL from stored button data as source of truth
+                  // This ensures replaced icons are always used, even if placeholder metadata has original URL
+                  finalButtonData.iconUrl = button.iconUrl; // Use replacement URL from stored data
                   
                   // Create inline button data structure matching frontend interface
                   const buttonData = {

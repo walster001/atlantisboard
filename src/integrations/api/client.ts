@@ -27,6 +27,24 @@ class ApiClient {
     }
   }
 
+  /**
+   * Handle authentication expiry consistently
+   * Clears auth tokens, dispatches event for React state cleanup, and redirects to /auth page
+   */
+  private handleAuthExpiry(): void {
+    this.clearAuth();
+    
+    // Dispatch custom event to notify React components of auth expiry
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth:expired'));
+    }
+    
+    if (typeof window !== 'undefined' && window.location.pathname !== '/auth') {
+      console.log('[ApiClient] Authentication expired, redirecting to login');
+      window.location.replace('/auth');
+    }
+  }
+
   setAuth(accessToken: string | null, refreshToken?: string | null) {
     this.accessToken = accessToken;
     if (refreshToken !== undefined) {
@@ -104,14 +122,9 @@ class ApiClient {
             return { data, error: null };
           }
           
-          // If retry also fails with 401, fall through to handle 401 below
+          // If retry also fails with 401, handle auth expiry
           if (retryResponse.status === 401) {
-            // Clear auth and handle redirect for /auth/me
-            this.clearAuth();
-            if (endpoint === '/auth/me' && typeof window !== 'undefined' && window.location.pathname !== '/auth') {
-              console.log('[ApiClient] Session expired on /auth/me after refresh retry, redirecting to login');
-              window.location.replace('/auth');
-            }
+            this.handleAuthExpiry();
             const errorData = await retryResponse.json().catch(() => ({ error: 'Unauthorized', message: 'Session expired' }));
             const errorMessage = errorData.error || errorData.message || 'Session expired';
             return {
@@ -120,24 +133,15 @@ class ApiClient {
             };
           }
         } else {
-          // Refresh failed - clear auth and handle redirect for /auth/me
-          this.clearAuth();
-          if (endpoint === '/auth/me' && typeof window !== 'undefined' && window.location.pathname !== '/auth') {
-            console.log('[ApiClient] Token refresh failed on /auth/me, redirecting to login');
-            window.location.replace('/auth');
-          }
+          // Refresh failed - handle auth expiry
+          this.handleAuthExpiry();
         }
       }
 
       if (!response.ok) {
         // Handle 401 errors (after refresh attempt failed or no refresh token)
         if (response.status === 401) {
-          this.clearAuth();
-          // For /auth/me endpoint, always redirect to login on 401
-          if (endpoint === '/auth/me' && typeof window !== 'undefined' && window.location.pathname !== '/auth') {
-            console.log('[ApiClient] 401 Unauthorized on /auth/me, redirecting to login');
-            window.location.replace('/auth');
-          }
+          this.handleAuthExpiry();
         }
         
         // Handle rate limiting specifically

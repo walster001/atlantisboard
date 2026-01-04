@@ -239,6 +239,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [verifyUserInDatabase, signOut, fetchAdminStatus]);
 
+  // Listen for auth expiry events from API client
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      console.log('[useAuth] Auth expiry event received, clearing user state');
+      // Clear all auth state
+      setSession(null);
+      setUser(null);
+      setIsAppAdmin(false);
+      setIsVerified(false);
+      // Disconnect realtime connection
+      getRealtimeManager().disconnect();
+    };
+
+    window.addEventListener('auth:expired', handleAuthExpired);
+    return () => {
+      window.removeEventListener('auth:expired', handleAuthExpired);
+    };
+  }, []);
+
   // Initialize session on mount
   useEffect(() => {
     const initializeSession = async () => {

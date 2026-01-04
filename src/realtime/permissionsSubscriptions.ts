@@ -39,7 +39,7 @@ export function subscribeRolePermissions(handlers: PermissionHandlers): Subscrip
     'role_permissions',
     '*',
     (payload) => {
-      logRealtime(topic, `role_permissions ${payload.eventType}`, { role_id: payload.new?.role_id ?? payload.old?.role_id });
+      logRealtime(topic, `role_permissions ${payload.eventType}`, { roleId: payload.new?.roleId ?? payload.old?.roleId });
       handlers.onChange?.(payload);
     }
   );
@@ -94,6 +94,7 @@ export function subscribeBoardMembersForPermissions(
       // Convert to RealtimePostgresChangesPayload format for handlers
       const payload: RealtimePostgresChangesPayload<Record<string, unknown>> = {
         eventType: event.eventType,
+        table: event.table,
         new: event.new,
         old: event.old,
       };

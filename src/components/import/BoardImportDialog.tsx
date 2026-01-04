@@ -1069,6 +1069,23 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         if (error.name === 'AbortError') {
           return;
         }
+        
+        // Check if it's an auth error - redirect will happen, don't show toast
+        const isAuthError = error.message?.includes('401') || 
+                           error.message?.includes('Unauthorized') ||
+                           error.message?.includes('Session expired') ||
+                           error.message?.includes('Token expired');
+        
+        if (isAuthError) {
+          console.log('[BoardImportDialog] Auth error detected, redirect will happen');
+          // Cancel import and let redirect handle cleanup
+          if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+          }
+          updateProgress('idle');
+          return;
+        }
+        
         console.error('Import error:', error);
         toast({
           title: 'Import failed',
@@ -1143,6 +1160,17 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       // No inline buttons detected or Trello import - proceed directly
       proceedWithImport(jsonData, new Map());
     } catch (error: any) {
+      // Check if it's an auth error - redirect will happen, don't show toast
+      const isAuthError = error.message?.includes('401') || 
+                         error.message?.includes('Unauthorized') ||
+                         error.message?.includes('Session expired') ||
+                         error.message?.includes('Token expired');
+      
+      if (isAuthError) {
+        console.log('[BoardImportDialog] Auth error detected in file handling, redirect will happen');
+        return;
+      }
+      
       console.error('Import error:', error);
       toast({
         title: 'Import failed',

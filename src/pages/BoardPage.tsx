@@ -455,6 +455,556 @@ export default function BoardPage() {
   // Debounced refresh for board members
   const debouncedRefreshBoardMembers = useSilentDebouncedFetch(refreshBoardMembers);
 
+  // Create stable handlers with batching (but disable batching for card/column to use existing batching logic)
+  const stableHandlers = useStableRealtimeHandlers({
+    onBoardUpdate: (board, event) => {
+      // Get board ID from event payload (more reliable than board parameter)
+      const eventBoardId = (event.new as { id?: string })?.id || 
+                           (event.old as { id?: string })?.id ||
+                           (board as { id?: string })?.id;
+      
+      // Only process events for the current board
+      if (eventBoardId !== boardId) return;
+      
+      if (event.eventType === 'UPDATE') {
+        const boardData = event.new as { name?: string; backgroundColor?: string; description?: string | null } | null;
+        const oldBoard = event.old as { name?: string; backgroundColor?: string; description?: string | null } | null;
+        
+        if (!boardData) {
+          // No new data - use refetch
+          debouncedFetchBoardData();
+          return;
+        }
+        
+        // Check if only simple properties changed (name, color, description)
+        const simplePropsChanged = 
+          (oldBoard?.name !== boardData.name) ||
+          (oldBoard?.backgroundColor !== boardData.backgroundColor) ||
+          (oldBoard?.description !== boardData.description);
+        
+        if (simplePropsChanged) {
+          // Simple property update - use incremental state update
+          setBoardName(boardData.name || '');
+          setBoardColor(boardData.backgroundColor || '#0079bf');
+          // Note: description is not stored in separate state, so we refetch for it
+          if (oldBoard?.description !== boardData.description) {
+            debouncedFetchBoardData();
+          }
+        } else {
+          // Unknown change - use refetch to be safe
+          debouncedFetchBoardData();
+        }
+      } else if (event.eventType === 'DELETE') {
+        // Board deleted - navigate away or show error
+        debouncedFetchBoardData();
+      }
+    },
+    onColumnUpdate: (column, event) => {
+      const columnData = column as unknown as DbColumn;
+      // Only process events for columns in the current board
+      if (columnData.boardId !== boardId) return;
+      
+      // Extract updatedAt
+      const getUpdatedAt = (data: any): string | undefined => {
+        return data?.updatedAt;
+      };
+      
+      if (event.eventType === 'INSERT') {
+        setColumns((prev) => {
+          if (prev.some((c) => c.id === columnData.id)) {
+            return prev;
+          }
+          const updated = [...prev, columnData];
+          const sorted = updated.sort((a, b) => a.position - b.position);
+          // Update columnIdsRef immediately
+          columnIdsRef.current = sorted.map(c => c.id);
+          // Process buffered card events now that column exists
+          setTimeout(() => {
+            processBufferedCardEvents();
+          }, 50);
+          return sorted;
+        });
+      } else if (event.eventType === 'UPDATE') {
+        const updatedColumn = columnData;
+        
+        // Check if this is a color update that's part of a batch operation
+        const batchOp = pendingBatchColumnColorRef.current;
+        const previous = event.old as unknown as DbColumn;
+        const isColorUpdate = previous?.color !== updatedColumn.color;
+        
+        if (isColorUpdate && batchOp && batchOp.entityIds.includes(updatedColumn.id)) {
+          // Check if timestamp matches batch operation (within tolerance)
+          const incomingUpdatedAt = getUpdatedAt(updatedColumn);
+          const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
+          const batchTimestamp = batchOp.updatedAt ? normalizeTimestamp(batchOp.updatedAt) : null;
+          const timestampMatches = batchTimestamp && (
+            isEqual(incomingTimestamp, batchTimestamp) || 
+            Math.abs(incomingTimestamp - batchTimestamp) < 1000 // 1 second tolerance
+          );
+          
+          // Check if color matches
+          const colorMatches = updatedColumn.color === batchOp.color;
+          
+          if (timestampMatches && colorMatches) {
+            // This is part of the batch - buffer it
+            // Column color UPDATE event buffered for batch
+            bufferedColumnColorEventsRef.current.push({
+              entity: updatedColumn,
+              event,
+              timestamp: Date.now(),
+            });
+            
+            // Check if we've received all expected events or timeout
+            const receivedIds = bufferedColumnColorEventsRef.current.map(e => (e.entity as DbColumn).id);
+            const allReceived = batchOp.entityIds.every(id => receivedIds.includes(id));
+            const bufferAge = Date.now() - batchOp.timestamp;
+            
+            if (allReceived || bufferAge > 200) {
+              // Apply all buffered updates at once
+              setColumns((prev) => {
+                const updated = prev.map((c) => {
+                  const bufferedEvent = bufferedColumnColorEventsRef.current.find(
+                    e => (e.entity as DbColumn).id === c.id
+                  );
+                  if (bufferedEvent) {
+                    return bufferedEvent.entity as DbColumn;
+                  }
+                  return c;
+                });
+                
+                const sorted = updated.sort((a, b) => a.position - b.position);
+                // Update columnIdsRef immediately
+                columnIdsRef.current = sorted.map(c => c.id);
+                return sorted;
+              });
+              
+              // Clear buffer
+              bufferedColumnColorEventsRef.current = [];
+              return;
+            }
+            
+            // Wait for more events or timeout
+            return;
+          }
+        }
+        
+        // Not a batched color update - process normally
+        setColumns((prev) => {
+          const existingColumn = prev.find((c) => c.id === updatedColumn.id);
+          if (!existingColumn) {
+            return prev;
+          }
+          
+          // Timestamp-based conflict resolution for columns
+          const incomingUpdatedAt = getUpdatedAt(updatedColumn);
+          const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
+          const localUpdatedAt = getUpdatedAt(existingColumn);
+          const localTimestamp = normalizeTimestamp(localUpdatedAt);
+          
+          // If local state is newer, keep it
+          if (isNewer(localTimestamp, incomingTimestamp)) {
+            return prev;
+          }
+          
+          // Check if anything actually changed (skip if no changes)
+          if (
+            existingColumn.title === updatedColumn.title &&
+            existingColumn.position === updatedColumn.position &&
+            existingColumn.color === updatedColumn.color
+          ) {
+            return prev;
+          }
+          
+          const updated = prev.map((c) => (c.id === updatedColumn.id ? { ...c, ...updatedColumn } : c));
+          const sorted = updated.sort((a, b) => a.position - b.position);
+          // Update columnIdsRef immediately
+          columnIdsRef.current = sorted.map(c => c.id);
+          return sorted;
+        });
+      } else if (event.eventType === 'DELETE') {
+        setColumns((prev) => {
+          const filtered = prev.filter((c) => c.id !== columnData.id);
+          // Update columnIdsRef immediately
+          columnIdsRef.current = filtered.map(c => c.id);
+          return filtered;
+        });
+        setCards((prev) => prev.filter((c) => c.columnId !== columnData.id));
+      }
+    },
+    onCardUpdate: (card, event) => {
+      const cardData = card as unknown as DbCard;
+      const cardColumnId = cardData.columnId;
+      
+      // Check if column belongs to board - use ref for synchronous check
+      const columnBelongsToBoard = columnIdsRef.current.includes(cardColumnId);
+      
+      // If columns aren't loaded yet, buffer the event (will be processed after columns load)
+      if (!columnsLoadedRef.current) {
+        pendingCardEventsRef.current.push({
+          card: cardData,
+          event,
+          timestamp: Date.now(),
+        });
+        return;
+      }
+      
+      // If columns are loaded but column doesn't exist, buffer the event
+      // (might be a new column that hasn't been processed yet)
+      if (columnIdsRef.current.length > 0 && !columnBelongsToBoard) {
+        pendingCardEventsRef.current.push({
+          card: cardData,
+          event,
+          timestamp: Date.now(),
+        });
+        // Set timeout to process buffered events after a short delay
+        setTimeout(() => {
+          processBufferedCardEvents();
+        }, 100);
+        return;
+      }
+      
+      // Columns are loaded and column exists (or no columns yet) - process normally
+      // Extract updatedAt from event
+      const getUpdatedAt = (data: any): string | undefined => {
+        return data?.updatedAt;
+      };
+      
+      if (event.eventType === 'INSERT') {
+        setCards((prev) => {
+          if (prev.some((c) => c.id === cardData.id)) {
+            return prev;
+          }
+          const updated = [...prev, cardData];
+          // Sort cards by position within each column
+          return updated.sort((a, b) => {
+            if (a.columnId !== b.columnId) {
+              return a.columnId.localeCompare(b.columnId);
+            }
+            return a.position - b.position;
+          });
+        });
+      } else if (event.eventType === 'UPDATE') {
+        const updatedCard = cardData;
+        const previous = event.old as unknown as DbCard;
+        const previousColumnId = previous?.columnId;
+        const columnChanged = previousColumnId && previousColumnId !== updatedCard.columnId;
+        
+        // Extract and normalize timestamps
+        const incomingUpdatedAt = getUpdatedAt(updatedCard);
+        const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
+        
+        // Check if this is a color update that's part of a batch operation
+        const batchOp = pendingBatchCardColorRef.current;
+        const isColorUpdate = previous?.color !== updatedCard.color;
+        
+        if (isColorUpdate && batchOp && batchOp.entityIds.includes(updatedCard.id)) {
+          // Check if timestamp matches batch operation (within tolerance)
+          const batchTimestamp = batchOp.updatedAt ? normalizeTimestamp(batchOp.updatedAt) : null;
+          const timestampMatches = batchTimestamp && (
+            isEqual(incomingTimestamp, batchTimestamp) || 
+            Math.abs(incomingTimestamp - batchTimestamp) < 1000 // 1 second tolerance
+          );
+          
+          // Check if color matches
+          const colorMatches = updatedCard.color === batchOp.color;
+          
+          if (timestampMatches && colorMatches) {
+            // This is part of the batch - buffer it
+            bufferedCardColorEventsRef.current.push({
+              entity: updatedCard,
+              event,
+              timestamp: Date.now(),
+            });
+            
+            // Check if we've received all expected events or timeout
+            const receivedIds = bufferedCardColorEventsRef.current.map(e => (e.entity as DbCard).id);
+            const allReceived = batchOp.entityIds.every(id => receivedIds.includes(id));
+            const bufferAge = Date.now() - batchOp.timestamp;
+            
+            if (allReceived || bufferAge > 200) {
+              // Apply all buffered updates at once
+              setCards((prev) => {
+                const updated = prev.map((c) => {
+                  const bufferedEvent = bufferedCardColorEventsRef.current.find(
+                    e => (e.entity as DbCard).id === c.id
+                  );
+                  if (bufferedEvent) {
+                    return bufferedEvent.entity as DbCard;
+                  }
+                  return c;
+                });
+                
+                // Sort cards by position within each column
+                return updated.sort((a, b) => {
+                  if (a.columnId !== b.columnId) {
+                    return a.columnId.localeCompare(b.columnId);
+                  }
+                  return a.position - b.position;
+                });
+              });
+              
+              // Clear buffer
+              bufferedCardColorEventsRef.current = [];
+              return;
+            }
+            
+            // Wait for more events or timeout
+            return;
+          }
+        }
+        
+        // Not a batched color update - process normally
+        // Get local card state for comparison
+        setCards((prev) => {
+          const existingCard = prev.find((c) => c.id === updatedCard.id);
+          
+          // Check pending optimistic update
+          const pendingUpdate = pendingCardUpdatesRef.current.get(updatedCard.id);
+          
+          if (pendingUpdate) {
+            // Compare timestamps for conflict resolution
+            const optimisticTimestamp = pendingUpdate.updatedAt;
+            const localTimestamp = existingCard?.updatedAt ? normalizeTimestamp(existingCard.updatedAt) : 0;
+            
+            // If realtime event matches our optimistic state exactly, ignore it (echo suppression)
+            if (pendingUpdate.columnId === updatedCard.columnId && 
+                pendingUpdate.position === updatedCard.position && 
+                isEqual(incomingTimestamp, optimisticTimestamp)) {
+              pendingCardUpdatesRef.current.delete(updatedCard.id);
+              return prev;
+            }
+            
+            // Timestamp-based conflict resolution
+            if (isNewer(optimisticTimestamp, incomingTimestamp)) {
+              // Our optimistic update is newer - keep it, ignore incoming
+              return prev;
+            } else if (isNewer(incomingTimestamp, optimisticTimestamp)) {
+              // Incoming update is newer - accept it, clear optimistic
+              pendingCardUpdatesRef.current.delete(updatedCard.id);
+            } else {
+              // Timestamps equal or very close - check if it's our echo
+              if (pendingUpdate.columnId === updatedCard.columnId && pendingUpdate.position === updatedCard.position) {
+                pendingCardUpdatesRef.current.delete(updatedCard.id);
+                return prev;
+              }
+              // Different state with equal timestamps - accept server state
+              pendingCardUpdatesRef.current.delete(updatedCard.id);
+            }
+          } else if (existingCard) {
+            // No pending optimistic update - compare with local state
+            const localTimestamp = normalizeTimestamp(existingCard.updatedAt);
+            if (isNewer(localTimestamp, incomingTimestamp)) {
+              // Local state is newer - keep it
+              return prev;
+            }
+            // Incoming is newer or equal - accept it
+          }
+          
+          // Apply the update
+          if (!existingCard) {
+            const updated = [...prev, updatedCard];
+            // Sort cards by position within each column
+            return updated.sort((a, b) => {
+              if (a.columnId !== b.columnId) {
+                return a.columnId.localeCompare(b.columnId);
+              }
+              return a.position - b.position;
+            });
+          }
+          
+          // Update the card - merge with existing state
+          let updated = prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c));
+          
+          // If column changed, we need to ensure proper sorting
+          // Sort cards by position within each column
+          updated = updated.sort((a, b) => {
+            if (a.columnId !== b.columnId) {
+              return a.columnId.localeCompare(b.columnId);
+            }
+            return a.position - b.position;
+          });
+          
+          return updated;
+        });
+        
+        setEditingCard((prev) => {
+          if (prev && prev.card.id === updatedCard.id) {
+            return {
+              ...prev,
+              card: {
+                ...prev.card,
+                title: updatedCard.title,
+                description: updatedCard.description || undefined,
+                dueDate: updatedCard.dueDate || undefined,
+                color: updatedCard.color,
+              },
+            };
+          }
+          return prev;
+        });
+      } else if (event.eventType === 'DELETE') {
+        const deletedCard = cardData;
+        setCards((prev) => prev.filter((c) => c.id !== deletedCard.id));
+        setEditingCard((prev) => {
+          if (prev && prev.card.id === deletedCard.id) {
+            return null;
+          }
+          return prev;
+        });
+      }
+    },
+    onCardDetailUpdate: (detail, event) => {
+      const detailData = detail as { cardId?: string; id?: string };
+      
+      // Only process if card belongs to current board
+      const card = cards.find(c => c.id === detailData.cardId);
+      if (!card) {
+        // Card not found in current board - might be buffered or from different board
+        return;
+      }
+      
+      // Verify card's column belongs to this board
+      if (!columnIdsRef.current.includes(card.columnId)) {
+        return;
+      }
+      
+      if (event.table === 'card_attachments') {
+        const attachment = detail as { id: string; cardId: string; fileName: string; fileUrl: string; fileSize: number | null; fileType: string | null; uploadedBy: string | null; createdAt: string };
+        if (event.eventType === 'INSERT') {
+          setCardAttachments((prev) => {
+            if (prev.some(a => a.id === attachment.id)) return prev;
+            return [...prev, attachment];
+          });
+        } else if (event.eventType === 'UPDATE') {
+          setCardAttachments((prev) =>
+            prev.map((a) => a.id === attachment.id ? { ...a, ...attachment } : a)
+          );
+        } else if (event.eventType === 'DELETE') {
+          setCardAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
+        }
+      } else if (event.table === 'card_subtasks') {
+        const subtask = detail as { id: string; cardId: string; title: string; completed: boolean; completedAt: string | null; completedBy: string | null; position: number; checklistName: string | null; createdAt: string };
+        if (event.eventType === 'INSERT') {
+          setCardSubtasks((prev) => {
+            if (prev.some(s => s.id === subtask.id)) return prev;
+            return [...prev, subtask];
+          });
+        } else if (event.eventType === 'UPDATE') {
+          setCardSubtasks((prev) =>
+            prev.map((s) => s.id === subtask.id ? { ...s, ...subtask } : s)
+          );
+        } else if (event.eventType === 'DELETE') {
+          setCardSubtasks((prev) => prev.filter((s) => s.id !== subtask.id));
+        }
+      }
+      // card_assignees and card_labels can be added if needed
+    },
+    onMemberUpdate: (member, event) => {
+      const membership = member as { boardId?: string; userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+      // Only process events for members in the current board
+      if (membership.boardId !== boardId) return;
+      
+      if (event.eventType === 'INSERT') {
+        const newMembership = membership;
+        debouncedRefreshBoardMembers(); // Use debounced version
+        if (newMembership.userId && newMembership.userId !== user?.id) {
+          const memberName = newMembership.user?.profile?.fullName || 
+                            newMembership.user?.profile?.email || 
+                            'a member';
+          const role = newMembership.role || 'viewer';
+          toast({
+            title: 'Member added',
+            description: `${memberName} added as ${role}`,
+          });
+        }
+      } else if (event.eventType === 'UPDATE') {
+        const updatedMembership = membership;
+        const previousMembership = event.old as { role?: string };
+        debouncedRefreshBoardMembers(); // Use debounced version
+        
+        if (updatedMembership?.userId === user?.id && updatedMembership.role) {
+          const newRole = updatedMembership.role as 'admin' | 'manager' | 'viewer';
+          const oldRole = userRole;
+          setUserRole(newRole);
+          
+          if (newRole === 'viewer' && oldRole !== 'viewer') {
+            console.log('[BoardPage] User demoted to viewer, closing settings dialogs');
+            setSettingsModalOpen(false);
+            setMembersDialogOpen(false);
+            toast({
+              title: 'Access changed',
+              description: 'You have been demoted to viewer. Settings dialogs have been closed.',
+              variant: 'destructive',
+            });
+          } else if (newRole !== 'viewer' && oldRole === 'viewer') {
+            toast({
+              title: 'Access granted',
+              description: `You have been promoted to ${newRole}. You can now access board settings.`,
+            });
+          }
+        } else if (updatedMembership.userId && updatedMembership.userId !== user?.id) {
+          const memberName = updatedMembership.user?.profile?.fullName || 
+                            updatedMembership.user?.profile?.email || 
+                            'a member';
+          const newRole = updatedMembership.role || 'viewer';
+          const oldRole = previousMembership?.role || 'viewer';
+          toast({
+            title: 'Role updated',
+            description: `${memberName} role changed from ${oldRole} to ${newRole}`,
+          });
+        }
+      } else if (event.eventType === 'DELETE') {
+        const deletedMember = membership;
+        const deletedUserId = deletedMember?.userId;
+        
+        console.log('[BoardPage] Member DELETE event received:', {
+          deletedUserId,
+          currentUserId: user?.id,
+          matches: deletedUserId === user?.id,
+        });
+        
+        if (deletedUserId === user?.id) {
+          // Navigate first to ensure redirect happens even if toast fails
+          navigate('/', {
+            state: {
+              removedFromBoard: {
+                boardId: boardId,
+                workspaceId: workspaceId,
+                timestamp: Date.now(),
+              },
+            },
+          });
+          
+          // Show toast after navigation
+          toast({
+            title: 'Access removed',
+            description: 'You have been removed from this board.',
+            variant: 'destructive',
+          });
+        } else {
+          debouncedRefreshBoardMembers(); // Use debounced version
+          if (deletedUserId) {
+            const memberName = deletedMember.user?.profile?.fullName || 
+                              deletedMember.user?.profile?.email || 
+                              'a member';
+            toast({
+              title: 'Member removed',
+              description: `${memberName} removed from board`,
+            });
+          }
+        }
+      }
+    },
+    onParentRefresh: (parentType, parentId) => {
+      // When board updates, refresh all children
+      if (parentType === 'board' && parentId === boardId) {
+        console.log('[BoardPage] Parent refresh triggered for board:', parentId);
+        fetchBoardData();
+      }
+    },
+  }, [boardId, workspaceId, user, debouncedRefreshBoardMembers, navigate, toast, debouncedFetchBoardData, userRole, cards, columnIdsRef, columnsLoadedRef, pendingCardEventsRef, processBufferedCardEvents, pendingBatchColumnColorRef, bufferedColumnColorEventsRef, pendingBatchCardColorRef, bufferedCardColorEventsRef, pendingCardUpdatesRef, setColumns, setCards, setBoardName, setBoardColor, setUserRole, setSettingsModalOpen, setMembersDialogOpen, setEditingCard, setCardAttachments, setCardSubtasks], {
+    disableBatchingFor: ['onCardUpdate', 'onColumnUpdate'], // Disable batching to use existing batching logic
+  });
 
   useEffect(() => {
     if (!authLoading && !user) {

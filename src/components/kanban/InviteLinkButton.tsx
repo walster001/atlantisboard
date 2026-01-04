@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
+import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
 
 interface InviteLinkButtonProps {
   boardId: string;
@@ -70,53 +71,62 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
     return null;
   }
 
+  // Create stable handlers for invite updates
+  const stableHandlers = useStableRealtimeHandlers({
+    onInviteUpdate: (invite, event) => {
+      const inviteData = invite as { boardId?: string; id?: string; token?: string; linkType?: string; expiresAt?: string | null; createdAt?: string };
+      
+      // Only process invites for this board
+      if (inviteData.boardId !== boardId) return;
+
+      if (event.eventType === 'INSERT') {
+        // New invite link created - if it's recurring, add to list
+        if (inviteData.linkType === 'recurring') {
+          setActiveRecurringLinks((prev) => {
+            // Check if already in list
+            if (prev.find(l => l.id === inviteData.id)) {
+              return prev;
+            }
+            // Add to list
+            return [
+              {
+                id: inviteData.id!,
+                token: inviteData.token!,
+                expiresAt: inviteData.expiresAt,
+                createdAt: inviteData.createdAt || new Date().toISOString(),
+              },
+              ...prev,
+            ];
+          });
+        }
+      } else if (event.eventType === 'DELETE') {
+        // Invite link deleted - remove from list
+        setActiveRecurringLinks((prev) => prev.filter(l => l.id !== inviteData.id));
+        
+        // Clear generated link if it was the deleted one
+        if (inviteLink && inviteData.token && inviteLink.includes(inviteData.token)) {
+          setInviteLink(null);
+          setExpiresAt(null);
+          setGeneratedLinkType(null);
+        }
+      }
+    },
+  }, [boardId, inviteLink, setActiveRecurringLinks, setInviteLink, setExpiresAt, setGeneratedLinkType]);
+
   // Subscribe to realtime invite events when dialog is open and workspaceId is available (using workspace subscription via registry)
   // Cleanup removes handlers but subscription persists via registry
   useEffect(() => {
     if (isOpen && workspaceId) {
-      const cleanup = subscribeWorkspaceViaRegistry(workspaceId, {
-        onInviteUpdate: (invite, event) => {
-          const inviteData = invite as { boardId?: string; id?: string; token?: string; linkType?: string; expiresAt?: string | null; createdAt?: string };
-          
-          // Only process invites for this board
-          if (inviteData.boardId !== boardId) return;
-
-          if (event.eventType === 'INSERT') {
-            // New invite link created - if it's recurring, add to list
-            if (inviteData.linkType === 'recurring') {
-              setActiveRecurringLinks((prev) => {
-                // Check if already in list
-                if (prev.find(l => l.id === inviteData.id)) {
-                  return prev;
-                }
-                // Add to list
-                return [
-                  {
-                    id: inviteData.id!,
-                    token: inviteData.token!,
-                    expiresAt: inviteData.expiresAt,
-                    createdAt: inviteData.createdAt || new Date().toISOString(),
-                  },
-                  ...prev,
-                ];
-              });
-            }
-          } else if (event.eventType === 'DELETE') {
-            // Invite link deleted - remove from list
-            setActiveRecurringLinks((prev) => prev.filter(l => l.id !== inviteData.id));
-            
-            // Clear generated link if it was the deleted one
-            if (inviteLink && inviteData.token && inviteLink.includes(inviteData.token)) {
-              setInviteLink(null);
-              setExpiresAt(null);
-              setGeneratedLinkType(null);
-            }
-          }
-        },
-      });
-      return cleanup;
+      const cleanup = subscribeWorkspaceViaRegistry(workspaceId, stableHandlers);
+      return () => {
+        cleanup();
+        // Cleanup function from stableHandlers will process pending batches
+        if (stableHandlers.__cleanup) {
+          stableHandlers.__cleanup();
+        }
+      };
     }
-  }, [isOpen, workspaceId, boardId, inviteLink]);
+  }, [isOpen, workspaceId, stableHandlers]);
 
   // Fetch active recurring links when dialog opens
   useEffect(() => {

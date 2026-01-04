@@ -21,6 +21,7 @@ import {
   subscribeCustomRoles,
   subscribeRolePermissions,
 } from '@/realtime/permissionsSubscriptions';
+import type { RealtimePostgresChangesPayload } from '@/realtime/realtimeClient';
 
 interface UsePermissionsRealtimeOptions {
   boardId?: string | null;
@@ -90,6 +91,18 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
     }
   }, [boardId, navigate, toast, onAccessRevoked]);
 
+  // Store latest values in refs to prevent stale closures
+  const userRef = useRef(user);
+  const handlePermissionChangeRef = useRef(handlePermissionChange);
+  const handleAccessRevokedRef = useRef(handleAccessRevoked);
+
+  // Update refs when values change
+  useEffect(() => {
+    userRef.current = user;
+    handlePermissionChangeRef.current = handlePermissionChange;
+    handleAccessRevokedRef.current = handleAccessRevoked;
+  }, [user, handlePermissionChange, handleAccessRevoked]);
+
   // Subscribe to custom_roles changes (global)
   useEffect(() => {
     if (!user) return;
@@ -126,27 +139,36 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
   useEffect(() => {
     if (!user) return;
 
+    // Create stable wrapper that accesses refs
+    const stableOnChange = (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+      // Access latest values from refs
+      const currentUser = userRef.current;
+      const currentHandlePermissionChange = handlePermissionChangeRef.current;
+      
+      if (!currentUser) return;
+      
+      // Backend emits camelCase (userId), not snake_case (user_id)
+      const record = (payload.new || payload.old) as { userId?: string } | undefined;
+      if (record?.userId === currentUser.id) {
+        if (payload.eventType === 'DELETE') {
+          currentHandlePermissionChange({
+            eventType: 'DELETE',
+            table: 'boardMemberCustomRoles',
+            old: payload.old as Record<string, unknown>,
+          });
+        } else {
+          currentHandlePermissionChange({
+            eventType: payload.eventType as 'INSERT' | 'UPDATE',
+            table: 'boardMemberCustomRoles',
+            new: payload.new as Record<string, unknown>,
+          });
+        }
+      }
+    };
+
     return subscribeBoardMemberCustomRoles(boardId, {
       currentUserId: user.id,
-      onChange: (payload) => {
-        // Backend emits camelCase (userId), not snake_case (user_id)
-        const record = (payload.new || payload.old) as { userId?: string } | undefined;
-        if (record?.userId === user.id) {
-          if (payload.eventType === 'DELETE') {
-            handlePermissionChange({
-              eventType: 'DELETE',
-              table: 'boardMemberCustomRoles',
-              old: payload.old as Record<string, unknown>,
-            });
-          } else {
-            handlePermissionChange({
-              eventType: payload.eventType as 'INSERT' | 'UPDATE',
-              table: 'boardMemberCustomRoles',
-              new: payload.new as Record<string, unknown>,
-            });
-          }
-        }
-      },
+      onChange: stableOnChange,
     });
   }, [user, boardId, handlePermissionChange]);
 
@@ -154,26 +176,40 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
   useEffect(() => {
     if (!user || !boardId || !workspaceId) return;
 
+    // Create stable wrappers that access refs
+    const stableOnChange = (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+      // Access latest values from refs
+      const currentUser = userRef.current;
+      const currentHandlePermissionChange = handlePermissionChangeRef.current;
+      
+      if (!currentUser) return;
+      
+      // Backend emits camelCase (userId), not snake_case (user_id)
+      const updatedMember = payload.new as { userId?: string; role?: string };
+      if (updatedMember?.userId === currentUser.id) {
+        console.log('[PermissionsRealtime] User role changed:', updatedMember.role);
+        currentHandlePermissionChange({
+          eventType: payload.eventType as 'UPDATE' | 'DELETE',
+          table: 'boardMembers',
+          new: payload.new as Record<string, unknown>,
+          old: payload.old as Record<string, unknown>,
+        });
+      }
+    };
+
+    const stableOnAffectsUser = (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+      // Access latest value from ref
+      const currentHandleAccessRevoked = handleAccessRevokedRef.current;
+      
+      if (payload.eventType === 'DELETE') {
+        currentHandleAccessRevoked();
+      }
+    };
+
     return subscribeBoardMembersForPermissions(boardId, workspaceId, {
       currentUserId: user.id,
-      onChange: (payload) => {
-        // Backend emits camelCase (userId), not snake_case (user_id)
-        const updatedMember = payload.new as { userId?: string; role?: string };
-        if (updatedMember?.userId === user.id) {
-          console.log('[PermissionsRealtime] User role changed:', updatedMember.role);
-          handlePermissionChange({
-            eventType: payload.eventType as 'UPDATE' | 'DELETE',
-            table: 'boardMembers',
-            new: payload.new as Record<string, unknown>,
-            old: payload.old as Record<string, unknown>,
-          });
-        }
-      },
-      onAffectsUser: (payload) => {
-        if (payload.eventType === 'DELETE') {
-          handleAccessRevoked();
-        }
-      },
+      onChange: stableOnChange,
+      onAffectsUser: stableOnAffectsUser,
     });
   }, [user, boardId, workspaceId, handlePermissionChange, handleAccessRevoked]);
 

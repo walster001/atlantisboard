@@ -604,35 +604,12 @@ export default function Home() {
             // User added to a workspace - dynamically subscribe to new workspace
             const newWorkspaceId = workspaceData.workspaceId;
             if (newWorkspaceId) {
-              const registry = getSubscriptionRegistry();
-              if (!registry.isSubscribed(newWorkspaceId)) {
-                // Subscribe to new workspace via registry with simplified handlers
-                subscribeWorkspaceViaRegistry(newWorkspaceId, {
-                  onBoardUpdate: (board, event) => {
-                    if (event.eventType === 'INSERT' || event.eventType === 'UPDATE' || event.eventType === 'DELETE') {
-                      debouncedFetchData();
-                    }
-                  },
-                  onMemberUpdate: (member, event) => {
-                    const membership = member as { boardId?: string; userId?: string };
-                    if (membership.userId !== user.id) return;
-                    
-                    if (event.eventType === 'INSERT') {
-                      debouncedFetchData();
-                      toast({
-                        title: 'Board access granted',
-                        description: 'You have been added to a new board.',
-                      });
-                    } else if (event.eventType === 'DELETE') {
-                      debouncedFetchData();
-                      toast({
-                        title: 'Board access removed',
-                        description: 'You have been removed from a board.',
-                      });
-                    }
-                  },
-                });
-              }
+            const registry = getSubscriptionRegistry();
+            if (!registry.isSubscribed(newWorkspaceId)) {
+              // Subscribe to new workspace via registry with stable handlers
+              const nestedCleanup = subscribeWorkspaceViaRegistry(newWorkspaceId, nestedStableHandlers);
+              nestedSubscriptionCleanupRef.current.set(newWorkspaceId, nestedCleanup);
+            }
             }
             
             // User added to a workspace - refresh data

@@ -14,6 +14,7 @@ import { emailSchema } from '@/lib/validators';
 import { z } from 'zod';
 import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
 import { useAuth } from '@/hooks/useAuth';
+import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
 
 interface BoardMember {
   userId: string;
@@ -51,25 +52,34 @@ export function BoardMembersDialog({
   const [role, setRole] = useState<'admin' | 'manager' | 'viewer'>('viewer');
   const [isAdding, setIsAdding] = useState(false);
 
+  // Create stable handlers for member updates
+  const stableHandlers = useStableRealtimeHandlers({
+    onMemberUpdate: (member, event) => {
+      const membership = member as { boardId?: string };
+      // Only process events for members in the current board
+      if (membership.boardId !== boardId) return;
+      
+      // When a role is updated, refresh the members list
+      // This ensures the UI reflects the new role immediately
+      onMembersChange();
+    },
+  }, [boardId, onMembersChange]);
+
   // Subscribe to realtime board member updates when dialog is open (using workspace subscription via registry)
   // Cleanup removes handlers but subscription persists via registry
   useEffect(() => {
     if (!open || !boardId || !workspaceId || !user) return;
 
-    const cleanup = subscribeWorkspaceViaRegistry(workspaceId, {
-      onMemberUpdate: (member, event) => {
-        const membership = member as { boardId?: string };
-        // Only process events for members in the current board
-        if (membership.boardId !== boardId) return;
-        
-        // When a role is updated, refresh the members list
-        // This ensures the UI reflects the new role immediately
-        onMembersChange();
-      },
-    });
+    const cleanup = subscribeWorkspaceViaRegistry(workspaceId, stableHandlers);
 
-    return cleanup;
-  }, [open, boardId, workspaceId, user, onMembersChange]);
+    return () => {
+      cleanup();
+      // Cleanup function from stableHandlers will process pending batches
+      if (stableHandlers.__cleanup) {
+        stableHandlers.__cleanup();
+      }
+    };
+  }, [open, boardId, workspaceId, user, stableHandlers]);
 
   // Use permission system for UI checks
   // SECURITY NOTE: These do NOT provide security - all permissions

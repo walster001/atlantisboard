@@ -18,6 +18,7 @@ import { BoardLabelsSettings } from './BoardLabelsSettings';
 import { BoardMemberAuditLog } from './BoardMemberAuditLog';
 import { cn } from '@/lib/utils';
 import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
+import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
 
 interface BoardMember {
   userId: string;
@@ -154,66 +155,75 @@ export function BoardSettingsModal({
     }
   }, [members.length, open, canAddRemove]);
 
+  // Create stable handlers for member updates
+  const stableHandlers = useStableRealtimeHandlers({
+    onMemberUpdate: (member, event) => {
+      const membership = member as { boardId?: string; userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
+      // Only process events for members in the current board
+      if (membership.boardId !== boardId) return;
+      
+      if (event.eventType === 'INSERT') {
+        const newMembership = membership;
+        onMembersChange();
+        if (newMembership.userId && newMembership.userId !== currentUserId) {
+          const memberName = newMembership.user?.profile?.fullName || 
+                            newMembership.user?.profile?.email || 
+                            'a member';
+          const role = newMembership.role || 'viewer';
+          toast({
+            title: 'Member added',
+            description: `${memberName} added as ${role}`,
+          });
+        }
+      } else if (event.eventType === 'DELETE') {
+        const deletedMembership = membership;
+        onMembersChange();
+        if (deletedMembership.userId && deletedMembership.userId !== currentUserId) {
+          const memberName = deletedMembership.user?.profile?.fullName || 
+                            deletedMembership.user?.profile?.email || 
+                            'a member';
+          toast({
+            title: 'Member removed',
+            description: `${memberName} removed from board`,
+          });
+        }
+      } else if (event.eventType === 'UPDATE') {
+        const updatedMembership = membership;
+        const previousMembership = event.old as { role?: string };
+        onMembersChange();
+        
+        // Only show toast if it's not the current user (they already see their own action in the UI)
+        // This prevents duplicate toasts when BoardPage also shows a toast
+        if (updatedMembership.userId && updatedMembership.userId !== currentUserId) {
+          const memberName = updatedMembership.user?.profile?.fullName || 
+                            updatedMembership.user?.profile?.email || 
+                            'a member';
+          const newRole = updatedMembership.role || 'viewer';
+          const oldRole = previousMembership?.role || 'viewer';
+          toast({
+            title: 'Role updated',
+            description: `${memberName} role changed from ${oldRole} to ${newRole}`,
+          });
+        }
+      }
+    },
+  }, [boardId, onMembersChange, toast, currentUserId]);
+
   // Subscribe to realtime board member changes when modal is open (using workspace subscription via registry)
   // Cleanup removes handlers but subscription persists via registry
   useEffect(() => {
     if (!open || !boardId || !workspaceId) return;
 
-    const cleanup = subscribeWorkspaceViaRegistry(workspaceId, {
-      onMemberUpdate: (member, event) => {
-        const membership = member as { boardId?: string; userId?: string; role?: string; user?: { profile?: { fullName?: string | null; email?: string } } };
-        // Only process events for members in the current board
-        if (membership.boardId !== boardId) return;
-        
-        if (event.eventType === 'INSERT') {
-          const newMembership = membership;
-          onMembersChange();
-          if (newMembership.userId && newMembership.userId !== currentUserId) {
-            const memberName = newMembership.user?.profile?.fullName || 
-                              newMembership.user?.profile?.email || 
-                              'a member';
-            const role = newMembership.role || 'viewer';
-            toast({
-              title: 'Member added',
-              description: `${memberName} added as ${role}`,
-            });
-          }
-        } else if (event.eventType === 'DELETE') {
-          const deletedMembership = membership;
-          onMembersChange();
-          if (deletedMembership.userId && deletedMembership.userId !== currentUserId) {
-            const memberName = deletedMembership.user?.profile?.fullName || 
-                              deletedMembership.user?.profile?.email || 
-                              'a member';
-            toast({
-              title: 'Member removed',
-              description: `${memberName} removed from board`,
-            });
-          }
-        } else if (event.eventType === 'UPDATE') {
-          const updatedMembership = membership;
-          const previousMembership = event.old as { role?: string };
-          onMembersChange();
-          
-          // Only show toast if it's not the current user (they already see their own action in the UI)
-          // This prevents duplicate toasts when BoardPage also shows a toast
-          if (updatedMembership.userId && updatedMembership.userId !== currentUserId) {
-            const memberName = updatedMembership.user?.profile?.fullName || 
-                              updatedMembership.user?.profile?.email || 
-                              'a member';
-            const newRole = updatedMembership.role || 'viewer';
-            const oldRole = previousMembership?.role || 'viewer';
-            toast({
-              title: 'Role updated',
-              description: `${memberName} role changed from ${oldRole} to ${newRole}`,
-            });
-          }
-        }
-      },
-    });
+    const cleanup = subscribeWorkspaceViaRegistry(workspaceId, stableHandlers);
 
-    return cleanup;
-  }, [open, boardId, workspaceId, onMembersChange, toast, currentUserId]);
+    return () => {
+      cleanup();
+      // Cleanup function from stableHandlers will process pending batches
+      if (stableHandlers.__cleanup) {
+        stableHandlers.__cleanup();
+      }
+    };
+  }, [open, boardId, workspaceId, stableHandlers]);
 
   const fetchAllUsers = async () => {
     setLoadingUsers(true);

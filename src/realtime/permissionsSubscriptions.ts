@@ -83,7 +83,8 @@ export function subscribeBoardMembersForPermissions(
   // This prevents duplicate subscriptions and WebSocket disconnects
   const topic = `workspace:${workspaceId}`;
 
-  subscribeWorkspaceViaRegistry(workspaceId, {
+  // Store and return the actual cleanup function from subscribeWorkspaceViaRegistry
+  const cleanup = subscribeWorkspaceViaRegistry(workspaceId, {
     onMemberUpdate: (member, event) => {
       // Filter by boardId within the handler
       const memberData = member as { boardId?: string; userId?: string } | undefined;
@@ -108,7 +109,7 @@ export function subscribeBoardMembersForPermissions(
     },
   });
 
-  // Return no-op cleanup since registry manages subscription lifecycle
-  return () => {};
+  // Return the actual cleanup function to allow proper cleanup
+  return cleanup;
 }
 

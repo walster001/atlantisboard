@@ -18,6 +18,7 @@
 
 import { useMemo, useCallback, useLayoutEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import remarkEmoji from 'remark-emoji';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
@@ -262,17 +263,22 @@ function convertNestedListsToMarkdown(html: string): string {
     // Match innermost lists (those that don't contain another ul/ol tag)
     // This regex uses negative lookahead to find lists without nested lists inside
     const listRegex = /<(ul|ol)[^>]*>((?:(?!<(?:ul|ol)[^>]*>)[\s\S]*?))<\/(ul|ol)>/gi;
-    const matches: Array<{ match: string; openTag: string; content: string; closeTag: string; index: number }> = [];
+    const matches: Array<{ match: string; openTag: string; content: string; closeTag: string; index: number; startValue?: number }> = [];
     
     // Collect all matches with their positions
     let match;
     while ((match = listRegex.exec(result)) !== null) {
+      const isOrdered = match[1].toLowerCase() === 'ol';
+      const startMatch = isOrdered ? match[0].match(/start=["']?(\d+)["']?/i) : null;
+      const startValue = startMatch ? parseInt(startMatch[1], 10) : undefined;
+      
       matches.push({
         match: match[0],
         openTag: match[1],
         content: match[2],
         closeTag: match[3],
         index: match.index,
+        startValue,
       });
     }
     
@@ -292,9 +298,16 @@ function convertNestedListsToMarkdown(html: string): string {
       const depth = (beforeMatch.match(/<(ul|ol)[^>]*>/gi) || []).length;
       const indent = '  '.repeat(depth); // 2 spaces per nesting level
       
+      // Get start value for ordered lists (default to 1)
+      const listStart = matches[i].startValue || 1;
+      let itemIndex = listStart - 1; // Initialize to start value - 1
+      
       // Extract and convert list items
-      let itemIndex = 0;
       const markdown = content.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (liMatch, liContent) => {
+        // Extract value attribute if present (for ordered lists)
+        const valueMatch = isOrdered ? liMatch.match(/value=["']?(\d+)["']?/i) : null;
+        const itemNumber = valueMatch ? parseInt(valueMatch[1], 10) : null;
+        
         // Clean up list item content
         // First, handle paragraph tags
         let cleanContent = liContent.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1');
@@ -302,10 +315,24 @@ function convertNestedListsToMarkdown(html: string): string {
         // Convert line breaks to spaces (but preserve structure)
         cleanContent = cleanContent.replace(/<br\s*\/?>/gi, ' ');
         
+        // Protect inline button placeholders before removing HTML tags
+        const placeholderMap = new Map<string, string>();
+        let placeholderCounter = 0;
+        
+        // Replace placeholders with temporary markers
+        cleanContent = cleanContent.replace(/\[INLINE_BUTTON_PLACEHOLDER:[^\]]+\]/g, (match) => {
+          const placeholderKey = `__PLACEHOLDER_${placeholderCounter++}__`;
+          placeholderMap.set(placeholderKey, match);
+          return placeholderKey;
+        });
+        
         // Remove other HTML tags but preserve text content and inline button placeholders
-        // We need to be careful not to break [INLINE_BUTTON:...] placeholders
-        // Since inline buttons are already converted, we just need to preserve them
         cleanContent = cleanContent.replace(/<[^>]+>/g, '');
+        
+        // Restore placeholders
+        placeholderMap.forEach((original, key) => {
+          cleanContent = cleanContent.replace(key, original);
+        });
         
         // Trim whitespace but preserve intentional spacing
         cleanContent = cleanContent.trim();
@@ -315,8 +342,9 @@ function convertNestedListsToMarkdown(html: string): string {
         
         // Format based on list type with proper indentation
         if (isOrdered) {
-          itemIndex++;
-          return `${indent}${itemIndex}. ${cleanContent}\n`;
+          // Use value attribute if present, otherwise use sequential index
+          const displayNumber = itemNumber !== null ? itemNumber : (++itemIndex);
+          return `${indent}${displayNumber}. ${cleanContent}\n`;
         } else {
           return `${indent}- ${cleanContent}\n`;
         }
@@ -394,8 +422,23 @@ function htmlToMarkdown(html: string): string {
   // Convert paragraphs (preserve spacing with double newlines)
   md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n');
   
+  // Protect inline button placeholders before removing HTML tags
+  const placeholderMap = new Map<string, string>();
+  let placeholderCounter = 0;
+  
+  md = md.replace(/\[INLINE_BUTTON_PLACEHOLDER:[^\]]+\]/g, (match) => {
+    const placeholderKey = `__PLACEHOLDER_${placeholderCounter++}__`;
+    placeholderMap.set(placeholderKey, match);
+    return placeholderKey;
+  });
+  
   // Remove remaining HTML tags (safety measure) but preserve content
   md = md.replace(/<[^>]+>/g, '');
+  
+  // Restore placeholders
+  placeholderMap.forEach((original, key) => {
+    md = md.replace(key, original);
+  });
   
   // Clean up excessive newlines but preserve paragraph spacing
   md = md.replace(/\n{4,}/g, '\n\n\n');
@@ -599,6 +642,7 @@ export function MarkdownRenderer({
       onClick={handleContainerClick}
       className={cn(
         'markdown-renderer',
+        // remark-breaks handles newlines via <br> tags, so no need for whitespace-pre-wrap here
         className,
       )}
       style={themeTextColor ? { color: themeTextColor } : undefined}
@@ -627,6 +671,8 @@ export function MarkdownRenderer({
               remarkGfm,
               // Convert emoji shortcodes like :smile: to Unicode
               remarkEmoji,
+              // Treat single newlines as hard breaks
+              remarkBreaks,
             ]}
             rehypePlugins={[
               // Sanitize HTML to prevent XSS attacks

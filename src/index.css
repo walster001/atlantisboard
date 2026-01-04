@@ -377,3 +377,20 @@
   margin: 0 0.05em !important;
   pointer-events: none;
 }
+
+/* Markdown renderer whitespace preservation */
+.markdown-renderer {
+  word-wrap: break-word; /* Break long words if needed */
+  overflow-wrap: break-word; /* Additional word breaking support */
+}
+
+/* Lists handle their own spacing, but preserve newlines within items */
+.markdown-renderer ul,
+.markdown-renderer ol {
+  white-space: normal; /* Lists use their own spacing */
+}
+
+/* remark-breaks handles newlines via <br> tags, no need for white-space: pre-wrap */
+.markdown-renderer li {
+  /* List items use normal whitespace handling - remark-breaks converts newlines to <br> */
+}

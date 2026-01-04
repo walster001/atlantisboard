@@ -745,6 +745,11 @@ class BoardImportService {
                     iconSize: 16,
                   };
                   
+                  // If metadata was decoded but has original URL, replace with stored replacement URL
+                  if (buttonMetadata && buttonMetadata.iconUrl !== button.iconUrl) {
+                    finalButtonData.iconUrl = button.iconUrl; // Use replacement URL from stored data
+                  }
+                  
                   // Create inline button data structure matching frontend interface
                   const buttonData = {
                     id: `wekan-btn-${newCardId}-${button.buttonIndex}`,

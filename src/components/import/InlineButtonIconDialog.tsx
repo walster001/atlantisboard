@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { uploadFile } from '@/lib/storage';
 import { getErrorMessage } from '@/lib/errorHandler';
 import { Upload, Image, ExternalLink, Check, Loader2 } from 'lucide-react';
+import type { WekanExport } from './types';
 
 // Detected inline button with internal /cdn image reference
 export interface DetectedInlineButton {
@@ -58,7 +59,7 @@ export function extractInlineButtonsFromHtml(html: string, cardTitle?: string): 
 
 // Function to scan Wekan data for all inline buttons with /cdn images
 // Returns unique imgSrc entries with occurrence counts
-export function scanWekanDataForInlineButtons(wekanData: any): DetectedInlineButton[] {
+export function scanWekanDataForInlineButtons(wekanData: WekanExport): DetectedInlineButton[] {
   const allButtons: { imgSrc: string; linkHref: string; linkText: string; cardTitle?: string }[] = [];
 
   if (!wekanData) return [];
@@ -67,10 +68,13 @@ export function scanWekanDataForInlineButtons(wekanData: any): DetectedInlineBut
   const boards = Array.isArray(wekanData) ? wekanData : [wekanData];
 
   for (const board of boards) {
-    const cards = board.cards || [];
+    const boardObj = board as Record<string, unknown>;
+    const cards = (boardObj.cards as unknown[] | undefined) || [];
     for (const card of cards) {
-      if (card.description && typeof card.description === 'string') {
-        const cardButtons = extractInlineButtonsFromHtml(card.description, card.title);
+      const cardObj = card as Record<string, unknown>;
+      if (cardObj.description && typeof cardObj.description === 'string') {
+        const cardTitle = cardObj.title as string | undefined;
+        const cardButtons = extractInlineButtonsFromHtml(cardObj.description, cardTitle);
         allButtons.push(...cardButtons);
       }
     }
@@ -101,9 +105,9 @@ export function scanWekanDataForInlineButtons(wekanData: any): DetectedInlineBut
 // Function to replace inline button image sources in Wekan data BEFORE import
 // This modifies the raw Wekan JSON data directly
 export function replaceInlineButtonImagesInWekanData(
-  wekanData: any,
+  wekanData: WekanExport,
   replacements: Map<string, string>
-): any {
+): WekanExport {
   if (!wekanData || replacements.size === 0) return wekanData;
 
   // Deep clone to avoid mutating original
@@ -116,8 +120,9 @@ export function replaceInlineButtonImagesInWekanData(
   for (const board of boards) {
     const cards = board.cards || [];
     for (const card of cards) {
-      if (card.description && typeof card.description === 'string') {
-        let desc = card.description;
+      const cardObj = card as Record<string, unknown>;
+      if (cardObj.description && typeof cardObj.description === 'string') {
+        let desc = cardObj.description;
         for (const [originalSrc, newSrc] of replacements) {
           // Escape special regex characters in the original src
           const escapedSrc = originalSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -125,7 +130,7 @@ export function replaceInlineButtonImagesInWekanData(
           const srcRegex = new RegExp(`src=['"]${escapedSrc}['"]`, 'g');
           desc = desc.replace(srcRegex, `src="${newSrc}"`);
         }
-        card.description = desc;
+        cardObj.description = desc;
       }
     }
   }

@@ -116,7 +116,7 @@ export default function BoardPage() {
 
       if (error) throw error;
 
-      const transformedMembers: BoardMember[] = (Array.isArray(data) ? data : []).map((m: any) => ({
+      const transformedMembers: BoardMember[] = (Array.isArray(data) ? data : []).map((m: BoardMemberResponse) => ({
         userId: m.userId,
         role: m.role as 'admin' | 'manager' | 'viewer',
         profiles: {
@@ -462,8 +462,8 @@ export default function BoardPage() {
       if (columnData.boardId !== boardId) return;
       
       // Extract updatedAt
-      const getUpdatedAt = (data: any): string | undefined => {
-        return data?.updatedAt;
+      const getUpdatedAt = (data: DbColumn): string | undefined => {
+        return data.updatedAt;
       };
       
       if (event.eventType === 'INSERT') {

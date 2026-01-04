@@ -39,7 +39,7 @@ todos:
     status: completed
   - id: fix-realtime-event-handlers
     content: Update realtime event handlers to use RealtimePostgresChangesPayload<T> with proper generics (Home.tsx, BoardPage.tsx, realtime files)
-    status: in_progress
+    status: completed
     dependencies:
       - create-realtime-event-types
   - id: create-import-export-types
@@ -52,7 +52,7 @@ todos:
       - create-import-export-types
   - id: fix-function-parameters
     content: Replace any in function parameters with proper types (event handlers, callbacks, transform functions)
-    status: pending
+    status: completed
     dependencies:
       - enable-strict-mode-basic
   - id: fix-state-props-types
@@ -67,7 +67,7 @@ todos:
       - enable-strict-mode-basic
   - id: validate-typescript-compilation
     content: Run TypeScript compiler (tsc --noEmit) to ensure no type errors remain
-    status: pending
+    status: completed
     dependencies:
       - fix-error-handling-catch-blocks
       - fix-api-response-types

@@ -45,22 +45,30 @@ type ImportSource = 'wekan' | 'trello' | 'csv';
 function isWekanFormat(data: unknown): data is WekanExport {
   // Wekan exports have these distinctive properties
   // They can be a single board object or an array of boards
-  const checkBoard = (board: any) => {
+  const checkBoard = (board: unknown): board is WekanBoard => {
+    if (!board || typeof board !== 'object') return false;
+    const b = board as Record<string, unknown>;
+    
     // Wekan boards have 'lists' array with 'swimlaneId' on cards
     // or they have 'swimlanes' array at the board level
-    if (board.swimlanes && Array.isArray(board.swimlanes)) return true;
-    if (board.lists && Array.isArray(board.lists)) {
+    if (b.swimlanes && Array.isArray(b.swimlanes)) return true;
+    if (b.lists && Array.isArray(b.lists)) {
       // Wekan lists have 'boardId' property
-      if (board.lists[0]?.boardId) return true;
+      const firstList = b.lists[0] as Record<string, unknown> | undefined;
+      if (firstList?.boardId) return true;
     }
-    if (board.cards && Array.isArray(board.cards)) {
+    if (b.cards && Array.isArray(b.cards)) {
+      const firstCard = b.cards[0] as Record<string, unknown> | undefined;
       // Wekan cards have 'swimlaneId' property
-      if (board.cards[0]?.swimlaneId !== undefined) return true;
+      if (firstCard?.swimlaneId !== undefined) return true;
       // Wekan cards have 'listId' (lowercase), Trello uses 'idList'
-      if (board.cards[0]?.listId !== undefined && board.cards[0]?.idList === undefined) return true;
+      if (firstCard?.listId !== undefined && firstCard.idList === undefined) return true;
     }
     // Wekan has 'members' with 'isAdmin', 'isActive', 'isNoComments' etc.
-    if (board.members && Array.isArray(board.members) && board.members[0]?.isAdmin !== undefined) return true;
+    if (b.members && Array.isArray(b.members)) {
+      const firstMember = b.members[0] as Record<string, unknown> | undefined;
+      if (firstMember?.isAdmin !== undefined) return true;
+    }
     return false;
   };
 
@@ -82,19 +90,31 @@ function isTrelloFormat(data: unknown): data is TrelloBoard {
   if (d.idOrganization !== undefined || d.idMemberCreator !== undefined) return true;
   
   // Trello cards have 'idList' (not 'listId' like Wekan)
-  if (data.cards && Array.isArray(data.cards) && data.cards[0]?.idList !== undefined) {
-    // Make sure it's not also Wekan (which wouldn't have idList)
-    if (data.cards[0]?.swimlaneId === undefined) return true;
+  if (d.cards && Array.isArray(d.cards)) {
+    const firstCard = d.cards[0] as Record<string, unknown> | undefined;
+    if (firstCard?.idList !== undefined) {
+      // Make sure it's not also Wekan (which wouldn't have idList)
+      if (firstCard.swimlaneId === undefined) return true;
+    }
   }
   
   // Trello checklists have 'idCard' and 'checkItems'
-  if (data.checklists && Array.isArray(data.checklists) && data.checklists[0]?.idCard !== undefined) return true;
+  if (d.checklists && Array.isArray(d.checklists)) {
+    const firstChecklist = d.checklists[0] as Record<string, unknown> | undefined;
+    if (firstChecklist?.idCard !== undefined) return true;
+  }
   
   // Trello labels have 'idBoard' property
-  if (data.labels && Array.isArray(data.labels) && data.labels[0]?.idBoard !== undefined) return true;
+  if (d.labels && Array.isArray(d.labels)) {
+    const firstLabel = d.labels[0] as Record<string, unknown> | undefined;
+    if (firstLabel?.idBoard !== undefined) return true;
+  }
   
   // Trello has 'prefs' object with board preferences
-  if (data.prefs && typeof data.prefs === 'object' && data.prefs.permissionLevel !== undefined) return true;
+  if (d.prefs && typeof d.prefs === 'object') {
+    const prefs = d.prefs as Record<string, unknown>;
+    if (prefs.permissionLevel !== undefined) return true;
+  }
   
   return false;
 }
@@ -874,8 +894,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   };
 
   // Apply icon replacements to Wekan data
-  const applyIconReplacements = (wekanData: any, replacements: Map<string, string>): any => {
-    return replaceInlineButtonImagesInWekanData(wekanData, replacements);
+  const applyIconReplacements = (wekanData: WekanExport, replacements: Map<string, string>): WekanExport => {
+    return replaceInlineButtonImagesInWekanData(wekanData, replacements) as WekanExport;
   };
 
   // Handle when user completes the icon replacement dialog

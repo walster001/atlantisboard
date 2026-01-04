@@ -27,6 +27,10 @@ class SubscriptionRegistry {
   private handlers: Map<string, WorkspaceHandlers> = new Map();
   private handlerSets: Map<string, Set<WorkspaceHandlers>> = new Map();
   
+  // Handler ownership tracking
+  private handlerOwnership: Map<string, string> = new Map(); // handlerId -> workspaceId
+  private handlerIdToHandler: Map<string, WorkspaceHandlers> = new Map(); // handlerId -> handler object
+  
   // Global subscription storage
   private globalSubscriptions: Map<string, SubscriptionCleanup> = new Map();
   private globalHandlerSets: Map<string, Set<GlobalHandler>> = new Map();
@@ -38,9 +42,37 @@ class SubscriptionRegistry {
    * Returns cleanup function to remove handlers when component unmounts
    */
   subscribeWorkspace(workspaceId: string, handlers: WorkspaceHandlers): () => void {
+    // Extract handler ID if present (from useStableRealtimeHandlers)
+    const handlerId = (handlers as any).__handlerId;
+    
+    // If handler has an ID and we've seen it before, remove the old one first
+    if (handlerId && this.handlerIdToHandler.has(handlerId)) {
+      const oldHandler = this.handlerIdToHandler.get(handlerId)!;
+      const oldWorkspaceId = this.handlerOwnership.get(handlerId);
+      if (oldWorkspaceId) {
+        // Remove old handler from old workspace
+        const oldHandlerSet = this.handlerSets.get(oldWorkspaceId);
+        if (oldHandlerSet) {
+          oldHandlerSet.delete(oldHandler);
+          if (oldHandlerSet.size === 0) {
+            // No handlers left, but don't unsubscribe yet (might be adding to new workspace)
+          } else {
+            // Update subscription with remaining handlers
+            this.updateSubscription(oldWorkspaceId);
+          }
+        }
+      }
+    }
+
     // Initialize handler set if not exists
     if (!this.handlerSets.has(workspaceId)) {
       this.handlerSets.set(workspaceId, new Set());
+    }
+
+    // Track handler ownership
+    if (handlerId) {
+      this.handlerOwnership.set(handlerId, workspaceId);
+      this.handlerIdToHandler.set(handlerId, handlers);
     }
 
     // If already subscribed, check if we need to recreate
@@ -56,7 +88,7 @@ class SubscriptionRegistry {
       // Otherwise, handlers are already in handlerSets and will be called via mergeHandlers
       // The existing subscription will continue working
       return () => {
-        this.removeWorkspaceHandlers(workspaceId, handlers);
+        this.removeWorkspaceHandlers(workspaceId, handlers, handlerId);
       };
     }
 
@@ -76,12 +108,13 @@ class SubscriptionRegistry {
 
     // Return cleanup function to remove handlers
     return () => {
-      this.removeWorkspaceHandlers(workspaceId, handlers);
+      this.removeWorkspaceHandlers(workspaceId, handlers, handlerId);
     };
   }
 
   /**
    * Merge all handlers for a workspace into a single handler set
+   * Snapshots handler set before processing to prevent race conditions
    */
   private mergeHandlers(workspaceId: string): WorkspaceHandlers {
     const handlerSet = this.handlerSets.get(workspaceId);
@@ -89,85 +122,121 @@ class SubscriptionRegistry {
       return {};
     }
 
+    // Snapshot handler set to prevent mid-execution changes
+    const handlerSnapshot = Array.from(handlerSet);
+
     const merged: WorkspaceHandlers = {};
 
     // Merge onBoardUpdate handlers
-    const onBoardUpdateHandlers = Array.from(handlerSet)
+    const onBoardUpdateHandlers = handlerSnapshot
       .map(h => h.onBoardUpdate)
       .filter((h): h is NonNullable<typeof h> => h !== undefined);
     if (onBoardUpdateHandlers.length > 0) {
       merged.onBoardUpdate = (board, event) => {
-        onBoardUpdateHandlers.forEach(handler => handler(board, event));
+        // Snapshot again before processing to prevent race conditions
+        const currentSnapshot = Array.from(this.handlerSets.get(workspaceId) || []);
+        const currentHandlers = currentSnapshot
+          .map(h => h.onBoardUpdate)
+          .filter((h): h is NonNullable<typeof h> => h !== undefined);
+        currentHandlers.forEach(handler => handler(board, event));
       };
     }
 
     // Merge onColumnUpdate handlers
-    const onColumnUpdateHandlers = Array.from(handlerSet)
+    const onColumnUpdateHandlers = handlerSnapshot
       .map(h => h.onColumnUpdate)
       .filter((h): h is NonNullable<typeof h> => h !== undefined);
     if (onColumnUpdateHandlers.length > 0) {
       merged.onColumnUpdate = (column, event) => {
-        onColumnUpdateHandlers.forEach(handler => handler(column, event));
+        const currentSnapshot = Array.from(this.handlerSets.get(workspaceId) || []);
+        const currentHandlers = currentSnapshot
+          .map(h => h.onColumnUpdate)
+          .filter((h): h is NonNullable<typeof h> => h !== undefined);
+        currentHandlers.forEach(handler => handler(column, event));
       };
     }
 
     // Merge onCardUpdate handlers
-    const onCardUpdateHandlers = Array.from(handlerSet)
+    const onCardUpdateHandlers = handlerSnapshot
       .map(h => h.onCardUpdate)
       .filter((h): h is NonNullable<typeof h> => h !== undefined);
     if (onCardUpdateHandlers.length > 0) {
       merged.onCardUpdate = (card, event) => {
-        onCardUpdateHandlers.forEach(handler => handler(card, event));
+        const currentSnapshot = Array.from(this.handlerSets.get(workspaceId) || []);
+        const currentHandlers = currentSnapshot
+          .map(h => h.onCardUpdate)
+          .filter((h): h is NonNullable<typeof h> => h !== undefined);
+        currentHandlers.forEach(handler => handler(card, event));
       };
     }
 
     // Merge onCardDetailUpdate handlers
-    const onCardDetailUpdateHandlers = Array.from(handlerSet)
+    const onCardDetailUpdateHandlers = handlerSnapshot
       .map(h => h.onCardDetailUpdate)
       .filter((h): h is NonNullable<typeof h> => h !== undefined);
     if (onCardDetailUpdateHandlers.length > 0) {
       merged.onCardDetailUpdate = (detail, event) => {
-        onCardDetailUpdateHandlers.forEach(handler => handler(detail, event));
+        const currentSnapshot = Array.from(this.handlerSets.get(workspaceId) || []);
+        const currentHandlers = currentSnapshot
+          .map(h => h.onCardDetailUpdate)
+          .filter((h): h is NonNullable<typeof h> => h !== undefined);
+        currentHandlers.forEach(handler => handler(detail, event));
       };
     }
 
     // Merge onMemberUpdate handlers
-    const onMemberUpdateHandlers = Array.from(handlerSet)
+    const onMemberUpdateHandlers = handlerSnapshot
       .map(h => h.onMemberUpdate)
       .filter((h): h is NonNullable<typeof h> => h !== undefined);
     if (onMemberUpdateHandlers.length > 0) {
       merged.onMemberUpdate = (member, event) => {
-        onMemberUpdateHandlers.forEach(handler => handler(member, event));
+        const currentSnapshot = Array.from(this.handlerSets.get(workspaceId) || []);
+        const currentHandlers = currentSnapshot
+          .map(h => h.onMemberUpdate)
+          .filter((h): h is NonNullable<typeof h> => h !== undefined);
+        currentHandlers.forEach(handler => handler(member, event));
       };
     }
 
     // Merge onWorkspaceUpdate handlers
-    const onWorkspaceUpdateHandlers = Array.from(handlerSet)
+    const onWorkspaceUpdateHandlers = handlerSnapshot
       .map(h => h.onWorkspaceUpdate)
       .filter((h): h is NonNullable<typeof h> => h !== undefined);
     if (onWorkspaceUpdateHandlers.length > 0) {
       merged.onWorkspaceUpdate = (workspace, event) => {
-        onWorkspaceUpdateHandlers.forEach(handler => handler(workspace, event));
+        const currentSnapshot = Array.from(this.handlerSets.get(workspaceId) || []);
+        const currentHandlers = currentSnapshot
+          .map(h => h.onWorkspaceUpdate)
+          .filter((h): h is NonNullable<typeof h> => h !== undefined);
+        currentHandlers.forEach(handler => handler(workspace, event));
       };
     }
 
     // Merge onInviteUpdate handlers
-    const onInviteUpdateHandlers = Array.from(handlerSet)
+    const onInviteUpdateHandlers = handlerSnapshot
       .map(h => h.onInviteUpdate)
       .filter((h): h is NonNullable<typeof h> => h !== undefined);
     if (onInviteUpdateHandlers.length > 0) {
       merged.onInviteUpdate = (invite, event) => {
-        onInviteUpdateHandlers.forEach(handler => handler(invite, event));
+        const currentSnapshot = Array.from(this.handlerSets.get(workspaceId) || []);
+        const currentHandlers = currentSnapshot
+          .map(h => h.onInviteUpdate)
+          .filter((h): h is NonNullable<typeof h> => h !== undefined);
+        currentHandlers.forEach(handler => handler(invite, event));
       };
     }
 
     // Merge onParentRefresh handlers
-    const onParentRefreshHandlers = Array.from(handlerSet)
+    const onParentRefreshHandlers = handlerSnapshot
       .map(h => h.onParentRefresh)
       .filter((h): h is NonNullable<typeof h> => h !== undefined);
     if (onParentRefreshHandlers.length > 0) {
       merged.onParentRefresh = (parentType, parentId) => {
-        onParentRefreshHandlers.forEach(handler => handler(parentType, parentId));
+        const currentSnapshot = Array.from(this.handlerSets.get(workspaceId) || []);
+        const currentHandlers = currentSnapshot
+          .map(h => h.onParentRefresh)
+          .filter((h): h is NonNullable<typeof h> => h !== undefined);
+        currentHandlers.forEach(handler => handler(parentType, parentId));
       };
     }
 
@@ -214,13 +283,34 @@ class SubscriptionRegistry {
   /**
    * Remove specific handlers from a workspace
    * Unsubscribes if no handlers remain
+   * Can remove by handler ID (preferred) or by handler reference (fallback)
    */
-  removeWorkspaceHandlers(workspaceId: string, handlers: WorkspaceHandlers): void {
+  removeWorkspaceHandlers(workspaceId: string, handlers: WorkspaceHandlers, handlerId?: string): void {
     const handlerSet = this.handlerSets.get(workspaceId);
     if (!handlerSet) return;
 
-    // Remove handlers from set
-    handlerSet.delete(handlers);
+    // Try to remove by handler ID first (more reliable)
+    if (handlerId && this.handlerIdToHandler.has(handlerId)) {
+      const handlerToRemove = this.handlerIdToHandler.get(handlerId)!;
+      handlerSet.delete(handlerToRemove);
+      this.handlerIdToHandler.delete(handlerId);
+      this.handlerOwnership.delete(handlerId);
+    } else {
+      // Fallback to reference-based removal
+      handlerSet.delete(handlers);
+      
+      // Also clean up ownership if we can find it
+      if (handlerId) {
+        this.handlerIdToHandler.delete(handlerId);
+        this.handlerOwnership.delete(handlerId);
+      }
+    }
+
+    // Call cleanup function if handler has one
+    const cleanupFn = (handlers as any).__cleanup;
+    if (cleanupFn && typeof cleanupFn === 'function') {
+      cleanupFn();
+    }
 
     // If no handlers remain, unsubscribe
     if (handlerSet.size === 0) {
@@ -534,11 +624,21 @@ class SubscriptionRegistry {
    * Update unsubscribeAll to include global subscriptions
    */
   unsubscribeAll(): void {
+    // Call cleanup functions for all handlers
+    this.handlerIdToHandler.forEach((handlers) => {
+      const cleanupFn = (handlers as any).__cleanup;
+      if (cleanupFn && typeof cleanupFn === 'function') {
+        cleanupFn();
+      }
+    });
+
     // Unsubscribe all workspace subscriptions
     this.subscriptions.forEach((cleanup) => cleanup());
     this.subscriptions.clear();
     this.handlers.clear();
     this.handlerSets.clear();
+    this.handlerOwnership.clear();
+    this.handlerIdToHandler.clear();
 
     // Unsubscribe all global subscriptions
     this.globalSubscriptions.forEach((cleanup) => cleanup());

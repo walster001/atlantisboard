@@ -366,15 +366,24 @@ export function subscribeAllWorkspaces(
  * Subscribe to all workspaces via subscription registry
  * Subscriptions persist across navigation and component unmounts
  * Only unsubscribes on explicit logout or workspace access revocation
+ * Returns cleanup function to remove handlers when dependencies change
  */
 export function subscribeAllWorkspacesViaRegistry(
   workspaceIds: string[],
   handlers: WorkspaceHandlers
-): void {
+): SubscriptionCleanup {
   const registry = getSubscriptionRegistry();
+  const cleanupFunctions: SubscriptionCleanup[] = [];
+  
   workspaceIds.forEach((workspaceId) => {
-    registry.subscribeWorkspace(workspaceId, handlers);
+    const cleanup = registry.subscribeWorkspace(workspaceId, handlers);
+    cleanupFunctions.push(cleanup);
   });
+
+  // Return cleanup function that removes all handlers
+  return () => {
+    cleanupFunctions.forEach(cleanup => cleanup());
+  };
 }
 
 /**

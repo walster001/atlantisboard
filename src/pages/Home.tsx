@@ -22,6 +22,7 @@ import { subscribeAllWorkspacesViaRegistry, subscribeWorkspaceViaRegistry } from
 import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
 import { api } from '@/integrations/api/client';
 import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
+import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
 
 interface Workspace {
   id: string;
@@ -327,15 +328,197 @@ export default function Home() {
   // Debounced silent fetch for realtime updates
   const debouncedFetchData = useSilentDebouncedFetch(silentFetchData);
 
+  // Create stable nested handlers for dynamically added workspaces
+  // These are used when a user is added to a new workspace
+  const nestedStableHandlers = useStableRealtimeHandlers({
+    onBoardUpdate: (board, event) => {
+      if (event.eventType === 'INSERT' || event.eventType === 'UPDATE' || event.eventType === 'DELETE') {
+        debouncedFetchData();
+      }
+    },
+    onMemberUpdate: (member, event) => {
+      const membership = member as { boardId?: string; userId?: string };
+      if (membership.userId !== user?.id) return;
+      
+      if (event.eventType === 'INSERT') {
+        debouncedFetchData();
+        toast({
+          title: 'Board access granted',
+          description: 'You have been added to a new board.',
+        });
+      } else if (event.eventType === 'DELETE') {
+        debouncedFetchData();
+        toast({
+          title: 'Board access removed',
+          description: 'You have been removed from a board.',
+        });
+      }
+    },
+  }, [debouncedFetchData, user, toast]);
+
+  // Create stable handlers with batching and stable references
+  const stableHandlers = useStableRealtimeHandlers({
+    onBoardUpdate: (board, event) => {
+      const boardData = board as unknown as Board;
+      if (event.eventType === 'INSERT') {
+        // New board - use silent refetch to get board roles and ensure consistency
+        debouncedFetchData();
+      } else if (event.eventType === 'UPDATE') {
+        const boardData = event.new as Board | null;
+        const oldBoard = event.old as Board | null;
+        
+        if (!boardData) {
+          // No new data - use refetch
+          debouncedFetchData();
+          return;
+        }
+        
+        // Check if this is a simple property update (name, description, backgroundColor)
+        const oldWorkspaceId = oldBoard?.workspaceId;
+        const newWorkspaceId = boardData.workspaceId;
+        const isWorkspaceMove = oldWorkspaceId && newWorkspaceId && oldWorkspaceId !== newWorkspaceId;
+        
+        // Check if only simple properties changed
+        const simplePropsChanged = 
+          (oldBoard?.name !== boardData.name) ||
+          (oldBoard?.description !== boardData.description) ||
+          (oldBoard?.backgroundColor !== boardData.backgroundColor) ||
+          (oldBoard?.position !== boardData.position);
+        
+        if (isWorkspaceMove || !simplePropsChanged) {
+          // Complex change (workspace move, or unknown change) - use refetch
+          debouncedFetchData();
+        } else {
+          // Simple property update - use incremental state update
+          setBoards((prev) =>
+            prev.map((b) => (b.id === boardData.id ? { ...b, ...boardData } : b))
+          );
+        }
+      } else if (event.eventType === 'DELETE') {
+        debouncedFetchData();
+      }
+    },
+    onMemberUpdate: (member, event) => {
+      const membership = member as { boardId?: string; userId?: string };
+      // Only process if it's the current user
+      if (membership.userId !== user.id) return;
+      
+      if (event.eventType === 'INSERT') {
+        debouncedFetchData();
+        toast({
+          title: 'Board access granted',
+          description: 'You have been added to a new board.',
+        });
+      } else if (event.eventType === 'DELETE') {
+        debouncedFetchData();
+        toast({
+          title: 'Board access removed',
+          description: 'You have been removed from a board.',
+        });
+      }
+    },
+    onWorkspaceUpdate: (workspace, event) => {
+      // Check table to distinguish between workspace entity and membership updates
+      if (event.table === 'workspaces') {
+        // Handle workspace entity updates (name, description, etc.)
+        const workspaceEntity = event.new as Workspace | null;
+        const oldWorkspace = event.old as Workspace | null;
+        
+        if (event.eventType === 'UPDATE' && workspaceEntity) {
+          // Simple property update - use incremental state update
+          setWorkspaces((prev) =>
+            prev.map((w) => (w.id === workspaceEntity.id ? { ...w, ...workspaceEntity } : w))
+          );
+        } else if (event.eventType === 'DELETE') {
+          // Workspace deleted - use refetch to ensure all related data is cleaned up
+          debouncedFetchData();
+        }
+      } else if (event.table === 'workspaceMembers') {
+        // Handle workspace membership updates
+        const workspaceData = workspace as { workspaceId?: string; userId?: string };
+        // Only process if it's the current user
+        if (workspaceData.userId !== user.id) return;
+        
+        if (event.eventType === 'INSERT') {
+          // User added to a workspace - dynamically subscribe to new workspace
+          const newWorkspaceId = workspaceData.workspaceId;
+          if (newWorkspaceId) {
+            const registry = getSubscriptionRegistry();
+            if (!registry.isSubscribed(newWorkspaceId)) {
+              // Subscribe to new workspace via registry with stable handlers
+              const nestedCleanup = subscribeWorkspaceViaRegistry(newWorkspaceId, nestedStableHandlers);
+              nestedSubscriptionCleanupRef.current.set(newWorkspaceId, nestedCleanup);
+            }
+          }
+          
+          // User added to a workspace - refresh data
+          debouncedFetchData();
+          toast({
+            title: 'Workspace access granted',
+            description: 'You have been added to a new workspace.',
+          });
+        } else if (event.eventType === 'DELETE') {
+          const deletedMembership = event.old as { workspaceId: string; userId: string };
+          const deletedWorkspaceId = deletedMembership.workspaceId;
+
+          // Unsubscribe from workspace
+          const registry = getSubscriptionRegistry();
+          registry.unsubscribeWorkspace(deletedWorkspaceId);
+
+          // Use refetch to ensure all related data is cleaned up
+          debouncedFetchData();
+
+          toast({
+            title: 'Workspace access removed',
+            description: 'You have been removed from a workspace.',
+          });
+        }
+      }
+    },
+  }, [debouncedFetchData, user, toast]);
+
+  // Track previous workspaceIds to detect changes
+  const prevWorkspaceIdsRef = useRef<string[]>([]);
+  const nestedSubscriptionCleanupRef = useRef<Map<string, () => void>>(new Map());
+
   // Unified workspace subscription using parent-child hierarchy
   // Subscribes to all workspaces user has access to, receives all child updates
-  // Subscriptions persist via registry - no cleanup on unmount
+  // Subscriptions persist via registry - cleanup on dependency changes
   useEffect(() => {
     if (!user || workspaces.length === 0) return;
 
     const workspaceIds = workspaces.map((w) => w.id);
-    // Subscribe via registry - subscriptions persist across navigation
-    subscribeAllWorkspacesViaRegistry(workspaceIds, {
+    const prevWorkspaceIds = prevWorkspaceIdsRef.current;
+    
+    // Unsubscribe from removed workspaces
+    const removedWorkspaceIds = prevWorkspaceIds.filter(id => !workspaceIds.includes(id));
+    removedWorkspaceIds.forEach(id => {
+      const registry = getSubscriptionRegistry();
+      registry.unsubscribeWorkspace(id);
+      // Clean up nested subscription cleanup if exists
+      const nestedCleanup = nestedSubscriptionCleanupRef.current.get(id);
+      if (nestedCleanup) {
+        nestedCleanup();
+        nestedSubscriptionCleanupRef.current.delete(id);
+      }
+    });
+    
+    // Subscribe to new workspaces
+    const cleanup = subscribeAllWorkspacesViaRegistry(workspaceIds, stableHandlers);
+    
+    prevWorkspaceIdsRef.current = workspaceIds;
+    
+    return () => {
+      cleanup(); // Clean up handlers when dependencies change
+      // Cleanup function from stableHandlers will process pending batches
+      if (stableHandlers.__cleanup) {
+        stableHandlers.__cleanup();
+      }
+      // Clean up all nested subscriptions
+      nestedSubscriptionCleanupRef.current.forEach(nestedCleanup => nestedCleanup());
+      nestedSubscriptionCleanupRef.current.clear();
+    };
+  }, [user, workspaces, stableHandlers]);
       onBoardUpdate: (board, event) => {
         const boardData = board as unknown as Board;
         if (event.eventType === 'INSERT') {

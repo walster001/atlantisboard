@@ -40,7 +40,3 @@ dates with Hybrid Approach
 - [ ] Update useEffect dependencies
 
 ### Phase 4: Testing
-
-- [ ] Test board name/color updates (should be instant, no loading)
-- [ ] Test board workspace moves (should use silent refetch)
-- [ ] Test member additions/removals (should use silent refetch)

@@ -57,12 +57,12 @@ todos:
       - enable-strict-mode-basic
   - id: fix-state-props-types
     content: Define explicit interfaces for component props and useState types throughout components
-    status: pending
+    status: completed
     dependencies:
       - enable-strict-mode-basic
   - id: fix-generic-data-processing
     content: Replace any in data processing functions with generics or specific types (utility functions, JSON parsing, transformations)
-    status: pending
+    status: completed
     dependencies:
       - enable-strict-mode-basic
   - id: validate-typescript-compilation
@@ -78,7 +78,7 @@ todos:
       - fix-generic-data-processing
   - id: validate-eslint
     content: Run ESLint to check for unused variables and other issues
-    status: pending
+    status: in_progress
     dependencies:
       - enable-eslint-unused-vars
       - validate-typescript-compilation

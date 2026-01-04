@@ -54,7 +54,7 @@ export function AppBrandingSettings() {
         .from('app_settings')
         .select('customHomeLogoEnabled, customHomeLogoUrl, customHomeLogoSize, customBoardLogoEnabled, customBoardLogoUrl, customBoardLogoSize, customGlobalAppNameEnabled, customGlobalAppName')
         .eq('id', 'default')
-        .single() as { data: any; error: Error | null };
+        .single() as { data: AppBrandingState | null; error: Error | null };
 
       if (error) throw error;
       if (data) {

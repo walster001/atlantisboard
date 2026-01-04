@@ -112,7 +112,7 @@ export function BrandingSettings() {
         .from('app_settings')
         .select('*')
         .eq('id', 'default')
-        .single() as { data: any; error: Error | null };
+        .single() as { data: AppSettings | null; error: Error | null };
 
       if (error) throw error;
       if (data) {

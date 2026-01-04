@@ -17,7 +17,7 @@
  */
 
 import { useMemo, useCallback, useLayoutEffect, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import remarkEmoji from 'remark-emoji';
@@ -539,7 +539,7 @@ export function MarkdownRenderer({
    * Custom link renderer that opens all links in a new tab
    * with proper security attributes.
    */
-  const LinkRenderer = useCallback(({ href, children, ...props }: any) => (
+  const LinkRenderer = useCallback<Components['a']>(({ href, children, ...props }) => (
     <a
       href={href}
       target="_blank"
@@ -554,7 +554,7 @@ export function MarkdownRenderer({
   /**
    * Custom checkbox renderer for task lists.
    */
-  const CheckboxRenderer = useCallback(({ checked, ...props }: any) => (
+  const CheckboxRenderer = useCallback<Components['input']>(({ checked, ...props }) => (
     <input
       type="checkbox"
       checked={checked}
@@ -567,7 +567,7 @@ export function MarkdownRenderer({
   /**
    * Custom code renderer with proper styling.
    */
-  const CodeRenderer = useCallback(({ inline, className: codeClassName, children, ...props }: any) => {
+  const CodeRenderer = useCallback<Components['code']>(({ inline, className: codeClassName, children, ...props }) => {
     if (inline) {
       return (
         <code
@@ -598,7 +598,7 @@ export function MarkdownRenderer({
   /**
    * Custom table renderer with proper styling.
    */
-  const TableRenderer = useCallback(({ children, ...props }: any) => (
+  const TableRenderer = useCallback<Components['table']>(({ children, ...props }) => (
     <div className="overflow-x-auto my-2">
       <table className="w-full border-collapse border border-border" {...props}>
         {children}
@@ -606,7 +606,7 @@ export function MarkdownRenderer({
     </div>
   ), []);
 
-  const TableCellRenderer = useCallback(({ children, isHeader, ...props }: any) => {
+  const TableCellRenderer = useCallback<Components['th']>(({ children, isHeader, ...props }) => {
     const Tag = isHeader ? 'th' : 'td';
     return (
       <Tag

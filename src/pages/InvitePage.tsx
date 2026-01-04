@@ -167,6 +167,9 @@ export default function InvitePage() {
         message?: string; 
         boardId?: string; 
         alreadyMember?: boolean;
+        role?: string;
+        customRoleId?: string;
+        customRoleName?: string;
       };
       
       if (!response.success) {
@@ -186,9 +189,14 @@ export default function InvitePage() {
         });
       } else {
         setStatus('success');
+        // Use the message from backend which includes the role information
+        const description = response.message || 
+          (response.customRoleName 
+            ? `You have been added to the board as ${response.customRoleName}.`
+            : `You have been added to the board as ${response.role || 'viewer'}.`);
         toast({
           title: 'Success!',
-          description: 'You have been added to the board as a viewer.',
+          description,
         });
       }
     } catch (error: any) {

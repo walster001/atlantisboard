@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
@@ -39,6 +40,12 @@ interface ActiveRecurringLink {
   createdAt: string;
 }
 
+interface CustomRole {
+  id: string;
+  name: string;
+  description: string | null;
+}
+
 export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: InviteLinkButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -51,6 +58,11 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
   const [isLoadingLinks, setIsLoadingLinks] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'manager' | 'viewer' | 'custom' | null>(null);
+  const [selectedCustomRoleId, setSelectedCustomRoleId] = useState<string | null>(null);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  const [isLoadingCustomRoles, setIsLoadingCustomRoles] = useState(false);
+  const [assignedRole, setAssignedRole] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Don't render anything if user can't generate invites (server-side check happens in REST endpoint)
@@ -113,6 +125,32 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
     }
   }, [isOpen, boardId]);
 
+  // Fetch custom roles when dialog opens and one-time link is selected
+  useEffect(() => {
+    if (isOpen && linkType === 'one_time') {
+      fetchCustomRoles();
+    }
+  }, [isOpen, linkType, boardId]);
+
+  const fetchCustomRoles = async () => {
+    setIsLoadingCustomRoles(true);
+    try {
+      const { data, error } = await api.request<CustomRole[]>(`/boards/${boardId}/custom-roles`, {
+        method: 'GET',
+      });
+
+      if (error) {
+        console.error('Error fetching custom roles:', error);
+      } else {
+        setCustomRoles(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching custom roles:', error);
+    } finally {
+      setIsLoadingCustomRoles(false);
+    }
+  };
+
   const fetchActiveRecurringLinks = async () => {
     setIsLoadingLinks(true);
     try {
@@ -136,12 +174,27 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
     setIsGenerating(true);
     setInviteLink(null);
     setExpiresAt(null);
+    setAssignedRole(null);
 
     try {
-      console.log('Generating invite link with type:', linkType);
+      // Prepare request body
+      const requestBody: { linkType: 'one_time' | 'recurring'; role?: 'admin' | 'manager' | 'viewer'; customRoleId?: string } = {
+        linkType,
+      };
+
+      // For one-time links, include role or customRoleId if specified
+      if (linkType === 'one_time') {
+        if (selectedRole === 'custom' && selectedCustomRoleId) {
+          requestBody.customRoleId = selectedCustomRoleId;
+        } else if (selectedRole && selectedRole !== 'custom') {
+          requestBody.role = selectedRole;
+        }
+      }
+
+      console.log('Generating invite link with type:', linkType, requestBody);
       const { data, error } = await api.request(`/boards/${boardId}/invites/generate`, {
         method: 'POST',
-        body: JSON.stringify({ linkType }),
+        body: JSON.stringify(requestBody),
       });
 
       if (error) {
@@ -151,7 +204,15 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
 
       console.log('Generate invite response:', data);
 
-      const response = data as { success: boolean; message?: string; token: string; expiresAt: string | null; linkType: 'one_time' | 'recurring' };
+      const response = data as { 
+        success: boolean; 
+        message?: string; 
+        token: string; 
+        expiresAt: string | null; 
+        linkType: 'one_time' | 'recurring';
+        role?: 'admin' | 'manager' | 'viewer';
+        customRoleId?: string;
+      };
       if (!response.success) {
         throw new Error(response.message || 'Failed to generate invite link');
       }
@@ -162,6 +223,14 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
       setInviteLink(fullLink);
       setExpiresAt(response.expiresAt);
       setGeneratedLinkType(response.linkType);
+
+      // Determine assigned role for display
+      if (response.customRoleId) {
+        const customRole = customRoles.find(r => r.id === response.customRoleId);
+        setAssignedRole(customRole?.name || 'Custom Role');
+      } else {
+        setAssignedRole(response.role || 'viewer');
+      }
 
       // Refresh recurring links list if we just created one
       if (linkType === 'recurring') {
@@ -247,8 +316,21 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
       setCopied(false);
       setLinkType('one_time');
       setGeneratedLinkType(null);
+      setSelectedRole(null);
+      setSelectedCustomRoleId(null);
+      setAssignedRole(null);
     }
   };
+
+  // Reset role selection when link type changes
+  useEffect(() => {
+    if (linkType === 'recurring') {
+      setSelectedRole(null);
+      setSelectedCustomRoleId(null);
+    } else if (linkType === 'one_time' && !selectedRole) {
+      setSelectedRole('viewer');
+    }
+  }, [linkType]);
 
   const formatExpiryTime = (isoString: string) => {
     const date = new Date(isoString);
@@ -279,8 +361,9 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
           <DialogHeader>
             <DialogTitle>Generate Invite Link</DialogTitle>
             <DialogDescription>
-              Create an invite link to add someone to this board as a viewer.
-              Links expire after 24 hours.
+              {linkType === 'one_time' 
+                ? 'Create an invite link to add someone to this board. One-time links expire after 24 hours.'
+                : 'Create a recurring invite link. Multiple users can join with the same link.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -321,9 +404,60 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
                   </RadioGroup>
                 </div>
 
+                {/* Role selection (only for one-time links) */}
+                {linkType === 'one_time' && (
+                  <div className="space-y-3">
+                    <Label>Default Permission Role</Label>
+                    <Select
+                      value={selectedRole || 'viewer'}
+                      onValueChange={(value) => {
+                        if (value === 'custom') {
+                          setSelectedRole('custom');
+                        } else {
+                          setSelectedRole(value as 'admin' | 'manager' | 'viewer');
+                          setSelectedCustomRoleId(null);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        {customRoles.length > 0 && <SelectItem value="custom">Custom Role</SelectItem>}
+                      </SelectContent>
+                    </Select>
+
+                    {selectedRole === 'custom' && (
+                      <Select
+                        value={selectedCustomRoleId || ''}
+                        onValueChange={setSelectedCustomRoleId}
+                        disabled={isLoadingCustomRoles}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={isLoadingCustomRoles ? 'Loading custom roles...' : 'Select custom role...'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customRoles.map((role) => (
+                            <SelectItem key={role.id} value={role.id}>
+                              {role.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+
+                    <p className="text-xs text-muted-foreground">
+                      Recipients will join the board with this permission level.
+                    </p>
+                  </div>
+                )}
+
                 <Button
                   onClick={generateInviteLink}
-                  disabled={isGenerating}
+                  disabled={isGenerating || (linkType === 'one_time' && selectedRole === 'custom' && !selectedCustomRoleId)}
                   className="w-full"
                 >
                   {isGenerating ? (
@@ -371,7 +505,12 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
                   ) : (
                     <p>• This link can be used by multiple users (no expiry)</p>
                   )}
-                  <p>• Recipients will join as viewers (read-only)</p>
+                  {assignedRole && (
+                    <p>• Recipients will join as <span className="font-medium">{assignedRole}</span></p>
+                  )}
+                  {!assignedRole && (
+                    <p>• Recipients will join as viewers (read-only)</p>
+                  )}
                 </div>
                 <Button
                   variant="outline"

@@ -265,19 +265,22 @@ model BoardMemberAuditLog {
 
 // Board invite tokens
 model BoardInviteToken {
-  id        String    @id @default(uuid())
-  boardId   String    @map("board_id")
-  token     String    @unique
-  linkType  String    @default("one_time") @map("link_type")
-  createdBy String    @map("created_by")
-  expiresAt DateTime?  @map("expires_at")
-  usedAt    DateTime?  @map("used_at")
-  usedBy    String?    @map("used_by")
-  createdAt DateTime  @default(now()) @map("created_at")
+  id          String     @id @default(uuid())
+  boardId     String     @map("board_id")
+  token       String     @unique
+  linkType    String     @default("one_time") @map("link_type")
+  createdBy   String     @map("created_by")
+  expiresAt   DateTime?  @map("expires_at")
+  usedAt      DateTime?  @map("used_at")
+  usedBy      String?    @map("used_by")
+  role        BoardRole? // Role to assign when token is redeemed (for one-time links only)
+  customRoleId String?   @map("custom_role_id") // Custom role to assign (for one-time links only)
+  createdAt   DateTime   @default(now()) @map("created_at")
 
-  board     Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  creator   User      @relation("InviteTokenCreator", fields: [createdBy], references: [id])
-  user      User?     @relation("InviteTokenUser", fields: [usedBy], references: [id])
+  board       Board      @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  creator     User       @relation("InviteTokenCreator", fields: [createdBy], references: [id])
+  user        User?      @relation("InviteTokenUser", fields: [usedBy], references: [id])
+  customRole  CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
   @@index([token])
   @@map("board_invite_tokens")
@@ -296,6 +299,7 @@ model CustomRole {
   creator     User?    @relation(fields: [createdBy], references: [id])
   permissions RolePermission[]
   boardMemberAssignments BoardMemberCustomRole[]
+  inviteTokens BoardInviteToken[]
 
   @@map("custom_roles")
 }

@@ -37,6 +37,12 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
             workspaceId: true,
           },
         },
+        customRole: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -82,17 +88,36 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
     // Add user to board if not already a member
     if (!alreadyMember) {
       try {
-        // Use memberService to add user as viewer
-        // Note: memberService.addBoardMember requires permission check, but for invite redemption
-        // we bypass this by using the service with a system context (app admin)
-        // However, we need to add the member directly since we're bypassing normal permission flow
-        await prisma.boardMember.create({
+        // Determine the role to assign (use stored role or default to viewer)
+        const roleToAssign = inviteToken.role || 'viewer';
+
+        // Create board member with the role from the invite token
+        const newMember = await prisma.boardMember.create({
           data: {
             boardId: inviteToken.boardId,
             userId: authReq.userId!,
-            role: 'viewer',
+            role: roleToAssign,
+          },
+          include: {
+            user: {
+              include: {
+                profile: true,
+              },
+            },
           },
         });
+
+        // If a custom role was specified, assign it
+        if (inviteToken.customRoleId) {
+          await prisma.boardMemberCustomRole.create({
+            data: {
+              boardId: inviteToken.boardId,
+              userId: authReq.userId!,
+              customRoleId: inviteToken.customRoleId,
+              boardMemberId: newMember.id,
+            },
+          });
+        }
 
         // Automatically add user to workspace if not already a member
         const workspaceMembership = await prisma.workspaceMember.findUnique({
@@ -123,36 +148,19 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
             action: 'added',
             targetUserId: authReq.userId!,
             actorUserId: inviteToken.createdBy,
-            newRole: 'viewer',
+            newRole: roleToAssign,
           },
         });
 
         // Emit board membership add event
-        const newMember = await prisma.boardMember.findUnique({
-          where: {
-            boardId_userId: {
-              boardId: inviteToken.boardId,
-              userId: authReq.userId!,
-            },
-          },
-          include: {
-            user: {
-              include: {
-                profile: true,
-              },
-            },
-          },
-        });
-
-        if (newMember) {
-          await emitDatabaseChange('boardMembers', 'INSERT', newMember as any, undefined, inviteToken.boardId);
-        }
+        await emitDatabaseChange('boardMembers', 'INSERT', newMember as any, undefined, inviteToken.boardId);
 
         // Emit custom event for board member addition
         await emitCustomEvent(`board-${inviteToken.boardId}`, 'board.member.added', {
           boardId: inviteToken.boardId,
           userId: authReq.userId!,
-          role: 'viewer',
+          role: roleToAssign,
+          customRoleId: inviteToken.customRoleId || undefined,
         });
       } catch (error: any) {
         // If adding member fails, log and return error
@@ -177,13 +185,24 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
       });
     }
 
+    // Determine the role message
+    let roleMessage = 'viewer';
+    if (inviteToken.customRoleId && inviteToken.customRole) {
+      roleMessage = inviteToken.customRole.name;
+    } else if (inviteToken.role) {
+      roleMessage = inviteToken.role;
+    }
+
     return res.json({
       success: true,
       boardId: inviteToken.boardId,
       alreadyMember,
+      role: inviteToken.role || 'viewer',
+      customRoleId: inviteToken.customRoleId || undefined,
+      customRoleName: inviteToken.customRole?.name || undefined,
       message: alreadyMember 
         ? 'You are already a member of this board'
-        : 'You have been added to the board as a viewer',
+        : `You have been added to the board as ${roleMessage}`,
     });
   } catch (error) {
     console.error('[POST /invites/redeem] Error:', {

@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { boardService } from '../services/board.service.js';
 import { memberService } from '../services/member.service.js';
-import { ForbiddenError } from '../middleware/errorHandler.js';
+import { ForbiddenError, ValidationError } from '../middleware/errorHandler.js';
 import { prisma } from '../db/client.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
@@ -15,6 +15,17 @@ router.use(authMiddleware);
 
 const generateInviteSchema = z.object({
   linkType: z.enum(['one_time', 'recurring']).default('one_time'),
+  role: z.enum(['admin', 'manager', 'viewer']).optional(),
+  customRoleId: z.string().uuid().optional(),
+}).refine((data) => {
+  // For one_time links, either role or customRoleId can be set (not both)
+  if (data.linkType === 'one_time') {
+    return !(data.role && data.customRoleId);
+  }
+  // For recurring links, role/customRoleId should not be set
+  return !data.role && !data.customRoleId;
+}, {
+  message: "For one-time links, set either 'role' or 'customRoleId', not both. For recurring links, do not set these fields.",
 });
 
 // GET /api/boards - List user's boards
@@ -129,7 +140,7 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
   try {
     const { boardId } = req.params;
     const validated = generateInviteSchema.parse(req.body);
-    const { linkType } = validated;
+    const { linkType, role, customRoleId } = validated;
 
     // Check if user can create invites using permission service
     const context = permissionService.buildContext(
@@ -138,6 +149,55 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
       boardId
     );
     await permissionService.requirePermission('board.invite.create', context);
+
+    // Validate role assignment permissions (for one-time links with role specified)
+    if (linkType === 'one_time' && (role || customRoleId)) {
+      // Check if user can change roles
+      await permissionService.requirePermission('board.members.role.change', context);
+
+      // Get current user's board membership to check their role
+      const currentUserMember = await prisma.boardMember.findUnique({
+        where: {
+          boardId_userId: {
+            boardId,
+            userId: authReq.userId!,
+          },
+        },
+      });
+
+      // Role hierarchy enforcement
+      if (!authReq.user?.isAdmin && currentUserMember) {
+        if (role === 'admin') {
+          // Only admins or app admins can assign admin role
+          if (currentUserMember.role !== 'admin') {
+            throw new ForbiddenError('Only admins can assign admin role via invite links');
+          }
+        } else if (role === 'manager') {
+          // Managers cannot assign manager or admin roles
+          if (currentUserMember.role === 'manager' || currentUserMember.role === 'viewer') {
+            throw new ForbiddenError('You do not have permission to assign manager role');
+          }
+        }
+      }
+
+      // Validate custom role if specified
+      if (customRoleId) {
+        const customRole = await prisma.customRole.findUnique({
+          where: { id: customRoleId },
+          include: {
+            permissions: true,
+          },
+        });
+
+        if (!customRole) {
+          throw new ValidationError('Custom role not found');
+        }
+
+        if (customRole.isSystem) {
+          throw new ValidationError('Cannot use system roles in invite links');
+        }
+      }
+    }
 
     // Generate cryptographically secure token
     const randomBytes = new Uint8Array(32);
@@ -158,12 +218,16 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
         createdBy: authReq.userId!,
         expiresAt,
         linkType,
+        role: linkType === 'one_time' ? role : undefined,
+        customRoleId: linkType === 'one_time' ? customRoleId : undefined,
       },
       select: {
         id: true,
         token: true,
         expiresAt: true,
         linkType: true,
+        role: true,
+        customRoleId: true,
         createdAt: true,
       },
     });
@@ -176,6 +240,8 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
       token: insertedToken.token,
       expiresAt: insertedToken.expiresAt,
       linkType: insertedToken.linkType,
+      role: insertedToken.role,
+      customRoleId: insertedToken.customRoleId,
     });
   } catch (error) {
     console.error('[POST /boards/:boardId/invites/generate] Error:', {
@@ -184,7 +250,44 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
       userId: (req as AuthRequest).userId,
       boardId: req.params.boardId,
       linkType: req.body?.linkType,
+      role: req.body?.role,
+      customRoleId: req.body?.customRoleId,
     });
+    next(error);
+  }
+});
+
+// GET /api/boards/:boardId/custom-roles - Get available custom roles for invite links
+router.get('/:boardId/custom-roles', async (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  try {
+    const { boardId } = req.params;
+
+    // Check if user can create invites using permission service
+    const context = permissionService.buildContext(
+      authReq.userId!,
+      authReq.user?.isAdmin ?? false,
+      boardId
+    );
+    await permissionService.requirePermission('board.invite.create', context);
+
+    // Fetch all non-system custom roles
+    const customRoles = await prisma.customRole.findMany({
+      where: {
+        isSystem: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    res.json(customRoles);
+  } catch (error) {
     next(error);
   }
 });

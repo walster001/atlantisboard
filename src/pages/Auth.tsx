@@ -57,8 +57,7 @@ export default function Auth() {
   const { toast } = useToast();
   const [pageData, setPageData] = useState<AuthPageData | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [_fontsLoaded, setFontsLoaded] = useState(false);
   
   // Local auth state
   const [isSignUp, setIsSignUp] = useState(false);

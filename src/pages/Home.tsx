@@ -61,7 +61,6 @@ export default function Home() {
   
   // Track dynamic workspace subscriptions
   const [loading, setLoading] = useState(true);
-  
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceDesc, setNewWorkspaceDesc] = useState('');
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
@@ -186,17 +185,6 @@ export default function Home() {
     }
   }, [user, authLoading, navigate, isOAuthCallback, hasClockSkewError]);
 
-  useEffect(() => {
-    if (user) {
-      fetchData();
-      // Check for and redeem any pending invite token only if user is verified
-      // This prevents token redemption for unverified users in google_verified mode
-      if (isVerified) {
-        redeemPendingInviteToken();
-      }
-    }
-  }, [user, isVerified]);
-
   // Handle navigation state when user is redirected after being removed from a board
   useEffect(() => {
     const state = location.state as { removedFromBoard?: { boardId: string; workspaceId: string | null; timestamp: number } } | null;
@@ -241,7 +229,7 @@ export default function Home() {
       // Clear the navigation state to prevent re-triggering
       navigate('/', { replace: true, state: {} });
     }
-  }, [location.state, user, navigate]);
+  }, [location.state, user, navigate, toast]);
 
   // Define fetchData using useCallback so it can be used in useEffect dependencies
   const fetchData = useCallback(async () => {
@@ -294,6 +282,84 @@ export default function Home() {
 
   // Debounced silent fetch for realtime updates
   const debouncedFetchData = useSilentDebouncedFetch(silentFetchData);
+
+  // Redeem pending invite token from sessionStorage (set when user clicks invite link)
+  const redeemPendingInviteToken = useCallback(async () => {
+    const pendingToken = sessionStorage.getItem('pendingInviteToken');
+    if (!pendingToken || !user) return;
+
+    try {
+      const result = await api.functions.invoke('redeem-invite-token', {
+        body: { token: pendingToken },
+      });
+      
+      const { data, error } = result;
+
+      // Clear the token regardless of outcome
+      sessionStorage.removeItem('pendingInviteToken');
+
+      if (error) {
+        console.error('Error redeeming invite token:', error);
+        toast({
+          title: 'Invite Error',
+          description: 'Failed to process your invitation. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Type the response data
+      const responseData = data as {
+        success: boolean;
+        message?: string;
+        alreadyMember?: boolean;
+        boardId?: string;
+      } | null;
+
+      if (!responseData || !responseData.success) {
+        toast({
+          title: 'Invite Error',
+          description: responseData?.message || 'This invite link is no longer valid.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (responseData.alreadyMember) {
+        toast({
+          title: 'Already a member',
+          description: 'You are already a member of this board.',
+        });
+      } else {
+        toast({
+          title: 'Welcome!',
+          description: 'You have been added to the board as a viewer.',
+        });
+      }
+
+      // Refresh data to show the new board
+      fetchData();
+
+      // Navigate to the board
+      if (responseData.boardId) {
+        navigate(`/board/${responseData.boardId}`);
+      }
+    } catch (error) {
+      console.error('Error redeeming invite:', error);
+      sessionStorage.removeItem('pendingInviteToken');
+    }
+  }, [user, toast, fetchData, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchData();
+      // Check for and redeem any pending invite token only if user is verified
+      // This prevents token redemption for unverified users in google_verified mode
+      if (isVerified) {
+        redeemPendingInviteToken();
+      }
+    }
+  }, [user, isVerified, fetchData, redeemPendingInviteToken]);
 
   // Create stable nested handlers for dynamically added workspaces
   // These are used when a user is added to a new workspace
@@ -455,16 +521,19 @@ export default function Home() {
     const workspaceIds = workspaces.map((w) => w.id);
     const prevWorkspaceIds = prevWorkspaceIdsRef.current;
     
+    // Capture ref value at effect start for cleanup
+    const nestedCleanupMap = nestedSubscriptionCleanupRef.current;
+    
     // Unsubscribe from removed workspaces
     const removedWorkspaceIds = prevWorkspaceIds.filter(id => !workspaceIds.includes(id));
     removedWorkspaceIds.forEach(id => {
       const registry = getSubscriptionRegistry();
       registry.unsubscribeWorkspace(id);
       // Clean up nested subscription cleanup if exists
-      const nestedCleanup = nestedSubscriptionCleanupRef.current.get(id);
+      const nestedCleanup = nestedCleanupMap.get(id);
       if (nestedCleanup) {
         nestedCleanup();
-        nestedSubscriptionCleanupRef.current.delete(id);
+        nestedCleanupMap.delete(id);
       }
     });
     
@@ -479,9 +548,9 @@ export default function Home() {
       if (stableHandlers.__cleanup) {
         stableHandlers.__cleanup();
       }
-      // Clean up all nested subscriptions
-      nestedSubscriptionCleanupRef.current.forEach(nestedCleanup => nestedCleanup());
-      nestedSubscriptionCleanupRef.current.clear();
+      // Clean up all nested subscriptions using captured ref value
+      nestedCleanupMap.forEach(nestedCleanup => nestedCleanup());
+      nestedCleanupMap.clear();
     };
   }, [user, workspaces, stableHandlers]);
 
@@ -537,72 +606,6 @@ export default function Home() {
     };
   }, [user, debouncedFetchData, toast]);
 
-  // Redeem pending invite token from sessionStorage (set when user clicks invite link)
-  const redeemPendingInviteToken = async () => {
-    const pendingToken = sessionStorage.getItem('pendingInviteToken');
-    if (!pendingToken || !user) return;
-
-    try {
-      const result = await api.functions.invoke('redeem-invite-token', {
-        body: { token: pendingToken },
-      });
-      
-      const { data, error } = result;
-
-      // Clear the token regardless of outcome
-      sessionStorage.removeItem('pendingInviteToken');
-
-      if (error) {
-        console.error('Error redeeming invite token:', error);
-        toast({
-          title: 'Invite Error',
-          description: 'Failed to process your invitation. Please try again.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Type the response data
-      const responseData = data as {
-        success: boolean;
-        message?: string;
-        alreadyMember?: boolean;
-        boardId?: string;
-      } | null;
-
-      if (!responseData || !responseData.success) {
-        toast({
-          title: 'Invite Error',
-          description: responseData?.message || 'This invite link is no longer valid.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (responseData.alreadyMember) {
-        toast({
-          title: 'Already a member',
-          description: 'You are already a member of this board.',
-        });
-      } else {
-        toast({
-          title: 'Welcome!',
-          description: 'You have been added to the board as a viewer.',
-        });
-      }
-
-      // Refresh data to show the new board
-      fetchData();
-
-      // Navigate to the board
-      if (responseData.boardId) {
-        navigate(`/board/${responseData.boardId}`);
-      }
-    } catch (error) {
-      console.error('Error redeeming invite:', error);
-      sessionStorage.removeItem('pendingInviteToken');
-    }
-  };
 
 
   // Fetch themes when board dialog opens

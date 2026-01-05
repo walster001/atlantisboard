@@ -317,7 +317,7 @@ class ApiClient {
   rpc<T = unknown>(functionName: string, params?: Record<string, unknown>) {
     return this.request<T>(`/rpc/${functionName}`, {
       method: 'POST',
-      body: params ? JSON.stringify(params) : undefined,
+      ...(params && { body: JSON.stringify(params) }),
     });
   }
 
@@ -336,10 +336,13 @@ class ApiClient {
       };
 
       const endpoint = functionMap[functionName] || `/functions/${functionName}`;
-      const result = await this.request(endpoint, {
+      const requestOptions: RequestInit = {
         method: 'POST',
-        body: options?.body ? JSON.stringify(options.body) : undefined,
-      });
+      };
+      if (options?.body) {
+        requestOptions.body = JSON.stringify(options.body);
+      }
+      const result = await this.request(endpoint, requestOptions);
 
       return result;
     },
@@ -490,7 +493,7 @@ class TableQuery {
     return this;
   }
 
-  count(mode: 'exact' | 'estimated' = 'exact') {
+  count(_mode: 'exact' | 'estimated' = 'exact') {
     this.countOnly = true;
     // 'estimated' could be used for future optimization with approximate counts
     // For now, we always use exact count

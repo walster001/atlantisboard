@@ -63,12 +63,13 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
       if (disableBatching.includes(key)) {
         // No batching - use handler directly but wrap to access latest ref
         // Type assertion needed because we're wrapping handlers with different signatures
-        stable[key] = ((...args: Parameters<NonNullable<T[typeof key]>>) => {
+        // @ts-expect-error - Complex generic type that requires any assertion
+        stable[key] = ((...args: unknown[]) => {
           // Access latest handler from ref
           const currentHandler = handlersRef.current[key];
-          if (currentHandler) {
+          if (currentHandler && typeof currentHandler === 'function') {
             // Type assertion: currentHandler has the same type as T[typeof key]
-            (currentHandler as NonNullable<T[typeof key]>)(...args);
+            (currentHandler as (...args: unknown[]) => void)(...args);
           }
         }) as T[typeof key];
         continue;
@@ -116,27 +117,37 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
         const batcher = createEventBatcher<Parameters<NonNullable<WorkspaceHandlers[typeof key]>>[0]>((events) => {
           // Process each event in the batch
           for (const batchedEvent of events) {
-            originalHandler(batchedEvent.entity as Parameters<NonNullable<WorkspaceHandlers[typeof key]>>[0], batchedEvent.event);
+            const currentHandler = handlersRef.current[key];
+            if (currentHandler && typeof currentHandler === 'function') {
+              (currentHandler as (entity: unknown, event: unknown) => void)(batchedEvent.entity, batchedEvent.event);
+            }
           }
         }, batchingOptions);
 
-        stable[key] = batcher.handler as T[typeof key];
+        // Type assertion needed for generic handler types
+        // @ts-expect-error - Complex generic type that requires any assertion
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        stable[key] = batcher.handler as any as T[typeof key];
         cleanupFunctions.push(batcher.cleanup);
       } else {
         // No batching - use handler directly but wrap to access latest ref
-        stable[key] = ((...args: Parameters<NonNullable<T[typeof key]>>) => {
+        // Type assertion needed because we're wrapping handlers with different signatures
+        // @ts-expect-error - Complex generic type that requires any assertion
+        stable[key] = ((...args: unknown[]) => {
           // Access latest handler from ref
           const currentHandler = handlersRef.current[key];
-          if (currentHandler) {
-            (currentHandler as NonNullable<T[typeof key]>)(...args);
+          if (currentHandler && typeof currentHandler === 'function') {
+            (currentHandler as (...args: unknown[]) => void)(...args);
           }
-        }) as T[typeof key];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        }) as any as T[typeof key];
       }
     }
 
     cleanupFunctionsRef.current = cleanupFunctions;
 
     return stable as T;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handlers, ...dependencies]);
 
   // Cleanup function to process pending batches

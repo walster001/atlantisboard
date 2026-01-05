@@ -18,7 +18,7 @@ interface User {
 
 interface Session {
   accessToken: string;
-  refreshToken: string;
+  refreshToken: string | null;
   user: User;
 }
 
@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const fetchAdminStatus = useCallback(async (userId: string) => {
+  const fetchAdminStatus = useCallback(async (_userId: string) => {
     try {
       // Use /auth/me endpoint which returns isAdmin directly
       const result = await api.request<{
@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   .eq('id', 'default')
                   .maybeSingle()
                   .then(({ data: settings }) => {
-                    if (settings?.loginStyle === 'google_verified') {
+                    if (settings && typeof settings === 'object' && settings !== null && 'loginStyle' in settings && settings.loginStyle === 'google_verified') {
                       verifyUserInDatabase(session.user.email).then((result) => {
                         if (!result.verified) {
                           setVerificationError(result.message || 'User does not exist in database');

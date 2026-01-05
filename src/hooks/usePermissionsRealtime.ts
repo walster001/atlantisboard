@@ -21,7 +21,7 @@ import {
   subscribeCustomRoles,
   subscribeRolePermissions,
 } from '@/realtime/permissionsSubscriptions';
-import type { RealtimePostgresChangesPayload } from '@/realtime/realtimeClient';
+import type { RealtimePostgresChangesPayload } from '@/integrations/api/realtime';
 
 interface UsePermissionsRealtimeOptions {
   boardId?: string | null;
@@ -55,7 +55,7 @@ export function usePermissionsRealtime(options: UsePermissionsRealtimeOptions = 
   const lastUpdateRef = useRef<number>(0);
   const DEBOUNCE_MS = 500;
 
-  const handlePermissionChange = useCallback((payload: PermissionChangePayload) => {
+  const handlePermissionChange = useCallback((_payload: PermissionChangePayload) => {
     const now = Date.now();
     if (now - lastUpdateRef.current < DEBOUNCE_MS) {
       return;

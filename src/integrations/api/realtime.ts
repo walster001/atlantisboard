@@ -28,9 +28,6 @@ interface PostgresChangeBinding {
   handler: PostgresChangeHandler;
 }
 
-interface ChannelSubscription {
-  unsubscribe: () => void;
-}
 
 interface RealtimeChannel {
   topic: string;
@@ -212,7 +209,7 @@ class RealtimeClient {
         if (isDev) console.log('[Realtime] Connection confirmed');
       } else if (message.payload?.type === 'pong') {
         // Heartbeat response
-      } else if (message.payload?.type === 'subscribed') {
+      } else if (message.payload?.type === 'subscribed' && message.payload.channel) {
         const channelState = this.channels.get(message.payload.channel);
         if (channelState) {
           channelState.state = 'SUBSCRIBED';
@@ -220,7 +217,7 @@ class RealtimeClient {
         }
         // Track server-restored channels to prevent duplicate subscriptions
         this.serverRestoredChannels.add(message.payload.channel);
-      } else if (message.payload?.type === 'unsubscribed') {
+      } else if (message.payload?.type === 'unsubscribed' && message.payload.channel) {
         const channelState = this.channels.get(message.payload.channel);
         if (channelState) {
           channelState.state = 'CLOSED';
@@ -231,14 +228,14 @@ class RealtimeClient {
     }
 
     // Handle database change events
-    if (message.event === 'INSERT' || message.event === 'UPDATE' || message.event === 'DELETE') {
+    if ((message.event === 'INSERT' || message.event === 'UPDATE' || message.event === 'DELETE') && message.channel) {
       const channelState = this.channels.get(message.channel);
       if (!channelState) {
         // Check if channel is workspace channel and use prefix matching only for workspace channels
         if (message.channel.startsWith('workspace:')) {
           const workspacePrefix = message.channel.split(':')[0] + ':';
           const matchingChannel = Array.from(this.channels.keys()).find(ch => 
-            ch.startsWith(workspacePrefix) && (message.channel.startsWith(ch) || ch.startsWith(message.channel))
+            ch.startsWith(workspacePrefix) && (message.channel!.startsWith(ch) || ch.startsWith(message.channel!))
           );
           if (matchingChannel) {
             const matchedState = this.channels.get(matchingChannel);
@@ -271,7 +268,7 @@ class RealtimeClient {
     }
 
     // Handle custom events (e.g., board.removed)
-    if (message.event === 'CUSTOM') {
+    if (message.event === 'CUSTOM' && message.channel) {
       const channelState = this.channels.get(message.channel);
       if (channelState) {
         // Custom events can be handled by bindings if needed
@@ -281,7 +278,8 @@ class RealtimeClient {
             if (binding.table === message.table) {
               binding.handler({
                 eventType: 'UPDATE', // Custom events as updates
-                new: message.payload,
+                table: message.table,
+                new: message.payload || null,
                 old: null,
               });
             }
@@ -293,7 +291,10 @@ class RealtimeClient {
 
   private processEventForChannel(channelState: ChannelState, message: WebSocketMessage): void {
     // Find matching bindings
-    channelState.bindings.forEach((binding, index) => {
+    if (!message.event || !message.table || !message.payload) {
+      return;
+    }
+    channelState.bindings.forEach((binding) => {
       const tableMatches = binding.table === message.table ||
         (binding.table === 'boardMembers' && message.table === 'board_members') ||
         (binding.table === 'board_members' && message.table === 'boardMembers') ||
@@ -304,19 +305,21 @@ class RealtimeClient {
 
       if (tableMatches && eventMatches) {
         // Apply filter if present
-        if (binding.filter) {
-          const filterMatch = this.matchesFilter(message.payload.new || message.payload.old, binding.filter);
+        if (binding.filter && message.payload) {
+          const filterMatch = this.matchesFilter((message.payload.new || message.payload.old) || null, binding.filter);
           if (!filterMatch) {
             return;
           }
         }
         // Call handler
-        binding.handler({
-          eventType: message.event,
-          table: message.table,
-          new: message.payload.new || null,
-          old: message.payload.old || null,
-        });
+        if (message.payload) {
+          binding.handler({
+            eventType: message.event as 'INSERT' | 'UPDATE' | 'DELETE',
+            table: message.table || '',
+            new: message.payload.new || null,
+            old: message.payload.old || null,
+          });
+        }
       }
     });
   }
@@ -387,7 +390,7 @@ class RealtimeClient {
       topic,
       bindings,
       state: 'CLOSED',
-      onStatus,
+      ...(onStatus && { onStatus }),
     };
 
     // Check if channel already exists and merge bindings if needed
@@ -476,7 +479,6 @@ class RealtimeChannelImpl implements RealtimeChannel {
   public topic: string;
   private client: RealtimeClient;
   private bindings: PostgresChangeBinding[] = [];
-  private onStatusCallback?: (status: RealtimeChannelState, error?: Error) => void;
   public state: RealtimeChannelState = 'CLOSED';
 
   constructor(topic: string, client: RealtimeClient) {
@@ -485,7 +487,7 @@ class RealtimeChannelImpl implements RealtimeChannel {
   }
 
   on(
-    event: 'postgres_changes',
+    _event: 'postgres_changes',
     config: {
       event: 'INSERT' | 'UPDATE' | 'DELETE' | '*';
       schema?: string;
@@ -494,22 +496,23 @@ class RealtimeChannelImpl implements RealtimeChannel {
     },
     handler: PostgresChangeHandler
   ): RealtimeChannel {
-    this.bindings.push({
+    const binding: PostgresChangeBinding = {
       event: config.event,
-      schema: config.schema,
       table: config.table,
-      filter: config.filter,
       handler,
-    });
+    };
+    if (config.schema) {
+      binding.schema = config.schema;
+    }
+    if (config.filter) {
+      binding.filter = config.filter;
+    }
+    this.bindings.push(binding);
     return this;
   }
 
   subscribe(callback?: (status: RealtimeChannelState, error?: Error) => void): RealtimeChannel {
-    this.onStatusCallback = callback;
-    this.client.addChannel(this.topic, this.bindings, (status, error) => {
-      this.state = status;
-      callback?.(status, error);
-    });
+    this.client.addChannel(this.topic, this.bindings, callback);
     return this;
   }
 

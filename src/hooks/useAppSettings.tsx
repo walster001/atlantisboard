@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
-import { api } from '@/integrations/api/client';
+import { getErrorMessage, getErrorName } from '@/lib/errorHandler';
 
 interface AppSettings {
   customHomeLogoEnabled: boolean;
@@ -76,9 +76,11 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       fetchedRef.current = true;
     } catch (error: unknown) {
       // Check if it's a connection error (backend not running)
-      const isConnectionError = error?.message?.includes('Failed to fetch') || 
-                                 error?.message?.includes('ERR_CONNECTION_REFUSED') ||
-                                 error?.name === 'TypeError';
+      const errorMessage = getErrorMessage(error);
+      const errorName = getErrorName(error);
+      const isConnectionError = errorMessage.includes('Failed to fetch') || 
+                                 errorMessage.includes('ERR_CONNECTION_REFUSED') ||
+                                 errorName === 'TypeError';
       
       if (isConnectionError) {
         // Backend not running - log once at warn level instead of error

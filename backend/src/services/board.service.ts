@@ -22,10 +22,6 @@ const updateBoardSchema = z.object({
   themeId: z.string().uuid().optional().nullable(),
 });
 
-/**
- * Extract storage path from a storage URL
- * Handles both MinIO/S3 format and API proxy format
- */
 function extractStoragePathFromUrl(url: string, bucket: string): string | null {
   if (!url) return null;
   
@@ -54,9 +50,6 @@ function extractStoragePathFromUrl(url: string, bucket: string): string | null {
   return null;
 }
 
-/**
- * Parse inline button data from base64-encoded data attribute
- */
 function parseInlineButtonFromDataAttr(dataAttr: string): { iconUrl?: string } | null {
   try {
     // Decode base64
@@ -67,10 +60,6 @@ function parseInlineButtonFromDataAttr(dataAttr: string): { iconUrl?: string } |
   }
 }
 
-/**
- * Extract inline button icon URLs from card description
- * Handles both [INLINE_BUTTON:base64data] format and legacy HTML format
- */
 function extractInlineButtonIconsFromDescription(description: string | null): string[] {
   if (!description) return [];
   

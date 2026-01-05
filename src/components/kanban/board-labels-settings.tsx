@@ -66,8 +66,8 @@ export function BoardLabelsSettings({
   // New label state
   const [newLabelName, setNewLabelName] = useState('');
   const [selectedColor, setSelectedColor] = useState<string>(LABEL_COLORS.blue);
-  const [customRgb, setCustomRgb] = useState({ r: 59, g: 130, b: 246 });
-  const [customHex, setCustomHex] = useState<string>('#3b82f6');
+  const [customRgb, setCustomRgb] = useState(DEFAULT_BLUE_RGB);
+  const [customHex, setCustomHex] = useState<string>(DEFAULT_BLUE_HEX);
   
   // Edit label state
   const [editLabelName, setEditLabelName] = useState('');

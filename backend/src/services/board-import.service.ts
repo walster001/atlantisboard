@@ -1,10 +1,3 @@
-/**
- * Board Import Service - Wekan Board Import
- * 
- * Handles importing Wekan boards with all their data (columns, cards, labels, subtasks).
- * Supports SSE streaming for progress updates.
- */
-
 import { prisma } from '../db/client.js';
 import { getErrorMessage, isError } from '../lib/typeGuards.js';
 import { Prisma } from '@prisma/client';
@@ -290,10 +283,6 @@ interface ImportResult {
   };
 }
 
-/**
- * Validate and normalize Wekan data structure
- * Handles both single board and array of boards
- */
 function validateAndNormalizeWekanData(wekanData: unknown): { boards: WekanBoard[]; warnings: string[] } {
   const warnings: string[] = [];
 

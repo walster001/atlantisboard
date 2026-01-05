@@ -1,7 +1,3 @@
-/**
- * Permissions UI Components
- */
-
 export { PermissionsSettings } from './permissions-settings';
 export { RolesList } from './roles-list';
 export { CategoriesList, calculateCategoryStatus } from './categories-list';

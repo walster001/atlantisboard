@@ -69,8 +69,8 @@ export function CardEditDialog({
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [newLabelText, setNewLabelText] = useState('');
   const [selectedLabelColor, setSelectedLabelColor] = useState<string>(LABEL_COLORS.blue);
-  const [customRgb, setCustomRgb] = useState({ r: 59, g: 130, b: 246 });
-  const [customHex, setCustomHex] = useState<string>('#3b82f6');
+  const [customRgb, setCustomRgb] = useState(DEFAULT_BLUE_RGB);
+  const [customHex, setCustomHex] = useState<string>(DEFAULT_BLUE_HEX);
 
   useEffect(() => {
     if (card) {

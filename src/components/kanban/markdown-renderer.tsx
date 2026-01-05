@@ -1,21 +1,3 @@
-/**
- * MarkdownRenderer.tsx
- * 
- * A secure React component that renders Markdown content without using dangerouslySetInnerHTML.
- * 
- * Features:
- * - Safely renders Markdown including tables, task lists, and strikethrough (GFM)
- * - Converts emoji shortcodes (e.g., :smile:) to Unicode emojis
- * - Ensures all links open in a new tab with rel="noopener noreferrer"
- * - Sanitizes any HTML in the input to prevent XSS attacks
- * - Renders inline buttons with proper styling and click-to-navigate functionality
- * 
- * This component uses react-markdown with:
- * - remark-gfm: GitHub Flavored Markdown (tables, strikethrough, task lists)
- * - remark-emoji: Convert emoji shortcodes to Unicode
- * - rehype-sanitize: Prevent XSS by sanitizing HTML
- */
-
 import { useMemo, useCallback, useLayoutEffect, useRef } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -31,17 +13,11 @@ import { observeTwemoji } from '@/lib/twemojiUtils';
 // ============================================================================
 
 interface MarkdownRendererProps {
-  /** Markdown content to render */
   content: string;
-  /** Additional CSS classes */
   className?: string;
-  /** Theme text color for custom styling */
   themeTextColor?: string;
-  /** Theme background color for contrast calculations */
   themeBackgroundColor?: string;
-  /** Called when an inline button is clicked */
   onInlineButtonClick?: (data: InlineButtonData) => void;
-  /** Called when the content area is clicked (for edit mode) */
   onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
@@ -49,16 +25,8 @@ interface MarkdownRendererProps {
 // Inline Button Detection & Parsing
 // ============================================================================
 
-/**
- * Regex to detect our serialized inline button format in the content.
- * Matches: [INLINE_BUTTON:base64EncodedData]
- */
 const INLINE_BUTTON_MARKDOWN_REGEX = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/g;
 
-/**
- * Component to render an inline button within markdown content.
- * Handles click events to navigate to the button's URL.
- */
 interface InlineButtonProps {
   data: InlineButtonData;
   onClick?: (data: InlineButtonData) => void;
@@ -115,10 +83,6 @@ function InlineButton({ data, onClick }: InlineButtonProps) {
 // Sanitization Schema
 // ============================================================================
 
-/**
- * Extended sanitization schema that allows our inline button elements
- * while still preventing XSS attacks.
- */
 const sanitizeSchema = {
   ...defaultSchema,
   tagNames: [
@@ -158,13 +122,6 @@ const sanitizeSchema = {
 // Content Pre-processing
 // ============================================================================
 
-/**
- * Converts legacy HTML inline buttons to our new markdown format.
- * Handles multiple formats:
- * 1. Our editable-inline-button format with data-inline-button attribute
- * 2. Original Wekan format: <span style="display:inline-flex"><img><a>text</a></span>
- * 3. Already converted [INLINE_BUTTON:...] format (pass through)
- */
 function convertLegacyInlineButtons(content: string): string {
   if (!content) return content;
   
@@ -216,10 +173,6 @@ function convertLegacyInlineButtons(content: string): string {
   return result;
 }
 
-/**
- * Detects if content contains raw HTML that should be converted to Markdown.
- * Returns true if content appears to be HTML-formatted.
- */
 function isHtmlContent(content: string): boolean {
   const trimmed = content.trim();
   
@@ -243,10 +196,6 @@ function isHtmlContent(content: string): boolean {
   return htmlTagPattern.test(content);
 }
 
-/**
- * Convert nested HTML lists to markdown, preserving indentation.
- * Processes lists from innermost to outermost to handle nesting correctly.
- */
 function convertNestedListsToMarkdown(html: string): string {
   if (!html) return html;
   
@@ -362,10 +311,6 @@ function convertNestedListsToMarkdown(html: string): string {
   return result;
 }
 
-/**
- * Convert HTML content to Markdown for safe rendering.
- * This handles legacy HTML descriptions from imports.
- */
 function htmlToMarkdown(html: string): string {
   if (!html) return '';
   
@@ -461,11 +406,6 @@ export function MarkdownRenderer({
   onInlineButtonClick,
   onClick,
 }: MarkdownRendererProps) {
-  /**
-   * Pre-process the content:
-   * 1. Convert legacy HTML to Markdown if needed
-   * 2. Convert legacy inline buttons to our new format
-   */
   const processedContent = useMemo(() => {
     if (!content) return '';
     
@@ -482,10 +422,6 @@ export function MarkdownRenderer({
     return processed;
   }, [content]);
 
-  /**
-   * Parse inline buttons from the content and render them as React components.
-   * Returns an array of content segments with inline button data.
-   */
   const contentSegments = useMemo(() => {
     if (!processedContent) return [];
     
@@ -535,10 +471,6 @@ export function MarkdownRenderer({
     return segments;
   }, [processedContent]);
 
-  /**
-   * Custom link renderer that opens all links in a new tab
-   * with proper security attributes.
-   */
   const LinkRenderer = useCallback<Components['a']>(({ href, children, ...props }) => (
     <a
       href={href}
@@ -551,9 +483,6 @@ export function MarkdownRenderer({
     </a>
   ), []);
 
-  /**
-   * Custom checkbox renderer for task lists.
-   */
   const CheckboxRenderer = useCallback<Components['input']>(({ checked, ...props }) => (
     <input
       type="checkbox"
@@ -564,9 +493,6 @@ export function MarkdownRenderer({
     />
   ), []);
 
-  /**
-   * Custom code renderer with proper styling.
-   */
   const CodeRenderer = useCallback<Components['code']>(({ inline, className: codeClassName, children, ...props }) => {
     if (inline) {
       return (
@@ -595,9 +521,6 @@ export function MarkdownRenderer({
     );
   }, [themeBackgroundColor]);
 
-  /**
-   * Custom table renderer with proper styling.
-   */
   const TableRenderer = useCallback<Components['table']>(({ children, ...props }) => (
     <div className="overflow-x-auto my-2">
       <table className="w-full border-collapse border border-border" {...props}>

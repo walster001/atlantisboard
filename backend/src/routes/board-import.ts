@@ -1,7 +1,3 @@
-/**
- * Board Import Routes - Wekan Board Import
- */
-
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { ValidationError } from '../middleware/errorHandler.js';
@@ -23,11 +19,6 @@ const importBoardSchema = z.object({
   iconReplacements: z.record(z.string(), z.string()).optional(), // Map of original URL -> replacement URL
 }).passthrough(); // Allow extra fields without throwing - supports future extensibility
 
-/**
- * POST /api/boards/import
- * Import Wekan board(s)
- * Supports SSE streaming via ?stream=true query parameter
- */
 router.post('/import', async (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;
   

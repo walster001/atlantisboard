@@ -16,11 +16,6 @@ interface PrismaQueryWithWhere {
   skip?: number;
 }
 
-/**
- * Resolve workspaceId for a given table and record
- * Supports both camelCase (Prisma) and snake_case (database) field names for compatibility
- * Handles different table types: boards, columns, cards, card_* tables, etc.
- */
 async function resolveWorkspaceIdForTable(
   table: string,
   record: Record<string, unknown>
@@ -113,10 +108,6 @@ async function resolveWorkspaceIdForTable(
   return undefined;
 }
 
-/**
- * Resolve boardId for a given table and record
- * Supports both camelCase and snake_case field names
- */
 async function resolveBoardIdForTable(
   table: string,
   record: Record<string, unknown>

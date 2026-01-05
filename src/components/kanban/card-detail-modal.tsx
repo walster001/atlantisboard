@@ -1,10 +1,3 @@
-/**
- * CardDetailModal.tsx
- * 
- * Modal component for viewing and editing card details.
- * Uses ToastUIMarkdownEditor for editing and MarkdownRenderer for display.
- */
-
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { Card, Label, getLabelHexColor } from '@/types/kanban';
 import { SwipeableSheet } from '@/components/ui/swipeable-sheet';
@@ -193,10 +186,6 @@ export function CardDetailModal({
     setShowLabelPicker(false);
   };
 
-  /**
-   * Handle inline button clicks from the MarkdownRenderer.
-   * Opens the button's URL in a new tab.
-   */
   const handleInlineButtonClick = useCallback((data: InlineButtonData) => {
     if (data.linkUrl) {
       const url = data.linkUrl.startsWith('http') ? data.linkUrl : `https://${data.linkUrl}`;
@@ -204,10 +193,6 @@ export function CardDetailModal({
     }
   }, []);
 
-  /**
-   * Handle clicks on the description area to enter edit mode.
-   * (Inline button clicks are handled separately by the MarkdownRenderer)
-   */
   const handleDescriptionContainerClick = useCallback(() => {
     if (!disabled) {
       setIsEditingDescription(true);

@@ -1,7 +1,3 @@
-/**
- * Storage Routes - File Upload/Download/Delete
- */
-
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
@@ -23,10 +19,6 @@ const upload = multer({
 // All routes require authentication
 router.use(authMiddleware);
 
-/**
- * POST /api/storage/:bucket/upload
- * Upload a file to a storage bucket
- */
 router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;
   try {
@@ -213,10 +205,6 @@ router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: 
   }
 });
 
-/**
- * GET /api/storage/:bucket/:path(*)
- * Download a file from storage
- */
 router.get('/:bucket/*', async (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;
   try {
@@ -261,10 +249,6 @@ router.get('/:bucket/*', async (req: Request, res: Response, next: NextFunction)
   }
 });
 
-/**
- * DELETE /api/storage/:bucket/:path(*)
- * Delete a file from storage
- */
 router.delete('/:bucket/*', async (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;
   try {
@@ -312,10 +296,6 @@ router.delete('/:bucket/*', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
-/**
- * GET /api/storage/:bucket/:path(*)/public-url
- * Get public URL for a file (for public buckets)
- */
 router.get('/:bucket/*/public-url', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { bucket } = req.params;

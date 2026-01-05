@@ -1,7 +1,3 @@
-/**
- * Invite Routes - Token Redemption
- */
-
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
@@ -18,10 +14,6 @@ const redeemInviteSchema = z.object({
   token: z.string().min(1),
 });
 
-/**
- * POST /api/invites/redeem
- * Redeem an invite token
- */
 router.post('/redeem', async (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;
   try {

@@ -1,11 +1,3 @@
-/**
- * ToastUIMarkdownEditor.tsx
- * 
- * A WYSIWYG Markdown editor using Toast UI Editor.
- * Uses Toast UI's widgetRules to render inline buttons as custom widgets.
- * Buttons can be clicked directly in the editor to edit them.
- */
-
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
@@ -63,9 +55,6 @@ const INLINE_BUTTON_WIDGET_RULE = /\[INLINE_BUTTON:([A-Za-z0-9+/=]+)\]/;
 
 const DEFAULT_BORDER_RADIUS = 4;
 
-/**
- * Create the widget DOM element for an inline button.
- */
 function createButtonWidget(encodedData: string): HTMLElement {
   const data = parseInlineButtonFromDataAttr(encodedData);
   
@@ -115,9 +104,6 @@ function createButtonWidget(encodedData: string): HTMLElement {
   return wrapper;
 }
 
-/**
- * Widget rules for Toast UI Editor
- */
 const widgetRules = [
   {
     rule: INLINE_BUTTON_WIDGET_RULE,

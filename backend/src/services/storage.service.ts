@@ -1,10 +1,3 @@
-/**
- * Storage Service - S3-Compatible File Storage
- * 
- * Handles file uploads, downloads, and deletions using S3-compatible storage.
- * Supports MinIO for local development and AWS S3 or other S3-compatible services for production.
- */
-
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, CreateBucketCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
@@ -33,16 +26,10 @@ class StorageService {
     }
   }
 
-  /**
-   * Get bucket name with prefix
-   */
   private getBucketName(bucket: string): string {
     return `${this.bucketPrefix}-${bucket}`;
   }
 
-  /**
-   * Check if storage is configured
-   */
   isConfigured(): boolean {
     return this.s3Client !== null;
   }

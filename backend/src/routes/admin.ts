@@ -1,7 +1,3 @@
-/**
- * Admin Routes - Admin-only operations
- */
-
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { ValidationError } from '../middleware/errorHandler.js';
@@ -33,10 +29,6 @@ const testMysqlConnectionSchema = z.object({
   verification_query: z.string().optional(),
 });
 
-/**
- * POST /api/admin/mysql-config
- * Save MySQL configuration (encrypted)
- */
 router.post('/mysql-config', async (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;
   try {
@@ -92,10 +84,6 @@ router.post('/mysql-config', async (req: Request, res: Response, next: NextFunct
   }
 });
 
-/**
- * POST /api/admin/mysql-config/test
- * Test MySQL connection
- */
 router.post('/mysql-config/test', async (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;
   try {

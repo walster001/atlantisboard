@@ -3,7 +3,6 @@ import { authMiddleware } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
 import { ValidationError } from '../middleware/errorHandler.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
-import { Prisma } from '@prisma/client';
 
 const router = Router();
 
@@ -16,97 +15,15 @@ interface PrismaQueryWithWhere {
   skip?: number;
 }
 
-async function resolveWorkspaceIdForTable(
-  table: string,
-  record: Record<string, unknown>
-): Promise<string | undefined> {
-  // Support both camelCase and snake_case field names
-  const getField = (camelCase: string, snakeCase: string): unknown => {
-    return record[camelCase] ?? record[snakeCase];
-  };
+// Type for Prisma model delegate with common methods
+type PrismaModelDelegate = {
+  count: (args?: { where?: Record<string, unknown> }) => Promise<number>;
+  findMany: (args?: PrismaQueryWithWhere) => Promise<unknown[]>;
+  create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
+  updateMany: (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<{ count: number }>;
+  deleteMany: (args: { where: Record<string, unknown> }) => Promise<{ count: number }>;
+};
 
-  const boardId = getField('boardId', 'board_id') as string | undefined;
-  const cardId = getField('cardId', 'card_id') as string | undefined;
-  const columnId = getField('columnId', 'column_id') as string | undefined;
-  const workspaceId = getField('workspaceId', 'workspace_id') as string | undefined;
-
-  // Direct workspaceId
-  if (workspaceId) {
-    return workspaceId;
-  }
-
-  // Boards have workspaceId directly
-  if (table === 'boards' && boardId) {
-    const board = await prisma.board.findUnique({
-      where: { id: boardId },
-      select: { workspaceId: true },
-    });
-    return board?.workspaceId;
-  }
-
-  // Columns: column → board → workspaceId
-  if (table === 'columns' && columnId) {
-    const column = await prisma.column.findUnique({
-      where: { id: columnId },
-      select: { boardId: true },
-    });
-    if (column?.boardId) {
-      const board = await prisma.board.findUnique({
-        where: { id: column.boardId },
-        select: { workspaceId: true },
-      });
-      return board?.workspaceId;
-    }
-  }
-
-  // Cards: card → column → board → workspaceId
-  if (table === 'cards' && cardId) {
-    const card = await prisma.card.findUnique({
-      where: { id: cardId },
-      include: { column: { select: { boardId: true } } },
-    });
-    if (card?.column?.boardId) {
-      const board = await prisma.board.findUnique({
-        where: { id: card.column.boardId },
-        select: { workspaceId: true },
-      });
-      return board?.workspaceId;
-    }
-  }
-
-  // Card detail tables (card_attachments, card_subtasks, etc.): cardId → column → board → workspaceId
-  if (table.startsWith('card_') && cardId) {
-    const card = await prisma.card.findUnique({
-      where: { id: cardId },
-      include: { column: { select: { boardId: true } } },
-    });
-    if (card?.column?.boardId) {
-      const board = await prisma.board.findUnique({
-        where: { id: card.column.boardId },
-        select: { workspaceId: true },
-      });
-      return board?.workspaceId;
-    }
-  }
-
-  // Board members: boardId → workspaceId
-  if (table === 'boardMembers' || table === 'board_members') {
-    if (boardId) {
-      const board = await prisma.board.findUnique({
-        where: { id: boardId },
-        select: { workspaceId: true },
-      });
-      return board?.workspaceId;
-    }
-  }
-
-  // Workspace members and workspaces: workspaceId is direct
-  if (table === 'workspaceMembers' || table === 'workspace_members' || table === 'workspaces') {
-    return workspaceId;
-  }
-
-  return undefined;
-}
 
 async function resolveBoardIdForTable(
   table: string,
@@ -290,7 +207,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as Record<string, unknown>)[modelName];
+    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[modelName] as PrismaModelDelegate | undefined;
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
@@ -313,7 +230,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
 
     // If count only, use count() method (much more efficient)
     if (countOnly) {
-      const count = await model.count(query);
+      const count = await model.count({ where: query.where });
       return res.json(count);
     }
 
@@ -367,7 +284,7 @@ router.post('/:table', async (req: Request, res: Response, next: NextFunction) =
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as Record<string, unknown>)[modelName];
+    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[modelName] as PrismaModelDelegate | undefined;
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
@@ -418,7 +335,7 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as Record<string, unknown>)[modelName];
+    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[modelName] as PrismaModelDelegate | undefined;
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
@@ -497,7 +414,7 @@ router.delete('/:table', async (req: Request, res: Response, next: NextFunction)
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as Record<string, unknown>)[modelName];
+    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[modelName] as PrismaModelDelegate | undefined;
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }

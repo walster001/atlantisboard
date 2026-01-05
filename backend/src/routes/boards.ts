@@ -383,7 +383,7 @@ router.delete('/:boardId/invites/:tokenId', async (req: Request, res: Response, 
       boardId: req.params.boardId,
       tokenId: req.params.tokenId,
     });
-    next(error);
+    return next(error);
   }
 });
 

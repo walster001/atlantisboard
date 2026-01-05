@@ -12,7 +12,6 @@ const router = Router();
 router.use(authMiddleware);
 
 // RPC Parameter Types
-type GetHomeDataParams = Record<string, never>;
 interface GetBoardDataParams {
   _board_id: string;
   _user_id?: string;
@@ -469,7 +468,7 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
 
 // POST /api/rpc/:functionName - Call RPC function
 router.post('/:functionName', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { functionName } = req.params;
     const handler = rpcHandlers[functionName];

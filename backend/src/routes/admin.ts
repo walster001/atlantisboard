@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { mysqlVerificationService } from '../services/mysql-verification.service.js';
 import mysql from 'mysql2/promise';
-import { getErrorMessage } from '../lib/typeGuards.js';
 
 const router = Router();
 

@@ -6,6 +6,24 @@ import { permissionService } from '../lib/permissions/service.js';
 import { boardImportService } from '../services/board-import.service.js';
 import { getErrorMessage, isError, isRecord } from '../lib/typeGuards.js';
 
+// ImportResult type matching the service
+interface ImportResult {
+  type: 'result';
+  success: boolean;
+  workspaces_created: number;
+  boards_created: number;
+  columns_created: number;
+  cards_created: number;
+  labels_created: number;
+  subtasks_created: number;
+  errors: string[];
+  warnings: string[];
+  createdIds?: {
+    workspaceId?: string;
+    boardIds?: string[];
+  };
+}
+
 const router = Router();
 
 // All routes require authentication
@@ -150,7 +168,7 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
         res.write(`data: ${JSON.stringify(update)}\n\n`);
       };
 
-      const sendResult = (result: Record<string, unknown>) => {
+      const sendResult = (result: ImportResult) => {
         res.write(`data: ${JSON.stringify(result)}\n\n`);
         res.end();
       };

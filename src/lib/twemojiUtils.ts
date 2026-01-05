@@ -36,14 +36,6 @@ export function applyTwemoji(element: HTMLElement, className: string = 'twemoji-
   });
 }
 
-/**
- * Create a MutationObserver that automatically applies Twemoji
- * whenever the observed element's content changes.
- * 
- * @param element - The DOM element to observe
- * @param className - Optional CSS class for the Twemoji images
- * @returns A cleanup function to disconnect the observer
- */
 export function observeTwemoji(
   element: HTMLElement | null,
   className: string = 'twemoji-inline'

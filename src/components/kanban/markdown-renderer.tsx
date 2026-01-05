@@ -23,7 +23,7 @@ import remarkGfm from 'remark-gfm';
 import remarkEmoji from 'remark-emoji';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { cn } from '@/lib/utils';
-import { parseInlineButtonFromDataAttr, type InlineButtonData } from './InlineButtonEditor';
+import { parseInlineButtonFromDataAttr, type InlineButtonData } from './inline-button-editor';
 import { observeTwemoji } from '@/lib/twemojiUtils';
 
 // ============================================================================

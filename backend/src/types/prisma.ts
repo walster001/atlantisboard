@@ -1,17 +1,3 @@
-/**
- * Prisma Types Export
- * 
- * This file exports Prisma-generated types for use in the frontend.
- * Run `npm run prisma:generate` in the backend directory to generate types.
- * 
- * Note: These types are generated from the Prisma schema and should be
- * kept in sync with the database schema.
- * 
- * IMPORTANT: Model types are not directly exported by Prisma client.
- * Use Prisma.Payload or infer types from PrismaClient operations.
- * For enum types, import directly from '@prisma/client'.
- */
-
 // Re-export Prisma namespace for type access
 export { Prisma } from '@prisma/client';
 

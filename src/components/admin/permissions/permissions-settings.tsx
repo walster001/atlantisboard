@@ -1,16 +1,11 @@
-/**
- * Permissions Settings Component
- * Main component for managing roles and permissions
- */
-
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { RolesList } from './RolesList';
-import { CategoriesList, calculateCategoryStatus } from './CategoriesList';
-import { RoleDetailView } from './RoleDetailView';
-import { AppAdminUserList } from './AppAdminUserList';
-import { CreateRoleDialog } from './CreateRoleDialog';
-import { DeleteRoleDialog } from './DeleteRoleDialog';
+import { RolesList } from './roles-list';
+import { CategoriesList, calculateCategoryStatus } from './categories-list';
+import { RoleDetailView } from './role-detail-view';
+import { AppAdminUserList } from './app-admin-user-list';
+import { CreateRoleDialog } from './create-role-dialog';
+import { DeleteRoleDialog } from './delete-role-dialog';
 import { usePermissionsData } from './usePermissionsData';
 import { PERMISSION_CATEGORIES, BUILT_IN_ROLE_PERMISSIONS, BOARD_LEVEL_CATEGORIES, CategoryStatus } from './types';
 import { PermissionKey } from '@/lib/permissions/types';

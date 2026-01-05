@@ -10,7 +10,7 @@ const realtimeApi = {
 
 type RealtimeChannelState = 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR';
 
-type RealtimeChannel = {
+interface RealtimeChannel {
   topic: string;
   state: RealtimeChannelState;
   on: (
@@ -25,15 +25,15 @@ type RealtimeChannel = {
   ) => RealtimeChannel;
   subscribe: (callback?: (status: RealtimeChannelState, error?: Error) => void) => RealtimeChannel;
   unsubscribe: () => RealtimeChannel;
-};
+}
 
-type PostgresChangeBinding = {
+interface PostgresChangeBinding {
   event: RealtimePostgresChangesPayload['eventType'] | '*';
   schema?: string;
   table: string;
   filter?: string;
   handler: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
-};
+}
 
 export type SubscriptionCleanup = () => void;
 

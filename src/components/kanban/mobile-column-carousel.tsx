@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
 import { Column, Card } from '@/types/kanban';
-import { KanbanCard } from './KanbanCard';
+import { KanbanCard } from './kanban-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ChevronLeft, ChevronRight, Plus, MoreHorizontal, Pencil, Trash2, Palette, XCircle, X, Check } from 'lucide-react';
@@ -12,9 +12,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ColorPicker } from './ColorPicker';
+import { ColorPicker } from './color-picker';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import { PullToRefreshIndicator } from './PullToRefreshIndicator';
+import { PullToRefreshIndicator } from './pull-to-refresh-indicator';
 
 // Helper function to convert hex to RGB
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {

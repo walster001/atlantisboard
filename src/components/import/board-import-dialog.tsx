@@ -19,9 +19,10 @@ import {
   DetectedInlineButton,
   scanWekanDataForInlineButtons,
   replaceInlineButtonImagesInWekanData,
-} from './InlineButtonIconDialog';
+} from './inline-button-icon-dialog';
 import type { WekanBoard, WekanExport, TrelloBoard } from './types';
 import type { CardInsert } from '@/types/api';
+import { RGB_MIN, RGB_MAX, HEX_BASE, DEFAULT_BLUE_RGB, DEFAULT_BLUE_HEX } from '@/lib/constants';
 interface ImportResult {
   success: boolean;
   workspacesCreated: number;
@@ -221,16 +222,16 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
+        r: parseInt(result[1], HEX_BASE),
+        g: parseInt(result[2], HEX_BASE),
+        b: parseInt(result[3], HEX_BASE),
       }
     : { r: 0, g: 0, b: 0 };
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
   return '#' + [r, g, b].map(x => {
-    const hex = Math.max(0, Math.min(255, Math.round(x))).toString(16);
+    const hex = Math.max(RGB_MIN, Math.min(RGB_MAX, Math.round(x))).toString(HEX_BASE);
     return hex.length === 1 ? '0' + hex : hex;
   }).join('');
 }
@@ -290,8 +291,8 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const [progress, setProgress] = useState<ProgressState>({ stage: 'idle', current: 0, total: 0 });
   const [defaultCardColor, setDefaultCardColor] = useState<string | null>(null);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
-  const [customRgb, setCustomRgb] = useState({ r: 59, g: 130, b: 246 }); // Default blue
-  const [customHex, setCustomHex] = useState('#3b82f6');
+  const [customRgb, setCustomRgb] = useState(DEFAULT_BLUE_RGB);
+  const [customHex, setCustomHex] = useState(DEFAULT_BLUE_HEX);
   
   // Inline button icon replacement state
   const [parsedWekanData, setParsedWekanData] = useState<WekanExport | null>(null);
@@ -310,7 +311,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
   // Handle RGB slider changes
   const handleRgbChange = (channel: 'r' | 'g' | 'b', value: string) => {
-    const numValue = Math.max(0, Math.min(255, parseInt(value) || 0));
+    const numValue = Math.max(RGB_MIN, Math.min(RGB_MAX, parseInt(value) || 0));
     const newRgb = { ...customRgb, [channel]: numValue };
     setCustomRgb(newRgb);
     const hex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);

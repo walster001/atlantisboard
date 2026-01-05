@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, Loader2, AlertTriangle } from 'lucide-react';
-import { ThemeColorInput, getAccessibilityInfo } from './ThemeColorInput';
+import { ThemeColorInput, getAccessibilityInfo } from './theme-color-input';
 import { useToast } from '@/hooks/use-toast';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { cn } from '@/lib/utils';

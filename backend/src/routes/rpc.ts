@@ -13,34 +13,95 @@ router.use(authMiddleware);
 
 // RPC Parameter Types
 type GetHomeDataParams = Record<string, never>;
-type GetBoardDataParams = { _board_id: string; _user_id?: string };
-type GetBoardMemberProfilesParams = { _board_id: string };
-type FindUserByEmailParams = { _email: string; _board_id: string };
-type IsAppAdminParams = { _user_id?: string };
-type GetBoardRoleParams = { _board_id: string; _user_id?: string };
-type IsBoardMemberParams = { _board_id: string; _user_id?: string };
-type CanEditBoardParams = { _board_id: string; _user_id?: string };
-type CanManageMembersParams = { _board_id: string; _user_id?: string };
-type CanCreateBoardInviteParams = { _board_id: string; _user_id?: string };
-type BatchUpdateColumnPositionsParams = { _user_id?: string; _board_id: string; _updates: unknown[] };
-type BatchUpdateCardPositionsParams = { _user_id?: string; _updates: unknown[] };
-type BatchUpdateBoardPositionsParams = { _user_id?: string; _workspace_id?: string; _updates: unknown[] };
-type MoveBoardToWorkspaceParams = { _user_id?: string; _board_id: string; _new_workspace_id?: string; _new_position: number };
-type UpdateCardParams = { _user_id?: string; _card_id: string; _title?: string; _description?: string; _due_date?: string };
-type BatchUpdateCardColorsParams = { _user_id?: string; _board_id: string; _card_ids: unknown[]; _color?: string | null };
-type BatchUpdateColumnColorsParams = { _user_id?: string; _board_id: string; _column_ids: unknown[]; _color?: string | null };
-type GetBoardDeletionCountsParams = { _board_id: string };
-type GetWorkspaceDeletionCountsParams = { _workspace_id: string };
+interface GetBoardDataParams {
+  _board_id: string;
+  _user_id?: string;
+}
+interface GetBoardMemberProfilesParams {
+  _board_id: string;
+}
+interface FindUserByEmailParams {
+  _email: string;
+  _board_id: string;
+}
+interface IsAppAdminParams {
+  _user_id?: string;
+}
+interface GetBoardRoleParams {
+  _board_id: string;
+  _user_id?: string;
+}
+interface IsBoardMemberParams {
+  _board_id: string;
+  _user_id?: string;
+}
+interface CanEditBoardParams {
+  _board_id: string;
+  _user_id?: string;
+}
+interface CanManageMembersParams {
+  _board_id: string;
+  _user_id?: string;
+}
+interface CanCreateBoardInviteParams {
+  _board_id: string;
+  _user_id?: string;
+}
+interface BatchUpdateColumnPositionsParams {
+  _user_id?: string;
+  _board_id: string;
+  _updates: unknown[];
+}
+interface BatchUpdateCardPositionsParams {
+  _user_id?: string;
+  _updates: unknown[];
+}
+interface BatchUpdateBoardPositionsParams {
+  _user_id?: string;
+  _workspace_id?: string;
+  _updates: unknown[];
+}
+interface MoveBoardToWorkspaceParams {
+  _user_id?: string;
+  _board_id: string;
+  _new_workspace_id?: string;
+  _new_position: number;
+}
+interface UpdateCardParams {
+  _user_id?: string;
+  _card_id: string;
+  _title?: string;
+  _description?: string;
+  _due_date?: string;
+}
+interface BatchUpdateCardColorsParams {
+  _user_id?: string;
+  _board_id: string;
+  _card_ids: unknown[];
+  _color?: string | null;
+}
+interface BatchUpdateColumnColorsParams {
+  _user_id?: string;
+  _board_id: string;
+  _column_ids: unknown[];
+  _color?: string | null;
+}
+interface GetBoardDeletionCountsParams {
+  _board_id: string;
+}
+interface GetWorkspaceDeletionCountsParams {
+  _workspace_id: string;
+}
 
 // RPC Return Types
-type DeletionCounts = {
+interface DeletionCounts {
   columns?: number;
   cards?: number;
   members?: number;
   labels?: number;
   attachments?: number;
   boards?: number;
-};
+}
 
 // Type for RPC handler parameters (generic fallback)
 type RPCParams = Record<string, unknown>;

@@ -1,8 +1,3 @@
-/**
- * Toggle Slider Component
- * A custom toggle with support for tri-state (on/partial/off)
- */
-
 import { cn } from '@/lib/utils';
 
 interface ToggleSliderProps {

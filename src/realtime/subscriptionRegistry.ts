@@ -15,12 +15,12 @@ const STORAGE_KEY = 'realtime_workspace_subscriptions';
 type GlobalHandler = (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
 
 // Type for global subscription configuration
-type GlobalSubscriptionConfig = {
+interface GlobalSubscriptionConfig {
   channel: string;
   table: string;
   event: RealtimePostgresChangesPayload['eventType'] | '*';
   filter?: string;
-};
+}
 
 class SubscriptionRegistry {
   private subscriptions: Map<string, SubscriptionCleanup> = new Map();

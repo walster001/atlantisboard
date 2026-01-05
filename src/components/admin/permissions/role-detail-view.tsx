@@ -1,12 +1,7 @@
-/**
- * Role Detail View Component
- * Shows permissions for the selected role and category
- */
-
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ToggleSlider } from './ToggleSlider';
+import { ToggleSlider } from './toggle-slider';
 import { 
   PERMISSION_CATEGORIES, 
   BUILT_IN_ROLES, 
@@ -14,7 +9,7 @@ import {
   CustomRole 
 } from './types';
 import { PermissionKey } from '@/lib/permissions/types';
-import { calculateCategoryStatus } from './CategoriesList';
+import { calculateCategoryStatus } from './categories-list';
 
 interface RoleDetailViewProps {
   roleId: string;

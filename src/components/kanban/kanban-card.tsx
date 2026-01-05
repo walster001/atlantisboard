@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { ColorPicker } from './ColorPicker';
+import { ColorPicker } from './color-picker';
 import twemoji from '@twemoji/api';
 
 // Strip HTML tags from text for plain display

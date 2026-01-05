@@ -1,10 +1,3 @@
-/**
- * WebSocket Server for Realtime Updates
- * 
- * Replaces Supabase Realtime with a custom WebSocket implementation.
- * Supports channel subscriptions and event broadcasting.
- */
-
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server, IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
@@ -295,13 +288,6 @@ class RealtimeServer {
     }
   }
 
-  /**
-   * Extract UUID from channel name
-   * Handles formats like:
-   * - workspace:{uuid} (primary channel format)
-   * - board:{uuid} (legacy, no longer used)
-   * - user:{uuid}
-   */
   private extractUuidFromChannel(channel: string, prefix: string): string | undefined {
     // UUID regex: 8-4-4-4-12 hexadecimal characters
     const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
@@ -322,9 +308,6 @@ class RealtimeServer {
     return undefined;
   }
 
-  /**
-   * Broadcast event to all clients subscribed to a channel
-   */
   async broadcast(event: RealtimeEvent) {
     const { channel } = event;
     let sentCount = 0;
@@ -408,10 +391,6 @@ class RealtimeServer {
 
   }
 
-  /**
-   * Check if user has access to a board
-   * Uses caching to avoid race conditions when users are promoted
-   */
   private async checkBoardAccess(userId: string, boardId: string, forceRefresh = false): Promise<boolean> {
     const cacheKey = `${userId}:${boardId}`;
     const now = Date.now();
@@ -448,11 +427,6 @@ class RealtimeServer {
     return hasAccess;
   }
 
-  /**
-   * Invalidate access cache for a user/board combination
-   * Call this when membership changes to ensure fresh access checks
-   * If userId is '*', invalidates all users for that board
-   */
   private invalidateAccessCache(userId: string, boardId: string) {
     if (userId === '*') {
       // Invalidate all users for this board
@@ -467,28 +441,15 @@ class RealtimeServer {
     }
   }
 
-  /**
-   * Generate cache key for an entity
-   * Supports entity-based keys: card:${id}, column:${id}, board:${id}
-   */
   private getCacheKey(entityType: 'board' | 'column' | 'card', entityId: string): string {
     return `${entityType}:${entityId}`;
   }
 
-  /**
-   * Invalidate workspaceId cache for entities
-   * Call this when cards/columns/boards are moved or deleted
-   */
   private invalidateWorkspaceIdCache(entityType: 'board' | 'column' | 'card', entityId: string) {
     const cacheKey = this.getCacheKey(entityType, entityId);
     this.workspaceIdCache.delete(cacheKey);
   }
 
-  /**
-   * Cascade invalidate workspaceId cache for related entities
-   * When a column is moved, invalidate all cards in that column
-   * When a board is moved, invalidate all columns and cards in that board
-   */
   private async invalidateWorkspaceIdCacheCascade(
     entityType: 'board' | 'column' | 'card',
     entityId: string
@@ -531,10 +492,6 @@ class RealtimeServer {
     // Cards don't cascade to anything
   }
 
-  /**
-   * Resolve workspaceId for a given entity
-   * Uses caching to reduce database queries
-   */
   private async resolveWorkspaceId(
     entityId: string | undefined,
     boardId?: string,
@@ -640,9 +597,6 @@ class RealtimeServer {
     return workspaceId;
   }
 
-  /**
-   * Determine entity type and hierarchy metadata for an event
-   */
   private determineEntityMetadata(
     table: string,
     newRecord?: Record<string, unknown>,
@@ -679,10 +633,6 @@ class RealtimeServer {
     return { entityType: 'board', entityId, parentId: undefined };
   }
 
-  /**
-   * Emit database change event
-   * Refactored to use parent-child hierarchy: always emit to workspace channel first
-   */
   async emitDatabaseChange(
     table: string,
     event: 'INSERT' | 'UPDATE' | 'DELETE',
@@ -904,9 +854,6 @@ class RealtimeServer {
     }
   }
 
-  /**
-   * Emit custom event (e.g., board.removed)
-   */
   async emitCustomEvent(channel: string, eventType: string, payload: Record<string, unknown>) {
     await this.broadcast({
       event: 'CUSTOM',
@@ -918,9 +865,6 @@ class RealtimeServer {
     });
   }
 
-  /**
-   * Cleanup on server shutdown
-   */
   shutdown() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);

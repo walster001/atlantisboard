@@ -10,6 +10,7 @@ import { Loader2, Plus, Pencil, Trash2, Pipette, X, Check } from 'lucide-react';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { LABEL_COLORS, LabelColorName } from '@/types/kanban';
 import { cn } from '@/lib/utils';
+import { HEX_BASE, DEFAULT_BLUE_RGB, DEFAULT_BLUE_HEX } from '@/lib/constants';
 import '@/types/browser'; // Import browser API types
 
 interface BoardLabel {
@@ -40,9 +41,9 @@ const PRESET_LABEL_COLORS: { name: LabelColorName; hex: string }[] = [
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
+    r: parseInt(result[1], HEX_BASE),
+    g: parseInt(result[2], HEX_BASE),
+    b: parseInt(result[3], HEX_BASE)
   } : null;
 }
 
@@ -71,8 +72,8 @@ export function BoardLabelsSettings({
   // Edit label state
   const [editLabelName, setEditLabelName] = useState('');
   const [editSelectedColor, setEditSelectedColor] = useState<string>(LABEL_COLORS.blue);
-  const [editCustomRgb, setEditCustomRgb] = useState({ r: 59, g: 130, b: 246 });
-  const [editCustomHex, setEditCustomHex] = useState<string>('#3b82f6');
+  const [editCustomRgb, setEditCustomRgb] = useState(DEFAULT_BLUE_RGB);
+  const [editCustomHex, setEditCustomHex] = useState<string>(DEFAULT_BLUE_HEX);
 
   const handleSelectPresetColor = (hex: string, isEdit = false) => {
     if (isEdit) {

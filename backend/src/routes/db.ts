@@ -8,13 +8,13 @@ import { Prisma } from '@prisma/client';
 const router = Router();
 
 // Type for Prisma query builder with where clause
-type PrismaQueryWithWhere = {
+interface PrismaQueryWithWhere {
   where: Record<string, unknown>;
   select?: Record<string, boolean>;
   orderBy?: Record<string, 'asc' | 'desc'>;
   take?: number;
   skip?: number;
-};
+}
 
 /**
  * Resolve workspaceId for a given table and record

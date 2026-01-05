@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Pipette, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { RGB_MIN, RGB_MAX, HEX_BASE } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import {
   Tooltip,
@@ -18,16 +19,16 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
+        r: parseInt(result[1], HEX_BASE),
+        g: parseInt(result[2], HEX_BASE),
+        b: parseInt(result[3], HEX_BASE),
       }
     : null;
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
   return '#' + [r, g, b].map(x => {
-    const hex = Math.max(0, Math.min(255, Math.round(x))).toString(16);
+    const hex = Math.max(RGB_MIN, Math.min(RGB_MAX, Math.round(x))).toString(HEX_BASE);
     return hex.length === 1 ? '0' + hex : hex;
   }).join('');
 }

@@ -1,13 +1,7 @@
-/**
- * Type guard to check if an unknown value is an Error instance
- */
 export function isError(error: unknown): error is Error {
   return error instanceof Error;
 }
 
-/**
- * Safely extracts error message from unknown error type
- */
 export function getErrorMessage(error: unknown): string {
   if (isError(error)) {
     return error.message;
@@ -21,9 +15,6 @@ export function getErrorMessage(error: unknown): string {
   return 'An unknown error occurred';
 }
 
-/**
- * Safely extracts error name from unknown error type
- */
 export function getErrorName(error: unknown): string | undefined {
   if (isError(error)) {
     return error.name;
@@ -34,10 +25,6 @@ export function getErrorName(error: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * User-friendly error message mapper.
- * Converts raw database/API errors to safe user messages without exposing internal details.
- */
 export function getUserFriendlyError(error: unknown): string {
   const message = getErrorMessage(error).toLowerCase();
   

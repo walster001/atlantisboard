@@ -1,8 +1,3 @@
-/**
- * Categories List Component
- * Displays permission categories with status indicators
- */
-
 import { 
   Settings, Palette, LayoutGrid, Trello, Settings2, 
   Users, Columns3, StickyNote, Tag, Paperclip, CheckSquare, Shield

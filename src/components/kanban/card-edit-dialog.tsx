@@ -17,15 +17,16 @@ import { Slider } from '@/components/ui/slider';
 import { Calendar as CalendarIcon, X, Tag, Pipette } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { HEX_BASE, DEFAULT_BLUE_RGB, DEFAULT_BLUE_HEX } from '@/lib/constants';
 import '@/types/browser'; // Import browser API types
 
 // Helper functions for color conversion
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
+    r: parseInt(result[1], HEX_BASE),
+    g: parseInt(result[2], HEX_BASE),
+    b: parseInt(result[3], HEX_BASE)
   } : null;
 }
 

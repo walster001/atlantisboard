@@ -2,12 +2,12 @@
  * Permissions UI Components
  */
 
-export { PermissionsSettings } from './PermissionsSettings';
-export { RolesList } from './RolesList';
-export { CategoriesList, calculateCategoryStatus } from './CategoriesList';
-export { RoleDetailView } from './RoleDetailView';
-export { ToggleSlider } from './ToggleSlider';
-export { CreateRoleDialog } from './CreateRoleDialog';
-export { DeleteRoleDialog } from './DeleteRoleDialog';
+export { PermissionsSettings } from './permissions-settings';
+export { RolesList } from './roles-list';
+export { CategoriesList, calculateCategoryStatus } from './categories-list';
+export { RoleDetailView } from './role-detail-view';
+export { ToggleSlider } from './toggle-slider';
+export { CreateRoleDialog } from './create-role-dialog';
+export { DeleteRoleDialog } from './delete-role-dialog';
 export { usePermissionsData } from './usePermissionsData';
 export * from './types';

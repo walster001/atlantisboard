@@ -6,10 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, Loader2, Settings, Wrench, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BrandingSettings } from '@/components/admin/BrandingSettings';
-import { CustomFontsSettings } from '@/components/admin/CustomFontsSettings';
-import { AppBrandingSettings } from '@/components/admin/AppBrandingSettings';
-import { LoginOptionsSettings } from '@/components/admin/LoginOptionsSettings';
+import { BrandingSettings } from '@/components/admin/branding-settings';
+import { CustomFontsSettings } from '@/components/admin/custom-fonts-settings';
+import { AppBrandingSettings } from '@/components/admin/app-branding-settings';
+import { LoginOptionsSettings } from '@/components/admin/login-options-settings';
 import { PermissionsSettings } from '@/components/admin/permissions';
 
 // Placeholder settings data structure

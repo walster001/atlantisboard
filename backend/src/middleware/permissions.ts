@@ -1,18 +1,9 @@
-/**
- * Permission Middleware
- * 
- * Middleware for protecting routes with permission checks.
- */
-
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.js';
 import { PermissionKey } from '../lib/permissions/types.js';
 import { permissionService } from '../lib/permissions/service.js';
 import { ForbiddenError } from './errorHandler.js';
 
-/**
- * Middleware factory to require a specific permission
- */
 export function requirePermission(permission: PermissionKey): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
   return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -40,9 +31,6 @@ export function requirePermission(permission: PermissionKey): (req: AuthRequest,
   };
 }
 
-/**
- * Middleware factory to require any of the given permissions
- */
 export function requireAnyPermission(...permissions: PermissionKey[]): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
   return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -79,9 +67,6 @@ export function requireAnyPermission(...permissions: PermissionKey[]): (req: Aut
   };
 }
 
-/**
- * Middleware factory to require all of the given permissions
- */
 export function requireAllPermissions(...permissions: PermissionKey[]): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
   return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {

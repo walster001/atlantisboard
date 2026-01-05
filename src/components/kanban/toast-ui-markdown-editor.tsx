@@ -10,7 +10,7 @@ import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
 import { cn } from '@/lib/utils';
-import { InlineButtonEditor, InlineButtonData, parseInlineButtonFromDataAttr } from './InlineButtonEditor';
+import { InlineButtonEditor, InlineButtonData, parseInlineButtonFromDataAttr } from './inline-button-editor';
 import twemoji from '@twemoji/api';
 import { 
   EMOJI_CATEGORIES, 

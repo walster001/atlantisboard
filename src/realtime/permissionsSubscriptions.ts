@@ -5,15 +5,15 @@ import { getSubscriptionRegistry } from './subscriptionRegistry';
 
 type DbRecord = Record<string, unknown>;
 
-type PermissionHandlers = {
+interface PermissionHandlers {
   onChange?: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
-};
+}
 
-type BoardPermissionHandlers = {
+interface BoardPermissionHandlers {
   onChange?: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
   onAffectsUser?: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
   currentUserId?: string;
-};
+}
 
 export function subscribeCustomRoles(handlers: PermissionHandlers): SubscriptionCleanup {
   const topic = 'permissions-custom-roles';

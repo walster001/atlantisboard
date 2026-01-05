@@ -28,11 +28,11 @@ import {
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { ToastUIMarkdownEditor } from './ToastUIMarkdownEditor';
-import { MarkdownRenderer } from './MarkdownRenderer';
-import { CardAttachmentSection } from './CardAttachmentSection';
-import { CardSubtaskSection, Subtask } from './CardSubtaskSection';
-import type { InlineButtonData } from './InlineButtonEditor';
+import { ToastUIMarkdownEditor } from './toast-ui-markdown-editor';
+import { MarkdownRenderer } from './markdown-renderer';
+import { CardAttachmentSection } from './card-attachment-section';
+import { CardSubtaskSection, Subtask } from './card-subtask-section';
+import type { InlineButtonData } from './inline-button-editor';
 import { observeTwemoji } from '@/lib/twemojiUtils';
 
 // Strip HTML tags from text for plain display

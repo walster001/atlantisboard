@@ -8,7 +8,7 @@ import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Upload, Trash2, Loader2 } from 'lucide-react';
-import { ThemeColorInput } from './ThemeColorInput';
+import { ThemeColorInput } from './theme-color-input';
 import { cn } from '@/lib/utils';
 
 interface BoardTheme {

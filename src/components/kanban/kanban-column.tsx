@@ -1,8 +1,8 @@
 import { useState, memo, useCallback, useRef, useEffect } from 'react';
 import { Draggable, Droppable } from '@hello-pangea/dnd';
 import { Column, Card } from '@/types/kanban';
-import { KanbanCard } from './KanbanCard';
-import { ColorPicker } from './ColorPicker';
+import { KanbanCard } from './kanban-card';
+import { ColorPicker } from './color-picker';
 import { MoreHorizontal, Plus, Trash2, Pencil, X, Check, Palette, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

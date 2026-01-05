@@ -1,12 +1,3 @@
-/**
- * Permission Test Runner
- * 
- * Run this in the browser console or import it to execute tests:
- * 
- * import { runAllPermissionTests } from '@/lib/permissions/runTests';
- * runAllPermissionTests();
- */
-
 import { 
   validateClientPermissions,
   generatePermissionMatrix,
@@ -19,9 +10,6 @@ import {
 import { ALL_PERMISSIONS, APP_PERMISSIONS, BoardRole } from './types';
 import { api } from '@/integrations/api/client';
 
-/**
- * Run all client-side permission validation tests.
- */
 export function runClientValidation(): void {
   console.log('\n🔍 PERMISSION SYSTEM VALIDATION');
   console.log('================================\n');
@@ -65,9 +53,6 @@ export function runClientValidation(): void {
   console.log(formatPermissionMatrixAsTable());
 }
 
-/**
- * Run server-side permission tests for the current user.
- */
 export async function runServerValidation(): Promise<void> {
   console.log('\n🔐 SERVER-SIDE PERMISSION VALIDATION');
   console.log('=====================================\n');
@@ -158,9 +143,6 @@ export async function runServerValidation(): Promise<void> {
   }
 }
 
-/**
- * Run all permission tests.
- */
 export async function runAllPermissionTests(): Promise<void> {
   console.clear();
   console.log('╔══════════════════════════════════════════════════════════════╗');

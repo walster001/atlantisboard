@@ -1,8 +1,10 @@
 ---
-description: Code Quality Guidelines
-globs: 
+alwaysApply: true
 ---
 # Code Quality Guidelines
+
+## Always use semicolons (;) for command chaining in PowerShell
+When running commands in PowerShell (including Windows PowerShell), always use semicolons (;) to chain commands. Never use bash-style && command chaining as it is incompatible with Windows PowerShell.
 
 ## Verify Information
 Always verify information before presenting it. Do not make assumptions or speculate without clear evidence.

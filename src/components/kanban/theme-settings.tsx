@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
-import { ThemeEditorModal, BoardTheme } from './ThemeEditorModal';
+import { ThemeEditorModal, BoardTheme } from './theme-editor-modal';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import {
   AlertDialog,

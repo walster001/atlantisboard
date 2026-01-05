@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { api } from '@/integrations/api/client';
@@ -80,7 +80,6 @@ export default function BoardPage() {
   const [editingCard, setEditingCard] = useState<{ card: CardType; columnId: string } | null>(null);
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState('');
-  const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { ref: dragScrollRef, isDragging, isSpaceHeld } = useDragScroll<HTMLDivElement>();
   
@@ -720,8 +719,6 @@ export default function BoardPage() {
       } else if (event.eventType === 'UPDATE') {
         const updatedCard = cardData;
         const previous = event.old as unknown as DbCard;
-        const previousColumnId = previous?.columnId;
-        const columnChanged = previousColumnId && previousColumnId !== updatedCard.columnId;
         
         // Extract and normalize timestamps
         const incomingUpdatedAt = getUpdatedAt(updatedCard);
@@ -798,7 +795,6 @@ export default function BoardPage() {
           if (pendingUpdate) {
             // Compare timestamps for conflict resolution
             const optimisticTimestamp = pendingUpdate.updatedAt;
-            const localTimestamp = existingCard?.updatedAt ? normalizeTimestamp(existingCard.updatedAt) : 0;
             
             // If realtime event matches our optimistic state exactly, ignore it (echo suppression)
             if (pendingUpdate.columnId === updatedCard.columnId && 
@@ -968,7 +964,6 @@ export default function BoardPage() {
           if (newRole === 'viewer' && oldRole !== 'viewer') {
             console.log('[BoardPage] User demoted to viewer, closing settings dialogs');
             setSettingsModalOpen(false);
-            setMembersDialogOpen(false);
             toast({
               title: 'Access changed',
               description: 'You have been demoted to viewer. Settings dialogs have been closed.',
@@ -1056,11 +1051,9 @@ export default function BoardPage() {
     }
   }, [user, boardId]);
 
-  // Memoize column IDs and update ref for synchronous access
-  const columnIds = useMemo(() => {
-    const ids = columns.map(c => c.id);
-    columnIdsRef.current = ids;
-    return ids;
+  // Update column IDs ref when columns change
+  useEffect(() => {
+    columnIdsRef.current = columns.map(c => c.id);
   }, [columns]);
 
   // Unified realtime subscription using workspace (parent-child hierarchy)
@@ -1087,6 +1080,7 @@ export default function BoardPage() {
       }, 50);
       return () => clearTimeout(timeoutId);
     }
+    return undefined;
   }, [columns, processBufferedCardEvents]);
 
   // Lightweight theme refresh - updates theme without triggering loading state
@@ -1158,7 +1152,7 @@ export default function BoardPage() {
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
-  const { can, canEdit, canManageMembers, isAppAdmin: permissionsAppAdmin } = usePermissions(boardId, userRole);
+  const { canEdit, canManageMembers } = usePermissions(boardId, userRole);
   
   // App Admin has full access regardless of board membership
   const effectiveCanEdit = canEdit || isAppAdmin;
@@ -1400,8 +1394,6 @@ export default function BoardPage() {
       const updated = prev.map((c) => {
         const update = uniqueUpdates.find((u) => u.id === c.id);
         if (update) {
-          // Get current card's updatedAt or use current time
-          const currentUpdatedAt = c.updatedAt ? normalizeTimestamp(c.updatedAt) : now;
           // Use current time for optimistic update (will be replaced by server timestamp)
           const optimisticUpdatedAt = now;
           
@@ -1669,7 +1661,7 @@ export default function BoardPage() {
       }
 
       // Assign label to card using dedicated endpoint
-      const { data, error } = await api.request(`/labels/${labelId}/assign`, {
+      const { error } = await api.request(`/labels/${labelId}/assign`, {
         method: 'POST',
         body: JSON.stringify({ cardId }),
       });
@@ -1687,7 +1679,7 @@ export default function BoardPage() {
     // Early return for better UX - permission checks will reject if user lacks permission
     if (!effectiveCanEdit) return;
     try {
-      const { data, error } = await api.request(`/labels/${labelId}/assign/${cardId}`, {
+      const { error } = await api.request(`/labels/${labelId}/assign/${cardId}`, {
         method: 'DELETE',
       });
       if (error) throw error;

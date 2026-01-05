@@ -1,4 +1,4 @@
 ---
-alwaysApply: true
+alwaysApply: false
 ---
 - TODO Comments: If you encounter a bug in existing code, or the instructions lead to suboptimal or buggy code, add comments starting with "TODO:" outlining the problems.

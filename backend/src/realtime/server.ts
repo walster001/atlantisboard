@@ -202,12 +202,20 @@ class RealtimeServer {
 
   private handleMessage(client: ClientConnection, message: RealtimeClientMessage) {
     switch (message.type) {
-      case 'subscribe':
-        this.handleSubscribe(client, message.channel);
+      case 'subscribe': {
+        const channel = message.channel;
+        if (channel) {
+          this.handleSubscribe(client, channel);
+        }
         break;
-      case 'unsubscribe':
-        this.handleUnsubscribe(client, message.channel);
+      }
+      case 'unsubscribe': {
+        const channel = message.channel;
+        if (channel) {
+          this.handleUnsubscribe(client, channel);
+        }
         break;
+      }
       case 'ping':
         this.send(client.ws, {
           event: 'CUSTOM',

@@ -257,14 +257,10 @@ class PermissionService {
     const context: PermissionContext = {
       userId,
       isAppAdmin,
+      ...(boardId !== undefined && { boardId }),
+      ...(boardRole !== undefined && { boardRole }),
     };
-    if (boardId !== undefined) {
-      context.boardId = boardId;
-    }
-    if (boardRole !== undefined) {
-      context.boardRole = boardRole;
-    }
-    return context as PermissionContext;
+    return context;
   }
 }
 

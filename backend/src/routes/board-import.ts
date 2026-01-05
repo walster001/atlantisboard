@@ -146,7 +146,7 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
-      const sendProgress = (update: Record<string, unknown>) => {
+      const sendProgress = (update: { type: 'progress'; stage: string; current: number; total: number; detail?: string; createdIds?: { workspaceId?: string; boardIds?: string[] } }) => {
         res.write(`data: ${JSON.stringify(update)}\n\n`);
       };
 

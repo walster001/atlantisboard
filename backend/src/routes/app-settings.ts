@@ -3,7 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
 import { ForbiddenError } from '../middleware/errorHandler.js';
 import { Prisma } from '@prisma/client';
-import { getErrorMessage, isPrismaKnownRequestError, isRecord, isError } from '../lib/typeGuards.js';
+import { getErrorMessage, isPrismaKnownRequestError, isError } from '../lib/typeGuards.js';
 
 const router = Router();
 

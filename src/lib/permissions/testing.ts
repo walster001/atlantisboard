@@ -178,7 +178,9 @@ export async function testServerPermission(
       return { hasPermission: false, error: error.message };
     }
 
-    return { hasPermission: data ?? false };
+    // Ensure data is a boolean - handle case where data might be {} or other non-boolean types
+    const hasPermission = data === true || data === false ? data : false;
+    return { hasPermission };
   } catch (e) {
     return { hasPermission: false, error: String(e) };
   }
@@ -247,14 +249,17 @@ export async function runPermissionTests(
     const clientResult = clientResults[permission];
     const serverResult = serverPermSet.has(permission);
     
-    results.push({
+    const result: PermissionTestResult = {
       permission,
       role: boardRole,
       clientResult,
       serverResult,
       match: clientResult === serverResult,
-      error: serverPerms.error,
-    });
+    };
+    if (serverPerms.error) {
+      result.error = serverPerms.error;
+    }
+    results.push(result);
   }
   
   const mismatches = results.filter(r => !r.match && r.serverResult !== null);

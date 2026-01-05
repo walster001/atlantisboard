@@ -4,7 +4,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, MoreHorizontal, Trash2, LogOut, User, Loader2, LayoutDashboard, Settings, Pencil, FileText, Upload } from 'lucide-react';
 import { BoardImportDialog } from '@/components/import/board-import-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getUserFriendlyError, getErrorMessage, getErrorName } from '@/lib/errorHandler';
+import { getUserFriendlyError, getErrorMessage } from '@/lib/errorHandler';
 import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
 import { subscribeAllWorkspacesViaRegistry, subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
@@ -49,6 +49,7 @@ function darkenColor(hex: string, percent: number): string {
 }
 
 // Map colors to theme names (kept for reference/backwards compatibility)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const COLOR_THEME_MAP: Record<string, string> = {
   '#0079bf': 'Ocean Blue',
   '#d29034': 'Sunset Orange',
@@ -72,6 +73,7 @@ export default function Home() {
   const [boardRoles, setBoardRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
   
   // Track dynamic workspace subscriptions
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const workspaceSubscriptionsRef = useRef<Map<string, () => void>>(new Map());
   const [loading, setLoading] = useState(true);
   
@@ -338,7 +340,7 @@ export default function Home() {
 
   // Create stable handlers with batching and stable references
   const stableHandlers = useStableRealtimeHandlers({
-    onBoardUpdate: (board, event) => {
+    onBoardUpdate: (_board, event) => {
       if (event.eventType === 'INSERT') {
         // New board - use silent refetch to get board roles and ensure consistency
         debouncedFetchData();
@@ -401,7 +403,6 @@ export default function Home() {
         if (event.table === 'workspaces') {
           // Handle workspace entity updates (name, description, etc.)
           const workspaceEntity = event.new as unknown as Workspace | null;
-          const oldWorkspace = event.old as unknown as Workspace | null;
         
         if (event.eventType === 'UPDATE' && workspaceEntity) {
           // Simple property update - use incremental state update

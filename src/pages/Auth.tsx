@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { api } from '@/integrations/api/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -58,6 +57,7 @@ export default function Auth() {
   const { toast } = useToast();
   const [pageData, setPageData] = useState<AuthPageData | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [fontsLoaded, setFontsLoaded] = useState(false);
   
   // Local auth state

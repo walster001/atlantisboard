@@ -37,7 +37,7 @@ export function routeWorkspaceEvent(
     onParentRefresh?: (parentType: 'board', parentId: string) => void;
   }
 ): boolean {
-  const { entityType, workspaceId, parentId } = payload;
+  const { entityType, workspaceId } = payload;
   const record = payload.new || payload.old;
 
   if (!record) {
@@ -82,7 +82,6 @@ export function routeWorkspaceEvent(
     }
 
     case 'card': {
-      const card = record as { id?: string; columnId?: string };
       // For board page: need to check if card's column belongs to current board
       // This requires column lookup, so we'll filter in the handler
       // For now, process all cards and let the handler filter
@@ -91,7 +90,6 @@ export function routeWorkspaceEvent(
     }
 
     case 'cardDetail': {
-      const detail = record as { cardId?: string };
       // Card details are filtered by cardId, which will be checked in handlers
       handlers.onCardDetail?.(record, payload);
       return true;
@@ -123,8 +121,8 @@ export function routeWorkspaceEvent(
  * This requires column lookup, so it's async
  */
 export async function cardBelongsToBoard(
-  cardId: string,
-  boardId: string
+  _cardId: string,
+  _boardId: string
 ): Promise<boolean> {
   // This would require an API call to check card's column's boardId
   // For now, we'll rely on the backend to only emit events for cards in the workspace

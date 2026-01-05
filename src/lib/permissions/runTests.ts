@@ -4,7 +4,6 @@ import {
   formatPermissionMatrixAsTable,
   testClientPermissionsForRole,
   getExpectedPermissions,
-  runPermissionTests,
   getServerUserPermissions,
 } from './testing';
 import { ALL_PERMISSIONS, APP_PERMISSIONS, BoardRole } from './types';
@@ -76,7 +75,8 @@ export async function runServerValidation(): Promise<void> {
     .eq('id', user.id)
     .single();
   
-  console.log(`   👑 App Admin: ${profile?.isAdmin ? 'Yes' : 'No'}`);
+  const isAdmin = (profile as { isAdmin?: boolean } | null)?.isAdmin ?? false;
+  console.log(`   👑 App Admin: ${isAdmin ? 'Yes' : 'No'}`);
   
   // Get app-level permissions
   console.log('\n   📋 App-Level Permissions (no board context):');
@@ -100,12 +100,13 @@ export async function runServerValidation(): Promise<void> {
     .eq('userId', user.id)
     .limit(3);
   
-  if (!boards || boards.length === 0) {
+  const boardMemberships = boards as Array<{ boardId: string; role: string; boards: { name?: string } | null }> | null;
+  if (!boardMemberships || boardMemberships.length === 0) {
     console.log('   ℹ️ No board memberships found.');
     return;
   }
   
-  for (const membership of boards) {
+  for (const membership of boardMemberships) {
     const boardName = (membership.boards as { name?: string } | null)?.name || 'Unknown';
     console.log(`\n   📌 Board: ${boardName}`);
     console.log(`      Role: ${membership.role}`);
@@ -118,7 +119,7 @@ export async function runServerValidation(): Promise<void> {
     console.log(`      Permissions: ${boardLevelPerms.length}`);
     
     // Compare with client
-    const clientPerms = testClientPermissionsForRole(membership.role as BoardRole, profile?.isAdmin ?? false);
+    const clientPerms = testClientPermissionsForRole(membership.role as BoardRole, isAdmin);
     const clientPermList = Object.entries(clientPerms)
       .filter(([_, v]) => v)
       .map(([k]) => k)

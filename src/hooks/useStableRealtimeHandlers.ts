@@ -77,7 +77,9 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
       }
 
       // Determine batching options based on handler type
-      let batchingOptions: EventBatcherOptions | undefined;
+      // Use Record<string, unknown> as the base type for batching options
+      // The actual entity types will be handled at runtime
+      let batchingOptions: EventBatcherOptions<Record<string, unknown>> | undefined;
       
       if (key === 'onCardUpdate') {
         // High frequency - batch quickly
@@ -115,7 +117,8 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
 
       if (batchingOptions) {
         // Wrap with batching
-        const batcher = createEventBatcher<Parameters<NonNullable<WorkspaceHandlers[typeof key]>>[0]>((events) => {
+        // Use Record<string, unknown> as the generic type - runtime types are compatible
+        const batcher = createEventBatcher<Record<string, unknown>>((events) => {
           // Process each event in the batch
           for (const batchedEvent of events) {
             const currentHandler = handlersRef.current[key];

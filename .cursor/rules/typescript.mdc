@@ -1,8 +1,6 @@
 ---
-description: TypeScript coding standards and best practices for modern web development
-globs: **/*.ts, **/*.tsx, **/*.d.ts
+alwaysApply: true
 ---
-
 # TypeScript Best Practices
 
 ## Type System

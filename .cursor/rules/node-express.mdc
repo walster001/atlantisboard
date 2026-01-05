@@ -1,8 +1,6 @@
 ---
-description: Node.js and Express.js best practices for backend development
-globs: **/*.js, **/*.ts, src/**/*.ts
+alwaysApply: true
 ---
-
 # Node.js and Express.js Best Practices
 
 ## Project Structure

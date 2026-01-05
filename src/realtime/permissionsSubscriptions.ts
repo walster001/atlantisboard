@@ -1,9 +1,7 @@
 import { logRealtime } from './logger';
-import { subscribeToChanges, SubscriptionCleanup, RealtimePostgresChangesPayload } from './realtimeClient';
+import { SubscriptionCleanup, RealtimePostgresChangesPayload } from './realtimeClient';
 import { subscribeWorkspaceViaRegistry } from './workspaceSubscriptions';
 import { getSubscriptionRegistry } from './subscriptionRegistry';
-
-type DbRecord = Record<string, unknown>;
 
 interface PermissionHandlers {
   onChange?: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void;
@@ -96,8 +94,8 @@ export function subscribeBoardMembersForPermissions(
       const payload: RealtimePostgresChangesPayload<Record<string, unknown>> = {
         eventType: event.eventType,
         table: event.table,
-        new: event.new,
-        old: event.old,
+        new: event.new as unknown as Record<string, unknown> | null,
+        old: event.old as unknown as Record<string, unknown> | null,
       };
 
       logRealtime(topic, `boardMembers ${event.eventType}`, { id: memberData?.userId, boardId });

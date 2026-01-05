@@ -70,6 +70,7 @@ export default function InvitePage() {
   // Branding state
   const [pageData, setPageData] = useState<AuthPageData | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [fontsLoaded, setFontsLoaded] = useState(false);
   
   // Local auth state

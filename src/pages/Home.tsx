@@ -48,19 +48,6 @@ function darkenColor(hex: string, percent: number): string {
   }).join('');
 }
 
-// Map colors to theme names (kept for reference/backwards compatibility)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const COLOR_THEME_MAP: Record<string, string> = {
-  '#0079bf': 'Ocean Blue',
-  '#d29034': 'Sunset Orange',
-  '#519839': 'Forest Green',
-  '#b04632': 'Ruby Red',
-  '#89609e': 'Royal Purple',
-  '#cd5a91': 'Hot Pink',
-  '#4bbf6b': 'Mint Green',
-  '#00aecc': 'Teal',
-};
-
 export default function Home() {
   const { user, signOut, loading: authLoading, isAppAdmin, isVerified } = useAuth();
   const { settings: appSettings, appName } = useAppSettings();
@@ -73,8 +60,6 @@ export default function Home() {
   const [boardRoles, setBoardRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
   
   // Track dynamic workspace subscriptions
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const workspaceSubscriptionsRef = useRef<Map<string, () => void>>(new Map());
   const [loading, setLoading] = useState(true);
   
   const [newWorkspaceName, setNewWorkspaceName] = useState('');

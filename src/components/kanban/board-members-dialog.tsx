@@ -54,7 +54,7 @@ export function BoardMembersDialog({
 
   // Create stable handlers for member updates
   const stableHandlers = useStableRealtimeHandlers({
-    onMemberUpdate: (member, event) => {
+    onMemberUpdate: (member, _event) => {
       const membership = member as { boardId?: string };
       // Only process events for members in the current board
       if (membership.boardId !== boardId) return;
@@ -85,7 +85,7 @@ export function BoardMembersDialog({
   // SECURITY NOTE: These do NOT provide security - all permissions
   // are enforced server-side via RLS policies. These checks only
   // hide UI elements to improve user experience.
-  const { can, canChangeRoles, canManageMembers, isAppAdmin } = usePermissions(boardId, userRole);
+  const { canChangeRoles, canManageMembers, isAppAdmin } = usePermissions(boardId, userRole);
   const canAddRemove = canManageMembers || isAppAdmin;
   
   // App Admins can always change roles (including their own) for self-management/testing

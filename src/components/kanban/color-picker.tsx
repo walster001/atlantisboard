@@ -159,7 +159,7 @@ export function ColorPicker({
       setHexInput(color);
       const { r, g, b } = hexToRgb(color);
       setRgb({ r, g, b });
-    } catch (e) {
+    } catch {
       // User cancelled or error occurred
       console.log('EyeDropper cancelled');
     }

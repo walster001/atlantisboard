@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ListTodo, Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
+import { ListTodo, Plus, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { getUserFriendlyError } from '@/lib/errorHandler';
@@ -67,7 +67,7 @@ export function CardSubtaskSection({
       // Get the max position
       const maxPosition = subtasks.reduce((max, s) => Math.max(max, s.position), -1);
 
-      const { data, error } = await api.request('/subtasks', {
+      const { error } = await api.request('/subtasks', {
         method: 'POST',
         body: JSON.stringify({
           cardId,
@@ -97,7 +97,7 @@ export function CardSubtaskSection({
     setTogglingId(subtask.id);
     try {
       // Service handles completedAt/completedBy automatically based on completed boolean
-      const { data, error } = await api.request(`/subtasks/${subtask.id}`, {
+      const { error } = await api.request(`/subtasks/${subtask.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           completed: !subtask.completed,
@@ -120,7 +120,7 @@ export function CardSubtaskSection({
 
   const handleDeleteSubtask = async (subtaskId: string) => {
     try {
-      const { data, error } = await api.request(`/subtasks/${subtaskId}`, {
+      const { error } = await api.request(`/subtasks/${subtaskId}`, {
         method: 'DELETE',
       });
 

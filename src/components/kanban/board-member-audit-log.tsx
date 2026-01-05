@@ -72,13 +72,13 @@ export function BoardMemberAuditLog({ boardId, userRole }: BoardMemberAuditLogPr
       fetchRetentionSetting();
       fetchTotalCount();
     }
-  }, [boardId, isAdmin]);
+  }, [boardId, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isAdmin) {
       fetchAuditLog(currentPage);
     }
-  }, [boardId, isAdmin, currentPage]);
+  }, [boardId, isAdmin, currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchTotalCount = async () => {
     try {

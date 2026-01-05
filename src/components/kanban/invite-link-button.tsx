@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link2, Copy, Check, Loader2, Trash2, Users, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -57,7 +57,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
   const [generatedLinkType, setGeneratedLinkType] = useState<'one_time' | 'recurring' | null>(null);
   const [copied, setCopied] = useState(false);
   const [activeRecurringLinks, setActiveRecurringLinks] = useState<ActiveRecurringLink[]>([]);
-  const [isLoadingLinks, setIsLoadingLinks] = useState(false);
+  const [_isLoadingLinks, setIsLoadingLinks] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'admin' | 'manager' | 'viewer' | 'custom' | null>(null);
@@ -66,11 +66,6 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
   const [isLoadingCustomRoles, setIsLoadingCustomRoles] = useState(false);
   const [assignedRole, setAssignedRole] = useState<string | null>(null);
   const { toast } = useToast();
-
-  // Don't render anything if user can't generate invites (server-side check happens in REST endpoint)
-  if (!canGenerateInvite) {
-    return null;
-  }
 
   // Create stable handlers for invite updates
   const stableHandlers = useStableRealtimeHandlers({
@@ -93,7 +88,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
               {
                 id: inviteData.id!,
                 token: inviteData.token!,
-                expiresAt: inviteData.expiresAt,
+                expiresAt: inviteData.expiresAt ?? null,
                 createdAt: inviteData.createdAt || new Date().toISOString(),
               },
               ...prev,
@@ -127,6 +122,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
         }
       };
     }
+    return undefined;
   }, [isOpen, workspaceId, stableHandlers]);
 
   // Fetch active recurring links when dialog opens
@@ -134,14 +130,14 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
     if (isOpen) {
       fetchActiveRecurringLinks();
     }
-  }, [isOpen, boardId]);
+  }, [isOpen, boardId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch custom roles when dialog opens and one-time link is selected
   useEffect(() => {
     if (isOpen && linkType === 'one_time') {
       fetchCustomRoles();
     }
-  }, [isOpen, linkType, boardId]);
+  }, [isOpen, linkType, boardId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCustomRoles = async () => {
     setIsLoadingCustomRoles(true);
@@ -342,7 +338,7 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
     } else if (linkType === 'one_time' && !selectedRole) {
       setSelectedRole('viewer');
     }
-  }, [linkType]);
+  }, [linkType, selectedRole]);
 
   const formatExpiryTime = (isoString: string) => {
     const date = new Date(isoString);
@@ -355,6 +351,11 @@ export function InviteLinkButton({ boardId, canGenerateInvite, workspaceId }: In
   const getFullLink = (token: string) => {
     return `${window.location.origin}/invite/${token}`;
   };
+
+  // Don't render anything if user can't generate invites (server-side check happens in REST endpoint)
+  if (!canGenerateInvite) {
+    return null;
+  }
 
   return (
     <>

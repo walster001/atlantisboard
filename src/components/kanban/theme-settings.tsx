@@ -79,7 +79,7 @@ export function ThemeSettings({
 
   useEffect(() => {
     fetchThemes();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchThemes = async () => {
     setLoading(true);

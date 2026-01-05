@@ -16,7 +16,6 @@ import {
   Clock,
   Check,
   Trash2,
-  ListTodo,
 } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -151,6 +150,7 @@ export function CardDetailModal({
       const cleanup = observeTwemoji(titleRef.current, 'twemoji-title');
       return cleanup;
     }
+    return undefined;
   }, [title, isEditingTitle]);
 
   const handleSaveTitle = () => {
@@ -162,7 +162,9 @@ export function CardDetailModal({
 
   const handleSaveDescription = () => {
     setIsEditingDescription(false);
-    onSave({ description: description || undefined });
+    onSave({
+      ...(description && { description }),
+    });
   };
 
   const handleSaveDueDate = (date: Date | undefined) => {
@@ -341,9 +343,9 @@ export function CardDetailModal({
                 content={description}
                 onChange={setDescription}
                 placeholder="Add a more detailed description in Markdown..."
-                themeBackgroundColor={themeCardWindowColor}
-                themeTextColor={effectiveTextColor}
-                useIntelligentContrast={themeCardWindowIntelligentContrast}
+                {...(themeCardWindowColor && { themeBackgroundColor: themeCardWindowColor })}
+                {...(effectiveTextColor && { themeTextColor: effectiveTextColor })}
+                {...(themeCardWindowIntelligentContrast !== undefined && { useIntelligentContrast: themeCardWindowIntelligentContrast })}
               />
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={handleSaveDescription}>
@@ -380,9 +382,9 @@ export function CardDetailModal({
               */}
               <MarkdownRenderer
                 content={description}
-                themeTextColor={effectiveTextColor}
-                themeBackgroundColor={themeCardWindowColor}
-                onInlineButtonClick={handleInlineButtonClick}
+                {...(effectiveTextColor && { themeTextColor: effectiveTextColor })}
+                {...(themeCardWindowColor && { themeBackgroundColor: themeCardWindowColor })}
+                {...(handleInlineButtonClick && { onInlineButtonClick: handleInlineButtonClick })}
               />
             </div>
           ) : (
@@ -567,11 +569,11 @@ export function CardDetailModal({
           subtasks={subtasks}
           onSubtasksChange={onSubtasksChange || (() => {})}
           disabled={disabled}
-          themeTextColor={effectiveTextColor}
-          themeButtonColor={themeCardWindowButtonColor}
-          themeButtonTextColor={themeCardWindowButtonTextColor}
-          themeButtonHoverColor={themeCardWindowButtonHoverColor}
-          themeButtonHoverTextColor={themeCardWindowButtonHoverTextColor}
+          {...(effectiveTextColor && { themeTextColor: effectiveTextColor })}
+          {...(themeCardWindowButtonColor && { themeButtonColor: themeCardWindowButtonColor })}
+          {...(themeCardWindowButtonTextColor && { themeButtonTextColor: themeCardWindowButtonTextColor })}
+          {...(themeCardWindowButtonHoverColor && { themeButtonHoverColor: themeCardWindowButtonHoverColor })}
+          {...(themeCardWindowButtonHoverTextColor && { themeButtonHoverTextColor: themeCardWindowButtonHoverTextColor })}
         />
 
         {/* Attachments Section */}
@@ -580,11 +582,11 @@ export function CardDetailModal({
           attachments={attachments}
           onAttachmentsChange={onAttachmentsChange || (() => {})}
           disabled={disabled}
-          themeTextColor={effectiveTextColor}
-          themeButtonColor={themeCardWindowButtonColor}
-          themeButtonTextColor={themeCardWindowButtonTextColor}
-          themeButtonHoverColor={themeCardWindowButtonHoverColor}
-          themeButtonHoverTextColor={themeCardWindowButtonHoverTextColor}
+          {...(effectiveTextColor && { themeTextColor: effectiveTextColor })}
+          {...(themeCardWindowButtonColor && { themeButtonColor: themeCardWindowButtonColor })}
+          {...(themeCardWindowButtonTextColor && { themeButtonTextColor: themeCardWindowButtonTextColor })}
+          {...(themeCardWindowButtonHoverColor && { themeButtonHoverColor: themeCardWindowButtonHoverColor })}
+          {...(themeCardWindowButtonHoverTextColor && { themeButtonHoverTextColor: themeCardWindowButtonHoverTextColor })}
         />
       </div>
 

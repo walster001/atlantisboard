@@ -83,8 +83,8 @@ export function CardEditDialog({
   const handleSave = () => {
     onSave({
       title,
-      description: description || undefined,
-      dueDate: dueDate?.toISOString(),
+      ...(description && { description }),
+      ...(dueDate && { dueDate: dueDate.toISOString() }),
     });
     onClose();
   };
@@ -93,7 +93,7 @@ export function CardEditDialog({
     const newLabel: Label = {
       id: Math.random().toString(36).substr(2, 9),
       color,
-      text: newLabelText || undefined,
+      ...(newLabelText && { text: newLabelText }),
     };
     onAddLabel(newLabel);
     setNewLabelText('');
@@ -123,7 +123,7 @@ export function CardEditDialog({
         const eyeDropper = new window.EyeDropper!();
         const result = await eyeDropper.open();
         handleCustomHexChange(result.sRGBHex);
-      } catch (e) {
+      } catch {
         // User cancelled
       }
     }

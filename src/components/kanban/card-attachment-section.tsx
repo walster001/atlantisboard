@@ -3,7 +3,8 @@ import { api } from '@/integrations/api/client';
 import { uploadFile, deleteFile, extractStoragePathFromUrl } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Paperclip, Download, Trash2, Upload, FileIcon, Image as ImageIcon, File, Loader2, ExternalLink, Eye } from 'lucide-react';
+import { getErrorMessage } from '@/lib/errorHandler';
+import { Paperclip, Download, Trash2, Upload, Image as ImageIcon, File, Loader2, ExternalLink, Eye } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
@@ -120,7 +121,7 @@ export function CardAttachmentSection({
     } catch (error: unknown) {
       toast({
         title: 'Upload error',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
@@ -157,7 +158,7 @@ export function CardAttachmentSection({
     } catch (error: unknown) {
       toast({
         title: 'Delete failed',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     }

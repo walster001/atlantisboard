@@ -168,7 +168,7 @@ export function ThemeColorInput({
       if (parsed) {
         setRgb(parsed);
       }
-    } catch (e) {
+    } catch {
       console.log('EyeDropper cancelled');
     }
   };

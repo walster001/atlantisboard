@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Card, Label, getLabelHexColor } from '@/types/kanban';
+import { Card, getLabelHexColor } from '@/types/kanban';
 import { Calendar, MoreHorizontal, Trash2, Palette, XCircle } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -53,7 +53,7 @@ interface KanbanCardProps {
 export const KanbanCard = memo(function KanbanCard({ 
   card, 
   index, 
-  columnId, 
+  columnId: _columnId, 
   onEdit, 
   onDelete, 
   onUpdateColor, 

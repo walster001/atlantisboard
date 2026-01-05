@@ -897,7 +897,7 @@ export function ToastUIMarkdownEditor({
         open={showButtonEditor}
         onOpenChange={setShowButtonEditor}
         onSave={handleSaveButton}
-        onDelete={editingEncodedData ? handleDeleteButton : undefined}
+        {...(editingEncodedData && { onDelete: handleDeleteButton })}
         data={editingButton}
       />
       

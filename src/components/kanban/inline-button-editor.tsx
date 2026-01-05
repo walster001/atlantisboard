@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/integrations/api/client';
 import { uploadFile } from '@/lib/storage';
-import { Upload, Palette, ExternalLink, Type, Loader2, Trash2, Image } from 'lucide-react';
+import { Upload, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { getErrorMessage } from '@/lib/errorHandler';
 import { cn } from '@/lib/utils';
 
 export interface InlineButtonData {
@@ -122,7 +122,7 @@ export function InlineButtonEditor({
     } catch (error: unknown) {
       toast({
         title: 'Upload failed',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     } finally {

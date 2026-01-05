@@ -120,12 +120,11 @@ export function BoardSettingsModal({
 
   // Use permission system for UI checks
   // SECURITY: Real security is enforced server-side via RLS policies
-  const { can, canEdit, canManageMembers, canChangeRoles: canChangeRolesPermission, isAppAdmin } = usePermissions(boardId, userRole);
+  const { can, canManageMembers, canChangeRoles: canChangeRolesPermission, isAppAdmin } = usePermissions(boardId, userRole);
   
   // App Admin overrides all board-level role checks
   const isBoardAdmin = userRole === 'admin';
   const isManager = userRole === 'manager' && !isAppAdmin;
-  const isViewer = userRole === 'viewer' && !isAppAdmin;
   
   // Effective admin status: App Admin OR Board Admin
   const hasAdminCapabilities = isAppAdmin || isBoardAdmin;
@@ -145,7 +144,7 @@ export function BoardSettingsModal({
     if (open && canAddRemove) {
       fetchAllUsers();
     }
-  }, [open, canAddRemove]);
+  }, [open, canAddRemove]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refresh all users when members list changes (e.g., after add/remove)
   // This ensures removed members appear in "All Users" panel
@@ -153,7 +152,7 @@ export function BoardSettingsModal({
     if (open && canAddRemove) {
       fetchAllUsers();
     }
-  }, [members.length, open, canAddRemove]);
+  }, [members.length, open, canAddRemove]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Create stable handlers for member updates
   const stableHandlers = useStableRealtimeHandlers({
@@ -770,7 +769,7 @@ export function BoardSettingsModal({
                                   disabled={
                                     removingUserId === member.userId || 
                                     (isManager && (member.role === 'admin' || member.role === 'manager')) ||
-                                    (boardCreatedBy && member.userId === boardCreatedBy)
+                                    !!(boardCreatedBy && member.userId === boardCreatedBy)
                                   }
                                   title={
                                     boardCreatedBy && member.userId === boardCreatedBy

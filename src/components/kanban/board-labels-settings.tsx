@@ -133,7 +133,7 @@ export function BoardLabelsSettings({
         const eyeDropper = new window.EyeDropper();
         const result = await eyeDropper.open();
         handleCustomHexChange(result.sRGBHex, isEdit);
-      } catch (e) {
+      } catch {
         // User cancelled
       }
     }
@@ -163,7 +163,7 @@ export function BoardLabelsSettings({
     
     setSaving(true);
     try {
-      const { data, error } = await api.request('/labels', {
+      const { error } = await api.request('/labels', {
         method: 'POST',
         body: JSON.stringify({
           boardId,
@@ -195,7 +195,7 @@ export function BoardLabelsSettings({
     
     setSaving(true);
     try {
-      const { data, error } = await api.request(`/labels/${labelId}`, {
+      const { error } = await api.request(`/labels/${labelId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name: editLabelName.trim(),
@@ -220,7 +220,7 @@ export function BoardLabelsSettings({
     setDeleting(labelId);
     try {
       // Delete the label (Prisma cascade will handle card_labels deletion)
-      const { data, error } = await api.request(`/labels/${labelId}`, {
+      const { error } = await api.request(`/labels/${labelId}`, {
         method: 'DELETE',
       });
 

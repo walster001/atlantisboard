@@ -3,13 +3,11 @@ import { api } from '@/integrations/api/client';
 import { uploadFile } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Upload, Trash2, Loader2 } from 'lucide-react';
 import { ThemeColorInput } from './theme-color-input';
-import { cn } from '@/lib/utils';
 
 interface BoardTheme {
   id: string;
@@ -73,7 +71,7 @@ export function BoardBackgroundSettings({
     setBackgroundColor(currentBackgroundColor || getDefaultBackgroundColor());
     setImageUrl(currentBackgroundImageUrl || '');
     setBackgroundType(currentBackgroundImageUrl ? 'image' : 'color');
-  }, [currentBackgroundColor, currentBackgroundImageUrl, currentTheme]);
+  }, [currentBackgroundColor, currentBackgroundImageUrl, currentTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveColor = async () => {
     if (!canEdit) return;
@@ -211,12 +209,7 @@ export function BoardBackgroundSettings({
     }
   };
 
-  const isImageBackground = (value: string) => {
-    return value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:');
-  };
 
-  // Determine if current background is actually an image
-  const hasImageBackground = isImageBackground(currentBackgroundColor);
 
   return (
     <div className="space-y-6">
@@ -277,7 +270,7 @@ export function BoardBackgroundSettings({
           <ThemeColorInput
             label="Custom Colour"
             value={backgroundColor}
-            onChange={setBackgroundColor}
+            onChange={(value) => setBackgroundColor(value ?? '')}
           />
 
           <Button

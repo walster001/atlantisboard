@@ -298,7 +298,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                       onUpdateColor={(color) => onUpdateCardColor(card.id, color)}
                       onApplyColorToAll={onApplyCardColorToAll}
                       disabled={disabled}
-                      themeCardColor={themeCardColor}
+                      themeCardColor={themeCardColor ?? null}
                     />
                   ))}
                   {/* Styled placeholder showing drop position */}

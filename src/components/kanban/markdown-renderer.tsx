@@ -53,7 +53,11 @@ function InlineButton({ data, onClick }: InlineButtonProps) {
       role="button"
       tabIndex={0}
       onClick={handleClick}
-      onKeyDown={(e) => e.key === 'Enter' && handleClick(e as React.MouseEvent)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          handleClick(e as unknown as React.MouseEvent);
+        }
+      }}
       className="inline-flex items-center gap-1 px-2 py-1 text-sm cursor-pointer transition-all hover:opacity-85 hover:-translate-y-0.5 my-0.5 mx-0.5"
       style={{
         backgroundColor: data.backgroundColor || '#1D2125',
@@ -227,7 +231,7 @@ function convertNestedListsToMarkdown(html: string): string {
         content: match[2],
         closeTag: match[3],
         index: match.index,
-        startValue,
+        ...(startValue !== undefined && { startValue }),
       });
     }
     
@@ -269,7 +273,7 @@ function convertNestedListsToMarkdown(html: string): string {
         let placeholderCounter = 0;
         
         // Replace placeholders with temporary markers
-        cleanContent = cleanContent.replace(/\[INLINE_BUTTON_PLACEHOLDER:[^\]]+\]/g, (match) => {
+        cleanContent = cleanContent.replace(/\[INLINE_BUTTON_PLACEHOLDER:[^\]]+\]/g, (match: string) => {
           const placeholderKey = `__PLACEHOLDER_${placeholderCounter++}__`;
           placeholderMap.set(placeholderKey, match);
           return placeholderKey;
@@ -471,7 +475,7 @@ export function MarkdownRenderer({
     return segments;
   }, [processedContent]);
 
-  const LinkRenderer = useCallback<Components['a']>(({ href, children, ...props }) => (
+  const LinkRenderer = useCallback(({ href, children, ...props }: React.ComponentProps<'a'>) => (
     <a
       href={href}
       target="_blank"
@@ -483,7 +487,7 @@ export function MarkdownRenderer({
     </a>
   ), []);
 
-  const CheckboxRenderer = useCallback<Components['input']>(({ checked, ...props }) => (
+  const CheckboxRenderer = useCallback(({ checked, ...props }: React.ComponentProps<'input'>) => (
     <input
       type="checkbox"
       checked={checked}
@@ -493,7 +497,7 @@ export function MarkdownRenderer({
     />
   ), []);
 
-  const CodeRenderer = useCallback<Components['code']>(({ inline, className: codeClassName, children, ...props }) => {
+  const CodeRenderer = useCallback(({ inline, className: codeClassName, children, ...props }: React.ComponentProps<'code'> & { inline?: boolean }) => {
     if (inline) {
       return (
         <code
@@ -521,7 +525,7 @@ export function MarkdownRenderer({
     );
   }, [themeBackgroundColor]);
 
-  const TableRenderer = useCallback<Components['table']>(({ children, ...props }) => (
+  const TableRenderer = useCallback(({ children, ...props }: React.ComponentProps<'table'>) => (
     <div className="overflow-x-auto my-2">
       <table className="w-full border-collapse border border-border" {...props}>
         {children}
@@ -529,7 +533,7 @@ export function MarkdownRenderer({
     </div>
   ), []);
 
-  const TableCellRenderer = useCallback<Components['th']>(({ children, isHeader, ...props }) => {
+  const TableCellRenderer = useCallback(({ children, isHeader, ...props }: React.ComponentProps<'th'> & { isHeader?: boolean }) => {
     const Tag = isHeader ? 'th' : 'td';
     return (
       <Tag
@@ -584,7 +588,7 @@ export function MarkdownRenderer({
             <InlineButton
               key={`btn-${index}`}
               data={segment.data}
-              onClick={onInlineButtonClick}
+              {...(onInlineButtonClick && { onClick: onInlineButtonClick })}
             />
           );
         }
@@ -606,15 +610,15 @@ export function MarkdownRenderer({
             ]}
             components={{
               // Custom link renderer for security
-              a: LinkRenderer,
+              a: LinkRenderer as NonNullable<Components['a']>,
               // Custom checkbox for task lists
-              input: CheckboxRenderer,
+              input: CheckboxRenderer as NonNullable<Components['input']>,
               // Custom code renderer
-              code: CodeRenderer,
+              code: CodeRenderer as NonNullable<Components['code']>,
               // Custom table renderer
-              table: TableRenderer,
-              th: (props) => <TableCellRenderer {...props} isHeader />,
-              td: TableCellRenderer,
+              table: TableRenderer as NonNullable<Components['table']>,
+              th: ((props: React.ComponentProps<'th'> & { isHeader?: boolean }) => <TableCellRenderer {...props} isHeader />) as NonNullable<Components['th']>,
+              td: TableCellRenderer as NonNullable<Components['td']>,
               // Style headings
               h1: ({ children }) => <h1 className="text-xl font-bold mt-3 mb-2">{children}</h1>,
               h2: ({ children }) => <h2 className="text-lg font-semibold mt-2 mb-1">{children}</h2>,

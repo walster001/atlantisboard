@@ -20,6 +20,7 @@ import { workspaceSchema, boardSchema, sanitizeColor } from '@/lib/validators';
 import { z } from 'zod';
 import { subscribeAllWorkspacesViaRegistry, subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
 import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
+import { logRealtime } from '@/realtime/logger';
 import { api } from '@/integrations/api/client';
 import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
 import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
@@ -497,6 +498,58 @@ export default function Home() {
       nestedSubscriptionCleanupRef.current.clear();
     };
   }, [user, workspaces, stableHandlers]);
+
+  // Global subscription for board member events (fixes issues where user isn't workspace member)
+  // This ensures users receive board member INSERT/DELETE events even if not subscribed to workspace
+  useEffect(() => {
+    if (!user) return;
+
+    const registry = getSubscriptionRegistry();
+    const channelName = `board-members-${user.id}`;
+    
+    logRealtime(channelName, 'subscribing to global board member events', { userId: user.id });
+
+    const cleanup = registry.subscribeGlobal(
+      channelName,
+      'boardMembers',
+      '*',
+      (payload) => {
+        const membership = (payload.new || payload.old) as { userId?: string; boardId?: string };
+        
+        // Double-check this event is for the current user
+        if (membership.userId !== user.id) {
+          return;
+        }
+
+        logRealtime(channelName, `board member ${payload.eventType}`, {
+          userId: membership.userId,
+          boardId: membership.boardId,
+        });
+
+        if (payload.eventType === 'INSERT') {
+          // User added to a board - refresh data
+          debouncedFetchData();
+          toast({
+            title: 'Board access granted',
+            description: 'You have been added to a new board.',
+          });
+        } else if (payload.eventType === 'DELETE') {
+          // User removed from a board - refresh data
+          debouncedFetchData();
+          toast({
+            title: 'Board access removed',
+            description: 'You have been removed from a board.',
+          });
+        }
+      },
+      `userId=eq.${user.id}` // Filter to only events for this user
+    );
+
+    return () => {
+      logRealtime(channelName, 'cleaning up global board member subscription');
+      cleanup();
+    };
+  }, [user, debouncedFetchData, toast]);
 
   // Redeem pending invite token from sessionStorage (set when user clicks invite link)
   const redeemPendingInviteToken = async () => {

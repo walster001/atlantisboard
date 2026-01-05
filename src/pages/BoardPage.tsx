@@ -26,6 +26,7 @@ import { z } from 'zod';
 import type { BoardTheme } from '@/components/kanban/theme-editor-modal';
 import { cn } from '@/lib/utils';
 import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
+import { logRealtime } from '@/realtime/logger';
 import type { RealtimePostgresChangesPayload } from '@/integrations/api/realtime';
 import { normalizeTimestamp, isNewer, isEqual } from '@/lib/timestampUtils';
 import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
@@ -72,6 +73,9 @@ export default function BoardPage() {
   const [cardSubtasks, setCardSubtasks] = useState<CardSubtaskResponse[]>([]);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
+  
+  // Ref to store latest cards for use in handlers (prevents stale closure)
+  const cardsRef = useRef<DbCard[]>([]);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [boardCreatedBy, setBoardCreatedBy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -823,12 +827,31 @@ export default function BoardPage() {
             }
           } else if (existingCard) {
             // No pending optimistic update - compare with local state
+            // Conflict resolution strategy: Only reject updates if local state is significantly newer
+            // This prevents blocking valid updates from other users when local state might be stale
             const localTimestamp = normalizeTimestamp(existingCard.updatedAt);
-            if (isNewer(localTimestamp, incomingTimestamp)) {
-              // Local state is newer - keep it
+            const timeDiff = Math.abs(localTimestamp - incomingTimestamp);
+            
+            // Only reject if local state is significantly newer (more than 2 seconds)
+            // This allows updates from other users even if local state appears slightly newer
+            if (isNewer(localTimestamp, incomingTimestamp) && timeDiff > 2000) {
+              // Local state is significantly newer - keep it (likely from our own operation)
+              logRealtime('BoardPage', 'conflict resolution: rejected update (local state significantly newer)', {
+                cardId: updatedCard.id,
+                localTimestamp,
+                incomingTimestamp,
+                timeDiff,
+              });
               return prev;
             }
-            // Incoming is newer or equal - accept it
+            // Incoming is newer, equal, or only slightly older - accept it
+            // This ensures we always get updates from other users
+            logRealtime('BoardPage', 'conflict resolution: accepted update', {
+              cardId: updatedCard.id,
+              localTimestamp,
+              incomingTimestamp,
+              timeDiff,
+            });
           }
           
           // Apply the update
@@ -892,7 +915,10 @@ export default function BoardPage() {
         return;
       }
       
-      const card = cards.find(c => c.id === detailData.cardId);
+      // Use ref to access current cards state (fixes stale closure)
+      // This ensures we always use the latest card state, not a stale closure value
+      const currentCards = cardsRef.current;
+      const card = currentCards.find(c => c.id === detailData.cardId);
       if (!card) {
         // Card not found in current board - might be buffered or from different board
         return;
@@ -903,6 +929,7 @@ export default function BoardPage() {
         return;
       }
       
+      // Process the detail update based on table type
       if (event.table === 'card_attachments') {
         const attachment = detail as CardAttachmentResponse;
         if (event.eventType === 'INSERT') {
@@ -1057,6 +1084,11 @@ export default function BoardPage() {
   useEffect(() => {
     columnIdsRef.current = columns.map(c => c.id);
   }, [columns]);
+
+  // Update cards ref when cards change (for use in handlers to prevent stale closure)
+  useEffect(() => {
+    cardsRef.current = cards;
+  }, [cards]);
 
   // Unified realtime subscription using workspace (parent-child hierarchy)
   // Subscription persists via registry - no cleanup on unmount

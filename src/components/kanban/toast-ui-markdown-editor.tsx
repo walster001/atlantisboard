@@ -730,7 +730,6 @@ export function ToastUIMarkdownEditor({
     });
     searchInput.addEventListener('input', () => {
       const query = searchInput.value.toLowerCase().trim();
-      log('SEARCH_INPUT', { query });
       if (!query) {
         activeCategory = 'recent';
         updateTabStyles();

@@ -171,7 +171,7 @@ function applyFilters(
 }
 
 // Map table names to Prisma models
-const tableModelMap: Record<string, keyof typeof prisma> = {
+const tableModelMap: Record<string, string> = {
   workspaces: 'workspace',
   boards: 'board',
   columns: 'column',
@@ -207,7 +207,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[modelName] as PrismaModelDelegate | undefined;
+    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[String(modelName)] as PrismaModelDelegate | undefined;
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
@@ -284,7 +284,7 @@ router.post('/:table', async (req: Request, res: Response, next: NextFunction) =
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[modelName] as PrismaModelDelegate | undefined;
+    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[String(modelName)] as PrismaModelDelegate | undefined;
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
@@ -335,7 +335,7 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[modelName] as PrismaModelDelegate | undefined;
+    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[String(modelName)] as PrismaModelDelegate | undefined;
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
@@ -367,28 +367,30 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
     // Match old and new records by ID (or userId for some tables)
     for (const updated of updatedRecords) {
       try {
+        const updatedRecord = updated as Record<string, unknown>;
         // Find matching old record
-        const oldRecord = oldRecords.find((old: Record<string, unknown>) => {
+        const oldRecord = (oldRecords as unknown[]).find((old): old is Record<string, unknown> => {
+          const oldRecord = old as Record<string, unknown>;
           // Match by id or userId depending on table type
-          if (old.id && updated.id) {
-            return old.id === updated.id;
+          if (oldRecord.id && updatedRecord.id) {
+            return oldRecord.id === updatedRecord.id;
           }
-          if (old.userId && updated.userId) {
-            return old.userId === updated.userId;
+          if (oldRecord.userId && updatedRecord.userId) {
+            return oldRecord.userId === updatedRecord.userId;
           }
           return false;
         });
 
         if (oldRecord) {
           // Resolve boardId for proper channel routing
-          const boardId = await resolveBoardIdForTable(table, updated as Record<string, unknown>);
+          const boardId = await resolveBoardIdForTable(table, updatedRecord);
           
           // Emit UPDATE event - both records are in camelCase from Prisma
           await emitDatabaseChange(
             table,
             'UPDATE',
-            updated as Record<string, unknown>,
-            oldRecord as Record<string, unknown>,
+            updatedRecord,
+            oldRecord,
             boardId
           );
         }
@@ -414,7 +416,7 @@ router.delete('/:table', async (req: Request, res: Response, next: NextFunction)
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[modelName] as PrismaModelDelegate | undefined;
+    const model = (prisma as unknown as Record<string, PrismaModelDelegate>)[String(modelName)] as PrismaModelDelegate | undefined;
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }

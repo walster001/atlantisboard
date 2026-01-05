@@ -1063,7 +1063,7 @@ export default function BoardPage() {
         fetchBoardData();
       }
     },
-  }, [boardId, workspaceId, user, debouncedRefreshBoardMembers, navigate, toast, debouncedFetchBoardData, fetchBoardData, userRole, cards, columnIdsRef, columnsLoadedRef, pendingCardEventsRef, processBufferedCardEvents, pendingBatchColumnColorRef, bufferedColumnColorEventsRef, pendingBatchCardColorRef, bufferedCardColorEventsRef, pendingCardUpdatesRef], {
+  }, [boardId, workspaceId, user, debouncedRefreshBoardMembers, navigate, toast, debouncedFetchBoardData, fetchBoardData, userRole, columnIdsRef, columnsLoadedRef, pendingCardEventsRef, processBufferedCardEvents, pendingBatchColumnColorRef, bufferedColumnColorEventsRef, pendingBatchCardColorRef, bufferedCardColorEventsRef, pendingCardUpdatesRef], {
     disableBatchingFor: ['onCardUpdate', 'onColumnUpdate'], // Disable batching to use existing batching logic
   });
 

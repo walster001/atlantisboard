@@ -18,7 +18,6 @@ import { InviteLinkButton } from '@/components/kanban/InviteLinkButton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card as CardType, Label } from '@/types/kanban';
-import { BoardMembersDialog } from '@/components/kanban/BoardMembersDialog';
 import { BoardSettingsModal } from '@/components/kanban/BoardSettingsModal';
 import { getUserFriendlyError } from '@/lib/errorHandler';
 import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
@@ -27,7 +26,7 @@ import { z } from 'zod';
 import type { BoardTheme } from '@/components/kanban/ThemeEditorModal';
 import { cn } from '@/lib/utils';
 import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
-import type { RealtimePostgresChangesPayload } from '@/realtime/realtimeClient';
+import type { RealtimePostgresChangesPayload } from '@/integrations/api/realtime';
 import { normalizeTimestamp, isNewer, isEqual } from '@/lib/timestampUtils';
 import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
 import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
@@ -1593,15 +1592,7 @@ export default function BoardPage() {
       const clearDueDate = 'dueDate' in updates && updates.dueDate === null;
       
       // Build RPC params, only including fields that are actually in updates
-      interface UpdateCardRpcParams {
-        _user_id: string;
-        _card_id: string;
-        _title?: string | null;
-        _description?: string | null;
-        _due_date?: string | null;
-        _clear_due_date?: boolean;
-      }
-      const rpcParams: UpdateCardRpcParams = {
+      const rpcParams: Record<string, unknown> = {
         _user_id: user.id,
         _card_id: cardId,
       };
@@ -1672,7 +1663,7 @@ export default function BoardPage() {
 
         if (labelError) throw labelError;
         if (newLabel && typeof newLabel === 'object' && 'id' in newLabel) {
-          labelId = newLabel.id;
+          labelId = (newLabel.id as string);
           setLabels([...labels, newLabel as DbLabel]);
         }
       }
@@ -1823,7 +1814,7 @@ export default function BoardPage() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="gap-2 text-white hover:bg-white/20">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={user?.userMetadata?.avatarUrl} />
+                        <AvatarImage src={user?.userMetadata?.avatarUrl ?? undefined} />
                         <AvatarFallback className="bg-white/20">
                           <User className="h-4 w-4" />
                         </AvatarFallback>

@@ -75,7 +75,7 @@ class RealtimeServer {
     }, 30000); // 30 seconds
   }
 
-  private async handleConnection(ws: WebSocket, req: any) {
+  private async handleConnection(ws: WebSocket, req: IncomingMessage) {
     console.log('[Realtime] New connection attempt');
 
     // Extract token from query string or Authorization header

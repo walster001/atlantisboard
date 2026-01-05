@@ -289,7 +289,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as any)[modelName];
+    const model = (prisma as Record<string, unknown>)[modelName];
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
@@ -366,7 +366,7 @@ router.post('/:table', async (req: Request, res: Response, next: NextFunction) =
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as any)[modelName];
+    const model = (prisma as Record<string, unknown>)[modelName];
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
@@ -417,7 +417,7 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as any)[modelName];
+    const model = (prisma as Record<string, unknown>)[modelName];
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }
@@ -496,7 +496,7 @@ router.delete('/:table', async (req: Request, res: Response, next: NextFunction)
       throw new ValidationError(`Unknown table: ${table}`);
     }
 
-    const model = (prisma as any)[modelName];
+    const model = (prisma as Record<string, unknown>)[modelName];
     if (!model) {
       throw new ValidationError(`Model not found: ${String(modelName)}`);
     }

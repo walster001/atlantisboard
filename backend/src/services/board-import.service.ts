@@ -369,7 +369,7 @@ function validateAndNormalizeWekanData(wekanData: unknown): { boards: WekanBoard
 class BoardImportService {
   async importWekanBoard(
     userId: string,
-    wekanData: any,
+    wekanData: unknown,
     defaultCardColor: string | null,
     sendProgress?: (update: ProgressUpdate) => void,
     sendResult?: (result: ImportResult) => void,

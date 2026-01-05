@@ -387,7 +387,7 @@ export default function Home() {
         });
       }
     },
-  }, [debouncedFetchData, user, toast]);
+  }, [user]);
 
   // Create stable handlers with batching and stable references
   const stableHandlers = useStableRealtimeHandlers({
@@ -506,7 +506,7 @@ export default function Home() {
         }
       }
     },
-  }, [debouncedFetchData, user, toast]);
+  }, [user]);
 
   // Track previous workspaceIds to detect changes
   const prevWorkspaceIdsRef = useRef<string[]>([]);

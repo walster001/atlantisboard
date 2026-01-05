@@ -151,8 +151,10 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
     cleanupFunctionsRef.current = cleanupFunctions;
 
     return stable as T;
+    // Only recreate if options change (structure change), not when handlers change
+    // handlersRef.current is updated via useEffect, so handlers always access latest implementations
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handlers, ...dependencies]);
+  }, [options]);
 
   // Cleanup function to process pending batches
   const cleanup = useCallback(() => {

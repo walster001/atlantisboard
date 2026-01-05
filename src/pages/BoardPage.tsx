@@ -100,7 +100,7 @@ export default function BoardPage() {
   // Buffer card events when columns are missing (event ordering safety)
   interface BufferedCardEvent {
     card: DbCard;
-    event: RealtimePostgresChangesPayload<Record<string, unknown>>;
+    event: RealtimePostgresChangesPayload<DbCard>;
     timestamp: number;
   }
   const pendingCardEventsRef = useRef<BufferedCardEvent[]>([]);
@@ -118,7 +118,7 @@ export default function BoardPage() {
   // Buffer for batched color update events
   interface BufferedColorEvent {
     entity: DbCard | DbColumn;
-    event: RealtimePostgresChangesPayload<Record<string, unknown>>;
+    event: RealtimePostgresChangesPayload<DbCard | DbColumn>;
     timestamp: number;
   }
   const bufferedCardColorEventsRef = useRef<BufferedColorEvent[]>([]);
@@ -270,7 +270,7 @@ export default function BoardPage() {
   // Real-time permissions updates - triggers refetch when permissions change
   // Defined after fetchBoardData to avoid forward reference
   usePermissionsRealtime({
-    boardId,
+    boardId: boardId ?? null,
     workspaceId,
     onPermissionsUpdated: useCallback(() => {
       console.log('[BoardPage] Permissions updated, refetching board data...');
@@ -463,7 +463,7 @@ export default function BoardPage() {
               return prev; // Keep local state
             }
             
-            let updated = prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c));
+            const updated = prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c));
             return updated.sort((a, b) => {
               if (a.columnId !== b.columnId) {
                 return a.columnId.localeCompare(b.columnId);
@@ -478,7 +478,7 @@ export default function BoardPage() {
         // Still missing, keep buffered - check age using timestamp from buffer
         const age = Date.now() - timestamp;
         if (age < 5000) { // Only keep events less than 5 seconds old
-          pendingCardEventsRef.current.push({ card, event, timestamp: Date.now() });
+          pendingCardEventsRef.current.push({ card, event: event as RealtimePostgresChangesPayload<DbCard>, timestamp: Date.now() });
         } else {
           console.warn('[BoardPage] Dropping buffered card event - column still missing after timeout:', {
             cardId: cardData.id,
@@ -584,7 +584,7 @@ export default function BoardPage() {
             // Column color UPDATE event buffered for batch
             bufferedColumnColorEventsRef.current.push({
               entity: updatedColumn,
-              event,
+              event: event as RealtimePostgresChangesPayload<DbColumn>,
               timestamp: Date.now(),
             });
             
@@ -676,7 +676,7 @@ export default function BoardPage() {
       if (!columnsLoadedRef.current) {
         pendingCardEventsRef.current.push({
           card: cardData,
-          event,
+          event: event as RealtimePostgresChangesPayload<DbCard>,
           timestamp: Date.now(),
         });
         return;
@@ -687,7 +687,7 @@ export default function BoardPage() {
       if (columnIdsRef.current.length > 0 && !columnBelongsToBoard) {
         pendingCardEventsRef.current.push({
           card: cardData,
-          event,
+          event: event as RealtimePostgresChangesPayload<DbCard>,
           timestamp: Date.now(),
         });
         // Set timeout to process buffered events after a short delay
@@ -744,7 +744,7 @@ export default function BoardPage() {
             // This is part of the batch - buffer it
             bufferedCardColorEventsRef.current.push({
               entity: updatedCard,
-              event,
+              event: event as RealtimePostgresChangesPayload<DbCard>,
               timestamp: Date.now(),
             });
             
@@ -844,18 +844,18 @@ export default function BoardPage() {
           }
           
           // Update the card - merge with existing state
-          let updated = prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c));
+          const updated = prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c));
           
           // If column changed, we need to ensure proper sorting
           // Sort cards by position within each column
-          updated = updated.sort((a, b) => {
+          const sorted = updated.sort((a, b) => {
             if (a.columnId !== b.columnId) {
               return a.columnId.localeCompare(b.columnId);
             }
             return a.position - b.position;
           });
           
-          return updated;
+          return sorted;
         });
         
         setEditingCard((prev) => {
@@ -865,8 +865,8 @@ export default function BoardPage() {
               card: {
                 ...prev.card,
                 title: updatedCard.title,
-                description: updatedCard.description || undefined,
-                dueDate: updatedCard.dueDate || undefined,
+                ...(updatedCard.description !== null && updatedCard.description !== undefined && { description: updatedCard.description }),
+                ...(updatedCard.dueDate !== null && updatedCard.dueDate !== undefined && { dueDate: updatedCard.dueDate }),
                 color: updatedCard.color,
               },
             };
@@ -1050,6 +1050,7 @@ export default function BoardPage() {
     if (user && boardId) {
       fetchBoardData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, boardId]);
 
   // Update column IDs ref when columns change
@@ -1170,7 +1171,7 @@ export default function BoardPage() {
       .map(c => ({
         id: c.id,
         title: c.title,
-        description: c.description || undefined,
+        ...(c.description && { description: c.description }),
         labels: cardLabels
           .filter(cl => cl.cardId === c.id)
           .map(cl => {
@@ -1183,7 +1184,7 @@ export default function BoardPage() {
             } as Label;
           })
           .filter((l): l is Label => l !== null),
-        dueDate: c.dueDate || undefined,
+        ...(c.dueDate && { dueDate: c.dueDate }),
         createdAt: '',
         color: c.color,
       }));
@@ -1907,7 +1908,7 @@ export default function BoardPage() {
               onRefresh={fetchBoardData}
               disabled={!effectiveCanEdit}
               themeColumnColor={boardTheme?.columnColor}
-              themeCardColor={boardTheme?.defaultCardColor}
+              themeCardColor={boardTheme?.defaultCardColor ?? null}
               themeScrollbarColor={boardTheme?.scrollbarColor}
               themeScrollbarTrackColor={boardTheme?.scrollbarTrackColor}
               themeIsDefault={boardTheme?.isDefault ?? false}
@@ -1978,7 +1979,7 @@ export default function BoardPage() {
                       onApplyCardColorToAll={applyCardColorToAll}
                       disabled={!effectiveCanEdit}
                       themeColumnColor={boardTheme?.columnColor}
-                      themeCardColor={boardTheme?.defaultCardColor}
+                      themeCardColor={boardTheme?.defaultCardColor ?? null}
                       themeScrollbarColor={boardTheme?.scrollbarColor}
                       themeScrollbarTrackColor={boardTheme?.scrollbarTrackColor}
                       themeIsDefault={boardTheme?.isDefault ?? false}
@@ -2158,7 +2159,7 @@ export default function BoardPage() {
           }
         }}
         themeCardWindowColor={boardTheme?.cardWindowColor}
-        themeCardWindowTextColor={boardTheme?.cardWindowTextColor}
+        themeCardWindowTextColor={boardTheme?.cardWindowTextColor ?? undefined}
         themeCardWindowButtonColor={boardTheme?.cardWindowButtonColor}
         themeCardWindowButtonTextColor={boardTheme?.cardWindowButtonTextColor}
         themeCardWindowButtonHoverColor={boardTheme?.cardWindowButtonHoverColor}

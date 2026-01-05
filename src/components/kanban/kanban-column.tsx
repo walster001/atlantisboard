@@ -54,10 +54,10 @@ interface KanbanColumnProps {
   onUpdateCardColor: (cardId: string, color: string | null) => void;
   onApplyCardColorToAll: (color: string | null) => void;
   disabled?: boolean;
-  themeColumnColor?: string;
+  themeColumnColor?: string | undefined;
   themeCardColor?: string | null;
-  themeScrollbarColor?: string;
-  themeScrollbarTrackColor?: string;
+  themeScrollbarColor?: string | undefined;
+  themeScrollbarTrackColor?: string | undefined;
   themeIsDefault?: boolean;
 }
 

@@ -138,7 +138,7 @@ class AuthService {
         data: {
           id: user.id,
           email: validated.email,
-          fullName: validated.fullName,
+          ...(validated.fullName && { fullName: validated.fullName }),
           isAdmin: isFirst,
         },
       });
@@ -178,7 +178,7 @@ class AuthService {
     await this.ensureTablesExist();
 
     // Find user
-    let user;
+    let user: Awaited<ReturnType<typeof prisma.user.findUnique<{ where: { email: string }; include: { profile: true } }>>>;
     try {
       user = await prisma.user.findUnique({
         where: { email: validated.email },
@@ -194,23 +194,27 @@ class AuthService {
     }
 
     // Idempotent: If this is the only user and not admin, make them admin
-    if (user && user.profile) {
+    if (user && user.profile && user.id) {
+      const userId = user.id;
       try {
         await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          await this.ensureFirstUserIsAdmin(tx, user.id);
+          await this.ensureFirstUserIsAdmin(tx, userId);
         });
         // Refresh user data after potential admin update
-        user = await prisma.user.findUnique({
+        const refreshedUser = await prisma.user.findUnique({
           where: { email: validated.email },
           include: { profile: true },
         });
+        if (refreshedUser) {
+          user = refreshedUser;
+        }
       } catch (error: unknown) {
         // Silently fail - this is best-effort
         console.warn('[AuthService] Could not ensure first user is admin on signin:', getErrorMessage(error));
       }
     }
 
-    if (!user || !user.passwordHash) {
+    if (!user || !user.passwordHash || !user.id) {
       throw new UnauthorizedError('Invalid email or password');
     }
 
@@ -313,7 +317,7 @@ class AuthService {
     await this.ensureTablesExist();
 
     // Check if user exists by provider ID
-    let user;
+    let user: Awaited<ReturnType<typeof prisma.user.findFirst<{ include: { profile: true } }>>>;
     try {
       user = await prisma.user.findFirst({
         where: {
@@ -333,32 +337,43 @@ class AuthService {
 
     if (user) {
       // Idempotent: If this is the only user and not admin, make them admin
+      if (!user || !user.id) {
+        throw new Error('User not found');
+      }
+      const userId = user.id;
       try {
         await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          await this.ensureFirstUserIsAdmin(tx, user.id);
+          await this.ensureFirstUserIsAdmin(tx, userId);
         });
         // Refresh user data after potential admin update
-        user = await prisma.user.findFirst({
+        const refreshedUser = await prisma.user.findFirst({
           where: {
             provider: 'google',
             providerId: googleId,
           },
           include: { profile: true },
         });
+        if (refreshedUser) {
+          user = refreshedUser;
+        }
       } catch (error: unknown) {
         // Silently fail - this is best-effort
         console.warn('[AuthService] Could not ensure first user is admin:', getErrorMessage(error));
       }
 
       // Update profile if needed
-      if (name || avatarUrl) {
+      if (user && (name || avatarUrl)) {
         await prisma.profile.update({
           where: { id: user.id },
           data: {
-            fullName: name ?? undefined,
-            avatarUrl: avatarUrl ?? undefined,
+            ...(name !== undefined && { fullName: name ?? null }),
+            ...(avatarUrl !== undefined && { avatarUrl: avatarUrl ?? null }),
           },
         });
+      }
+
+      if (!user) {
+        throw new Error('User not found after refresh');
       }
 
       // Generate tokens
@@ -394,18 +409,29 @@ class AuthService {
 
     if (user) {
       // Idempotent: If this is the only user and not admin, make them admin
+      if (!user || !user.id) {
+        throw new Error('User not found');
+      }
+      const userId = user.id;
       try {
         await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          await this.ensureFirstUserIsAdmin(tx, user.id);
+          await this.ensureFirstUserIsAdmin(tx, userId);
         });
         // Refresh user data after potential admin update
-        user = await prisma.user.findUnique({
+        const refreshedUser = await prisma.user.findUnique({
           where: { email },
           include: { profile: true },
         });
+        if (refreshedUser) {
+          user = refreshedUser;
+        }
       } catch (error: unknown) {
         // Silently fail - this is best-effort
         console.warn('[AuthService] Could not ensure first user is admin:', getErrorMessage(error));
+      }
+
+      if (!user) {
+        throw new Error('User not found');
       }
 
       // Link Google account
@@ -423,8 +449,8 @@ class AuthService {
         await prisma.profile.update({
           where: { id: user.id },
           data: {
-            fullName: name ?? undefined,
-            avatarUrl: avatarUrl ?? undefined,
+            ...(name !== undefined && { fullName: name ?? null }),
+            ...(avatarUrl !== undefined && { avatarUrl: avatarUrl ?? null }),
           },
         });
       }
@@ -462,8 +488,8 @@ class AuthService {
         data: {
           id: newUser.id,
           email,
-          fullName: name,
-          avatarUrl: avatarUrl,
+          ...(name !== undefined && { fullName: name ?? null }),
+          ...(avatarUrl !== undefined && { avatarUrl: avatarUrl ?? null }),
           isAdmin: isFirst,
         },
       });

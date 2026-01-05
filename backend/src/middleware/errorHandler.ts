@@ -92,8 +92,12 @@ export function errorHandler(
   
   // Include detailed error information in development
   if (process.env.NODE_ENV === 'development') {
-    errorResponse.stack = err.stack;
-    errorResponse.message = err.message;
+    if (err.stack) {
+      errorResponse.stack = err.stack;
+    }
+    if (err.message) {
+      errorResponse.message = err.message;
+    }
     
     // Include Prisma error details if it's a Prisma error
     if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -116,7 +120,7 @@ export function errorHandler(
       errorResponse.prismaError = {
         type: 'InitializationError',
         message: err.message,
-        errorCode: err.errorCode,
+        ...(err.errorCode && { errorCode: err.errorCode }),
       };
     }
   }

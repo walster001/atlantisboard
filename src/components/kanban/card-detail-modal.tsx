@@ -74,13 +74,13 @@ interface CardDetailModalProps {
   subtasks?: Subtask[];
   onSubtasksChange?: () => void;
   boardLabels?: BoardLabel[];
-  themeCardWindowColor?: string;
-  themeCardWindowTextColor?: string;
-  themeCardWindowButtonColor?: string;
-  themeCardWindowButtonTextColor?: string;
-  themeCardWindowButtonHoverColor?: string;
-  themeCardWindowButtonHoverTextColor?: string;
-  themeCardWindowIntelligentContrast?: boolean;
+  themeCardWindowColor?: string | undefined;
+  themeCardWindowTextColor?: string | undefined;
+  themeCardWindowButtonColor?: string | undefined;
+  themeCardWindowButtonTextColor?: string | undefined;
+  themeCardWindowButtonHoverColor?: string | undefined;
+  themeCardWindowButtonHoverTextColor?: string | undefined;
+  themeCardWindowIntelligentContrast?: boolean | undefined;
 }
 
 // Calculate luminance for intelligent contrast

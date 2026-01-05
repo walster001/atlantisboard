@@ -2,6 +2,9 @@ import { api } from '@/integrations/api/client';
 import { logRealtime } from './logger';
 import type { RealtimePostgresChangesPayload, PostgresChangeHandler } from '@/integrations/api/realtime';
 
+// Re-export for convenience
+export type { RealtimePostgresChangesPayload, PostgresChangeHandler };
+
 // Use API client's realtime
 const realtimeApi = {
   channel: (topic: string) => api.realtime.channel(topic),

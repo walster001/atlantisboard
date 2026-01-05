@@ -128,8 +128,8 @@ export function createPermissionContext(
   return {
     userId: userId || '',
     isAppAdmin,
-    boardId,
-    boardRole: boardRole ?? undefined,
+    ...(boardId && { boardId }),
+    ...(boardRole && { boardRole }),
   };
 }
 

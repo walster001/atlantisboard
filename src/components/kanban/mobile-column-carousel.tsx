@@ -57,10 +57,10 @@ interface MobileColumnCarouselProps {
   onReorderColumns?: (fromIndex: number, toIndex: number) => void;
   onRefresh?: () => Promise<void>;
   disabled?: boolean;
-  themeColumnColor?: string;
+  themeColumnColor?: string | undefined;
   themeCardColor?: string | null;
-  themeScrollbarColor?: string;
-  themeScrollbarTrackColor?: string;
+  themeScrollbarColor?: string | undefined;
+  themeScrollbarTrackColor?: string | undefined;
   themeIsDefault?: boolean;
 }
 

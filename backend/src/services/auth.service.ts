@@ -4,6 +4,7 @@ import { passwordService } from './password.service.js';
 import { jwtService } from './jwt.service.js';
 import { mysqlVerificationService } from './mysql-verification.service.js';
 import { ValidationError, UnauthorizedError } from '../middleware/errorHandler.js';
+import { getErrorMessage, isTableMissingError } from '../lib/typeGuards.js';
 import { z } from 'zod';
 
 /**
@@ -59,9 +60,9 @@ class AuthService {
     try {
       const count = await tx.profile.count();
       return count === 0;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If table doesn't exist or query fails, assume this is the first user
-      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+      if (isTableMissingError(error)) {
         return true;
       }
       throw error;
@@ -84,10 +85,10 @@ class AuthService {
           data: { isAdmin: true },
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Silently fail - this is a best-effort operation
       // Don't throw as this is idempotent and non-critical
-      console.warn('[AuthService] Could not ensure first user is admin:', error.message);
+      console.warn('[AuthService] Could not ensure first user is admin:', getErrorMessage(error));
     }
   }
 
@@ -103,8 +104,8 @@ class AuthService {
       existingUser = await prisma.user.findUnique({
         where: { email: validated.email },
       });
-    } catch (error: any) {
-      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+    } catch (error: unknown) {
+      if (isTableMissingError(error)) {
         throw new Error(
           'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
         );
@@ -183,8 +184,8 @@ class AuthService {
         where: { email: validated.email },
         include: { profile: true },
       });
-    } catch (error: any) {
-      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+    } catch (error: unknown) {
+      if (isTableMissingError(error)) {
         throw new Error(
           'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
         );
@@ -203,9 +204,9 @@ class AuthService {
           where: { email: validated.email },
           include: { profile: true },
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Silently fail - this is best-effort
-        console.warn('[AuthService] Could not ensure first user is admin on signin:', error.message);
+        console.warn('[AuthService] Could not ensure first user is admin on signin:', getErrorMessage(error));
       }
     }
 
@@ -249,8 +250,8 @@ class AuthService {
         where: { id: payload.userId },
         include: { profile: true },
       });
-    } catch (error: any) {
-      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+    } catch (error: unknown) {
+      if (isTableMissingError(error)) {
         throw new Error(
           'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
         );
@@ -290,9 +291,9 @@ class AuthService {
       settings = await prisma.appSettings.findUnique({
         where: { id: 'default' },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If tables don't exist, default to allowing all (for initial setup)
-      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+      if (isTableMissingError(error)) {
         return { verified: true };
       }
       throw error;
@@ -321,8 +322,8 @@ class AuthService {
         },
         include: { profile: true },
       });
-    } catch (error: any) {
-      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+    } catch (error: unknown) {
+      if (isTableMissingError(error)) {
         throw new Error(
           'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
         );
@@ -344,9 +345,9 @@ class AuthService {
           },
           include: { profile: true },
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Silently fail - this is best-effort
-        console.warn('[AuthService] Could not ensure first user is admin:', error.message);
+        console.warn('[AuthService] Could not ensure first user is admin:', getErrorMessage(error));
       }
 
       // Update profile if needed
@@ -382,8 +383,8 @@ class AuthService {
         where: { email },
         include: { profile: true },
       });
-    } catch (error: any) {
-      if (error?.code === 'P2021' || error?.message?.includes('does not exist')) {
+    } catch (error: unknown) {
+      if (isTableMissingError(error)) {
         throw new Error(
           'Database tables do not exist. Please run: cd backend && npm run prisma:seed'
         );
@@ -402,9 +403,9 @@ class AuthService {
           where: { email },
           include: { profile: true },
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Silently fail - this is best-effort
-        console.warn('[AuthService] Could not ensure first user is admin:', error.message);
+        console.warn('[AuthService] Could not ensure first user is admin:', getErrorMessage(error));
       }
 
       // Link Google account

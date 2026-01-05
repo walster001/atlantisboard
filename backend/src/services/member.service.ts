@@ -137,7 +137,7 @@ class MemberService {
       });
 
       // Emit workspace membership event
-      await emitDatabaseChange('workspaceMembers', 'INSERT', newWorkspaceMember as any, undefined);
+      await emitDatabaseChange('workspaceMembers', 'INSERT', newWorkspaceMember as Record<string, unknown>, undefined);
     }
 
     // Create audit log entry
@@ -160,7 +160,7 @@ class MemberService {
       role: validated.role,
       hasUserData: !!(member as any).user,
     });
-    await emitDatabaseChange('boardMembers', 'INSERT', member as any, undefined, validated.boardId);
+    await emitDatabaseChange('boardMembers', 'INSERT', member as Record<string, unknown>, undefined, validated.boardId);
 
     return member;
   }
@@ -318,7 +318,7 @@ class MemberService {
           });
 
           // Emit workspace membership removal event
-          await emitDatabaseChange('workspaceMembers', 'DELETE', undefined, workspaceMember as any);
+          await emitDatabaseChange('workspaceMembers', 'DELETE', undefined, workspaceMember as Record<string, unknown>);
         }
       }
     }
@@ -342,7 +342,7 @@ class MemberService {
       userId: targetUserId,
       hasUserData: !!(memberToDelete as any)?.user,
     });
-    await emitDatabaseChange('boardMembers', 'DELETE', undefined, memberToDelete as any, boardId);
+    await emitDatabaseChange('boardMembers', 'DELETE', undefined, memberToDelete as Record<string, unknown>, boardId);
 
     // If user was removed, notify them via custom event to workspace channel
     if (board.workspaceId) {
@@ -452,7 +452,7 @@ class MemberService {
       newRole: role,
       hasUserData: !!(updated as any).user,
     });
-    await emitDatabaseChange('boardMembers', 'UPDATE', updated as any, member as any, boardId);
+    await emitDatabaseChange('boardMembers', 'UPDATE', updated as Record<string, unknown>, member as Record<string, unknown>, boardId);
 
     return updated;
   }

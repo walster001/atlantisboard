@@ -233,7 +233,7 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
     });
 
     // Emit realtime event for invite link creation
-    await emitDatabaseChange('boardInviteToken', 'INSERT', insertedToken as any, undefined, boardId);
+    await emitDatabaseChange('boardInviteToken', 'INSERT', insertedToken as Record<string, unknown>, undefined, boardId);
 
     res.json({
       success: true,
@@ -368,7 +368,7 @@ router.delete('/:boardId/invites/:tokenId', async (req: Request, res: Response, 
     });
 
     // Emit realtime event for invite link deletion
-    await emitDatabaseChange('boardInviteToken', 'DELETE', undefined, token as any, boardId);
+    await emitDatabaseChange('boardInviteToken', 'DELETE', undefined, token as Record<string, unknown>, boardId);
 
     res.json({ success: true });
   } catch (error) {

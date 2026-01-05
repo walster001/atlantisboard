@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
+import { isPrismaInitializationError } from '../lib/typeGuards.js';
 
 export class AppError extends Error {
   constructor(
@@ -72,7 +73,20 @@ export function errorHandler(
   });
   
   // Build error response
-  const errorResponse: any = {
+  interface ErrorResponse {
+    error: string;
+    stack?: string;
+    message?: string;
+    prismaError?: {
+      code?: string;
+      meta?: unknown;
+      message?: string;
+      type?: string;
+      errorCode?: string;
+    };
+  }
+  
+  const errorResponse: ErrorResponse = {
     error: 'Internal server error',
   };
   
@@ -98,11 +112,11 @@ export function errorHandler(
         type: 'RustPanicError',
         message: err.message,
       };
-    } else if (err instanceof Prisma.PrismaClientInitializationError) {
+    } else if (isPrismaInitializationError(err)) {
       errorResponse.prismaError = {
         type: 'InitializationError',
         message: err.message,
-        errorCode: (err as any).errorCode,
+        errorCode: err.errorCode,
       };
     }
   }

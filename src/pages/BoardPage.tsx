@@ -20,14 +20,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card as CardType, Label } from '@/types/kanban';
 import { BoardMembersDialog } from '@/components/kanban/BoardMembersDialog';
 import { BoardSettingsModal } from '@/components/kanban/BoardSettingsModal';
-import { getUserFriendlyError, getErrorMessage, getErrorName } from '@/lib/errorHandler';
+import { getUserFriendlyError } from '@/lib/errorHandler';
 import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
 import { useDragScroll } from '@/hooks/useDragScroll';
 import { z } from 'zod';
 import type { BoardTheme } from '@/components/kanban/ThemeEditorModal';
 import { cn } from '@/lib/utils';
 import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
-import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
 import type { RealtimePostgresChangesPayload } from '@/realtime/realtimeClient';
 import { normalizeTimestamp, isNewer, isEqual } from '@/lib/timestampUtils';
 import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
@@ -86,27 +85,47 @@ export default function BoardPage() {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { ref: dragScrollRef, isDragging, isSpaceHeld } = useDragScroll<HTMLDivElement>();
   
-  // Real-time permissions updates - triggers refetch when permissions change
-  usePermissionsRealtime({
-    boardId,
-    workspaceId,
-    onPermissionsUpdated: useCallback(() => {
-      console.log('[BoardPage] Permissions updated, refetching board data...');
-      fetchBoardData();
-    }, []),
-    onAccessRevoked: useCallback(() => {
-      console.log('[BoardPage] Access revoked via permissions, redirecting...');
-      navigate('/', {
-        state: {
-          permissionsRevoked: {
-            boardId: boardId,
-            timestamp: Date.now()
-          }
-        }
-      });
-    }, [boardId, navigate]),
-  });
+  // Refs - defined early to avoid forward reference issues
+  // Memoize column IDs to prevent unnecessary subscription recreation
+  const columnIdsRef = useRef<string[]>([]);
+  const columnsLoadedRef = useRef(false);
+  
+  // Track pending optimistic card updates to prevent race conditions
+  interface PendingCardUpdate {
+    columnId: string;
+    position: number;
+    timestamp: number;
+    updatedAt: number; // Normalized timestamp for conflict resolution
+  }
+  const pendingCardUpdatesRef = useRef<Map<string, PendingCardUpdate>>(new Map());
 
+  // Buffer card events when columns are missing (event ordering safety)
+  interface BufferedCardEvent {
+    card: DbCard;
+    event: RealtimePostgresChangesPayload<Record<string, unknown>>;
+    timestamp: number;
+  }
+  const pendingCardEventsRef = useRef<BufferedCardEvent[]>([]);
+
+  // Track pending batch color operations for event batching
+  interface PendingBatchColorOperation {
+    color: string | null;
+    entityIds: string[];
+    timestamp: number;
+    updatedAt: string | null; // Server timestamp from batch operation
+  }
+  const pendingBatchCardColorRef = useRef<PendingBatchColorOperation | null>(null);
+  const pendingBatchColumnColorRef = useRef<PendingBatchColorOperation | null>(null);
+  
+  // Buffer for batched color update events
+  interface BufferedColorEvent {
+    entity: DbCard | DbColumn;
+    event: RealtimePostgresChangesPayload<Record<string, unknown>>;
+    timestamp: number;
+  }
+  const bufferedCardColorEventsRef = useRef<BufferedColorEvent[]>([]);
+  const bufferedColumnColorEventsRef = useRef<BufferedColorEvent[]>([]);
+  
   // Lightweight member refresh without triggering full page loading state
   // Defined here before useEffect to avoid hoisting issues
   const refreshBoardMembers = useCallback(async () => {
@@ -249,6 +268,28 @@ export default function BoardPage() {
     }
   }, [boardId, user, toast, navigate]);
 
+  // Real-time permissions updates - triggers refetch when permissions change
+  // Defined after fetchBoardData to avoid forward reference
+  usePermissionsRealtime({
+    boardId,
+    workspaceId,
+    onPermissionsUpdated: useCallback(() => {
+      console.log('[BoardPage] Permissions updated, refetching board data...');
+      fetchBoardData();
+    }, [fetchBoardData]),
+    onAccessRevoked: useCallback(() => {
+      console.log('[BoardPage] Access revoked via permissions, redirecting...');
+      navigate('/', {
+        state: {
+          permissionsRevoked: {
+            boardId: boardId,
+            timestamp: Date.now()
+          }
+        }
+      });
+    }, [boardId, navigate]),
+  });
+
   // Silent fetch for realtime updates (no loading spinner to prevent UI flicker)
   const silentFetchBoardData = useCallback(async () => {
     if (!boardId) return;
@@ -361,6 +402,93 @@ export default function BoardPage() {
 
   // Debounced refresh for board members
   const debouncedRefreshBoardMembers = useSilentDebouncedFetch(refreshBoardMembers);
+
+  // Process buffered card events when column state is ready
+  // Defined before useStableRealtimeHandlers to avoid forward reference
+  const processBufferedCardEvents = useCallback(() => {
+    if (pendingCardEventsRef.current.length === 0) return;
+    
+    const buffered = [...pendingCardEventsRef.current];
+    pendingCardEventsRef.current = [];
+    
+    // Use columnIdsRef for synchronous check (updated immediately in column INSERT handler)
+    const currentColumnIds = columnIdsRef.current;
+    
+    buffered.forEach(({ card, event, timestamp }) => {
+      const cardData = card as unknown as DbCard;
+      const cardColumnId = cardData.columnId;
+      const columnBelongsToBoard = currentColumnIds.includes(cardColumnId);
+      
+      if (columnBelongsToBoard || currentColumnIds.length === 0) {
+        // Column exists now, reprocess the event by calling the handler logic
+        console.log('[BoardPage] Processing buffered card event:', {
+          cardId: cardData.id,
+          columnId: cardColumnId,
+          eventType: event.eventType,
+        });
+        
+        // Manually trigger the update logic
+        if (event.eventType === 'INSERT') {
+          setCards((prev) => {
+            if (prev.some((c) => c.id === cardData.id)) {
+              return prev;
+            }
+            const updated = [...prev, cardData];
+            return updated.sort((a, b) => {
+              if (a.columnId !== b.columnId) {
+                return a.columnId.localeCompare(b.columnId);
+              }
+              return a.position - b.position;
+            });
+          });
+        } else if (event.eventType === 'UPDATE') {
+          const updatedCard = cardData;
+          setCards((prev) => {
+            const existingCard = prev.find((c) => c.id === updatedCard.id);
+            if (!existingCard) {
+              const updated = [...prev, updatedCard];
+              return updated.sort((a, b) => {
+                if (a.columnId !== b.columnId) {
+                  return a.columnId.localeCompare(b.columnId);
+                }
+                return a.position - b.position;
+              });
+            }
+            
+            // Apply timestamp-based conflict resolution
+            const incomingUpdatedAt = updatedCard.updatedAt;
+            const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
+            const localTimestamp = normalizeTimestamp(existingCard.updatedAt);
+            
+            if (isNewer(localTimestamp, incomingTimestamp)) {
+              return prev; // Keep local state
+            }
+            
+            let updated = prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c));
+            return updated.sort((a, b) => {
+              if (a.columnId !== b.columnId) {
+                return a.columnId.localeCompare(b.columnId);
+              }
+              return a.position - b.position;
+            });
+          });
+        } else if (event.eventType === 'DELETE') {
+          setCards((prev) => prev.filter((c) => c.id !== cardData.id));
+        }
+      } else {
+        // Still missing, keep buffered - check age using timestamp from buffer
+        const age = Date.now() - timestamp;
+        if (age < 5000) { // Only keep events less than 5 seconds old
+          pendingCardEventsRef.current.push({ card, event, timestamp: Date.now() });
+        } else {
+          console.warn('[BoardPage] Dropping buffered card event - column still missing after timeout:', {
+            cardId: cardData.id,
+            columnId: cardColumnId,
+          });
+        }
+      }
+    });
+  }, []); // Empty deps - uses refs which are stable
 
   // Create stable handlers with batching (but disable batching for card/column to use existing batching logic)
   const stableHandlers = useStableRealtimeHandlers({
@@ -763,7 +891,11 @@ export default function BoardPage() {
     onCardDetailUpdate: (detail, event) => {
       const detailData = detail as { cardId?: string; id?: string };
       
-      // Only process if card belongs to current board
+      // Only process if cardId is present and card belongs to current board
+      if (!detailData.cardId) {
+        return;
+      }
+      
       const card = cards.find(c => c.id === detailData.cardId);
       if (!card) {
         // Card not found in current board - might be buffered or from different board
@@ -776,7 +908,7 @@ export default function BoardPage() {
       }
       
       if (event.table === 'card_attachments') {
-        const attachment = detail as { id: string; cardId: string; fileName: string; fileUrl: string; fileSize: number | null; fileType: string | null; uploadedBy: string | null; createdAt: string };
+        const attachment = detail as CardAttachmentResponse;
         if (event.eventType === 'INSERT') {
           setCardAttachments((prev) => {
             if (prev.some(a => a.id === attachment.id)) return prev;
@@ -790,7 +922,7 @@ export default function BoardPage() {
           setCardAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
         }
       } else if (event.table === 'card_subtasks') {
-        const subtask = detail as { id: string; cardId: string; title: string; completed: boolean; completedAt: string | null; completedBy: string | null; position: number; checklistName: string | null; createdAt: string };
+        const subtask = detail as CardSubtaskResponse;
         if (event.eventType === 'INSERT') {
           setCardSubtasks((prev) => {
             if (prev.some(s => s.id === subtask.id)) return prev;
@@ -925,132 +1057,11 @@ export default function BoardPage() {
     }
   }, [user, boardId]);
 
-  // Memoize column IDs to prevent unnecessary subscription recreation
-  const columnIds = useMemo(() => columns.map(c => c.id), [columns]);
-  const columnIdsRef = useRef<string[]>([]);
-  columnIdsRef.current = columnIds;
-
-  // Track pending optimistic card updates to prevent race conditions
-  interface PendingCardUpdate {
-    columnId: string;
-    position: number;
-    timestamp: number;
-    updatedAt: number; // Normalized timestamp for conflict resolution
-  }
-  const pendingCardUpdatesRef = useRef<Map<string, PendingCardUpdate>>(new Map());
-
-  // Buffer card events when columns are missing (event ordering safety)
-  interface BufferedCardEvent {
-    card: DbCard;
-    event: RealtimePostgresChangesPayload<Record<string, unknown>>;
-    timestamp: number;
-  }
-  const pendingCardEventsRef = useRef<BufferedCardEvent[]>([]);
-  const columnsLoadedRef = useRef(false);
-
-  // Track pending batch color operations for event batching
-  interface PendingBatchColorOperation {
-    color: string | null;
-    entityIds: string[];
-    timestamp: number;
-    updatedAt: string | null; // Server timestamp from batch operation
-  }
-  const pendingBatchCardColorRef = useRef<PendingBatchColorOperation | null>(null);
-  const pendingBatchColumnColorRef = useRef<PendingBatchColorOperation | null>(null);
-  
-  // Buffer for batched color update events
-  interface BufferedColorEvent {
-    entity: DbCard | DbColumn;
-    event: RealtimePostgresChangesPayload<Record<string, unknown>>;
-    timestamp: number;
-  }
-  const bufferedCardColorEventsRef = useRef<BufferedColorEvent[]>([]);
-  const bufferedColumnColorEventsRef = useRef<BufferedColorEvent[]>([]);
-
-  // Process buffered card events when column state is ready
-  const processBufferedCardEvents = useCallback(() => {
-    if (pendingCardEventsRef.current.length === 0) return;
-    
-    const buffered = [...pendingCardEventsRef.current];
-    pendingCardEventsRef.current = [];
-    
-    // Use columnIdsRef for synchronous check (updated immediately in column INSERT handler)
-    const currentColumnIds = columnIdsRef.current;
-    
-    buffered.forEach(({ card, event, timestamp }) => {
-      const cardData = card as unknown as DbCard;
-      const cardColumnId = cardData.columnId;
-      const columnBelongsToBoard = currentColumnIds.includes(cardColumnId);
-      
-      if (columnBelongsToBoard || currentColumnIds.length === 0) {
-        // Column exists now, reprocess the event by calling the handler logic
-        console.log('[BoardPage] Processing buffered card event:', {
-          cardId: cardData.id,
-          columnId: cardColumnId,
-          eventType: event.eventType,
-        });
-        
-        // Manually trigger the update logic
-        if (event.eventType === 'INSERT') {
-          setCards((prev) => {
-            if (prev.some((c) => c.id === cardData.id)) {
-              return prev;
-            }
-            const updated = [...prev, cardData];
-            return updated.sort((a, b) => {
-              if (a.columnId !== b.columnId) {
-                return a.columnId.localeCompare(b.columnId);
-              }
-              return a.position - b.position;
-            });
-          });
-        } else if (event.eventType === 'UPDATE') {
-          const updatedCard = cardData;
-          setCards((prev) => {
-            const existingCard = prev.find((c) => c.id === updatedCard.id);
-            if (!existingCard) {
-              const updated = [...prev, updatedCard];
-              return updated.sort((a, b) => {
-                if (a.columnId !== b.columnId) {
-                  return a.columnId.localeCompare(b.columnId);
-                }
-                return a.position - b.position;
-              });
-            }
-            
-            // Apply timestamp-based conflict resolution
-            const incomingUpdatedAt = updatedCard.updatedAt;
-            const incomingTimestamp = normalizeTimestamp(incomingUpdatedAt);
-            const localTimestamp = normalizeTimestamp(existingCard.updatedAt);
-            
-            if (isNewer(localTimestamp, incomingTimestamp)) {
-              return prev; // Keep local state
-            }
-            
-            let updated = prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c));
-            return updated.sort((a, b) => {
-              if (a.columnId !== b.columnId) {
-                return a.columnId.localeCompare(b.columnId);
-              }
-              return a.position - b.position;
-            });
-          });
-        } else if (event.eventType === 'DELETE') {
-          setCards((prev) => prev.filter((c) => c.id !== cardData.id));
-        }
-      } else {
-        // Still missing, keep buffered - check age using timestamp from buffer
-        const age = Date.now() - timestamp;
-        if (age < 5000) { // Only keep events less than 5 seconds old
-          pendingCardEventsRef.current.push({ card, event, timestamp: Date.now() });
-        } else {
-          console.warn('[BoardPage] Dropping buffered card event - column still missing after timeout:', {
-            cardId: cardData.id,
-            columnId: cardColumnId,
-          });
-        }
-      }
-    });
+  // Memoize column IDs and update ref for synchronous access
+  const columnIds = useMemo(() => {
+    const ids = columns.map(c => c.id);
+    columnIdsRef.current = ids;
+    return ids;
   }, [columns]);
 
   // Unified realtime subscription using workspace (parent-child hierarchy)
@@ -1064,9 +1075,7 @@ export default function BoardPage() {
     return () => {
       cleanup(); // Clean up handlers when dependencies change
       // Cleanup function from stableHandlers will process pending batches
-      if (stableHandlers.__cleanup) {
-        stableHandlers.__cleanup();
-      }
+      stableHandlers.__cleanup();
     };
   }, [boardId, workspaceId, stableHandlers]);
 

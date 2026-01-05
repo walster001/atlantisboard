@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
 import { boardService } from './board.service.js';
+import { getErrorMessage } from '../lib/typeGuards.js';
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1),
@@ -200,10 +201,10 @@ class WorkspaceService {
       for (const board of workspace.boards) {
         try {
           await boardService.delete(userId, board.id, isAppAdmin);
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Log error but continue deleting other boards
           // Partial cleanup is better than no cleanup
-          console.error(`[Workspace Deletion] Failed to delete board ${board.id}:`, error.message);
+          console.error(`[Workspace Deletion] Failed to delete board ${board.id}:`, getErrorMessage(error));
         }
       }
     }
@@ -258,7 +259,7 @@ class WorkspaceService {
     });
 
     // Emit workspace membership add event
-    await emitDatabaseChange('workspaceMembers', 'INSERT', member as any, undefined);
+    await emitDatabaseChange('workspaceMembers', 'INSERT', member as Record<string, unknown>, undefined);
 
     return member;
   }
@@ -309,7 +310,7 @@ class WorkspaceService {
 
     // Emit workspace membership remove event
     if (member) {
-      await emitDatabaseChange('workspaceMembers', 'DELETE', undefined, member as any);
+      await emitDatabaseChange('workspaceMembers', 'DELETE', undefined, member as Record<string, unknown>);
     }
 
     return { success: true };

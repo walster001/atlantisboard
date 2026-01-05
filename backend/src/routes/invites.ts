@@ -7,6 +7,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
 import { z } from 'zod';
 import { emitCustomEvent, emitDatabaseChange } from '../realtime/emitter.js';
+import { getErrorMessage, isError } from '../lib/typeGuards.js';
 
 const router = Router();
 
@@ -138,7 +139,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
           });
 
           // Emit workspace membership event
-          await emitDatabaseChange('workspaceMembers', 'INSERT', newWorkspaceMember as any, undefined);
+          await emitDatabaseChange('workspaceMembers', 'INSERT', newWorkspaceMember as Record<string, unknown>, undefined);
         }
 
         // Create audit log entry
@@ -153,7 +154,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
         });
 
         // Emit board membership add event
-        await emitDatabaseChange('boardMembers', 'INSERT', newMember as any, undefined, inviteToken.boardId);
+        await emitDatabaseChange('boardMembers', 'INSERT', newMember as Record<string, unknown>, undefined, inviteToken.boardId);
 
         // Emit custom event for board member addition
         await emitCustomEvent(`board-${inviteToken.boardId}`, 'board.member.added', {
@@ -162,11 +163,11 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
           role: roleToAssign,
           customRoleId: inviteToken.customRoleId || undefined,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // If adding member fails, log and return error
         console.error('[POST /invites/redeem] Error adding member:', {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
+          error: getErrorMessage(error),
+          stack: isError(error) ? error.stack : undefined,
           userId: authReq.userId,
           boardId: inviteToken.boardId,
         });

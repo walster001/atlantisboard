@@ -17,7 +17,7 @@ async function resolveWorkspaceIdForTable(
 ): Promise<string | undefined> {
   // Support both camelCase and snake_case field names
   const getField = (camelCase: string, snakeCase: string): unknown => {
-    return (record as any)[camelCase] ?? (record as any)[snakeCase];
+    return record[camelCase] ?? record[snakeCase];
   };
 
   const boardId = getField('boardId', 'board_id') as string | undefined;
@@ -112,7 +112,7 @@ async function resolveBoardIdForTable(
   record: Record<string, unknown>
 ): Promise<string | undefined> {
   const getField = (camelCase: string, snakeCase: string): unknown => {
-    return (record as any)[camelCase] ?? (record as any)[snakeCase];
+    return record[camelCase] ?? record[snakeCase];
   };
 
   const boardId = getField('boardId', 'board_id') as string | undefined;

@@ -8,6 +8,7 @@ import { ValidationError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { boardImportService } from '../services/board-import.service.js';
+import { getErrorMessage, isError, isRecord } from '../lib/typeGuards.js';
 
 const router = Router();
 
@@ -39,16 +40,18 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
   });
   
   // Helper to send error via SSE if streaming, otherwise use next()
-  const handleError = (error: any) => {
+  const handleError = (error: unknown) => {
     try {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
+      const errorName = isError(error) ? error.name : undefined;
+      const errorType = isRecord(error) && 'constructor' in error && isRecord(error.constructor) && 'name' in error.constructor ? String(error.constructor.name) : undefined;
       
       console.error('[POST /boards/import] Handling error:', {
         error: errorMessage,
         useStreaming,
         headersSent: res.headersSent,
-        errorName: error.name,
-        errorType: error.constructor?.name,
+        errorName: errorName,
+        errorType: errorType,
       });
       
       if (useStreaming) {
@@ -112,7 +115,7 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
     try {
       const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
       await permissionService.requirePermission('app.admin.access', context);
-    } catch (permissionError: any) {
+    } catch (permissionError: unknown) {
       // Handle permission errors via SSE if streaming
       handleError(permissionError);
       return;
@@ -122,7 +125,7 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
     let validated;
     try {
       validated = importBoardSchema.parse(req.body);
-    } catch (validationError: any) {
+    } catch (validationError: unknown) {
       // Handle Zod validation errors with user-friendly messages
       if (validationError instanceof z.ZodError) {
         const errorMessages = validationError.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
@@ -150,11 +153,11 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
-      const sendProgress = (update: any) => {
+      const sendProgress = (update: Record<string, unknown>) => {
         res.write(`data: ${JSON.stringify(update)}\n\n`);
       };
 
-      const sendResult = (result: any) => {
+      const sendResult = (result: Record<string, unknown>) => {
         res.write(`data: ${JSON.stringify(result)}\n\n`);
         res.end();
       };
@@ -168,15 +171,18 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
           sendResult,
           iconReplacements || {}
         );
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Ensure SSE stream is properly closed on errors
-        const errorMessage = error.message || 'Board import encountered an error. Some data may not have been imported.';
+        const errorMessage = getErrorMessage(error);
+        const errorStack = isError(error) ? error.stack : undefined;
+        const errorName = isError(error) ? error.name : undefined;
+        const errorType = isRecord(error) && 'constructor' in error && isRecord(error.constructor) && 'name' in error.constructor ? String(error.constructor.name) : undefined;
         console.error('[POST /boards/import] Import service error:', {
           error: errorMessage,
-          stack: error.stack,
+          stack: errorStack,
           userId: authReq.userId,
-          errorName: error.name,
-          errorType: error.constructor?.name,
+          errorName: errorName,
+          errorType: errorType,
         });
         
         // Check if result was already sent

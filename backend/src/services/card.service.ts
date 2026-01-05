@@ -83,7 +83,7 @@ class CardService {
     });
 
     // Emit create event
-    await emitDatabaseChange('cards', 'INSERT', card as any, undefined, card.column.boardId);
+    await emitDatabaseChange('cards', 'INSERT', card, undefined, card.column.boardId);
 
     return card;
   }
@@ -188,7 +188,7 @@ class CardService {
     });
 
     // Emit update event
-    await emitDatabaseChange('cards', 'UPDATE', updated as any, card as any, card.column.boardId);
+    await emitDatabaseChange('cards', 'UPDATE', updated, card, card.column.boardId);
 
     return updated;
   }
@@ -214,7 +214,7 @@ class CardService {
     });
 
     // Emit delete event
-    await emitDatabaseChange('cards', 'DELETE', undefined, card as any, card.column.boardId);
+    await emitDatabaseChange('cards', 'DELETE', undefined, card, card.column.boardId);
 
     return { success: true };
   }
@@ -261,7 +261,7 @@ class CardService {
       if (oldCard) {
         const updated = await prisma.card.findUnique({ where: { id: update.id }, include: { column: true } });
         if (updated) {
-          await emitDatabaseChange('cards', 'UPDATE', updated as any, oldCard as any, updated.column.boardId);
+          await emitDatabaseChange('cards', 'UPDATE', updated as Record<string, unknown>, oldCard as Record<string, unknown>, updated.column.boardId);
         }
       }
     }
@@ -319,7 +319,7 @@ class CardService {
           include: { column: true },
         });
         if (updated) {
-          await emitDatabaseChange('cards', 'UPDATE', updated as any, oldCard as any, boardId);
+          await emitDatabaseChange('cards', 'UPDATE', updated as Record<string, unknown>, oldCard as Record<string, unknown>, boardId);
         }
       }
     }

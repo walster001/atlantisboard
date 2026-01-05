@@ -6,7 +6,7 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
-import { Server } from 'http';
+import { Server, IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { prisma } from '../db/client.js';
@@ -17,6 +17,11 @@ interface ClientConnection {
   userId: string;
   channels: Set<string>;
   isAlive: boolean;
+}
+
+interface RealtimeClientMessage {
+  type: 'subscribe' | 'unsubscribe' | 'ping';
+  channel?: string;
 }
 
 interface RealtimeEvent {
@@ -202,7 +207,7 @@ class RealtimeServer {
     }
   }
 
-  private handleMessage(client: ClientConnection, message: any) {
+  private handleMessage(client: ClientConnection, message: RealtimeClientMessage) {
     switch (message.type) {
       case 'subscribe':
         this.handleSubscribe(client, message.channel);
@@ -337,23 +342,24 @@ class RealtimeServer {
         // For board events, boardId is the entityId
         boardIdForAccessCheck = payload?.entityId as string | undefined || 
                                 payload?.id as string | undefined ||
-                                (payload?.new as any)?.id ||
-                                (payload?.old as any)?.id;
+                                (payload?.new as Record<string, unknown> | undefined)?.id as string | undefined ||
+                                (payload?.old as Record<string, unknown> | undefined)?.id as string | undefined;
       } else if (entityType === 'column') {
         // For column events, boardId is the parentId
         boardIdForAccessCheck = payload?.parentId as string | undefined ||
-                                (payload?.new as any)?.boardId ||
-                                (payload?.old as any)?.boardId;
+                                (payload?.new as Record<string, unknown> | undefined)?.boardId as string | undefined ||
+                                (payload?.old as Record<string, unknown> | undefined)?.boardId as string | undefined;
       } else if (entityType === 'member') {
         // For member events, boardId is the parentId
         boardIdForAccessCheck = payload?.parentId as string | undefined ||
-                                (payload?.new as any)?.boardId ||
-                                (payload?.old as any)?.boardId;
+                                (payload?.new as Record<string, unknown> | undefined)?.boardId as string | undefined ||
+                                (payload?.old as Record<string, unknown> | undefined)?.boardId as string | undefined;
       } else if (entityType === 'card') {
         // For card events, need to extract from record
         const record = payload?.new || payload?.old;
         if (record) {
-          const columnId = (record as any)?.columnId || (record as any)?.column_id;
+          const recordObj = record as Record<string, unknown>;
+          const columnId = recordObj?.columnId as string | undefined || recordObj?.column_id as string | undefined;
           if (columnId) {
             // Resolve column to boardId (use existing cache if available)
             // For now, we'll allow the event through and rely on workspace-level access
@@ -649,18 +655,19 @@ class RealtimeServer {
     parentId: string | undefined;
   } {
     const record = newRecord || oldRecord;
-    const entityId = (record as any)?.id || (record as any)?.userId;
+    const recordObj = record as Record<string, unknown> | undefined;
+    const entityId = recordObj?.id as string | undefined || recordObj?.userId as string | undefined;
 
     if (table === 'boards') {
       return { entityType: 'board', entityId, parentId: workspaceId };
     } else if (table === 'columns') {
-      const columnBoardId = (record as any)?.boardId || (record as any)?.board_id || boardId;
+      const columnBoardId = recordObj?.boardId as string | undefined || recordObj?.board_id as string | undefined || boardId;
       return { entityType: 'column', entityId, parentId: columnBoardId };
     } else if (table === 'cards') {
-      const cardColumnId = (record as any)?.columnId || (record as any)?.column_id;
+      const cardColumnId = recordObj?.columnId as string | undefined || recordObj?.column_id as string | undefined;
       return { entityType: 'card', entityId, parentId: cardColumnId };
     } else if (table.startsWith('card_')) {
-      const cardId = (record as any)?.cardId || (record as any)?.card_id;
+      const cardId = recordObj?.cardId as string | undefined || recordObj?.card_id as string | undefined;
       return { entityType: 'cardDetail', entityId, parentId: cardId };
     } else if (table === 'boardMembers') {
       return { entityType: 'member', entityId, parentId: boardId };
@@ -685,7 +692,8 @@ class RealtimeServer {
   ) {
     // Step 1: Resolve entity IDs from records
     const record = newRecord || oldRecord;
-    const entityId = (record as any)?.id || (record as any)?.userId;
+    const recordObj = record as Record<string, unknown> | undefined;
+    const entityId = recordObj?.id as string | undefined || recordObj?.userId as string | undefined;
     
     let resolvedBoardId: string | undefined = boardId;
     let resolvedColumnId: string | undefined;
@@ -695,20 +703,20 @@ class RealtimeServer {
     // Resolve IDs based on table type
     if (table === 'boards') {
       resolvedBoardId = entityId;
-      resolvedWorkspaceId = (record as any)?.workspaceId || (record as any)?.workspace_id;
+      resolvedWorkspaceId = recordObj?.workspaceId as string | undefined || recordObj?.workspace_id as string | undefined;
     } else if (table === 'columns') {
-      resolvedBoardId = (record as any)?.boardId || (record as any)?.board_id || boardId;
+      resolvedBoardId = recordObj?.boardId as string | undefined || recordObj?.board_id as string | undefined || boardId;
       resolvedColumnId = entityId;
     } else if (table === 'cards') {
-      resolvedColumnId = (record as any)?.columnId || (record as any)?.column_id;
+      resolvedColumnId = recordObj?.columnId as string | undefined || recordObj?.column_id as string | undefined;
       resolvedCardId = entityId;
     } else if (table.startsWith('card_')) {
       // Card details: attachments, subtasks, assignees, labels
-      resolvedCardId = (record as any)?.cardId || (record as any)?.card_id;
+      resolvedCardId = recordObj?.cardId as string | undefined || recordObj?.card_id as string | undefined;
     } else if (table === 'boardMembers') {
-      resolvedBoardId = (record as any)?.boardId || (record as any)?.board_id || boardId;
+      resolvedBoardId = recordObj?.boardId as string | undefined || recordObj?.board_id as string | undefined || boardId;
     } else if (table === 'workspaceMembers' || table === 'workspaces') {
-      resolvedWorkspaceId = (record as any)?.workspaceId || (record as any)?.workspace_id || entityId;
+      resolvedWorkspaceId = recordObj?.workspaceId as string | undefined || recordObj?.workspace_id as string | undefined || entityId;
     }
 
     // Step 2: Resolve workspaceId using helper (with caching)
@@ -774,54 +782,56 @@ class RealtimeServer {
     // Invalidate workspaceId cache when cards/columns/boards are moved or deleted
     // Use cascade invalidation when entities actually move (boardId/workspaceId changes)
     if (event === 'DELETE') {
-      const entityId = (record as any)?.id;
-      if (entityId) {
+      const deleteEntityId = recordObj?.id as string | undefined;
+      if (deleteEntityId) {
         if (table === 'boards') {
-          await this.invalidateWorkspaceIdCacheCascade('board', entityId);
+          await this.invalidateWorkspaceIdCacheCascade('board', deleteEntityId);
         } else if (table === 'columns') {
-          await this.invalidateWorkspaceIdCacheCascade('column', entityId);
+          await this.invalidateWorkspaceIdCacheCascade('column', deleteEntityId);
         } else if (table === 'cards') {
-          this.invalidateWorkspaceIdCache('card', entityId);
+          this.invalidateWorkspaceIdCache('card', deleteEntityId);
         }
       }
     } else if (event === 'UPDATE' && newRecord && oldRecord) {
-      const entityId = (record as any)?.id;
-      if (entityId) {
+      const updateEntityId = recordObj?.id as string | undefined;
+      if (updateEntityId) {
+        const oldRecordObj = oldRecord as Record<string, unknown>;
+        const newRecordObj = newRecord as Record<string, unknown>;
         // Check if column moved to different board
         if (table === 'columns') {
-          const oldBoardId = (oldRecord as any)?.boardId || (oldRecord as any)?.board_id;
-          const newBoardId = (newRecord as any)?.boardId || (newRecord as any)?.board_id;
+          const oldBoardId = oldRecordObj?.boardId as string | undefined || oldRecordObj?.board_id as string | undefined;
+          const newBoardId = newRecordObj?.boardId as string | undefined || newRecordObj?.board_id as string | undefined;
           if (oldBoardId && newBoardId && oldBoardId !== newBoardId) {
             // Column moved to different board - cascade invalidate
-            await this.invalidateWorkspaceIdCacheCascade('column', entityId);
+            await this.invalidateWorkspaceIdCacheCascade('column', updateEntityId);
           } else {
             // Column updated but didn't move - just invalidate the column itself
-            this.invalidateWorkspaceIdCache('column', entityId);
+            this.invalidateWorkspaceIdCache('column', updateEntityId);
           }
         }
         // Check if board moved to different workspace
         else if (table === 'boards') {
-          const oldWorkspaceId = (oldRecord as any)?.workspaceId || (oldRecord as any)?.workspace_id;
-          const newWorkspaceId = (newRecord as any)?.workspaceId || (newRecord as any)?.workspace_id;
+          const oldWorkspaceId = oldRecordObj?.workspaceId as string | undefined || oldRecordObj?.workspace_id as string | undefined;
+          const newWorkspaceId = newRecordObj?.workspaceId as string | undefined || newRecordObj?.workspace_id as string | undefined;
           if (oldWorkspaceId && newWorkspaceId && oldWorkspaceId !== newWorkspaceId) {
             // Board moved to different workspace - cascade invalidate
-            await this.invalidateWorkspaceIdCacheCascade('board', entityId);
+            await this.invalidateWorkspaceIdCacheCascade('board', updateEntityId);
           } else {
             // Board updated but didn't move - just invalidate the board itself
-            this.invalidateWorkspaceIdCache('board', entityId);
+            this.invalidateWorkspaceIdCache('board', updateEntityId);
           }
         }
         // Check if card moved to different column (which might be in different board)
         else if (table === 'cards') {
-          const oldColumnId = (oldRecord as any)?.columnId || (oldRecord as any)?.column_id;
-          const newColumnId = (newRecord as any)?.columnId || (newRecord as any)?.column_id;
+          const oldColumnId = oldRecordObj?.columnId as string | undefined || oldRecordObj?.column_id as string | undefined;
+          const newColumnId = newRecordObj?.columnId as string | undefined || newRecordObj?.column_id as string | undefined;
           if (oldColumnId && newColumnId && oldColumnId !== newColumnId) {
             // Card moved to different column - invalidate card cache
             // Note: We don't cascade from cards, but we should invalidate the card itself
-            this.invalidateWorkspaceIdCache('card', entityId);
+            this.invalidateWorkspaceIdCache('card', updateEntityId);
           } else {
             // Card updated but didn't move - just invalidate the card itself
-            this.invalidateWorkspaceIdCache('card', entityId);
+            this.invalidateWorkspaceIdCache('card', updateEntityId);
           }
         }
       }

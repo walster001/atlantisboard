@@ -8,6 +8,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { storageService } from '../services/storage.service.js';
 import { ValidationError } from '../middleware/errorHandler.js';
 import { permissionService } from '../lib/permissions/service.js';
+import { getErrorMessage, isError, isRecord } from '../lib/typeGuards.js';
 
 const router = Router();
 
@@ -191,16 +192,20 @@ router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: 
       url: fileUrl,
       publicUrl,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Log detailed error information
+    const errorMessage = getErrorMessage(error);
+    const errorStack = isError(error) ? error.stack : undefined;
+    const errorName = isError(error) ? error.name : undefined;
+    const errorStatusCode = isRecord(error) && 'statusCode' in error ? error.statusCode : undefined;
     console.error('[Storage Upload] Upload failed:', {
       bucket: req.params.bucket,
       path: req.body?.path,
       userId: (req as AuthRequest).userId,
-      error: error.message,
-      stack: error.stack,
-      name: error.name,
-      statusCode: error.statusCode,
+      error: errorMessage,
+      stack: errorStack,
+      name: errorName,
+      statusCode: errorStatusCode,
     });
 
     // Pass error to error handler

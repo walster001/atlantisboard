@@ -45,7 +45,7 @@ class ColumnService {
     });
 
     // Emit create event
-    await emitDatabaseChange('columns', 'INSERT', column as any, undefined, validated.boardId);
+    await emitDatabaseChange('columns', 'INSERT', column, undefined, validated.boardId);
 
     return column;
   }
@@ -115,7 +115,7 @@ class ColumnService {
     });
 
     // Emit update event
-    await emitDatabaseChange('columns', 'UPDATE', updated as any, column as any, column.boardId);
+    await emitDatabaseChange('columns', 'UPDATE', updated, column, column.boardId);
 
     return updated;
   }
@@ -138,7 +138,7 @@ class ColumnService {
     });
 
     // Emit delete event
-    await emitDatabaseChange('columns', 'DELETE', undefined, column as any, column.boardId);
+    await emitDatabaseChange('columns', 'DELETE', undefined, column, column.boardId);
 
     return { success: true };
   }
@@ -169,7 +169,7 @@ class ColumnService {
       if (oldColumn) {
         const updated = await prisma.column.findUnique({ where: { id: update.id } });
         if (updated) {
-          await emitDatabaseChange('columns', 'UPDATE', updated as any, oldColumn as any, oldColumn.boardId);
+          await emitDatabaseChange('columns', 'UPDATE', updated as Record<string, unknown>, oldColumn as Record<string, unknown>, oldColumn.boardId);
         }
       }
     }
@@ -220,7 +220,7 @@ class ColumnService {
       if (oldColumn) {
         const updated = await prisma.column.findUnique({ where: { id: columnId } });
         if (updated) {
-          await emitDatabaseChange('columns', 'UPDATE', updated as any, oldColumn as any, boardId);
+          await emitDatabaseChange('columns', 'UPDATE', updated, oldColumn, boardId);
         }
       }
     }

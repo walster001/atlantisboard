@@ -10,6 +10,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
 import { env } from '../config/env.js';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
+import { getErrorMessage, isRecord } from '../lib/typeGuards.js';
 
 class StorageService {
   private s3Client: S3Client | null = null;
@@ -59,17 +60,20 @@ class StorageService {
       const headCommand = new HeadBucketCommand({ Bucket: bucketName });
       await this.s3Client.send(headCommand);
       // Bucket exists, nothing to do
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Bucket doesn't exist or error checking
-      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      const errorName = isRecord(error) && 'name' in error ? String(error.name) : undefined;
+      const httpStatusCode = isRecord(error) && '$metadata' in error && isRecord(error.$metadata) && 'httpStatusCode' in error.$metadata ? error.$metadata.httpStatusCode : undefined;
+      if (errorName === 'NotFound' || httpStatusCode === 404) {
         try {
           // Create the bucket
           const createCommand = new CreateBucketCommand({ Bucket: bucketName });
           await this.s3Client.send(createCommand);
           console.log(`[Storage] Created bucket: ${bucketName}`);
-        } catch (createError: any) {
+        } catch (createError: unknown) {
           // Bucket might have been created by another request, or creation failed
-          if (createError.name === 'BucketAlreadyOwnedByYou' || createError.name === 'BucketAlreadyExists') {
+          const createErrorName = isRecord(createError) && 'name' in createError ? String(createError.name) : undefined;
+          if (createErrorName === 'BucketAlreadyOwnedByYou' || createErrorName === 'BucketAlreadyExists') {
             // Bucket was created by another request, that's fine
             console.log(`[Storage] Bucket already exists: ${bucketName}`);
           } else {
@@ -115,10 +119,11 @@ class StorageService {
       }
 
       return path;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Storage] Upload error:', error);
-      const errorMessage = error.message || 'Unknown error';
-      if (error.name === 'NoSuchBucket') {
+      const errorMessage = getErrorMessage(error);
+      const errorName = isRecord(error) && 'name' in error ? String(error.name) : undefined;
+      if (errorName === 'NoSuchBucket') {
         throw new ValidationError(`Bucket "${bucketName}" does not exist. Please create it in your MinIO/S3 storage.`);
       }
       throw new ValidationError(`Failed to upload file to ${bucket}: ${errorMessage}`);
@@ -144,12 +149,13 @@ class StorageService {
       // Generate signed URL (valid for expiresIn seconds)
       const url = await getSignedUrl(this.s3Client, command, { expiresIn });
       return url;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Storage] Get URL error:', error);
-      if (error.name === 'NoSuchBucket' || error.name === 'NoSuchKey') {
+      const errorName = isRecord(error) && 'name' in error ? String(error.name) : undefined;
+      if (errorName === 'NoSuchBucket' || errorName === 'NoSuchKey') {
         throw new NotFoundError(`File not found: ${path}`);
       }
-      throw new NotFoundError(`Failed to generate download URL: ${error.message || 'Unknown error'}`);
+      throw new NotFoundError(`Failed to generate download URL: ${getErrorMessage(error)}`);
     }
   }
 
@@ -194,7 +200,7 @@ class StorageService {
         contentType: response.ContentType,
         contentLength: response.ContentLength,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Storage] Download error:', error);
       throw new NotFoundError(`File not found: ${path}`);
     }
@@ -217,10 +223,11 @@ class StorageService {
       });
 
       await this.s3Client.send(command);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Storage] Delete error:', error);
-      const errorMessage = error.message || 'Unknown error';
-      if (error.name === 'NoSuchBucket') {
+      const errorMessage = getErrorMessage(error);
+      const errorName = isRecord(error) && 'name' in error ? String(error.name) : undefined;
+      if (errorName === 'NoSuchBucket') {
         throw new ValidationError(`Bucket "${bucketName}" does not exist.`);
       }
       throw new ValidationError(`Failed to delete file from ${bucket}: ${errorMessage}`);
@@ -245,8 +252,10 @@ class StorageService {
 
       await this.s3Client.send(command);
       return true;
-    } catch (error: any) {
-      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+    } catch (error: unknown) {
+      const errorName = isRecord(error) && 'name' in error ? String(error.name) : undefined;
+      const httpStatusCode = isRecord(error) && '$metadata' in error && isRecord(error.$metadata) && 'httpStatusCode' in error.$metadata ? error.$metadata.httpStatusCode : undefined;
+      if (errorName === 'NotFound' || httpStatusCode === 404) {
         return false;
       }
       throw error;

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange, emitCustomEvent } from '../realtime/emitter.js';
 import { storageService } from './storage.service.js';
+import { getErrorMessage } from '../lib/typeGuards.js';
 
 const createBoardSchema = z.object({
   workspaceId: z.string().uuid(),
@@ -296,7 +297,7 @@ class BoardService {
     });
 
     // Emit create event
-    await emitDatabaseChange('boards', 'INSERT', board as any, undefined, board.id);
+    await emitDatabaseChange('boards', 'INSERT', board, undefined, board.id);
 
     return board;
   }
@@ -453,16 +454,16 @@ class BoardService {
           try {
             await storageService.delete(file.bucket, file.path);
             console.log(`[Board Deletion] Deleted file: ${file.bucket}/${file.path}`);
-          } catch (error: any) {
+          } catch (error: unknown) {
             // Log error but continue with deletion
-            console.error(`[Board Deletion] Failed to delete file ${file.bucket}/${file.path}:`, error.message);
+            console.error(`[Board Deletion] Failed to delete file ${file.bucket}/${file.path}:`, getErrorMessage(error));
           }
         }
 
         console.log(`[Board Deletion] Cleaned up ${filesToDelete.length} files from MinIO for board ${boardId}`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Log error but don't fail board deletion if cleanup fails
-        console.error(`[Board Deletion] Error during MinIO cleanup for board ${boardId}:`, error.message);
+        console.error(`[Board Deletion] Error during MinIO cleanup for board ${boardId}:`, getErrorMessage(error));
       }
     }
 
@@ -471,7 +472,7 @@ class BoardService {
     });
 
     // Emit DELETE event for realtime subscriptions
-    await emitDatabaseChange('boards', 'DELETE', undefined, board as any, boardId);
+    await emitDatabaseChange('boards', 'DELETE', undefined, board, boardId);
 
     // Emit custom event to workspace channel
     if (board.workspaceId) {
@@ -521,7 +522,7 @@ class BoardService {
     });
 
     // Emit update event
-    await emitDatabaseChange('boards', 'UPDATE', updated as any, oldBoard as any, boardId);
+    await emitDatabaseChange('boards', 'UPDATE', updated as Record<string, unknown>, oldBoard as Record<string, unknown>, boardId);
 
     return updated;
   }

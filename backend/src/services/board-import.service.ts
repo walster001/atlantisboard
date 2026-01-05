@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '../db/client.js';
+import { getErrorMessage, isError } from '../lib/typeGuards.js';
 
 // Emoji shortcode map (simplified - full map in original edge function)
 const EMOJI_SHORTCODE_MAP: Record<string, string> = {
@@ -292,7 +293,7 @@ interface ImportResult {
  * Validate and normalize Wekan data structure
  * Handles both single board and array of boards
  */
-function validateAndNormalizeWekanData(wekanData: any): { boards: WekanBoard[]; warnings: string[] } {
+function validateAndNormalizeWekanData(wekanData: unknown): { boards: WekanBoard[]; warnings: string[] } {
   const warnings: string[] = [];
 
   if (!wekanData) {
@@ -397,10 +398,12 @@ class BoardImportService {
       const normalized = validateAndNormalizeWekanData(wekanData);
       boards = normalized.boards;
       result.warnings.push(...normalized.warnings);
-    } catch (validationError: any) {
+    } catch (validationError: unknown) {
+      const errorMessage = getErrorMessage(validationError);
+      const errorStack = isError(validationError) ? validationError.stack : undefined;
       console.error('[BoardImportService] Validation error:', {
-        error: validationError.message,
-        stack: validationError.stack,
+        error: errorMessage,
+        stack: errorStack,
         userId,
       });
       result.success = false;
@@ -534,9 +537,9 @@ class BoardImportService {
               total: totalLabels,
               detail: `Created ${boardLabels.length} labels`,
             });
-          } catch (labelError: any) {
+          } catch (labelError: unknown) {
             console.error('Error creating labels:', labelError);
-            const errorMessage = labelError.message || 'Failed to create labels';
+            const errorMessage = getErrorMessage(labelError);
             result.warnings.push(`Failed to create some labels: ${errorMessage}`);
             // Continue import even if labels fail
           }
@@ -701,9 +704,9 @@ class BoardImportService {
               await prisma.cardLabel.createMany({
                 data: cardLabelInserts,
               });
-            } catch (cardLabelError: any) {
+            } catch (cardLabelError: unknown) {
               console.error('Error creating card labels:', cardLabelError);
-              const errorMessage = cardLabelError.message || 'Failed to create card labels';
+              const errorMessage = getErrorMessage(cardLabelError);
               result.warnings.push(`Failed to create some card labels (batch ${Math.floor(batchStart / CARD_BATCH_SIZE) + 1}): ${errorMessage}`);
               // Continue import even if card labels fail
             }
@@ -814,9 +817,9 @@ class BoardImportService {
 
                   // Replace placeholder with inline button markdown
                   updatedDescription = updatedDescription.replace(placeholderPattern, inlineButtonMarkdown);
-                } catch (buttonError: any) {
+                } catch (buttonError: unknown) {
                   console.error(`Error processing inline button for card ${newCardId}, button ${button.buttonIndex}:`, buttonError);
-                  result.warnings.push(`Failed to convert inline button ${button.buttonIndex} for card "${card.title}": ${buttonError.message || 'Unknown error'}`);
+                  result.warnings.push(`Failed to convert inline button ${button.buttonIndex} for card "${card.title}": ${getErrorMessage(buttonError)}`);
                 }
               }
 
@@ -837,13 +840,15 @@ class BoardImportService {
                 )
               );
             }
-          } catch (updateError: any) {
+          } catch (updateError: unknown) {
+            const errorMessage = getErrorMessage(updateError);
+            const errorStack = isError(updateError) ? updateError.stack : undefined;
             console.error('[BoardImportService] Error converting inline button placeholders:', {
-              error: updateError.message,
-              stack: updateError.stack,
+              error: errorMessage,
+              stack: errorStack,
               boardId: board.id,
             });
-            result.warnings.push(`Failed to convert some inline buttons: ${updateError.message || 'Unknown error'}`);
+            result.warnings.push(`Failed to convert some inline buttons: ${errorMessage}`);
             // Continue import even if inline button conversion fails
           }
         }
@@ -908,17 +913,17 @@ class BoardImportService {
 
             result.subtasks_created += batch.length;
             processedChecklists += batch.length;
-          } catch (subtaskError: any) {
+          } catch (subtaskError: unknown) {
             console.error('Error creating subtasks batch:', subtaskError);
-            const errorMessage = subtaskError.message || 'Failed to create subtasks';
+            const errorMessage = getErrorMessage(subtaskError);
             result.warnings.push(`Failed to create some subtasks (batch ${Math.floor(batchStart / SUBTASK_BATCH_SIZE) + 1}): ${errorMessage}`);
             // Continue import even if this batch fails
           }
         }
 
-      } catch (boardError: any) {
+      } catch (boardError: unknown) {
         console.error('Error processing board:', boardError);
-        const errorMessage = boardError.message || 'Failed to process board data';
+        const errorMessage = getErrorMessage(boardError);
         result.errors.push(`Failed to save board data: ${errorMessage}`);
       }
     }

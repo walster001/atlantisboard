@@ -56,7 +56,7 @@ class SubtaskService {
     });
 
     // Emit create event
-    await emitDatabaseChange('card_subtasks', 'INSERT', subtask as any, undefined, card.column.boardId);
+    await emitDatabaseChange('card_subtasks', 'INSERT', subtask as Record<string, unknown>, undefined, card.column.boardId);
 
     return subtask;
   }
@@ -108,7 +108,7 @@ class SubtaskService {
     });
 
     // Emit update event
-    await emitDatabaseChange('card_subtasks', 'UPDATE', updated as any, subtask as any, subtask.card.column.boardId);
+    await emitDatabaseChange('card_subtasks', 'UPDATE', updated as Record<string, unknown>, subtask as Record<string, unknown>, subtask.card.column.boardId);
 
     return updated;
   }
@@ -136,7 +136,7 @@ class SubtaskService {
     });
 
     // Emit delete event
-    await emitDatabaseChange('card_subtasks', 'DELETE', undefined, subtask as any, subtask.card.column.boardId);
+    await emitDatabaseChange('card_subtasks', 'DELETE', undefined, subtask as Record<string, unknown>, subtask.card.column.boardId);
 
     return { success: true };
   }

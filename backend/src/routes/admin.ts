@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { mysqlVerificationService } from '../services/mysql-verification.service.js';
 import mysql from 'mysql2/promise';
+import { getErrorMessage } from '../lib/typeGuards.js';
 
 const router = Router();
 
@@ -138,7 +139,7 @@ router.post('/mysql-config/test', async (req: Request, res: Response, next: Next
           const testQuery = verification_query.replace('?', "'test@example.com'");
           await connection.query(testQuery);
           queryTestResult = { success: true, message: 'Verification query executed successfully.' };
-        } catch (queryError: any) {
+        } catch (queryError: unknown) {
           const queryErrorStr = String(queryError);
           let queryErrorMsg = 'Verification query failed';
           
@@ -171,7 +172,7 @@ router.post('/mysql-config/test', async (req: Request, res: Response, next: Next
         query_success: queryTestResult?.success ?? null,
         message,
       });
-    } catch (mysqlError: any) {
+    } catch (mysqlError: unknown) {
       if (connection) {
         await connection.end();
       }

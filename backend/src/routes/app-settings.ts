@@ -3,6 +3,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
 import { ForbiddenError } from '../middleware/errorHandler.js';
 import { Prisma } from '@prisma/client';
+import { getErrorMessage, isPrismaKnownRequestError, isRecord, isError } from '../lib/typeGuards.js';
 
 const router = Router();
 
@@ -27,11 +28,11 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
             id: 'default',
           },
         });
-      } catch (createError: any) {
+      } catch (createError: unknown) {
         // If create fails, try to find again (race condition)
         console.error('[app-settings] Error creating settings:', createError);
         // Check if it's a unique constraint violation (another request created it)
-        if (createError?.code === 'P2002') {
+        if (isPrismaKnownRequestError(createError) && createError.code === 'P2002') {
           // Try to find again
           settings = await prisma.appSettings.findUnique({
             where: { id: 'default' },
@@ -39,11 +40,14 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         }
         if (!settings) {
           // Log the full error for debugging
+          const errorCode = isPrismaKnownRequestError(createError) ? createError.code : undefined;
+          const errorMessage = getErrorMessage(createError);
+          const errorMeta = isPrismaKnownRequestError(createError) ? createError.meta : undefined;
           console.error('[app-settings] Failed to create or find settings:', {
             error: createError,
-            code: createError?.code,
-            message: createError?.message,
-            meta: createError?.meta,
+            code: errorCode,
+            message: errorMessage,
+            meta: errorMeta,
           });
           throw createError;
         }
@@ -60,7 +64,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           fontUrl: true,
         },
       });
-    } catch (fontError: any) {
+    } catch (fontError: unknown) {
       // Log font error but don't fail the request - fonts are optional
       console.warn('[app-settings] Error fetching fonts:', fontError);
       fonts = [];
@@ -70,16 +74,19 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       settings: settings,
       fonts: fonts,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Enhanced error logging with Prisma-specific error handling
-    const errorDetails: any = {
-      message: error?.message,
-      code: error?.code,
-      meta: error?.meta,
+    const errorMessage = getErrorMessage(error);
+    const errorCode = isPrismaKnownRequestError(error) ? error.code : undefined;
+    const errorMeta = isPrismaKnownRequestError(error) ? error.meta : undefined;
+    const errorDetails: Record<string, unknown> = {
+      message: errorMessage,
+      code: errorCode,
+      meta: errorMeta,
     };
     
     // Check for Prisma-specific errors
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaKnownRequestError(error)) {
       errorDetails.prismaError = true;
       errorDetails.code = error.code;
       errorDetails.meta = error.meta;
@@ -105,7 +112,8 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
     
     console.error('[app-settings] GET error:', errorDetails);
     if (process.env.NODE_ENV === 'development') {
-      console.error('[app-settings] Full error stack:', error?.stack);
+      const errorStack = isError(error) ? error.stack : undefined;
+      console.error('[app-settings] Full error stack:', errorStack);
     }
     
     next(error);

@@ -32,7 +32,7 @@ class LabelService {
     });
 
     // Emit create event
-    await emitDatabaseChange('labels', 'INSERT', label as any, undefined, validated.boardId);
+    await emitDatabaseChange('labels', 'INSERT', label as Record<string, unknown>, undefined, validated.boardId);
 
     return label;
   }
@@ -73,7 +73,7 @@ class LabelService {
     });
 
     // Emit update event
-    await emitDatabaseChange('labels', 'UPDATE', updated as any, label as any, label.boardId);
+    await emitDatabaseChange('labels', 'UPDATE', updated as Record<string, unknown>, label as Record<string, unknown>, label.boardId);
 
     return updated;
   }
@@ -96,7 +96,7 @@ class LabelService {
     });
 
     // Emit delete event
-    await emitDatabaseChange('labels', 'DELETE', undefined, label as any, label.boardId);
+    await emitDatabaseChange('labels', 'DELETE', undefined, label as Record<string, unknown>, label.boardId);
 
     return { success: true };
   }
@@ -137,7 +137,7 @@ class LabelService {
     });
 
     // Emit create event
-    await emitDatabaseChange('card_labels', 'INSERT', cardLabel as any, undefined, card.column.boardId);
+    await emitDatabaseChange('card_labels', 'INSERT', cardLabel as Record<string, unknown>, undefined, card.column.boardId);
 
     return cardLabel;
   }
@@ -178,7 +178,7 @@ class LabelService {
 
     // Emit delete event
     if (existingCardLabel) {
-      await emitDatabaseChange('card_labels', 'DELETE', undefined, existingCardLabel as any, card.column.boardId);
+      await emitDatabaseChange('card_labels', 'DELETE', undefined, existingCardLabel as Record<string, unknown>, card.column.boardId);
     }
 
     return { success: true };

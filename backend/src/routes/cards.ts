@@ -12,7 +12,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const card = await cardService.findById(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(card);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -23,7 +23,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const card = await cardService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(card);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -34,7 +34,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
   try {
     const card = await cardService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(card);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -45,7 +45,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   try {
     const result = await cardService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -60,7 +60,7 @@ router.post('/reorder', async (req: Request, res: Response, next: NextFunction) 
     }
     const result = await cardService.reorder(authReq.userId!, updates, authReq.user?.isAdmin ?? false);
     return res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });
@@ -75,7 +75,7 @@ router.post('/:id/assignees', async (req: Request, res: Response, next: NextFunc
     }
     const assignee = await cardService.addAssignee(authReq.userId!, req.params.id, assigneeUserId, authReq.user?.isAdmin ?? false);
     return res.status(201).json(assignee);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });
@@ -86,7 +86,7 @@ router.delete('/:id/assignees/:userId', async (req: Request, res: Response, next
   try {
     const result = await cardService.removeAssignee(authReq.userId!, req.params.id, req.params.userId, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

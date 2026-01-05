@@ -3,8 +3,18 @@ import { authMiddleware } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
 import { ValidationError } from '../middleware/errorHandler.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
+import { Prisma } from '@prisma/client';
 
 const router = Router();
+
+// Type for Prisma query builder with where clause
+type PrismaQueryWithWhere = {
+  where: Record<string, unknown>;
+  select?: Record<string, boolean>;
+  orderBy?: Record<string, 'asc' | 'desc'>;
+  take?: number;
+  skip?: number;
+};
 
 /**
  * Resolve workspaceId for a given table and record
@@ -169,7 +179,7 @@ router.use(authMiddleware);
 
 
 // Parse query parameters for Supabase-style filters
-function parseFilters(query: Record<string, string>) {
+function parseFilters(query: Record<string, string>): Array<{ field: string; operator: string; value: unknown }> {
   const filters: Array<{ field: string; operator: string; value: unknown }> = [];
 
   for (const [key, value] of Object.entries(query)) {
@@ -206,9 +216,9 @@ function parseFilters(query: Record<string, string>) {
 
 // Apply filters to Prisma query
 function applyFilters(
-  query: any,
+  query: { where: Record<string, unknown> },
   filters: Array<{ field: string; operator: string; value: unknown }>
-) {
+): void {
   for (const filter of filters) {
     const { field, operator, value } = filter;
     // Field names are already in camelCase
@@ -303,7 +313,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
     const countOnly = req.query.count === 'true' || req.query.count === '1';
 
     // Build query
-    const query: any = {
+    const query: PrismaQueryWithWhere = {
       where: {},
     };
 
@@ -345,7 +355,7 @@ router.get('/:table', async (req: Request, res: Response, next: NextFunction) =>
     const data = await model.findMany(query);
 
     return res.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     // Log error details for debugging
     console.error(`[DB Route] Error querying table ${req.params.table}:`, error);
     if (error instanceof Error) {
@@ -402,7 +412,7 @@ router.post('/:table', async (req: Request, res: Response, next: NextFunction) =
     }
 
     res.status(201).json(Array.isArray(body) ? results : results[0]);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -426,7 +436,7 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
     const filters = parseFilters(req.query as Record<string, string>);
 
     // Build where clause
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     applyFilters({ where }, filters);
 
     // Update data is already in camelCase
@@ -450,7 +460,7 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
     for (const updated of updatedRecords) {
       try {
         // Find matching old record
-        const oldRecord = oldRecords.find((old: any) => {
+        const oldRecord = oldRecords.find((old: Record<string, unknown>) => {
           // Match by id or userId depending on table type
           if (old.id && updated.id) {
             return old.id === updated.id;
@@ -481,7 +491,7 @@ router.patch('/:table', async (req: Request, res: Response, next: NextFunction) 
     }
 
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -505,7 +515,7 @@ router.delete('/:table', async (req: Request, res: Response, next: NextFunction)
     const filters = parseFilters(req.query as Record<string, string>);
 
     // Build where clause
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     applyFilters({ where }, filters);
 
     // Safety check: prevent deleting all records (empty where clause)
@@ -541,7 +551,7 @@ router.delete('/:table', async (req: Request, res: Response, next: NextFunction)
     }
 
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

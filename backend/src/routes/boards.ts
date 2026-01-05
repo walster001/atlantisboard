@@ -34,7 +34,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const boards = await boardService.findAll(authReq.userId!, authReq.user?.isAdmin ?? false);
     res.json(boards);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -46,7 +46,7 @@ router.get('/:boardId/members', async (req: Request, res: Response, next: NextFu
   try {
     const members = await memberService.getBoardMembers(authReq.userId!, req.params.boardId, authReq.user?.isAdmin ?? false);
     res.json(members);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -67,7 +67,7 @@ router.get('/:boardId/audit-logs', async (req: Request, res: Response, next: Nex
       { page, limit, offset }
     );
     res.json(auditLogs);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -82,7 +82,7 @@ router.get('/:boardId/members/find', async (req: Request, res: Response, next: N
     }
     const users = await memberService.findUserByEmail(authReq.userId!, email, req.params.boardId, authReq.user?.isAdmin ?? false);
     return res.json(users);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });
@@ -96,7 +96,7 @@ router.post('/:boardId/members', async (req: Request, res: Response, next: NextF
       ...req.body,
     }, authReq.user?.isAdmin ?? false);
     res.status(201).json(member);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -107,7 +107,7 @@ router.delete('/:boardId/members/:userId', async (req: Request, res: Response, n
   try {
     const result = await memberService.removeBoardMember(authReq.userId!, req.params.boardId, req.params.userId, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -128,7 +128,7 @@ router.patch('/:boardId/members/:userId/role', async (req: Request, res: Respons
       authReq.user?.isAdmin ?? false
     );
     return res.json(member);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });
@@ -243,7 +243,7 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
       role: insertedToken.role,
       customRoleId: insertedToken.customRoleId,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[POST /boards/:boardId/invites/generate] Error:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
@@ -287,7 +287,7 @@ router.get('/:boardId/custom-roles', async (req: Request, res: Response, next: N
     });
 
     res.json(customRoles);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -324,7 +324,7 @@ router.get('/:boardId/invites', async (req: Request, res: Response, next: NextFu
     });
 
     res.json(tokens);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[GET /boards/:boardId/invites] Error:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
@@ -371,7 +371,7 @@ router.delete('/:boardId/invites/:tokenId', async (req: Request, res: Response, 
     await emitDatabaseChange('boardInviteToken', 'DELETE', undefined, token as Record<string, unknown>, boardId);
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[DELETE /boards/:boardId/invites/:tokenId] Error:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
@@ -389,7 +389,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const board = await boardService.findById(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(board);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -400,7 +400,7 @@ router.get('/:id/data', async (req: Request, res: Response, next: NextFunction) 
   try {
     const data = await boardService.getBoardData(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -411,7 +411,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const board = await boardService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(board);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -422,7 +422,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
   try {
     const board = await boardService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(board);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -433,7 +433,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   try {
     const result = await boardService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -451,7 +451,7 @@ router.patch('/:id/position', async (req: Request, res: Response, next: NextFunc
       authReq.user?.isAdmin ?? false
     );
     res.json(board);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

@@ -150,6 +150,7 @@ export default function BoardPage() {
       console.log('[BoardPage] Board members state updated');
     } catch (error: unknown) {
       console.error('Error refreshing members:', error);
+      // Error is logged but not shown to user as this is a background refresh
     }
   }, [boardId, user]);
 
@@ -1112,6 +1113,7 @@ export default function BoardPage() {
       }
     } catch (error: unknown) {
       console.error('Error refreshing theme:', error);
+      // Error is logged but not shown to user as this is a background refresh
     }
   };
 
@@ -1129,6 +1131,7 @@ export default function BoardPage() {
       setBoardColor(boardData?.backgroundColor || '#0079bf');
     } catch (error: unknown) {
       console.error('Error refreshing background:', error);
+      // Error is logged but not shown to user as this is a background refresh
     }
   };
 
@@ -1145,6 +1148,7 @@ export default function BoardPage() {
       setLabels((labelsResult.data as DbLabel[]) || []);
     } catch (error: unknown) {
       console.error('Error refreshing labels:', error);
+      // Error is logged but not shown to user as this is a background refresh
     }
   };
 

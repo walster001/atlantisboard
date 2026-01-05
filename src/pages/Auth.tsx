@@ -103,10 +103,10 @@ export default function Auth() {
         setPageData(result);
       } catch (error: unknown) {
         // Check if it's a connection error (backend not running)
-        const errorMessage = error && typeof error === 'object' && 'message' in error ? String(error.message) : '';
-        const errorName = error && typeof error === 'object' && 'name' in error ? String(error.name) : '';
+        const errorMessage = error instanceof Error ? error.message : (typeof error === 'string' ? error : 'Unknown error');
+        const errorName = error instanceof Error ? error.name : (error && typeof error === 'object' && 'name' in error ? String(error.name) : '');
         const isConnectionError = errorMessage.includes('Failed to fetch') || 
-                                   errorMessage.includes('ERR_CONNECTION_REFUSED') ||
+                                   errorMessage.includes('ERR_CONNECTION_REFUSED') || 
                                    errorName === 'TypeError';
         
         if (isConnectionError) {
@@ -114,7 +114,7 @@ export default function Auth() {
           console.warn('[Auth] Backend server not available. Using default page data.');
         } else {
           // Other errors - log normally
-          console.error('Error fetching auth page data:', error);
+          console.error('Error fetching auth page data:', errorMessage);
         }
         // Use defaults on error so the auth page still works
         setPageData({ settings: null, fonts: [] });

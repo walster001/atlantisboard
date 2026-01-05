@@ -169,6 +169,7 @@ class ColumnService {
       if (oldColumn) {
         const updated = await prisma.column.findUnique({ where: { id: update.id } });
         if (updated) {
+          // Type assertion necessary: emitDatabaseChange expects Record<string, unknown> for generic table support
           await emitDatabaseChange('columns', 'UPDATE', updated as Record<string, unknown>, oldColumn as Record<string, unknown>, oldColumn.boardId);
         }
       }

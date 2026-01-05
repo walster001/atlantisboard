@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
+import { Prisma } from '@prisma/client';
 
 const createCardSchema = z.object({
   columnId: z.string().uuid(),
@@ -147,7 +148,7 @@ class CardService {
 
     const validated = updateCardSchema.parse(data);
 
-    const updateData: any = {
+    const updateData: Prisma.CardUpdateInput = {
       title: validated.title,
       description: validated.description,
       color: validated.color,
@@ -261,6 +262,7 @@ class CardService {
       if (oldCard) {
         const updated = await prisma.card.findUnique({ where: { id: update.id }, include: { column: true } });
         if (updated) {
+          // Type assertion necessary: emitDatabaseChange expects Record<string, unknown> for generic table support
           await emitDatabaseChange('cards', 'UPDATE', updated as Record<string, unknown>, oldCard as Record<string, unknown>, updated.column.boardId);
         }
       }
@@ -319,6 +321,7 @@ class CardService {
           include: { column: true },
         });
         if (updated) {
+          // Type assertion necessary: emitDatabaseChange expects Record<string, unknown> for generic table support
           await emitDatabaseChange('cards', 'UPDATE', updated as Record<string, unknown>, oldCard as Record<string, unknown>, boardId);
         }
       }

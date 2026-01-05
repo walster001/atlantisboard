@@ -16,7 +16,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
     const columns = await columnService.findAll(authReq.userId!, boardId, authReq.user?.isAdmin ?? false);
     return res.json(columns);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });
@@ -27,7 +27,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const column = await columnService.findById(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(column);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -38,7 +38,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const column = await columnService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(column);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -49,7 +49,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
   try {
     const column = await columnService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(column);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -60,7 +60,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   try {
     const result = await columnService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -75,7 +75,7 @@ router.post('/reorder', async (req: Request, res: Response, next: NextFunction) 
     }
     const result = await columnService.reorder(authReq.userId!, boardId, updates, authReq.user?.isAdmin ?? false);
     return res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });

@@ -16,7 +16,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
     const labels = await labelService.findAll(authReq.userId!, boardId, authReq.user?.isAdmin ?? false);
     return res.json(labels);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });
@@ -27,7 +27,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const label = await labelService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(label);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -38,7 +38,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
   try {
     const label = await labelService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(label);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -49,7 +49,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   try {
     const result = await labelService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -64,7 +64,7 @@ router.post('/:id/assign', async (req: Request, res: Response, next: NextFunctio
     }
     const cardLabel = await labelService.assignToCard(authReq.userId!, cardId, req.params.id, authReq.user?.isAdmin ?? false);
     return res.status(201).json(cardLabel);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });
@@ -75,7 +75,7 @@ router.delete('/:id/assign/:cardId', async (req: Request, res: Response, next: N
   try {
     const result = await labelService.removeFromCard(authReq.userId!, req.params.cardId, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

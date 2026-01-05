@@ -15,8 +15,10 @@ const router = Router();
 // All routes require authentication
 router.use(authMiddleware);
 
+// Wekan data can be a single board object or an array of boards
+// We use unknown here and validate in the service layer since Wekan data structure is complex
 const importBoardSchema = z.object({
-  wekanData: z.any(), // Wekan board data (can be single board or array)
+  wekanData: z.unknown(), // Wekan board data (can be single board or array) - validated in service layer
   defaultCardColor: z.string().nullable().optional(),
   iconReplacements: z.record(z.string(), z.string()).optional(), // Map of original URL -> replacement URL
 }).passthrough(); // Allow extra fields without throwing - supports future extensibility
@@ -233,7 +235,7 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
       );
       res.json(result);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     // Log validation and other errors for debugging
     if (error instanceof ValidationError || error instanceof z.ZodError) {
       console.error('[POST /boards/import] Validation error:', {

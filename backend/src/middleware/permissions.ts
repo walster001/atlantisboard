@@ -13,8 +13,8 @@ import { ForbiddenError } from './errorHandler.js';
 /**
  * Middleware factory to require a specific permission
  */
-export function requirePermission(permission: PermissionKey) {
-  return async (req: AuthRequest, _res: Response, next: NextFunction) => {
+export function requirePermission(permission: PermissionKey): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
+  return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {
         throw new ForbiddenError('Authentication required');
@@ -34,7 +34,7 @@ export function requirePermission(permission: PermissionKey) {
       // Check permission
       await permissionService.requirePermission(permission, context);
       next();
-    } catch (error) {
+    } catch (error: unknown) {
       next(error);
     }
   };
@@ -43,8 +43,8 @@ export function requirePermission(permission: PermissionKey) {
 /**
  * Middleware factory to require any of the given permissions
  */
-export function requireAnyPermission(...permissions: PermissionKey[]) {
-  return async (req: AuthRequest, _res: Response, next: NextFunction) => {
+export function requireAnyPermission(...permissions: PermissionKey[]): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
+  return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {
         throw new ForbiddenError('Authentication required');
@@ -73,7 +73,7 @@ export function requireAnyPermission(...permissions: PermissionKey[]) {
       }
 
       next();
-    } catch (error) {
+    } catch (error: unknown) {
       next(error);
     }
   };
@@ -82,8 +82,8 @@ export function requireAnyPermission(...permissions: PermissionKey[]) {
 /**
  * Middleware factory to require all of the given permissions
  */
-export function requireAllPermissions(...permissions: PermissionKey[]) {
-  return async (req: AuthRequest, _res: Response, next: NextFunction) => {
+export function requireAllPermissions(...permissions: PermissionKey[]): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
+  return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {
         throw new ForbiddenError('Authentication required');
@@ -104,7 +104,7 @@ export function requireAllPermissions(...permissions: PermissionKey[]) {
       }
 
       next();
-    } catch (error) {
+    } catch (error: unknown) {
       next(error);
     }
   };

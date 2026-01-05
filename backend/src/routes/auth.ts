@@ -14,7 +14,7 @@ router.post('/signup', async (req: Request, res: Response, next: NextFunction) =
   try {
     const result = await authService.signUp(req.body);
     res.status(201).json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -24,7 +24,7 @@ router.post('/signin', async (req: Request, res: Response, next: NextFunction) =
   try {
     const result = await authService.signIn(req.body);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -40,7 +40,7 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
 
     const result = await authService.refreshToken(refreshToken);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -66,7 +66,7 @@ router.get('/me', authMiddleware, async (req: Request, res: Response, next: Next
       avatarUrl: user.profile?.avatarUrl ?? null,
       provider: user.provider || 'email', // Include provider for OAuth detection
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -81,7 +81,7 @@ router.post('/signout', authMiddleware, async (req: Request, res: Response, next
     }
     
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -97,7 +97,7 @@ router.post('/verify-email', async (req: Request, res: Response, next: NextFunct
 
     const result = await authService.verifyEmailForGoogleAuth(email);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -120,7 +120,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
             profile.photos?.[0]?.value
           );
           done(null, result);
-        } catch (error) {
+        } catch (error: unknown) {
           done(error, false);
         }
       }
@@ -153,7 +153,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
         redirectUrl.hash = `access_token=${result.accessToken}&refresh_token=${result.refreshToken}`;
         
         res.redirect(redirectUrl.toString());
-      } catch (error) {
+      } catch (error: unknown) {
         next(error);
       }
     }

@@ -122,7 +122,7 @@ class RealtimeServer {
           this.clients.delete(existingWs);
           try {
             existingWs.close();
-          } catch (e) {
+          } catch (e: unknown) {
             // Ignore errors closing old connection
           }
           break;
@@ -180,7 +180,7 @@ class RealtimeServer {
         try {
           const message = JSON.parse(data.toString());
           this.handleMessage(client, message);
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('[Realtime] Error parsing message:', error);
         }
       });

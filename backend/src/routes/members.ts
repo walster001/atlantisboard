@@ -12,7 +12,7 @@ router.get('/boards/:boardId/members', async (req: Request, res: Response, next:
   try {
     const members = await memberService.getBoardMembers(authReq.userId!, req.params.boardId, authReq.user?.isAdmin ?? false);
     res.json(members);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -26,7 +26,7 @@ router.post('/boards/:boardId/members', async (req: Request, res: Response, next
       ...req.body,
     }, authReq.user?.isAdmin ?? false);
     res.status(201).json(member);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -37,7 +37,7 @@ router.delete('/boards/:boardId/members/:userId', async (req: Request, res: Resp
   try {
     const result = await memberService.removeBoardMember(authReq.userId!, req.params.boardId, req.params.userId, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -58,7 +58,7 @@ router.patch('/boards/:boardId/members/:userId/role', async (req: Request, res: 
       authReq.user?.isAdmin ?? false
     );
     return res.json(member);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });
@@ -73,7 +73,7 @@ router.get('/boards/:boardId/members/find', async (req: Request, res: Response, 
     }
     const users = await memberService.findUserByEmail(authReq.userId!, email, req.params.boardId, authReq.user?.isAdmin ?? false);
     return res.json(users);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });

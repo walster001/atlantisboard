@@ -12,7 +12,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const subtask = await subtaskService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(subtask);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -23,7 +23,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
   try {
     const subtask = await subtaskService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(subtask);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -34,7 +34,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   try {
     const result = await subtaskService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

@@ -47,8 +47,9 @@ async function ensureTablesExist() {
       cwd: backendDir,
     });
     console.log('✅ Prisma db push completed.\n');
-  } catch (error: any) {
-    console.error('❌ Error running prisma db push:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error running prisma db push:', errorMessage);
     console.log('⚠️  Attempting to verify tables manually...\n');
   }
   

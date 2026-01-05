@@ -12,7 +12,7 @@ router.get('/data', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await homeService.getHomeData(authReq.userId!, authReq.user?.isAdmin ?? false);
     res.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

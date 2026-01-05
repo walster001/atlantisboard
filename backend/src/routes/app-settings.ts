@@ -138,7 +138,7 @@ router.patch('/', authMiddleware, async (req: Request, res: Response, next: Next
     });
 
     res.json(updated);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

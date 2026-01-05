@@ -137,6 +137,7 @@ class MemberService {
       });
 
       // Emit workspace membership event
+      // Type assertion necessary: emitDatabaseChange expects Record<string, unknown> for generic table support
       await emitDatabaseChange('workspaceMembers', 'INSERT', newWorkspaceMember as Record<string, unknown>, undefined);
     }
 
@@ -158,8 +159,9 @@ class MemberService {
       boardId: validated.boardId,
       userId: validated.userId,
       role: validated.role,
-      hasUserData: !!(member as any).user,
+      hasUserData: !!member.user,
     });
+    // Type assertion necessary: emitDatabaseChange expects Record<string, unknown> for generic table support
     await emitDatabaseChange('boardMembers', 'INSERT', member as Record<string, unknown>, undefined, validated.boardId);
 
     return member;
@@ -318,6 +320,7 @@ class MemberService {
           });
 
           // Emit workspace membership removal event
+          // Type assertion necessary: emitDatabaseChange expects Record<string, unknown> for generic table support
           await emitDatabaseChange('workspaceMembers', 'DELETE', undefined, workspaceMember as Record<string, unknown>);
         }
       }
@@ -340,8 +343,9 @@ class MemberService {
       event: 'DELETE',
       boardId: boardId,
       userId: targetUserId,
-      hasUserData: !!(memberToDelete as any)?.user,
+      hasUserData: !!memberToDelete?.user,
     });
+    // Type assertion necessary: emitDatabaseChange expects Record<string, unknown> for generic table support
     await emitDatabaseChange('boardMembers', 'DELETE', undefined, memberToDelete as Record<string, unknown>, boardId);
 
     // If user was removed, notify them via custom event to workspace channel
@@ -450,8 +454,9 @@ class MemberService {
       userId: targetUserId,
       oldRole: member.role,
       newRole: role,
-      hasUserData: !!(updated as any).user,
+      hasUserData: !!updated.user,
     });
+    // Type assertion necessary: emitDatabaseChange expects Record<string, unknown> for generic table support
     await emitDatabaseChange('boardMembers', 'UPDATE', updated as Record<string, unknown>, member as Record<string, unknown>, boardId);
 
     return updated;

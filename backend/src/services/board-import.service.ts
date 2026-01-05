@@ -7,6 +7,7 @@
 
 import { prisma } from '../db/client.js';
 import { getErrorMessage, isError } from '../lib/typeGuards.js';
+import { Prisma } from '@prisma/client';
 
 // Emoji shortcode map (simplified - full map in original edge function)
 const EMOJI_SHORTCODE_MAP: Record<string, string> = {
@@ -332,27 +333,34 @@ function validateAndNormalizeWekanData(wekanData: unknown): { boards: WekanBoard
 
     // Validate and normalize nested arrays
     if (board.labels) {
-      board.labels = board.labels.filter((label: any) => {
+      board.labels = board.labels.filter((label: unknown): label is WekanLabel => {
         if (!label || typeof label !== 'object') return false;
-        return label._id && (label.name || label.color);
+        const l = label as Record<string, unknown>;
+        return typeof l._id === 'string' && (typeof l.name === 'string' || typeof l.color === 'string');
       });
     }
 
     if (board.lists) {
-      board.lists = board.lists.filter((list: any) => {
-        return list && typeof list === 'object' && (list._id || list.title || list.name);
+      board.lists = board.lists.filter((list: unknown): list is WekanList => {
+        if (!list || typeof list !== 'object') return false;
+        const l = list as Record<string, unknown>;
+        return typeof l._id === 'string' || typeof l.title === 'string' || typeof l.name === 'string';
       });
     }
 
     if (board.cards) {
-      board.cards = board.cards.filter((card: any) => {
-        return card && typeof card === 'object' && (card._id || card.title || card.name);
+      board.cards = board.cards.filter((card: unknown): card is WekanCard => {
+        if (!card || typeof card !== 'object') return false;
+        const c = card as Record<string, unknown>;
+        return typeof c._id === 'string' || typeof c.title === 'string' || typeof c.name === 'string';
       });
     }
 
     if (board.checklists) {
-      board.checklists = board.checklists.filter((checklist: any) => {
-        return checklist && typeof checklist === 'object' && checklist._id && checklist.cardId;
+      board.checklists = board.checklists.filter((checklist: unknown): checklist is WekanChecklist => {
+        if (!checklist || typeof checklist !== 'object') return false;
+        const ch = checklist as Record<string, unknown>;
+        return typeof ch._id === 'string' && typeof ch.cardId === 'string';
       });
     }
 
@@ -407,7 +415,6 @@ class BoardImportService {
         userId,
       });
       result.success = false;
-      const errorMessage = validationError.message || 'Failed to validate Wekan data structure';
       result.errors.push(errorMessage);
       sendResult?.(result);
       return result;
@@ -507,9 +514,11 @@ class BoardImportService {
         const cardIdMap = new Map<string, string>();
 
         // Create labels in batch
-        const boardLabels = (wekanBoard.labels || []).filter((label: any) => {
+        const boardLabels = (wekanBoard.labels || []).filter((label: unknown): label is WekanLabel => {
           // Defensive check: ensure label has required properties
-          return label && (label._id || label.name || label.color);
+          if (!label || typeof label !== 'object') return false;
+          const l = label as Record<string, unknown>;
+          return typeof l._id === 'string' || typeof l.name === 'string' || typeof l.color === 'string';
         });
         
         if (boardLabels.length > 0) {
@@ -546,9 +555,9 @@ class BoardImportService {
         }
 
         // Create columns (lists) in batch
-        const lists = (wekanBoard.lists || []).filter((list: any) => {
+        const lists = (wekanBoard.lists || []).filter((list: unknown): list is WekanList => {
           // Defensive check: ensure list is valid
-          return list && typeof list === 'object';
+          return list !== null && typeof list === 'object';
         });
         const sortedLists = [...lists]
           .filter(l => !l.archived)
@@ -582,9 +591,11 @@ class BoardImportService {
         }
 
         // Create cards in batches
-        const cards = (wekanBoard.cards || []).filter((card: any) => {
+        const cards = (wekanBoard.cards || []).filter((card: unknown): card is WekanCard => {
           // Defensive check: ensure card is valid
-          return card && typeof card === 'object' && (card.title || card.name);
+          if (!card || typeof card !== 'object') return false;
+          const c = card as Record<string, unknown>;
+          return typeof c.title === 'string' || typeof c.name === 'string';
         });
         const sortedCards = [...cards]
           .filter(c => !c.archived)
@@ -600,7 +611,7 @@ class BoardImportService {
 
         // Prepare all card inserts
         const allCardInserts: Array<{
-          insert: any;
+          insert: Prisma.CardCreateInput;
           wekanCard: WekanCard;
         }> = [];
         
@@ -854,9 +865,11 @@ class BoardImportService {
         }
 
         // Create subtasks from checklists in batch
-        const checklists = (wekanBoard.checklists || []).filter((checklist: any) => {
+        const checklists = (wekanBoard.checklists || []).filter((checklist: unknown): checklist is WekanChecklist => {
           // Defensive check: ensure checklist is valid
-          return checklist && typeof checklist === 'object' && checklist.cardId;
+          if (!checklist || typeof checklist !== 'object') return false;
+          const ch = checklist as Record<string, unknown>;
+          return typeof ch.cardId === 'string';
         });
         const allSubtaskInserts: Array<{
           cardId: string;
@@ -873,9 +886,11 @@ class BoardImportService {
             continue;
           }
 
-          const items = (checklist.items || []).filter((item: any) => {
+          const items = (checklist.items || []).filter((item: unknown): item is WekanChecklistItem => {
             // Defensive check: ensure item is valid
-            return item && typeof item === 'object' && (item.title || item.name);
+            if (!item || typeof item !== 'object') return false;
+            const i = item as Record<string, unknown>;
+            return typeof i.title === 'string' || typeof i.name === 'string';
           });
           const sortedItems = [...items].sort((a, b) => (a.sort || 0) - (b.sort || 0));
 

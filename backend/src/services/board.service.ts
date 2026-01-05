@@ -5,6 +5,7 @@ import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange, emitCustomEvent } from '../realtime/emitter.js';
 import { storageService } from './storage.service.js';
 import { getErrorMessage } from '../lib/typeGuards.js';
+import { Prisma } from '@prisma/client';
 
 const createBoardSchema = z.object({
   workspaceId: z.string().uuid(),
@@ -490,7 +491,7 @@ class BoardService {
     const context = permissionService.buildContext(userId, isAppAdmin ?? false, boardId);
     await permissionService.requirePermission('board.move', context);
 
-    const updateData: any = {
+    const updateData: Prisma.BoardUpdateInput = {
       position: newPosition,
     };
 
@@ -522,6 +523,7 @@ class BoardService {
     });
 
     // Emit update event
+    // Type assertion necessary: emitDatabaseChange expects Record<string, unknown> for generic table support
     await emitDatabaseChange('boards', 'UPDATE', updated as Record<string, unknown>, oldBoard as Record<string, unknown>, boardId);
 
     return updated;

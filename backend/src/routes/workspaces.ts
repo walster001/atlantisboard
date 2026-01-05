@@ -13,7 +13,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const workspaces = await workspaceService.findAll(authReq.userId!);
     res.json(workspaces);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -24,7 +24,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const workspace = await workspaceService.findById(authReq.userId!, req.params.id);
     res.json(workspace);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -35,7 +35,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const workspace = await workspaceService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
     res.status(201).json(workspace);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -46,7 +46,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
   try {
     const workspace = await workspaceService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
     res.json(workspace);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -57,7 +57,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   try {
     const result = await workspaceService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -72,7 +72,7 @@ router.post('/:id/members', async (req: Request, res: Response, next: NextFuncti
     }
     const member = await workspaceService.addMember(authReq.userId!, req.params.id, memberUserId);
     return res.status(201).json(member);
-  } catch (error) {
+  } catch (error: unknown) {
     return next(error);
   }
 });
@@ -83,7 +83,7 @@ router.delete('/:id/members/:userId', async (req: Request, res: Response, next: 
   try {
     const result = await workspaceService.removeMember(authReq.userId!, req.params.id, req.params.userId);
     res.json(result);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

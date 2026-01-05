@@ -93,9 +93,8 @@ export function SwipeableSheet({
         )}
         style={{
           transform: `translateY(${dragOffset}px)`,
-          // @ts-ignore -- custom property for overlay
           '--sheet-overlay-opacity': overlayOpacity,
-        }}
+        } as React.CSSProperties & { '--sheet-overlay-opacity'?: number }}
         hideCloseButton
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

@@ -274,7 +274,9 @@ export default function Home() {
       setBoards(result?.boards || []);
       setBoardRoles(result?.boardRoles || {});
     } catch (error: unknown) {
-      console.error('Error fetching data:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error fetching data:', errorMessage);
+      // Error is logged but loading state is cleared in finally block
     } finally {
       setLoading(false);
     }
@@ -377,7 +379,7 @@ export default function Home() {
     onMemberUpdate: (member, event) => {
       const membership = member as { boardId?: string; userId?: string };
       // Only process if it's the current user
-      if (membership.userId !== user.id) return;
+      if (!user || membership.userId !== user.id) return;
       
       if (event.eventType === 'INSERT') {
         debouncedFetchData();
@@ -413,7 +415,7 @@ export default function Home() {
         // Handle workspace membership updates
         const workspaceData = workspace as { workspaceId?: string; userId?: string };
         // Only process if it's the current user
-        if (workspaceData.userId !== user.id) return;
+        if (!user || workspaceData.userId !== user.id) return;
         
         if (event.eventType === 'INSERT') {
           // User added to a workspace - dynamically subscribe to new workspace
@@ -1006,7 +1008,7 @@ export default function Home() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.userMetadata?.avatarUrl} />
+                  <AvatarImage src={user?.userMetadata?.avatarUrl ?? undefined} />
                   <AvatarFallback>
                     <User className="h-4 w-4" />
                   </AvatarFallback>

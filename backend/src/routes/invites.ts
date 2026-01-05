@@ -205,7 +205,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
         ? 'You are already a member of this board'
         : `You have been added to the board as ${roleMessage}`,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[POST /invites/redeem] Error:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,

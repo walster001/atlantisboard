@@ -256,7 +256,7 @@ router.get('/:bucket/*', async (req: Request, res: Response, next: NextFunction)
 
     // Redirect to signed URL
     res.redirect(downloadUrl);
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -307,7 +307,7 @@ router.delete('/:bucket/*', async (req: Request, res: Response, next: NextFuncti
     await storageService.delete(bucket, path);
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -328,7 +328,7 @@ router.get('/:bucket/*/public-url', async (req: Request, res: Response, next: Ne
     const publicUrl = storageService.getPublicUrl(bucket, path);
 
     res.json({ publicUrl });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

@@ -3,6 +3,7 @@ import { NotFoundError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
 import { emitDatabaseChange } from '../realtime/emitter.js';
+import { Prisma } from '@prisma/client';
 
 const createSubtaskSchema = z.object({
   cardId: z.string().uuid(),
@@ -85,7 +86,7 @@ class SubtaskService {
       await permissionService.requirePermission('subtask.create', context);
     }
 
-    const updateData: any = {
+    const updateData: Prisma.CardSubtaskUpdateInput = {
       title: validated.title,
       checklistName: validated.checklistName,
       position: validated.position,

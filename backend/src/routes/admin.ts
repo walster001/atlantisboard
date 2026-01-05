@@ -87,7 +87,7 @@ router.post('/mysql-config', async (req: Request, res: Response, next: NextFunct
     });
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -199,7 +199,7 @@ router.post('/mysql-config/test', async (req: Request, res: Response, next: Next
         message: errorMessage,
       });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 });

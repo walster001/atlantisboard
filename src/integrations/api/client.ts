@@ -4,6 +4,7 @@
  */
 
 import { getRealtimeClient } from './realtime';
+import type { UserAuthResponse } from '@/types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
 
@@ -260,13 +261,7 @@ class ApiClient {
       }
 
       // Verify token is still valid by making a request
-      const result = await this.request<{
-        id: string;
-        email: string;
-        fullName: string | null;
-        isAdmin: boolean;
-        avatarUrl: string | null;
-      }>('/auth/me');
+      const result = await this.request<UserAuthResponse>('/auth/me');
       
       if (result.error) {
         // Check if it's a 401 error (session expired)
@@ -298,7 +293,7 @@ class ApiClient {
               id: result.data.id,
               email: result.data.email,
               appMetadata: {
-                provider: (result.data as any).provider || 'email', // Use provider from API response
+                provider: result.data.provider || 'email', // Use provider from API response
               },
               userMetadata: {
                 avatarUrl: result.data.avatarUrl,
@@ -319,8 +314,8 @@ class ApiClient {
   }
 
   // RPC methods (for database functions)
-  rpc(functionName: string, params?: Record<string, unknown>) {
-    return this.request(`/rpc/${functionName}`, {
+  rpc<T = unknown>(functionName: string, params?: Record<string, unknown>) {
+    return this.request<T>(`/rpc/${functionName}`, {
       method: 'POST',
       body: params ? JSON.stringify(params) : undefined,
     });

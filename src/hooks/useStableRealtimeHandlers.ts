@@ -113,24 +113,24 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
 
       if (batchingOptions) {
         // Wrap with batching
-        const batcher = createEventBatcher((events) => {
+        const batcher = createEventBatcher<Parameters<NonNullable<WorkspaceHandlers[typeof key]>>[0]>((events) => {
           // Process each event in the batch
           for (const batchedEvent of events) {
-            originalHandler(batchedEvent.entity as any, batchedEvent.event);
+            originalHandler(batchedEvent.entity as Parameters<NonNullable<WorkspaceHandlers[typeof key]>>[0], batchedEvent.event);
           }
         }, batchingOptions);
 
-        stable[key] = batcher.handler as any;
+        stable[key] = batcher.handler as T[typeof key];
         cleanupFunctions.push(batcher.cleanup);
       } else {
         // No batching - use handler directly but wrap to access latest ref
-        stable[key] = ((...args: any[]) => {
+        stable[key] = ((...args: Parameters<NonNullable<T[typeof key]>>) => {
           // Access latest handler from ref
           const currentHandler = handlersRef.current[key];
           if (currentHandler) {
-            (currentHandler as any)(...args);
+            (currentHandler as NonNullable<T[typeof key]>)(...args);
           }
-        }) as any;
+        }) as T[typeof key];
       }
     }
 

@@ -23,7 +23,7 @@ import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
 import { api } from '@/integrations/api/client';
 import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
 import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
-import type { WorkspaceResponse as Workspace, BoardResponse as Board, HomeDataResponse } from '@/types/api';
+import type { WorkspaceResponse as Workspace, BoardResponse as Board, HomeDataResponse, DeletionCountsResponse, WorkspaceDeleteResponse, BoardCreateResponse, MoveBoardResponse } from '@/types/api';
 
 interface BoardTheme {
   id: string;
@@ -664,11 +664,11 @@ export default function Home() {
   const fetchWorkspaceDeletionCounts = async (workspaceId: string) => {
     setDeletionCountsLoading(true);
     try {
-      const { data, error } = await api.rpc('get_workspace_deletion_counts', {
+      const { data, error } = await api.rpc<DeletionCountsResponse>('get_workspace_deletion_counts', {
         _workspace_id: workspaceId
       });
       if (error) throw error;
-      setDeletionCounts(data as any);
+      setDeletionCounts(data as DeletionCountsResponse | null);
     } catch (error) {
       console.error('Error fetching deletion counts:', error);
       setDeletionCounts(null);
@@ -680,11 +680,11 @@ export default function Home() {
   const fetchBoardDeletionCounts = async (boardId: string) => {
     setDeletionCountsLoading(true);
     try {
-      const { data, error } = await api.rpc('get_board_deletion_counts', {
+      const { data, error } = await api.rpc<DeletionCountsResponse>('get_board_deletion_counts', {
         _board_id: boardId
       });
       if (error) throw error;
-      setDeletionCounts(data as any);
+      setDeletionCounts(data as DeletionCountsResponse | null);
     } catch (error) {
       console.error('Error fetching deletion counts:', error);
       setDeletionCounts(null);
@@ -696,7 +696,7 @@ export default function Home() {
   const deleteWorkspace = async (id: string) => {
     try {
       // Use the service endpoint which properly handles workspace deletion with permissions
-      const { error } = await (api as any).request(`/workspaces/${id}`, {
+      const { error } = await api.request<WorkspaceDeleteResponse>(`/workspaces/${id}`, {
         method: 'DELETE',
       });
       if (error) throw error;
@@ -791,7 +791,7 @@ export default function Home() {
 
       // Use the service endpoint which automatically adds creator as admin
       // Using api.request directly like other components (InviteLinkButton, etc.)
-      const { data: board, error } = await (api as any).request('/boards', {
+      const { data: board, error } = await api.request<BoardCreateResponse>('/boards', {
         method: 'POST',
         body: JSON.stringify({
           workspaceId: selectedWorkspaceId,
@@ -959,15 +959,15 @@ export default function Home() {
       });
 
       // Update database
-      const { data, error } = await api.rpc('move_board_to_workspace', {
+      const { data, error } = await api.rpc<MoveBoardResponse>('move_board_to_workspace', {
         _user_id: user.id,
         _board_id: boardId,
         _new_workspace_id: destWorkspaceId,
         _new_position: destination.index
       });
 
-      if (error || (data as any)?.error) {
-        toast({ title: 'Error moving board', description: (data as any)?.error || getUserFriendlyError(error), variant: 'destructive' });
+      if (error || data?.error) {
+        toast({ title: 'Error moving board', description: data?.error || getUserFriendlyError(error), variant: 'destructive' });
         // Revert by refetching
         fetchData();
       } else {

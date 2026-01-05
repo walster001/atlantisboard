@@ -24,7 +24,7 @@ import { getUserFriendlyError, getErrorMessage, getErrorName } from '@/lib/error
 import { columnSchema, cardSchema, sanitizeColor } from '@/lib/validators';
 import { useDragScroll } from '@/hooks/useDragScroll';
 import { z } from 'zod';
-import { BoardTheme } from '@/components/kanban/ThemeEditorModal';
+import type { BoardTheme } from '@/components/kanban/ThemeEditorModal';
 import { cn } from '@/lib/utils';
 import { subscribeWorkspaceViaRegistry } from '@/realtime/workspaceSubscriptions';
 import { getSubscriptionRegistry } from '@/realtime/subscriptionRegistry';
@@ -39,6 +39,8 @@ import type {
   CardLabelResponse as DbCardLabel,
   BoardMemberResponse,
   BoardDataResponse,
+  CardAttachmentResponse,
+  CardSubtaskResponse,
 } from '@/types/api';
 
 interface BoardMember {
@@ -198,35 +200,9 @@ export default function BoardPage() {
           .select('*')
           .eq('id', themeId)
           .single();
-        // Transform snake_case to camelCase for BoardTheme
-        const themeRow = themeDataResult.data as any;
-        if (themeRow) {
-          const theme: BoardTheme = {
-            id: themeRow.id,
-            name: themeRow.name,
-            isDefault: themeRow.is_default,
-            navbarColor: themeRow.navbar_color,
-            columnColor: themeRow.column_color,
-            defaultCardColor: themeRow.default_card_color,
-            cardWindowColor: themeRow.card_window_color,
-            cardWindowTextColor: themeRow.card_window_text_color,
-            cardWindowButtonColor: themeRow.card_window_button_color,
-            cardWindowButtonTextColor: themeRow.card_window_button_text_color,
-            cardWindowButtonHoverColor: themeRow.card_window_button_hover_color,
-            cardWindowButtonHoverTextColor: themeRow.card_window_button_hover_text_color,
-            cardWindowIntelligentContrast: themeRow.card_window_intelligent_contrast,
-            homepageBoardColor: themeRow.homepage_board_color,
-            boardIconColor: themeRow.board_icon_color,
-            scrollbarColor: themeRow.scrollbar_color,
-            scrollbarTrackColor: themeRow.scrollbar_track_color,
-            createdBy: themeRow.created_by,
-            createdAt: themeRow.created_at,
-            updatedAt: themeRow.updated_at,
-          };
-          setBoardTheme(theme);
-        } else {
-          setBoardTheme(null);
-        }
+        // API returns camelCase from Prisma
+        const themeRow = themeDataResult.data as BoardTheme | null;
+        setBoardTheme(themeRow);
       } else {
         setBoardTheme(null);
       }
@@ -334,35 +310,9 @@ export default function BoardPage() {
           .select('*')
           .eq('id', themeId)
           .single();
-        // Transform snake_case to camelCase for BoardTheme
-        const themeRow = themeDataResult.data as any;
-        if (themeRow) {
-          const theme: BoardTheme = {
-            id: themeRow.id,
-            name: themeRow.name,
-            isDefault: themeRow.is_default,
-            navbarColor: themeRow.navbar_color,
-            columnColor: themeRow.column_color,
-            defaultCardColor: themeRow.default_card_color,
-            cardWindowColor: themeRow.card_window_color,
-            cardWindowTextColor: themeRow.card_window_text_color,
-            cardWindowButtonColor: themeRow.card_window_button_color,
-            cardWindowButtonTextColor: themeRow.card_window_button_text_color,
-            cardWindowButtonHoverColor: themeRow.card_window_button_hover_color,
-            cardWindowButtonHoverTextColor: themeRow.card_window_button_hover_text_color,
-            cardWindowIntelligentContrast: themeRow.card_window_intelligent_contrast,
-            homepageBoardColor: themeRow.homepage_board_color,
-            boardIconColor: themeRow.board_icon_color,
-            scrollbarColor: themeRow.scrollbar_color,
-            scrollbarTrackColor: themeRow.scrollbar_track_color,
-            createdBy: themeRow.created_by,
-            createdAt: themeRow.created_at,
-            updatedAt: themeRow.updated_at,
-          };
-          setBoardTheme(theme);
-        } else {
-          setBoardTheme(null);
-        }
+        // API returns camelCase from Prisma
+        const themeRow = themeDataResult.data as BoardTheme | null;
+        setBoardTheme(themeRow);
       } else {
         setBoardTheme(null);
       }
@@ -622,7 +572,7 @@ export default function BoardPage() {
       
       // Columns are loaded and column exists (or no columns yet) - process normally
       // Extract updatedAt from event
-      const getUpdatedAt = (data: any): string | undefined => {
+      const getUpdatedAt = (data: DbCard | DbColumn): string | undefined => {
         return data?.updatedAt;
       };
       
@@ -1027,7 +977,7 @@ export default function BoardPage() {
     // Use columnIdsRef for synchronous check (updated immediately in column INSERT handler)
     const currentColumnIds = columnIdsRef.current;
     
-    buffered.forEach(({ card, event }) => {
+    buffered.forEach(({ card, event, timestamp }) => {
       const cardData = card as unknown as DbCard;
       const cardColumnId = cardData.columnId;
       const columnBelongsToBoard = currentColumnIds.includes(cardColumnId);
@@ -1089,8 +1039,8 @@ export default function BoardPage() {
           setCards((prev) => prev.filter((c) => c.id !== cardData.id));
         }
       } else {
-        // Still missing, keep buffered but limit retries
-        const age = Date.now() - (card as any).timestamp;
+        // Still missing, keep buffered - check age using timestamp from buffer
+        const age = Date.now() - timestamp;
         if (age < 5000) { // Only keep events less than 5 seconds old
           pendingCardEventsRef.current.push({ card, event, timestamp: Date.now() });
         } else {
@@ -1152,35 +1102,9 @@ export default function BoardPage() {
           .select('*')
           .eq('id', themeId)
           .single();
-        // Transform snake_case to camelCase for BoardTheme
-        const themeRow = themeDataResult.data as any;
-        if (themeRow) {
-          const theme: BoardTheme = {
-            id: themeRow.id,
-            name: themeRow.name,
-            isDefault: themeRow.is_default,
-            navbarColor: themeRow.navbar_color,
-            columnColor: themeRow.column_color,
-            defaultCardColor: themeRow.default_card_color,
-            cardWindowColor: themeRow.card_window_color,
-            cardWindowTextColor: themeRow.card_window_text_color,
-            cardWindowButtonColor: themeRow.card_window_button_color,
-            cardWindowButtonTextColor: themeRow.card_window_button_text_color,
-            cardWindowButtonHoverColor: themeRow.card_window_button_hover_color,
-            cardWindowButtonHoverTextColor: themeRow.card_window_button_hover_text_color,
-            cardWindowIntelligentContrast: themeRow.card_window_intelligent_contrast,
-            homepageBoardColor: themeRow.homepage_board_color,
-            boardIconColor: themeRow.board_icon_color,
-            scrollbarColor: themeRow.scrollbar_color,
-            scrollbarTrackColor: themeRow.scrollbar_track_color,
-            createdBy: themeRow.created_by,
-            createdAt: themeRow.created_at,
-            updatedAt: themeRow.updated_at,
-          };
-          setBoardTheme(theme);
-        } else {
-          setBoardTheme(null);
-        }
+        // API returns camelCase from Prisma
+        const themeRow = themeDataResult.data as BoardTheme | null;
+        setBoardTheme(themeRow);
       } else {
         setBoardTheme(null);
       }

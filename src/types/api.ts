@@ -173,3 +173,47 @@ export interface CardAssigneeResponse {
   assignedAt: string;
 }
 
+// Deletion counts response (for RPC functions)
+export interface DeletionCountsResponse {
+  boards?: number;
+  columns?: number;
+  cards?: number;
+  members?: number;
+  labels?: number;
+  attachments?: number;
+}
+
+// Move board response (for RPC functions)
+export interface MoveBoardResponse {
+  error?: string;
+  success?: boolean;
+}
+
+// Workspace delete response
+export interface WorkspaceDeleteResponse {
+  success?: boolean;
+  error?: string;
+}
+
+// Board create response
+export interface BoardCreateResponse {
+  id: string;
+  name: string;
+  workspaceId: string;
+  backgroundColor: string | null;
+  description: string | null;
+  position: number;
+  createdBy: string | null;
+  themeId?: string | null;
+}
+
+// User auth response (extends profile with provider)
+export interface UserAuthResponse {
+  id: string;
+  email: string;
+  fullName: string | null;
+  isAdmin: boolean;
+  avatarUrl: string | null;
+  provider?: string; // OAuth provider (google, email, etc.)
+}
+

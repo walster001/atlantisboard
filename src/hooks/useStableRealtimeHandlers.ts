@@ -34,7 +34,8 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
   // Update handlers ref when dependencies change
   useEffect(() => {
     handlersRef.current = handlers;
-  }, dependencies);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handlers, ...dependencies]);
 
   // Create stable handler object that doesn't change reference
   const stableHandlers = useMemo(() => {

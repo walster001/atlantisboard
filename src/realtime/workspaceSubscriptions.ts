@@ -7,6 +7,7 @@ import type {
   CardResponse,
   BoardMemberResponse,
   WorkspaceResponse,
+  WorkspaceMemberResponse,
   InviteTokenResponse,
   CardAttachmentResponse,
   CardSubtaskResponse,
@@ -68,7 +69,7 @@ export function subscribeWorkspace(
           // Process if board belongs to this workspace (new workspaceId)
           if (board?.workspaceId === workspaceId) {
             logRealtime(topic, 'board update', { id: board.id });
-            handlers.onBoardUpdate?.(payload.new || {}, payload);
+            handlers.onBoardUpdate?.(payload.new as BoardResponse, payload as RealtimePostgresChangesPayload<BoardResponse>);
             // Parent update - refresh all children
             if (board.id) {
               handlers.onParentRefresh?.('board', board.id);
@@ -107,7 +108,7 @@ export function subscribeWorkspace(
           if (column?.boardId) {
             // Verify board is in this workspace (will be filtered by event router)
             logRealtime(topic, 'column insert', payload.new);
-            handlers.onColumnUpdate?.(payload.new || {}, payload);
+            handlers.onColumnUpdate?.(payload.new as ColumnResponse, payload as RealtimePostgresChangesPayload<ColumnResponse>);
           }
         },
       },
@@ -118,7 +119,7 @@ export function subscribeWorkspace(
           const column = payload.new as { boardId?: string; id?: string };
           if (column?.boardId) {
             logRealtime(topic, 'column update', { id: column.id });
-            handlers.onColumnUpdate?.(payload.new || {}, payload);
+            handlers.onColumnUpdate?.(payload.new as ColumnResponse, payload as RealtimePostgresChangesPayload<ColumnResponse>);
           }
         },
       },
@@ -129,7 +130,7 @@ export function subscribeWorkspace(
           const column = payload.old as { boardId?: string };
           if (column?.boardId) {
             logRealtime(topic, 'column delete', payload.old);
-            handlers.onColumnUpdate?.(payload.old || {}, payload);
+            handlers.onColumnUpdate?.(payload.old as ColumnResponse, payload as RealtimePostgresChangesPayload<ColumnResponse>);
           }
         },
       },
@@ -138,7 +139,7 @@ export function subscribeWorkspace(
         table: 'cards',
         handler: (payload) => {
           logRealtime(topic, 'card insert', payload.new);
-          handlers.onCardUpdate?.(payload.new || {}, payload);
+          handlers.onCardUpdate?.(payload.new as CardResponse, payload as RealtimePostgresChangesPayload<CardResponse>);
         },
       },
       {
@@ -146,7 +147,7 @@ export function subscribeWorkspace(
         table: 'cards',
         handler: (payload) => {
           logRealtime(topic, 'card update', { id: payload.new?.id });
-          handlers.onCardUpdate?.(payload.new || {}, payload);
+          handlers.onCardUpdate?.(payload.new as CardResponse, payload as RealtimePostgresChangesPayload<CardResponse>);
         },
       },
       {
@@ -154,7 +155,7 @@ export function subscribeWorkspace(
         table: 'cards',
         handler: (payload) => {
           logRealtime(topic, 'card delete', payload.old);
-          handlers.onCardUpdate?.(payload.old || {}, payload);
+          handlers.onCardUpdate?.(payload.old as CardResponse, payload as RealtimePostgresChangesPayload<CardResponse>);
         },
       },
       {
@@ -162,7 +163,7 @@ export function subscribeWorkspace(
         table: 'boardMembers',
         handler: (payload) => {
           logRealtime(topic, 'member insert', payload.new);
-          handlers.onMemberUpdate?.(payload.new || {}, payload);
+          handlers.onMemberUpdate?.(payload.new as BoardMemberResponse, payload as RealtimePostgresChangesPayload<BoardMemberResponse>);
         },
       },
       {
@@ -170,7 +171,7 @@ export function subscribeWorkspace(
         table: 'boardMembers',
         handler: (payload) => {
           logRealtime(topic, 'member update', { id: payload.new?.userId });
-          handlers.onMemberUpdate?.(payload.new || {}, payload);
+          handlers.onMemberUpdate?.(payload.new as BoardMemberResponse, payload as RealtimePostgresChangesPayload<BoardMemberResponse>);
         },
       },
       {
@@ -178,7 +179,7 @@ export function subscribeWorkspace(
         table: 'boardMembers',
         handler: (payload) => {
           logRealtime(topic, 'member delete', payload.old);
-          handlers.onMemberUpdate?.(payload.old || {}, payload);
+          handlers.onMemberUpdate?.(payload.old as BoardMemberResponse, payload as RealtimePostgresChangesPayload<BoardMemberResponse>);
         },
       },
       // Card detail tables (attachments, subtasks, assignees, labels)
@@ -187,7 +188,7 @@ export function subscribeWorkspace(
         table: 'card_attachments',
         handler: (payload) => {
           logRealtime(topic, 'card attachment insert', payload.new);
-          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.new as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       {
@@ -195,7 +196,7 @@ export function subscribeWorkspace(
         table: 'card_attachments',
         handler: (payload) => {
           logRealtime(topic, 'card attachment update', { id: payload.new?.id });
-          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.new as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       {
@@ -203,7 +204,7 @@ export function subscribeWorkspace(
         table: 'card_attachments',
         handler: (payload) => {
           logRealtime(topic, 'card attachment delete', payload.old);
-          handlers.onCardDetailUpdate?.(payload.old || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.old as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       {
@@ -211,7 +212,7 @@ export function subscribeWorkspace(
         table: 'card_subtasks',
         handler: (payload) => {
           logRealtime(topic, 'card subtask insert', payload.new);
-          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.new as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       {
@@ -219,7 +220,7 @@ export function subscribeWorkspace(
         table: 'card_subtasks',
         handler: (payload) => {
           logRealtime(topic, 'card subtask update', { id: payload.new?.id });
-          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.new as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       {
@@ -227,7 +228,7 @@ export function subscribeWorkspace(
         table: 'card_subtasks',
         handler: (payload) => {
           logRealtime(topic, 'card subtask delete', payload.old);
-          handlers.onCardDetailUpdate?.(payload.old || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.old as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       {
@@ -235,7 +236,7 @@ export function subscribeWorkspace(
         table: 'card_assignees',
         handler: (payload) => {
           logRealtime(topic, 'card assignee insert', payload.new);
-          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.new as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       {
@@ -243,7 +244,7 @@ export function subscribeWorkspace(
         table: 'card_assignees',
         handler: (payload) => {
           logRealtime(topic, 'card assignee delete', payload.old);
-          handlers.onCardDetailUpdate?.(payload.old || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.old as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       {
@@ -251,7 +252,7 @@ export function subscribeWorkspace(
         table: 'card_labels',
         handler: (payload) => {
           logRealtime(topic, 'card label insert', payload.new);
-          handlers.onCardDetailUpdate?.(payload.new || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.new as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       {
@@ -259,7 +260,7 @@ export function subscribeWorkspace(
         table: 'card_labels',
         handler: (payload) => {
           logRealtime(topic, 'card label delete', payload.old);
-          handlers.onCardDetailUpdate?.(payload.old || {}, payload);
+          handlers.onCardDetailUpdate?.(payload.old as CardDetailEntity, payload as RealtimePostgresChangesPayload<CardDetailEntity>);
         },
       },
       // Workspace membership changes
@@ -270,7 +271,7 @@ export function subscribeWorkspace(
           const membership = payload.new as { workspaceId?: string };
           if (membership?.workspaceId === workspaceId) {
             logRealtime(topic, 'workspace membership insert', payload.new);
-            handlers.onWorkspaceUpdate?.(payload.new || {}, payload);
+            handlers.onWorkspaceUpdate?.(payload.new as WorkspaceResponse | WorkspaceMemberResponse, payload as RealtimePostgresChangesPayload<WorkspaceResponse | WorkspaceMemberResponse>);
           }
         },
       },
@@ -281,7 +282,7 @@ export function subscribeWorkspace(
           const membership = payload.old as { workspaceId?: string };
           if (membership?.workspaceId === workspaceId) {
             logRealtime(topic, 'workspace membership delete', payload.old);
-            handlers.onWorkspaceUpdate?.(payload.old || {}, payload);
+            handlers.onWorkspaceUpdate?.(payload.old as WorkspaceResponse | WorkspaceMemberResponse, payload as RealtimePostgresChangesPayload<WorkspaceResponse | WorkspaceMemberResponse>);
           }
         },
       },
@@ -293,7 +294,7 @@ export function subscribeWorkspace(
           const workspace = payload.new as { id?: string };
           if (workspace?.id === workspaceId) {
             logRealtime(topic, 'workspace insert', payload.new);
-            handlers.onWorkspaceUpdate?.(payload.new || {}, payload);
+            handlers.onWorkspaceUpdate?.(payload.new as WorkspaceResponse | WorkspaceMemberResponse, payload as RealtimePostgresChangesPayload<WorkspaceResponse | WorkspaceMemberResponse>);
           }
         },
       },
@@ -304,7 +305,7 @@ export function subscribeWorkspace(
           const workspace = payload.new as { id?: string };
           if (workspace?.id === workspaceId) {
             logRealtime(topic, 'workspace update', { id: workspace.id });
-            handlers.onWorkspaceUpdate?.(payload.new || {}, payload);
+            handlers.onWorkspaceUpdate?.(payload.new as WorkspaceResponse | WorkspaceMemberResponse, payload as RealtimePostgresChangesPayload<WorkspaceResponse | WorkspaceMemberResponse>);
           }
         },
       },
@@ -315,7 +316,7 @@ export function subscribeWorkspace(
           const workspace = payload.old as { id?: string };
           if (workspace?.id === workspaceId) {
             logRealtime(topic, 'workspace delete', payload.old);
-            handlers.onWorkspaceUpdate?.(payload.old || {}, payload);
+            handlers.onWorkspaceUpdate?.(payload.old as WorkspaceResponse | WorkspaceMemberResponse, payload as RealtimePostgresChangesPayload<WorkspaceResponse | WorkspaceMemberResponse>);
           }
         },
       },
@@ -328,7 +329,7 @@ export function subscribeWorkspace(
           if (invite?.boardId) {
             // Verify board is in this workspace (will be filtered by event router)
             logRealtime(topic, 'invite token insert', payload.new);
-            handlers.onInviteUpdate?.(payload.new || {}, payload);
+            handlers.onInviteUpdate?.(payload.new as InviteTokenResponse, payload as RealtimePostgresChangesPayload<InviteTokenResponse>);
           }
         },
       },
@@ -339,7 +340,7 @@ export function subscribeWorkspace(
           const invite = payload.old as { boardId?: string };
           if (invite?.boardId) {
             logRealtime(topic, 'invite token delete', payload.old);
-            handlers.onInviteUpdate?.(payload.old || {}, payload);
+            handlers.onInviteUpdate?.(payload.old as InviteTokenResponse, payload as RealtimePostgresChangesPayload<InviteTokenResponse>);
           }
         },
       },

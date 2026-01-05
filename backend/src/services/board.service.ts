@@ -351,14 +351,23 @@ class BoardService {
 
     const validated = updateBoardSchema.parse(data);
 
+    const updateData: Prisma.BoardUpdateInput = {};
+    if (validated.name !== undefined) {
+      updateData.name = validated.name;
+    }
+    if (validated.description !== undefined) {
+      updateData.description = validated.description ?? null;
+    }
+    if (validated.backgroundColor !== undefined) {
+      updateData.backgroundColor = validated.backgroundColor ?? null;
+    }
+    if (validated.themeId !== undefined) {
+      updateData.theme = validated.themeId ? { connect: { id: validated.themeId } } : { disconnect: true };
+    }
+
     const updated = await prisma.board.update({
       where: { id: boardId },
-      data: {
-        name: validated.name,
-        description: validated.description,
-        backgroundColor: validated.backgroundColor,
-        themeId: validated.themeId,
-      },
+      data: updateData,
     });
 
     return updated;
@@ -500,7 +509,7 @@ class BoardService {
         throw new ForbiddenError('Access denied to target workspace');
       }
 
-      updateData.workspaceId = newWorkspaceId;
+      updateData.workspace = { connect: { id: newWorkspaceId } };
     }
 
     // Get old board before update

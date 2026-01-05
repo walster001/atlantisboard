@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authService } from '../services/auth.service.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { ValidationError, UnauthorizedError } from '../middleware/errorHandler.js';
 import { prisma } from '../db/client.js';
 import passport from 'passport';
@@ -47,10 +47,10 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
 
 // Get current user
 router.get('/me', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const user = await prisma.user.findUnique({
-      where: { id: authReq.userId! },
+      where: { id: authReq.userId },
       include: { profile: true },
     });
 

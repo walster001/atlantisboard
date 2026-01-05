@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { homeService } from '../services/home.service.js';
 import { boardService } from '../services/board.service.js';
 import { memberService } from '../services/member.service.js';
@@ -112,51 +112,51 @@ type RPCReturn = unknown;
 // Map RPC function names to handlers
 const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<RPCReturn>> = {
   getHomeData: async (req, _params): Promise<Awaited<ReturnType<typeof homeService.getHomeData>>> => {
-    const authReq = req as AuthRequest;
-    return homeService.getHomeData(authReq.userId!, authReq.user?.isAdmin ?? false);
+    const authReq = req as AuthenticatedRequest;
+    return homeService.getHomeData(authReq.userId, authReq.user.isAdmin);
   },
 
   get_board_data: async (req, params): Promise<Awaited<ReturnType<typeof boardService.getBoardData>>> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as GetBoardDataParams;
     const { _board_id: boardId, _user_id: userId } = typedParams;
-    return boardService.getBoardData(userId || authReq.userId!, boardId, authReq.user?.isAdmin ?? false);
+    return boardService.getBoardData(userId || authReq.userId, boardId, authReq.user.isAdmin);
   },
 
   get_board_member_profiles: async (req, params): Promise<Awaited<ReturnType<typeof memberService.getBoardMembers>>> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as GetBoardMemberProfilesParams;
     const { _board_id: boardId } = typedParams;
-    return memberService.getBoardMembers(authReq.userId!, boardId, authReq.user?.isAdmin ?? false);
+    return memberService.getBoardMembers(authReq.userId, boardId, authReq.user.isAdmin);
   },
 
   find_user_by_email: async (req, params): Promise<Awaited<ReturnType<typeof memberService.findUserByEmail>>> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as FindUserByEmailParams;
     const { _email: email, _board_id: boardId } = typedParams;
-    return memberService.findUserByEmail(authReq.userId!, email, boardId, authReq.user?.isAdmin ?? false);
+    return memberService.findUserByEmail(authReq.userId, email, boardId, authReq.user.isAdmin);
   },
 
   is_app_admin: async (req, params): Promise<boolean> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as IsAppAdminParams;
     const { _user_id: userId } = typedParams;
     const user = await prisma.user.findUnique({
-      where: { id: userId || authReq.userId! },
+      where: { id: userId || authReq.userId },
       include: { profile: true },
     });
     return user?.profile?.isAdmin ?? false;
   },
 
   get_board_role: async (req, params): Promise<string | null> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as GetBoardRoleParams;
     const { _board_id: boardId, _user_id: userId } = typedParams;
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || authReq.userId!,
+          userId: userId || authReq.userId,
         },
       },
     });
@@ -164,14 +164,14 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
   },
 
   is_board_member: async (req, params): Promise<boolean> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as IsBoardMemberParams;
     const { _board_id: boardId, _user_id: userId } = typedParams;
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || authReq.userId!,
+          userId: userId || authReq.userId,
         },
       },
     });
@@ -179,17 +179,17 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
   },
 
   can_edit_board: async (req, params): Promise<boolean> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as CanEditBoardParams;
     const { _board_id: boardId, _user_id: userId } = typedParams;
-    if (authReq.user?.isAdmin) {
+    if (authReq.user.isAdmin) {
       return true;
     }
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || authReq.userId!,
+          userId: userId || authReq.userId,
         },
       },
     });
@@ -197,17 +197,17 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
   },
 
   can_manage_members: async (req, params): Promise<boolean> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as CanManageMembersParams;
     const { _board_id: boardId, _user_id: userId } = typedParams;
-    if (authReq.user?.isAdmin) {
+    if (authReq.user.isAdmin) {
       return true;
     }
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || authReq.userId!,
+          userId: userId || authReq.userId,
         },
       },
     });
@@ -215,17 +215,17 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
   },
 
   can_create_board_invite: async (req, params): Promise<boolean> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as CanCreateBoardInviteParams;
     const { _board_id: boardId, _user_id: userId } = typedParams;
-    if (authReq.user?.isAdmin) {
+    if (authReq.user.isAdmin) {
       return true;
     }
     const membership = await prisma.boardMember.findUnique({
       where: {
         boardId_userId: {
           boardId,
-          userId: userId || authReq.userId!,
+          userId: userId || authReq.userId,
         },
       },
     });
@@ -233,14 +233,14 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
   },
 
   batch_update_column_positions: async (req, params): Promise<Awaited<ReturnType<typeof columnService.reorder>>> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as BatchUpdateColumnPositionsParams;
     const { _user_id: userId, _board_id: boardId, _updates: updates } = typedParams;
     if (!Array.isArray(updates)) {
       throw new Error('Invalid updates parameter');
     }
     return columnService.reorder(
-      userId || authReq.userId!,
+      userId || authReq.userId,
       boardId,
       updates.map((u: unknown) => {
         if (typeof u === 'object' && u !== null && 'id' in u && 'position' in u) {
@@ -248,19 +248,19 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
         }
         throw new Error('Invalid update format: expected {id: string, position: number}');
       }),
-      authReq.user?.isAdmin ?? false
+      authReq.user.isAdmin
     );
   },
 
   batch_update_card_positions: async (req, params): Promise<Awaited<ReturnType<typeof cardService.reorder>>> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as BatchUpdateCardPositionsParams;
     const { _user_id: userId, _updates: updates } = typedParams;
     if (!Array.isArray(updates)) {
       throw new Error('Invalid updates parameter');
     }
     return cardService.reorder(
-      userId || authReq.userId!,
+      userId || authReq.userId,
       updates.map((u: unknown) => {
         if (typeof u === 'object' && u !== null && 'id' in u && 'position' in u) {
           const update = u as Record<string, unknown>;
@@ -272,7 +272,7 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
         }
         throw new Error('Invalid update format: expected {id: string, columnId?: string, position: number}');
       }),
-      authReq.user?.isAdmin ?? false
+      authReq.user.isAdmin
     );
   },
 
@@ -315,36 +315,36 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
   },
 
   move_board_to_workspace: async (req, params): Promise<Awaited<ReturnType<typeof boardService.updatePosition>>> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as MoveBoardToWorkspaceParams;
     const { _user_id: userId, _board_id: boardId, _new_workspace_id: newWorkspaceId, _new_position: newPosition } = typedParams;
     return boardService.updatePosition(
-      userId || authReq.userId!,
+      userId || authReq.userId,
       boardId,
       newPosition,
       newWorkspaceId,
-      authReq.user?.isAdmin ?? false
+      authReq.user.isAdmin
     );
   },
 
   update_card: async (req, params): Promise<Awaited<ReturnType<typeof cardService.update>>> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as UpdateCardParams;
     const { _user_id: userId, _card_id: cardId, _title: title, _description: description, _due_date: dueDate } = typedParams;
     return cardService.update(
-      userId || authReq.userId!,
+      userId || authReq.userId,
       cardId,
       {
         title: title || undefined,
         description: description !== undefined ? description : undefined,
         dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       },
-      authReq.user?.isAdmin ?? false
+      authReq.user.isAdmin
     );
   },
 
   batch_update_card_colors: async (req, params): Promise<Awaited<ReturnType<typeof cardService.batchUpdateColor>>> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as BatchUpdateCardColorsParams;
     const { _user_id: userId, _board_id: boardId, _card_ids: cardIds, _color: color } = typedParams;
     if (!Array.isArray(cardIds)) {
@@ -352,16 +352,16 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
     }
     const typedCardIds = cardIds.map(id => String(id));
     return cardService.batchUpdateColor(
-      userId || authReq.userId!,
+      userId || authReq.userId,
       boardId,
       typedCardIds,
       color ?? null,
-      authReq.user?.isAdmin ?? false
+      authReq.user.isAdmin
     );
   },
 
   batch_update_column_colors: async (req, params): Promise<Awaited<ReturnType<typeof columnService.batchUpdateColor>>> => {
-    const authReq = req as AuthRequest;
+    const authReq = req as AuthenticatedRequest;
     const typedParams = params as BatchUpdateColumnColorsParams;
     const { _user_id: userId, _board_id: boardId, _column_ids: columnIds, _color: color } = typedParams;
     if (!Array.isArray(columnIds)) {
@@ -369,11 +369,11 @@ const rpcHandlers: Record<string, (req: Request, params: RPCParams) => Promise<R
     }
     const typedColumnIds = columnIds.map(id => String(id));
     return columnService.batchUpdateColor(
-      userId || authReq.userId!,
+      userId || authReq.userId,
       boardId,
       typedColumnIds,
       color ?? null,
-      authReq.user?.isAdmin ?? false
+      authReq.user.isAdmin
     );
   },
 

@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
 import { z } from 'zod';
 import { emitCustomEvent, emitDatabaseChange } from '../realtime/emitter.js';
@@ -15,7 +15,7 @@ const redeemInviteSchema = z.object({
 });
 
 router.post('/redeem', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const validated = redeemInviteSchema.parse(req.body);
     const { token } = validated;
@@ -71,7 +71,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
       where: {
         boardId_userId: {
           boardId: inviteToken.boardId,
-          userId: authReq.userId!,
+          userId: authReq.userId,
         },
       },
     });
@@ -88,7 +88,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
         const newMember = await prisma.boardMember.create({
           data: {
             boardId: inviteToken.boardId,
-            userId: authReq.userId!,
+            userId: authReq.userId,
             role: roleToAssign,
           },
           include: {
@@ -105,7 +105,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
           await prisma.boardMemberCustomRole.create({
             data: {
               boardId: inviteToken.boardId,
-              userId: authReq.userId!,
+              userId: authReq.userId,
               customRoleId: inviteToken.customRoleId,
               boardMemberId: newMember.id,
             },
@@ -117,7 +117,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
           where: {
             workspaceId_userId: {
               workspaceId: inviteToken.board.workspaceId,
-              userId: authReq.userId!,
+              userId: authReq.userId,
             },
           },
         });
@@ -126,7 +126,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
           const newWorkspaceMember = await prisma.workspaceMember.create({
             data: {
               workspaceId: inviteToken.board.workspaceId,
-              userId: authReq.userId!,
+              userId: authReq.userId,
             },
           });
 
@@ -151,7 +151,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
         // Emit custom event for board member addition
         await emitCustomEvent(`board-${inviteToken.boardId}`, 'board.member.added', {
           boardId: inviteToken.boardId,
-          userId: authReq.userId!,
+          userId: authReq.userId,
           role: roleToAssign,
           customRoleId: inviteToken.customRoleId || undefined,
         });
@@ -201,7 +201,7 @@ router.post('/redeem', async (req: Request, res: Response, next: NextFunction) =
     console.error('[POST /invites/redeem] Error:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      userId: (req as AuthRequest).userId,
+      userId: (req as AuthenticatedRequest).userId,
       token: req.body?.token,
     });
     return next(error);

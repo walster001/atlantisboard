@@ -1,16 +1,12 @@
 import { Response, NextFunction } from 'express';
-import { AuthRequest } from './auth.js';
+import { AuthenticatedRequest } from './auth.js';
 import { PermissionKey } from '../lib/permissions/types.js';
 import { permissionService } from '../lib/permissions/service.js';
 import { ForbiddenError } from './errorHandler.js';
 
-export function requirePermission(permission: PermissionKey): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
-  return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
+export function requirePermission(permission: PermissionKey): (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void> {
+  return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (!req.user) {
-        throw new ForbiddenError('Authentication required');
-      }
-
       // Extract boardId from params or body
       const boardId = req.params.boardId || req.body.boardId || req.query.boardId as string;
 
@@ -31,13 +27,9 @@ export function requirePermission(permission: PermissionKey): (req: AuthRequest,
   };
 }
 
-export function requireAnyPermission(...permissions: PermissionKey[]): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
-  return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
+export function requireAnyPermission(...permissions: PermissionKey[]): (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void> {
+  return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (!req.user) {
-        throw new ForbiddenError('Authentication required');
-      }
-
       const boardId = req.params.boardId || req.body.boardId || req.query.boardId as string;
 
       const context = permissionService.buildContext(
@@ -67,13 +59,9 @@ export function requireAnyPermission(...permissions: PermissionKey[]): (req: Aut
   };
 }
 
-export function requireAllPermissions(...permissions: PermissionKey[]): (req: AuthRequest, res: Response, next: NextFunction) => Promise<void> {
-  return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
+export function requireAllPermissions(...permissions: PermissionKey[]): (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void> {
+  return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (!req.user) {
-        throw new ForbiddenError('Authentication required');
-      }
-
       const boardId = req.params.boardId || req.body.boardId || req.query.boardId as string;
 
       const context = permissionService.buildContext(

@@ -422,7 +422,7 @@ class SubscriptionRegistry {
         channel,
         table,
         event,
-        filter,
+        ...(filter !== undefined && { filter }),
       });
     }
 

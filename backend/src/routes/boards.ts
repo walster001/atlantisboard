@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { boardService } from '../services/board.service.js';
 import { memberService } from '../services/member.service.js';
 import { ForbiddenError, ValidationError } from '../middleware/errorHandler.js';
@@ -30,9 +30,9 @@ const generateInviteSchema = z.object({
 
 // GET /api/boards - List user's boards
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const boards = await boardService.findAll(authReq.userId!, authReq.user?.isAdmin ?? false);
+    const boards = await boardService.findAll(authReq.userId, authReq.user.isAdmin);
     res.json(boards);
   } catch (error: unknown) {
     next(error);
@@ -42,9 +42,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 // Member routes must come before /:id route to avoid route conflicts
 // GET /api/boards/:boardId/members - Get board members
 router.get('/:boardId/members', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const members = await memberService.getBoardMembers(authReq.userId!, req.params.boardId, authReq.user?.isAdmin ?? false);
+    const members = await memberService.getBoardMembers(authReq.userId, req.params.boardId, authReq.user.isAdmin);
     res.json(members);
   } catch (error: unknown) {
     next(error);
@@ -53,7 +53,7 @@ router.get('/:boardId/members', async (req: Request, res: Response, next: NextFu
 
 // GET /api/boards/:boardId/audit-logs - Get board member audit logs
 router.get('/:boardId/audit-logs', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { boardId } = req.params;
     const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
@@ -61,10 +61,14 @@ router.get('/:boardId/audit-logs', async (req: Request, res: Response, next: Nex
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : undefined;
 
     const auditLogs = await memberService.getBoardMemberAuditLogs(
-      authReq.userId!,
+      authReq.userId,
       boardId,
-      authReq.user?.isAdmin ?? false,
-      { page, limit, offset }
+      authReq.user.isAdmin,
+      { 
+        ...(page !== undefined && { page }),
+        ...(limit !== undefined && { limit }),
+        ...(offset !== undefined && { offset }),
+      }
     );
     res.json(auditLogs);
   } catch (error: unknown) {
@@ -74,13 +78,13 @@ router.get('/:boardId/audit-logs', async (req: Request, res: Response, next: Nex
 
 // GET /api/boards/:boardId/members/find - Find user by email
 router.get('/:boardId/members/find', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const email = req.query.email as string;
     if (!email) {
       return res.status(400).json({ error: 'email is required' });
     }
-    const users = await memberService.findUserByEmail(authReq.userId!, email, req.params.boardId, authReq.user?.isAdmin ?? false);
+    const users = await memberService.findUserByEmail(authReq.userId, email, req.params.boardId, authReq.user.isAdmin);
     return res.json(users);
   } catch (error: unknown) {
     return next(error);
@@ -89,12 +93,12 @@ router.get('/:boardId/members/find', async (req: Request, res: Response, next: N
 
 // POST /api/boards/:boardId/members - Add board member
 router.post('/:boardId/members', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const member = await memberService.addBoardMember(authReq.userId!, {
+    const member = await memberService.addBoardMember(authReq.userId, {
       boardId: req.params.boardId,
       ...req.body,
-    }, authReq.user?.isAdmin ?? false);
+    }, authReq.user.isAdmin);
     res.status(201).json(member);
   } catch (error: unknown) {
     next(error);
@@ -103,9 +107,9 @@ router.post('/:boardId/members', async (req: Request, res: Response, next: NextF
 
 // DELETE /api/boards/:boardId/members/:userId - Remove board member
 router.delete('/:boardId/members/:userId', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const result = await memberService.removeBoardMember(authReq.userId!, req.params.boardId, req.params.userId, authReq.user?.isAdmin ?? false);
+    const result = await memberService.removeBoardMember(authReq.userId, req.params.boardId, req.params.userId, authReq.user.isAdmin);
     res.json(result);
   } catch (error: unknown) {
     next(error);
@@ -114,18 +118,18 @@ router.delete('/:boardId/members/:userId', async (req: Request, res: Response, n
 
 // PATCH /api/boards/:boardId/members/:userId/role - Update member role
 router.patch('/:boardId/members/:userId/role', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { role } = req.body;
     if (!role || !['admin', 'manager', 'viewer'].includes(role)) {
       return res.status(400).json({ error: 'Valid role is required' });
     }
     const member = await memberService.updateBoardMemberRole(
-      authReq.userId!,
+      authReq.userId,
       req.params.boardId,
       req.params.userId,
       role,
-      authReq.user?.isAdmin ?? false
+      authReq.user.isAdmin
     );
     return res.json(member);
   } catch (error: unknown) {
@@ -136,7 +140,7 @@ router.patch('/:boardId/members/:userId/role', async (req: Request, res: Respons
 // Invite routes must come before /:id route to avoid route conflicts
 // POST /api/boards/:boardId/invites/generate - Generate an invite token for a board
 router.post('/:boardId/invites/generate', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { boardId } = req.params;
     const validated = generateInviteSchema.parse(req.body);
@@ -144,8 +148,8 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
 
     // Check if user can create invites using permission service
     const context = permissionService.buildContext(
-      authReq.userId!,
-      authReq.user?.isAdmin ?? false,
+      authReq.userId,
+      authReq.user.isAdmin,
       boardId
     );
     await permissionService.requirePermission('board.invite.create', context);
@@ -160,13 +164,13 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
         where: {
           boardId_userId: {
             boardId,
-            userId: authReq.userId!,
+            userId: authReq.userId,
           },
         },
       });
 
       // Role hierarchy enforcement
-      if (!authReq.user?.isAdmin && currentUserMember) {
+      if (!authReq.user.isAdmin && currentUserMember) {
         if (role === 'admin') {
           // Only admins or app admins can assign admin role
           if (currentUserMember.role !== 'admin') {
@@ -215,11 +219,11 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
       data: {
         token,
         boardId,
-        createdBy: authReq.userId!,
+        createdBy: authReq.userId,
         expiresAt,
         linkType,
-        role: linkType === 'one_time' ? role : undefined,
-        customRoleId: linkType === 'one_time' ? customRoleId : undefined,
+        role: linkType === 'one_time' ? (role ?? null) : null,
+        customRoleId: linkType === 'one_time' ? (customRoleId ?? null) : null,
       },
       select: {
         id: true,
@@ -247,7 +251,7 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
     console.error('[POST /boards/:boardId/invites/generate] Error:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      userId: (req as AuthRequest).userId,
+      userId: (req as AuthenticatedRequest).userId,
       boardId: req.params.boardId,
       linkType: req.body?.linkType,
       role: req.body?.role,
@@ -259,14 +263,14 @@ router.post('/:boardId/invites/generate', async (req: Request, res: Response, ne
 
 // GET /api/boards/:boardId/custom-roles - Get available custom roles for invite links
 router.get('/:boardId/custom-roles', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { boardId } = req.params;
 
     // Check if user can create invites using permission service
     const context = permissionService.buildContext(
-      authReq.userId!,
-      authReq.user?.isAdmin ?? false,
+      authReq.userId,
+      authReq.user.isAdmin,
       boardId
     );
     await permissionService.requirePermission('board.invite.create', context);
@@ -294,14 +298,14 @@ router.get('/:boardId/custom-roles', async (req: Request, res: Response, next: N
 
 // GET /api/boards/:boardId/invites - Get all recurring invite tokens for a board
 router.get('/:boardId/invites', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { boardId } = req.params;
 
     // Check if user can view invites using permission service
     const context = permissionService.buildContext(
-      authReq.userId!,
-      authReq.user?.isAdmin ?? false,
+      authReq.userId,
+      authReq.user.isAdmin,
       boardId
     );
     await permissionService.requirePermission('board.invite.create', context);
@@ -328,7 +332,7 @@ router.get('/:boardId/invites', async (req: Request, res: Response, next: NextFu
     console.error('[GET /boards/:boardId/invites] Error:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      userId: (req as AuthRequest).userId,
+      userId: (req as AuthenticatedRequest).userId,
       boardId: req.params.boardId,
     });
     next(error);
@@ -337,14 +341,14 @@ router.get('/:boardId/invites', async (req: Request, res: Response, next: NextFu
 
 // DELETE /api/boards/:boardId/invites/:tokenId - Delete an invite token
 router.delete('/:boardId/invites/:tokenId', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { boardId, tokenId } = req.params;
 
     // Check if user can delete invites using permission service
     const context = permissionService.buildContext(
-      authReq.userId!,
-      authReq.user?.isAdmin ?? false,
+      authReq.userId,
+      authReq.user.isAdmin,
       boardId
     );
     await permissionService.requirePermission('board.invite.delete', context);
@@ -370,12 +374,12 @@ router.delete('/:boardId/invites/:tokenId', async (req: Request, res: Response, 
     // Emit realtime event for invite link deletion
     await emitDatabaseChange('boardInviteToken', 'DELETE', undefined, token as Record<string, unknown>, boardId);
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error: unknown) {
     console.error('[DELETE /boards/:boardId/invites/:tokenId] Error:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      userId: (req as AuthRequest).userId,
+      userId: (req as AuthenticatedRequest).userId,
       boardId: req.params.boardId,
       tokenId: req.params.tokenId,
     });
@@ -385,9 +389,9 @@ router.delete('/:boardId/invites/:tokenId', async (req: Request, res: Response, 
 
 // GET /api/boards/:id - Get board by ID
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const board = await boardService.findById(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
+    const board = await boardService.findById(authReq.userId, req.params.id, authReq.user.isAdmin);
     res.json(board);
   } catch (error: unknown) {
     next(error);
@@ -396,9 +400,9 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 
 // GET /api/boards/:id/data - Get complete board data (replaces get_board_data function)
 router.get('/:id/data', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const data = await boardService.getBoardData(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
+    const data = await boardService.getBoardData(authReq.userId, req.params.id, authReq.user.isAdmin);
     res.json(data);
   } catch (error: unknown) {
     next(error);
@@ -407,9 +411,9 @@ router.get('/:id/data', async (req: Request, res: Response, next: NextFunction) 
 
 // POST /api/boards - Create board
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const board = await boardService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
+    const board = await boardService.create(authReq.userId, req.body, authReq.user.isAdmin);
     res.status(201).json(board);
   } catch (error: unknown) {
     next(error);
@@ -418,9 +422,9 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
 // PATCH /api/boards/:id - Update board
 router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const board = await boardService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
+    const board = await boardService.update(authReq.userId, req.params.id, req.body, authReq.user.isAdmin);
     res.json(board);
   } catch (error: unknown) {
     next(error);
@@ -429,9 +433,9 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
 
 // DELETE /api/boards/:id - Delete board
 router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const result = await boardService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
+    const result = await boardService.delete(authReq.userId, req.params.id, authReq.user.isAdmin);
     res.json(result);
   } catch (error: unknown) {
     next(error);
@@ -440,15 +444,15 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 
 // PATCH /api/boards/:id/position - Update board position
 router.patch('/:id/position', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { position, workspaceId } = req.body;
     const board = await boardService.updatePosition(
-      authReq.userId!,
+      authReq.userId,
       req.params.id,
       position,
       workspaceId,
-      authReq.user?.isAdmin ?? false
+      authReq.user.isAdmin
     );
     res.json(board);
   } catch (error: unknown) {

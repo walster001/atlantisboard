@@ -86,20 +86,25 @@ class SubtaskService {
       await permissionService.requirePermission('subtask.create', context);
     }
 
-    const updateData: Prisma.CardSubtaskUpdateInput = {
-      title: validated.title,
-      checklistName: validated.checklistName,
-      position: validated.position,
-    };
+    const updateData: Prisma.CardSubtaskUpdateInput = {};
+    if (validated.title !== undefined) {
+      updateData.title = validated.title;
+    }
+    if (validated.checklistName !== undefined) {
+      updateData.checklistName = validated.checklistName ?? null;
+    }
+    if (validated.position !== undefined) {
+      updateData.position = validated.position;
+    }
 
     if (validated.completed !== undefined) {
       updateData.completed = validated.completed;
       if (validated.completed) {
         updateData.completedAt = new Date();
-        updateData.completedBy = userId;
+        updateData.completer = { connect: { id: userId } };
       } else {
         updateData.completedAt = null;
-        updateData.completedBy = null;
+        updateData.completer = { disconnect: true };
       }
     }
 

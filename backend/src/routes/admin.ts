@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { ValidationError } from '../middleware/errorHandler.js';
 import { prisma } from '../db/client.js';
 import { z } from 'zod';
@@ -30,10 +30,10 @@ const testMysqlConnectionSchema = z.object({
 });
 
 router.post('/mysql-config', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     // Check admin permission
-    const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
+    const context = permissionService.buildContext(authReq.userId, authReq.user.isAdmin);
     await permissionService.requirePermission('app.admin.access', context);
 
     const validated = saveMysqlConfigSchema.parse(req.body);
@@ -85,10 +85,10 @@ router.post('/mysql-config', async (req: Request, res: Response, next: NextFunct
 });
 
 router.post('/mysql-config/test', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     // Check admin permission
-    const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
+    const context = permissionService.buildContext(authReq.userId, authReq.user.isAdmin);
     await permissionService.requirePermission('app.admin.access', context);
 
     const validated = testMysqlConnectionSchema.parse(req.body);

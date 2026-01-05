@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js';
+import { Prisma } from '@prisma/client';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
@@ -105,13 +106,20 @@ class ColumnService {
 
     const validated = updateColumnSchema.parse(data);
 
+    const updateData: Prisma.ColumnUpdateInput = {};
+    if (validated.title !== undefined) {
+      updateData.title = validated.title;
+    }
+    if (validated.color !== undefined) {
+      updateData.color = validated.color ?? null;
+    }
+    if (validated.position !== undefined) {
+      updateData.position = validated.position;
+    }
+
     const updated = await prisma.column.update({
       where: { id: columnId },
-      data: {
-        title: validated.title,
-        color: validated.color,
-        position: validated.position,
-      },
+      data: updateData,
     });
 
     // Emit update event

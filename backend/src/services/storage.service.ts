@@ -65,7 +65,8 @@ class StorageService {
             console.log(`[Storage] Bucket already exists: ${bucketName}`);
           } else {
             console.error(`[Storage] Failed to create bucket ${bucketName}:`, createError);
-            throw new ValidationError(`Failed to create bucket "${bucketName}": ${createError.message || 'Unknown error'}`);
+            const errorMessage = createError instanceof Error ? createError.message : 'Unknown error';
+            throw new ValidationError(`Failed to create bucket "${bucketName}": ${errorMessage}`);
           }
         }
       } else {
@@ -184,8 +185,8 @@ class StorageService {
 
       return {
         stream: response.Body as Readable,
-        contentType: response.ContentType,
-        contentLength: response.ContentLength,
+        ...(response.ContentType !== undefined && { contentType: response.ContentType }),
+        ...(response.ContentLength !== undefined && { contentLength: response.ContentLength }),
       };
     } catch (error: unknown) {
       console.error('[Storage] Download error:', error);

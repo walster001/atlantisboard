@@ -148,13 +148,22 @@ class CardService {
 
     const validated = updateCardSchema.parse(data);
 
-    const updateData: Prisma.CardUpdateInput = {
-      title: validated.title,
-      description: validated.description,
-      color: validated.color,
-      priority: validated.priority,
-      position: validated.position,
-    };
+    const updateData: Prisma.CardUpdateInput = {};
+    if (validated.title !== undefined) {
+      updateData.title = validated.title;
+    }
+    if (validated.description !== undefined) {
+      updateData.description = validated.description ?? null;
+    }
+    if (validated.color !== undefined) {
+      updateData.color = validated.color ?? null;
+    }
+    if (validated.priority !== undefined) {
+      updateData.priority = validated.priority;
+    }
+    if (validated.position !== undefined) {
+      updateData.position = validated.position;
+    }
 
     if (validated.dueDate !== undefined) {
       updateData.dueDate = validated.dueDate ? new Date(validated.dueDate) : null;
@@ -170,7 +179,7 @@ class CardService {
         throw new ValidationError('Cannot move card to column in different board');
       }
 
-      updateData.columnId = validated.columnId;
+      updateData.column = { connect: { id: validated.columnId } };
     }
 
     const updated = await prisma.card.update({

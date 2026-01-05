@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { cardService } from '../services/card.service.js';
 
 const router = Router();
@@ -8,9 +8,9 @@ router.use(authMiddleware);
 
 // GET /api/cards/:id - Get card by ID
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const card = await cardService.findById(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
+    const card = await cardService.findById(authReq.userId, req.params.id, authReq.user.isAdmin);
     res.json(card);
   } catch (error: unknown) {
     next(error);
@@ -19,9 +19,9 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 
 // POST /api/cards - Create card
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const card = await cardService.create(authReq.userId!, req.body, authReq.user?.isAdmin ?? false);
+    const card = await cardService.create(authReq.userId, req.body, authReq.user.isAdmin);
     res.status(201).json(card);
   } catch (error: unknown) {
     next(error);
@@ -30,9 +30,9 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
 // PATCH /api/cards/:id - Update card
 router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const card = await cardService.update(authReq.userId!, req.params.id, req.body, authReq.user?.isAdmin ?? false);
+    const card = await cardService.update(authReq.userId, req.params.id, req.body, authReq.user.isAdmin);
     res.json(card);
   } catch (error: unknown) {
     next(error);
@@ -41,9 +41,9 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
 
 // DELETE /api/cards/:id - Delete card
 router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const result = await cardService.delete(authReq.userId!, req.params.id, authReq.user?.isAdmin ?? false);
+    const result = await cardService.delete(authReq.userId, req.params.id, authReq.user.isAdmin);
     res.json(result);
   } catch (error: unknown) {
     next(error);
@@ -52,13 +52,13 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 
 // POST /api/cards/reorder - Batch reorder cards
 router.post('/reorder', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { updates } = req.body;
     if (!Array.isArray(updates)) {
       return res.status(400).json({ error: 'updates array is required' });
     }
-    const result = await cardService.reorder(authReq.userId!, updates, authReq.user?.isAdmin ?? false);
+    const result = await cardService.reorder(authReq.userId, updates, authReq.user.isAdmin);
     return res.json(result);
   } catch (error: unknown) {
     return next(error);
@@ -67,13 +67,13 @@ router.post('/reorder', async (req: Request, res: Response, next: NextFunction) 
 
 // POST /api/cards/:id/assignees - Add assignee
 router.post('/:id/assignees', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { userId: assigneeUserId } = req.body;
     if (!assigneeUserId) {
       return res.status(400).json({ error: 'userId is required' });
     }
-    const assignee = await cardService.addAssignee(authReq.userId!, req.params.id, assigneeUserId, authReq.user?.isAdmin ?? false);
+    const assignee = await cardService.addAssignee(authReq.userId, req.params.id, assigneeUserId, authReq.user.isAdmin);
     return res.status(201).json(assignee);
   } catch (error: unknown) {
     return next(error);
@@ -82,9 +82,9 @@ router.post('/:id/assignees', async (req: Request, res: Response, next: NextFunc
 
 // DELETE /api/cards/:id/assignees/:userId - Remove assignee
 router.delete('/:id/assignees/:userId', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    const result = await cardService.removeAssignee(authReq.userId!, req.params.id, req.params.userId, authReq.user?.isAdmin ?? false);
+    const result = await cardService.removeAssignee(authReq.userId, req.params.id, req.params.userId, authReq.user.isAdmin);
     res.json(result);
   } catch (error: unknown) {
     next(error);

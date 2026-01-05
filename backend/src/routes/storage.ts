@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { storageService } from '../services/storage.service.js';
 import { ValidationError } from '../middleware/errorHandler.js';
 import { permissionService } from '../lib/permissions/service.js';
@@ -20,7 +20,7 @@ const upload = multer({
 router.use(authMiddleware);
 
 router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { bucket } = req.params;
     const { path } = req.body;
@@ -146,19 +146,19 @@ router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: 
           const boardId = boardIdMatch[1];
           // Check board-level permission
           const context = permissionService.buildContext(
-            authReq.userId!,
-            authReq.user?.isAdmin ?? false,
+            authReq.userId,
+            authReq.user.isAdmin,
             boardId
           );
           await permissionService.requirePermission('board.background.edit', context);
         } else {
           // Invalid board background path format, require app admin
-          const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
+          const context = permissionService.buildContext(authReq.userId, authReq.user.isAdmin);
           await permissionService.requirePermission('app.admin.branding.edit', context);
         }
       } else {
         // Admin-only for other branding and fonts
-        const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
+        const context = permissionService.buildContext(authReq.userId, authReq.user.isAdmin);
         if (bucket === 'branding') {
           await permissionService.requirePermission('app.admin.branding.edit', context);
         } else if (bucket === 'fonts') {
@@ -193,7 +193,7 @@ router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: 
     console.error('[Storage Upload] Upload failed:', {
       bucket: req.params.bucket,
       path: req.body?.path,
-      userId: (req as AuthRequest).userId,
+      userId: (req as AuthenticatedRequest).userId,
       error: errorMessage,
       stack: errorStack,
       name: errorName,
@@ -206,7 +206,7 @@ router.post('/:bucket/upload', upload.single('file'), async (req: Request, res: 
 });
 
 router.get('/:bucket/*', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { bucket } = req.params;
     const path = req.params[0]; // Get everything after bucket/
@@ -227,8 +227,8 @@ router.get('/:bucket/*', async (req: Request, res: Response, next: NextFunction)
 
         if (card) {
           const context = permissionService.buildContext(
-            authReq.userId!,
-            authReq.user?.isAdmin ?? false,
+            authReq.userId,
+            authReq.user.isAdmin,
             card.column.boardId
           );
           await permissionService.requirePermission('attachment.download', context);
@@ -250,7 +250,7 @@ router.get('/:bucket/*', async (req: Request, res: Response, next: NextFunction)
 });
 
 router.delete('/:bucket/*', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
     const { bucket } = req.params;
     const path = req.params[0];
@@ -271,15 +271,15 @@ router.delete('/:bucket/*', async (req: Request, res: Response, next: NextFuncti
 
         if (card) {
           const context = permissionService.buildContext(
-            authReq.userId!,
-            authReq.user?.isAdmin ?? false,
+            authReq.userId,
+            authReq.user.isAdmin,
             card.column.boardId
           );
           await permissionService.requirePermission('attachment.delete', context);
         }
       }
     } else if (bucket === 'branding' || bucket === 'fonts') {
-      const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
+      const context = permissionService.buildContext(authReq.userId, authReq.user.isAdmin);
       if (bucket === 'branding') {
         await permissionService.requirePermission('app.admin.branding.edit', context);
       } else if (bucket === 'fonts') {

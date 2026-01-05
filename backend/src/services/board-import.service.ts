@@ -600,7 +600,7 @@ class BoardImportService {
 
         // Prepare all card inserts
         const allCardInserts: Array<{
-          insert: Prisma.CardCreateInput;
+          insert: Prisma.CardCreateManyInput;
           wekanCard: WekanCard;
         }> = [];
         

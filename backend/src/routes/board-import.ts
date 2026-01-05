@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { ValidationError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
@@ -20,7 +20,7 @@ const importBoardSchema = z.object({
 }).passthrough(); // Allow extra fields without throwing - supports future extensibility
 
 router.post('/import', async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   
   // Check if streaming is requested early
   const useStreaming = req.query.stream === 'true';
@@ -106,7 +106,7 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
   try {
     // Check admin permission
     try {
-      const context = permissionService.buildContext(authReq.userId!, authReq.user?.isAdmin ?? false);
+      const context = permissionService.buildContext(authReq.userId, authReq.user.isAdmin);
       await permissionService.requirePermission('app.admin.access', context);
     } catch (permissionError: unknown) {
       // Handle permission errors via SSE if streaming
@@ -157,7 +157,7 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
 
       try {
         await boardImportService.importWekanBoard(
-          authReq.userId!,
+          authReq.userId,
           wekanData,
           defaultCardColor || null,
           sendProgress,

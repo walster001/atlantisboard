@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { prisma } from '../db/client.js';
 import { ForbiddenError } from '../middleware/errorHandler.js';
 import { Prisma } from '@prisma/client';
@@ -55,7 +55,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
     }
 
     // Fetch fonts - handle case where table might not exist or query fails
-    let fonts = [];
+    let fonts: Array<{ id: string; name: string; fontUrl: string }> = [];
     try {
       fonts = await prisma.customFont.findMany({
         select: {
@@ -122,9 +122,9 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
 
 // PATCH /api/app-settings - Update app settings (admin only)
 router.patch('/', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
+  const authReq = req as AuthenticatedRequest;
   try {
-    if (!authReq.user?.isAdmin) {
+    if (!authReq.user.isAdmin) {
       throw new ForbiddenError('Admin access required');
     }
 

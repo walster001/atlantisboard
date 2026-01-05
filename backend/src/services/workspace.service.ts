@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js';
+import { Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
@@ -148,12 +149,17 @@ class WorkspaceService {
 
     const validated = updateWorkspaceSchema.parse(data);
 
+    const updateData: Prisma.WorkspaceUpdateInput = {};
+    if (validated.name !== undefined) {
+      updateData.name = validated.name;
+    }
+    if (validated.description !== undefined) {
+      updateData.description = validated.description ?? null;
+    }
+
     const updated = await prisma.workspace.update({
       where: { id: workspaceId },
-      data: {
-        name: validated.name,
-        description: validated.description,
-      },
+      data: updateData,
       include: {
         owner: {
           include: {

@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js';
+import { Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 import { z } from 'zod';
 import { permissionService } from '../lib/permissions/service.js';
@@ -64,12 +65,17 @@ class LabelService {
 
     const validated = updateLabelSchema.parse(data);
 
+    const updateData: Prisma.LabelUpdateInput = {};
+    if (validated.name !== undefined) {
+      updateData.name = validated.name;
+    }
+    if (validated.color !== undefined) {
+      updateData.color = validated.color;
+    }
+
     const updated = await prisma.label.update({
       where: { id: labelId },
-      data: {
-        name: validated.name,
-        color: validated.color,
-      },
+      data: updateData,
     });
 
     // Emit update event

@@ -12,6 +12,25 @@ export interface AuthRequest extends Request {
   };
 }
 
+export interface AuthenticatedRequest extends Request {
+  userId: string;
+  user: {
+    id: string;
+    email: string;
+    isAdmin: boolean;
+  };
+}
+
+export function isAuthenticatedRequest(req: AuthRequest): req is AuthenticatedRequest {
+  return req.userId !== undefined && req.user !== undefined;
+}
+
+export function assertAuthenticated(req: AuthRequest): asserts req is AuthenticatedRequest {
+  if (!req.userId || !req.user) {
+    throw new UnauthorizedError('Authentication required');
+  }
+}
+
 export async function authMiddleware(
   req: Request,
   _res: Response,
@@ -42,8 +61,9 @@ export async function authMiddleware(
       throw new UnauthorizedError('User not found');
     }
 
-    authReq.userId = user.id;
-    authReq.user = {
+    // Type assertion: after middleware, these are guaranteed to be set
+    (authReq as AuthenticatedRequest).userId = user.id;
+    (authReq as AuthenticatedRequest).user = {
       id: user.id,
       email: user.email,
       isAdmin: user.profile?.isAdmin ?? false,

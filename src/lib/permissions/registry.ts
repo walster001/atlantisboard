@@ -10,14 +10,6 @@ import {
   PermissionKey,
   PermissionMetadata,
   BoardRole,
-  APP_PERMISSIONS,
-  BOARD_PERMISSIONS,
-  MEMBER_PERMISSIONS,
-  COLUMN_PERMISSIONS,
-  CARD_PERMISSIONS,
-  LABEL_PERMISSIONS,
-  ATTACHMENT_PERMISSIONS,
-  SUBTASK_PERMISSIONS,
 } from './types';
 
 // Permission metadata for UI display and documentation

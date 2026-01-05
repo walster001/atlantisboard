@@ -149,42 +149,44 @@ export default function Auth() {
 
   // Handle OAuth callback if it lands on /auth page
   useEffect(() => {
-    if (isOAuthCallback()) {
-      console.log('[Auth] OAuth callback detected on /auth page, waiting for session...');
-      // OAuth callback detected - wait for session to be established
-      // The auth state change handler will update the user state
-      // Give it time to process (up to 3 seconds)
-      let checkInterval: NodeJS.Timeout | null = null;
-      let timeout: NodeJS.Timeout | null = null;
+    if (!isOAuthCallback()) {
+      return undefined;
+    }
 
-      checkInterval = setInterval(() => {
-        // Check if user is now authenticated
-        if (user) {
-          console.log('[Auth] OAuth callback successful, redirecting to homepage');
-          if (checkInterval) clearInterval(checkInterval);
-          if (timeout) clearTimeout(timeout);
-          navigate('/');
-        } else if (!loading) {
-          // If loading is false and still no user, session establishment failed
-          console.warn('[Auth] OAuth callback processed but no user found');
-          if (checkInterval) clearInterval(checkInterval);
-          if (timeout) clearTimeout(timeout);
-        }
-      }, 100);
+    console.log('[Auth] OAuth callback detected on /auth page, waiting for session...');
+    // OAuth callback detected - wait for session to be established
+    // The auth state change handler will update the user state
+    // Give it time to process (up to 3 seconds)
+    let checkInterval: NodeJS.Timeout | null = null;
+    let timeout: NodeJS.Timeout | null = null;
 
-      // Timeout after 3 seconds if no session established
-      timeout = setTimeout(() => {
-        if (checkInterval) clearInterval(checkInterval);
-        if (!user) {
-          console.warn('[Auth] OAuth callback timeout - no session established');
-        }
-      }, 3000);
-
-      return () => {
+    checkInterval = setInterval(() => {
+      // Check if user is now authenticated
+      if (user) {
+        console.log('[Auth] OAuth callback successful, redirecting to homepage');
         if (checkInterval) clearInterval(checkInterval);
         if (timeout) clearTimeout(timeout);
-      };
-    }
+        navigate('/');
+      } else if (!loading) {
+        // If loading is false and still no user, session establishment failed
+        console.warn('[Auth] OAuth callback processed but no user found');
+        if (checkInterval) clearInterval(checkInterval);
+        if (timeout) clearTimeout(timeout);
+      }
+    }, 100);
+
+    // Timeout after 3 seconds if no session established
+    timeout = setTimeout(() => {
+      if (checkInterval) clearInterval(checkInterval);
+      if (!user) {
+        console.warn('[Auth] OAuth callback timeout - no session established');
+      }
+    }, 3000);
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval);
+      if (timeout) clearTimeout(timeout);
+    };
   }, [isOAuthCallback, user, loading, navigate]);
 
   // Normal redirect when user is authenticated (not from OAuth callback)

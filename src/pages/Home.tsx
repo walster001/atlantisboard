@@ -313,7 +313,7 @@ export default function Home() {
   // Create stable nested handlers for dynamically added workspaces
   // These are used when a user is added to a new workspace
   const nestedStableHandlers = useStableRealtimeHandlers({
-    onBoardUpdate: (board, event) => {
+    onBoardUpdate: (_board, event) => {
       if (event.eventType === 'INSERT' || event.eventType === 'UPDATE' || event.eventType === 'DELETE') {
         debouncedFetchData();
       }

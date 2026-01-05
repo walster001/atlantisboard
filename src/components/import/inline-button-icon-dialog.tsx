@@ -49,7 +49,7 @@ export function extractInlineButtonsFromHtml(html: string, cardTitle?: string): 
         imgSrc,
         linkHref,
         linkText: linkText.trim(),
-        cardTitle,
+        ...(cardTitle && { cardTitle }),
       });
     }
   }
@@ -97,7 +97,7 @@ export function scanWekanDataForInlineButtons(wekanData: WekanExport): DetectedI
     imgSrc,
     linkHref: button.linkHref,
     linkText: button.linkText,
-    cardTitle: button.cardTitle,
+    ...(button.cardTitle && { cardTitle: button.cardTitle }),
     occurrenceCount: count,
   }));
 }
@@ -154,13 +154,13 @@ export function InlineButtonIconDialog({
   useEffect(() => {
     if (open) {
       // Create copies with reset replacement URLs
-      setButtons(detectedButtons.map((btn, index) => ({
-        ...btn,
-        id: `btn-${index}-${Date.now()}`,
-        replacementUrl: undefined,
-        localFile: undefined,
-        localPreviewUrl: undefined,
-      })));
+      setButtons(detectedButtons.map((btn, index) => {
+        const { replacementUrl: _replacementUrl, localFile: _localFile, localPreviewUrl: _localPreviewUrl, ...rest } = btn;
+        return {
+          ...rest,
+          id: `btn-${index}-${Date.now()}`,
+        };
+      }));
       fileInputRefs.current = {};
       // Clear object URLs when dialog opens (defensive cleanup)
       Object.values(objectUrlRefs.current).forEach(url => {
@@ -200,7 +200,7 @@ export function InlineButtonIconDialog({
     }
   }, [open]);
 
-  const handleFileSelect = async (buttonId: string, imgSrc: string, file: File) => {
+  const handleFileSelect = async (buttonId: string, _imgSrc: string, file: File) => {
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Invalid file type',

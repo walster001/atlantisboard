@@ -20,7 +20,7 @@ import {
   scanWekanDataForInlineButtons,
   replaceInlineButtonImagesInWekanData,
 } from './inline-button-icon-dialog';
-import type { WekanBoard, WekanExport, TrelloBoard } from './types';
+import type { WekanBoard, WekanExport, TrelloBoard, TrelloMember, TrelloChecklist, TrelloCard } from './types';
 import type { CardInsert } from '@/types/api';
 import { RGB_MIN, RGB_MAX, HEX_BASE, DEFAULT_BLUE_RGB, DEFAULT_BLUE_HEX } from '@/lib/constants';
 interface ImportResult {
@@ -298,7 +298,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   const [parsedWekanData, setParsedWekanData] = useState<WekanExport | null>(null);
   const [detectedInlineButtons, setDetectedInlineButtons] = useState<DetectedInlineButton[]>([]);
   const [showInlineButtonDialog, setShowInlineButtonDialog] = useState(false);
-  const [iconReplacements, setIconReplacements] = useState<Map<string, string>>(new Map());
+  const [_iconReplacements, setIconReplacements] = useState<Map<string, string>>(new Map());
   
   // Abort controller for cancelling import
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -352,13 +352,13 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       setCustomHex(hex);
       const { r, g, b } = hexToRgb(hex);
       setCustomRgb({ r, g, b });
-    } catch (e) {
+    } catch {
       // User cancelled
     }
   };
 
   const updateProgress = (stage: ImportStage, current = 0, total = 0, detail?: string) => {
-    setProgress({ stage, current, total, detail });
+    setProgress({ stage, current, total, ...(detail !== undefined && { detail }) });
   };
 
   const calculateProgress = (): number => {
@@ -381,9 +381,10 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
     signal?: AbortSignal,
     iconReplacements?: Map<string, string>
   ): Promise<ImportResult> => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
+    return new Promise((resolve, reject) => {
+      (async () => {
+        try {
+          const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000/api';
         const accessToken = localStorage.getItem('access_token');
         if (!accessToken) {
           reject(new Error('Not authenticated'));
@@ -411,7 +412,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
               defaultCardColor: defaultColor,
               iconReplacements: iconReplacementsRecord
             }),
-            signal,
+            ...(signal && { signal }),
           }
         );
 
@@ -506,11 +507,12 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           }
         }
 
-        // If we get here without a result, something went wrong
-        reject(new Error('Import did not complete. Please try again.'));
-      } catch (error) {
-        reject(error);
-      }
+          // If we get here without a result, something went wrong
+          reject(new Error('Import did not complete. Please try again.'));
+        } catch (error) {
+          reject(error);
+        }
+      })();
     });
   };
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -702,7 +704,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
           const card = cards[i];
           
           // Map priority based on labels
-          let priority = 'none';
+          let priority: 'none' | 'low' | 'medium' | 'high' = 'none';
           const cardLabelNames = (trelloData.labels || [])
             .filter(l => card.idLabels.includes(l.id))
             .map(l => l.name?.toLowerCase() || '');
@@ -895,8 +897,11 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
   };
 
   // Apply icon replacements to Wekan data
-  const applyIconReplacements = (wekanData: WekanExport, replacements: Map<string, string>): WekanExport => {
-    return replaceInlineButtonImagesInWekanData(wekanData, replacements) as WekanExport;
+  const applyIconReplacements = (wekanData: WekanExport | TrelloBoard, replacements: Map<string, string>): WekanExport | TrelloBoard => {
+    if (isWekanFormat(wekanData)) {
+      return replaceInlineButtonImagesInWekanData(wekanData, replacements) as WekanExport;
+    }
+    return wekanData;
   };
 
   // Handle when user completes the icon replacement dialog
@@ -1000,7 +1005,11 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
         const modifiedData = applyIconReplacements(jsonData, replacements);
         // For Wekan, use streaming SSE to get real-time progress
         // Pass iconReplacements map so backend can use replacement URLs in placeholders
-        result = await importWekanWithStreaming(modifiedData, updateProgress, defaultCardColor, abortControllerRef.current.signal, replacements);
+        if (isWekanFormat(modifiedData)) {
+          result = await importWekanWithStreaming(modifiedData, updateProgress, defaultCardColor, abortControllerRef.current?.signal, replacements);
+        } else {
+          throw new Error('Invalid data format after icon replacement');
+        }
       }
 
       updateProgress('complete');
@@ -1132,7 +1141,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       console.error('Import error:', error);
       toast({
         title: 'Import failed',
-        description: error.message || 'An unexpected error occurred.',
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     }
@@ -1167,6 +1176,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
       }, 100);
       return () => clearTimeout(timeoutId);
     }
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importResult?.success, importing]);
 
@@ -1229,7 +1239,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
               />
               {selectedFile && (
                 <p className="text-sm text-muted-foreground">
-                  Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                  Selected: {selectedFile.name} ({((selectedFile.size || 0) / 1024).toFixed(1)} KB)
                 </p>
               )}
             </div>
@@ -1250,7 +1260,7 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
                         <>
                           <div
                             className="h-4 w-4 rounded border border-border"
-                            style={{ backgroundColor: defaultCardColor }}
+                            style={{ backgroundColor: defaultCardColor || undefined }}
                           />
                           <span>{DEFAULT_CARD_COLORS.find(c => c.value === defaultCardColor)?.label || defaultCardColor}</span>
                         </>
@@ -1463,36 +1473,36 @@ export function BoardImportDialog({ open, onOpenChange, onImportComplete }: Boar
 
           {importResult && (
             <ScrollArea className="h-[200px] rounded-md border p-3">
-              <div className="space-y-2">
-                <div className={`flex items-center gap-2 ${importResult.success ? 'text-green-600' : 'text-destructive'}`}>
-                  {importResult.success ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
-                  <span className="font-medium">
-                    {importResult.success ? 'Import Successful' : 'Import Failed'}
-                  </span>
-                </div>
-
-                {importResult.success && (
-                  <div className="text-sm space-y-1">
-                    <p>✓ Workspaces: {importResult.workspacesCreated}</p>
-                    <p>✓ Boards: {importResult.boardsCreated}</p>
-                    <p>✓ Columns: {importResult.columnsCreated}</p>
-                    <p>✓ Cards: {importResult.cardsCreated}</p>
-                    <p>✓ Labels: {importResult.labelsCreated}</p>
-                    <p>✓ Subtasks: {importResult.subtasksCreated}</p>
+                <div className="space-y-2">
+                  <div className={`flex items-center gap-2 ${importResult.success ? 'text-green-600' : 'text-destructive'}`}>
+                    {importResult.success ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+                    <span className="font-medium">
+                      {importResult.success ? 'Import Successful' : 'Import Failed'}
+                    </span>
                   </div>
-                )}
 
-                {importResult.warnings.length > 0 && (
-                  <div className="text-sm text-amber-600 space-y-1">
-                    <p className="font-medium">Warnings:</p>
-                    {importResult.warnings.slice(0, 5).map((w, i) => (
-                      <p key={i}>• {w}</p>
-                    ))}
-                    {importResult.warnings.length > 5 && (
-                      <p>... +{importResult.warnings.length - 5} more</p>
-                    )}
-                  </div>
-                )}
+                  {importResult.success && (
+                    <div className="text-sm space-y-1">
+                      <p>✓ Workspaces: {importResult.workspacesCreated}</p>
+                      <p>✓ Boards: {importResult.boardsCreated}</p>
+                      <p>✓ Columns: {importResult.columnsCreated}</p>
+                      <p>✓ Cards: {importResult.cardsCreated}</p>
+                      <p>✓ Labels: {importResult.labelsCreated}</p>
+                      <p>✓ Subtasks: {importResult.subtasksCreated}</p>
+                    </div>
+                  )}
+
+                  {importResult.warnings.length > 0 && (
+                    <div className="text-sm text-amber-600 space-y-1">
+                      <p className="font-medium">Warnings:</p>
+                      {importResult.warnings.slice(0, 5).map((w, i) => (
+                        <p key={i}>• {w}</p>
+                      ))}
+                      {importResult.warnings.length > 5 && (
+                        <p>... +{importResult.warnings.length - 5} more</p>
+                      )}
+                    </div>
+                  )}
 
                 {importResult.errors.length > 0 && (
                   <div className="text-sm text-destructive space-y-1">

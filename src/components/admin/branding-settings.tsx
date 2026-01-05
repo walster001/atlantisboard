@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/lib/errorHandler';
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 
 type LogoSize = 'small' | 'medium' | 'large';
@@ -237,7 +238,7 @@ export function BrandingSettings() {
     } catch (error: unknown) {
       toast({
         title: 'Error saving settings',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
@@ -288,7 +289,7 @@ export function BrandingSettings() {
       setSavedSettings(prev => prev ? { ...prev, customLoginLogoUrl: publicUrl } : prev);
       toast({ title: 'Logo uploaded', description: 'Your custom login logo has been uploaded.' });
     } catch (error: unknown) {
-      toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+      toast({ title: 'Upload failed', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -310,7 +311,7 @@ export function BrandingSettings() {
       setSettings(prev => ({ ...prev, customLoginLogoUrl: null, customLoginLogoEnabled: false }));
       setSavedSettings(prev => prev ? { ...prev, customLoginLogoUrl: null, customLoginLogoEnabled: false } : prev);
     } catch (error: unknown) {
-      toast({ title: 'Error removing logo', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error removing logo', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -359,7 +360,7 @@ export function BrandingSettings() {
       setSavedSettings(prev => prev ? { ...prev, customLoginBackgroundImageUrl: publicUrl } : prev);
       toast({ title: 'Background image uploaded', description: 'Your custom background image has been uploaded.' });
     } catch (error: unknown) {
-      toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+      toast({ title: 'Upload failed', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
       setUploadingBgImage(false);
       if (bgImageInputRef.current) bgImageInputRef.current.value = '';
@@ -381,7 +382,7 @@ export function BrandingSettings() {
       setSettings(prev => ({ ...prev, customLoginBackgroundImageUrl: null }));
       setSavedSettings(prev => prev ? { ...prev, customLoginBackgroundImageUrl: null } : prev);
     } catch (error: unknown) {
-      toast({ title: 'Error removing background', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error removing background', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
       setSaving(false);
     }

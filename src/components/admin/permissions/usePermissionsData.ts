@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
+import { getErrorMessage } from '@/lib/errorHandler';
 import { CustomRole, RolePermission } from './types';
 import { PermissionKey } from '@/lib/permissions/types';
 import { subscribeCustomRoles, subscribeRolePermissions } from '@/realtime/permissionsSubscriptions';
@@ -40,7 +41,7 @@ export function usePermissionsData() {
     } catch (error: unknown) {
       toast({
         title: 'Error loading permissions',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
@@ -107,7 +108,7 @@ export function usePermissionsData() {
     } catch (error: unknown) {
       toast({
         title: 'Error creating role',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
       return null;
@@ -136,7 +137,7 @@ export function usePermissionsData() {
     } catch (error: unknown) {
       toast({
         title: 'Error updating role',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
       return false;
@@ -176,7 +177,7 @@ export function usePermissionsData() {
     } catch (error: unknown) {
       toast({
         title: 'Error deleting role',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
       return false;
@@ -237,7 +238,7 @@ export function usePermissionsData() {
     } catch (error: unknown) {
       toast({
         title: 'Error saving permissions',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
       return false;

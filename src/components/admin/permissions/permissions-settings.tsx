@@ -7,7 +7,7 @@ import { AppAdminUserList } from './app-admin-user-list';
 import { CreateRoleDialog } from './create-role-dialog';
 import { DeleteRoleDialog } from './delete-role-dialog';
 import { usePermissionsData } from './usePermissionsData';
-import { PERMISSION_CATEGORIES, BUILT_IN_ROLE_PERMISSIONS, BOARD_LEVEL_CATEGORIES, CategoryStatus } from './types';
+import { PERMISSION_CATEGORIES, BUILT_IN_ROLE_PERMISSIONS, CategoryStatus } from './types';
 import { PermissionKey } from '@/lib/permissions/types';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/integrations/api/client';
@@ -39,7 +39,7 @@ export function PermissionsSettings() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   // App Admins list
-  const [appAdmins, setAppAdmins] = useState<AppAdmin[]>([]);
+  const [_appAdmins, setAppAdmins] = useState<AppAdmin[]>([]);
   const [loadingAdmins, setLoadingAdmins] = useState(true);
   
   // Editing state for custom roles
@@ -57,7 +57,7 @@ export function PermissionsSettings() {
         .order('createdAt', { ascending: true });
 
       if (error) throw error;
-      setAppAdmins(data || []);
+      setAppAdmins(Array.isArray(data) ? (data as AppAdmin[]) : []);
     } catch (error) {
       console.error('Error loading app admins:', error);
     } finally {
@@ -235,7 +235,7 @@ export function PermissionsSettings() {
               permissions={editedPermissions}
               hasUnsavedChanges={hasUnsavedChanges}
               saving={saving}
-              customRole={selectedCustomRole}
+              {...(selectedCustomRole && { customRole: selectedCustomRole })}
               onTogglePermission={handleTogglePermission}
               onToggleCategory={handleToggleCategory}
               onSave={handleSave}

@@ -3,8 +3,8 @@ import { api } from '@/integrations/api/client';
 import { uploadFile, deleteFile, extractStoragePathFromUrl } from '@/lib/storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/lib/errorHandler';
 import { Upload, X, Loader2, Type } from 'lucide-react';
 
 interface CustomFont {
@@ -102,7 +102,7 @@ export function CustomFontsSettings() {
     } catch (error: unknown) {
       toast({
         title: 'Upload failed',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
@@ -140,7 +140,7 @@ export function CustomFontsSettings() {
     } catch (error: unknown) {
       toast({
         title: 'Delete failed',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     } finally {

@@ -101,7 +101,7 @@ export function AppAdminUserList({ loading, onRefresh }: AppAdminUserListProps) 
         .order('fullName', { ascending: true });
 
       if (error) throw error;
-      setAllUsers(data || []);
+      setAllUsers((data as UserProfile[]) || []);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');

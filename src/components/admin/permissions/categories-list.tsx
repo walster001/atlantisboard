@@ -6,18 +6,18 @@ import { cn } from '@/lib/utils';
 import { PERMISSION_CATEGORIES, CategoryStatus, PermissionCategoryConfig } from './types';
 import { PermissionKey } from '@/lib/permissions/types';
 
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  Settings,
-  Palette,
-  LayoutGrid,
-  Trello,
-  Settings2,
-  Users,
-  Columns3,
-  StickyNote,
-  Tag,
-  Paperclip,
-  CheckSquare,
+const iconMap: Record<string, React.ComponentType<{ className?: string | undefined }>> = {
+  Settings: Settings as React.ComponentType<{ className?: string | undefined }>,
+  Palette: Palette as React.ComponentType<{ className?: string | undefined }>,
+  LayoutGrid: LayoutGrid as React.ComponentType<{ className?: string | undefined }>,
+  Trello: Trello as React.ComponentType<{ className?: string | undefined }>,
+  Settings2: Settings2 as React.ComponentType<{ className?: string | undefined }>,
+  Users: Users as React.ComponentType<{ className?: string | undefined }>,
+  Columns3: Columns3 as React.ComponentType<{ className?: string | undefined }>,
+  StickyNote: StickyNote as React.ComponentType<{ className?: string | undefined }>,
+  Tag: Tag as React.ComponentType<{ className?: string | undefined }>,
+  Paperclip: Paperclip as React.ComponentType<{ className?: string | undefined }>,
+  CheckSquare: CheckSquare as React.ComponentType<{ className?: string | undefined }>,
 };
 
 interface CategoriesListProps {

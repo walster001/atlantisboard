@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/lib/errorHandler';
 import { Upload, X, Loader2, Image as ImageIcon, LayoutDashboard } from 'lucide-react';
 
 interface AppBrandingState {
@@ -119,7 +120,7 @@ export function AppBrandingSettings() {
 
       toast({ title: 'Settings saved', description: 'App branding settings have been updated.' });
     } catch (error: unknown) {
-      toast({ title: 'Error saving settings', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error saving settings', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -172,7 +173,7 @@ export function AppBrandingSettings() {
       await refreshSettings();
       toast({ title: 'Logo uploaded', description: `Your custom ${type} logo has been uploaded.` });
     } catch (error: unknown) {
-      toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+      toast({ title: 'Upload failed', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
       setUploading(false);
     }
@@ -198,7 +199,7 @@ export function AppBrandingSettings() {
       setSavedSettings(prev => prev ? ({ ...prev, [urlKey]: null, [enabledKey]: false } as AppBrandingState) : prev);
       await refreshSettings();
     } catch (error: unknown) {
-      toast({ title: 'Error removing logo', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error removing logo', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
       setSaving(false);
     }

@@ -6,7 +6,7 @@
 import { Lock, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { BUILT_IN_ROLES, CustomRole, BuiltInRole } from './types';
+import { BUILT_IN_ROLES, CustomRole } from './types';
 
 interface RolesListProps {
   customRoles: CustomRole[];

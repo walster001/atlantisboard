@@ -34,8 +34,7 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
   // Update handlers ref when dependencies change
   useEffect(() => {
     handlersRef.current = handlers;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handlers, ...dependencies]);
+  }, [handlers, dependencies]);
 
   // Create stable handler object that doesn't change reference
   const stableHandlers = useMemo(() => {
@@ -154,7 +153,7 @@ export function useStableRealtimeHandlers<T extends WorkspaceHandlers>(
     // Only recreate if options change (structure change), not when handlers change
     // handlersRef.current is updated via useEffect, so handlers always access latest implementations
     
-  }, [handlers, options?.disableBatchingFor]);
+  }, [options?.disableBatchingFor]);
 
   // Cleanup function to process pending batches
   const cleanup = useCallback(() => {

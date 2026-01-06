@@ -320,6 +320,9 @@ class RealtimeServer {
     const { channel } = event;
     let sentCount = 0;
 
+    // Normalize table name for consistent access checks
+    const normalizedTable = event.table ? this.normalizeTableName(event.table) : event.table;
+
     // Extract boardId from channel for access check (board channels)
     let boardIdForAccessCheck = this.extractUuidFromChannel(channel, 'board');
 
@@ -374,7 +377,7 @@ class RealtimeServer {
         // (e.g., when a user is added, they need to receive the event even if access check hasn't updated yet)
         // For INSERT events, be more lenient - newly created items should propagate to all subscribers
         // This ensures new columns/cards are visible to all users immediately
-        if (boardIdForAccessCheck && event.table !== 'boardMembers') {
+        if (boardIdForAccessCheck && normalizedTable !== 'boardMembers') {
           // For INSERT events, use cached access (faster) but don't block if cache is stale
           // This ensures newly promoted users' creations are visible immediately
           const forceRefresh = event.event === 'UPDATE' || event.event === 'DELETE';
@@ -383,7 +386,7 @@ class RealtimeServer {
             // Only remove subscription for UPDATE/DELETE events, not INSERT
             // This allows newly promoted users to see new items immediately
             if (event.event !== 'INSERT') {
-              console.log(`[Realtime] Access check blocked event for client ${client.userId} on channel ${channel}, table: ${event.table}, event: ${event.event}`);
+              console.log(`[Realtime] Access check blocked event for client ${client.userId} on channel ${channel}, table: ${normalizedTable}, event: ${event.event}`);
               client.channels.delete(channel);
               continue;
             } else {
@@ -628,7 +631,8 @@ class RealtimeServer {
     } else if (table === 'cards') {
       const cardColumnId = recordObj?.columnId as string | undefined || recordObj?.column_id as string | undefined;
       return { entityType: 'card', entityId, parentId: cardColumnId };
-    } else if (table.startsWith('card_')) {
+    } else if (table.startsWith('card')) {
+      // Handles both 'card_' (snake_case) and 'card' (camelCase) prefixes
       const cardId = recordObj?.cardId as string | undefined || recordObj?.card_id as string | undefined;
       return { entityType: 'cardDetail', entityId, parentId: cardId };
     } else if (table === 'boardMembers') {
@@ -641,6 +645,15 @@ class RealtimeServer {
     return { entityType: 'board', entityId, parentId: undefined };
   }
 
+  /**
+   * Normalize table name from snake_case to camelCase
+   * Ensures consistent table naming across the system
+   */
+  private normalizeTableName(tableName: string): string {
+    // Convert snake_case to camelCase
+    return tableName.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+  }
+
   async emitDatabaseChange(
     table: string,
     event: 'INSERT' | 'UPDATE' | 'DELETE',
@@ -648,6 +661,8 @@ class RealtimeServer {
     oldRecord?: Record<string, unknown>,
     boardId?: string
   ) {
+    // Normalize table name to camelCase for consistency
+    const normalizedTable = this.normalizeTableName(table);
     // Step 1: Resolve entity IDs from records
     const record = newRecord || oldRecord;
     const recordObj = record as Record<string, unknown> | undefined;
@@ -658,22 +673,22 @@ class RealtimeServer {
     let resolvedCardId: string | undefined;
     let resolvedWorkspaceId: string | undefined;
 
-    // Resolve IDs based on table type
-    if (table === 'boards') {
+    // Resolve IDs based on table type (use normalized table name)
+    if (normalizedTable === 'boards') {
       resolvedBoardId = entityId;
       resolvedWorkspaceId = recordObj?.workspaceId as string | undefined || recordObj?.workspace_id as string | undefined;
-    } else if (table === 'columns') {
+    } else if (normalizedTable === 'columns') {
       resolvedBoardId = recordObj?.boardId as string | undefined || recordObj?.board_id as string | undefined || boardId;
       resolvedColumnId = entityId;
-    } else if (table === 'cards') {
+    } else if (normalizedTable === 'cards') {
       resolvedColumnId = recordObj?.columnId as string | undefined || recordObj?.column_id as string | undefined;
       resolvedCardId = entityId;
-    } else if (table.startsWith('card_')) {
-      // Card details: attachments, subtasks, assignees, labels
+    } else if (normalizedTable.startsWith('card')) {
+      // Card details: attachments, subtasks, assignees, labels (normalized: cardAttachments, cardSubtasks, etc.)
       resolvedCardId = recordObj?.cardId as string | undefined || recordObj?.card_id as string | undefined;
-    } else if (table === 'boardMembers') {
+    } else if (normalizedTable === 'boardMembers') {
       resolvedBoardId = recordObj?.boardId as string | undefined || recordObj?.board_id as string | undefined || boardId;
-    } else if (table === 'workspaceMembers' || table === 'workspaces') {
+    } else if (normalizedTable === 'workspaceMembers' || normalizedTable === 'workspaces') {
       resolvedWorkspaceId = recordObj?.workspaceId as string | undefined || recordObj?.workspace_id as string | undefined || entityId;
     }
 
@@ -687,9 +702,9 @@ class RealtimeServer {
       );
     }
 
-    // Step 3: Determine entity metadata
+    // Step 3: Determine entity metadata (use normalized table name)
     const { entityType, parentId } = this.determineEntityMetadata(
-      table,
+      normalizedTable,
       newRecord,
       oldRecord,
       resolvedBoardId,
@@ -705,7 +720,7 @@ class RealtimeServer {
     }
 
     // Special handling for workspace membership and workspace changes
-    if (table === 'workspaceMembers') {
+    if (normalizedTable === 'workspaceMembers') {
       const workspaceRecord = (newRecord || oldRecord) as { workspaceId?: string; userId?: string };
       if (workspaceRecord?.workspaceId) {
         // Already added above, but ensure it's there
@@ -718,7 +733,7 @@ class RealtimeServer {
         channels.push(`user:${workspaceRecord.userId}`);
       }
       channels.push('global');
-    } else if (table === 'workspaces') {
+    } else if (normalizedTable === 'workspaces') {
       // Workspace changes - already added above
       channels.push('global');
     } else if (!resolvedWorkspaceId && !resolvedBoardId) {
@@ -731,7 +746,7 @@ class RealtimeServer {
 
     // Invalidate access cache when boardMembers change to ensure fresh access checks
     // This prevents race conditions when users are promoted
-    if (table === 'boardMembers' && resolvedBoardId) {
+    if (normalizedTable === 'boardMembers' && resolvedBoardId) {
       // Invalidate cache for all users on this board
       this.invalidateAccessCache('*', resolvedBoardId);
       console.log(`[Realtime] Invalidated access cache for board ${resolvedBoardId} due to membership change`);
@@ -742,11 +757,11 @@ class RealtimeServer {
     if (event === 'DELETE') {
       const deleteEntityId = recordObj?.id as string | undefined;
       if (deleteEntityId) {
-        if (table === 'boards') {
+        if (normalizedTable === 'boards') {
           await this.invalidateWorkspaceIdCacheCascade('board', deleteEntityId);
-        } else if (table === 'columns') {
+        } else if (normalizedTable === 'columns') {
           await this.invalidateWorkspaceIdCacheCascade('column', deleteEntityId);
-        } else if (table === 'cards') {
+        } else if (normalizedTable === 'cards') {
           this.invalidateWorkspaceIdCache('card', deleteEntityId);
         }
       }
@@ -756,7 +771,7 @@ class RealtimeServer {
         const oldRecordObj = oldRecord as Record<string, unknown>;
         const newRecordObj = newRecord as Record<string, unknown>;
         // Check if column moved to different board
-        if (table === 'columns') {
+        if (normalizedTable === 'columns') {
           const oldBoardId = oldRecordObj?.boardId as string | undefined || oldRecordObj?.board_id as string | undefined;
           const newBoardId = newRecordObj?.boardId as string | undefined || newRecordObj?.board_id as string | undefined;
           if (oldBoardId && newBoardId && oldBoardId !== newBoardId) {
@@ -768,7 +783,7 @@ class RealtimeServer {
           }
         }
         // Check if board moved to different workspace
-        else if (table === 'boards') {
+        else if (normalizedTable === 'boards') {
           const oldWorkspaceId = oldRecordObj?.workspaceId as string | undefined || oldRecordObj?.workspace_id as string | undefined;
           const newWorkspaceId = newRecordObj?.workspaceId as string | undefined || newRecordObj?.workspace_id as string | undefined;
           if (oldWorkspaceId && newWorkspaceId && oldWorkspaceId !== newWorkspaceId) {
@@ -780,7 +795,7 @@ class RealtimeServer {
           }
         }
         // Check if card moved to different column (which might be in different board)
-        else if (table === 'cards') {
+        else if (normalizedTable === 'cards') {
           const oldColumnId = oldRecordObj?.columnId as string | undefined || oldRecordObj?.column_id as string | undefined;
           const newColumnId = newRecordObj?.columnId as string | undefined || newRecordObj?.column_id as string | undefined;
           if (oldColumnId && newColumnId && oldColumnId !== newColumnId) {
@@ -851,11 +866,11 @@ class RealtimeServer {
       };
     }
 
-    // Step 7: Broadcast to all channels with optimized payload
+    // Step 7: Broadcast to all channels with optimized payload (use normalized table name)
     for (const channel of channels) {
       await this.broadcast({
         event: event as 'INSERT' | 'UPDATE' | 'DELETE',
-        table,
+        table: normalizedTable,
         channel,
         payload,
       });

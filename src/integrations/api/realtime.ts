@@ -289,17 +289,32 @@ class RealtimeClient {
     }
   }
 
+  /**
+   * Normalize table name from snake_case to camelCase
+   * Handles all table name variations consistently
+   */
+  private normalizeTableName(tableName: string): string {
+    // Convert snake_case to camelCase
+    return tableName.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+  }
+
+  /**
+   * Check if two table names match (handles both camelCase and snake_case)
+   */
+  private tableNamesMatch(table1: string, table2: string): boolean {
+    if (table1 === table2) return true;
+    const normalized1 = this.normalizeTableName(table1);
+    const normalized2 = this.normalizeTableName(table2);
+    return normalized1 === normalized2;
+  }
+
   private processEventForChannel(channelState: ChannelState, message: WebSocketMessage): void {
     // Find matching bindings
     if (!message.event || !message.table || !message.payload) {
       return;
     }
     channelState.bindings.forEach((binding) => {
-      const tableMatches = binding.table === message.table ||
-        (binding.table === 'boardMembers' && message.table === 'board_members') ||
-        (binding.table === 'board_members' && message.table === 'boardMembers') ||
-        (binding.table === 'workspaceMembers' && message.table === 'workspace_members') ||
-        (binding.table === 'workspace_members' && message.table === 'workspaceMembers');
+      const tableMatches = this.tableNamesMatch(binding.table, message.table!);
 
       const eventMatches = binding.event === '*' || binding.event === message.event;
 

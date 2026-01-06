@@ -65,6 +65,18 @@ export default function BoardPage() {
   const [boardColor, setBoardColor] = useState('#0079bf');
   const [boardThemeId, setBoardThemeId] = useState<string | null>(null);
   const [boardTheme, setBoardTheme] = useState<BoardTheme | null>(null);
+  // RxDB hooks (only used if Socket.IO migration is enabled)
+  const useRxDB = isSocketIOMigrationEnabled();
+  const { columns: rxdbColumns, isLoading: columnsLoading } = useColumns(boardId || null);
+  const { cards: rxdbCards, isLoading: cardsLoading } = useBoardCards(boardId || null);
+  const { labels: rxdbLabels } = useLabels(boardId || null);
+  const { cardLabels: rxdbCardLabels, labels: rxdbCardLabelData } = useCardLabels(null); // Will be filtered per card
+  const { attachments: rxdbAttachments } = useCardAttachments(null); // Will be filtered per card
+  const { subtasks: rxdbSubtasks } = useCardSubtasks(null); // Will be filtered per card
+  const { members: rxdbBoardMembers } = useBoardMembers(boardId || null);
+  const { board: rxdbBoard } = useBoard(boardId || null);
+
+  // State for non-migrated code or when RxDB is disabled
   const [columns, setColumns] = useState<DbColumn[]>([]);
   const [cards, setCards] = useState<DbCard[]>([]);
   const [labels, setLabels] = useState<DbLabel[]>([]);
@@ -72,6 +84,19 @@ export default function BoardPage() {
   const [cardAttachments, setCardAttachments] = useState<CardAttachmentResponse[]>([]);
   const [cardSubtasks, setCardSubtasks] = useState<CardSubtaskResponse[]>([]);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
+  
+  // Use RxDB data if available, otherwise fall back to state
+  const effectiveColumns = useRxDB && rxdbColumns.length > 0 ? rxdbColumns as DbColumn[] : columns;
+  const effectiveCards = useRxDB && rxdbCards.length > 0 ? rxdbCards as DbCard[] : cards;
+  const effectiveLabels = useRxDB && rxdbLabels.length > 0 ? rxdbLabels as DbLabel[] : labels;
+  const effectiveCardLabels = useRxDB && rxdbCardLabels.length > 0 ? rxdbCardLabels as DbCardLabel[] : cardLabels;
+  const effectiveCardAttachments = useRxDB && rxdbAttachments.length > 0 ? rxdbAttachments as CardAttachmentResponse[] : cardAttachments;
+  const effectiveCardSubtasks = useRxDB && rxdbSubtasks.length > 0 ? rxdbSubtasks as CardSubtaskResponse[] : cardSubtasks;
+  const effectiveBoardMembers = useRxDB && rxdbBoardMembers.length > 0 ? rxdbBoardMembers.map(m => ({
+    userId: m.userId,
+    role: m.role as 'admin' | 'manager' | 'viewer',
+    profiles: m.profiles
+  })) as BoardMember[] : boardMembers;
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
   
   // Ref to store latest cards for use in handlers (prevents stale closure)

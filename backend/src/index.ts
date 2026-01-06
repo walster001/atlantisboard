@@ -218,3 +218,7 @@ const server = app.listen(PORT, HOST, () => {
 import { initializeRealtime } from './realtime/server.js';
 initializeRealtime(server);
 
+// Initialize Socket.IO server for realtime (runs in parallel during migration)
+import { initializeSocketIO } from './realtime/socketio-server.js';
+initializeSocketIO(server);
+

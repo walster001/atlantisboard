@@ -24,6 +24,9 @@ import { logRealtime } from '@/realtime/logger';
 import { api } from '@/integrations/api/client';
 import { useSilentDebouncedFetch } from '@/hooks/useDebouncedFetch';
 import { useStableRealtimeHandlers } from '@/hooks/useStableRealtimeHandlers';
+import { useBoards, useWorkspaces } from '@/hooks/useRxDB';
+import { syncHomeDataToRxDB, isSocketIOMigrationEnabled } from '@/lib/migration-helpers';
+import { getRealtimeManager } from '@/lib/realtimeManager';
 import type { WorkspaceResponse as Workspace, BoardResponse as Board, HomeDataResponse, DeletionCountsResponse, WorkspaceDeleteResponse, BoardCreateResponse, MoveBoardResponse } from '@/types/api';
 
 interface BoardTheme {
@@ -55,9 +58,23 @@ export default function Home() {
   const location = useLocation();
   const { toast } = useToast();
   
+  // Use RxDB data if migration is enabled, otherwise use state
+  const useRxDB = isSocketIOMigrationEnabled();
+  const rxdbWorkspaces = useWorkspaces();
+  const rxdbBoards = useBoards(null);
+  
+  // State for non-migrated code or when RxDB is disabled
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [boards, setBoards] = useState<Board[]>([]);
   const [boardRoles, setBoardRoles] = useState<Record<string, 'admin' | 'manager' | 'viewer'>>({});
+  
+  // Use RxDB data if available, otherwise fall back to state
+  const effectiveWorkspaces = useRxDB && rxdbWorkspaces.workspaces.length > 0 
+    ? rxdbWorkspaces.workspaces as Workspace[]
+    : workspaces;
+  const effectiveBoards = useRxDB && rxdbBoards.boards.length > 0
+    ? rxdbBoards.boards as Board[]
+    : boards;
   
   // Track dynamic workspace subscriptions
   const [loading, setLoading] = useState(true);
@@ -956,14 +973,14 @@ export default function Home() {
     }
 
     // Get boards in source and destination workspaces
-    const sourceBoards = boards
+    const sourceBoards = effectiveBoards
       .filter(b => b.workspaceId === sourceWorkspaceId)
       .sort((a, b) => a.position - b.position);
     const destBoards = sourceWorkspaceId === destWorkspaceId
       ? sourceBoards
-      : boards.filter(b => b.workspaceId === destWorkspaceId).sort((a, b) => a.position - b.position);
+      : effectiveBoards.filter(b => b.workspaceId === destWorkspaceId).sort((a, b) => a.position - b.position);
 
-    const draggedBoard = boards.find(b => b.id === boardId);
+    const draggedBoard = effectiveBoards.find(b => b.id === boardId);
     if (!draggedBoard) return;
 
     // Optimistically update local state
@@ -1125,7 +1142,7 @@ export default function Home() {
             )}
           </div>
 
-          {workspaces.length === 0 ? (
+          {effectiveWorkspaces.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="py-8 text-center text-muted-foreground">
                 <p>{isAppAdmin ? 'No workspaces yet. Create one to get started!' : 'No workspaces available. Contact an admin to get access.'}</p>
@@ -1134,7 +1151,7 @@ export default function Home() {
           ) : (
             <DragDropContext onDragEnd={onDragEnd}>
               <div className="space-y-6">
-                {workspaces.map((workspace) => (
+                {effectiveWorkspaces.map((workspace) => (
                   <div key={workspace.id} className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
@@ -1280,7 +1297,7 @@ export default function Home() {
                             snapshot.isDraggingOver ? 'bg-primary/5 ring-2 ring-primary/20 ring-dashed' : ''
                           }`}
                         >
-                          {boards
+                          {effectiveBoards
                             .filter((b) => b.workspaceId === workspace.id)
                             .sort((a, b) => a.position - b.position)
                             .map((board, index) => {

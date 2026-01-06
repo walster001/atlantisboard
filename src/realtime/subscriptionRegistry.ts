@@ -54,11 +54,12 @@ class SubscriptionRegistry {
         const oldHandlerSet = this.handlerSets.get(oldWorkspaceId);
         if (oldHandlerSet) {
           oldHandlerSet.delete(oldHandler);
+          // Note: We don't need to update subscription when handlers are removed
+          // because handlers are merged dynamically at event time in mergeHandlers()
+          // The existing subscription will automatically use the updated handler set
           if (oldHandlerSet.size === 0) {
-            // No handlers left, but don't unsubscribe yet (might be adding to new workspace)
-          } else {
-            // Update subscription with remaining handlers
-            this.updateSubscription(oldWorkspaceId);
+            // No handlers left, unsubscribe from old workspace
+            this.unsubscribeWorkspace(oldWorkspaceId);
           }
         }
       }
@@ -315,10 +316,10 @@ class SubscriptionRegistry {
     // If no handlers remain, unsubscribe
     if (handlerSet.size === 0) {
       this.unsubscribeWorkspace(workspaceId);
-    } else {
-      // Update subscription with remaining handlers
-      this.updateSubscription(workspaceId);
     }
+    // Note: We don't need to update subscription when handlers are removed
+    // because handlers are merged dynamically at event time in mergeHandlers()
+    // The existing subscription will automatically use the updated handler set
   }
 
   /**

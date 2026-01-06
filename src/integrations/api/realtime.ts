@@ -70,6 +70,11 @@ class RealtimeClient {
   }
 
   setAuth(token: string | null) {
+    // Only reconnect if token actually changed
+    if (this.accessToken === token) {
+      return; // Token unchanged, no need to reconnect
+    }
+    
     this.accessToken = token;
     
     // If WebSocket is connected, reconnect with new token

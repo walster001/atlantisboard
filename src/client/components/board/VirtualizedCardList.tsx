@@ -276,7 +276,7 @@ function VirtualizedCardListInner({
         className="board-column__cards board-column__cards--virtual"
         style={{
           flex: '1 1 auto',
-          minHeight: 0,
+          minHeight: '30px',
           display: 'flex',
           flexDirection: 'column',
         }}

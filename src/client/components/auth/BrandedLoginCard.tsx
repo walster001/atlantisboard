@@ -18,6 +18,9 @@ import { type PublicLoginBranding } from '../../../shared/types/loginBranding.js
 import { useBrandingWebFonts } from '../../hooks/useBrandingWebFonts.js';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter.js';
 
+/** Sample password for admin login branding preview (mixed rule satisfaction). */
+const LOGIN_BRANDING_PREVIEW_PASSWORD_STRENGTH_SAMPLE = 'Aa1!bbbb';
+
 export function GoogleMark(): ReactElement {
   return (
     <svg
@@ -59,7 +62,7 @@ export interface BrandedLoginCardProps {
   readonly onGoogleClick?: () => void;
   /** Stored app default UI font (same shape as AdminConfig); injects @font-face with login fonts. */
   readonly defaultUiFontFamily?: string;
-  /** Segmented password strength (policy match) under the password field; live sign-in only. */
+  /** Segmented password strength under the password field (live + admin preview when local sign-in is shown). */
   readonly showPasswordStrength?: boolean;
 }
 
@@ -119,6 +122,8 @@ export function BrandedLoginCard({
     },
   } as const;
 
+  const isPreview = variant === 'preview';
+
   const headerBlock = (
     <Box ta="center">
       {branding.logoEnabled && branding.logo ? (
@@ -131,7 +136,7 @@ export function BrandedLoginCard({
             height: 'auto',
             borderRadius: '50%',
             objectFit: 'cover',
-            margin: '0 auto 16px',
+            margin: isPreview ? '0 auto 8px' : '0 auto 16px',
             display: 'block',
           }}
         />
@@ -140,18 +145,25 @@ export function BrandedLoginCard({
         <Title
           order={1}
           fw={700}
-          mb="xs"
+          {...(isPreview ? {} : { mb: 'xs' })}
           style={{
             fontFamily: branding.appNameFontFamily,
             fontSize: branding.appNameFontSizePx,
             color: branding.appNameColor,
             lineHeight: 1.15,
+            ...(isPreview ? { marginBottom: 6 } : {}),
           }}
         >
           {branding.appName}
         </Title>
       ) : (
-        <Title order={1} size="h2" fw={700} mb="xs">
+        <Title
+          order={1}
+          size="h2"
+          fw={700}
+          {...(isPreview ? {} : { mb: 'xs' })}
+          style={isPreview ? { marginBottom: 6 } : undefined}
+        >
           Kanboard
         </Title>
       )}
@@ -259,6 +271,12 @@ export function BrandedLoginCard({
           tabIndex={-1}
           styles={inputLabelStyles}
         />
+        {showPasswordStrength ? (
+          <PasswordStrengthMeter
+            password={LOGIN_BRANDING_PREVIEW_PASSWORD_STRENGTH_SAMPLE}
+            labelColor={inputTitleColor}
+          />
+        ) : null}
         <Group justify="space-between" wrap="nowrap" style={{ pointerEvents: 'none' }}>
           <Checkbox
             size="sm"
@@ -338,7 +356,7 @@ export function BrandedLoginCard({
       {...(isFullscreen
         ? { withBorder: false as const }
         : { shadow: 'lg' as const, withBorder: false as const })}
-      padding="xl"
+      padding={isPreview ? 0 : 'xl'}
       w="100%"
       maw={isFullscreen ? 440 : 400}
       radius="md"
@@ -346,10 +364,18 @@ export function BrandedLoginCard({
         root: {
           backgroundColor: isFullscreen ? 'transparent' : cardBg,
           ...(isFullscreen ? { boxShadow: 'none', borderWidth: 0 } : { border: 'none' }),
+          ...(isPreview
+            ? {
+                paddingTop: 2,
+                paddingLeft: 'var(--mantine-spacing-sm)',
+                paddingRight: 'var(--mantine-spacing-sm)',
+                paddingBottom: 'var(--mantine-spacing-sm)',
+              }
+            : {}),
         },
       }}
     >
-      <Stack gap="lg">
+      <Stack gap={isPreview ? 'sm' : 'lg'}>
         {headerBlock}
         {variant === 'live' && loginOptionsLoading ? (
           <Text size="sm" c="dimmed" ta="center">
@@ -373,8 +399,8 @@ export function BrandedLoginCard({
   if (variant === 'preview') {
     return (
       <div
-        className="flex min-h-0 w-full items-center justify-center p-4"
-        style={{ ...pageBgStyle, minHeight: 520 }}
+        className="flex w-full items-start justify-center px-3 pb-3 pt-0"
+        style={pageBgStyle}
       >
         {inner}
       </div>

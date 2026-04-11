@@ -25,13 +25,14 @@ export function PasswordStrengthMeter({
           ? 'Fair'
           : 'Strong';
 
+  const strengthTextProps =
+    labelColor != null && labelColor !== ''
+      ? { size: 'xs' as const, style: { color: labelColor } }
+      : { size: 'xs' as const, c: 'dimmed' as const };
+
   return (
     <Stack gap={6} mt={6} aria-live="polite">
-      <Text
-        size="xs"
-        c="dimmed"
-        {...(labelColor ? { style: { color: labelColor } } : {})}
-      >
+      <Text {...strengthTextProps}>
         {strengthLabel}
       </Text>
       <Progress.Root size="sm" radius="xs">
@@ -43,12 +44,7 @@ export function PasswordStrengthMeter({
           />
         ))}
       </Progress.Root>
-      <Text
-        component="div"
-        size="xs"
-        c="dimmed"
-        {...(labelColor ? { style: { color: labelColor } } : {})}
-      >
+      <Text component="div" {...strengthTextProps}>
         {segments.map((s) => (
           <div key={s.id}>
             {s.satisfied ? '✓' : '○'} {s.label}

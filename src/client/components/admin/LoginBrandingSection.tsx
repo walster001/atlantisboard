@@ -92,6 +92,7 @@ const LoginBrandingCardPreview = memo(function LoginBrandingCardPreview({
       branding={branding}
       showLocalForm={showLocalForm}
       showGoogle={showGoogle}
+      showPasswordStrength={showLocalForm}
       {...(defaultUiFontFamily ? { defaultUiFontFamily } : {})}
     />
   );
@@ -620,8 +621,7 @@ const LoginBrandingPreviewPane = memo(function LoginBrandingPreviewPane({
         style={{
           border: '1px solid var(--mantine-color-gray-3)',
           borderRadius: 'var(--mantine-radius-md)',
-          overflow: 'hidden',
-          minHeight: 520,
+          overflow: 'visible',
           background: 'var(--mantine-color-gray-1)',
         }}
       >
@@ -1126,8 +1126,6 @@ function LoginBrandingSectionInner() {
             position: 'sticky',
             top: 'var(--mantine-spacing-md)',
             alignSelf: 'flex-start',
-            maxHeight: 'calc(100vh - var(--mantine-spacing-xl))',
-            overflowY: 'auto',
             minWidth: 0,
           }}
         >

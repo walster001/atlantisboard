@@ -1,0 +1,116 @@
+/**
+ * Fills remaining height inside Board Settings → Users tab; each column scrolls internally.
+ */
+.board-member-management__root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.board-member-management__grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: var(--mantine-spacing-md);
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+@media (min-width: 48em) {
+  .board-member-management__grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
+
+.board-member-management__panel-paper {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--mantine-color-gray-0);
+}
+
+/* Bordered list shell (matches settings modal reference); rows are table cells, not per-row cards */
+.board-member-management__table-scroll {
+  flex: 1;
+  min-height: 0;
+  margin-top: var(--mantine-spacing-md);
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  background-color: #fff;
+  overflow: hidden;
+}
+
+/* Fills flex parent; min-height:0 lets TableVirtuoso compute a stable scroll viewport (no ResizeObserver thrash). */
+.board-member-management__virtuoso-root {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.board-member-management__data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.board-member-management__data-table tbody tr {
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.board-member-management__data-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.board-member-management__td {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  vertical-align: middle;
+}
+
+/* Column widths come from <colgroup>; keep user cell from expanding the table */
+.board-member-management__td--user {
+  min-width: 0;
+  overflow: hidden;
+  vertical-align: top;
+}
+
+.board-member-management__email-text {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.board-member-management__td--role {
+  padding-right: var(--mantine-spacing-xs);
+  text-align: end;
+  vertical-align: middle;
+}
+
+/*
+ * Owner row: do not use display:flex on <td> — it breaks table cell stretch, so the label stays
+ * top-aligned inside a tall Virtuoso row. Use table vertical-align + centered user column instead.
+ */
+.board-member-management__td--user.board-member-management__td--user-row-owner {
+  vertical-align: middle;
+}
+
+.board-member-management__td--role-owner {
+  vertical-align: middle;
+  text-align: center;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  padding-right: var(--mantine-spacing-xs);
+}
+
+.board-member-management__td--action.board-member-management__td--action-row-owner {
+  vertical-align: middle;
+}
+
+.board-member-management__td--role-owner > * {
+  margin: 0;
+}
+
+.board-member-management__td--action {
+  text-align: end;
+  white-space: nowrap;
+  vertical-align: middle;
+}

@@ -1,0 +1,30 @@
+.user-menu__trigger {
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  margin: 0;
+  border-radius: var(--mantine-radius-md);
+  transition: background-color 0.15s ease;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.user-menu__trigger--light:hover {
+  background-color: var(--mantine-color-gray-1);
+}
+
+.user-menu__trigger--light:focus-visible {
+  outline: 2px solid var(--mantine-color-blue-6);
+  outline-offset: 2px;
+}
+
+.user-menu__trigger--board:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.user-menu__trigger--board:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}

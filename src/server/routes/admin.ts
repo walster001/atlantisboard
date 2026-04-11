@@ -1,0 +1,871 @@
+import { Router, type RequestHandler } from 'express';
+import { z } from 'zod';
+import multer from 'multer';
+import { requireAuth, requireAppAdmin } from '../middleware/auth.js';
+import { apiRateLimiter, fileUploadRateLimiter } from '../middleware/rateLimit.js';
+import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import { User } from '../models/User.js';
+import { logger } from '../utils/logger.js';
+import { logAuditEvent } from '../utils/auditLogger.js';
+import {
+  getAdminConfig,
+  updateAdminConfig,
+  sanitizeAdminConfigForClient,
+  isExternalMysqlCredentialsStored,
+} from '../services/adminService.js';
+import { PermissionSet } from '../models/PermissionSet.js';
+import {
+  testExternalMySQLConnection,
+  splitMysqlHostInput,
+  decryptOptionalCredential,
+  DEFAULT_VERIFICATION_QUERY,
+  type TestMySQLInput,
+} from '../services/mysqlService.js';
+import {
+  deleteBrandingObjectByPublicUrl,
+  uploadBrandingAsset,
+  type BrandingUploadKind,
+} from '../services/brandingService.js';
+import {
+  deleteCustomFont,
+  resolveFontFamilyValueForObjectKey,
+  uploadCustomFont,
+} from '../services/fontService.js';
+import { RoleDefinition } from '../models/RoleDefinition.js';
+import { isBuiltInRoleKey, isValidCustomRoleKey } from '../services/roleService.js';
+import { emitToAll } from '../utils/socketIO.js';
+
+const router = Router();
+
+const brandingUpload = multer({
+  storage: multer.memoryStorage(),
+  /** Large enough for home background images (see brandingService MAX_HOME_BG_IMAGE_BYTES). */
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+const fontUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+});
+
+const fontDisplayNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Display name is required')
+  .max(80)
+  .regex(/^[^"\\\r\n<>&]+$/, 'Display name contains invalid characters');
+
+// Admin routes - require authentication and app admin status
+router.use(requireAuth as RequestHandler);
+router.use(requireAppAdmin as RequestHandler);
+router.use(apiRateLimiter);
+
+// Account unlock endpoint (admin only)
+router.post('/users/:id/unlock', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { id } = req.params;
+
+    const targetUser = await User.findById(id);
+    if (!targetUser) {
+      res.status(404).json({
+        error: {
+          message: 'User not found',
+          code: 'USER_NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+
+    // Unlock account
+    targetUser.failedLoginAttempts = 0;
+    delete targetUser.lockedUntil;
+    await targetUser.save();
+
+    logAuditEvent({
+      userId: authReq.user.id,
+      action: 'unlock_account',
+      resourceType: 'user',
+      resourceId: id,
+      ipAddress: req.ip || undefined,
+      timestamp: new Date(),
+    });
+
+    logger.info(
+      { adminId: authReq.user.id, targetUserId: id },
+      'Account unlocked by admin'
+    );
+
+    res.json({ message: 'Account unlocked successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get admin configuration
+router.get('/config', async (_req, res, next) => {
+  try {
+    const config = await getAdminConfig();
+    res.json({ config: sanitizeAdminConfigForClient(config) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const testExternalMysqlSavedSchema = z.object({
+  useSavedCredentials: z.literal(true),
+});
+
+const testExternalMysqlInlineSchema = z.object({
+  host: z.string().min(1),
+  port: z.number().int().min(1).max(65535).optional(),
+  database: z.string().min(1),
+  username: z.string().min(1),
+  password: z.string().optional(),
+  verificationQuery: z.string().optional(),
+});
+
+// Test external MySQL (Bun SQL) using submitted credentials or server-stored secrets only
+router.post('/config/test-external-mysql', async (req, res, next) => {
+  try {
+    const body = req.body as Record<string, unknown>;
+    const savedParsed = testExternalMysqlSavedSchema.safeParse(body);
+    let mysqlTestInput: TestMySQLInput;
+
+    if (savedParsed.success) {
+      const cfg = await getAdminConfig();
+      if (!isExternalMysqlCredentialsStored(cfg.externalMySQL)) {
+        res.status(400).json({
+          error: {
+            message: 'External database is not fully configured',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      const ext = cfg.externalMySQL;
+      let password = await decryptOptionalCredential(ext.password ?? '');
+      if (password === '') {
+        res.status(400).json({
+          error: {
+            message: 'Database password is required to test the connection',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      const hostParsed = splitMysqlHostInput(ext.host ?? '', ext.port ?? 3306);
+      let verificationQuery = (ext.verificationQuery || DEFAULT_VERIFICATION_QUERY).trim();
+      verificationQuery = await decryptOptionalCredential(verificationQuery);
+      mysqlTestInput = {
+        host: hostParsed.host,
+        port: hostParsed.port,
+        database: ext.database ?? '',
+        username: await decryptOptionalCredential(ext.username ?? ''),
+        password,
+        verificationQuery,
+      };
+    } else {
+      const parsed = testExternalMysqlInlineSchema.parse(body);
+      let password = parsed.password ?? '';
+
+      if (password === '') {
+        const saved = await getAdminConfig();
+        const stored = saved.externalMySQL.password;
+        if (stored) {
+          password = await decryptOptionalCredential(stored);
+        }
+      }
+
+      if (password === '') {
+        res.status(400).json({
+          error: {
+            message: 'Database password is required to test the connection',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+
+      const hostParsed = splitMysqlHostInput(parsed.host, parsed.port ?? 3306);
+      mysqlTestInput = {
+        host: hostParsed.host,
+        port: hostParsed.port,
+        database: parsed.database,
+        username: parsed.username,
+        password,
+      };
+      if (parsed.verificationQuery !== undefined) {
+        mysqlTestInput.verificationQuery = parsed.verificationQuery;
+      }
+    }
+
+    const result = await testExternalMySQLConnection(mysqlTestInput);
+
+    res.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          errors: error.issues,
+        },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Update admin configuration
+router.put('/config', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const config = await updateAdminConfig(
+      req.body as Record<string, unknown>,
+      authReq.user.id
+    );
+    res.json({ config: sanitizeAdminConfigForClient(config) });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('not found')) {
+      res.status(404).json({
+        error: {
+          message: error.message,
+          code: 'NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.post(
+  '/branding/upload',
+  fileUploadRateLimiter,
+  brandingUpload.single('file'),
+  async (req, res, next) => {
+    try {
+      const typeRaw = req.query.type;
+      const type = typeof typeRaw === 'string' ? typeRaw : '';
+      const typeToKind: Record<string, BrandingUploadKind> = {
+        logo: 'login-logo',
+        favicon: 'favicon',
+        'home-nav-icon': 'home-nav-icon',
+        'home-bg-image': 'home-bg-image',
+        'board-nav-icon': 'board-nav-icon',
+      };
+      const kind = typeToKind[type];
+      if (!kind) {
+        res.status(400).json({
+          error: {
+            message:
+              'Query parameter type must be "logo", "favicon", "home-nav-icon", "home-bg-image", or "board-nav-icon"',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      if (!req.file) {
+        res.status(400).json({
+          error: {
+            message: 'File is required',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      const url = await uploadBrandingAsset(
+        req.file.buffer,
+        req.file.mimetype,
+        kind,
+        req.file.originalname
+      );
+      res.json({ url });
+    } catch (error) {
+      if (error instanceof Error) {
+        res.status(400).json({
+          error: {
+            message: error.message,
+            code: 'BRANDING_UPLOAD_FAILED',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+const deleteBrandingFileBodySchema = z.object({
+  url: z.string().min(1),
+});
+
+router.delete('/branding/file', async (req, res, next) => {
+  try {
+    const { url } = deleteBrandingFileBodySchema.parse(req.body);
+    await deleteBrandingObjectByPublicUrl(url);
+    res.status(204).end();
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          errors: error.issues,
+        },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message === 'Invalid branding asset URL') {
+      res.status(400).json({
+        error: {
+          message: error.message,
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.post(
+  '/fonts/upload',
+  fileUploadRateLimiter,
+  fontUpload.single('file'),
+  async (req, res, next) => {
+    try {
+      const displayName = fontDisplayNameSchema.parse(
+        typeof req.body.displayName === 'string' ? req.body.displayName : ''
+      );
+      if (!req.file) {
+        res.status(400).json({
+          error: {
+            message: 'File is required',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      const font = await uploadCustomFont(
+        req.file.buffer,
+        req.file.mimetype,
+        displayName,
+        req.file.originalname
+      );
+      res.status(201).json({ font });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({
+          error: {
+            message: 'Validation failed',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+            errors: error.issues,
+          },
+        });
+        return;
+      }
+      if (error instanceof Error) {
+        res.status(400).json({
+          error: {
+            message: error.message,
+            code: 'FONT_UPLOAD_FAILED',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+router.delete('/fonts/:fileName', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const raw = req.params.fileName;
+    const fileName = typeof raw === 'string' ? raw.replace(/\\/g, '/').split('/').pop() ?? '' : '';
+    const familyBefore = await resolveFontFamilyValueForObjectKey(fileName);
+    await deleteCustomFont(fileName);
+    if (familyBefore) {
+      const cfg = await getAdminConfig();
+      const stored = cfg.appScreenBranding?.defaultUiFontFamily?.trim();
+      if (stored === familyBefore) {
+        await updateAdminConfig(
+          { appScreenBranding: { defaultUiFontFamily: null } },
+          authReq.user.id
+        );
+      }
+    }
+    res.status(204).end();
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Invalid font file name') {
+      res.status(400).json({
+        error: {
+          message: error.message,
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Convert placeholder user to regular user
+router.post('/users/:id/convert-from-placeholder', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { id } = req.params;
+
+    const placeholderUser = await User.findById(id);
+    if (!placeholderUser) {
+      res.status(404).json({
+        error: {
+          message: 'User not found',
+          code: 'USER_NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+
+    if (!placeholderUser.isPlaceholder) {
+      res.status(400).json({
+        error: {
+          message: 'User is not a placeholder user',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+
+    // Convert placeholder to regular user
+    placeholderUser.isPlaceholder = false;
+    placeholderUser.set('placeholderSource', undefined, { strict: false });
+    placeholderUser.set('placeholderEmail', undefined, { strict: false });
+    placeholderUser.set('placeholderName', undefined, { strict: false });
+    await placeholderUser.save();
+
+    logAuditEvent({
+      userId: authReq.user.id,
+      action: 'convert_placeholder_user',
+      resourceType: 'user',
+      resourceId: id,
+      ipAddress: req.ip || undefined,
+      timestamp: new Date(),
+    });
+
+    logger.info(
+      { adminId: authReq.user.id, placeholderUserId: id },
+      'Placeholder user converted by admin'
+    );
+
+    res.json({ message: 'Placeholder user converted successfully', user: placeholderUser });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Merge placeholder user with existing user
+router.post('/users/:placeholderId/merge/:userId', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { placeholderId, userId } = req.params;
+
+    const placeholderUser = await User.findById(placeholderId);
+    const targetUser = await User.findById(userId);
+
+    if (!placeholderUser) {
+      res.status(404).json({
+        error: {
+          message: 'Placeholder user not found',
+          code: 'USER_NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+
+    if (!targetUser) {
+      res.status(404).json({
+        error: {
+          message: 'Target user not found',
+          code: 'USER_NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+
+    if (!placeholderUser.isPlaceholder) {
+      res.status(400).json({
+        error: {
+          message: 'Source user is not a placeholder user',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+
+    // TODO: Transfer all workspace/board memberships, activities, etc. from placeholder to target user
+    // For now, just delete the placeholder user
+    // In a full implementation, you would:
+    // 1. Update all workspace memberships
+    // 2. Update all board memberships
+    // 3. Update all card assignees
+    // 4. Update all comments
+    // 5. Update all activities
+    // 6. Delete placeholder user
+
+    await User.findByIdAndDelete(placeholderId);
+
+    logAuditEvent({
+      userId: authReq.user.id,
+      action: 'merge_placeholder_user',
+      resourceType: 'user',
+      resourceId: userId,
+      metadata: { placeholderUserId: placeholderId },
+      ipAddress: req.ip || undefined,
+      timestamp: new Date(),
+    });
+
+    logger.info(
+      { adminId: authReq.user.id, placeholderUserId: placeholderId, targetUserId: userId },
+      'Placeholder user merged with existing user by admin'
+    );
+
+    res.json({ message: 'Placeholder user merged successfully', user: targetUser });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get placeholder users
+router.get('/users/placeholders', async (_req, res, next) => {
+  try {
+    const placeholderUsers = await User.find({ isPlaceholder: true })
+      .select('email displayName placeholderName placeholderEmail placeholderSource isPlaceholder')
+      .sort({ createdAt: -1 });
+    res.json({ users: placeholderUsers });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Permission Set endpoints
+router.get('/permission-sets', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const permissionSets = await PermissionSet.find({ createdBy: authReq.user.id })
+      .sort({ createdAt: -1 });
+    res.json({ permissionSets });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/permission-sets', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { name, description, permissions } = req.body;
+
+    if (!name || !Array.isArray(permissions)) {
+      res.status(400).json({
+        error: {
+          message: 'Name and permissions array are required',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+
+    const permissionSet = new PermissionSet({
+      name,
+      description,
+      permissions,
+      createdBy: authReq.user.id,
+    });
+
+    await permissionSet.save();
+
+    logAuditEvent({
+      userId: authReq.user.id,
+      action: 'permission_set.create',
+      resourceType: 'permission_set',
+      resourceId: permissionSet._id.toString(),
+      timestamp: new Date(),
+    });
+
+    res.status(201).json({ permissionSet });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const roleKeySchema = z.string().trim().min(1).max(80);
+
+router.get('/roles', async (_req, res, next) => {
+  try {
+    const roles = await RoleDefinition.find().sort({ isBuiltIn: -1, key: 1 }).lean();
+    res.json({ roles });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const createRoleSchema = z.object({
+  key: roleKeySchema,
+  displayName: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(300).optional(),
+  permissions: z.array(z.string().trim().min(1).max(200)).default([]),
+});
+
+router.post('/roles', async (req, res, next) => {
+  try {
+    const body = createRoleSchema.parse(req.body);
+    if (isBuiltInRoleKey(body.key)) {
+      res.status(400).json({
+        error: { message: 'Role key collides with built-in role', code: 'VALIDATION_ERROR', statusCode: 400 },
+      });
+      return;
+    }
+    if (!isValidCustomRoleKey(body.key)) {
+      res.status(400).json({
+        error: { message: 'Invalid custom role key (expected custom:<slug>)', code: 'VALIDATION_ERROR', statusCode: 400 },
+      });
+      return;
+    }
+    const existing = await RoleDefinition.findOne({ key: body.key }).select('_id').lean();
+    if (existing) {
+      res.status(409).json({
+        error: { message: 'Role key already exists', code: 'CONFLICT', statusCode: 409 },
+      });
+      return;
+    }
+    const created = await RoleDefinition.create({
+      key: body.key,
+      displayName: body.displayName,
+      ...(body.description !== undefined ? { description: body.description } : {}),
+      permissions: body.permissions,
+      isBuiltIn: false,
+    });
+    res.status(201).json({ role: created });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: { message: 'Validation failed', code: 'VALIDATION_ERROR', statusCode: 400, errors: error.issues },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+const updateRoleSchema = z.object({
+  displayName: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().max(300).optional(),
+  permissions: z.array(z.string().trim().min(1).max(200)).optional(),
+});
+
+router.put('/roles/:roleKey', async (req, res, next) => {
+  try {
+    const roleKey = roleKeySchema.parse(req.params.roleKey);
+    const patch = updateRoleSchema.parse(req.body);
+    const role = await RoleDefinition.findOne({ key: roleKey });
+    if (!role) {
+      res.status(404).json({ error: { message: 'Role not found', code: 'NOT_FOUND', statusCode: 404 } });
+      return;
+    }
+    if (patch.displayName !== undefined) role.displayName = patch.displayName;
+    if (patch.description !== undefined) role.description = patch.description;
+    if (patch.permissions !== undefined) role.permissions = patch.permissions;
+    await role.save();
+    emitToAll('permissions.updated', {
+      affectedUserIds: [],
+      reason: 'role.definition.update',
+      roleKey,
+      serverTs: Date.now(),
+    });
+    res.json({ role });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: { message: 'Validation failed', code: 'VALIDATION_ERROR', statusCode: 400, errors: error.issues },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.delete('/roles/:roleKey', async (req, res, next) => {
+  try {
+    const roleKey = roleKeySchema.parse(req.params.roleKey);
+    const role = await RoleDefinition.findOne({ key: roleKey });
+    if (!role) {
+      res.status(404).json({ error: { message: 'Role not found', code: 'NOT_FOUND', statusCode: 404 } });
+      return;
+    }
+    if (role.isBuiltIn) {
+      res.status(400).json({
+        error: { message: 'Built-in roles cannot be deleted', code: 'VALIDATION_ERROR', statusCode: 400 },
+      });
+      return;
+    }
+    await RoleDefinition.deleteOne({ _id: role._id });
+    emitToAll('permissions.updated', {
+      affectedUserIds: [],
+      reason: 'role.definition.delete',
+      roleKey,
+      serverTs: Date.now(),
+    });
+    res.status(204).end();
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: { message: 'Validation failed', code: 'VALIDATION_ERROR', statusCode: 400, errors: error.issues },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+/**
+ * Account that may not revoke their own App Admin (bootstrap / legacy first admin).
+ * Prefer active `foundingAppAdmin`; if none, use earliest-created admin when no founding flags exist.
+ */
+async function resolveBootstrapAppAdminId(): Promise<string | null> {
+  const foundingActive = await User.findOne({ foundingAppAdmin: true, isAppAdmin: true })
+    .select('_id')
+    .lean();
+  if (foundingActive) {
+    return String(foundingActive._id);
+  }
+  const hasFoundingRecord = await User.exists({ foundingAppAdmin: true });
+  if (hasFoundingRecord) {
+    return null;
+  }
+  const legacy = await User.findOne({ isAppAdmin: true }).sort({ createdAt: 1 }).select('_id').lean();
+  return legacy ? String(legacy._id) : null;
+}
+
+router.get('/app-admins', async (_req, res, next) => {
+  try {
+    const admins = await User.find({ isAppAdmin: true })
+      .select('_id displayName email')
+      .sort({ createdAt: 1 })
+      .lean();
+    const bootstrapAppAdminId = await resolveBootstrapAppAdminId();
+    res.json({ appAdmins: admins, bootstrapAppAdminId });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const setAppAdminSchema = z.object({
+  userId: z.string().trim().min(1),
+});
+
+router.post('/app-admins', async (req, res, next) => {
+  try {
+    const { userId } = setAppAdminSchema.parse(req.body);
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ error: { message: 'User not found', code: 'NOT_FOUND', statusCode: 404 } });
+      return;
+    }
+    if (!user.isAppAdmin) {
+      user.isAppAdmin = true;
+      await user.save();
+      emitToAll('permissions.updated', {
+        affectedUserIds: [userId],
+        reason: 'app_admin.granted',
+        serverTs: Date.now(),
+      });
+    }
+    res.status(200).json({ appAdmin: { _id: user._id, displayName: user.displayName, email: user.email } });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: { message: 'Validation failed', code: 'VALIDATION_ERROR', statusCode: 400, errors: error.issues },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.delete('/app-admins/:userId', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const userId = roleKeySchema.parse(req.params.userId);
+    const count = await User.countDocuments({ isAppAdmin: true });
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ error: { message: 'User not found', code: 'NOT_FOUND', statusCode: 404 } });
+      return;
+    }
+    if (userId === authReq.user.id && user.isAppAdmin) {
+      const bootstrapId = await resolveBootstrapAppAdminId();
+      if (bootstrapId !== null && userId === bootstrapId) {
+        res.status(403).json({
+          error: {
+            message:
+              'The bootstrap App Admin cannot remove their own access. Add another App Admin first, then they can remove you if needed.',
+            code: 'FORBIDDEN',
+            statusCode: 403,
+          },
+        });
+        return;
+      }
+    }
+    if (user.isAppAdmin && count <= 1) {
+      res.status(400).json({
+        error: { message: 'At least one App Admin must remain', code: 'VALIDATION_ERROR', statusCode: 400 },
+      });
+      return;
+    }
+    if (user.isAppAdmin) {
+      user.isAppAdmin = false;
+      await user.save();
+      emitToAll('permissions.updated', {
+        affectedUserIds: [userId],
+        reason: 'app_admin.revoked',
+        serverTs: Date.now(),
+      });
+    }
+    res.status(204).end();
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: { message: 'Validation failed', code: 'VALIDATION_ERROR', statusCode: 400, errors: error.issues },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+export { router as adminRoutes };
+

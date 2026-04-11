@@ -1,0 +1,609 @@
+/*
+ * Board view — default blue theme (matches board chrome reference).
+ * CSS variables are grouped for a future theme editor.
+ */
+.board-page {
+  --board-nav-bg: #1a5b99;
+  --board-nav-border: rgba(255, 255, 255, 0.12);
+  --board-canvas-bg: #2b82c9;
+  --board-list-bg: #ffffff;
+  /* Trello-like list chrome: slate title + muted count */
+  --board-list-header-text: #172b4d;
+  --board-list-muted: #5e6c84;
+  --board-list-muted-strong: #42526e;
+  --board-list-control-hover-bg: rgba(0, 0, 0, 0.06);
+  --board-list-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --board-add-list-bg: rgba(255, 255, 255, 0.2);
+  --board-add-list-bg-hover: rgba(255, 255, 255, 0.28);
+  /* Shared top/bottom breathing room as viewport percentage. */
+  --board-viewport-gap: 2.5dvh;
+  /* Header bar footprint (nav + border) used for column max-height calc. */
+  --board-header-height: 56px;
+
+  min-height: 100dvh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--board-canvas-bg);
+}
+
+.board-page__header {
+  flex-shrink: 0;
+  background: var(--board-nav-bg);
+  border-bottom: 1px solid var(--board-nav-border);
+  padding: 6px 16px;
+}
+
+.board-page__header-icon {
+  color: #fff;
+}
+
+.board-page__header-icon:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Decorative brand mark only — not interactive (no navigation). */
+.board-page__header-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  line-height: 0;
+  min-width: 44px;
+  min-height: 44px;
+  width: auto;
+  height: auto;
+}
+
+/* Tabler IconLink is drawn on a ~45° diagonal; rotate so it reads horizontal in the bar. */
+.board-page__header-icon-link-horizontal {
+  display: inline-flex;
+  line-height: 0;
+  transform: rotate(45deg);
+}
+
+.board-page__title {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-transform: uppercase;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.board-page__user-name {
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.board-page__body {
+  flex: 1;
+  min-height: 0;
+  /* Keep top and bottom canvas gaps symmetric using viewport units. */
+  padding: var(--board-viewport-gap) 16px var(--board-viewport-gap);
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--board-canvas-bg);
+}
+
+.board-page__columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: max-content;
+  min-height: calc(100vh - 120px);
+}
+
+.board-column {
+  flex-shrink: 0;
+  background: var(--board-list-bg);
+  /* Card drop shadow uses this for color-mix (10% darker than list surface). */
+  --board-card-drop-surface: var(--board-list-bg);
+  /* Shared with scroll region pull-out so the list scrollbar can sit flush with the chrome edge. */
+  --board-column-pad: 12px;
+  border-radius: 10px;
+  padding: var(--board-column-pad);
+  box-shadow: var(--board-list-shadow);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  /*
+   * Constrain tall lists while allowing short lists to stay compact.
+   * Formula: viewport - header - (top gap + bottom gap).
+   */
+  max-height: calc(100dvh - var(--board-header-height) - (var(--board-viewport-gap) * 2));
+  content-visibility: visible;
+  contain-intrinsic-size: 280px 160px;
+}
+
+.board-page--kanban-dragging .board-column {
+  content-visibility: visible;
+}
+
+.board-column__cards,
+.board-column__cards--virtual {
+  content-visibility: visible;
+}
+
+/* Delegated card ⋮ trigger (no per-row Mantine Menu.Target). */
+.board-card__kanban-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: var(--mantine-radius-sm, 4px);
+  background: transparent;
+  color: var(--board-card-menu-color, var(--mantine-color-gray-7));
+  cursor: pointer;
+}
+
+.board-card__kanban-menu-trigger:hover {
+  background-color: var(--board-card-menu-hover-bg, var(--mantine-color-gray-1));
+}
+
+.board-card--kanban-colored .board-card__kanban-menu-trigger:hover {
+  background-color: var(--board-card-menu-hover-bg, rgba(0, 0, 0, 0.12));
+}
+
+/* Responsive width: target from --board-list-column-prefer (board settings), scales down on narrow viewports. */
+.board-column.board-column--width-auto {
+  width: min(
+    var(--board-list-column-prefer, 272px),
+    max(200px, calc((100vw - 120px) / 5.25))
+  );
+}
+
+.board-column__cards {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+/* Virtuoso provides its own scroller element; avoid nested wheel-scroll containers. */
+.board-column__cards--virtual {
+  overflow-y: hidden;
+  padding-right: 0;
+  scrollbar-gutter: auto;
+  /*
+   * Pull the scroll viewport into the column’s inline-end padding so the scrollbar track
+   * meets the list edge (header/footer stay inset via .board-column padding).
+   */
+  margin-inline-end: calc(-1 * var(--board-column-pad));
+  width: calc(100% + var(--board-column-pad));
+}
+
+/* Scrollbar on this element’s outer edge; horizontal inset for cards is on Virtuoso `List` (merged inline style). */
+.board-column__virtuoso-scroller {
+  box-sizing: border-box;
+  scrollbar-gutter: auto;
+  width: 100%;
+}
+
+/* Empty list: no Virtuoso scroller — mirror the scroller’s end inset. */
+.board-column__cards--virtual:not(:has(.board-column__virtuoso-scroller)) {
+  box-sizing: border-box;
+  padding-inline-end: var(--board-column-pad);
+}
+
+/*
+ * List reorder: adjacent-swap target — marker on the neighbor column; flex row width stays fixed.
+ */
+/* Source column: slight stack lift only (full opacity; move cursor comes from drop effect). */
+.board-column.board-column--list-dragging-source {
+  z-index: 2;
+}
+
+.board-column.board-column--list-reorder-target {
+  position: relative;
+}
+
+.board-column.board-column--list-reorder-target::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  border-radius: 10px 0 0 10px;
+  background: color-mix(in srgb, var(--board-list-bg) 88%, #000000);
+  box-shadow:
+    4px 0 14px rgba(0, 0, 0, 0.14),
+    inset -1px 0 0 color-mix(in srgb, var(--board-list-bg) 70%, #000000);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.board-column__title-row {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.board-column__title-row .board-column__title,
+.board-column__title-row .board-column__count {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.board-column__title-row:active {
+  cursor: grabbing;
+}
+
+.board-column__title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--board-list-header-text);
+}
+
+.board-column__count {
+  font-size: 0.75rem;
+  color: var(--board-list-muted);
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+.board-column__menu {
+  color: var(--board-list-muted);
+}
+
+.board-column__menu:hover {
+  background-color: var(--board-list-control-hover-bg);
+}
+
+.board-column__add {
+  color: var(--board-list-muted);
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.board-column__add:hover {
+  color: var(--board-list-muted-strong);
+  background-color: var(--board-list-control-hover-bg);
+}
+
+/* Column-width slot for add-list / composer (width from --auto or inline). */
+.board-page__column-track {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.board-page__column-track--auto {
+  width: min(
+    var(--board-list-column-prefer, 272px),
+    max(200px, calc((100vw - 120px) / 5.25))
+  );
+}
+
+/* “Add list” — fills parent track; short header-height strip, frosted white on canvas */
+.board-page__add-list {
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 44px;
+  height: auto !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 10px;
+  box-shadow: none !important;
+  background: var(--board-add-list-bg) !important;
+  color: #fff !important;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.board-page__add-list:hover {
+  background: var(--board-add-list-bg-hover) !important;
+  color: #fff !important;
+}
+
+/* Plus: slightly larger than label for optical balance; centered in section */
+.board-page__add-list-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  min-height: 1.125rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1;
+  transform: translateY(-0.5px);
+}
+
+/* Shared inline composer shell (add list on canvas, add card in column) */
+.board-inline-composer {
+  background: var(--board-list-bg);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: var(--board-list-shadow);
+}
+
+.board-inline-composer--kanban {
+  flex-shrink: 0;
+  width: 100%;
+  align-self: flex-start;
+  box-sizing: border-box;
+}
+
+.board-inline-composer--column {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.board-card {
+  background: var(--board-card-bg, #fff) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+  touch-action: none;
+}
+
+.board-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Match home board tiles: wrap long title/description cleanly */
+.board-card__desc {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Kanban list card: labels → title (caps) → 2-line description → due pill; menu top-right */
+/* Keep full content width by default; reserve menu space only where needed (title row). */
+/* No text selection: avoids highlighting titles/descriptions when dragging across columns. */
+.board-card--kanban {
+  user-select: none;
+  -webkit-user-select: none;
+  /* Fill column width and allow shrinking so long titles wrap instead of overflowing the list. */
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.board-card__kanban-menu {
+  position: absolute;
+  top: var(--mantine-spacing-sm);
+  right: var(--mantine-spacing-sm);
+  z-index: 2;
+}
+
+.board-card__kanban-body {
+  min-width: 0;
+}
+
+.board-card__kanban-title {
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--board-card-title-color, var(--mantine-color-dark-7));
+  /* Prevent title text from colliding with top-right menu icon. */
+  padding-right: 24px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.board-card--kanban--no-card-menu .board-card__kanban-title {
+  padding-right: 0;
+}
+
+/* Twemoji imgs in titles stay inline and don’t force horizontal overflow */
+.board-card__kanban-title img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: -0.125em;
+}
+
+.board-card__kanban-menu .mantine-ActionIcon-root {
+  color: var(--board-card-menu-color, inherit);
+}
+
+.board-card__kanban-menu .mantine-ActionIcon-root:hover {
+  background-color: var(--board-card-menu-hover-bg, rgba(0, 0, 0, 0.06));
+}
+
+.board-card--kanban-colored .board-card__desc {
+  color: var(--board-card-desc-color, rgba(255, 255, 255, 0.92));
+}
+
+.board-card__kanban-due-wrap {
+  margin-top: var(--mantine-spacing-sm);
+}
+
+/* Card body: smaller than title, sentence case, tight line-height (Trello-like) */
+.board-card__kanban-desc {
+  font-size: 0.75rem;
+  font-weight: 200;
+  line-height: 1.4;
+}
+
+/*
+ * Rich description preview: Mantine Text `lineClamp={2}` uses -webkit-line-clamp on this root.
+ * Block children (<p>, headings) would each clamp separately unless flattened to inline flow.
+ */
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  :is(p, h1, h2, h3, h4, h5, h6) {
+  display: inline;
+  margin: 0;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  :is(h1, h2, h3, h4, h5, h6) {
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  p
+  + p::before {
+  content: ' ';
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  :is(ul, ol) {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp] .card-desc-tiptap-read--board-preview li {
+  display: inline;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  li:not(:last-child)::after {
+  content: ' ';
+}
+
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview video.card-desc-video-player {
+  display: none;
+}
+
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview img:not(.card-desc-twemoji) {
+  max-height: 1.15em;
+  width: auto;
+  vertical-align: text-bottom;
+  margin: 0 0.1em;
+}
+
+/* Inline link buttons are editor/detail-only; hide on list cards (JSON strip + fallback if DOM still renders). */
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview a.card-desc-inline-button,
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview .card-desc-inline-button-wrapper {
+  display: none !important;
+}
+
+/*
+ * Card drop indicator: flat card-sized fill (no shadow); surface = list mixed 10% toward black.
+ */
+.board-card-drop-indicator-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.board-card-drop-indicator {
+  flex-shrink: 0;
+  margin: 6px 0 10px;
+  border: none;
+  border-radius: 8px;
+  box-sizing: border-box;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--board-card-drop-surface, #ffffff) 90%, #000000);
+  box-shadow: none;
+  transition:
+    min-height 0.14s ease-out,
+    max-height 0.14s ease-out,
+    opacity 0.12s ease-out;
+}
+
+/* Native drag preview mounts under body — no MantineProvider; use plain DOM + these classes. */
+.board-page__dnd-native-card-preview {
+  width: 272px;
+  padding: 16px;
+  border-radius: 8px;
+  cursor: grabbing;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.board-page__dnd-native-card-preview-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: #1a1a1a;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.board-page__dnd-native-card-preview-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.board-page__dnd-native-card-preview-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #fff;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: lowercase;
+}
+
+.board-page__dnd-native-list-preview {
+  width: 272px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: grabbing;
+  box-sizing: border-box;
+  /* Preview mounts under document.body — do not rely on .board-page CSS variables. */
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.board-page__dnd-native-list-preview-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

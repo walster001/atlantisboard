@@ -1,0 +1,300 @@
+/* Boards homepage – shared with Mantine body background, layout and card styles */
+
+/* Page wrapper: match Mantine body so page and theme background are the same */
+.home-page {
+  /* Wider than 72rem so ~3 board columns + add-board chrome use more viewport */
+  --home-page-content-max-width: 85rem;
+  min-height: 100vh;
+  background-color: var(--mantine-color-body);
+}
+
+/* Top nav bar */
+.home-page__nav {
+  background-color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.home-page__nav-inner {
+  max-width: var(--home-page-content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.home-page__nav-brand {
+  flex: 1;
+}
+
+.home-page__nav-brand-label {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  /* Override Mantine Group / theme inherited color (e.g. white on light nav) */
+  color: var(--mantine-color-dark-7);
+}
+
+.home-page__nav-brand-favicon {
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.home-page__logo-icon {
+  color: var(--mantine-color-blue-6);
+  flex-shrink: 0;
+}
+
+.home-page__user-name {
+  font-weight: 500;
+  color: var(--mantine-color-dark-7);
+}
+
+/* Main content: same background as page so no visible seam */
+.home-page__main {
+  max-width: var(--home-page-content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1rem;
+  width: 100%;
+  background-color: var(--mantine-color-body);
+  min-height: calc(100vh - 65px);
+}
+
+.home-page__title {
+  color: var(--mantine-color-dark-7);
+  font-weight: 700;
+  font-size: clamp(1.875rem, 2.5vw, 2.25rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.home-page__actions {
+  flex-shrink: 0;
+}
+
+.home-page__import-btn {
+  background-color: #fff;
+  border-color: var(--mantine-color-gray-4);
+  white-space: nowrap;
+}
+
+.home-page__new-workspace-btn {
+  white-space: nowrap;
+}
+
+.home-page__workspace-row {
+  align-items: flex-start;
+}
+
+.home-page__workspace-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-page__workspace-title {
+  color: var(--mantine-color-dark-7);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.home-page__workspace-description {
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.home-page__ellipsis-icon {
+  font-size: 1.125rem;
+}
+
+.home-page__board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  /* Cards use their own height; long descriptions do not stretch siblings in the row */
+  align-items: start;
+  min-height: 4.5rem;
+  border-radius: var(--mantine-radius-md, 8px);
+  transition:
+    box-shadow 0.18s ease,
+    background-color 0.18s ease,
+    outline-color 0.14s ease;
+}
+
+/* Cross-workspace board drag: grey drop surface (aligned with Kanban card/list drop affordance). */
+.home-page__board-grid--cross-workspace-drop-target {
+  position: relative;
+  background: color-mix(in srgb, var(--mantine-color-body) 86%, #000000);
+  outline: 2px dashed color-mix(in srgb, var(--mantine-color-gray-5) 75%, #000000);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mantine-color-gray-4) 40%, transparent);
+}
+
+.home-page__add-board-wrap {
+  width: 260px;
+  flex-shrink: 0;
+}
+
+.home-page__add-board-btn {
+  flex: 1;
+  background-color: #fff;
+  color: var(--mantine-color-dark-7);
+  border-color: var(--mantine-color-gray-4);
+  white-space: nowrap;
+}
+
+.home-page__add-board-action-icon {
+  flex-shrink: 0;
+}
+
+.home-page__add-board-ellipsis-char {
+  font-size: 1rem;
+}
+
+.home-page__board-card {
+  --home-board-card-min-h: 160px;
+  cursor: pointer;
+  /* Do not clip long descriptions; header clips its own background where needed */
+  overflow: visible;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  /* Min footprint; body grows for long text (grid align-items: start — siblings not stretched) */
+  min-height: var(--home-board-card-min-h);
+}
+
+.home-page__board-card-header {
+  /* Exactly half of min card height; fixed — long descriptions expand the body only */
+  flex: 0 0 calc(var(--home-board-card-min-h) / 2);
+  height: calc(var(--home-board-card-min-h) / 2);
+  min-height: calc(var(--home-board-card-min-h) / 2);
+  max-height: calc(var(--home-board-card-min-h) / 2);
+  box-sizing: border-box;
+  display: flex;
+  align-items: end;
+  overflow: hidden;
+  border-radius: var(--mantine-radius-md, 8px) var(--mantine-radius-md, 8px) 0 0;
+}
+
+.home-page__board-card-header--image {
+  background-size: cover;
+  background-position: center;
+  background-color: var(--mantine-color-gray-7);
+}
+
+.home-page__board-card-title {
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.home-page__board-card-desc {
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  width: 100%;
+  text-align: left;
+}
+
+.home-page__board-card-body {
+  /* At least half of min card; grows with long description; flex-grow eats slack when text is short */
+  flex: 1 0 auto;
+  min-height: calc(var(--home-board-card-min-h) / 2);
+  box-sizing: border-box;
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  border-radius: 0 0 var(--mantine-radius-md, 8px) var(--mantine-radius-md, 8px);
+}
+
+/* Loading state: same background as page */
+.home-page__loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--mantine-color-body);
+}
+
+.home-page__icon-plus {
+  font-size: 1.125rem;
+}
+
+.home-page--dragging {
+  cursor: grabbing;
+}
+
+.home-page__list-root {
+  width: 100%;
+}
+
+.home-page__drag-float-host {
+  will-change: transform;
+}
+
+.home-page__drag-float-card,
+.home-page__drag-float-workspace {
+  min-width: 200px;
+  max-width: 280px;
+  padding: 0.75rem 1rem;
+  border-radius: var(--mantine-radius-md, 8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  background: #fff;
+  border: 1px solid var(--mantine-color-gray-3);
+}
+
+.home-page__drag-float-card-title,
+.home-page__drag-float-workspace-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--mantine-color-dark-7);
+}
+
+.home-page__workspace-insert-line {
+  height: 3px;
+  width: 100%;
+  border-radius: 2px;
+  background: var(--mantine-color-blue-5);
+  margin: 0.25rem 0;
+}
+
+.home-page__workspace-drag-handle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  cursor: grab;
+  color: var(--mantine-color-gray-6);
+  border-radius: var(--mantine-radius-sm, 4px);
+  touch-action: none;
+}
+
+.home-page__workspace-drag-handle:active {
+  cursor: grabbing;
+}
+
+.home-page__board-card[data-home-board-draggable='1'] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.home-page--dragging .home-page__board-card[data-home-board-draggable='1'] {
+  cursor: grabbing;
+}
+
+.home-page__board-card--drag-source {
+  opacity: 0.45;
+}

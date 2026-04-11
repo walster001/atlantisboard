@@ -1,0 +1,133 @@
+.admin-configuration-page {
+  min-height: 100vh;
+  background-color: var(--mantine-color-gray-0);
+  padding: var(--mantine-spacing-md) var(--mantine-spacing-lg) var(--mantine-spacing-xl);
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-configuration-page__main-tabs {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-configuration-page__configuration-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-configuration-page__configuration-panel .admin-configuration-page__layout {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.admin-configuration-page__layout--permissions {
+  min-height: calc(100vh - 220px);
+  max-height: calc(100vh - 160px);
+}
+
+.admin-configuration-page__layout--permissions .admin-configuration-page__content {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-configuration-page__header {
+  margin-bottom: var(--mantine-spacing-lg);
+}
+
+.admin-configuration-page__main-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mantine-spacing-sm);
+}
+
+.admin-configuration-page__main-tabs .mantine-Tabs-tab {
+  font-weight: 500;
+  font-size: var(--mantine-font-size-md);
+  min-height: 38px;
+  padding-inline: var(--mantine-spacing-lg);
+  padding-block: 5px;
+}
+
+.admin-configuration-page__main-tabs .mantine-Tabs-tab [data-position='left'] {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-end: 10px;
+}
+
+.admin-configuration-page__layout {
+  display: flex;
+  gap: 0;
+  min-height: min(60vh, 640px);
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  background-color: var(--mantine-color-white);
+  overflow: hidden;
+}
+
+/**
+ * `overflow: hidden` on the layout breaks `position: sticky` for descendants (preview column).
+ * Login branding needs the window as the scroll root so the live preview can stick while scrolling.
+ */
+.admin-configuration-page__layout--sticky-preview {
+  overflow: visible;
+}
+
+.admin-configuration-page__layout--sticky-preview .admin-configuration-page__sidebar {
+  border-top-left-radius: var(--mantine-radius-md);
+  border-bottom-left-radius: var(--mantine-radius-md);
+}
+
+.admin-configuration-page__layout--sticky-preview .admin-configuration-page__content {
+  border-top-right-radius: var(--mantine-radius-md);
+  border-bottom-right-radius: var(--mantine-radius-md);
+}
+
+.admin-configuration-page__sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-gray-0);
+  padding: var(--mantine-spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-configuration-page__subtab {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  border: none;
+  border-radius: var(--mantine-radius-sm);
+  background: transparent;
+  color: var(--mantine-color-dark-6);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.admin-configuration-page__subtab:hover {
+  background-color: var(--mantine-color-gray-2);
+}
+
+.admin-configuration-page__subtab[data-active='true'] {
+  background-color: var(--mantine-color-blue-filled);
+  color: var(--mantine-color-white);
+}
+
+.admin-configuration-page__subtab[data-active='true']:hover {
+  background-color: var(--mantine-color-blue-filled);
+}
+
+.admin-configuration-page__content {
+  flex: 1;
+  min-width: 0;
+  padding: var(--mantine-spacing-lg);
+}

@@ -12,10 +12,12 @@ import {
   Image,
   Modal,
   UnstyledButton,
+  Badge,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { IconPaperclip, IconTrash, IconUpload, IconX } from '@tabler/icons-react';
+import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
 import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import { normalizeCardFromApi } from '../../utils/transform.js';
@@ -237,7 +239,9 @@ export function AttachmentSection({
   const resolvedUrls = useMemo(() => {
     const next: Record<string, string> = {};
     for (const attachment of card.attachments ?? []) {
-      next[attachment.id] = api.getAttachmentFileUrl(attachment.id);
+      if (!isPlaceholderCardAttachment(attachment)) {
+        next[attachment.id] = api.getAttachmentFileUrl(attachment.id);
+      }
     }
     return next;
   }, [card.attachments]);
@@ -247,7 +251,7 @@ export function AttachmentSection({
       ? null
       : card.attachments.find((att) => att.id === linkPreviewAttachmentId) ?? null;
   const linkPreviewUrl =
-    linkPreviewAttachment == null
+    linkPreviewAttachment == null || isPlaceholderCardAttachment(linkPreviewAttachment)
       ? ''
       : (resolvedUrls[linkPreviewAttachment.id] ?? linkPreviewAttachment.url);
   const isLinkPreviewImage =
@@ -260,6 +264,17 @@ export function AttachmentSection({
   useEffect(() => {
     setLinkPreviewImageSize(null);
   }, [linkPreviewAttachmentId]);
+
+  useEffect(() => {
+    if (linkPreviewAttachmentId == null) {
+      return;
+    }
+    const att = card.attachments.find((a) => a.id === linkPreviewAttachmentId);
+    if (att == null || isPlaceholderCardAttachment(att)) {
+      setLinkPreviewAttachmentId(null);
+      setLinkPreviewImageSize(null);
+    }
+  }, [card.attachments, linkPreviewAttachmentId]);
 
   useEffect(() => {
     if (!isLinkPreviewImage || linkPreviewUrl.trim() === '') {
@@ -328,7 +343,19 @@ export function AttachmentSection({
 
       {card.attachments && card.attachments.length > 0 ? (
         <Stack gap="xs">
-          {card.attachments.map((attachment) => (
+          {card.attachments.map((attachment) => {
+            const isPh = isPlaceholderCardAttachment(attachment);
+            const displayNameStyle = {
+              display: 'block',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            } as const;
+            const mappingName =
+              typeof attachment.originalFileName === 'string' && attachment.originalFileName.trim() !== ''
+                ? attachment.originalFileName.trim()
+                : attachment.name;
+            return (
             <Group
               key={attachment.id}
               justify="space-between"
@@ -350,8 +377,16 @@ export function AttachmentSection({
                       overflow: 'hidden',
                       backgroundColor: 'var(--mantine-color-gray-2)',
                       border: '1px solid var(--mantine-color-gray-3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
                   >
+                    {isPh ? (
+                      <Text size="xs" c="dimmed" ta="center" px="xs">
+                        No preview — file not in storage
+                      </Text>
+                    ) : (
                     <Image
                       src={resolvedUrls[attachment.id] ?? attachment.url}
                       alt={attachment.name}
@@ -360,6 +395,7 @@ export function AttachmentSection({
                       fallbackSrc="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='96'%3E%3Crect width='160' height='96' fill='%23e9ecef'/%3E%3C/svg%3E"
                       style={{ objectFit: 'cover' }}
                     />
+                    )}
                   </Box>
                 ) : attachment.type.startsWith('video/') ? (
                   <Box
@@ -371,8 +407,16 @@ export function AttachmentSection({
                       overflow: 'hidden',
                       backgroundColor: 'var(--mantine-color-dark-9)',
                       border: '1px solid var(--mantine-color-gray-3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
                   >
+                    {isPh ? (
+                      <Text size="xs" c="dimmed" ta="center" px="xs">
+                        No preview — file not in storage
+                      </Text>
+                    ) : (
                     <video
                       src={resolvedUrls[attachment.id] ?? attachment.url}
                       muted
@@ -393,6 +437,7 @@ export function AttachmentSection({
                         pointerEvents: 'none',
                       }}
                     />
+                    )}
                   </Box>
                 ) : (
                   <Box
@@ -411,6 +456,11 @@ export function AttachmentSection({
                   </Box>
                 )}
                 <Box style={{ flex: 1, minWidth: 0, alignSelf: 'center' }}>
+                  {isPh ? (
+                    <Text fw={500} style={displayNameStyle}>
+                      {attachment.name}
+                    </Text>
+                  ) : (
                   <Anchor
                     href={resolvedUrls[attachment.id] ?? attachment.url}
                     fw={500}
@@ -418,14 +468,25 @@ export function AttachmentSection({
                       event.preventDefault();
                       setLinkPreviewAttachmentId(attachment.id);
                     }}
-                    style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    style={displayNameStyle}
                   >
                     {attachment.name}
                   </Anchor>
+                  )}
+                  {isPh ? (
+                    <Badge size="xs" variant="light" color="gray" mt={6}>
+                      Import placeholder
+                    </Badge>
+                  ) : null}
                   <Text size="xs" c="dimmed">
                     {formatFileSize(attachment.size)} • {new Date(attachment.uploadedAt).toLocaleDateString()}
                   </Text>
-                  {attachment.type.startsWith('image/') ? (
+                  {isPh ? (
+                    <Text size="xs" c="dimmed" mt={4}>
+                      Original filename (for mapping): {mappingName}
+                    </Text>
+                  ) : null}
+                  {attachment.type.startsWith('image/') && !isPh ? (
                     <Button
                       size="xs"
                       variant="light"
@@ -447,7 +508,8 @@ export function AttachmentSection({
                 <IconTrash size={16} />
               </ActionIcon>
             </Group>
-          ))}
+            );
+          })}
         </Stack>
       ) : (
         <Text {...cardDetailEmptyStateProps}>

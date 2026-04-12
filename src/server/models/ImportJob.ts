@@ -12,6 +12,11 @@ export interface IImportResult {
   workspaceId?: mongoose.Types.ObjectId;
   boardId?: mongoose.Types.ObjectId;
   importedCount: number;
+  /** Trello (etc.) import summary for client notifications. */
+  boardName?: string;
+  listCount?: number;
+  cardCount?: number;
+  labelCount?: number;
 }
 
 export interface IImportJob extends Document {
@@ -21,6 +26,8 @@ export interface IImportJob extends Document {
   progress: number;
   totalItems: number;
   processedItems: number;
+  /** Rough import stage for UI (e.g. boards, lists, cards). */
+  currentPhase?: string;
   importErrors: IImportJobError[];
   result?: IImportResult;
   createdAt: Date;
@@ -42,6 +49,10 @@ const ImportResultSchema = new Schema<IImportResult>(
     workspaceId: { type: Schema.Types.ObjectId, ref: 'Workspace' },
     boardId: { type: Schema.Types.ObjectId, ref: 'Board' },
     importedCount: { type: Number, default: 0 },
+    boardName: { type: String, maxlength: 512 },
+    listCount: { type: Number, min: 0 },
+    cardCount: { type: Number, min: 0 },
+    labelCount: { type: Number, min: 0 },
   },
   { _id: false }
 );
@@ -79,6 +90,11 @@ const ImportJobSchema = new Schema<IImportJob>(
     processedItems: {
       type: Number,
       default: 0,
+    },
+    currentPhase: {
+      type: String,
+      trim: true,
+      maxlength: 32,
     },
     importErrors: [ImportErrorSchema],
     result: ImportResultSchema,

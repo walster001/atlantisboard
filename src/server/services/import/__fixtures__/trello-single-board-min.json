@@ -1,0 +1,48 @@
+{
+  "id": "fixture-board-1",
+  "name": "Fixture board",
+  "desc": "",
+  "closed": false,
+  "lists": [
+    {
+      "id": "fixture-list-1",
+      "name": "Todo",
+      "idBoard": "fixture-board-1",
+      "pos": 65535,
+      "closed": false
+    }
+  ],
+  "cards": [
+    {
+      "id": "fixture-card-1",
+      "name": "Sample card",
+      "desc": "**Bold**\n\n[Link](https://trello.com/c/abc123/x \"smartCard-inline\")",
+      "idList": "fixture-list-1",
+      "idBoard": "fixture-board-1",
+      "pos": 131072,
+      "closed": false,
+      "idLabels": ["fixture-label-1"],
+      "idChecklists": ["fixture-cl-1"]
+    }
+  ],
+  "labels": [
+    {
+      "id": "fixture-label-1",
+      "idBoard": "fixture-board-1",
+      "name": "",
+      "color": "blue"
+    }
+  ],
+  "checklists": [
+    {
+      "id": "fixture-cl-1",
+      "idCard": "fixture-card-1",
+      "idBoard": "fixture-board-1",
+      "name": "Tasks",
+      "checkItems": [
+        { "id": "i1", "name": "Done item", "state": "complete" },
+        { "id": "i2", "name": "Todo item", "state": "incomplete" }
+      ]
+    }
+  ]
+}

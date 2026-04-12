@@ -9,6 +9,7 @@ import {
   getAttachmentUrl,
   getAttachmentObject,
 } from '../services/attachmentService.js';
+import { isPlaceholderCardAttachment } from '../../shared/cardAttachmentPlaceholder.js';
 import { Card } from '../models/Card.js';
 import { hasPermission } from '../utils/permissions.js';
 
@@ -213,6 +214,17 @@ router.get('/attachments/:attachmentId/url', async (req, res, next) => {
       return;
     }
 
+    if (isPlaceholderCardAttachment(attachment)) {
+      res.status(404).json({
+        error: {
+          message: 'No file has been uploaded for this attachment yet',
+          code: 'ATTACHMENT_PLACEHOLDER',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+
     const url = await getAttachmentUrl(attachment.url);
 
     res.json({ url });
@@ -260,6 +272,17 @@ router.get('/attachments/:attachmentId/file', async (req, res, next) => {
         error: {
           message: 'Attachment not found',
           code: 'NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+
+    if (isPlaceholderCardAttachment(attachment)) {
+      res.status(404).json({
+        error: {
+          message: 'No file has been uploaded for this attachment yet',
+          code: 'ATTACHMENT_PLACEHOLDER',
           statusCode: 404,
         },
       });

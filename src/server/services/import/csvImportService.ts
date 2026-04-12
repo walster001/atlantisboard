@@ -15,6 +15,7 @@ import {
   isHexCardColour,
   resolveImportedCardColour,
 } from '../../../shared/utils/importDefaultCardColour.js';
+import { CARD_TITLE_MAX_LENGTH } from '../../../shared/constants/entityTextLimits.js';
 
 interface CSVRow {
   [key: string]: string | undefined;
@@ -242,7 +243,7 @@ export async function importCSV(
               const card = new Card({
                 listId,
                 boardId,
-                title: row.title.slice(0, 100),
+                title: row.title.slice(0, CARD_TITLE_MAX_LENGTH),
                 description: row.description
                   ? plainTextToCardDescriptionJson(row.description)
                   : undefined,

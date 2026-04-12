@@ -15,6 +15,7 @@ import {
   Box,
   Paper,
   ColorInput,
+  Progress,
 } from '@mantine/core';
 import { IconUpload, IconFileText } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
@@ -30,10 +31,99 @@ interface ImportExportModalProps {
   boardId?: string;
   workspaceId?: string;
   onClose: () => void;
+  /** Called after a successful import, before the modal closes (e.g. refresh homepage data). */
+  onImportComplete?: () => void | Promise<void>;
 }
 
 type ImportType = 'trello' | 'wekan' | 'csv' | null;
 type TabType = 'import' | 'export';
+
+interface ImportJobClientView {
+  status: string;
+  type: ImportJobServerType;
+  progress: number;
+  totalItems: number;
+  processedItems: number;
+  currentPhase?: string;
+  importErrors?: { item: string; error: string }[];
+  result?: Record<string, unknown>;
+}
+
+type ImportJobServerType = 'trello' | 'wekan' | 'csv';
+
+function parseImportJob(job: unknown): ImportJobClientView | null {
+  if (job == null || typeof job !== 'object') {
+    return null;
+  }
+  const j = job as Record<string, unknown>;
+  const status = j.status;
+  if (typeof status !== 'string') {
+    return null;
+  }
+  const typeRaw = j.type;
+  const type: ImportJobServerType =
+    typeRaw === 'trello' || typeRaw === 'wekan' || typeRaw === 'csv' ? typeRaw : 'csv';
+  const progress = typeof j.progress === 'number' ? j.progress : 0;
+  const totalItems = typeof j.totalItems === 'number' ? j.totalItems : 0;
+  const processedItems = typeof j.processedItems === 'number' ? j.processedItems : 0;
+  const currentPhase = typeof j.currentPhase === 'string' ? j.currentPhase : undefined;
+  const importErrors = Array.isArray(j.importErrors) ? (j.importErrors as { item: string; error: string }[]) : [];
+  const result = j.result != null && typeof j.result === 'object' ? (j.result as Record<string, unknown>) : undefined;
+  return {
+    status,
+    type,
+    progress,
+    totalItems,
+    processedItems,
+    importErrors,
+    ...(currentPhase !== undefined ? { currentPhase } : {}),
+    ...(result !== undefined ? { result } : {}),
+  };
+}
+
+function importPhaseDisplayLabel(phase: string | undefined): string {
+  if (phase == null || phase.length === 0) {
+    return 'Starting import…';
+  }
+  switch (phase) {
+    case 'boards':
+      return 'Importing boards…';
+    case 'labels':
+      return 'Importing boards and labels…';
+    case 'lists':
+      return 'Importing lists…';
+    case 'cards':
+      return 'Importing cards…';
+    case 'done':
+      return 'Finishing…';
+    default:
+      return `Importing (${phase})…`;
+  }
+}
+
+function buildImportSuccessMessage(
+  importType: ImportType,
+  jobType: ImportJobServerType,
+  result: Record<string, unknown> | undefined,
+): string {
+  const source: ImportType = importType ?? jobType;
+  if (source === 'trello') {
+    const boardName =
+      result != null &&
+      typeof result.boardName === 'string' &&
+      result.boardName.trim().length > 0
+        ? result.boardName.trim()
+        : 'your board';
+    const listCount = typeof result?.listCount === 'number' ? result.listCount : 0;
+    const cardCount = typeof result?.cardCount === 'number' ? result.cardCount : 0;
+    return `Successfully imported ${boardName} with ${listCount} list${listCount === 1 ? '' : 's'} and ${cardCount} card${cardCount === 1 ? '' : 's'}.`;
+  }
+  if (source === 'csv' || source === 'wekan') {
+    const msg = result != null && typeof result.message === 'string' ? result.message : undefined;
+    return msg ?? 'Import completed.';
+  }
+  return 'Import completed.';
+}
 
 function ImportMappingCallout({ importType }: { importType: ImportType }) {
   if (!importType) {
@@ -92,13 +182,20 @@ function ImportMappingCallout({ importType }: { importType: ImportType }) {
   );
 }
 
-export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExportModalProps) {
+export function ImportExportModal({
+  boardId,
+  workspaceId,
+  onClose,
+  onImportComplete,
+}: ImportExportModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('import');
   const [importType, setImportType] = useState<ImportType>(null);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importPhaseKey, setImportPhaseKey] = useState<string | undefined>(undefined);
   const [importDefaultHex, setImportDefaultHex] = useState(() =>
     normalizePresetHex('#3b82f6', BOARD_PRESET_COLOURS),
   );
@@ -141,6 +238,8 @@ export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExpor
 
     setLoading(true);
     setError(null);
+    setImportProgress(0);
+    setImportPhaseKey(undefined);
 
     try {
       let result: { message: string; jobId: string };
@@ -163,7 +262,7 @@ export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExpor
       }
 
       setJobId(result.jobId);
-      pollJobStatus(result.jobId);
+      void pollJobStatus(result.jobId);
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -174,7 +273,7 @@ export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExpor
     }
   };
 
-  const pollJobStatus = async (id: string) => {
+  const clearPollTimers = (): void => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -183,79 +282,103 @@ export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExpor
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+  };
 
-    intervalRef.current = setInterval(async () => {
+  const pollJobStatus = async (id: string): Promise<void> => {
+    clearPollTimers();
+
+    const runTick = async (): Promise<boolean> => {
       if (!isMountedRef.current) {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-        return;
+        clearPollTimers();
+        return false;
       }
 
       try {
         const response = await api.getImportJobStatus(id);
-        const job = (response as { job: { status: string; progress: number; result?: unknown; importErrors?: unknown[] } }).job;
+        const job = parseImportJob((response as { job: unknown }).job);
 
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current) {
+          return false;
+        }
+
+        if (job == null) {
+          clearPollTimers();
+          setLoading(false);
+          setError('Invalid import job response');
+          return false;
+        }
+
+        if (job.status !== 'completed' && job.status !== 'failed') {
+          setImportProgress(Math.min(100, Math.max(0, job.progress)));
+          setImportPhaseKey(job.currentPhase);
+        }
 
         if (job.status === 'completed') {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
+          clearPollTimers();
+          if (!isMountedRef.current) {
+            return false;
           }
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
+          setImportProgress(100);
+          setImportPhaseKey('done');
+          setLoading(false);
+          try {
+            await onImportComplete?.();
+          } catch (completeErr) {
+            console.error('onImportComplete failed:', completeErr);
           }
-          if (isMountedRef.current) {
-            setLoading(false);
-            notifications.show({
-              color: 'green',
-              title: 'Import complete',
-              message: `Imported ${(job.result as { importedCount?: number })?.importedCount || 0} items.`,
-            });
-            onClose();
+          notifications.show({
+            color: 'green',
+            title: 'Import complete',
+            message: buildImportSuccessMessage(importType, job.type, job.result),
+          });
+          onClose();
+          return false;
+        }
+
+        if (job.status === 'failed') {
+          clearPollTimers();
+          if (!isMountedRef.current) {
+            return false;
           }
-        } else if (job.status === 'failed') {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
-          }
-          if (isMountedRef.current) {
-            setLoading(false);
-            const errors = job.importErrors || [];
-            setError(`Import failed. ${errors.length > 0 ? `Errors: ${JSON.stringify(errors)}` : ''}`);
-          }
+          setLoading(false);
+          const errors = job.importErrors ?? [];
+          setError(`Import failed. ${errors.length > 0 ? `Errors: ${JSON.stringify(errors)}` : ''}`);
+          return false;
         }
       } catch {
-        if (!isMountedRef.current) return;
-        if (intervalRef.current) {
+        if (!isMountedRef.current) {
+          return false;
+        }
+        clearPollTimers();
+        setLoading(false);
+        setError('Failed to check import status');
+        return false;
+      }
+
+      return true;
+    };
+
+    const continuePolling = await runTick();
+    if (!continuePolling || !isMountedRef.current) {
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      void (async () => {
+        const next = await runTick();
+        if (!next && intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
-        if (isMountedRef.current) {
-          setLoading(false);
-          setError('Failed to check import status');
-        }
-      }
+      })();
     }, 2000);
 
     timeoutRef.current = setTimeout(() => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      timeoutRef.current = null;
+      clearPollTimers();
       if (isMountedRef.current) {
         setLoading(false);
         setError('Import is taking longer than expected. Please check back later.');
       }
-    }, 5 * 60 * 1000);
+    }, 15 * 60 * 1000);
   };
 
   const handleExport = async () => {
@@ -454,10 +577,28 @@ export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExpor
 
                 {jobId ? (
                   <Alert color="blue" radius="md">
-                    <Group gap="xs">
-                      <Text size="sm">Import in progress (Job ID: {jobId})…</Text>
-                      {loading ? <Loader size="xs" /> : null}
-                    </Group>
+                    <Stack gap="sm">
+                      <Group gap="xs" wrap="nowrap">
+                        <Text size="sm" style={{ flex: 1, minWidth: 0 }}>
+                          {importPhaseDisplayLabel(importPhaseKey)}
+                        </Text>
+                        {loading ? <Loader size="xs" /> : null}
+                      </Group>
+                      <Progress
+                        value={importProgress}
+                        radius="md"
+                        size="sm"
+                        animated={loading && importProgress < 100}
+                      />
+                      <Group justify="space-between" gap="xs" wrap="nowrap">
+                        <Text size="xs" c="dimmed">
+                          {importProgress}%
+                        </Text>
+                        <Text size="xs" c="dimmed" style={{ textAlign: 'right' }} truncate>
+                          Job {jobId}
+                        </Text>
+                      </Group>
+                    </Stack>
                   </Alert>
                 ) : null}
               </>

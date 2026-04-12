@@ -812,6 +812,7 @@ export default function HomePage() {
         {showImportModal && (
           <ImportExportModal
             onClose={() => setShowImportModal(false)}
+            onImportComplete={refreshData}
           />
         )}
 

@@ -1,5 +1,4 @@
-/** Max length for board name (create, rename, API). */
-export const BOARD_NAME_MAX_LENGTH = 50;
-
-/** Max length for board description (create, edit, API). */
-export const BOARD_DESCRIPTION_MAX_LENGTH = 300;
+export {
+  BOARD_DESCRIPTION_MAX_LENGTH,
+  BOARD_NAME_MAX_LENGTH,
+} from '../../shared/constants/entityTextLimits.js';

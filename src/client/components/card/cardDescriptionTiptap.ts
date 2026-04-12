@@ -9,6 +9,10 @@ import StarterKit from '@tiptap/starter-kit';
 import { common, createLowlight } from 'lowlight';
 import ImageResize from 'tiptap-extension-resize-image';
 import { isValidCardDescriptionDoc } from '../../../shared/validation/cardDescriptionDoc.js';
+import {
+  CardDescriptionHeading,
+  CardDescriptionParagraph,
+} from './cardDescriptionBlockLineHeight.js';
 import { TwemojiEmoji } from './tiptapTwemojiExtension.js';
 import { TiptapInlineButton } from './tiptapInlineButtonExtension.js';
 import { TiptapVideo } from './tiptapVideoExtension.js';
@@ -17,8 +21,37 @@ const lowlight = createLowlight(common);
 
 export const emptyCardDescriptionJson: JSONContent = {
   type: 'doc',
-  content: [{ type: 'paragraph' }],
+  content: [{ type: 'paragraph', content: [{ type: 'hardBreak' }] }],
 };
+
+/**
+ * ProseMirror rejects empty `text` nodes; older imports may still contain `text: ""`.
+ * Normalizes those (and empty inline containers) so editors and static renderers load safely.
+ */
+function repairCardDescriptionDocForPm(node: JSONContent, parentType?: string): JSONContent {
+  if (node.type === 'text') {
+    if (node.text === '') {
+      if (parentType === 'codeBlock') {
+        return { type: 'text', text: '\u200b' };
+      }
+      return { type: 'hardBreak' };
+    }
+    return node;
+  }
+  if (!Array.isArray(node.content)) {
+    return node;
+  }
+  const repaired = node.content.map((child) => repairCardDescriptionDocForPm(child, node.type));
+  if (node.type === 'paragraph' || node.type === 'heading') {
+    if (repaired.length === 0) {
+      return { ...node, content: [{ type: 'hardBreak' }] };
+    }
+  }
+  if (node.type === 'codeBlock' && repaired.length === 0) {
+    return { ...node, content: [{ type: 'text', text: '\u200b' }] };
+  }
+  return { ...node, content: repaired };
+}
 
 let cachedExtensionsReadonly: Extensions | undefined;
 
@@ -30,7 +63,8 @@ export function getCardDescriptionExtensions(): Extensions {
   cachedExtensionsReadonly = [
     StarterKit.configure({
       codeBlock: false,
-      heading: { levels: [1, 2, 3, 4, 5, 6] },
+      paragraph: false,
+      heading: false,
       // Link + underline ship with StarterKit; configure link here to avoid a second Link extension.
       link: {
         openOnClick: false,
@@ -42,6 +76,8 @@ export function getCardDescriptionExtensions(): Extensions {
         },
       },
     }),
+    CardDescriptionHeading.configure({ levels: [1, 2, 3, 4, 5, 6] }),
+    CardDescriptionParagraph,
     TextStyle.configure({ mergeNestedSpanStyles: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Color.configure({ types: ['textStyle'] }),
@@ -86,7 +122,7 @@ export function parseCardDescriptionJson(value: string | undefined | null): JSON
   try {
     const parsed: unknown = JSON.parse(value) as unknown;
     if (isValidCardDescriptionDoc(parsed)) {
-      return parsed as JSONContent;
+      return repairCardDescriptionDocForPm(parsed as JSONContent);
     }
   } catch {
     /* fall through */
@@ -125,10 +161,10 @@ export function stripInlineButtonsForBoardPreview(doc: JSONContent): JSONContent
   if (doc.type !== 'doc') {
     return doc;
   }
-  return {
+  return repairCardDescriptionDocForPm({
     ...doc,
     content: mapNodes(doc.content) ?? [],
-  };
+  });
 }
 
 export function isCardDescriptionEmpty(doc: JSONContent): boolean {

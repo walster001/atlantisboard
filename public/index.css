@@ -9234,13 +9234,30 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   opacity: .45;
 }
 
+/* src/client/components/common/twemojiPlainText.css */
+.twemoji-plain-text img.emoji, .twemoji-plain-text img.card-desc-twemoji {
+  vertical-align: text-bottom;
+  display: inline-block;
+  box-sizing: content-box;
+  width: 1.1em;
+  max-width: none;
+  height: 1.1em;
+  margin: 0 .12em;
+}
+
 /* src/client/components/card/cardDescriptionTiptap.css */
 .card-desc-tiptap-editor .ProseMirror {
   padding: 0 var(--mantine-spacing-md) var(--mantine-spacing-sm);
   outline: none;
   font-size: var(--mantine-font-size-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
   min-height: 240px;
-  line-height: 1.15;
+  line-height: 1.2;
+}
+
+.card-desc-tiptap-editor .ProseMirror > * + *, .card-desc-tiptap-editor .ProseMirror blockquote > * + * {
+  margin-top: .45em;
 }
 
 .card-desc-tiptap-editor .ProseMirror p {
@@ -9295,8 +9312,25 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
 }
 
 .card-desc-tiptap-editor .ProseMirror ul, .card-desc-tiptap-editor .ProseMirror ol, .card-desc-tiptap-read ul, .card-desc-tiptap-read ol {
+  list-style-position: outside;
   margin: .2em 0;
   padding-left: 1.35rem;
+}
+
+.card-desc-tiptap-editor .ProseMirror ul, .card-desc-tiptap-read ul {
+  list-style-type: disc;
+}
+
+.card-desc-tiptap-editor .ProseMirror ol, .card-desc-tiptap-read ol {
+  list-style-type: decimal;
+}
+
+.card-desc-tiptap-editor .ProseMirror ol ol, .card-desc-tiptap-read ol ol {
+  list-style-type: lower-alpha;
+}
+
+.card-desc-tiptap-editor .ProseMirror ul ul, .card-desc-tiptap-read ul ul {
+  list-style-type: circle;
 }
 
 .card-desc-tiptap-editor .ProseMirror blockquote, .card-desc-tiptap-read blockquote {
@@ -9393,7 +9427,13 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
 .card-desc-tiptap-read {
   font-size: var(--mantine-font-size-sm);
-  line-height: 1.15;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.card-desc-tiptap-read > * + *, .card-desc-tiptap-read blockquote > * + * {
+  margin-top: .45em;
 }
 
 .card-desc-tiptap-read p {
@@ -11116,9 +11156,13 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   -webkit-user-select: none;
 }
 
-.board-column__title-row .board-column__title, .board-column__title-row .board-column__count {
+.board-column__title-row .board-column__title, .board-column__header-actions .board-column__count {
   user-select: none;
   -webkit-user-select: none;
+}
+
+.board-column__header-actions {
+  line-height: 1;
 }
 
 .board-column__title-row:active {
@@ -11129,8 +11173,12 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   text-transform: uppercase;
   letter-spacing: .04em;
   color: var(--board-list-header-text);
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   font-size: .875rem;
   font-weight: 700;
+  line-height: 1.25;
 }
 
 .board-column__count {
@@ -11275,7 +11323,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   padding-right: 0;
 }
 
-.board-card__kanban-title img {
+.board-card__kanban-title img:not(.card-desc-twemoji):not(.emoji) {
   vertical-align: -.125em;
   max-width: 100%;
   height: auto;

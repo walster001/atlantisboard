@@ -26,6 +26,7 @@ import {
   IconAlignJustified,
   IconAlignLeft,
   IconAlignRight,
+  IconArrowAutofitHeight,
   IconArrowBackUp,
   IconArrowForwardUp,
   IconBlockquote,
@@ -73,8 +74,28 @@ const EDITOR_TEXT_COLOR_FALLBACK =
   BOARD_PRESET_COLOURS[9] ?? '#344563';
 
 const FONT_SIZE_PX_PRESETS = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36] as const;
+const LINE_HEIGHT_PRESETS = ['1', '1.1', '1.15', '1.2', '1.35', '1.5', '1.75', '2'] as const;
 const TOOLBAR_BUTTON_SIZE = 'md';
 const TOOLBAR_ICON_SIZE = 22;
+
+function applyBlockLineHeight(editor: Editor, lineHeight: string | null): void {
+  const chain = editor.chain().focus();
+  if (lineHeight == null) {
+    if (editor.isActive('heading')) {
+      chain.resetAttributes('heading', 'lineHeight').run();
+    } else if (editor.isActive('paragraph')) {
+      chain.resetAttributes('paragraph', 'lineHeight').run();
+    }
+    return;
+  }
+  if (editor.isActive('heading')) {
+    chain.updateAttributes('heading', { lineHeight }).run();
+    return;
+  }
+  if (editor.isActive('paragraph')) {
+    chain.updateAttributes('paragraph', { lineHeight }).run();
+  }
+}
 
 interface EmojiMartLazyProps {
   onEmojiSelect: (payload: unknown) => void;
@@ -352,6 +373,8 @@ interface ToolbarUiState {
   readonly hasTextColor: boolean;
   readonly hasCustomFontSize: boolean;
   readonly fontSizeRaw: string;
+  readonly hasCustomLineHeight: boolean;
+  readonly lineHeightRaw: string;
 }
 
 const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar({
@@ -374,6 +397,14 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
         typeof textStyleAttrs.color === 'string' ? textStyleAttrs.color.trim() : '';
       const fontSizeRaw =
         typeof textStyleAttrs.fontSize === 'string' ? textStyleAttrs.fontSize.trim() : '';
+      const headingLhRaw = ed.getAttributes('heading').lineHeight;
+      const paraLhRaw = ed.getAttributes('paragraph').lineHeight;
+      const lineHeightRaw =
+        ed.isActive('heading') && typeof headingLhRaw === 'string'
+          ? headingLhRaw.trim()
+          : typeof paraLhRaw === 'string'
+            ? paraLhRaw.trim()
+            : '';
       return {
         activeBold: ed.isActive('bold'),
         activeItalic: ed.isActive('italic'),
@@ -393,6 +424,8 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
         hasTextColor: ed.isActive('textStyle') && textColor !== '',
         hasCustomFontSize: fontSizeRaw !== '',
         fontSizeRaw,
+        hasCustomLineHeight: lineHeightRaw !== '',
+        lineHeightRaw,
       };
     },
   });
@@ -740,6 +773,40 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
           >
             Justify
           </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+      <Menu shadow="md" width={200} closeOnItemClick>
+        <Menu.Target>
+          <Tooltip label="Line height">
+            <ActionIcon
+              size={TOOLBAR_BUTTON_SIZE}
+              color="gray"
+              variant={ui.hasCustomLineHeight ? 'filled' : 'subtle'}
+              aria-label="Line height"
+            >
+              <IconArrowAutofitHeight size={TOOLBAR_ICON_SIZE} />
+            </ActionIcon>
+          </Tooltip>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Item
+            onClick={() => applyBlockLineHeight(editor, null)}
+            disabled={!ui.hasCustomLineHeight}
+          >
+            Default (1.2)
+          </Menu.Item>
+          {LINE_HEIGHT_PRESETS.map((h) => {
+            const active = ui.lineHeightRaw === h;
+            return (
+              <Menu.Item
+                key={h}
+                onClick={() => applyBlockLineHeight(editor, h)}
+                style={active ? { backgroundColor: 'var(--mantine-color-gray-2)' } : undefined}
+              >
+                {h}
+              </Menu.Item>
+            );
+          })}
         </Menu.Dropdown>
       </Menu>
       <Tooltip label="Bullet list">

@@ -16,6 +16,7 @@ import {
 } from './cardViewService.js';
 import type { CardDetailDTO, CardSummaryDTO } from '../../shared/types/viewModels.js';
 import { renderCardDescriptionHtml } from '../utils/cardDescriptionHtml.js';
+import { CARD_TITLE_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 
 function getBoardListCardLimits(board: Document & IBoard): { max: number; enforce: boolean } {
   const s = board.settings;
@@ -480,7 +481,7 @@ export async function duplicateCard(
   const duplicate = new Card({
     listId: targetListId,
     boardId: sourceCard.boardId,
-    title: `${sourceCard.title} (Copy)`.slice(0, 100),
+    title: `${sourceCard.title} (Copy)`.slice(0, CARD_TITLE_MAX_LENGTH),
     description: sourceCard.description,
     descriptionHtml: sourceCard.descriptionHtml,
     descriptionPreview: sourceCard.descriptionPreview,

@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
+import { CARD_ATTACHMENT_ORIGINAL_NAME_MAX_LENGTH, CARD_TITLE_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 
 export interface ICardLabel {
   id: string;
@@ -18,7 +19,12 @@ export interface ICardReminder {
 export interface ICardAttachment {
   id: string;
   name: string;
+  /** MinIO-backed URL when `isPlaceholder` is false; empty until a real file exists for placeholders. */
   url: string;
+  /** Original filename from import (e.g. Trello) for matching when uploading files later. */
+  originalFileName?: string;
+  /** True when no object exists in storage yet (import placeholder). */
+  isPlaceholder?: boolean;
   type: string;
   size: number;
   uploadedAt: Date;
@@ -98,7 +104,13 @@ const CardAttachmentSchema = new Schema<ICardAttachment>(
   {
     id: { type: String, required: true },
     name: { type: String, required: true },
-    url: { type: String, required: true },
+    url: { type: String, required: true, default: '' },
+    originalFileName: {
+      type: String,
+      maxlength: CARD_ATTACHMENT_ORIGINAL_NAME_MAX_LENGTH,
+      trim: true,
+    },
+    isPlaceholder: { type: Boolean, default: false },
     type: { type: String, required: true },
     size: { type: Number, required: true },
     uploadedAt: { type: Date, default: Date.now },
@@ -164,7 +176,7 @@ const CardSchema = new Schema<ICard>(
       type: String,
       required: true,
       trim: true,
-      maxlength: 100,
+      maxlength: CARD_TITLE_MAX_LENGTH,
     },
     description: {
       type: String,

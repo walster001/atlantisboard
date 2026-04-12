@@ -8,7 +8,11 @@ function extractPlainTextFromRichJsonNode(node: unknown): string {
     return '';
   }
   const obj = node as { type?: unknown; text?: unknown; content?: unknown; attrs?: unknown };
-  if (obj.type === 'inlineButton') {
+  if (obj.type === 'inlineButton' && obj.attrs != null && typeof obj.attrs === 'object') {
+    const btn = (obj.attrs as { buttonText?: unknown }).buttonText;
+    if (typeof btn === 'string' && btn.trim() !== '') {
+      return btn.trim();
+    }
     return '';
   }
   if (obj.type === 'twemojiEmoji' && obj.attrs != null && typeof obj.attrs === 'object') {
@@ -120,6 +124,10 @@ export function toCardDetail(card: ICard): CardDetailDTO {
       id: attachment.id,
       name: attachment.name,
       url: attachment.url,
+      ...(typeof attachment.originalFileName === 'string' && attachment.originalFileName.trim() !== ''
+        ? { originalFileName: attachment.originalFileName.trim() }
+        : {}),
+      ...(attachment.isPlaceholder === true ? { isPlaceholder: true } : {}),
       type: attachment.type,
       size: attachment.size,
       uploadedAt: attachment.uploadedAt,

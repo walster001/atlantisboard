@@ -306,6 +306,8 @@ export function transformCard(card: unknown): CardDB {
       id?: string;
       name: string;
       url: string;
+      originalFileName?: string;
+      isPlaceholder?: boolean;
       type: string;
       size: number;
       uploadedAt: Date | string;
@@ -392,6 +394,10 @@ export function transformCard(card: unknown): CardDB {
       id: attachmentId,
       name: attachment.name,
       url: attachment.url,
+      ...(typeof attachment.originalFileName === 'string' && attachment.originalFileName.trim() !== ''
+        ? { originalFileName: attachment.originalFileName.trim() }
+        : {}),
+      ...(attachment.isPlaceholder === true ? { isPlaceholder: true } : {}),
       type: attachment.type,
       size: attachment.size,
       uploadedAt: typeof attachment.uploadedAt === 'string' ? new Date(attachment.uploadedAt) : attachment.uploadedAt,

@@ -89,6 +89,26 @@ function isAllowedTextStyleFontSize(value: unknown): boolean {
   return n >= 8 && n <= 200;
 }
 
+const TEXT_ALIGN_VALUES = new Set(['left', 'center', 'right', 'justify']);
+
+function isSafeLineHeightValue(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return true;
+  }
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const t = value.trim();
+  if (t === 'normal') {
+    return true;
+  }
+  if (!/^[0-9]+(\.[0-9]{1,2})?$/.test(t)) {
+    return false;
+  }
+  const n = Number.parseFloat(t);
+  return Number.isFinite(n) && n >= 0.75 && n <= 3;
+}
+
 function isSafeInlineStyleString(value: unknown): boolean {
   if (value === null || value === undefined) {
     return true;
@@ -192,15 +212,73 @@ function validateNode(node: unknown, depth: number): boolean {
     return false;
   }
 
+  if (type === 'paragraph') {
+    const attrs = node.attrs;
+    if (attrs !== undefined) {
+      if (!isRecord(attrs)) {
+        return false;
+      }
+      for (const key of Object.keys(attrs)) {
+        if (key === 'textAlign') {
+          const ta = attrs.textAlign;
+          if (ta != null && typeof ta === 'string' && !TEXT_ALIGN_VALUES.has(ta)) {
+            return false;
+          }
+        } else if (key === 'lineHeight') {
+          if (!isSafeLineHeightValue(attrs.lineHeight)) {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      }
+    }
+  }
+
   if (type === 'heading') {
     const attrs = node.attrs;
     if (attrs !== undefined) {
       if (!isRecord(attrs)) {
         return false;
       }
-      const level = attrs.level;
-      if (level !== undefined) {
-        if (typeof level !== 'number' || level < 1 || level > 6 || !Number.isInteger(level)) {
+      for (const key of Object.keys(attrs)) {
+        if (key === 'level') {
+          const level = attrs.level;
+          if (level !== undefined) {
+            if (typeof level !== 'number' || level < 1 || level > 6 || !Number.isInteger(level)) {
+              return false;
+            }
+          }
+        } else if (key === 'textAlign') {
+          const ta = attrs.textAlign;
+          if (ta != null && typeof ta === 'string' && !TEXT_ALIGN_VALUES.has(ta)) {
+            return false;
+          }
+        } else if (key === 'lineHeight') {
+          if (!isSafeLineHeightValue(attrs.lineHeight)) {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      }
+    }
+  }
+
+  if (type === 'orderedList') {
+    const attrs = node.attrs;
+    if (attrs !== undefined) {
+      if (!isRecord(attrs)) {
+        return false;
+      }
+      for (const key of Object.keys(attrs)) {
+        if (key !== 'start') {
+          return false;
+        }
+      }
+      const start = attrs.start;
+      if (start !== undefined) {
+        if (typeof start !== 'number' || !Number.isInteger(start) || start < 1 || start > 999_999) {
           return false;
         }
       }

@@ -1,5 +1,6 @@
 import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
+import { LIST_NAME_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
@@ -19,12 +20,12 @@ router.use(apiRateLimiter);
 
 const createListSchema = z.object({
   boardId: z.string().min(1),
-  name: z.string().min(1).max(100),
+  name: z.string().min(1).max(LIST_NAME_MAX_LENGTH),
   position: z.number().optional(),
 });
 
 const updateListSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
+  name: z.string().min(1).max(LIST_NAME_MAX_LENGTH).optional(),
   position: z.number().optional(),
   color: z.string().optional(),
 });

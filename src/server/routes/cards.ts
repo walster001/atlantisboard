@@ -1,6 +1,7 @@
 import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { CARD_DESCRIPTION_JSON_MAX_LENGTH } from '../../shared/constants/cardDescription.js';
+import { CARD_TITLE_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 import { isValidCardDescriptionJsonString } from '../../shared/validation/cardDescriptionDoc.js';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
@@ -40,13 +41,13 @@ const optionalCardDescriptionSchema = z
 const createCardSchema = z.object({
   listId: z.string().min(1),
   boardId: z.string().min(1),
-  title: z.string().min(1).max(100),
+  title: z.string().min(1).max(CARD_TITLE_MAX_LENGTH),
   description: optionalCardDescriptionSchema,
   position: z.number().optional(),
 });
 
 const updateCardSchema = z.object({
-  title: z.string().min(1).max(100).optional(),
+  title: z.string().min(1).max(CARD_TITLE_MAX_LENGTH).optional(),
   description: optionalCardDescriptionSchema,
   listId: z.string().optional(),
   position: z.number().optional(),

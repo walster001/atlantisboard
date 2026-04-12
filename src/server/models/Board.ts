@@ -1,4 +1,8 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
+import {
+  BOARD_DESCRIPTION_MAX_LENGTH,
+  BOARD_NAME_MAX_LENGTH,
+} from '../../shared/constants/entityTextLimits.js';
 
 export type BoardVisibility = 'private' | 'workspace' | 'public';
 export type BoardRole = 'admin' | 'manager' | 'viewer';
@@ -109,12 +113,12 @@ const BoardSchema = new Schema<IBoard>(
       type: String,
       required: true,
       trim: true,
-      maxlength: 50,
+      maxlength: BOARD_NAME_MAX_LENGTH,
     },
     description: {
       type: String,
       trim: true,
-      maxlength: 300,
+      maxlength: BOARD_DESCRIPTION_MAX_LENGTH,
     },
     background: String,
     visibility: {

@@ -242,9 +242,14 @@
 }
 
 .board-column__title-row .board-column__title,
-.board-column__title-row .board-column__count {
+.board-column__header-actions .board-column__count {
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* Count + list menu share one row; Mantine Group align=center pairs count with the ActionIcon */
+.board-column__header-actions {
+  line-height: 1;
 }
 
 .board-column__title-row:active {
@@ -254,9 +259,13 @@
 .board-column__title {
   font-weight: 700;
   font-size: 0.875rem;
+  line-height: 1.25;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--board-list-header-text);
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .board-column__count {
@@ -414,8 +423,8 @@
   padding-right: 0;
 }
 
-/* Twemoji imgs in titles stay inline and don’t force horizontal overflow */
-.board-card__kanban-title img {
+/* Non-Twemoji images in titles (rare); Twemoji uses `.twemoji-plain-text img` sizing */
+.board-card__kanban-title img:not(.card-desc-twemoji):not(.emoji) {
   max-width: 100%;
   height: auto;
   vertical-align: -0.125em;

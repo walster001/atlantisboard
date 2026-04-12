@@ -21,6 +21,10 @@ import { User } from '../models/User.js';
 import { hasPermission } from '../utils/permissions.js';
 import { RoleDefinition } from '../models/RoleDefinition.js';
 import { isBuiltInRoleKey, isValidCustomRoleKey } from '../services/roleService.js';
+import {
+  BOARD_DESCRIPTION_MAX_LENGTH,
+  BOARD_NAME_MAX_LENGTH,
+} from '../../shared/constants/entityTextLimits.js';
 
 const router = Router();
 
@@ -29,16 +33,16 @@ router.use(apiRateLimiter);
 
 const createBoardSchema = z.object({
   workspaceId: z.string().min(1),
-  name: z.string().min(1).max(50),
-  description: z.string().max(300).optional(),
+  name: z.string().min(1).max(BOARD_NAME_MAX_LENGTH),
+  description: z.string().max(BOARD_DESCRIPTION_MAX_LENGTH).optional(),
   background: z.string().optional(),
   visibility: z.enum(['private', 'workspace', 'public']).optional(),
 });
 
 const updateBoardSchema = z.object({
   workspaceId: z.string().nullable().optional(),
-  name: z.string().min(1).max(50).optional(),
-  description: z.string().max(300).optional(),
+  name: z.string().min(1).max(BOARD_NAME_MAX_LENGTH).optional(),
+  description: z.string().max(BOARD_DESCRIPTION_MAX_LENGTH).optional(),
   background: z.string().optional(),
   visibility: z.enum(['private', 'workspace', 'public']).optional(),
   settings: z

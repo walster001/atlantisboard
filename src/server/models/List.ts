@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
+import { LIST_NAME_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 
 export interface IList extends Document {
   boardId: mongoose.Types.ObjectId;
@@ -21,7 +22,7 @@ const ListSchema = new Schema<IList>(
       type: String,
       required: true,
       trim: true,
-      maxlength: 100,
+      maxlength: LIST_NAME_MAX_LENGTH,
     },
     position: {
       type: Number,

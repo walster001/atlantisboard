@@ -126,6 +126,9 @@ export interface CardDetailDTO {
     id: string;
     name: string;
     url: string;
+    /** Import source filename for matching after upload. */
+    originalFileName?: string;
+    isPlaceholder?: boolean;
     type: string;
     size: number;
     uploadedAt: Date;

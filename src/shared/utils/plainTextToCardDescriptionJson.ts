@@ -17,7 +17,8 @@ export function plainTextToCardDescriptionJson(plain: string): string | undefine
   const lines = clipped.split('\n');
   const content = lines.map((line) => ({
     type: 'paragraph' as const,
-    content: line.length > 0 ? [{ type: 'text' as const, text: line }] : [],
+    content:
+      line.length > 0 ? [{ type: 'text' as const, text: line }] : [{ type: 'hardBreak' as const }],
   }));
   const doc = { type: 'doc' as const, content };
   let json = JSON.stringify(doc);

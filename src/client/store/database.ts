@@ -112,6 +112,8 @@ export interface CardDB {
     id: string;
     name: string;
     url: string;
+    originalFileName?: string;
+    isPlaceholder?: boolean;
     type: string;
     size: number;
     uploadedAt: Date;

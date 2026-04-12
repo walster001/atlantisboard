@@ -1,3 +1,4 @@
+import { isPlaceholderCardAttachment } from '../../shared/cardAttachmentPlaceholder.js';
 import { stripAttachmentFromDescriptionJsonString } from '../../shared/cardDescriptionAttachmentRefs.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { Card } from '../models/Card.js';
@@ -157,6 +158,7 @@ export async function uploadCardAttachment(
       id: fileId,
       name: fileName,
       url,
+      isPlaceholder: false,
       type: mimeType,
       size: file.length,
       uploadedAt: new Date(),
@@ -205,8 +207,6 @@ export async function deleteCardAttachment(
     throw new Error('Attachment not found');
   }
 
-  const objectName = extractObjectNameFromAttachmentUrl(attachment.url);
-
   try {
     const descriptionRaw = typeof card.description === 'string' ? card.description : '';
     const descriptionAfter = stripAttachmentFromDescriptionJsonString(
@@ -218,8 +218,10 @@ export async function deleteCardAttachment(
       card.description = descriptionAfter;
     }
 
-    // Delete from MinIO
-    await client.removeObject(BUCKET_NAME, objectName);
+    if (!isPlaceholderCardAttachment(attachment)) {
+      const objectName = extractObjectNameFromAttachmentUrl(attachment.url);
+      await client.removeObject(BUCKET_NAME, objectName);
+    }
 
     // Remove from card
     card.attachments = card.attachments.filter((att) => att.id !== attachmentId);

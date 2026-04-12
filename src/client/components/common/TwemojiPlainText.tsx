@@ -1,6 +1,7 @@
 import twemoji from 'twemoji';
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { TWEMOJI_PARSE_OPTIONS } from '../../../shared/twemojiPublic.js';
+import './twemojiPlainText.css';
 
 export interface TwemojiPlainTextProps {
   readonly text: string;
@@ -23,5 +24,11 @@ export function TwemojiPlainText({ text, className, style }: TwemojiPlainTextPro
     el.textContent = text;
     twemoji.parse(el, TWEMOJI_PARSE_OPTIONS);
   }, [text]);
-  return <span ref={ref} className={className} style={style} />;
+  return (
+    <span
+      ref={ref}
+      className={['twemoji-plain-text', className].filter(Boolean).join(' ')}
+      style={style}
+    />
+  );
 }

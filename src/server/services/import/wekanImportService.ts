@@ -11,6 +11,12 @@ import { createActivity } from '../activityService.js';
 import { emitToUser } from '../../utils/socketIO.js';
 import { plainTextToCardDescriptionJson } from '../../../shared/utils/plainTextToCardDescriptionJson.js';
 import { resolveImportedCardColour } from '../../../shared/utils/importDefaultCardColour.js';
+import {
+  BOARD_DESCRIPTION_MAX_LENGTH,
+  BOARD_NAME_MAX_LENGTH,
+  CARD_TITLE_MAX_LENGTH,
+  LIST_NAME_MAX_LENGTH,
+} from '../../../shared/constants/entityTextLimits.js';
 
 interface WekanBoard {
   _id: string;
@@ -312,9 +318,13 @@ export async function importWekan(
     for (const wekanBoard of data.boards) {
       try {
         // Create workspace for each Wekan board
+        const workspaceTitleBase = wekanBoard.title || `Imported from Wekan - ${wekanBoard._id}`;
         const workspace = new Workspace({
-          name: wekanBoard.title || `Imported from Wekan - ${wekanBoard._id}`,
-          description: wekanBoard.description,
+          name: workspaceTitleBase.slice(0, 100),
+          description:
+            typeof wekanBoard.description === 'string' && wekanBoard.description.length > 0
+              ? wekanBoard.description.slice(0, 500)
+              : undefined,
           ownerId: userId,
           visibility: wekanBoard.permission === 'public' ? 'public' : 'private',
           members: [],
@@ -323,10 +333,17 @@ export async function importWekan(
         workspaceMap.set(wekanBoard._id, workspace._id.toString());
 
         // Create board within workspace
+        const rawWekanBoardDesc =
+          typeof wekanBoard.description === 'string' && wekanBoard.description.length > 0
+            ? wekanBoard.description
+            : undefined;
         const board = new Board({
           workspaceId: workspace._id.toString(),
-          name: wekanBoard.title,
-          description: wekanBoard.description,
+          name: wekanBoard.title.slice(0, BOARD_NAME_MAX_LENGTH),
+          description:
+            rawWekanBoardDesc !== undefined
+              ? rawWekanBoardDesc.slice(0, BOARD_DESCRIPTION_MAX_LENGTH)
+              : undefined,
           background: wekanBoard.background,
           visibility: wekanBoard.permission === 'public' ? 'public' : 'workspace',
           ownerId: userId,
@@ -399,7 +416,7 @@ export async function importWekan(
 
         const list = new List({
           boardId,
-          name: wekanList.title,
+          name: wekanList.title.slice(0, LIST_NAME_MAX_LENGTH),
           position: wekanList.sort || 0,
         });
         await list.save();
@@ -500,7 +517,7 @@ export async function importWekan(
         const card = new Card({
           listId,
           boardId,
-          title: wekanCard.title.slice(0, 100),
+          title: wekanCard.title.slice(0, CARD_TITLE_MAX_LENGTH),
           description: wekanCard.description
             ? plainTextToCardDescriptionJson(
                 `[Attachment: ${wekanCard.description}]`,

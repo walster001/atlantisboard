@@ -506,6 +506,9 @@ function SortableListInner({
   const cardMenuTargetCard =
     cardMenuCardId != null ? sortedCards.find((c) => c.id === cardMenuCardId) : null;
 
+  const showListCardCount = board.settings.showListCardCount !== false;
+  const showHeaderActions = showListCardCount || kanbanCaps.canListMenu;
+
   return (
     <Box
       className={columnClassName}
@@ -524,55 +527,72 @@ function SortableListInner({
       }}
       data-kanban-list-id={list.id}
     >
-      <Group justify="space-between" align="center" mb="xs" wrap="nowrap" gap="xs">
+      <Group justify="space-between" align="flex-start" mb="xs" wrap="nowrap" gap="xs">
         <Box
           className="board-column__title-row"
           style={{ flex: 1, minWidth: 0, touchAction: 'none' }}
         >
-          <Group gap={6} align="center" wrap="nowrap">
-            <Text className="board-column__title" truncate component="span">
-              {list.name}
-            </Text>
-            {board.settings.showListCardCount !== false ? (
+          <Text
+            className="board-column__title"
+            component="span"
+            style={{
+              display: 'block',
+              whiteSpace: 'normal',
+              wordBreak: 'break-word',
+              overflow: 'visible',
+            }}
+          >
+            {list.name}
+          </Text>
+        </Box>
+        {showHeaderActions ? (
+          <Group
+            className="board-column__header-actions"
+            gap={4}
+            wrap="nowrap"
+            align="center"
+            style={{ flexShrink: 0 }}
+          >
+            {showListCardCount ? (
               <Text component="span" className="board-column__count">
                 {sortedCards.length}
               </Text>
             ) : null}
+            {kanbanCaps.canListMenu ? (
+              <Menu shadow="md" width={200} position="bottom-end">
+                <Menu.Target>
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    className="board-column__menu"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label="List options"
+                  >
+                    <IconDots size={18} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item
+                    onClick={() => {
+                      setRenameModalOpen(true);
+                    }}
+                  >
+                    Rename list
+                  </Menu.Item>
+                  <Menu.Item
+                    onClick={() => {
+                      setColorModalOpen(true);
+                    }}
+                  >
+                    List colour
+                  </Menu.Item>
+                  <Menu.Item color="red" onClick={openDeleteListModal}>
+                    Delete list
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            ) : null}
           </Group>
-        </Box>
-        {kanbanCaps.canListMenu ? (
-          <Menu shadow="md" width={200} position="bottom-end">
-            <Menu.Target>
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                className="board-column__menu"
-                onClick={(e) => e.stopPropagation()}
-                aria-label="List options"
-              >
-                <IconDots size={18} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                onClick={() => {
-                  setRenameModalOpen(true);
-                }}
-              >
-                Rename list
-              </Menu.Item>
-              <Menu.Item
-                onClick={() => {
-                  setColorModalOpen(true);
-                }}
-              >
-                List colour
-              </Menu.Item>
-              <Menu.Item color="red" onClick={openDeleteListModal}>
-                Delete list
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
         ) : null}
       </Group>
 

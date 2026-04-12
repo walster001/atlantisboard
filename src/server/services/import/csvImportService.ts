@@ -11,6 +11,10 @@ import { createActivity } from '../activityService.js';
 import { emitToUser } from '../../utils/socketIO.js';
 import { parse as parseDate } from 'date-fns';
 import { plainTextToCardDescriptionJson } from '../../../shared/utils/plainTextToCardDescriptionJson.js';
+import {
+  isHexCardColour,
+  resolveImportedCardColour,
+} from '../../../shared/utils/importDefaultCardColour.js';
 
 interface CSVRow {
   [key: string]: string | undefined;
@@ -31,13 +35,16 @@ const csvRowSchema = z.object({
   position: z.string().optional(),
   checklistItems: z.string().optional(),
   checklist_items: z.string().optional(),
+  color: z.string().optional(),
+  colour: z.string().optional(),
 });
 
 export async function importCSV(
   fileBuffer: Buffer,
   boardId: string,
   userId: string,
-  delimiter: ',' | '\t' = ','
+  delimiter: ',' | '\t' = ',',
+  defaultUncolouredCardColour?: string,
 ): Promise<string> {
   const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days, matches ImportJob TTL
   const importJob = new ImportJob({
@@ -103,6 +110,15 @@ export async function importCSV(
           normalized.position = strValue;
         } else if (lowerKey === 'checklist' || lowerKey === 'checklist items' || lowerKey === 'checklist_items') {
           normalized.checklistItems = strValue;
+        } else if (
+          lowerKey === 'color' ||
+          lowerKey === 'colour' ||
+          lowerKey === 'card color' ||
+          lowerKey === 'card colour' ||
+          lowerKey === 'card_colour' ||
+          lowerKey === 'card color hex'
+        ) {
+          normalized.color = strValue;
         } else {
           normalized[key] = strValue;
         }
@@ -215,6 +231,13 @@ export async function importCSV(
               // Parse position
               const position = row.position ? parseFloat(row.position) : undefined;
 
+              const rowHexColour =
+                row.color && isHexCardColour(row.color)
+                  ? row.color.trim()
+                  : row.colour && isHexCardColour(row.colour)
+                    ? row.colour.trim()
+                    : undefined;
+
               // Create card
               const card = new Card({
                 listId,
@@ -224,6 +247,7 @@ export async function importCSV(
                   ? plainTextToCardDescriptionJson(row.description)
                   : undefined,
                 position: position !== undefined ? position : 0,
+                color: resolveImportedCardColour(rowHexColour, defaultUncolouredCardColour),
                 labels: labelNames.map((name) => ({
                   id: '', // Will be resolved if label exists on board
                   name,

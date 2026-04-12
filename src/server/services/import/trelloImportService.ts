@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger.js';
 import { createActivity } from '../activityService.js';
 import { emitToUser } from '../../utils/socketIO.js';
 import { plainTextToCardDescriptionJson } from '../../../shared/utils/plainTextToCardDescriptionJson.js';
+import { resolveImportedCardColour } from '../../../shared/utils/importDefaultCardColour.js';
 
 interface TrelloOrganization {
   id: string;
@@ -108,7 +109,8 @@ interface TrelloExport {
 export async function importTrello(
   jsonData: TrelloExport,
   userId: string,
-  targetWorkspaceId?: string
+  targetWorkspaceId?: string,
+  defaultUncolouredCardColour?: string,
 ): Promise<string> {
   const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days, matches ImportJob TTL
   const importJob = new ImportJob({
@@ -333,7 +335,7 @@ export async function importTrello(
             ? plainTextToCardDescriptionJson(trelloCard.desc)
             : undefined,
           position: trelloCard.pos / 10000,
-          color: trelloCard.cover?.color,
+          color: resolveImportedCardColour(trelloCard.cover?.color, defaultUncolouredCardColour),
           cover: trelloCard.cover?.url,
           labels: [],
           dueDate: trelloCard.due ? new Date(trelloCard.due) : undefined,

@@ -997,11 +997,18 @@ class ApiClient {
   }
 
   // Import endpoints
-  async importTrello(file: File, workspaceId?: string): Promise<{ message: string; jobId: string }> {
+  async importTrello(
+    file: File,
+    workspaceId?: string,
+    defaultUncolouredCardColour?: string,
+  ): Promise<{ message: string; jobId: string }> {
     const formData = new FormData();
     formData.append('file', file);
     if (workspaceId) {
       formData.append('workspaceId', workspaceId);
+    }
+    if (defaultUncolouredCardColour) {
+      formData.append('defaultUncolouredCardColour', defaultUncolouredCardColour);
     }
     const response = await this.client.post('/import/trello', formData, {
       headers: {
@@ -1011,9 +1018,15 @@ class ApiClient {
     return response.data;
   }
 
-  async importWekan(file: File): Promise<{ message: string; jobId: string }> {
+  async importWekan(
+    file: File,
+    defaultUncolouredCardColour?: string,
+  ): Promise<{ message: string; jobId: string }> {
     const formData = new FormData();
     formData.append('file', file);
+    if (defaultUncolouredCardColour) {
+      formData.append('defaultUncolouredCardColour', defaultUncolouredCardColour);
+    }
     const response = await this.client.post('/import/wekan', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -1022,12 +1035,20 @@ class ApiClient {
     return response.data;
   }
 
-  async importCSV(file: File, boardId: string, delimiter?: ',' | '\t'): Promise<{ message: string; jobId: string }> {
+  async importCSV(
+    file: File,
+    boardId: string,
+    delimiter?: ',' | '\t',
+    defaultUncolouredCardColour?: string,
+  ): Promise<{ message: string; jobId: string }> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('boardId', boardId);
     if (delimiter) {
       formData.append('delimiter', delimiter);
+    }
+    if (defaultUncolouredCardColour) {
+      formData.append('defaultUncolouredCardColour', defaultUncolouredCardColour);
     }
     const response = await this.client.post('/import/csv', formData, {
       headers: {

@@ -14,10 +14,17 @@ import {
   ThemeIcon,
   Box,
   Paper,
+  ColorInput,
 } from '@mantine/core';
-import { IconUpload, IconFileText, IconPalette } from '@tabler/icons-react';
+import { IconUpload, IconFileText } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
+import { BoardColourPickerPanel } from '../board/BoardColourPickerPanel.js';
+import {
+  BOARD_PRESET_COLOURS,
+  normalizePresetHex,
+} from '../../constants/boardPresetColors.js';
+import { loginBrandingColorInputProps } from '../../constants/loginBrandingColorInputProps.js';
 
 interface ImportExportModalProps {
   boardId?: string;
@@ -92,7 +99,15 @@ export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExpor
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const defaultUncolouredColor = 'none';
+  const [importDefaultHex, setImportDefaultHex] = useState(() =>
+    normalizePresetHex('#3b82f6', BOARD_PRESET_COLOURS),
+  );
+  const [importDefaultUseTheme, setImportDefaultUseTheme] = useState(true);
+  const [defaultCardColourModalOpen, setDefaultCardColourModalOpen] = useState(false);
+  const [pickerDraftHex, setPickerDraftHex] = useState(() =>
+    normalizePresetHex('#3b82f6', BOARD_PRESET_COLOURS),
+  );
+  const [pickerDraftUseTheme, setPickerDraftUseTheme] = useState(true);
   const [exportColumns, setExportColumns] = useState<string[]>([
     'title',
     'description',
@@ -130,15 +145,19 @@ export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExpor
     try {
       let result: { message: string; jobId: string };
 
+      const defaultUncolouredCardColour = importDefaultUseTheme
+        ? undefined
+        : importDefaultHex.trim();
+
       if (importType === 'trello') {
-        result = await api.importTrello(file, workspaceId);
+        result = await api.importTrello(file, workspaceId, defaultUncolouredCardColour);
       } else if (importType === 'wekan') {
-        result = await api.importWekan(file);
+        result = await api.importWekan(file, defaultUncolouredCardColour);
       } else if (importType === 'csv') {
         if (!boardId) {
           throw new Error('Board ID is required for CSV import');
         }
-        result = await api.importCSV(file, boardId);
+        result = await api.importCSV(file, boardId, undefined, defaultUncolouredCardColour);
       } else {
         throw new Error('Invalid import type');
       }
@@ -362,16 +381,62 @@ export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExpor
                   radius="md"
                 />
 
-                <Select
-                  label="Default Colour for Uncoloured Cards"
-                  value={defaultUncolouredColor}
-                  onChange={() => {}}
-                  data={[{ value: 'none', label: 'No default colour' }]}
-                  disabled={loading}
-                  leftSection={<IconPalette size={18} stroke={1.5} />}
-                  radius="md"
-                  allowDeselect={false}
-                />
+                <Box>
+                  <Text size="xs" c="dimmed" mb="sm">
+                    Same palette as list and card colours. Click the field to choose a default, or
+                    “no colour” in the picker to leave cards uncoloured unless the file sets one (CSV:
+                    optional <Text component="span" fw={600}>color</Text> as{' '}
+                    <Text component="span" fw={600}>
+                      #RRGGBB
+                    </Text>
+                    ).
+                  </Text>
+                  <ColorInput
+                    label="Default colour for uncoloured cards"
+                    placeholder="No default colour"
+                    disallowInput
+                    fixOnBlur={false}
+                    {...loginBrandingColorInputProps}
+                    withEyeDropper
+                    popoverProps={{ opened: false }}
+                    value={importDefaultUseTheme ? '' : importDefaultHex}
+                    onChange={(next) => {
+                      const t = next.trim();
+                      if (t.length === 0) {
+                        setImportDefaultUseTheme(true);
+                        return;
+                      }
+                      setImportDefaultHex(normalizePresetHex(t, BOARD_PRESET_COLOURS));
+                      setImportDefaultUseTheme(false);
+                    }}
+                    leftSection={
+                      importDefaultUseTheme ? (
+                        <Box
+                          aria-hidden
+                          style={{
+                            width: 'var(--ci-preview-size)',
+                            height: 'var(--ci-preview-size)',
+                            borderRadius: 'var(--mantine-radius-sm)',
+                            border: '1px solid var(--mantine-color-gray-4)',
+                            background:
+                              'repeating-linear-gradient(45deg, #f1f3f5 0 4px, #e9ecef 4px 8px)',
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : undefined
+                    }
+                    onClick={() => {
+                      if (loading) return;
+                      setPickerDraftHex(
+                        normalizePresetHex(importDefaultHex || '#3b82f6', BOARD_PRESET_COLOURS),
+                      );
+                      setPickerDraftUseTheme(importDefaultUseTheme);
+                      setDefaultCardColourModalOpen(true);
+                    }}
+                    disabled={loading}
+                    styles={{ input: { cursor: loading ? 'not-allowed' : 'pointer' } }}
+                  />
+                </Box>
 
                 {importType === 'trello' && workspaceId ? (
                   <Alert color="blue" radius="md">
@@ -485,6 +550,45 @@ export function ImportExportModal({ boardId, workspaceId, onClose }: ImportExpor
           </Stack>
         </Tabs.Panel>
       </Tabs>
+
+      <Modal
+        opened={defaultCardColourModalOpen}
+        onClose={() => setDefaultCardColourModalOpen(false)}
+        title="Default colour for uncoloured cards"
+        centered
+        size="lg"
+        radius="md"
+        zIndex={520}
+        overlayProps={{ backgroundOpacity: 0.45 }}
+        padding="lg"
+      >
+        <Stack gap="md">
+          <BoardColourPickerPanel
+            value={pickerDraftHex}
+            onChange={(hex) => {
+              setPickerDraftHex(hex);
+              setPickerDraftUseTheme(false);
+            }}
+            onClearColor={() => setPickerDraftUseTheme(true)}
+            noColorSelected={pickerDraftUseTheme}
+          />
+          <Group justify="flex-end" gap="sm" mt="md">
+            <Button variant="default" radius="md" onClick={() => setDefaultCardColourModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              radius="md"
+              onClick={() => {
+                setImportDefaultHex(pickerDraftHex);
+                setImportDefaultUseTheme(pickerDraftUseTheme);
+                setDefaultCardColourModalOpen(false);
+              }}
+            >
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Modal>
   );
 }

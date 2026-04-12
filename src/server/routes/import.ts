@@ -15,15 +15,24 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.use(requireAuth as RequestHandler);
 router.use(apiRateLimiter);
 
+const optionalDefaultUncolouredCardColour = z
+  .union([z.literal(''), z.string().regex(/^#[0-9A-Fa-f]{6}$/)])
+  .optional()
+  .transform((v) => (v === undefined || v === '' ? undefined : v));
+
 const importTrelloSchema = z.object({
   workspaceId: z.string().optional(),
+  defaultUncolouredCardColour: optionalDefaultUncolouredCardColour,
 });
 
-const importWekanSchema = z.object({});
+const importWekanSchema = z.object({
+  defaultUncolouredCardColour: optionalDefaultUncolouredCardColour,
+});
 
 const importCSVSchema = z.object({
   boardId: z.string().min(1),
   delimiter: z.enum([',', '\t']).optional().default(','),
+  defaultUncolouredCardColour: optionalDefaultUncolouredCardColour,
 });
 
 // Import Trello JSON
@@ -47,7 +56,12 @@ router.post('/trello', upload.single('file'), async (req, res, next) => {
     const jsonData = JSON.parse(req.file.buffer.toString('utf-8'));
 
     // Start import job (async)
-    const jobId = await importTrello(jsonData, authReq.user.id, validated.workspaceId);
+    const jobId = await importTrello(
+      jsonData,
+      authReq.user.id,
+      validated.workspaceId,
+      validated.defaultUncolouredCardColour,
+    );
 
     res.status(202).json({
       message: 'Import started',
@@ -83,7 +97,7 @@ router.post('/trello', upload.single('file'), async (req, res, next) => {
 router.post('/wekan', upload.single('file'), async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    importWekanSchema.parse(req.body);
+    const validated = importWekanSchema.parse(req.body);
 
     if (!req.file) {
       res.status(400).json({
@@ -100,7 +114,11 @@ router.post('/wekan', upload.single('file'), async (req, res, next) => {
     const jsonData = JSON.parse(req.file.buffer.toString('utf-8'));
 
     // Start import job (async)
-    const jobId = await importWekan(jsonData, authReq.user.id);
+    const jobId = await importWekan(
+      jsonData,
+      authReq.user.id,
+      validated.defaultUncolouredCardColour,
+    );
 
     res.status(202).json({
       message: 'Import started',
@@ -154,7 +172,8 @@ router.post('/csv', upload.single('file'), async (req, res, next) => {
       req.file.buffer,
       validated.boardId,
       authReq.user.id,
-      validated.delimiter
+      validated.delimiter,
+      validated.defaultUncolouredCardColour,
     );
 
     res.status(202).json({

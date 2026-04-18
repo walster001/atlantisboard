@@ -36,6 +36,7 @@
   },
   "include": [
     "src/**/*",
+    "tests/cardDescriptionEmpty.test.ts",
     "scripts/dev.ts",
     "scripts/build-client-watch.ts",
     "scripts/build-client-with-css.ts",

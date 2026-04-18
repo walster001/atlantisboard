@@ -8,7 +8,7 @@ import { getCardDescriptionTextLength } from './cardDescriptionTiptap.js';
 export function serializeCardDescriptionEditor(
   editor: Editor | null,
 ): { ok: true; jsonString: string } | { ok: false; reason: string } {
-  if (editor == null) {
+  if (editor == null || editor.isDestroyed) {
     return { ok: false, reason: 'Editor not ready.' };
   }
   const jsonString = JSON.stringify(editor.getJSON());

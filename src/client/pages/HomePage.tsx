@@ -9,7 +9,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconGripVertical, IconLayoutKanbanFilled } from '@tabler/icons-react';
+import { IconGripVertical, IconLayoutKanbanFilled, IconPlus } from '@tabler/icons-react';
 import { Button, Card, Loader, Stack, Text, Title, Group, Box, Menu, ActionIcon } from '@mantine/core';
 import { useAuthContext } from '../contexts/AuthContext.js';
 import { useAppBranding } from '../contexts/AppBrandingContext.js';
@@ -580,7 +580,6 @@ export default function HomePage() {
                 user != null &&
                 (workspace.ownerId === user.id ||
                   (wsPerms.loaded && wsPerms.can(workspace.id, 'boards.create')));
-              const showAddBoardChrome = !boardScopedHomeOnly && (canCreateBoardInWs || wsManage);
               return (
                 <Fragment key={workspace.id}>
                 {workspaceInsertLineBeforeFullIndex === fullIndex ? (
@@ -596,7 +595,7 @@ export default function HomePage() {
                 >
                   <Box className="home-page__workspace-content">
                     <Stack gap="xs">
-                      <Group gap="xs" wrap="nowrap">
+                      <Group gap="xs" wrap="nowrap" align="center">
                         {wsUpdate ? (
                           <Box
                             component="span"
@@ -614,6 +613,21 @@ export default function HomePage() {
                         <Title order={2} size="h3" fw={700} className="home-page__workspace-title">
                           {workspace.name}
                         </Title>
+                        {!boardScopedHomeOnly && canCreateBoardInWs ? (
+                          <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            size="sm"
+                            className="home-page__workspace-add-board-icon"
+                            aria-label="Add board"
+                            onClick={() => {
+                              setSelectedWorkspaceIdForBoard(workspace.id);
+                              setShowCreateBoard(true);
+                            }}
+                          >
+                            <IconPlus size={16} stroke={2} />
+                          </ActionIcon>
+                        ) : null}
                         {!boardScopedHomeOnly && wsManage ? (
                           <Menu position="bottom-end" shadow="md" width={200}>
                             <Menu.Target>
@@ -700,78 +714,13 @@ export default function HomePage() {
                             {boardScopedHomeOnly
                               ? 'No boards shared with you in this workspace yet.'
                               : canCreateBoardInWs
-                                ? 'No boards in this workspace. Use Add Board to create one.'
+                                ? 'No boards in this workspace. Click + beside the title to add one.'
                                 : 'No boards in this workspace yet.'}
                           </Text>
                         )}
                       </div>
                     </Stack>
                   </Box>
-                  {showAddBoardChrome ? (
-                    <Group gap={4} wrap="nowrap" className="home-page__add-board-wrap">
-                      {canCreateBoardInWs ? (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          justify="flex-start"
-                          className="home-page__add-board-btn"
-                          leftSection={<span className="home-page__icon-plus">+</span>}
-                          onClick={() => {
-                            setSelectedWorkspaceIdForBoard(workspace.id);
-                            setShowCreateBoard(true);
-                          }}
-                        >
-                          Add Board
-                        </Button>
-                      ) : null}
-                      {wsManage ? (
-                        <Menu position="bottom-end" shadow="md" width={200}>
-                          <Menu.Target>
-                            <ActionIcon variant="subtle" color="gray" size="sm" className="home-page__add-board-action-icon" aria-label="Workspace options">
-                              <span className="home-page__add-board-ellipsis-char">⋯</span>
-                            </ActionIcon>
-                          </Menu.Target>
-                          <Menu.Dropdown>
-                            {wsUpdate ? (
-                              <Menu.Item
-                                onClick={() => {
-                                  setRenameWorkspaceTarget({
-                                    id: workspace.id,
-                                    initialName: workspace.name ?? '',
-                                  });
-                                }}
-                              >
-                                Rename workspace
-                              </Menu.Item>
-                            ) : null}
-                            {wsUpdate ? (
-                              <Menu.Item
-                                onClick={() => {
-                                  setEditDescriptionTarget({
-                                    id: workspace.id,
-                                    initialDescription: workspace.description ?? '',
-                                  });
-                                }}
-                              >
-                                Edit description
-                              </Menu.Item>
-                            ) : null}
-                            {wsUpdate ? (
-                              <Menu.Item onClick={() => setWorkspaceSettingsId(workspace.id)}>
-                                Workspace Settings
-                              </Menu.Item>
-                            ) : null}
-                            {wsUpdate && wsDeletePerm ? <Menu.Divider /> : null}
-                            {wsDeletePerm ? (
-                              <Menu.Item color="red" onClick={() => handleDeleteWorkspace(workspace.id)}>
-                                Delete workspace
-                              </Menu.Item>
-                            ) : null}
-                          </Menu.Dropdown>
-                        </Menu>
-                      ) : null}
-                    </Group>
-                  ) : null}
                 </Group>
                 </Fragment>
               );

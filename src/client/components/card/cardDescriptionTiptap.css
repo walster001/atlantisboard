@@ -249,6 +249,8 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
 .card-desc-tiptap-read p {
   margin: 0;
+  /* Inherit so soft line breaks / hardBreak output match the editor (root has pre-wrap). */
+  white-space: inherit;
 }
 
 .card-desc-tiptap-read p:last-child {

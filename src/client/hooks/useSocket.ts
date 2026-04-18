@@ -6,6 +6,7 @@ import {
   transformBoard,
   transformWorkspace,
   transformList,
+  mergeDexieCardIfSnapshot,
   normalizeCardFromApi,
 } from '../utils/transform.js';
 import {
@@ -260,11 +261,14 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     deferSocketWork(() => {
       try {
         const card = normalizeCardFromApi(data.data, data.cardId);
-        if (isRedundantCardSocketPayload(data.cardId, card)) {
-          return;
-        }
-        void db.cards.put(card).then(() => {
-          emitSocketCardUpdated({ boardId: data.boardId, card });
+        void db.cards.get(data.cardId).then((existing) => {
+          const merged = mergeDexieCardIfSnapshot(data.data, existing ?? undefined, card);
+          if (isRedundantCardSocketPayload(data.cardId, merged)) {
+            return;
+          }
+          return db.cards.put(merged).then(() => {
+            emitSocketCardUpdated({ boardId: data.boardId, card: merged });
+          });
         });
       } catch {
         /* invalid payload */
@@ -276,13 +280,16 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     deferSocketWork(() => {
       try {
         const card = normalizeCardFromApi(data.data, data.cardId);
-        if (isRedundantCardSocketPayload(data.cardId, card)) {
-          return;
-        }
         void db.cards
-          .put(card)
-          .then(() => {
-            emitSocketCardUpdated({ boardId: data.boardId, card });
+          .get(data.cardId)
+          .then((existing) => {
+            const merged = mergeDexieCardIfSnapshot(data.data, existing ?? undefined, card);
+            if (isRedundantCardSocketPayload(data.cardId, merged)) {
+              return;
+            }
+            return db.cards.put(merged).then(() => {
+              emitSocketCardUpdated({ boardId: data.boardId, card: merged });
+            });
           })
           .catch(() => {
             /* Dexie put failed */

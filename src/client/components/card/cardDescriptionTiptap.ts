@@ -167,6 +167,31 @@ export function stripInlineButtonsForBoardPreview(doc: JSONContent): JSONContent
   });
 }
 
+function countHardBreaksInJson(node: JSONContent | undefined): number {
+  if (node == null || typeof node !== 'object') {
+    return 0;
+  }
+  let n = node.type === 'hardBreak' ? 1 : 0;
+  if (Array.isArray(node.content)) {
+    for (const c of node.content) {
+      n += countHardBreaksInJson(c);
+    }
+  }
+  return n;
+}
+
+/** Default empty doc: one paragraph with a single hardBreak (Tiptap placeholder shape). */
+function isSingleParagraphSingleHardBreakPlaceholder(doc: JSONContent): boolean {
+  if (doc.type !== 'doc' || !Array.isArray(doc.content) || doc.content.length !== 1) {
+    return false;
+  }
+  const p = doc.content[0];
+  if (p?.type !== 'paragraph' || !Array.isArray(p.content)) {
+    return false;
+  }
+  return p.content.length === 1 && p.content[0]?.type === 'hardBreak';
+}
+
 export function isCardDescriptionEmpty(doc: JSONContent): boolean {
   const hasNonTextRenderableContent = (node: JSONContent | undefined): boolean => {
     if (node == null || typeof node !== 'object') {
@@ -190,10 +215,22 @@ export function isCardDescriptionEmpty(doc: JSONContent): boolean {
     return false;
   }
 
-  const text = generateText(doc, getCardDescriptionExtensions(), {
+  const extensions = getCardDescriptionExtensions();
+  const textTrimmed = generateText(doc, extensions, {
     blockSeparator: '\n',
   }).trim();
-  return text.length === 0;
+  if (textTrimmed.length > 0) {
+    return false;
+  }
+
+  const hardBreakCount = countHardBreaksInJson(doc);
+  if (hardBreakCount === 0) {
+    return true;
+  }
+  if (hardBreakCount === 1 && isSingleParagraphSingleHardBreakPlaceholder(doc)) {
+    return true;
+  }
+  return false;
 }
 
 export function cardDescriptionPreviewText(value: string | undefined | null): string {

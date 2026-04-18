@@ -9059,6 +9059,10 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   font-size: 1.125rem;
 }
 
+.home-page__workspace-add-board-icon {
+  flex-shrink: 0;
+}
+
 .home-page__board-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -9075,27 +9079,6 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   outline: 2px dashed color-mix(in srgb, var(--mantine-color-gray-5) 75%, #000);
   outline-offset: -2px;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mantine-color-gray-4) 40%, transparent);
-}
-
-.home-page__add-board-wrap {
-  flex-shrink: 0;
-  width: 260px;
-}
-
-.home-page__add-board-btn {
-  color: var(--mantine-color-dark-7);
-  border-color: var(--mantine-color-gray-4);
-  white-space: nowrap;
-  background-color: #fff;
-  flex: 1;
-}
-
-.home-page__add-board-action-icon {
-  flex-shrink: 0;
-}
-
-.home-page__add-board-ellipsis-char {
-  font-size: 1rem;
 }
 
 .home-page__board-card {
@@ -9437,6 +9420,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 }
 
 .card-desc-tiptap-read p {
+  white-space: inherit;
   margin: 0;
 }
 

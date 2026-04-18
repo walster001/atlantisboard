@@ -104,7 +104,24 @@ const CardAttachmentSchema = new Schema<ICardAttachment>(
   {
     id: { type: String, required: true },
     name: { type: String, required: true },
-    url: { type: String, required: true, default: '' },
+    /**
+     * Empty string is valid for import placeholders (`isPlaceholder: true`).
+     * Mongoose `required: true` rejects `''`, so we validate conditionally instead.
+     */
+    url: {
+      type: String,
+      default: '',
+      validate: {
+        validator(v: unknown): boolean {
+          const self = this as unknown as { isPlaceholder?: boolean };
+          if (self.isPlaceholder === true) {
+            return typeof v === 'string';
+          }
+          return typeof v === 'string' && v.trim().length > 0;
+        },
+        message: 'Attachment url is required once a file exists in storage',
+      },
+    },
     originalFileName: {
       type: String,
       maxlength: CARD_ATTACHMENT_ORIGINAL_NAME_MAX_LENGTH,

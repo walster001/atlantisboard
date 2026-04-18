@@ -97,7 +97,8 @@ export interface CardDetailDTO {
   listId: string;
   boardId: string;
   title: string;
-  description?: string;
+  /** Rich description JSON string; empty when unset (detail payloads always include this key). */
+  description: string;
   descriptionHtml?: string;
   descriptionPreview: string;
   descriptionCharCount: number;

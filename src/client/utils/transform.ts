@@ -482,6 +482,48 @@ export function transformCard(card: unknown): CardDB {
   };
 }
 
+/**
+ * True when the API payload includes card-detail fields (vs list/kanban summaries).
+ * Summaries omit `comments`, `attachments`, `checklists`, `reminders`, and `description`.
+ */
+export function isCardDetailPayload(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') {
+    return false;
+  }
+  const r = raw as Record<string, unknown>;
+  return (
+    'comments' in r ||
+    'attachments' in r ||
+    'checklists' in r ||
+    'reminders' in r ||
+    'description' in r
+  );
+}
+
+/**
+ * Kanban/list summaries overwrite Dexie via `bulkPut` with sparse rows. Merge preserves
+ * detail fields already loaded until a full detail payload arrives.
+ */
+export function mergeDexieCardIfSnapshot(
+  raw: unknown,
+  existing: CardDB | undefined,
+  incoming: CardDB,
+): CardDB {
+  if (existing == null || isCardDetailPayload(raw)) {
+    return incoming;
+  }
+  return {
+    ...existing,
+    ...incoming,
+    ...(existing.description !== undefined ? { description: existing.description } : {}),
+    ...(existing.descriptionHtml !== undefined ? { descriptionHtml: existing.descriptionHtml } : {}),
+    comments: existing.comments,
+    checklists: existing.checklists,
+    attachments: existing.attachments,
+    reminders: existing.reminders,
+  };
+}
+
 /** Normalize GET /cards/:id (and similar) responses for UI + Dexie. */
 export function normalizeCardFromApi(raw: unknown, fallbackId?: string): CardDB {
   const cardData = transformCard(raw);

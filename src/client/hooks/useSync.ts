@@ -1,7 +1,13 @@
 import { useCallback } from 'react';
 import { api } from '../utils/api.js';
 import { db, type CardDB } from '../store/database.js';
-import { transformBoard, transformWorkspace, transformList, transformCard } from '../utils/transform.js';
+import {
+  transformBoard,
+  transformWorkspace,
+  transformList,
+  transformCard,
+  mergeDexieCardIfSnapshot,
+} from '../utils/transform.js';
 
 /**
  * Hook to sync data from API to Dexie.js
@@ -54,7 +60,12 @@ export function useSync() {
       const response = await api.getCardsByList(listId, { view: 'summary' });
       const rawCards = (response as { cards: unknown[] }).cards;
 
-      const cards = rawCards.map(transformCard) as CardDB[];
+      const incomings = rawCards.map((raw) => transformCard(raw) as CardDB);
+      const ids = incomings.map((c) => c.id);
+      const existingRows = ids.length > 0 ? await db.cards.bulkGet(ids) : [];
+      const cards = rawCards.map((raw, i) =>
+        mergeDexieCardIfSnapshot(raw, existingRows[i] ?? undefined, incomings[i]),
+      );
       if (cards.length > 0) {
         await db.cards.bulkPut(cards);
       }
@@ -85,7 +96,12 @@ export function useSync() {
         const cardsPromise = Promise.all(
           lists.map(async (list) => {
             const rawCards = rawCardsByList[list.id] ?? [];
-            const cards = rawCards.map(transformCard) as CardDB[];
+            const incomings = rawCards.map((raw) => transformCard(raw) as CardDB);
+            const ids = incomings.map((c) => c.id);
+            const existingRows = ids.length > 0 ? await db.cards.bulkGet(ids) : [];
+            const cards = rawCards.map((raw, i) =>
+              mergeDexieCardIfSnapshot(raw, existingRows[i] ?? undefined, incomings[i]),
+            );
             if (cards.length > 0) {
               await db.cards.bulkPut(cards);
             }

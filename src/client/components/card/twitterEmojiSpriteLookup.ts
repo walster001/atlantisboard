@@ -5,23 +5,7 @@
 
 import twitterData from '@emoji-mart/data/sets/15/twitter.json';
 
-interface TwitterSkin {
-  readonly unified: string;
-  readonly native: string;
-  readonly x: number;
-  readonly y: number;
-}
-
-interface TwitterEmojiEntry {
-  readonly skins: readonly TwitterSkin[];
-}
-
-interface TwitterSetJson {
-  readonly sheet: { readonly cols: number; readonly rows: number };
-  readonly emojis: Readonly<Record<string, TwitterEmojiEntry>>;
-}
-
-const data = twitterData as TwitterSetJson;
+const data = twitterData;
 
 const nativeToGrid = new Map<string, { readonly x: number; readonly y: number }>();
 for (const id of Object.keys(data.emojis)) {

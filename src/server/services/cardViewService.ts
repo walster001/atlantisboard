@@ -97,7 +97,7 @@ export function toCardDetail(card: ICard): CardDetailDTO {
     listId: card.listId.toString(),
     boardId: card.boardId.toString(),
     title: card.title,
-    ...(card.description !== undefined ? { description: card.description } : {}),
+    description: card.description ?? '',
     ...(card.descriptionHtml !== undefined && card.descriptionHtml !== ''
       ? { descriptionHtml: card.descriptionHtml }
       : {}),

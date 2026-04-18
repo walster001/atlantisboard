@@ -69,6 +69,10 @@ function shouldAcceptIncomingCard(current: CardDB, incoming: CardDB): boolean {
   const incomingTs = cardUpdatedAtMs(incoming);
   const currentTs = cardUpdatedAtMs(current);
   if (incomingTs > currentTs) {
+    const currentHasDescription = (current.description ?? '').trim() !== '';
+    if (currentHasDescription && incoming.description === undefined) {
+      return false;
+    }
     return true;
   }
 

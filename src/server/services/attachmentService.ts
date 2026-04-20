@@ -2,6 +2,7 @@ import { isPlaceholderCardAttachment } from '../../shared/cardAttachmentPlacehol
 import { stripAttachmentFromDescriptionJsonString } from '../../shared/cardDescriptionAttachmentRefs.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { Card } from '../models/Card.js';
+import type { Types } from 'mongoose';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
@@ -63,6 +64,36 @@ function extractObjectNameFromAttachmentUrl(rawUrl: string): string {
     return parsePath(parsed.pathname);
   } catch {
     return parsePath(trimmed);
+  }
+}
+
+/**
+ * Removes stored MinIO objects for non-placeholder attachments on cards in the given boards.
+ * Call before deleting card documents so URLs remain resolvable.
+ * Per-object failures are logged and skipped so bulk deletion can continue.
+ */
+export async function removeStoredAttachmentObjectsForBoardIds(boardIds: Types.ObjectId[]): Promise<void> {
+  if (boardIds.length === 0) {
+    return;
+  }
+  const client = getMinIOClient();
+  const cards = await Card.find({ boardId: { $in: boardIds } }).select('attachments').lean();
+  for (const card of cards) {
+    const cardId = String(card._id);
+    for (const att of card.attachments ?? []) {
+      if (isPlaceholderCardAttachment(att)) {
+        continue;
+      }
+      try {
+        const objectName = extractObjectNameFromAttachmentUrl(att.url);
+        await client.removeObject(BUCKET_NAME, objectName);
+      } catch (error: unknown) {
+        logger.warn(
+          { error, cardId, boardIds: boardIds.map((id) => id.toString()) },
+          'Failed to remove MinIO object during board attachment cleanup',
+        );
+      }
+    }
   }
 }
 

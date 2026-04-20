@@ -4,6 +4,7 @@ import type { PublicLoginOptions } from '../../shared/types/loginOptions.js';
 import type { PublicLoginBranding } from '../../shared/types/loginBranding.js';
 import type { PublicAppBranding } from '../../shared/types/appBranding.js';
 import type { PublicCustomFontEntry } from '../../shared/types/customFonts.js';
+import type { ImportPreflightPayload } from '../../shared/import/importPreflight.js';
 
 const API_BASE_URL = env.API_BASE_URL || '/api/v1';
 
@@ -1001,6 +1002,7 @@ class ApiClient {
     file: File,
     workspaceId?: string,
     defaultUncolouredCardColour?: string,
+    preflight?: ImportPreflightPayload,
   ): Promise<{ message: string; jobId: string }> {
     const formData = new FormData();
     formData.append('file', file);
@@ -1009,6 +1011,9 @@ class ApiClient {
     }
     if (defaultUncolouredCardColour) {
       formData.append('defaultUncolouredCardColour', defaultUncolouredCardColour);
+    }
+    if (preflight !== undefined) {
+      formData.append('preflight', JSON.stringify(preflight));
     }
     const response = await this.client.post('/import/trello', formData, {
       headers: {
@@ -1021,11 +1026,15 @@ class ApiClient {
   async importWekan(
     file: File,
     defaultUncolouredCardColour?: string,
+    preflight?: ImportPreflightPayload,
   ): Promise<{ message: string; jobId: string }> {
     const formData = new FormData();
     formData.append('file', file);
     if (defaultUncolouredCardColour) {
       formData.append('defaultUncolouredCardColour', defaultUncolouredCardColour);
+    }
+    if (preflight !== undefined) {
+      formData.append('preflight', JSON.stringify(preflight));
     }
     const response = await this.client.post('/import/wekan', formData, {
       headers: {

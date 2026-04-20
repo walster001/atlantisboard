@@ -8,6 +8,7 @@ import { importWekan } from '../services/import/wekanImportService.js';
 import { importCSV } from '../services/import/csvImportService.js';
 import { ImportJob } from '../models/ImportJob.js';
 import multer from 'multer';
+import { importPreflightPayloadSchema } from '../../shared/import/importPreflightSchema.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -28,6 +29,18 @@ const importTrelloSchema = z.object({
 const importWekanSchema = z.object({
   defaultUncolouredCardColour: optionalDefaultUncolouredCardColour,
 });
+
+function parseImportPreflightFromBody(value: unknown) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return importPreflightPayloadSchema.parse(parsed);
+  } catch {
+    throw new Error('Invalid preflight payload');
+  }
+}
 
 const importCSVSchema = z.object({
   boardId: z.string().min(1),
@@ -54,6 +67,7 @@ router.post('/trello', upload.single('file'), async (req, res, next) => {
 
     // Parse JSON file
     const jsonData = JSON.parse(req.file.buffer.toString('utf-8'));
+    const preflight = parseImportPreflightFromBody(req.body.preflight);
 
     // Start import job (async)
     const jobId = await importTrello(
@@ -61,6 +75,7 @@ router.post('/trello', upload.single('file'), async (req, res, next) => {
       authReq.user.id,
       validated.workspaceId,
       validated.defaultUncolouredCardColour,
+      preflight,
     );
 
     res.status(202).json({
@@ -83,6 +98,16 @@ router.post('/trello', upload.single('file'), async (req, res, next) => {
       res.status(400).json({
         error: {
           message: 'Invalid JSON file',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message === 'Invalid preflight payload') {
+      res.status(400).json({
+        error: {
+          message: 'Invalid preflight payload',
           code: 'VALIDATION_ERROR',
           statusCode: 400,
         },
@@ -112,12 +137,14 @@ router.post('/wekan', upload.single('file'), async (req, res, next) => {
 
     // Parse JSON file
     const jsonData = JSON.parse(req.file.buffer.toString('utf-8'));
+    const preflight = parseImportPreflightFromBody(req.body.preflight);
 
     // Start import job (async)
     const jobId = await importWekan(
       jsonData,
       authReq.user.id,
       validated.defaultUncolouredCardColour,
+      preflight,
     );
 
     res.status(202).json({
@@ -140,6 +167,16 @@ router.post('/wekan', upload.single('file'), async (req, res, next) => {
       res.status(400).json({
         error: {
           message: 'Invalid JSON file',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message === 'Invalid preflight payload') {
+      res.status(400).json({
+        error: {
+          message: 'Invalid preflight payload',
           code: 'VALIDATION_ERROR',
           statusCode: 400,
         },

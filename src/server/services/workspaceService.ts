@@ -1,6 +1,10 @@
 import mongoose from 'mongoose';
 import { Workspace, type IWorkspace } from '../models/Workspace.js';
 import { Board } from '../models/Board.js';
+import {
+  deleteAllMongoAndStorageForBoardIds,
+  deleteWorkspaceScopedMongoRecords,
+} from './boardScopedDeletion.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import type { Document } from 'mongoose';
@@ -650,7 +654,10 @@ export async function deleteWorkspace(
     }
   }
 
-  // Delete all boards in workspace
+  const boardObjectIds = boards.map((b) => b._id);
+  await deleteAllMongoAndStorageForBoardIds(boardObjectIds);
+  await deleteWorkspaceScopedMongoRecords(workspace._id, boardObjectIds);
+
   await Board.deleteMany({ workspaceId: workspace._id });
 
   await Workspace.findByIdAndDelete(workspaceId);

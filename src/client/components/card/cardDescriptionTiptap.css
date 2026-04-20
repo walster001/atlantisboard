@@ -239,7 +239,19 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   word-break: break-word;
 }
 
-.card-desc-tiptap-read > * + * {
+/*
+ * Card detail modal: flex + gap keeps vertical space between paragraphs (Enter) without relying
+ * on margin collapse (which can disappear in some parent layouts). Kanban preview omits --detail
+ * and uses margin + line-clamp flattening in boardView.css instead.
+ */
+.card-desc-tiptap-read--detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.card-desc-tiptap-read:not(.card-desc-tiptap-read--detail) > * + * {
   margin-top: 0.45em;
 }
 
@@ -274,7 +286,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   margin-top: 0;
 }
 
-.card-desc-tiptap-read > :first-child {
+.card-desc-tiptap-read:not(.card-desc-tiptap-read--detail) > :first-child {
   margin-top: 0;
 }
 

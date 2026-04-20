@@ -1,5 +1,5 @@
 import { Board, type IBoard } from '../models/Board.js';
-import { List } from '../models/List.js';
+import { deleteAllMongoAndStorageForBoardIds } from './boardScopedDeletion.js';
 import { Workspace } from '../models/Workspace.js';
 import { User } from '../models/User.js';
 import {
@@ -1138,9 +1138,7 @@ export async function deleteBoard(boardId: string, userId: string): Promise<bool
     throw new Error('Only board owner can delete board');
   }
 
-  // Delete all lists and cards
-  await List.deleteMany({ boardId: board._id });
-  // Note: Card deletion will be handled in cardService
+  await deleteAllMongoAndStorageForBoardIds([board._id]);
 
   const workspaceId = board.workspaceId?.toString();
   const ownerId = board.ownerId.toString();

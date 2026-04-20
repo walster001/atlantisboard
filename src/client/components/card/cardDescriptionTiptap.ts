@@ -124,6 +124,19 @@ export function parseCardDescriptionJson(value: string | undefined | null): JSON
     if (isValidCardDescriptionDoc(parsed)) {
       return repairCardDescriptionDocForPm(parsed as JSONContent);
     }
+    /*
+     * Imports (e.g. Trello markdown → JSON) may include attrs or shapes the strict REST validator
+     * rejects even though Tiptap can edit and re-save them. Treat any well-formed `doc` as
+     * loadable so Save does not treat the editor payload as “empty” and clear the field.
+     */
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed) &&
+      (parsed as { type?: unknown }).type === 'doc'
+    ) {
+      return repairCardDescriptionDocForPm(parsed as JSONContent);
+    }
   } catch {
     /* fall through */
   }

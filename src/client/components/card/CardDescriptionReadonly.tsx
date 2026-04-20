@@ -25,10 +25,17 @@ function CardDescriptionReadonlyInner({ valueJson, valueHtml }: CardDescriptionR
   }, [valueJson]);
 
   if (fromJson != null) {
-    return <div className="card-desc-tiptap-read">{fromJson}</div>;
+    return (
+      <div className="card-desc-tiptap-read card-desc-tiptap-read--detail">{fromJson}</div>
+    );
   }
   if (typeof valueHtml === 'string' && valueHtml.trim() !== '') {
-    return <div className="card-desc-tiptap-read" dangerouslySetInnerHTML={{ __html: valueHtml }} />;
+    return (
+      <div
+        className="card-desc-tiptap-read card-desc-tiptap-read--detail"
+        dangerouslySetInnerHTML={{ __html: valueHtml }}
+      />
+    );
   }
   return null;
 }

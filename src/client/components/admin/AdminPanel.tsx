@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Title, Tabs, Container } from '@mantine/core';
 import { PermissionSetsTab } from './PermissionSetsTab.js';
-import { PlaceholderUsersTab } from './PlaceholderUsersTab.js';
 import { SystemConfigTab } from './SystemConfigTab.js';
 import { useAuthContext } from '../../contexts/AuthContext.js';
 
@@ -19,7 +18,7 @@ export function AdminPanel() {
     }
   }, [authLoading, user, navigate]);
 
-  const [activeTab, setActiveTab] = useState<'permissions' | 'placeholder-users' | 'system-config'>('permissions');
+  const [activeTab, setActiveTab] = useState<'permissions' | 'system-config'>('permissions');
 
   if (authLoading || user == null || user.isAppAdmin !== true) {
     return null;
@@ -46,15 +45,11 @@ export function AdminPanel() {
         >
           <Tabs.List>
             <Tabs.Tab value="permissions">Permissions Roles</Tabs.Tab>
-            <Tabs.Tab value="placeholder-users">Placeholder Users</Tabs.Tab>
             <Tabs.Tab value="system-config">System Configuration</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="permissions">
             <PermissionSetsTab />
-          </Tabs.Panel>
-          <Tabs.Panel value="placeholder-users">
-            <PlaceholderUsersTab />
           </Tabs.Panel>
           <Tabs.Panel value="system-config">
             <SystemConfigTab />

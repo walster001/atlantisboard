@@ -20,12 +20,24 @@ import {
 import { IconUpload, IconFileText } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
+import {
+  buildTrelloImportPreflight,
+  buildWekanImportPreflight,
+  type ImportPreflightPayload,
+  type ImportPreflightResult,
+  type ImportPreflightUser,
+  type ImportUserDecision,
+  type InlineButtonIconReplacement,
+  type UnmappedUserPolicy,
+} from '../../../shared/import/importPreflight.js';
 import { BoardColourPickerPanel } from '../board/BoardColourPickerPanel.js';
 import {
   BOARD_PRESET_COLOURS,
   normalizePresetHex,
 } from '../../constants/boardPresetColors.js';
 import { loginBrandingColorInputProps } from '../../constants/loginBrandingColorInputProps.js';
+import { ReplaceButtonsTab } from './ReplaceButtonsTab.js';
+import { ImportUserManagementTab } from './ImportUserManagementTab.js';
 
 interface ImportExportModalProps {
   boardId?: string;
@@ -36,7 +48,7 @@ interface ImportExportModalProps {
 }
 
 type ImportType = 'trello' | 'wekan' | 'csv' | null;
-type TabType = 'import' | 'export';
+type TabType = 'import' | 'replace-buttons' | 'import-user-management' | 'export';
 
 interface ImportJobClientView {
   status: string;
@@ -138,7 +150,7 @@ function ImportMappingCallout({ importType }: { importType: ImportType }) {
           { text: 'Wekan Cards → KanBoard Cards' },
           { text: 'Wekan Labels → KanBoard Labels' },
           { text: 'Wekan Checklists → KanBoard Subtasks' },
-          { text: 'Members, attachments, comments are ignored', emphasis: true },
+          { text: 'Members, attachments, comments are imported with preflight mapping', emphasis: true },
         ]
       : importType === 'trello'
         ? [
@@ -147,7 +159,7 @@ function ImportMappingCallout({ importType }: { importType: ImportType }) {
             { text: 'Trello Cards → KanBoard Cards' },
             { text: 'Trello Labels → KanBoard Labels' },
             { text: 'Trello Checklists → KanBoard Subtasks' },
-            { text: 'Members, attachments, comments are ignored', emphasis: true },
+            { text: 'Members, attachments, comments are imported with preflight mapping', emphasis: true },
           ]
         : [
             { text: 'CSV / TSV rows → KanBoard Cards (this board)' },
@@ -189,7 +201,7 @@ export function ImportExportModal({
   onImportComplete,
 }: ImportExportModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('import');
-  const [importType, setImportType] = useState<ImportType>(null);
+  const [importType, setImportType] = useState<ImportType>('wekan');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,6 +217,11 @@ export function ImportExportModal({
     normalizePresetHex('#3b82f6', BOARD_PRESET_COLOURS),
   );
   const [pickerDraftUseTheme, setPickerDraftUseTheme] = useState(true);
+  const [preflight, setPreflight] = useState<ImportPreflightResult | null>(null);
+  const [preflightBusy, setPreflightBusy] = useState(false);
+  const [userDecisions, setUserDecisions] = useState<ImportUserDecision[]>([]);
+  const [unmappedUserPolicy, setUnmappedUserPolicy] = useState<UnmappedUserPolicy>('map_to_importer');
+  const [inlineButtonReplacements, setInlineButtonReplacements] = useState<InlineButtonIconReplacement[]>([]);
   const [exportColumns, setExportColumns] = useState<string[]>([
     'title',
     'description',
@@ -217,6 +234,24 @@ export function ImportExportModal({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
+
+  const preflightUsers: readonly ImportPreflightUser[] = preflight?.users.users ?? [];
+  const needsUserManagement = (importType === 'trello' || importType === 'wekan') && preflightUsers.length > 0;
+  const wekanButtons = importType === 'wekan' ? preflight?.wekanButtons?.buttons ?? [] : [];
+  const needsReplaceButtons = importType === 'wekan' && wekanButtons.length > 0;
+
+  const unresolvedUsersCount = preflightUsers.filter((u) => {
+    const d = userDecisions.find((x) => x.sourceUserId === u.sourceUserId);
+    return d == null || (d.mappedUserId == null && d.discard !== true);
+  }).length;
+  const unresolvedButtonsCount = (() => {
+    if (!needsReplaceButtons) {
+      return 0;
+    }
+    const uniqueIconCount = new Set(wekanButtons.map((b) => b.iconSrc)).size;
+    const replacedIconCount = new Set(inlineButtonReplacements.map((r) => r.iconSrc)).size;
+    return Math.max(0, uniqueIconCount - replacedIconCount);
+  })();
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -233,6 +268,55 @@ export function ImportExportModal({
     };
   }, []);
 
+  const resetPreflightState = (): void => {
+    setPreflight(null);
+    setUserDecisions([]);
+    setInlineButtonReplacements([]);
+    setUnmappedUserPolicy('map_to_importer');
+  };
+
+  const runPreflightForFile = async (nextFile: File, nextImportType: ImportType): Promise<void> => {
+    if (nextImportType !== 'trello' && nextImportType !== 'wekan') {
+      resetPreflightState();
+      return;
+    }
+    setPreflightBusy(true);
+    try {
+      const rawText = await nextFile.text();
+      const parsed = JSON.parse(rawText) as unknown;
+      const result =
+        nextImportType === 'trello'
+          ? buildTrelloImportPreflight(parsed)
+          : buildWekanImportPreflight(parsed);
+      setPreflight(result);
+      setUserDecisions(
+        result.users.users.map((u) => ({
+          sourceUserId: u.sourceUserId,
+        })),
+      );
+      setInlineButtonReplacements([]);
+      setUnmappedUserPolicy('map_to_importer');
+
+      const hasButtons = nextImportType === 'wekan' && (result.wekanButtons?.buttons.length ?? 0) > 0;
+      const hasUsers = result.users.users.length > 0;
+      if (hasButtons) {
+        setActiveTab('replace-buttons');
+      } else if (hasUsers) {
+        setActiveTab('import-user-management');
+      } else {
+        setActiveTab('import');
+      }
+    } catch (err) {
+      console.error('Preflight parsing failed:', err);
+      setPreflight(null);
+      setUserDecisions([]);
+      setInlineButtonReplacements([]);
+      setError('Could not read import preflight data from this file.');
+    } finally {
+      setPreflightBusy(false);
+    }
+  };
+
   const handleImport = async () => {
     if (!file || !importType) return;
 
@@ -247,11 +331,26 @@ export function ImportExportModal({
       const defaultUncolouredCardColour = importDefaultUseTheme
         ? undefined
         : importDefaultHex.trim();
+      const preflightPayload: ImportPreflightPayload | undefined =
+        importType === 'trello' || importType === 'wekan'
+          ? {
+              userDecisions,
+              unmappedUserPolicy,
+              ...(importType === 'wekan'
+                ? { inlineButtonIconReplacements: inlineButtonReplacements }
+                : {}),
+            }
+          : undefined;
 
       if (importType === 'trello') {
-        result = await api.importTrello(file, workspaceId, defaultUncolouredCardColour);
+        result = await api.importTrello(
+          file,
+          workspaceId,
+          defaultUncolouredCardColour,
+          preflightPayload,
+        );
       } else if (importType === 'wekan') {
-        result = await api.importWekan(file, defaultUncolouredCardColour);
+        result = await api.importWekan(file, defaultUncolouredCardColour, preflightPayload);
       } else if (importType === 'csv') {
         if (!boardId) {
           throw new Error('Board ID is required for CSV import');
@@ -461,6 +560,10 @@ export function ImportExportModal({
       <Tabs value={activeTab} onChange={(value) => setActiveTab((value || 'import') as TabType)}>
         <Tabs.List mb="md">
           <Tabs.Tab value="import">Import</Tabs.Tab>
+          {needsReplaceButtons ? <Tabs.Tab value="replace-buttons">Replace Buttons</Tabs.Tab> : null}
+          {needsUserManagement ? (
+            <Tabs.Tab value="import-user-management">Import User Management</Tabs.Tab>
+          ) : null}
           {boardId ? <Tabs.Tab value="export">Export</Tabs.Tab> : null}
         </Tabs.List>
 
@@ -479,6 +582,8 @@ export function ImportExportModal({
               onChange={(value) => {
                 setImportType((value as ImportType) || null);
                 setFile(null);
+                resetPreflightState();
+                setActiveTab('import');
               }}
               data={[
                 { value: 'wekan', label: 'Wekan JSON' },
@@ -499,6 +604,11 @@ export function ImportExportModal({
                   onChange={(f) => {
                     setFile(f);
                     setError(null);
+                    if (f != null) {
+                      void runPreflightForFile(f, importType);
+                    } else {
+                      resetPreflightState();
+                    }
                   }}
                   disabled={loading}
                   radius="md"
@@ -575,6 +685,24 @@ export function ImportExportModal({
 
                 <ImportMappingCallout importType={importType} />
 
+                {preflightBusy ? (
+                  <Alert color="blue" radius="md">
+                    Analysing import file…
+                  </Alert>
+                ) : null}
+                {!preflightBusy && needsReplaceButtons ? (
+                  <Alert color="orange" radius="md">
+                    Found legacy Wekan inline buttons. Use the <strong>Replace Buttons</strong> tab to upload
+                    replacement icons before import.
+                  </Alert>
+                ) : null}
+                {!preflightBusy && needsUserManagement ? (
+                  <Alert color="blue" radius="md">
+                    Found {preflightUsers.length} import user(s). Review mappings in{' '}
+                    <strong>Import User Management</strong>.
+                  </Alert>
+                ) : null}
+
                 {jobId ? (
                   <Alert color="blue" radius="md">
                     <Stack gap="sm">
@@ -616,12 +744,96 @@ export function ImportExportModal({
               <Button
                 color="blue"
                 radius="md"
-                onClick={() => void handleImport()}
-                disabled={!file || !importType || loading || !!jobId}
+                onClick={() => {
+                  if (needsReplaceButtons) {
+                    setActiveTab('replace-buttons');
+                    return;
+                  }
+                  if (needsUserManagement) {
+                    setActiveTab('import-user-management');
+                    return;
+                  }
+                  void handleImport();
+                }}
+                disabled={!file || !importType || loading || !!jobId || preflightBusy}
                 loading={loading}
               >
-                Import
+                {needsReplaceButtons || needsUserManagement ? 'Continue preflight' : 'Import'}
               </Button>
+            </Group>
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="replace-buttons">
+          <Stack gap="md">
+            <ReplaceButtonsTab
+              buttons={wekanButtons}
+              replacements={inlineButtonReplacements}
+              onChangeReplacements={(next) => setInlineButtonReplacements([...next])}
+            />
+            <Group justify="flex-end" gap="sm" mt="md">
+              <Button
+                variant="default"
+                radius="md"
+                onClick={() => setActiveTab('import')}
+                disabled={loading}
+              >
+                Back to Import
+              </Button>
+              <Button
+                color="blue"
+                radius="md"
+                onClick={() => {
+                  if (needsUserManagement) {
+                    setActiveTab('import-user-management');
+                    return;
+                  }
+                  void handleImport();
+                }}
+                disabled={!file || !importType || loading || !!jobId}
+              >
+                {needsUserManagement
+                  ? 'Continue'
+                  : unresolvedButtonsCount > 0
+                    ? `Import (${unresolvedButtonsCount} icon source${unresolvedButtonsCount === 1 ? '' : 's'} unchanged)`
+                    : 'Import'}
+              </Button>
+            </Group>
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="import-user-management">
+          <Stack gap="md">
+            <ImportUserManagementTab
+              users={preflightUsers}
+              decisions={userDecisions}
+              policy={unmappedUserPolicy}
+              onChangeDecisions={(next) => setUserDecisions([...next])}
+              onChangePolicy={setUnmappedUserPolicy}
+            />
+            <Group justify="space-between" gap="sm" mt="md">
+              <Text size="xs" c={unresolvedUsersCount > 0 ? 'orange' : 'green'}>
+                {unresolvedUsersCount} unresolved user(s); policy: {unmappedUserPolicy}
+              </Text>
+              <Group gap="sm">
+                <Button
+                  variant="default"
+                  radius="md"
+                  onClick={() => setActiveTab(needsReplaceButtons ? 'replace-buttons' : 'import')}
+                  disabled={loading}
+                >
+                  Back
+                </Button>
+                <Button
+                  color="blue"
+                  radius="md"
+                  onClick={() => void handleImport()}
+                  disabled={!file || !importType || loading || !!jobId}
+                  loading={loading}
+                >
+                  Save users and import
+                </Button>
+              </Group>
             </Group>
           </Stack>
         </Tabs.Panel>

@@ -9415,7 +9415,14 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   line-height: 1.2;
 }
 
-.card-desc-tiptap-read > * + *, .card-desc-tiptap-read blockquote > * + * {
+.card-desc-tiptap-read--detail {
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+  min-width: 0;
+}
+
+.card-desc-tiptap-read:not(.card-desc-tiptap-read--detail) > * + *, .card-desc-tiptap-read blockquote > * + * {
   margin-top: .45em;
 }
 
@@ -9441,7 +9448,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   height: 0;
 }
 
-.card-desc-tiptap-editor .ProseMirror > :first-child, .card-desc-tiptap-read > :first-child {
+.card-desc-tiptap-editor .ProseMirror > :first-child, .card-desc-tiptap-read:not(.card-desc-tiptap-read--detail) > :first-child {
   margin-top: 0;
 }
 

@@ -58,6 +58,20 @@ function validateMediaSrc(src: unknown): boolean {
   );
 }
 
+function validateInlineButtonIconSrc(src: unknown): boolean {
+  if (validateMediaSrc(src)) {
+    return true;
+  }
+  if (typeof src !== 'string') {
+    return false;
+  }
+  const t = src.trim();
+  if (t.length === 0 || t.length > 200000) {
+    return false;
+  }
+  return /^data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=]+$/.test(t);
+}
+
 /** Allow only hex colors from the color picker / Tiptap (no arbitrary CSS). */
 function isAllowedTextStyleColor(value: unknown): boolean {
   if (value === null || value === undefined) {
@@ -347,7 +361,7 @@ function validateNode(node: unknown, depth: number): boolean {
     }
     const iconSrc = attrs.iconSrc;
     if (iconSrc !== null && iconSrc !== undefined) {
-      if (typeof iconSrc !== 'string' || !validateMediaSrc(iconSrc)) {
+      if (typeof iconSrc !== 'string' || !validateInlineButtonIconSrc(iconSrc)) {
         return false;
       }
     }

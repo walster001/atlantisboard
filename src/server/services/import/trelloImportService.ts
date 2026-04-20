@@ -34,6 +34,8 @@ import {
   LIST_NAME_MAX_LENGTH,
 } from '../../../shared/constants/entityTextLimits.js';
 import { resolveTrelloBoardBackgroundForImport } from '../../../shared/import/trelloBoardBackground.js';
+import type { ImportPreflightPayloadParsed } from '../../../shared/import/importPreflightSchema.js';
+import { resolveImportUserResolution } from '../../../shared/import/importUserResolution.js';
 
 const CARD_INSERT_BATCH = 80;
 
@@ -149,6 +151,7 @@ export async function importTrello(
   userId: string,
   targetWorkspaceId?: string,
   defaultUncolouredCardColour?: string,
+  preflight?: ImportPreflightPayloadParsed,
 ): Promise<string> {
   const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
   const importJob = new ImportJob({
@@ -167,6 +170,10 @@ export async function importTrello(
 
   try {
     const data = normalizeTrelloExport(jsonData);
+    const decisionBySourceUserId = new Map(
+      (preflight?.userDecisions ?? []).map((d) => [d.sourceUserId, d]),
+    );
+    const unmappedPolicy = preflight?.unmappedUserPolicy ?? 'map_to_importer';
     // Match Trello UI: archived lists/cards stay in JSON but are hidden — do not import them.
     const listsOrdered = [...data.lists]
       .filter((l) => l.closed !== true)
@@ -212,12 +219,51 @@ export async function importTrello(
     }
 
     const memberMap = new Map<string, string>();
+    const memberIdByEmail = new Map<string, string>();
     if (data.members) {
       for (const member of data.members) {
+        const decision = decisionBySourceUserId.get(member.id);
+        if (decision?.mappedUserId) {
+          memberMap.set(member.id, decision.mappedUserId);
+          if (member.email) {
+            memberIdByEmail.set(member.email.trim(), member.id);
+          }
+          continue;
+        }
+        if (decision?.discard === true) {
+          continue;
+        }
+        let resolvedUserId: string | undefined;
         if (member.email) {
           const user = await User.findOne({ email: member.email });
           if (user) {
-            memberMap.set(member.id, user._id.toString());
+            resolvedUserId = user._id.toString();
+          }
+        }
+        if (resolvedUserId === undefined && member.username) {
+          const user = await User.findOne({ username: member.username });
+          if (user) {
+            resolvedUserId = user._id.toString();
+          }
+        }
+        if (resolvedUserId === undefined && member.fullName) {
+          const user = await User.findOne({ displayName: member.fullName });
+          if (user) {
+            resolvedUserId = user._id.toString();
+          }
+        }
+        if (resolvedUserId === undefined) {
+          const resolution = resolveImportUserResolution({
+            ...(decision != null ? { decision } : {}),
+            policy: unmappedPolicy,
+            importerUserId: userId,
+          });
+          resolvedUserId = resolution.kind === 'map' ? resolution.userId : undefined;
+        }
+        if (resolvedUserId !== undefined) {
+          memberMap.set(member.id, resolvedUserId);
+          if (member.email) {
+            memberIdByEmail.set(member.email.trim(), member.id);
           }
         }
       }
@@ -387,11 +433,20 @@ export async function importTrello(
     const commentUserByEmail = new Map<string, mongoose.Types.ObjectId>();
     await Promise.all(
       [...commentEmails].map(async (email) => {
+        const sourceMemberId = memberIdByEmail.get(email);
+        const mappedMemberUserId = sourceMemberId != null ? memberMap.get(sourceMemberId) : undefined;
+        if (mappedMemberUserId) {
+          commentUserByEmail.set(email, new mongoose.Types.ObjectId(mappedMemberUserId));
+          return;
+        }
         const u = await User.findOne({ email });
-        commentUserByEmail.set(
-          email,
-          (u?._id ?? new mongoose.Types.ObjectId(userId)) as mongoose.Types.ObjectId,
-        );
+        if (u?._id) {
+          commentUserByEmail.set(email, u._id as mongoose.Types.ObjectId);
+          return;
+        }
+        if (unmappedPolicy !== 'discard_unmapped') {
+          commentUserByEmail.set(email, new mongoose.Types.ObjectId(userId));
+        }
       }),
     );
 

@@ -15,7 +15,6 @@ import '@mantine/notifications/styles.css';
 // Lazy load routes for code splitting
 const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const BoardPage = lazy(() => import('./pages/BoardPage'));
 const AdminPanel = lazy(() => import('./components/admin/AdminPanel.js').then((m) => ({ default: m.AdminPanel })));
 const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPage.js'));
@@ -58,7 +57,7 @@ function App() {
             }>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/register" element={<Navigate to="/login" replace />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/verify-email" element={<VerifyEmailPage />} />

@@ -16,10 +16,6 @@ import {
 } from '@mantine/core';
 import { type PublicLoginBranding } from '../../../shared/types/loginBranding.js';
 import { useBrandingWebFonts } from '../../hooks/useBrandingWebFonts.js';
-import { PasswordStrengthMeter } from './PasswordStrengthMeter.js';
-
-/** Sample password for admin login branding preview (mixed rule satisfaction). */
-const LOGIN_BRANDING_PREVIEW_PASSWORD_STRENGTH_SAMPLE = 'Aa1!bbbb';
 
 export function GoogleMark(): ReactElement {
   return (
@@ -60,10 +56,10 @@ export interface BrandedLoginCardProps {
   readonly onSubmit?: (e: FormEvent) => void;
   readonly submitLoading?: boolean;
   readonly onGoogleClick?: () => void;
+  /** Opens registration modal on live login when email/password sign-in is enabled. */
+  readonly onSignUpClick?: () => void;
   /** Stored app default UI font (same shape as AdminConfig); injects @font-face with login fonts. */
   readonly defaultUiFontFamily?: string;
-  /** Segmented password strength under the password field (live + admin preview when local sign-in is shown). */
-  readonly showPasswordStrength?: boolean;
 }
 
 export function BrandedLoginCard({
@@ -78,8 +74,8 @@ export function BrandedLoginCard({
   onSubmit,
   submitLoading = false,
   onGoogleClick,
+  onSignUpClick,
   defaultUiFontFamily,
-  showPasswordStrength = false,
 }: BrandedLoginCardProps): ReactElement {
   useBrandingWebFonts(
     branding.appNameFontFamily,
@@ -214,9 +210,6 @@ export function BrandedLoginCard({
           required
           styles={inputLabelStyles}
         />
-        {showPasswordStrength ? (
-          <PasswordStrengthMeter password={formData.password} labelColor={inputTitleColor} />
-        ) : null}
         <Group justify="space-between">
           <Checkbox
             size="sm"
@@ -271,12 +264,6 @@ export function BrandedLoginCard({
           tabIndex={-1}
           styles={inputLabelStyles}
         />
-        {showPasswordStrength ? (
-          <PasswordStrengthMeter
-            password={LOGIN_BRANDING_PREVIEW_PASSWORD_STRENGTH_SAMPLE}
-            labelColor={inputTitleColor}
-          />
-        ) : null}
         <Group justify="space-between" wrap="nowrap" style={{ pointerEvents: 'none' }}>
           <Checkbox
             size="sm"
@@ -329,9 +316,28 @@ export function BrandedLoginCard({
       <Text span style={{ color: inputTitleColor }}>
         Don&apos;t have an account?{' '}
       </Text>
-      <Anchor component={Link} to="/register" fw={500} style={{ color: linkTitleColor }}>
-        Sign up
-      </Anchor>
+      {onSignUpClick ? (
+        <Anchor
+          component="button"
+          type="button"
+          fw={500}
+          onClick={onSignUpClick}
+          style={{
+            color: linkTitleColor,
+            cursor: 'pointer',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            font: 'inherit',
+          }}
+        >
+          Sign up
+        </Anchor>
+      ) : (
+        <Anchor component={Link} to="/login" fw={500} style={{ color: linkTitleColor }}>
+          Sign up
+        </Anchor>
+      )}
     </Text>
   ) : null;
 

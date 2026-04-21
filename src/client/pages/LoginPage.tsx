@@ -5,6 +5,7 @@ import { useAuthContext } from '../contexts/AuthContext.js';
 import { useAppBranding } from '../contexts/AppBrandingContext.js';
 import { api } from '../utils/api.js';
 import { BrandedLoginCard } from '../components/auth/BrandedLoginCard.js';
+import { RegisterModal } from '../components/auth/RegisterModal.js';
 import {
   consumePostLoginRedirect,
   isSafeAppInternalPath,
@@ -28,6 +29,7 @@ export default function LoginPage() {
   const [loginOptionsLoading, setLoginOptionsLoading] = useState(true);
   const [emailPasswordAllowed, setEmailPasswordAllowed] = useState(true);
   const [googleLoginAllowed, setGoogleLoginAllowed] = useState(false);
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const strippedNextFromUrlRef = useRef(false);
 
   /** Legacy `?next=` in address bar → sessionStorage, then strip (avoids exposing return path in URL). */
@@ -148,22 +150,32 @@ export default function LoginPage() {
   }
 
   return (
-    <BrandedLoginCard
-      variant="live"
-      branding={branding}
-      {...(appBranding.defaultUiFontFamily
-        ? { defaultUiFontFamily: appBranding.defaultUiFontFamily }
-        : {})}
-      showLocalForm={emailPasswordAllowed}
-      showGoogle={googleLoginAllowed}
-      loginOptionsLoading={loginOptionsLoading}
-      error={error}
-      formData={formData}
-      onFormDataChange={setFormData}
-      onSubmit={(e) => void handleSubmit(e)}
-      submitLoading={loading}
-      onGoogleClick={handleGoogleLogin}
-      showPasswordStrength
-    />
+    <>
+      <BrandedLoginCard
+        variant="live"
+        branding={branding}
+        {...(appBranding.defaultUiFontFamily
+          ? { defaultUiFontFamily: appBranding.defaultUiFontFamily }
+          : {})}
+        showLocalForm={emailPasswordAllowed}
+        showGoogle={googleLoginAllowed}
+        loginOptionsLoading={loginOptionsLoading}
+        error={error}
+        formData={formData}
+        onFormDataChange={setFormData}
+        onSubmit={(e) => void handleSubmit(e)}
+        submitLoading={loading}
+        onGoogleClick={handleGoogleLogin}
+        {...(emailPasswordAllowed ? { onSignUpClick: () => setRegisterModalOpen(true) } : {})}
+      />
+      <RegisterModal
+        opened={registerModalOpen}
+        onClose={() => setRegisterModalOpen(false)}
+        onSuccess={() => {
+          const target = consumePostLoginRedirect() ?? '/';
+          navigate(target, { replace: true });
+        }}
+      />
+    </>
   );
 }

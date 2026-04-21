@@ -92,7 +92,6 @@ const LoginBrandingCardPreview = memo(function LoginBrandingCardPreview({
       branding={branding}
       showLocalForm={showLocalForm}
       showGoogle={showGoogle}
-      showPasswordStrength={showLocalForm}
       {...(defaultUiFontFamily ? { defaultUiFontFamily } : {})}
     />
   );

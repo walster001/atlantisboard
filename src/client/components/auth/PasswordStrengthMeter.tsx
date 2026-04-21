@@ -1,4 +1,4 @@
-import { Progress, Stack, Text } from '@mantine/core';
+import { Box, SimpleGrid, Stack, Text } from '@mantine/core';
 import { type ReactElement } from 'react';
 import {
   countPasswordStrengthSatisfied,
@@ -14,7 +14,6 @@ export function PasswordStrengthMeter({
   readonly labelColor?: string;
 }): ReactElement {
   const segments = getPasswordStrengthSegments(password);
-  const sectionValue = 100 / segments.length;
   const n = countPasswordStrengthSatisfied(password);
   const strengthLabel =
     password.length === 0
@@ -35,15 +34,27 @@ export function PasswordStrengthMeter({
       <Text {...strengthTextProps}>
         {strengthLabel}
       </Text>
-      <Progress.Root size="sm" radius="xs">
-        {segments.map((s) => (
-          <Progress.Section
+      <SimpleGrid
+        cols={segments.length}
+        spacing={6}
+        verticalSpacing={0}
+        role="presentation"
+        aria-hidden
+      >
+        {segments.map((s, i) => (
+          <Box
             key={s.id}
-            value={sectionValue}
-            color={s.satisfied ? 'teal' : 'gray.4'}
+            h={4}
+            miw={0}
+            style={{
+              borderRadius: 'var(--mantine-radius-xs)',
+              backgroundColor:
+                i < n ? 'var(--mantine-color-teal-filled)' : 'var(--mantine-color-gray-4)',
+              transition: 'background-color 120ms ease',
+            }}
           />
         ))}
-      </Progress.Root>
+      </SimpleGrid>
       <Text component="div" {...strengthTextProps}>
         {segments.map((s) => (
           <div key={s.id}>

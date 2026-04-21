@@ -132,14 +132,18 @@ export function useAuth() {
     setAuthState({ user: null, loading: false, authenticated: false });
   }, []);
 
-  const register = useCallback(async (data: {
-    email: string;
-    username: string;
-    password: string;
-    displayName: string;
-  }): Promise<void> => {
-    await api.register(data);
-  }, []);
+  const register = useCallback(
+    async (data: {
+      email: string;
+      username: string;
+      password: string;
+      displayName: string;
+    }): Promise<void> => {
+      await api.register(data);
+      await loadUser();
+    },
+    [loadUser]
+  );
 
   return {
     ...authState,

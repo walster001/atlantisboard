@@ -1,7 +1,9 @@
 /**
- * Password policy checks aligned with server `validatePassword` in `src/server/utils/password.ts`.
+ * Password strength UI segments. Length milestones match progressive feedback;
+ * full policy remains `validatePassword` in `src/server/utils/password.ts` (12 chars + classes).
  */
 
+export const PASSWORD_POLICY_MID_LENGTH = 6;
 export const PASSWORD_POLICY_MIN_LENGTH = 12;
 
 export interface PasswordStrengthSegment {
@@ -11,35 +13,42 @@ export interface PasswordStrengthSegment {
 }
 
 export function getPasswordStrengthSegments(password: string): readonly PasswordStrengthSegment[] {
+  const len = password.length;
+  const hasLower = /[a-z]/.test(password);
+  const hasUpper = /[A-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[^a-zA-Z0-9]/.test(password);
+
   return [
     {
-      id: 'length',
+      id: 'length6',
+      label: `At least ${PASSWORD_POLICY_MID_LENGTH} characters`,
+      satisfied: len >= PASSWORD_POLICY_MID_LENGTH,
+    },
+    {
+      id: 'length12',
       label: `At least ${PASSWORD_POLICY_MIN_LENGTH} characters`,
-      satisfied: password.length >= PASSWORD_POLICY_MIN_LENGTH,
+      satisfied: len >= PASSWORD_POLICY_MIN_LENGTH,
     },
     {
-      id: 'lower',
-      label: 'One lowercase letter',
-      satisfied: /[a-z]/.test(password),
-    },
-    {
-      id: 'upper',
-      label: 'One uppercase letter',
-      satisfied: /[A-Z]/.test(password),
+      id: 'mixedCase',
+      label: 'Upper and lowercase letters',
+      satisfied: hasLower && hasUpper,
     },
     {
       id: 'number',
       label: 'One number',
-      satisfied: /[0-9]/.test(password),
+      satisfied: hasNumber,
     },
     {
       id: 'special',
       label: 'One special character',
-      satisfied: /[^a-zA-Z0-9]/.test(password),
+      satisfied: hasSpecial,
     },
   ];
 }
 
+/** How many of the five strength requirements are currently satisfied (0–5). */
 export function countPasswordStrengthSatisfied(password: string): number {
   return getPasswordStrengthSegments(password).filter((s) => s.satisfied).length;
 }

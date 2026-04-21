@@ -97,7 +97,7 @@ export default function VerifyEmailPage() {
                 <Button component={Link} to="/login" color="blue" fullWidth>
                   Back to Login
                 </Button>
-                <Button component={Link} to="/register" variant="subtle" fullWidth>
+                <Button component={Link} to="/login" variant="subtle" fullWidth>
                   Register New Account
                 </Button>
               </Stack>

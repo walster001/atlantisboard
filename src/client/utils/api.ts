@@ -141,6 +141,12 @@ class ApiClient {
     displayName: string;
   }): Promise<unknown> {
     const response = await this.client.post('/auth/register', data);
+    if (response.data && typeof response.data === 'object' && 'token' in response.data) {
+      const token = (response.data as { token?: string }).token;
+      if (token) {
+        this.setToken(token);
+      }
+    }
     return response.data;
   }
 

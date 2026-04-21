@@ -81,7 +81,9 @@ export async function searchRegisteredUsers(params: {
   const offset = decodeSkipCursor(params.cursor);
   const excludeIds = params.excludeUserIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
 
-  const baseFilter: Record<string, unknown> = {};
+  const baseFilter: Record<string, unknown> = {
+    isPlaceholder: { $ne: true },
+  };
   if (excludeIds.length > 0) {
     baseFilter._id = { $nin: excludeIds.map((id) => new mongoose.Types.ObjectId(id)) };
   }

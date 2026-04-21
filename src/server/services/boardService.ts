@@ -165,6 +165,13 @@ export interface UpdateBoardInput {
 
 export type BoardViewMode = 'summary' | 'detail';
 
+/** Optional pagination for board list endpoints (`skip` defaults to 0 when `limit` is set). */
+export interface BoardListQueryOptions {
+  view?: BoardViewMode | undefined;
+  skip?: number | undefined;
+  limit?: number | undefined;
+}
+
 export interface BoardMemberListItem {
   userId: string;
   displayName: string;
@@ -601,7 +608,7 @@ export async function getBoardById(
 export async function getUserBoards(
   userId: string,
   workspaceId?: string,
-  options?: { view?: BoardViewMode }
+  options?: BoardListQueryOptions
 ): Promise<Array<(Document & IBoard) | BoardSummaryDTO>> {
   await ensureLegacyBoardPositions();
 
@@ -621,13 +628,18 @@ export async function getUserBoards(
 
   // Home list is membership-based (not board visibility): public boards are not listed here unless the user
   // is a workspace member, owner, or explicit board member.
-  const boards = await Board.find({
+  let boardQuery = Board.find({
     $or: [
       { workspaceId: { $in: memberWorkspaceIds } },
       { ownerId: userId },
       { 'members.userId': userId },
     ],
   }).sort({ createdAt: -1 });
+  if (options?.limit != null) {
+    const skip = Math.max(0, options.skip ?? 0);
+    boardQuery = boardQuery.skip(skip).limit(options.limit);
+  }
+  const boards = await boardQuery;
   if (options?.view === 'summary') {
     return boards.map((board) => toBoardSummary(board));
   }
@@ -637,7 +649,7 @@ export async function getUserBoards(
 export async function getBoardsByWorkspace(
   workspaceId: string,
   userId: string,
-  options?: { view?: BoardViewMode }
+  options?: BoardListQueryOptions
 ): Promise<Array<(Document & IBoard) | BoardSummaryDTO>> {
   await ensureLegacyBoardPositions();
 
@@ -659,7 +671,7 @@ export async function getBoardsByWorkspace(
   }
 
   // Workspace members see all boards in the workspace. Board-only users see only boards they own or are members of.
-  const boards = await Board.find(
+  let boardQuery = Board.find(
     isWorkspaceMember
       ? { workspaceId }
       : {
@@ -667,6 +679,11 @@ export async function getBoardsByWorkspace(
           $or: [{ ownerId: userId }, { 'members.userId': userId }],
         }
   ).sort({ position: 1, createdAt: -1 });
+  if (options?.limit != null) {
+    const skip = Math.max(0, options.skip ?? 0);
+    boardQuery = boardQuery.skip(skip).limit(options.limit);
+  }
+  const boards = await boardQuery;
   if (options?.view === 'summary') {
     return boards.map((board) => toBoardSummary(board));
   }

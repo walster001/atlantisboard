@@ -53,6 +53,41 @@ import {
 import { resolveHomeBoardTileCoverDisplay } from '../utils/boardCoverDisplay.js';
 import './HomePage.css';
 
+const HOME_BOARDS_PAGE_SIZE = 100;
+
+const HOME_BOARD_SUMMARY_FIELDS = [
+  'workspaceId',
+  'position',
+  'name',
+  'description',
+  'background',
+  'visibility',
+  'ownerId',
+  'members',
+  'createdAt',
+  'updatedAt',
+] as const;
+
+async function loadAllHomeBoardSummaries(): Promise<BoardDB[]> {
+  const acc: BoardDB[] = [];
+  let skip = 0;
+  for (;;) {
+    const boardsResponse = await api.getBoards({
+      view: 'summary',
+      fields: [...HOME_BOARD_SUMMARY_FIELDS],
+      skip,
+      limit: HOME_BOARDS_PAGE_SIZE,
+    });
+    const rawBoards = boardsResponse.boards;
+    acc.push(...rawBoards.map((board) => transformBoard(board)));
+    if (boardsResponse.hasMore !== true || rawBoards.length < HOME_BOARDS_PAGE_SIZE) {
+      break;
+    }
+    skip += HOME_BOARDS_PAGE_SIZE;
+  }
+  return acc;
+}
+
 interface HomeBoardCardTileProps {
   board: BoardDB;
   workspaceId: string;
@@ -289,23 +324,7 @@ export default function HomePage() {
         transformWorkspace(workspace),
       );
 
-      const boardsResponse = await api.getBoards({
-        view: 'summary',
-        fields: [
-          'workspaceId',
-          'position',
-          'name',
-          'description',
-          'background',
-          'visibility',
-          'ownerId',
-          'members',
-          'createdAt',
-          'updatedAt',
-        ],
-      });
-      const rawBoards = (boardsResponse as { boards: unknown[] }).boards;
-      const boards: BoardDB[] = rawBoards.map((board) => transformBoard(board));
+      const boards = await loadAllHomeBoardSummaries();
 
       if (!isMountedRef.current) return;
 
@@ -364,24 +383,7 @@ export default function HomePage() {
           transformWorkspace(workspace)
         );
 
-        // Load all boards
-        const boardsResponse = await api.getBoards({
-          view: 'summary',
-          fields: [
-            'workspaceId',
-            'position',
-            'name',
-            'description',
-            'background',
-            'visibility',
-            'ownerId',
-            'members',
-            'createdAt',
-            'updatedAt',
-          ],
-        });
-        const rawBoards = (boardsResponse as { boards: unknown[] }).boards;
-        const boards: BoardDB[] = rawBoards.map((board) => transformBoard(board));
+        const boards = await loadAllHomeBoardSummaries();
 
         if (!isMountedRef.current) return;
 

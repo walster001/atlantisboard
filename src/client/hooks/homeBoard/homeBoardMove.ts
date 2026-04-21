@@ -10,26 +10,41 @@ import {
   moveHomeBoardOptimistic,
 } from './homeBoardLayout.js';
 
+const REORDER_BOARD_PAGE_SIZE = 100;
+
+const REORDER_BOARD_SUMMARY_FIELDS = [
+  'workspaceId',
+  'position',
+  'name',
+  'description',
+  'background',
+  'visibility',
+  'ownerId',
+  'members',
+  'createdAt',
+  'updatedAt',
+] as const;
+
 export async function fetchBoardsForWorkspaceReorder(workspaceId: string): Promise<BoardDB[]> {
-  const boardsResponse = await api.getBoards({
-    workspaceId,
-    view: 'summary',
-    cacheBust: true,
-    fields: [
-      'workspaceId',
-      'position',
-      'name',
-      'description',
-      'background',
-      'visibility',
-      'ownerId',
-      'members',
-      'createdAt',
-      'updatedAt',
-    ],
-  });
-  const raw = (boardsResponse as { boards: unknown[] }).boards;
-  return raw.map((board) => transformBoard(board));
+  const acc: BoardDB[] = [];
+  let skip = 0;
+  for (;;) {
+    const boardsResponse = await api.getBoards({
+      workspaceId,
+      view: 'summary',
+      cacheBust: true,
+      fields: [...REORDER_BOARD_SUMMARY_FIELDS],
+      skip,
+      limit: REORDER_BOARD_PAGE_SIZE,
+    });
+    const raw = boardsResponse.boards;
+    acc.push(...raw.map((board) => transformBoard(board)));
+    if (boardsResponse.hasMore !== true || raw.length < REORDER_BOARD_PAGE_SIZE) {
+      break;
+    }
+    skip += REORDER_BOARD_PAGE_SIZE;
+  }
+  return acc;
 }
 
 export interface HomeBoardMoveInput {

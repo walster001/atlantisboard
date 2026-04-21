@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader, Box, Text, Title, Group, ActionIcon } from '@mantine/core';
 import { IconArrowLeft, IconLayoutKanbanFilled, IconLink, IconSettings } from '@tabler/icons-react';
@@ -6,17 +7,22 @@ import { useSync } from '../hooks/useSync.js';
 import { useSocket } from '../hooks/useSocket.js';
 import { UserMenu } from '../components/UserMenu.js';
 import { db, type BoardDB, type BoardSettingsLivePatch, type ListDB } from '../store/database.js';
+import { loadKanbanCardsMapFromDexie } from '../utils/kanbanDexieLoad.js';
 import {
   subscribeSocketBoardUpdated,
   subscribeSocketListCreated,
   subscribeSocketListDeleted,
   subscribeSocketListUpdated,
+  subscribeSocketListsBulkColorUpdated,
 } from '../utils/socketRealtimeBridge.js';
 const KanbanView = lazy(async () => {
   const m = await import('../components/board/KanbanView.js');
   return { default: m.KanbanView };
 });
-import { BoardCardDetailOverlay } from '../components/card/BoardCardDetailOverlay.js';
+import {
+  BoardCardDetailOverlay,
+  preloadCardDetailView,
+} from '../components/card/BoardCardDetailOverlay.js';
 import type { CardDB } from '../store/database.js';
 import { BoardSettingsModal } from '../components/board/BoardSettingsModal.js';
 import { BoardInvitesModal } from '../components/board/BoardInvitesModal.js';
@@ -33,11 +39,14 @@ export default function BoardPage() {
   const overlayCardId = searchParams.get('card')?.trim() || null;
   const [board, setBoard] = useState<BoardDB | null>(null);
   const [lists, setLists] = useState<ListDB[]>([]);
+  /** Built during initial route load so Kanban can paint lists+cards in one frame (no staggered Dexie read). */
+  const [initialKanbanCards, setInitialKanbanCards] = useState<Map<string, CardDB[]> | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showInvites, setShowInvites] = useState(false);
   const [cardsRefreshKey, setCardsRefreshKey] = useState(0);
   const [cardHydrateEpoch, setCardHydrateEpoch] = useState(0);
+  const [overlayInitialCard, setOverlayInitialCard] = useState<CardDB | null>(null);
   const boardCardPatchRef = useRef<((card: CardDB) => void) | null>(null);
   const { syncBoardData } = useSync();
   const { appBranding, branding: loginBranding } = useAppBranding();
@@ -64,40 +73,59 @@ export default function BoardPage() {
   }, [permissionsLoaded, permissions]);
   const canOpenSettings = can('boards.members.view') || can('boards.update') || can('boards.settings.update');
 
-  const loadData = useCallback(async () => {
-    if (!boardId || !isMountedRef.current) return;
+  const loadData = useCallback(
+    async (options?: { mode?: 'initial' | 'quiet' }) => {
+      if (!boardId || !isMountedRef.current) return;
 
-    try {
-      if (isMountedRef.current) {
-        setLoading(true);
+      const mode = options?.mode ?? 'quiet';
+      const isInitial = mode === 'initial';
+
+      try {
+        await syncBoardData(boardId);
+
+        if (!isMountedRef.current) return;
+
+        const boardData = await db.boards.get(boardId);
+        const boardLists = await db.lists.where('boardId').equals(boardId).sortBy('position');
+        const kanbanCardsMap = await loadKanbanCardsMapFromDexie(boardLists);
+
+        if (isInitial) {
+          await import('../components/board/KanbanView.js');
+        }
+
+        if (isMountedRef.current) {
+          setBoard(boardData || null);
+          setLists(boardLists);
+          if (isInitial) {
+            setInitialKanbanCards(kanbanCardsMap);
+          } else {
+            setInitialKanbanCards(null);
+            setCardHydrateEpoch((e) => e + 1);
+          }
+        }
+      } catch {
+        /* load failed */
+      } finally {
+        if (isInitial && isMountedRef.current) {
+          setLoading(false);
+        }
       }
-      await syncBoardData(boardId);
-
-      if (!isMountedRef.current) return;
-
-      const boardData = await db.boards.get(boardId);
-      const boardLists = await db.lists.where('boardId').equals(boardId).sortBy('position');
-
-      if (isMountedRef.current) {
-        setBoard(boardData || null);
-        setLists(boardLists);
-        setCardHydrateEpoch((e) => e + 1);
-      }
-    } catch {
-      /* load failed */
-    } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [boardId, syncBoardData]);
+    },
+    [boardId, syncBoardData],
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
     if (!boardId) {
       return undefined;
     }
-    void loadData();
+    flushSync(() => {
+      setLoading(true);
+      setBoard(null);
+      setLists([]);
+      setInitialKanbanCards(null);
+    });
+    void loadData({ mode: 'initial' });
     return () => {
       isMountedRef.current = false;
     };
@@ -153,11 +181,27 @@ export default function BoardPage() {
       setLists((prev) => prev.filter((l) => l.id !== listId));
     });
 
+    const unsubListsBulkColor = subscribeSocketListsBulkColorUpdated(({ boardId: bid }) => {
+      if (!isMountedRef.current || bid !== boardId) {
+        return;
+      }
+      void db.lists
+        .where('boardId')
+        .equals(boardId)
+        .sortBy('position')
+        .then((boardLists) => {
+          if (isMountedRef.current) {
+            setLists(boardLists);
+          }
+        });
+    });
+
     return () => {
       unsubBoard();
       unsubListCreated();
       unsubListUpdated();
       unsubListDeleted();
+      unsubListsBulkColor();
     };
   }, [boardId]);
 
@@ -165,8 +209,14 @@ export default function BoardPage() {
     navigate('/');
   }, [navigate]);
 
+  const handleListsReorderedFromKanban = useCallback((next: ListDB[]) => {
+    setLists(next);
+  }, []);
+
   const handleOpenCard = useCallback(
     (card: CardDB) => {
+      preloadCardDetailView();
+      setOverlayInitialCard(card);
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
@@ -180,6 +230,7 @@ export default function BoardPage() {
   );
 
   const handleCloseCardOverlay = useCallback(() => {
+    setOverlayInitialCard(null);
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -189,6 +240,9 @@ export default function BoardPage() {
       { replace: true },
     );
   }, [setSearchParams]);
+
+  const overlayInitialCardForId =
+    overlayCardId != null && overlayInitialCard?.id === overlayCardId ? overlayInitialCard : undefined;
 
   if (loading) {
     return (
@@ -297,11 +351,10 @@ export default function BoardPage() {
             lists={lists}
             cardsRefreshKey={cardsRefreshKey}
             cardHydrateEpoch={cardHydrateEpoch}
+            {...(initialKanbanCards != null ? { preloadedCardsByListId: initialKanbanCards } : {})}
             boardCardPatchRef={boardCardPatchRef}
             kanbanCaps={kanbanCaps}
-            onListsReordered={(next) => {
-              setLists(next);
-            }}
+            onListsReordered={handleListsReorderedFromKanban}
             onOpenCard={handleOpenCard}
           />
         </Suspense>
@@ -343,9 +396,10 @@ export default function BoardPage() {
         <BoardCardDetailOverlay
           boardId={board.id}
           cardId={overlayCardId}
+          {...(overlayInitialCardForId !== undefined ? { initialCard: overlayInitialCardForId } : {})}
           boardSettings={board.settings}
           onClose={handleCloseCardOverlay}
-          onCardDuplicated={loadData}
+          onCardDuplicated={() => void loadData({ mode: 'quiet' })}
           onCardDeleted={() => setCardsRefreshKey((k) => k + 1)}
           onCardUpdated={(c) => {
             boardCardPatchRef.current?.(c);

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { memo, useCallback, useMemo, useRef } from 'react';
 import {
   Alert,
   Button,
@@ -6,7 +6,9 @@ import {
   Paper,
   Stack,
   Text,
+  ThemeIcon,
 } from '@mantine/core';
+import { IconPhotoOff } from '@tabler/icons-react';
 import type {
   InlineButtonIconReplacement,
   WekanLegacyInlineButtonCandidate,
@@ -34,7 +36,7 @@ function uniqueByIconSrc(
   return out;
 }
 
-export function ReplaceButtonsTab({
+export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
   buttons,
   replacements,
   onChangeReplacements,
@@ -50,7 +52,7 @@ export function ReplaceButtonsTab({
     return map;
   }, [replacements]);
 
-  const handlePick = async (iconSrc: string, file: File): Promise<void> => {
+  const handlePick = useCallback(async (iconSrc: string, file: File): Promise<void> => {
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -70,7 +72,7 @@ export function ReplaceButtonsTab({
       ...filtered,
       { iconSrc, replacementDataUrl: dataUrl },
     ]);
-  };
+  }, [onChangeReplacements, replacements]);
 
   if (uniqueButtons.length === 0) {
     return (
@@ -104,13 +106,19 @@ export function ReplaceButtonsTab({
                   size="xs"
                   variant="light"
                   leftSection={
-                    <img
-                      src={replacement?.replacementDataUrl ?? button.iconSrc}
-                      alt=""
-                      width={16}
-                      height={16}
-                      style={{ borderRadius: 3, objectFit: 'cover' }}
-                    />
+                    replacement?.replacementDataUrl ? (
+                      <img
+                        src={replacement.replacementDataUrl}
+                        alt=""
+                        width={16}
+                        height={16}
+                        style={{ borderRadius: 3, objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <ThemeIcon size={16} radius="sm" variant="light" color="gray">
+                        <IconPhotoOff size={11} />
+                      </ThemeIcon>
+                    )
                   }
                 >
                   {button.buttonText}
@@ -118,7 +126,10 @@ export function ReplaceButtonsTab({
               </Group>
 
               <Text size="xs" c="dimmed">
-                Original icon source: {button.iconSrc}
+                Original icon source:{' '}
+                <Text component="span" inherit style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                  {button.iconSrc}
+                </Text>
               </Text>
               {button.cardTitle ? (
                 <Text size="xs" c="dimmed">
@@ -159,5 +170,5 @@ export function ReplaceButtonsTab({
       })}
     </Stack>
   );
-}
+});
 

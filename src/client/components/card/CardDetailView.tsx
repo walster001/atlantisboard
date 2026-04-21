@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Editor } from '@tiptap/core';
 import {
   Modal,
@@ -147,40 +147,30 @@ export function CardDetailView({
   );
 
   const dueTimeKey = card.dueDate != null ? new Date(card.dueDate).getTime() : 0;
+  const parsedDescription = useMemo(() => parseCardDescriptionJson(card.description), [card.description]);
+  const isDescriptionEmpty = useMemo(
+    () => isCardDescriptionEmpty(parsedDescription),
+    [parsedDescription],
+  );
 
   useEffect(() => {
     setDueLocal(card.dueDate ? toDatetimeLocalValue(new Date(card.dueDate)) : '');
   }, [dueTimeKey]);
 
   useEffect(() => {
-    if (initialCard.id !== card.id) {
+    const current = cardRef.current;
+    if (initialCard.id !== current.id) {
       setCard(initialCard);
       setTitle(initialCard.title);
       return;
     }
     if (!isEditing && !isEditingDescription) {
-      if (shouldAcceptIncomingCard(card, initialCard)) {
+      if (shouldAcceptIncomingCard(current, initialCard)) {
         setCard(initialCard);
         setTitle(initialCard.title);
       }
     }
-  }, [
-    initialCard,
-    initialCard.id,
-    initialCard.title,
-    initialCard.description,
-    initialCard.listId,
-    initialCard.boardId,
-    initialCard.dueDate != null ? new Date(initialCard.dueDate).getTime() : 0,
-    initialCard.updatedAt,
-    initialCard.comments.length,
-    card,
-    card.id,
-    card.updatedAt,
-    card.comments.length,
-    isEditing,
-    isEditingDescription,
-  ]);
+  }, [initialCard, isEditing, isEditingDescription]);
 
   const handleUpdateTitle = async () => {
     if (title.trim() === card.title) {
@@ -363,7 +353,7 @@ export function CardDetailView({
     }
   };
 
-  const handleSaveDueDate = async () => {
+  const handleSaveDueDate = useCallback(async () => {
     if (!dueLocal.trim()) {
       notifications.show({
         color: 'yellow',
@@ -405,9 +395,9 @@ export function CardDetailView({
     } finally {
       setLoading(false);
     }
-  };
+  }, [card.id, dueLocal, syncCardToBoardAndDexie]);
 
-  const handleClearDueDate = async (): Promise<void> => {
+  const handleClearDueDate = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
       const response = await api.updateCard(card.id, { dueDate: null });
@@ -431,7 +421,7 @@ export function CardDetailView({
     } finally {
       setLoading(false);
     }
-  };
+  }, [card.id, syncCardToBoardAndDexie]);
 
   const handleDeleteCard = () => {
     modals.openConfirmModal({
@@ -623,7 +613,7 @@ export function CardDetailView({
                     }}
                     onClick={() => setIsEditingDescription(true)}
                   >
-                    {isCardDescriptionEmpty(parseCardDescriptionJson(card.description)) ? (
+                    {isDescriptionEmpty ? (
                       <Text {...cardDetailEmptyStateProps}>
                         Click to add a description…
                       </Text>

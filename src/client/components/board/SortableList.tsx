@@ -12,6 +12,7 @@ import {
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { IconDots } from '@tabler/icons-react';
+import { isAxiosError } from 'axios';
 import { db, type ListDB, type CardDB, type BoardDB } from '../../store/database.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
 import { api } from '../../utils/api.js';
@@ -42,6 +43,8 @@ interface SortableListProps {
   onOpenCard: (card: CardDB) => void;
   onCardUpdatedOnBoard: (card: CardDB) => void;
   onCardDeletedFromBoard: (cardId: string) => void;
+  /** After bulk card colour API + Dexie patch, reload Kanban card state from IndexedDB. */
+  onKanbanCardsReload?: () => void;
 }
 
 function sortableListPropsEqual(
@@ -65,6 +68,7 @@ function sortableListPropsEqual(
     prev.onOpenCard === next.onOpenCard &&
     prev.onCardUpdatedOnBoard === next.onCardUpdatedOnBoard &&
     prev.onCardDeletedFromBoard === next.onCardDeletedFromBoard &&
+    prev.onKanbanCardsReload === next.onKanbanCardsReload &&
     prev.kanbanCaps.canAddList === next.kanbanCaps.canAddList &&
     prev.kanbanCaps.canListMenu === next.kanbanCaps.canListMenu &&
     prev.kanbanCaps.canAddCard === next.kanbanCaps.canAddCard &&
@@ -91,6 +95,7 @@ function SortableListInner({
   onOpenCard,
   onCardUpdatedOnBoard,
   onCardDeletedFromBoard,
+  onKanbanCardsReload,
   kanbanCaps,
 }: SortableListProps) {
   const [renameModalOpen, setRenameModalOpen] = useState(false);
@@ -264,18 +269,21 @@ function SortableListInner({
 
   const updateBoardListsColor = useCallback(
     async (hex: string): Promise<{ updated: number; failed: number }> => {
-      const boardLists = await db.lists.where('boardId').equals(boardId).toArray();
-      const results = await Promise.allSettled(
-        boardLists.map(async (boardList) => {
-          const res = await api.updateList(boardList.id, { color: hex });
-          const next = transformList((res as { list: unknown }).list);
-          await db.lists.put(next);
-        }),
-      );
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      const updated = results.length - failed;
-      onListUpdated?.();
-      return { updated, failed };
+      try {
+        const res = await api.patchBoardListsBulkColor(boardId, { color: hex });
+        const trimmed = hex.trim();
+        await db.lists.where('boardId').equals(boardId).modify((l) => {
+          if (trimmed === '') {
+            delete l.color;
+          } else {
+            l.color = trimmed;
+          }
+        });
+        onListUpdated?.();
+        return { updated: res.updatedCount, failed: 0 };
+      } catch {
+        return { updated: 0, failed: 1 };
+      }
     },
     [boardId, onListUpdated],
   );
@@ -338,6 +346,18 @@ function SortableListInner({
             color: 'green',
           });
         } catch (e) {
+          if (isAxiosError(e) && e.response?.status === 404) {
+            await db.cards.where('listId').equals(list.id).delete();
+            await db.lists.delete(list.id);
+            onListUpdated?.();
+            notifications.show({
+              title: 'List removed',
+              message:
+                'This list was already gone on the server. Your board has been updated to match.',
+              color: 'green',
+            });
+            return;
+          }
           notifications.show({
             title: 'Error',
             message: e instanceof Error ? e.message : 'Failed to delete list',
@@ -346,7 +366,7 @@ function SortableListInner({
         }
       },
     });
-  }, [list.id, list.name]);
+  }, [list.id, list.name, onListUpdated]);
 
   const saveCardColourForId = async (cardId: string, hex: string): Promise<void> => {
     try {
@@ -366,19 +386,23 @@ function SortableListInner({
 
   const updateCurrentListCardsColor = useCallback(
     async (hex: string): Promise<{ updated: number; failed: number }> => {
-      const listCards = await db.cards.where('listId').equals(list.id).toArray();
-      const results = await Promise.allSettled(
-        listCards.map(async (listCard) => {
-          const response = await api.updateCard(listCard.id, { color: hex });
-          const updated = normalizeCardFromApi((response as { card: unknown }).card, listCard.id);
-          await db.cards.put(updated);
-          onCardUpdatedOnBoard(updated);
-        }),
-      );
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      return { updated: results.length - failed, failed };
+      try {
+        const res = await api.patchBoardCardsBulkColor(boardId, { color: hex, listId: list.id });
+        const trimmed = hex.trim();
+        await db.cards.where('listId').equals(list.id).modify((c) => {
+          if (trimmed === '') {
+            delete c.color;
+          } else {
+            c.color = trimmed;
+          }
+        });
+        onKanbanCardsReload?.();
+        return { updated: res.updatedCount, failed: 0 };
+      } catch {
+        return { updated: 0, failed: 1 };
+      }
     },
-    [list.id, onCardUpdatedOnBoard],
+    [boardId, list.id, onKanbanCardsReload],
   );
 
   const handleApplyColorToAllInList = useCallback(

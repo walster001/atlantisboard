@@ -294,7 +294,9 @@ class ApiClient {
     fields?: readonly string[];
     /** Avoid stale cached GET responses when re-reading order after a reorder. */
     cacheBust?: boolean;
-  }): Promise<{ boards: unknown[] }> {
+    skip?: number;
+    limit?: number;
+  }): Promise<{ boards: unknown[]; hasMore?: boolean }> {
     const params = new URLSearchParams();
     if (options?.workspaceId !== undefined) {
       params.set('workspaceId', options.workspaceId);
@@ -305,27 +307,39 @@ class ApiClient {
     if (Array.isArray(options?.fields) && options.fields.length > 0) {
       params.set('fields', options.fields.join(','));
     }
+    if (options?.skip !== undefined) {
+      params.set('skip', String(options.skip));
+    }
+    if (options?.limit !== undefined) {
+      params.set('limit', String(options.limit));
+    }
     if (options?.cacheBust === true) {
       params.set('_', String(Date.now()));
     }
     const suffix = params.toString();
     const response = await this.client.get(`/boards${suffix === '' ? '' : `?${suffix}`}`);
-    return response.data;
+    return response.data as { boards: unknown[]; hasMore?: boolean };
   }
 
   async getBoardsByWorkspace(
     workspaceId: string,
-    options?: { view?: 'summary' | 'detail' }
-  ): Promise<{ boards: unknown[] }> {
+    options?: { view?: 'summary' | 'detail'; skip?: number; limit?: number }
+  ): Promise<{ boards: unknown[]; hasMore?: boolean }> {
     const params = new URLSearchParams();
     if (options?.view !== undefined) {
       params.set('view', options.view);
+    }
+    if (options?.skip !== undefined) {
+      params.set('skip', String(options.skip));
+    }
+    if (options?.limit !== undefined) {
+      params.set('limit', String(options.limit));
     }
     const suffix = params.toString();
     const response = await this.client.get(
       `/boards/workspace/${workspaceId}${suffix === '' ? '' : `?${suffix}`}`
     );
-    return response.data;
+    return response.data as { boards: unknown[]; hasMore?: boolean };
   }
 
   async getBoard(
@@ -592,6 +606,36 @@ class ApiClient {
       `/boards/${boardId}/kanban-snapshot${suffix === '' ? '' : `?${suffix}`}`
     );
     return response.data;
+  }
+
+  async postBoardCardDescriptionsBatch(
+    boardId: string,
+    cardIds: readonly string[],
+  ): Promise<{
+    cards: ReadonlyArray<{ id: string; description: string; descriptionHtml?: string }>;
+  }> {
+    const response = await this.client.post(`/boards/${boardId}/cards/descriptions-batch`, {
+      cardIds: [...cardIds],
+    });
+    return response.data as {
+      cards: ReadonlyArray<{ id: string; description: string; descriptionHtml?: string }>;
+    };
+  }
+
+  async patchBoardListsBulkColor(
+    boardId: string,
+    body: { color: string },
+  ): Promise<{ updatedCount: number }> {
+    const response = await this.client.patch(`/boards/${boardId}/lists/bulk-color`, body);
+    return response.data as { updatedCount: number };
+  }
+
+  async patchBoardCardsBulkColor(
+    boardId: string,
+    body: { color: string; listId?: string },
+  ): Promise<{ updatedCount: number }> {
+    const response = await this.client.patch(`/boards/${boardId}/cards/bulk-color`, body);
+    return response.data as { updatedCount: number };
   }
 
   async getCard(id: string): Promise<{ card: unknown }> {
@@ -1176,6 +1220,57 @@ class ApiClient {
   async unlockUser(userId: string): Promise<{ message: string }> {
     const response = await this.client.post(`/admin/users/${userId}/unlock`);
     return response.data;
+  }
+
+  async getAdminUsers(options?: {
+    readonly q?: string;
+    readonly limit?: number;
+    readonly cursor?: string;
+  }): Promise<{
+    users: Array<{
+      _id: string;
+      displayName: string;
+      email: string;
+      username: string;
+      isAppAdmin: boolean;
+      createdAt: string;
+      lastLogin?: string;
+      emailVerified: boolean;
+      failedLoginAttempts: number;
+      authProvider: 'password' | 'google' | 'google+password' | 'none';
+    }>;
+    nextCursor?: string;
+  }> {
+    const params = new URLSearchParams();
+    if (options?.q !== undefined && options.q.trim() !== '') {
+      params.set('q', options.q.trim());
+    }
+    if (options?.limit !== undefined) {
+      params.set('limit', String(options.limit));
+    }
+    if (options?.cursor !== undefined && options.cursor.trim() !== '') {
+      params.set('cursor', options.cursor.trim());
+    }
+    const response = await this.client.get(`/admin/users?${params.toString()}`);
+    return response.data as {
+      users: Array<{
+        _id: string;
+        displayName: string;
+        email: string;
+        username: string;
+        isAppAdmin: boolean;
+        createdAt: string;
+        lastLogin?: string;
+        emailVerified: boolean;
+        failedLoginAttempts: number;
+        authProvider: 'password' | 'google' | 'google+password' | 'none';
+      }>;
+      nextCursor?: string;
+    };
+  }
+
+  async deleteAdminUser(userId: string): Promise<void> {
+    await this.client.delete(`/admin/users/${encodeURIComponent(userId)}`);
   }
 
   async getFontsCatalog(): Promise<{ fonts: PublicCustomFontEntry[] }> {

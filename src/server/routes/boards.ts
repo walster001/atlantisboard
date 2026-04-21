@@ -25,6 +25,11 @@ import {
   BOARD_DESCRIPTION_MAX_LENGTH,
   BOARD_NAME_MAX_LENGTH,
 } from '../../shared/constants/entityTextLimits.js';
+import { bulkUpdateListColorsForBoard } from '../services/listService.js';
+import {
+  bulkUpdateCardColorsForBoard,
+  getCardDescriptionFieldsBatchForBoard,
+} from '../services/cardService.js';
 
 const router = Router();
 
@@ -77,6 +82,21 @@ const reorderBoardsSchema = z.object({
 const boardViewQuerySchema = z.object({
   view: z.enum(['summary', 'detail']).optional(),
   fields: z.string().optional(),
+  skip: z.coerce.number().int().min(0).max(100_000).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+const cardDescriptionsBatchBodySchema = z.object({
+  cardIds: z.array(z.string().min(1)).min(1).max(200),
+});
+
+const bulkListColorBodySchema = z.object({
+  color: z.string().max(64),
+});
+
+const bulkCardColorBodySchema = z.object({
+  color: z.string().max(64),
+  listId: z.string().min(1).optional(),
 });
 function selectFields(items: unknown[], fieldsCsv: string | undefined): unknown[] {
   if (fieldsCsv === undefined || fieldsCsv.trim() === '') {
@@ -161,11 +181,22 @@ router.get('/', async (req, res, next) => {
     const authReq = req as AuthenticatedRequest;
     const workspaceId = req.query.workspaceId as string | undefined;
     const query = boardViewQuerySchema.parse(req.query);
-    const options = query.view !== undefined ? { view: query.view } : undefined;
+    const options =
+      query.view === undefined && query.skip === undefined && query.limit === undefined
+        ? undefined
+        : {
+            ...(query.view !== undefined ? { view: query.view } : {}),
+            ...(query.skip !== undefined ? { skip: query.skip } : {}),
+            ...(query.limit !== undefined ? { limit: query.limit } : {}),
+          };
     const boards = await getUserBoards(authReq.user.id, workspaceId, options);
     const responseBoards =
       query.view === 'summary' ? selectFields(boards, query.fields) : boards;
-    res.json({ boards: responseBoards });
+    const hasMore = query.limit !== undefined && boards.length === query.limit;
+    res.json({
+      boards: responseBoards,
+      ...(query.limit !== undefined ? { hasMore } : {}),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({
@@ -187,11 +218,22 @@ router.get('/workspace/:workspaceId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const query = boardViewQuerySchema.parse(req.query);
-    const options = query.view !== undefined ? { view: query.view } : undefined;
+    const options =
+      query.view === undefined && query.skip === undefined && query.limit === undefined
+        ? undefined
+        : {
+            ...(query.view !== undefined ? { view: query.view } : {}),
+            ...(query.skip !== undefined ? { skip: query.skip } : {}),
+            ...(query.limit !== undefined ? { limit: query.limit } : {}),
+          };
     const boards = await getBoardsByWorkspace(req.params.workspaceId, authReq.user.id, options);
     const responseBoards =
       query.view === 'summary' ? selectFields(boards, query.fields) : boards;
-    res.json({ boards: responseBoards });
+    const hasMore = query.limit !== undefined && boards.length === query.limit;
+    res.json({
+      boards: responseBoards,
+      ...(query.limit !== undefined ? { hasMore } : {}),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({
@@ -239,6 +281,120 @@ router.get('/:id/kanban-snapshot', async (req, res, next) => {
           statusCode: 400,
           details: error.issues,
         },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.post('/:id/cards/descriptions-batch', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const boardId = req.params.id;
+    const body = cardDescriptionsBatchBodySchema.parse(req.body);
+    const cards = await getCardDescriptionFieldsBatchForBoard(boardId, authReq.user.id, body.cardIds);
+    res.json({ cards });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          details: error.issues,
+        },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message === 'Board not found') {
+      res.status(404).json({
+        error: { message: 'Board not found', code: 'NOT_FOUND', statusCode: 404 },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message.includes('Insufficient permissions')) {
+      res.status(403).json({
+        error: { message: error.message, code: 'FORBIDDEN', statusCode: 403 },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.patch('/:id/lists/bulk-color', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const boardId = req.params.id;
+    const body = bulkListColorBodySchema.parse(req.body);
+    const result = await bulkUpdateListColorsForBoard(boardId, body.color, authReq.user.id);
+    res.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          details: error.issues,
+        },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message === 'Board not found') {
+      res.status(404).json({
+        error: { message: 'Board not found', code: 'NOT_FOUND', statusCode: 404 },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message.includes('Insufficient permissions')) {
+      res.status(403).json({
+        error: { message: error.message, code: 'FORBIDDEN', statusCode: 403 },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.patch('/:id/cards/bulk-color', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const boardId = req.params.id;
+    const body = bulkCardColorBodySchema.parse(req.body);
+    const result = await bulkUpdateCardColorsForBoard(boardId, authReq.user.id, {
+      color: body.color,
+      listId: body.listId,
+    });
+    res.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          details: error.issues,
+        },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message === 'Board not found') {
+      res.status(404).json({
+        error: { message: 'Board not found', code: 'NOT_FOUND', statusCode: 404 },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message === 'List not found on board') {
+      res.status(400).json({
+        error: { message: error.message, code: 'BAD_REQUEST', statusCode: 400 },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message.includes('Insufficient permissions')) {
+      res.status(403).json({
+        error: { message: error.message, code: 'FORBIDDEN', statusCode: 403 },
       });
       return;
     }

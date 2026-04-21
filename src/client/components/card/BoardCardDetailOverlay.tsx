@@ -3,14 +3,28 @@ import { Modal, Loader, Box, Text, Button, Stack } from '@mantine/core';
 import { useCardDetailLoader } from '../../hooks/useCardDetailLoader.js';
 import type { BoardDB, CardDB } from '../../store/database.js';
 
+let cardDetailViewModulePromise: Promise<typeof import('./CardDetailView.js')> | undefined;
+
+function loadCardDetailViewModule(): Promise<typeof import('./CardDetailView.js')> {
+  if (cardDetailViewModulePromise === undefined) {
+    cardDetailViewModulePromise = import('./CardDetailView.js');
+  }
+  return cardDetailViewModulePromise;
+}
+
+export function preloadCardDetailView(): void {
+  void loadCardDetailViewModule();
+}
+
 const CardDetailViewLazy = lazy(async () => {
-  const m = await import('./CardDetailView.js');
+  const m = await loadCardDetailViewModule();
   return { default: m.CardDetailView };
 });
 
 interface BoardCardDetailOverlayProps {
   boardId: string;
   cardId: string;
+  initialCard?: CardDB;
   boardSettings?: BoardDB['settings'];
   onClose: () => void;
   onCardDuplicated?: () => void;
@@ -22,13 +36,14 @@ interface BoardCardDetailOverlayProps {
 export function BoardCardDetailOverlay({
   boardId,
   cardId,
+  initialCard,
   boardSettings,
   onClose,
   onCardDuplicated,
   onCardDeleted,
   onCardUpdated,
 }: BoardCardDetailOverlayProps) {
-  const { card, loading } = useCardDetailLoader(cardId);
+  const { card, loading } = useCardDetailLoader(cardId, initialCard);
 
   if (loading) {
     return (

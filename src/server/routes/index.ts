@@ -17,6 +17,7 @@ import { attachmentRoutes } from './attachments.js';
 import { csrfRoutes } from './csrf.js';
 import { brandingRoutes } from './branding.js';
 import { fontRoutes } from './fonts.js';
+import { importInlineRoutes } from './importInline.js';
 
 export const apiRoutes = Router();
 
@@ -25,6 +26,9 @@ apiRoutes.use('/csrf', csrfRoutes);
 
 // Public branding assets (MinIO branding bucket)
 apiRoutes.use('/branding', brandingRoutes);
+
+// Wekan-import inline button icons (MinIO import-inline bucket)
+apiRoutes.use('/import-inline', importInlineRoutes);
 
 // Public custom fonts (MinIO fonts bucket)
 apiRoutes.use('/fonts', fontRoutes);

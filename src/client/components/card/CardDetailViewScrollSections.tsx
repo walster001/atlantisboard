@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { memo, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import {
   ActionIcon,
   Box,
@@ -96,7 +96,7 @@ export interface CardDetailViewScrollSectionsProps {
   readonly onBeforeDeleteAttachment?: (attachmentId: string) => Promise<void>;
 }
 
-export function CardDetailViewScrollSections({
+export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSections({
   card,
   boardId,
   loading,
@@ -136,71 +136,62 @@ export function CardDetailViewScrollSections({
                 : '';
               return (
                 <>
-                  <Button
-                    size="sm"
-                    variant="default"
-                    leftSection={<IconCalendar size={16} />}
-                    styles={{
-                      root: {
-                        backgroundColor: '#f0f1f4',
-                        border: 'none',
-                        color: 'var(--mantine-color-dark-7)',
-                        borderRadius: 8,
-                        paddingInline: 'var(--mantine-spacing-md)',
-                        fontWeight: 500,
-                        boxShadow: 'none',
-                        width: 'fit-content',
-                        maxWidth: '100%',
-                        '&:hover': {
-                          backgroundColor: '#e4e6ea',
-                          color: 'var(--mantine-color-dark-7)',
-                        },
-                        '&:disabled': {
+                  <Group gap="xs" align="center" wrap="wrap">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      leftSection={<IconCalendar size={16} />}
+                      styles={{
+                        root: {
                           backgroundColor: '#f0f1f4',
-                          opacity: 0.55,
+                          border: 'none',
+                          color: 'var(--mantine-color-dark-7)',
+                          borderRadius: 8,
+                          paddingInline: 'var(--mantine-spacing-md)',
+                          fontWeight: 500,
+                          boxShadow: 'none',
+                          width: 'fit-content',
+                          maxWidth: '100%',
+                          '&:hover': {
+                            backgroundColor: '#e4e6ea',
+                            color: 'var(--mantine-color-dark-7)',
+                          },
+                          '&:disabled': {
+                            backgroundColor: '#f0f1f4',
+                            opacity: 0.55,
+                          },
                         },
-                      },
-                      label: { color: 'var(--mantine-color-dark-7)' },
-                      section: { color: 'var(--mantine-color-dark-7)', pointerEvents: 'auto' },
-                    }}
-                    onClick={() => setDuePickerOpened(true)}
-                    disabled={loading}
-                    rightSection={
-                      card.dueDate ? (
-                        <ActionIcon
-                          size="xs"
-                          variant="transparent"
-                          color="gray"
-                          aria-label="Clear due date"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            void onClearDueDate();
-                          }}
-                          styles={{
-                            root: {
-                              color: 'var(--mantine-color-gray-7)',
-                              '&:hover': {
-                                backgroundColor: 'var(--mantine-color-gray-2)',
-                              },
-                            },
-                          }}
-                        >
-                          <IconX size={12} />
-                        </ActionIcon>
-                      ) : null
-                    }
-                  >
-                    {card.dueDate
-                      ? new Date(card.dueDate).toLocaleString(undefined, {
-                          year: 'numeric',
-                          month: 'numeric',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })
-                      : 'Set due date'}
-                  </Button>
+                        label: { color: 'var(--mantine-color-dark-7)' },
+                        section: { color: 'var(--mantine-color-dark-7)', pointerEvents: 'auto' },
+                      }}
+                      onClick={() => setDuePickerOpened(true)}
+                      disabled={loading}
+                    >
+                      {card.dueDate
+                        ? new Date(card.dueDate).toLocaleString(undefined, {
+                            year: 'numeric',
+                            month: 'numeric',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })
+                        : 'Set due date'}
+                    </Button>
+                    {card.dueDate ? (
+                      <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color="gray"
+                        aria-label="Clear due date"
+                        onClick={() => {
+                          void onClearDueDate();
+                        }}
+                        disabled={loading}
+                      >
+                        <IconX size={14} />
+                      </ActionIcon>
+                    ) : null}
+                  </Group>
                   <Modal
                     opened={duePickerOpened}
                     onClose={() => setDuePickerOpened(false)}
@@ -362,4 +353,4 @@ export function CardDetailViewScrollSections({
       ) : null}
     </>
   );
-}
+});

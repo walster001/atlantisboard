@@ -253,8 +253,8 @@ export function transformList(list: unknown): ListDB {
     updatedAt?: Date | string;
   };
 
-  const id = l.id || (typeof l._id === 'string' ? l._id : l._id?.toString() || '');
-  const boardId = typeof l.boardId === 'string' ? l.boardId : l.boardId?.toString() || '';
+  const id = extractMongoStringId(l.id) || extractMongoStringId(l._id);
+  const boardId = extractMongoStringId(l.boardId);
 
   return {
     id,

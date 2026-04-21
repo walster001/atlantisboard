@@ -4,7 +4,8 @@ import { Board, type IBoard } from '../models/Board.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { createActivity } from './activityService.js';
-import { hasPermission } from '../utils/permissions.js';
+import { hasPermission, isBoardMember } from '../utils/permissions.js';
+import mongoose from 'mongoose';
 import { emitToBoard } from '../utils/socketIO.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
 import type { Document } from 'mongoose';
@@ -17,6 +18,7 @@ import {
 import type { CardDetailDTO, CardSummaryDTO } from '../../shared/types/viewModels.js';
 import { renderCardDescriptionHtml } from '../utils/cardDescriptionHtml.js';
 import { CARD_TITLE_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
+import { removeImportInlineObjectsForCardFields } from './importInlineAssetService.js';
 
 function getBoardListCardLimits(board: Document & IBoard): { max: number; enforce: boolean } {
   const s = board.settings;
@@ -283,6 +285,8 @@ export async function deleteCard(cardId: string, userId: string): Promise<boolea
   }
 
   const boardIdStr = card.boardId.toString();
+
+  await removeImportInlineObjectsForCardFields(card.description, card.descriptionHtml);
 
   await Card.findByIdAndDelete(cardId);
 
@@ -637,6 +641,109 @@ export async function getBoardKanbanSnapshot(
     cardsByList[list._id.toString()] = cards.map((card) => toCardSummary(card));
   }
   return { lists, cardsByList };
+}
+
+const BOARD_CARD_DESCRIPTION_BATCH_MAX = 200;
+
+export interface CardDescriptionFieldRow {
+  readonly id: string;
+  readonly description: string;
+  readonly descriptionHtml?: string | undefined;
+}
+
+export async function getCardDescriptionFieldsBatchForBoard(
+  boardId: string,
+  userId: string,
+  cardIds: readonly string[],
+): Promise<CardDescriptionFieldRow[]> {
+  const board = await Board.findById(boardId);
+  if (!board) {
+    throw new Error('Board not found');
+  }
+  const canAccess =
+    board.ownerId.toString() === userId ||
+    (await isBoardMember(userId, boardId)) ||
+    board.visibility === 'public';
+  if (!canAccess) {
+    throw new Error('Insufficient permissions to view board cards');
+  }
+
+  const unique = [...new Set(cardIds.map((id) => id.trim()).filter((id) => id !== ''))];
+  const capped = unique.slice(0, BOARD_CARD_DESCRIPTION_BATCH_MAX);
+  const oids = capped
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (oids.length === 0) {
+    return [];
+  }
+
+  const docs = await Card.find({
+    boardId,
+    _id: { $in: oids },
+  }).select('_id description descriptionHtml');
+
+  return docs.map((c) => {
+    const id = c._id.toString();
+    const description = typeof c.description === 'string' ? c.description : '';
+    const descriptionHtml =
+      typeof c.descriptionHtml === 'string' && c.descriptionHtml.trim() !== ''
+        ? c.descriptionHtml
+        : undefined;
+    return descriptionHtml === undefined
+      ? { id, description }
+      : { id, description, descriptionHtml };
+  });
+}
+
+export async function bulkUpdateCardColorsForBoard(
+  boardId: string,
+  userId: string,
+  input: { color: string; listId?: string | undefined },
+): Promise<{ updatedCount: number }> {
+  const board = await Board.findById(boardId);
+  if (!board) {
+    throw new Error('Board not found');
+  }
+
+  if (board.ownerId.toString() !== userId) {
+    const allowed = await hasPermission({ id: userId }, boardId, 'cards.update');
+    if (!allowed) {
+      throw new Error('Insufficient permissions to update cards');
+    }
+  }
+
+  const color = input.color.trim();
+  const filter: { boardId: string; listId?: mongoose.Types.ObjectId } = { boardId };
+  if (input.listId != null && input.listId.trim() !== '') {
+    const listIdTrim = input.listId.trim();
+    if (!mongoose.Types.ObjectId.isValid(listIdTrim)) {
+      throw new Error('List not found on board');
+    }
+    const list = await List.findById(listIdTrim).select('boardId');
+    if (list == null || list.boardId.toString() !== boardId) {
+      throw new Error('List not found on board');
+    }
+    filter.listId = new mongoose.Types.ObjectId(listIdTrim);
+  }
+
+  const updateResult = await Card.updateMany(filter, { $set: { color } });
+  emitToBoard(boardId, 'cards:bulk-color-updated', {
+    boardId,
+    ...(input.listId != null && input.listId.trim() !== '' ? { listId: input.listId.trim() } : {}),
+    color,
+    serverTs: Date.now(),
+  });
+
+  logAuditEvent({
+    userId,
+    action: 'card.bulk_color',
+    resourceType: 'board',
+    resourceId: boardId,
+    metadata: { listId: input.listId?.trim() ?? null },
+    timestamp: new Date(),
+  });
+
+  return { updatedCount: updateResult.modifiedCount ?? 0 };
 }
 
 export interface AddReminderInput {

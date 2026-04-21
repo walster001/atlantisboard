@@ -24,6 +24,8 @@ import {
   emitSocketBoardLabelsChanged,
   emitSocketInvitesChanged,
   emitSocketHomeBoardsPositionsSynced,
+  emitSocketCardsBulkColorUpdated,
+  emitSocketListsBulkColorUpdated,
   type SocketInvitesChangedPayload,
 } from '../utils/socketRealtimeBridge.js';
 import {
@@ -509,6 +511,58 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     });
   });
 
+  socket.on('lists:bulk-color-updated', (data: { boardId: string; color: string; serverTs?: number }) => {
+    deferSocketWork(() => {
+      const trimmed = typeof data.color === 'string' ? data.color.trim() : '';
+      void db.lists
+        .where('boardId')
+        .equals(data.boardId)
+        .modify((l) => {
+          if (trimmed === '') {
+            delete l.color;
+          } else {
+            l.color = trimmed;
+          }
+        })
+        .then(() => {
+          emitSocketListsBulkColorUpdated({ boardId: data.boardId });
+        })
+        .catch(() => {
+          /* bulk list colour Dexie patch failed */
+        });
+    });
+  });
+
+  socket.on(
+    'cards:bulk-color-updated',
+    (data: { boardId: string; listId?: string; color: string; serverTs?: number }) => {
+      deferSocketWork(() => {
+        const colorRaw = typeof data.color === 'string' ? data.color : '';
+        const trimmed = colorRaw.trim();
+        const scopedListId =
+          typeof data.listId === 'string' && data.listId.trim() !== '' ? data.listId.trim() : null;
+        const q =
+          scopedListId != null
+            ? db.cards.where('listId').equals(scopedListId)
+            : db.cards.where('boardId').equals(data.boardId);
+        void q
+          .modify((c) => {
+            if (trimmed === '') {
+              delete c.color;
+            } else {
+              c.color = trimmed;
+            }
+          })
+          .then(() => {
+            emitSocketCardsBulkColorUpdated({ boardId: data.boardId });
+          })
+          .catch(() => {
+            /* bulk color Dexie patch failed */
+          });
+      });
+    },
+  );
+
   socket.on(
     'card:duplicated',
     (data: { duplicatedCardId: string; boardId: string; data: unknown }) => {
@@ -552,6 +606,8 @@ function detachGlobalRealtimeHandlers(socket: Socket): void {
   socket.off('invite:created');
   socket.off('invite:updated');
   socket.off('invite:deleted');
+  socket.off('lists:bulk-color-updated');
+  socket.off('cards:bulk-color-updated');
   socket.off('card:duplicated');
 }
 

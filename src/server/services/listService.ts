@@ -1,11 +1,13 @@
 import { List, type IList } from '../models/List.js';
 import { Card } from '../models/Card.js';
 import { Board } from '../models/Board.js';
+import { removeStoredImportInlineObjectsForListIds } from './importInlineAssetService.js';
 import { emitToBoard } from '../utils/socketIO.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { hasPermission } from '../utils/permissions.js';
 import type { Document } from 'mongoose';
+import mongoose from 'mongoose';
 
 export interface CreateListInput {
   boardId: string;
@@ -141,8 +143,51 @@ export async function updateList(
   return list;
 }
 
+export async function bulkUpdateListColorsForBoard(
+  boardId: string,
+  colorRaw: string,
+  userId: string,
+): Promise<{ updatedCount: number }> {
+  const board = await Board.findById(boardId);
+  if (!board) {
+    throw new Error('Board not found');
+  }
+
+  if (board.ownerId.toString() !== userId) {
+    const allowed = await hasPermission({ id: userId }, boardId, 'lists.update');
+    if (!allowed) {
+      throw new Error('Insufficient permissions to update lists');
+    }
+  }
+
+  const color = colorRaw.trim();
+  const updateResult = await List.updateMany({ boardId }, { $set: { color } });
+  const modified = updateResult.modifiedCount ?? 0;
+
+  emitToBoard(boardId, 'lists:bulk-color-updated', {
+    boardId,
+    color,
+    serverTs: Date.now(),
+  });
+
+  logAuditEvent({
+    userId,
+    action: 'list.bulk_color',
+    resourceType: 'board',
+    resourceId: boardId,
+    metadata: { modifiedCount: modified },
+    timestamp: new Date(),
+  });
+
+  return { updatedCount: modified };
+}
+
 export async function deleteList(listId: string, userId: string): Promise<boolean> {
-  const list = await List.findById(listId);
+  const trimmed = listId.trim();
+  if (trimmed === '' || !mongoose.Types.ObjectId.isValid(trimmed)) {
+    return false;
+  }
+  const list = await List.findById(trimmed);
   if (!list) {
     return false;
   }
@@ -160,13 +205,14 @@ export async function deleteList(listId: string, userId: string): Promise<boolea
     }
   }
 
-  // Delete all cards in list
+  // Delete all cards in list (clean import-inline icons before dropping card rows)
+  await removeStoredImportInlineObjectsForListIds([list._id]);
   await Card.deleteMany({ listId: list._id });
 
-  await List.findByIdAndDelete(listId);
+  await List.findByIdAndDelete(trimmed);
 
   emitToBoard(list.boardId.toString(), 'list:deleted', {
-    listId,
+    listId: trimmed,
     boardId: list.boardId.toString(),
   });
 
@@ -174,7 +220,7 @@ export async function deleteList(listId: string, userId: string): Promise<boolea
     userId,
     action: 'list.delete',
     resourceType: 'list',
-    resourceId: listId,
+    resourceId: trimmed,
     timestamp: new Date(),
   });
 

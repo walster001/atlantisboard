@@ -64,6 +64,38 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// Reorder lists — must be registered before `/:id` so `/reorder` is never captured as an id.
+router.post('/reorder', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { boardId, listIds } = req.body;
+    if (!boardId || !Array.isArray(listIds)) {
+      res.status(400).json({
+        error: {
+          message: 'Invalid request body',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+    await reorderLists(boardId, listIds, authReq.user.id);
+    res.json({ message: 'Lists reordered successfully' });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('permissions')) {
+      res.status(403).json({
+        error: {
+          message: error.message,
+          code: 'FORBIDDEN',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
 // Get lists by board
 router.get('/board/:boardId', async (req, res, next) => {
   try {
@@ -175,38 +207,6 @@ router.delete('/:id', async (req, res, next) => {
       return;
     }
     res.json({ message: 'List deleted successfully' });
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
-  }
-});
-
-// Reorder lists
-router.post('/reorder', async (req, res, next) => {
-  try {
-    const authReq = req as AuthenticatedRequest;
-    const { boardId, listIds } = req.body;
-    if (!boardId || !Array.isArray(listIds)) {
-      res.status(400).json({
-        error: {
-          message: 'Invalid request body',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-        },
-      });
-      return;
-    }
-    await reorderLists(boardId, listIds, authReq.user.id);
-    res.json({ message: 'Lists reordered successfully' });
   } catch (error) {
     if (error instanceof Error && error.message.includes('permissions')) {
       res.status(403).json({

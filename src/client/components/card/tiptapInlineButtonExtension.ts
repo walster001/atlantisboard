@@ -38,6 +38,28 @@ function clampWidth(
   return w;
 }
 
+function normalizeWidthPx(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return `${Math.round(value)}px`;
+  }
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (trimmed === '') {
+    return undefined;
+  }
+  const match = /^([0-9]+(?:\.[0-9]+)?)(px)?$/i.exec(trimmed);
+  if (match == null) {
+    return undefined;
+  }
+  const parsed = Number(match[1]);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return `${Math.round(parsed)}px`;
+}
+
 function extractWidthFromStyle(style: string): string | null {
   const m = style.match(/width:\s*([0-9.]+)px/);
   return m ? m[1] : null;
@@ -258,6 +280,7 @@ function applyButtonVisuals(anchor: HTMLAnchorElement, attrs: Record<string, unk
   const iconSrc = typeof attrs.iconSrc === 'string' && attrs.iconSrc.trim() !== '' ? attrs.iconSrc : '';
   const iconSizePx =
     typeof attrs.iconSizePx === 'number' && Number.isFinite(attrs.iconSizePx) ? attrs.iconSizePx : 16;
+  const explicitWidth = normalizeWidthPx(attrs.width);
 
   anchor.setAttribute('href', href);
   anchor.setAttribute('class', 'card-desc-inline-button');
@@ -269,7 +292,7 @@ function applyButtonVisuals(anchor: HTMLAnchorElement, attrs: Record<string, unk
     'justify-content: center',
     'gap: 8px',
     'box-sizing: border-box',
-    'width: 100%',
+    `width: ${explicitWidth ?? '320px'}`,
     'padding: 8px 14px',
     'text-decoration: none',
     `color: ${textColor}`,
@@ -670,6 +693,7 @@ export const TiptapInlineButton = TiptapNode.create({
       borderRadiusPx,
       iconSrc,
       iconSizePx,
+      width,
       offsetXPx,
       offsetYPx,
     } = node.attrs as {
@@ -680,17 +704,22 @@ export const TiptapInlineButton = TiptapNode.create({
       borderRadiusPx: number;
       iconSrc: string | null;
       iconSizePx: number;
+      width?: string | number | null;
       offsetXPx?: number;
       offsetYPx?: number;
     };
     const ox = clampOffset(typeof offsetXPx === 'number' ? offsetXPx : 0);
     const oy = clampOffset(typeof offsetYPx === 'number' ? offsetYPx : 0);
+    const explicitWidth = normalizeWidthPx(width);
     const style = [
       'display: inline-flex',
       'align-items: center',
       'justify-content: center',
       'gap: 8px',
       'box-sizing: border-box',
+      `width: ${explicitWidth ?? '320px'}`,
+      'max-width: 100%',
+      'align-self: flex-start',
       'padding: 8px 14px',
       'text-decoration: none',
       `color: ${textColor}`,

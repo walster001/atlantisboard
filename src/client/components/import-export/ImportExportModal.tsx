@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   Tabs,
@@ -36,8 +36,16 @@ import {
   normalizePresetHex,
 } from '../../constants/boardPresetColors.js';
 import { loginBrandingColorInputProps } from '../../constants/loginBrandingColorInputProps.js';
-import { ReplaceButtonsTab } from './ReplaceButtonsTab.js';
-import { ImportUserManagementTab } from './ImportUserManagementTab.js';
+
+const ReplaceButtonsTab = lazy(async () => {
+  const m = await import('./ReplaceButtonsTab.js');
+  return { default: m.ReplaceButtonsTab };
+});
+
+const ImportUserManagementTab = lazy(async () => {
+  const m = await import('./ImportUserManagementTab.js');
+  return { default: m.ImportUserManagementTab };
+});
 
 interface ImportExportModalProps {
   boardId?: string;
@@ -130,7 +138,18 @@ function buildImportSuccessMessage(
     const cardCount = typeof result?.cardCount === 'number' ? result.cardCount : 0;
     return `Successfully imported ${boardName} with ${listCount} list${listCount === 1 ? '' : 's'} and ${cardCount} card${cardCount === 1 ? '' : 's'}.`;
   }
-  if (source === 'csv' || source === 'wekan') {
+  if (source === 'wekan') {
+    const boardName =
+      result != null &&
+      typeof result.boardName === 'string' &&
+      result.boardName.trim().length > 0
+        ? result.boardName.trim()
+        : 'your board';
+    const listCount = typeof result?.listCount === 'number' ? result.listCount : 0;
+    const cardCount = typeof result?.cardCount === 'number' ? result.cardCount : 0;
+    return `Successfully imported ${boardName} with ${listCount} list${listCount === 1 ? '' : 's'} and ${cardCount} card${cardCount === 1 ? '' : 's'}.`;
+  }
+  if (source === 'csv') {
     const msg = result != null && typeof result.message === 'string' ? result.message : undefined;
     return msg ?? 'Import completed.';
   }
@@ -235,23 +254,23 @@ export function ImportExportModal({
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
 
-  const preflightUsers: readonly ImportPreflightUser[] = preflight?.users.users ?? [];
+  const preflightUsers: readonly ImportPreflightUser[] = useMemo(() => preflight?.users.users ?? [], [preflight]);
   const needsUserManagement = (importType === 'trello' || importType === 'wekan') && preflightUsers.length > 0;
-  const wekanButtons = importType === 'wekan' ? preflight?.wekanButtons?.buttons ?? [] : [];
+  const wekanButtons = useMemo(() => (importType === 'wekan' ? preflight?.wekanButtons?.buttons ?? [] : []), [importType, preflight]);
   const needsReplaceButtons = importType === 'wekan' && wekanButtons.length > 0;
 
-  const unresolvedUsersCount = preflightUsers.filter((u) => {
+  const unresolvedUsersCount = useMemo(() => preflightUsers.filter((u) => {
     const d = userDecisions.find((x) => x.sourceUserId === u.sourceUserId);
     return d == null || (d.mappedUserId == null && d.discard !== true);
-  }).length;
-  const unresolvedButtonsCount = (() => {
+  }).length, [preflightUsers, userDecisions]);
+  const unresolvedButtonsCount = useMemo(() => {
     if (!needsReplaceButtons) {
       return 0;
     }
     const uniqueIconCount = new Set(wekanButtons.map((b) => b.iconSrc)).size;
     const replacedIconCount = new Set(inlineButtonReplacements.map((r) => r.iconSrc)).size;
     return Math.max(0, uniqueIconCount - replacedIconCount);
-  })();
+  }, [inlineButtonReplacements, needsReplaceButtons, wekanButtons]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -268,14 +287,14 @@ export function ImportExportModal({
     };
   }, []);
 
-  const resetPreflightState = (): void => {
+  const resetPreflightState = useCallback((): void => {
     setPreflight(null);
     setUserDecisions([]);
     setInlineButtonReplacements([]);
     setUnmappedUserPolicy('map_to_importer');
-  };
+  }, []);
 
-  const runPreflightForFile = async (nextFile: File, nextImportType: ImportType): Promise<void> => {
+  const runPreflightForFile = useCallback(async (nextFile: File, nextImportType: ImportType): Promise<void> => {
     if (nextImportType !== 'trello' && nextImportType !== 'wekan') {
       resetPreflightState();
       return;
@@ -315,7 +334,7 @@ export function ImportExportModal({
     } finally {
       setPreflightBusy(false);
     }
-  };
+  }, [resetPreflightState]);
 
   const handleImport = async () => {
     if (!file || !importType) return;
@@ -524,6 +543,24 @@ export function ImportExportModal({
 
   const importBlocked = !!jobId && loading;
   const cancelDisabled = loading && !jobId;
+  const isUserManagementTab = activeTab === 'import-user-management';
+  const modalStyles = isUserManagementTab
+    ? {
+        content: {
+          width: 'min(70vw, calc(100vw - 48px))',
+          maxWidth: 'min(70vw, calc(100vw - 48px))',
+          height: 'min(80vh, calc(100vh - 48px))',
+          maxHeight: 'min(80vh, calc(100vh - 48px))',
+          display: 'flex',
+          flexDirection: 'column' as const,
+        },
+        body: {
+          flex: '1 1 auto',
+          minHeight: 0,
+          overflow: 'auto',
+        },
+      }
+    : undefined;
 
   const modalTitle =
     activeTab === 'import' ? (
@@ -552,12 +589,17 @@ export function ImportExportModal({
       onClose={jobId ? () => {} : onClose}
       title={modalTitle}
       centered
-      size="lg"
+      size={isUserManagementTab ? 'auto' : 'lg'}
       radius="md"
       padding="lg"
       overlayProps={{ backgroundOpacity: 0.45 }}
+      {...(modalStyles != null ? { styles: modalStyles } : {})}
     >
-      <Tabs value={activeTab} onChange={(value) => setActiveTab((value || 'import') as TabType)}>
+      <Tabs
+        value={activeTab}
+        onChange={(value) => setActiveTab((value || 'import') as TabType)}
+        keepMounted={false}
+      >
         <Tabs.List mb="md">
           <Tabs.Tab value="import">Import</Tabs.Tab>
           {needsReplaceButtons ? <Tabs.Tab value="replace-buttons">Replace Buttons</Tabs.Tab> : null}
@@ -766,11 +808,13 @@ export function ImportExportModal({
 
         <Tabs.Panel value="replace-buttons">
           <Stack gap="md">
-            <ReplaceButtonsTab
-              buttons={wekanButtons}
-              replacements={inlineButtonReplacements}
-              onChangeReplacements={(next) => setInlineButtonReplacements([...next])}
-            />
+            <Suspense fallback={<Loader size="sm" />}>
+              <ReplaceButtonsTab
+                buttons={wekanButtons}
+                replacements={inlineButtonReplacements}
+                onChangeReplacements={(next) => setInlineButtonReplacements([...next])}
+              />
+            </Suspense>
             <Group justify="flex-end" gap="sm" mt="md">
               <Button
                 variant="default"
@@ -804,13 +848,15 @@ export function ImportExportModal({
 
         <Tabs.Panel value="import-user-management">
           <Stack gap="md">
-            <ImportUserManagementTab
-              users={preflightUsers}
-              decisions={userDecisions}
-              policy={unmappedUserPolicy}
-              onChangeDecisions={(next) => setUserDecisions([...next])}
-              onChangePolicy={setUnmappedUserPolicy}
-            />
+            <Suspense fallback={<Loader size="sm" />}>
+              <ImportUserManagementTab
+                users={preflightUsers}
+                decisions={userDecisions}
+                policy={unmappedUserPolicy}
+                onChangeDecisions={(next) => setUserDecisions([...next])}
+                onChangePolicy={setUnmappedUserPolicy}
+              />
+            </Suspense>
             <Group justify="space-between" gap="sm" mt="md">
               <Text size="xs" c={unresolvedUsersCount > 0 ? 'orange' : 'green'}>
                 {unresolvedUsersCount} unresolved user(s); policy: {unmappedUserPolicy}

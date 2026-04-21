@@ -1,4 +1,4 @@
-import { useState, startTransition, useEffect } from 'react';
+import { lazy, Suspense, useState, startTransition, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ActionIcon,
@@ -23,6 +23,11 @@ import { CustomFontsSection } from '../components/admin/CustomFontsSection.js';
 import { RolesPermissionsTab } from '../components/admin/RolesPermissionsTab.js';
 import { useAuthContext } from '../contexts/AuthContext.js';
 
+const AdminUsersTab = lazy(async () => {
+  const m = await import('../components/admin/AdminUsersTab.js');
+  return { default: m.AdminUsersTab };
+});
+
 /** Main Configuration / Customisation pill tabs */
 const MAIN_TAB_ICON_SIZE = 22;
 const MAIN_TAB_ICON_STROKE = 1.5;
@@ -31,6 +36,7 @@ const CONFIGURATION_SUBTABS = [
   { value: 'general', label: 'General' },
   { value: 'login-options', label: 'Login options' },
   { value: 'permissions', label: 'Permissions' },
+  { value: 'users', label: 'Users' },
   { value: 'integrations', label: 'Integrations' },
 ] as const;
 
@@ -160,6 +166,10 @@ export default function AdminConfigurationPage() {
                 <LoginOptionsSection />
               ) : configSubtab === 'permissions' ? (
                 <RolesPermissionsTab />
+              ) : configSubtab === 'users' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminUsersTab currentUserId={user.id} />
+                </Suspense>
               ) : (
                 <Stack gap="xs">
                   <Title order={3}>{activeSubLabel}</Title>
@@ -215,5 +225,15 @@ export default function AdminConfigurationPage() {
         </Tabs.Panel>
       </Tabs>
     </Box>
+  );
+}
+
+function LoaderCentered() {
+  return (
+    <Group justify="center" py="md">
+      <Text size="sm" c="dimmed">
+        Loading users...
+      </Text>
+    </Group>
   );
 }

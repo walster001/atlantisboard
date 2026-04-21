@@ -76,6 +76,16 @@ export interface SocketHomeBoardsPositionsSyncedPayload {
   readonly sequence?: number;
 }
 
+/** Fired after IndexedDB is patched for a server-driven `cards:bulk-color-updated` event. */
+export interface SocketCardsBulkColorPayload {
+  readonly boardId: string;
+}
+
+/** Fired after IndexedDB is patched for a server-driven `lists:bulk-color-updated` event. */
+export interface SocketListsBulkColorPayload {
+  readonly boardId: string;
+}
+
 type Unsubscribe = () => void;
 
 const cardUpdatedSubs = new Set<(p: SocketCardUpdatedPayload) => void>();
@@ -92,6 +102,8 @@ const listDeletedSubs = new Set<(p: SocketListDeletedPayload) => void>();
 const boardLabelsChangedSubs = new Set<(p: SocketBoardLabelsChangedPayload) => void>();
 const invitesChangedSubs = new Set<(p: SocketInvitesChangedPayload) => void>();
 const homeBoardsPositionsSyncedSubs = new Set<(p: SocketHomeBoardsPositionsSyncedPayload) => void>();
+const cardsBulkColorSubs = new Set<(p: SocketCardsBulkColorPayload) => void>();
+const listsBulkColorSubs = new Set<(p: SocketListsBulkColorPayload) => void>();
 
 export function subscribeSocketCardUpdated(fn: (p: SocketCardUpdatedPayload) => void): Unsubscribe {
   cardUpdatedSubs.add(fn);
@@ -283,6 +295,36 @@ export function subscribeSocketHomeBoardsPositionsSynced(
 
 export function emitSocketHomeBoardsPositionsSynced(p: SocketHomeBoardsPositionsSyncedPayload): void {
   for (const fn of homeBoardsPositionsSyncedSubs) {
+    fn(p);
+  }
+}
+
+export function subscribeSocketCardsBulkColorUpdated(
+  fn: (p: SocketCardsBulkColorPayload) => void,
+): Unsubscribe {
+  cardsBulkColorSubs.add(fn);
+  return () => {
+    cardsBulkColorSubs.delete(fn);
+  };
+}
+
+export function emitSocketCardsBulkColorUpdated(p: SocketCardsBulkColorPayload): void {
+  for (const fn of cardsBulkColorSubs) {
+    fn(p);
+  }
+}
+
+export function subscribeSocketListsBulkColorUpdated(
+  fn: (p: SocketListsBulkColorPayload) => void,
+): Unsubscribe {
+  listsBulkColorSubs.add(fn);
+  return () => {
+    listsBulkColorSubs.delete(fn);
+  };
+}
+
+export function emitSocketListsBulkColorUpdated(p: SocketListsBulkColorPayload): void {
+  for (const fn of listsBulkColorSubs) {
     fn(p);
   }
 }

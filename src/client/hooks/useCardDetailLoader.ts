@@ -8,12 +8,14 @@ import { normalizeCardFromApi } from '../utils/transform.js';
  * Loads a single card for detail UI (Dexie first for fast paint, then GET /cards/:id).
  * Relies on Dexie `liveQuery` for realtime updates (socket handlers write to `db.cards`).
  */
-export function useCardDetailLoader(cardId: string | null): {
+export function useCardDetailLoader(cardId: string | null, initialCard?: CardDB): {
   card: CardDB | null;
   loading: boolean;
 } {
-  const [card, setCard] = useState<CardDB | null>(null);
-  const [loading, setLoading] = useState(!!cardId);
+  const [card, setCard] = useState<CardDB | null>(() =>
+    cardId != null && initialCard?.id === cardId ? initialCard : null,
+  );
+  const [loading, setLoading] = useState(() => !(cardId != null && initialCard?.id === cardId));
   const isMountedRef = useRef(true);
   const sawRowRef = useRef(false);
   const initialLoadFinishedRef = useRef(false);
@@ -28,13 +30,19 @@ export function useCardDetailLoader(cardId: string | null): {
       setCard(null);
       return undefined;
     }
+    const hasMatchingInitial = initialCard?.id === cardId;
+    if (hasMatchingInitial) {
+      sawRowRef.current = true;
+      setCard(initialCard);
+      setLoading(false);
+    }
 
     const loadCard = async (): Promise<void> => {
       if (!isMountedRef.current) {
         return;
       }
 
-      let showedCache = false;
+      let showedCache = hasMatchingInitial;
       try {
         const cached = await db.cards.get(cardId);
         if (isMountedRef.current && cached != null) {
@@ -111,7 +119,7 @@ export function useCardDetailLoader(cardId: string | null): {
       isMountedRef.current = false;
       dexieSub.unsubscribe();
     };
-  }, [cardId]);
+  }, [cardId, initialCard]);
 
   return { card, loading };
 }

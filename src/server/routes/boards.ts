@@ -20,7 +20,15 @@ import {
 import { User } from '../models/User.js';
 import { hasPermission } from '../utils/permissions.js';
 import { RoleDefinition } from '../models/RoleDefinition.js';
-import { isBuiltInRoleKey, isValidCustomRoleKey } from '../services/roleService.js';
+import { Board } from '../models/Board.js';
+import { Workspace } from '../models/Workspace.js';
+import {
+  type BoardMemberRoleUpdateModeKey,
+  canAssignByBoardMemberRoleUpdateMode,
+  getRoleHierarchyLevel,
+  isBuiltInRoleKey,
+  isValidCustomRoleKey,
+} from '../services/roleService.js';
 import {
   BOARD_DESCRIPTION_MAX_LENGTH,
   BOARD_NAME_MAX_LENGTH,
@@ -32,6 +40,34 @@ import {
 } from '../services/cardService.js';
 
 const router = Router();
+
+async function resolveBoardRoleUpdateModeForActor(
+  userId: string,
+  boardId: string,
+): Promise<BoardMemberRoleUpdateModeKey | null> {
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.any')) {
+    return 'boards.members.role.update.any';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.samehigher')) {
+    return 'boards.members.role.update.samehigher';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.samelower')) {
+    return 'boards.members.role.update.samelower';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.higher')) {
+    return 'boards.members.role.update.higher';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.lower')) {
+    return 'boards.members.role.update.lower';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.same')) {
+    return 'boards.members.role.update.same';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update')) {
+    return 'boards.members.role.update.samelower';
+  }
+  return null;
+}
 
 router.use(requireAuth as RequestHandler);
 router.use(apiRateLimiter);
@@ -463,11 +499,90 @@ router.get('/:id/roles', async (req, res, next) => {
       });
       return;
     }
+    const board = await Board.findById(boardId).select('ownerId workspaceId members.userId members.roleKey').lean();
+    if (!board) {
+      res.status(404).json({
+        error: {
+          message: 'Board not found',
+          code: 'NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
     const roles = await RoleDefinition.find()
       .sort({ isBuiltIn: -1, key: 1 })
-      .select('key displayName isBuiltIn')
+      .select('key displayName isBuiltIn hierarchyLevel')
       .lean();
-    res.json({ roles });
+
+    const userId = authReq.user.id;
+    if (String(board.ownerId) === userId) {
+      res.json({
+        roles: roles.map((r) => ({ key: r.key, displayName: r.displayName, isBuiltIn: r.isBuiltIn })),
+      });
+      return;
+    }
+
+    let actorRoleKey: string | null = null;
+    const boardMember = (board.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
+      (m) => String(m.userId) === userId,
+    );
+    if (typeof boardMember?.roleKey === 'string' && boardMember.roleKey.trim() !== '') {
+      actorRoleKey = boardMember.roleKey.trim();
+    } else if (board.workspaceId != null) {
+      const workspace = await Workspace.findById(board.workspaceId).select('ownerId members.userId members.roleKey').lean();
+      if (workspace) {
+        if (String(workspace.ownerId) === userId) {
+          actorRoleKey = 'admin';
+        } else {
+          const wsMember = (workspace.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
+            (m) => String(m.userId) === userId,
+          );
+          if (typeof wsMember?.roleKey === 'string' && wsMember.roleKey.trim() !== '') {
+            actorRoleKey = wsMember.roleKey.trim();
+          }
+        }
+      }
+    }
+
+    if (actorRoleKey == null) {
+      res.json({ roles: [] });
+      return;
+    }
+
+    const actorLevel = await getRoleHierarchyLevel(actorRoleKey);
+    const mode = await resolveBoardRoleUpdateModeForActor(userId, boardId);
+    if (actorLevel == null || mode == null) {
+      res.json({ roles: [] });
+      return;
+    }
+
+    const filtered: Array<{ key: string; displayName: string; isBuiltIn: boolean }> = [];
+    for (const role of roles) {
+      const level =
+        typeof role.hierarchyLevel === 'number' && Number.isFinite(role.hierarchyLevel)
+          ? role.hierarchyLevel
+          : await getRoleHierarchyLevel(role.key);
+      if (level == null) {
+        continue;
+      }
+      if (mode !== 'boards.members.role.update.any' && level > actorLevel) {
+        continue;
+      }
+      const allowedByMode = canAssignByBoardMemberRoleUpdateMode({
+        mode,
+        actorLevel,
+        targetCurrentLevel: level,
+        targetNextLevel: level,
+        selfChange: false,
+      });
+      if (!allowedByMode) {
+        continue;
+      }
+      filtered.push({ key: role.key, displayName: role.displayName, isBuiltIn: role.isBuiltIn });
+    }
+
+    res.json({ roles: filtered });
   } catch (error) {
     next(error);
   }

@@ -15,7 +15,7 @@ import {
 } from '../services/workspaceService.js';
 import { hasPermission } from '../utils/permissions.js';
 import { RoleDefinition } from '../models/RoleDefinition.js';
-import { isBuiltInRoleKey, isValidCustomRoleKey } from '../services/roleService.js';
+import { getRoleHierarchyLevel, isBuiltInRoleKey, isValidCustomRoleKey } from '../services/roleService.js';
 import { Workspace } from '../models/Workspace.js';
 import { searchRegisteredUsers } from '../services/userDirectoryService.js';
 
@@ -152,6 +152,8 @@ router.get('/:id/permissions/me', async (req, res, next) => {
       'workspaces.members.remove',
       'workspaces.members.role.update',
       'boards.create',
+      'import.trello',
+      'import.wekan',
     ] as const;
     const allowed: string[] = [];
     for (const key of keys) {
@@ -248,11 +250,65 @@ router.get('/:id/roles', async (req, res, next) => {
       });
       return;
     }
+    const workspace = await Workspace.findById(workspaceId).select('ownerId members.userId members.roleKey').lean();
+    if (!workspace) {
+      res.status(404).json({
+        error: {
+          message: 'Workspace not found',
+          code: 'NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
     const roles = await RoleDefinition.find()
       .sort({ isBuiltIn: -1, key: 1 })
-      .select('key displayName isBuiltIn')
+      .select('key displayName isBuiltIn hierarchyLevel')
       .lean();
-    res.json({ roles });
+
+    const userId = authReq.user.id;
+    if (String(workspace.ownerId) === userId) {
+      res.json({
+        roles: roles.map((r) => ({ key: r.key, displayName: r.displayName, isBuiltIn: r.isBuiltIn })),
+      });
+      return;
+    }
+
+    const canUpdateRoles = await hasPermission(userId, workspaceId, 'workspaces.members.role.update', 'workspace');
+    if (!canUpdateRoles) {
+      res.json({ roles: [] });
+      return;
+    }
+
+    const member = (workspace.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
+      (m) => String(m.userId) === userId,
+    );
+    const actorRoleKey =
+      typeof member?.roleKey === 'string' && member.roleKey.trim() !== '' ? member.roleKey.trim() : null;
+    if (actorRoleKey == null) {
+      res.json({ roles: [] });
+      return;
+    }
+
+    const actorLevel = await getRoleHierarchyLevel(actorRoleKey);
+    if (actorLevel == null) {
+      res.json({ roles: [] });
+      return;
+    }
+
+    const filtered: Array<{ key: string; displayName: string; isBuiltIn: boolean }> = [];
+    for (const role of roles) {
+      const level =
+        typeof role.hierarchyLevel === 'number' && Number.isFinite(role.hierarchyLevel)
+          ? role.hierarchyLevel
+          : await getRoleHierarchyLevel(role.key);
+      if (level == null || level > actorLevel) {
+        continue;
+      }
+      filtered.push({ key: role.key, displayName: role.displayName, isBuiltIn: role.isBuiltIn });
+    }
+
+    res.json({ roles: filtered });
   } catch (error) {
     next(error);
   }

@@ -88,6 +88,8 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'checklists.items.delete',
       'comments.create',
       'comments.delete',
+      'import.trello',
+      'import.wekan',
     ],
   },
   {
@@ -130,6 +132,8 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'checklists.items.delete',
       'comments.create',
       'comments.delete',
+      'import.trello',
+      'import.wekan',
     ],
   },
   {
@@ -188,6 +192,68 @@ export async function initializeRoleDefinitions(): Promise<void> {
       $addToSet: {
         permissions: {
           $each: ['comments.delete', 'cards.duplicate', 'boards.reorder_in_home'],
+        },
+      },
+    },
+  ).catch(() => undefined);
+
+  // Permission key migration: import.*.start → import.*
+  await RoleDefinition.updateMany(
+    { permissions: { $in: ['import.trello.start', 'import.wekan.start'] } },
+    [
+      {
+        $set: {
+          permissions: {
+            $let: {
+              vars: {
+                mapped: {
+                  $map: {
+                    input: '$permissions',
+                    as: 'p',
+                    in: {
+                      $switch: {
+                        branches: [
+                          { case: { $eq: ['$$p', 'import.trello.start'] }, then: 'import.trello' },
+                          { case: { $eq: ['$$p', 'import.wekan.start'] }, then: 'import.wekan' },
+                        ],
+                        default: '$$p',
+                      },
+                    },
+                  },
+                },
+              },
+              in: {
+                $reduce: {
+                  input: '$$mapped',
+                  initialValue: [],
+                  in: {
+                    $cond: [
+                      { $in: ['$$this', '$$value'] },
+                      '$$value',
+                      { $concatArrays: ['$$value', ['$$this']] },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    ],
+    { updatePipeline: true },
+  ).catch(() => undefined);
+
+  // Drop deprecated import permission keys.
+  await RoleDefinition.updateMany(
+    {
+      permissions: {
+        $in: ['import.csv.start', 'import.jobs.view_own'],
+      },
+    },
+    {
+      $pull: {
+        permissions: {
+          $in: ['import.csv.start', 'import.jobs.view_own'],
         },
       },
     },

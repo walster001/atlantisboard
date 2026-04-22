@@ -1336,8 +1336,43 @@ class ApiClient {
     };
   }
 
-  async deleteAdminUser(userId: string): Promise<void> {
-    await this.client.delete(`/admin/users/${encodeURIComponent(userId)}`);
+  async deleteAdminUser(userId: string): Promise<{
+    deletedUserId: string;
+    stats: {
+      removedWorkspaceMemberships: number;
+      removedBoardMemberships: number;
+      deletedSessions: number;
+      deletedNotifications: number;
+      deletedImportJobs: number;
+      deletedPermissionSets: number;
+      deletedInvites: number;
+      deletedBoardLabels: number;
+      deletedActivities: number;
+      removedHomeWorkspaceRefs: number;
+      removedCardEmbeddedRefs: number;
+      reassignedCreatedCards: number;
+      deletedUserRecords: number;
+    };
+  }> {
+    const response = await this.client.delete(`/admin/users/${encodeURIComponent(userId)}`);
+    return response.data as {
+      deletedUserId: string;
+      stats: {
+        removedWorkspaceMemberships: number;
+        removedBoardMemberships: number;
+        deletedSessions: number;
+        deletedNotifications: number;
+        deletedImportJobs: number;
+        deletedPermissionSets: number;
+        deletedInvites: number;
+        deletedBoardLabels: number;
+        deletedActivities: number;
+        removedHomeWorkspaceRefs: number;
+        removedCardEmbeddedRefs: number;
+        reassignedCreatedCards: number;
+        deletedUserRecords: number;
+      };
+    };
   }
 
   async getFontsCatalog(): Promise<{ fonts: PublicCustomFontEntry[] }> {

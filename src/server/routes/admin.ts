@@ -41,6 +41,10 @@ import { Activity } from '../models/Activity.js';
 import { Session } from '../models/Session.js';
 import { Notification } from '../models/Notification.js';
 import { InviteLink } from '../models/InviteLink.js';
+import { ImportJob } from '../models/ImportJob.js';
+import { BoardLabel } from '../models/BoardLabel.js';
+import { createActivity } from '../services/activityService.js';
+import { deleteUserAvatar } from '../services/userAvatarService.js';
 
 const router = Router();
 
@@ -688,6 +692,88 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function appMasterRemovalMessage(targetDisplayName: string): string {
+  return `App Master removed ${targetDisplayName}`;
+}
+
+async function removeTargetUserFromWorkspaceMemberships(input: {
+  readonly targetUserId: string;
+  readonly actingAdminId: string;
+  readonly targetDisplayName: string;
+  readonly ipAddress: string | undefined;
+}): Promise<number> {
+  const workspaces = await Workspace.find({ 'members.userId': input.targetUserId })
+    .select('_id')
+    .lean();
+  if (workspaces.length === 0) {
+    return 0;
+  }
+
+  const message = appMasterRemovalMessage(input.targetDisplayName);
+  for (const workspace of workspaces) {
+    const workspaceId = String(workspace._id);
+    await Workspace.updateOne({ _id: workspace._id }, { $pull: { members: { userId: input.targetUserId } } });
+    logAuditEvent({
+      userId: input.actingAdminId,
+      action: 'workspace.member.remove.app_master',
+      resourceType: 'workspace',
+      resourceId: workspaceId,
+      metadata: {
+        removedUserId: input.targetUserId,
+        removedDisplayName: input.targetDisplayName,
+        message,
+      },
+      ipAddress: input.ipAddress,
+      timestamp: new Date(),
+    });
+  }
+  return workspaces.length;
+}
+
+async function removeTargetUserFromBoardMemberships(input: {
+  readonly targetUserId: string;
+  readonly actingAdminId: string;
+  readonly targetDisplayName: string;
+  readonly ipAddress: string | undefined;
+}): Promise<number> {
+  const boards = await Board.find({ 'members.userId': input.targetUserId })
+    .select('_id')
+    .lean();
+  if (boards.length === 0) {
+    return 0;
+  }
+
+  const message = appMasterRemovalMessage(input.targetDisplayName);
+  for (const board of boards) {
+    const boardId = String(board._id);
+    await Board.updateOne({ _id: board._id }, { $pull: { members: { userId: input.targetUserId } } });
+    logAuditEvent({
+      userId: input.actingAdminId,
+      action: 'board.member.remove.app_master',
+      resourceType: 'board',
+      resourceId: boardId,
+      metadata: {
+        removedUserId: input.targetUserId,
+        removedDisplayName: input.targetDisplayName,
+        message,
+      },
+      ipAddress: input.ipAddress,
+      timestamp: new Date(),
+    });
+    createActivity({
+      boardId,
+      userId: input.actingAdminId,
+      type: 'board.member.remove.app_master',
+      description: message,
+      metadata: {
+        targetUserId: input.targetUserId,
+        targetDisplayName: input.targetDisplayName,
+      },
+    });
+  }
+  return boards.length;
+}
+
 router.get('/roles', async (_req, res, next) => {
   try {
     const roles = await RoleDefinition.find().sort({ isBuiltIn: -1, key: 1 }).lean();
@@ -976,13 +1062,42 @@ router.delete('/users/:id', async (req, res, next) => {
       return;
     }
 
-    await Promise.all([
+    const [removedWorkspaceMemberships, removedBoardMemberships] = await Promise.all([
+      removeTargetUserFromWorkspaceMemberships({
+        targetUserId: id,
+        actingAdminId: authReq.user.id,
+        targetDisplayName: targetUser.displayName,
+        ipAddress: req.ip || undefined,
+      }),
+      removeTargetUserFromBoardMemberships({
+        targetUserId: id,
+        actingAdminId: authReq.user.id,
+        targetDisplayName: targetUser.displayName,
+        ipAddress: req.ip || undefined,
+      }),
+    ]);
+
+    const [
+      deletedSessions,
+      deletedNotifications,
+      deletedImportJobs,
+      deletedPermissionSets,
+      deletedInvites,
+      deletedBoardLabels,
+      deletedActivities,
+      removedHomeWorkspaceRefs,
+      removedCardEmbeddedRefs,
+      reassignedCards,
+      deletedUserResult,
+    ] = await Promise.all([
       Session.deleteMany({ userId: id }),
       Notification.deleteMany({ userId: id }),
+      ImportJob.deleteMany({ userId: id }),
+      PermissionSet.deleteMany({ createdBy: id }),
       InviteLink.deleteMany({ createdBy: id }),
+      BoardLabel.deleteMany({ createdBy: id }),
       Activity.deleteMany({ userId: id }),
-      Workspace.updateMany({}, { $pull: { members: { userId: id } } }),
-      Board.updateMany({}, { $pull: { members: { userId: id } } }),
+      User.updateMany({}, { $pull: { 'preferences.homeWorkspaceOrder': id } }),
       Card.updateMany(
         {},
         {
@@ -993,7 +1108,9 @@ router.delete('/users/:id', async (req, res, next) => {
           },
         },
       ),
+      Card.updateMany({ createdBy: id }, { $set: { createdBy: authReq.user.id } }),
       User.deleteOne({ _id: id }),
+      deleteUserAvatar(id),
     ]);
 
     logAuditEvent({
@@ -1004,6 +1121,8 @@ router.delete('/users/:id', async (req, res, next) => {
       metadata: {
         deletedDisplayName: targetUser.displayName,
         deletedEmail: targetUser.email,
+        removedWorkspaceMemberships,
+        removedBoardMemberships,
       },
       ipAddress: req.ip || undefined,
       timestamp: new Date(),
@@ -1015,7 +1134,24 @@ router.delete('/users/:id', async (req, res, next) => {
       serverTs: Date.now(),
     });
 
-    res.status(204).end();
+    res.status(200).json({
+      deletedUserId: id,
+      stats: {
+        removedWorkspaceMemberships,
+        removedBoardMemberships,
+        deletedSessions: deletedSessions.deletedCount ?? 0,
+        deletedNotifications: deletedNotifications.deletedCount ?? 0,
+        deletedImportJobs: deletedImportJobs.deletedCount ?? 0,
+        deletedPermissionSets: deletedPermissionSets.deletedCount ?? 0,
+        deletedInvites: deletedInvites.deletedCount ?? 0,
+        deletedBoardLabels: deletedBoardLabels.deletedCount ?? 0,
+        deletedActivities: deletedActivities.deletedCount ?? 0,
+        removedHomeWorkspaceRefs: removedHomeWorkspaceRefs.modifiedCount ?? 0,
+        removedCardEmbeddedRefs: removedCardEmbeddedRefs.modifiedCount ?? 0,
+        reassignedCreatedCards: reassignedCards.modifiedCount ?? 0,
+        deletedUserRecords: deletedUserResult.deletedCount ?? 0,
+      },
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({

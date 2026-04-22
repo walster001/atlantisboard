@@ -282,10 +282,8 @@ const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'invites.delete': 'Delete/revoke an invite link.',
   'invites.accept': 'Accept an invite link.',
   // import/export
-  'import.trello.start': 'Start a Trello import.',
-  'import.wekan.start': 'Start a Wekan import.',
-  'import.csv.start': 'Start a CSV import.',
-  'import.jobs.view_own': 'View your import job status.',
+  'import.trello': 'Start a Trello import.',
+  'import.wekan': 'Start a Wekan import.',
   'export.board.json': 'Export a board as JSON.',
   'export.board.csv': 'Export a board as CSV.',
   // ui.*
@@ -537,6 +535,11 @@ export function RolesPermissionsTab() {
       }
       // Hide `*.list` keys (list operations are implied by corresponding `*.view`).
       if (key.endsWith('.list')) {
+        continue;
+      }
+      // `*.view` keys are implicitly granted to any board/workspace member (except `invites.view`,
+      // which remains configurable for invite UI). Do not show them as toggles.
+      if (key.endsWith('.view') && key !== 'invites.view') {
         continue;
       }
       if (MEMBERS_ROLE_UPDATE_MODE_KEYS.has(key)) {

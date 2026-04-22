@@ -111,6 +111,8 @@ const BUILTIN_ROLE_PERMISSION_FALLBACKS: Readonly<Record<UserRole, readonly stri
     'comments.create',
     'comments.delete',
     'cards.duplicate',
+    'import.trello',
+    'import.wekan',
   ],
   admin: [
     'workspaces.view',
@@ -164,6 +166,8 @@ const BUILTIN_ROLE_PERMISSION_FALLBACKS: Readonly<Record<UserRole, readonly stri
     'checklists.items.delete',
     'comments.create',
     'comments.delete',
+    'import.trello',
+    'import.wekan',
   ],
 } as const;
 
@@ -172,6 +176,21 @@ function normalizeListPermissionKey(permissionKey: string): string {
     return permissionKey;
   }
   return `${permissionKey.slice(0, -'.list'.length)}.view`;
+}
+
+/**
+ * Resource `*.view` keys are baseline read affordances: any authenticated member of the
+ * board/workspace may read; custom roles must not be able to strip them. `invites.view` stays
+ * permission-gated for UI (invite list visibility). `app.*` / `users.*` are never auto-granted here.
+ */
+function isImplicitlyGrantedResourceViewPermission(permissionKey: string): boolean {
+  if (permissionKey === 'invites.view') {
+    return false;
+  }
+  if (permissionKey.startsWith('app.') || permissionKey.startsWith('users.')) {
+    return false;
+  }
+  return permissionKey.endsWith('.view');
 }
 
 type BuiltInPermissionsCache = Readonly<{
@@ -348,6 +367,9 @@ export async function hasPermission(
       if (isOwnerOnlyPermissionKey(normalizedPermissionKey)) {
         return enforceOwnerOnlyRule(user.id, normalizedPermissionKey, boardId);
       }
+      if (isImplicitlyGrantedResourceViewPermission(normalizedPermissionKey)) {
+        return true;
+      }
       const perms = await getPermissionsForRoleKey(roleKey);
       // Backward compat: allow legacy `<domain>.list` if stored in DB.
       return perms.includes(normalizedPermissionKey) || perms.includes(permissionKey);
@@ -375,6 +397,9 @@ export async function hasPermission(
         const roleKey = (rawKey === 'member' ? 'viewer' : rawKey) as RoleKey;
         const perms = await getPermissionsForRoleKey(roleKey);
         const normalizedPermission = normalizeListPermissionKey(permission);
+        if (isImplicitlyGrantedResourceViewPermission(normalizedPermission)) {
+          return true;
+        }
         return perms.includes(normalizedPermission) || perms.includes(permission);
       }
       if (resourceType === 'board') {

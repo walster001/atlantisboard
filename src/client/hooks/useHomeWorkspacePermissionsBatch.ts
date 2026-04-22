@@ -13,7 +13,9 @@ export type WorkspacePermissionKey =
   | 'workspaces.members.add'
   | 'workspaces.members.remove'
   | 'workspaces.members.role.update'
-  | 'boards.create';
+  | 'boards.create'
+  | 'import.trello'
+  | 'import.wekan';
 
 async function fetchWorkspacePermissionsChunked(
   workspaceIds: readonly string[],

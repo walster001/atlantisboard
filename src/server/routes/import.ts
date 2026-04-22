@@ -8,6 +8,8 @@ import { importWekan } from '../services/import/wekanImportService.js';
 import { importCSV } from '../services/import/csvImportService.js';
 import { ImportJob } from '../models/ImportJob.js';
 import multer from 'multer';
+import { Workspace } from '../models/Workspace.js';
+import { hasPermission } from '../utils/permissions.js';
 import { importPreflightPayloadSchema } from '../../shared/import/importPreflightSchema.js';
 import {
   assertImportJsonMatchesSource,
@@ -79,11 +81,46 @@ function respondIfImportJsonShapeError(res: Response, error: unknown): boolean {
   return false;
 }
 
+async function userHasWorkspaceImportPermission(
+  userId: string,
+  permissionKey: 'import.trello' | 'import.wekan',
+): Promise<boolean> {
+  const workspaces = await Workspace.find({
+    $or: [{ ownerId: userId }, { 'members.userId': userId }],
+  })
+    .select('_id')
+    .lean();
+  for (const workspace of workspaces) {
+    const allowed = await hasPermission(userId, String(workspace._id), permissionKey, 'workspace');
+    if (allowed) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Import Trello JSON
 router.post('/trello', upload.single('file'), async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const validated = importTrelloSchema.parse(req.body);
+    if (typeof validated.workspaceId === 'string' && validated.workspaceId.trim() !== '') {
+      const allowed = await hasPermission(authReq.user.id, validated.workspaceId, 'import.trello', 'workspace');
+      if (!allowed) {
+        res.status(403).json({
+          error: { message: 'Insufficient permissions to import Trello', code: 'FORBIDDEN', statusCode: 403 },
+        });
+        return;
+      }
+    } else {
+      const allowed = await userHasWorkspaceImportPermission(authReq.user.id, 'import.trello');
+      if (!allowed) {
+        res.status(403).json({
+          error: { message: 'Insufficient permissions to import Trello', code: 'FORBIDDEN', statusCode: 403 },
+        });
+        return;
+      }
+    }
 
     if (!req.file) {
       res.status(400).json({
@@ -162,6 +199,15 @@ router.post('/wekan', upload.single('file'), async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const validated = importWekanSchema.parse(req.body);
+    {
+      const allowed = await userHasWorkspaceImportPermission(authReq.user.id, 'import.wekan');
+      if (!allowed) {
+        res.status(403).json({
+          error: { message: 'Insufficient permissions to import Wekan', code: 'FORBIDDEN', statusCode: 403 },
+        });
+        return;
+      }
+    }
 
     if (!req.file) {
       res.status(400).json({
@@ -239,6 +285,19 @@ router.post('/csv', upload.single('file'), async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const validated = importCSVSchema.parse(req.body);
+    {
+      const [canTrello, canWekan] = await Promise.all([
+        userHasWorkspaceImportPermission(authReq.user.id, 'import.trello'),
+        userHasWorkspaceImportPermission(authReq.user.id, 'import.wekan'),
+      ]);
+      const allowed = canTrello || canWekan;
+      if (!allowed) {
+        res.status(403).json({
+          error: { message: 'Insufficient permissions to import CSV', code: 'FORBIDDEN', statusCode: 403 },
+        });
+        return;
+      }
+    }
 
     if (!req.file) {
       res.status(400).json({

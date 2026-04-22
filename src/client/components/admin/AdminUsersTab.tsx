@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
   Alert,
   Box,
@@ -7,6 +7,7 @@ import {
   Loader,
   Modal,
   Paper,
+  Progress,
   Stack,
   Table,
   Text,
@@ -34,6 +35,16 @@ interface AdminUsersTabProps {
 }
 
 const PAGE_LIMIT = 100;
+const MASTER_DELETE_PROGRESS_NOTIFICATION_ID = 'admin-master-delete-progress';
+
+function renderMasterDeleteProgressMessage(label: string, value: number): ReactElement {
+  return (
+    <Stack gap={6}>
+      <Text size="sm">{label}</Text>
+      <Progress value={value} radius="md" size="sm" />
+    </Stack>
+  );
+}
 
 function formatDateTime(value: string | undefined): string {
   if (value == null || value.trim() === '') {
@@ -177,20 +188,48 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
       return;
     }
     setDeletingUserId(confirmDeleteUser._id);
+    notifications.show({
+      id: MASTER_DELETE_PROGRESS_NOTIFICATION_ID,
+      color: 'blue',
+      title: 'Master delete in progress',
+      message: renderMasterDeleteProgressMessage('Removing user data…', 25),
+      loading: true,
+      autoClose: false,
+      withCloseButton: false,
+      position: 'bottom-right',
+    });
     try {
-      await api.deleteAdminUser(confirmDeleteUser._id);
+      const result = await api.deleteAdminUser(confirmDeleteUser._id);
       setUsers((prev) => prev.filter((u) => u._id !== confirmDeleteUser._id));
-      notifications.show({
+      const stats = result.stats;
+      const successMessage = [
+        `${confirmDeleteUser.displayName} removed successfully.`,
+        `Workspaces: ${stats.removedWorkspaceMemberships}`,
+        `Boards: ${stats.removedBoardMemberships}`,
+        `Sessions: ${stats.deletedSessions}`,
+        `Activities: ${stats.deletedActivities}`,
+      ].join(' • ');
+      notifications.update({
+        id: MASTER_DELETE_PROGRESS_NOTIFICATION_ID,
         color: 'green',
-        title: 'User deleted',
-        message: `${confirmDeleteUser.displayName} was removed from the application.`,
+        title: 'Master delete complete',
+        message: successMessage,
+        loading: false,
+        autoClose: 9000,
+        withCloseButton: true,
+        position: 'bottom-right',
       });
       setConfirmDeleteUser(null);
     } catch (e) {
-      notifications.show({
+      notifications.update({
+        id: MASTER_DELETE_PROGRESS_NOTIFICATION_ID,
         color: 'red',
-        title: 'Delete failed',
+        title: 'Master delete failed',
         message: e instanceof Error ? e.message : 'Could not delete user.',
+        loading: false,
+        autoClose: false,
+        withCloseButton: true,
+        position: 'bottom-right',
       });
     } finally {
       setDeletingUserId(null);
@@ -276,12 +315,12 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
       <Modal
         opened={confirmDeleteUser != null}
         onClose={() => setConfirmDeleteUser(null)}
-        title="Delete user"
+        title="Confirm master delete"
         centered
       >
         <Stack gap="sm">
           <Alert color="red" variant="light">
-            Are you sure? This removes the user from the application database entirely.
+            This will run a permanent master delete: remove this user from all boards/workspaces, purge their user data, and delete their account.
           </Alert>
           {confirmDeleteUser ? (
             <Text size="sm">
@@ -299,7 +338,7 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
                 void handleDeleteConfirmed();
               }}
             >
-              Yes, delete user
+              Yes, master delete user
             </Button>
           </Group>
         </Stack>

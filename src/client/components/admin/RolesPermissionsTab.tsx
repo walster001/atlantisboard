@@ -9,7 +9,6 @@ import {
   Group,
   Loader,
   Modal,
-  NumberInput,
   ScrollArea,
   Select,
   Stack,
@@ -19,6 +18,7 @@ import {
   TextInput,
   Textarea,
   Title,
+  Tooltip,
 } from '@mantine/core';
 import {
   IconChecklist,
@@ -52,6 +52,15 @@ type RoleRow = {
 type AppAdminRow = { _id: string; displayName: string; email: string };
 
 const BUILTIN_ROLE_ORDER = ['admin', 'manager', 'viewer'] as const;
+
+const BUILTIN_ROLE_DESCRIPTIONS: Readonly<Record<(typeof BUILTIN_ROLE_ORDER)[number], string>> = {
+  admin:
+    'Full workspace and board administration. Can manage settings, members, invites, structure, and all card content, including high-impact actions.',
+  manager:
+    'Day-to-day board operations role. Can organize lists/cards and manage board membership with constrained hierarchy updates, without full admin governance.',
+  viewer:
+    'Read-only collaboration role. Can access workspace and board content, labels, attachments, and exports, but cannot perform member or content mutations.',
+} as const;
 
 type PermissionCategoryKey =
   | 'workspaces'
@@ -311,6 +320,22 @@ const MEMBERS_ROLE_UPDATE_MODE_OPTIONS: ReadonlyArray<{ value: string; label: st
 ] as const;
 
 const MEMBERS_ROLE_UPDATE_MODE_KEYS = new Set(MEMBERS_ROLE_UPDATE_MODE_OPTIONS.map((o) => o.value));
+
+function clampHierarchyLevel(value: number): number {
+  return Math.max(0, Math.min(1_000_000, Math.floor(value)));
+}
+
+function parseHierarchyFromInput(input: string, fallback: number): number {
+  const digits = input.replace(/\D+/g, '');
+  if (digits === '') {
+    return fallback;
+  }
+  const parsed = Number.parseInt(digits, 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return clampHierarchyLevel(parsed);
+}
 
 function permissionCategoryForKey(permissionKey: string): PermissionCategoryKey {
   if (permissionKey.startsWith('boards.settings.')) return 'board-settings';
@@ -895,11 +920,41 @@ export function RolesPermissionsTab() {
                         </Text>
                       )}
                     </Group>
-                    {activeRole.description ? (
+                    {(activeRole.description ??
+                    (activeRole.isBuiltIn && (activeRole.key in BUILTIN_ROLE_DESCRIPTIONS)
+                      ? BUILTIN_ROLE_DESCRIPTIONS[activeRole.key as (typeof BUILTIN_ROLE_ORDER)[number]]
+                      : undefined)) ? (
                       <Text size="sm" mt={6}>
-                        {activeRole.description}
+                        {activeRole.description ??
+                          (activeRole.isBuiltIn && (activeRole.key in BUILTIN_ROLE_DESCRIPTIONS)
+                            ? BUILTIN_ROLE_DESCRIPTIONS[activeRole.key as (typeof BUILTIN_ROLE_ORDER)[number]]
+                            : '')}
                       </Text>
                     ) : null}
+                    <Tooltip
+                      label="Higher hierarchy number means higher role level. Users cannot assign or promote to roles above their allowed hierarchy/mode."
+                      multiline
+                      maw={420}
+                      openDelay={150}
+                      position="bottom-start"
+                    >
+                      <Box mt={10} maw={220}>
+                        <TextInput
+                          size="sm"
+                          label="Hierarchy"
+                          value={String(draftHierarchyLevels[activeRole.key] ?? activeRole.hierarchyLevel)}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          onChange={(e) => {
+                            const next = parseHierarchyFromInput(
+                              e.currentTarget.value,
+                              activeRole.hierarchyLevel,
+                            );
+                            setHierarchyDraft(activeRole.key, next);
+                          }}
+                        />
+                      </Box>
+                    </Tooltip>
                   </Box>
 
                   {activeRole ? (
@@ -912,23 +967,6 @@ export function RolesPermissionsTab() {
                       >
                         Save changes
                       </Button>
-                      <NumberInput
-                        size="sm"
-                        w={150}
-                        min={0}
-                        max={1000000}
-                        allowDecimal={false}
-                        allowNegative={false}
-                        label="Hierarchy"
-                        labelProps={{ style: { fontSize: 11 } }}
-                        value={draftHierarchyLevels[activeRole.key] ?? activeRole.hierarchyLevel}
-                        onChange={(value) => {
-                          const next = typeof value === 'number' && Number.isFinite(value)
-                            ? Math.max(0, Math.min(1000000, Math.floor(value)))
-                            : activeRole.hierarchyLevel;
-                          setHierarchyDraft(activeRole.key, next);
-                        }}
-                      />
                       {!activeRole.isBuiltIn ? (
                         <Button
                           size="sm"
@@ -1163,16 +1201,14 @@ function CreateRoleModal(props: {
           onChange={(e) => setDescription(e.currentTarget.value)}
           rows={2}
         />
-        <NumberInput
+        <TextInput
           label="Hierarchy number"
-          value={hierarchyLevel}
-          min={0}
-          max={1000000}
-          allowDecimal={false}
-          allowNegative={false}
-          onChange={(value) => {
-            const next = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : 1000;
-            setHierarchyLevel(Math.max(0, Math.min(1000000, next)));
+          value={String(hierarchyLevel)}
+          inputMode="numeric"
+          pattern="[0-9]*"
+          onChange={(e) => {
+            const next = parseHierarchyFromInput(e.currentTarget.value, 1000);
+            setHierarchyLevel(next);
           }}
         />
         <Group justify="flex-end">

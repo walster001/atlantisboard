@@ -33,25 +33,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>(getEffectiveTheme(theme));
 
-  // Apply theme to document
-  useEffect(() => {
-    const effective = getEffectiveTheme(theme);
+  const applyEffectiveToDocument = (effective: 'light' | 'dark'): void => {
     setEffectiveTheme(effective);
-
-    // Sync with Mantine color scheme
-    if (theme === 'auto') {
-      // Use system preference - Mantine will handle this
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setColorScheme(prefersDark ? 'dark' : 'light');
-    } else {
-      setColorScheme(theme);
-    }
-
-    // Apply theme class to html element (for Tailwind dark mode)
+    setColorScheme(effective);
     const root = document.documentElement;
     root.setAttribute('data-theme', effective);
     root.classList.remove('light', 'dark');
     root.classList.add(effective);
+  };
+
+  // Apply theme to document
+  useEffect(() => {
+    applyEffectiveToDocument(getEffectiveTheme(theme));
   }, [theme, setColorScheme]);
 
   // Listen for system theme changes when theme is 'auto'
@@ -62,17 +55,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
-      const effective = getEffectiveTheme(theme);
-      setEffectiveTheme(effective);
-      
-      // Sync with Mantine
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setColorScheme(prefersDark ? 'dark' : 'light');
-      
-      const root = document.documentElement;
-      root.setAttribute('data-theme', effective);
-      root.classList.remove('light', 'dark');
-      root.classList.add(effective);
+      applyEffectiveToDocument(getEffectiveTheme(theme));
     };
 
     // Modern browsers

@@ -23,6 +23,38 @@ export interface PermissionContext {
 }
 
 /**
+ * Resolves owner/member `userId` refs to a canonical id string (handles populated docs and
+ * ObjectIds). Matches workspace HTTP access checks in `workspaceService`.
+ */
+function normalizeWorkspaceUserRef(ref: unknown): string {
+  if (ref == null) {
+    return '';
+  }
+  if (typeof ref === 'string') {
+    return ref.trim();
+  }
+  if (typeof ref === 'number' && Number.isFinite(ref)) {
+    return String(ref);
+  }
+  if (typeof ref === 'object' && ref !== null) {
+    const o = ref as Record<string, unknown>;
+    if (o._id != null) {
+      return typeof o._id === 'string' ? o._id : String(o._id);
+    }
+    if (typeof o.id === 'string' && o.id.trim() !== '') {
+      return o.id;
+    }
+  }
+  if (typeof ref === 'object' && ref !== null && 'toString' in ref) {
+    const s = (ref as { toString: () => string }).toString();
+    if (typeof s === 'string' && s !== '' && s !== '[object Object]') {
+      return s;
+    }
+  }
+  return '';
+}
+
+/**
  * Built-in role permission sets.
  *
  * IMPORTANT: This should preserve *current behavior*, not desired future behavior.
@@ -201,13 +233,13 @@ async function resolveBoardRoleKey(userId: string, boardId: string): Promise<Rol
   if (!board) {
     return null;
   }
-  if (board.ownerId.toString() === userId) {
+  if (normalizeWorkspaceUserRef(board.ownerId) === userId) {
     return 'admin';
   }
 
   // Explicit per-board membership wins over workspace default role for this board.
   const boardMember = (board.members as Array<{ userId: unknown; role?: unknown; roleKey?: unknown }>).find(
-    (m) => String(m.userId) === userId
+    (m) => normalizeWorkspaceUserRef(m.userId) === userId,
   );
   const boardRoleKeyRaw =
     typeof boardMember?.roleKey === 'string' && boardMember.roleKey.trim() !== ''
@@ -226,11 +258,11 @@ async function resolveBoardRoleKey(userId: string, boardId: string): Promise<Rol
   if (board.workspaceId) {
     const workspace = await Workspace.findById(board.workspaceId).select('ownerId members').lean();
     if (workspace) {
-      if (workspace.ownerId.toString() === userId) {
+      if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
         return 'admin';
       }
       const wsMember = (workspace.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
-        (m) => String(m.userId) === userId
+        (m) => normalizeWorkspaceUserRef(m.userId) === userId,
       );
       if (typeof wsMember?.roleKey === 'string' && wsMember.roleKey.trim() !== '') {
         const rk = wsMember.roleKey.trim();
@@ -329,10 +361,10 @@ export async function hasPermission(
       if (resourceType === 'workspace') {
         const workspace = await Workspace.findById(resourceId);
         if (!workspace) return false;
-        if (workspace.ownerId.toString() === userId) {
+        if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
           return true;
         }
-        const member = workspace.members.find((m) => m.userId.toString() === userId);
+        const member = workspace.members.find((m) => normalizeWorkspaceUserRef(m.userId) === userId);
         if (!member) return false;
         const rawKey =
           typeof member.roleKey === 'string' && member.roleKey.trim() !== ''
@@ -373,11 +405,11 @@ export async function userCanReorganizeWorkspaceHomeBoardBucket(
   if (!workspace) {
     return false;
   }
-  if (workspace.ownerId.toString() === userId) {
+  if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
     return true;
   }
   const member = (workspace.members as Array<{ userId?: unknown; roleKey?: unknown }>).find(
-    (m) => String(m.userId) === userId,
+    (m) => normalizeWorkspaceUserRef(m.userId) === userId,
   );
   if (!member) {
     return false;
@@ -402,13 +434,11 @@ export async function getUserWorkspaceRole(
     const workspace = await Workspace.findById(workspaceId);
     if (!workspace) return null;
 
-    if (workspace.ownerId.toString() === userId) {
+    if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
       return 'admin';
     }
 
-    const member = workspace.members.find(
-      (m) => m.userId.toString() === userId
-    );
+    const member = workspace.members.find((m) => normalizeWorkspaceUserRef(m.userId) === userId);
     if (!member) return null;
     const rk = member.roleKey;
     return (rk === 'member' ? 'viewer' : rk) as UserRole;
@@ -451,11 +481,11 @@ export async function isWorkspaceMember(
     const workspace = await Workspace.findById(workspaceId);
     if (!workspace) return false;
 
-    if (workspace.ownerId.toString() === userId) {
+    if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
       return true;
     }
 
-    return workspace.members.some((m) => m.userId.toString() === userId);
+    return workspace.members.some((m) => normalizeWorkspaceUserRef(m.userId) === userId);
   } catch (error) {
     logger.error({ error, userId, workspaceId }, 'Error checking workspace membership');
     return false;
@@ -477,16 +507,16 @@ export async function isBoardMember(
     if (!workspace) return false;
 
     // Check workspace membership
-    if (workspace.ownerId.toString() === userId) {
+    if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
       return true;
     }
 
-    if (workspace.members.some((m) => m.userId.toString() === userId)) {
+    if (workspace.members.some((m) => normalizeWorkspaceUserRef(m.userId) === userId)) {
       return true;
     }
 
     // Check board-specific membership
-    return board.members.some((m) => m.userId.toString() === userId);
+    return board.members.some((m) => normalizeWorkspaceUserRef(m.userId) === userId);
   } catch (error) {
     logger.error({ error, userId, boardId }, 'Error checking board membership');
     return false;

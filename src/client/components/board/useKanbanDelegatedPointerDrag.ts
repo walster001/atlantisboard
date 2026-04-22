@@ -1,6 +1,5 @@
-import { useEffect, useRef, type MutableRefObject, type RefObject } from 'react';
-import { flushSync } from 'react-dom';
-import type { CardDB, ListDB } from '../../store/database.js';
+import { useEffect, useRef, startTransition, type MutableRefObject, type RefObject } from 'react';
+import { db, type CardDB, type ListDB } from '../../store/database.js';
 import {
   applyKanbanEdgeScroll,
   pickKanbanListBodyIdUnderPointer,
@@ -9,7 +8,7 @@ import {
 import type { CardDropIndicatorTarget } from './VirtualizedCardList.js';
 import { api } from '../../utils/api.js';
 import { normalizeCardFromApi } from '../../utils/transform.js';
-import { persistDexieCardPut, persistDexieListPut } from '../../store/boardDexieCache.js';
+import { persistDexieCardPut } from '../../store/boardDexieCache.js';
 
 const KANBAN_CARD_DRAG_START_DEADZONE_PX = 6;
 
@@ -258,7 +257,7 @@ export function useKanbanDelegatedPointerDrag(
         }
 
         try {
-          const targetListCards = [...(ctx.cards.get(targetListId) ?? [])].sort((a, b) => a.position - b.position);
+          const targetListCards = [...(ctx.cards.get(targetListId) ?? [])];
           const indicatorSnapshot = indicatorSnapshotBeforeDrop;
           const resolved =
             indicatorSnapshot != null &&
@@ -309,8 +308,7 @@ export function useKanbanDelegatedPointerDrag(
             }
             const reorderedIds = newListCards.map((c) => c.id);
             const renumbered = p.withRenumberedPositions(newListCards);
-            /* Urgent update + flush so the list repaints before we await the API (drop feels instant). */
-            flushSync(() => {
+            startTransition(() => {
               ctx.setCards((prev) => {
                 const next = new Map(prev);
                 next.set(activeListId, renumbered);
@@ -322,7 +320,7 @@ export function useKanbanDelegatedPointerDrag(
             }
             await api.reorderCards(activeListId, reorderedIds);
           } else {
-            flushSync(() => {
+            startTransition(() => {
               ctx.setCards((prev) =>
                 p.moveCardBetweenListsInMap(prev, activeIdStr, activeListId, targetListId, insertIndex),
               );
@@ -470,7 +468,7 @@ export function useKanbanDelegatedPointerDrag(
           if (pg == null) {
             return;
           }
-          const listCards = [...(c.cards.get(pg.listId) ?? [])].sort((a, b) => a.position - b.position);
+          const listCards = [...(c.cards.get(pg.listId) ?? [])];
           const resolved = p.resolveCardDropInListFromPointer(
             listCards,
             pg.sourceCardId,
@@ -570,23 +568,26 @@ export function useKanbanDelegatedPointerDrag(
         const ctx = r.kanbanDropCtxRef.current;
         /* Order already updated live during pointermove — persist that snapshot. */
         const finalLists = [...ctx.lists].sort((a, b) => a.position - b.position);
-        void (async () => {
-          if (!ctx.viewAliveRef.current) {
-            return;
-          }
-          try {
-            await api.reorderLists({
-              boardId: ctx.board.id,
-              listIds: finalLists.map((l) => l.id),
-            });
+        const finalListIds = finalLists.map((l) => l.id);
+        requestAnimationFrame(() => {
+          void (async () => {
             if (!ctx.viewAliveRef.current) {
               return;
             }
-            await Promise.all(finalLists.map((l) => persistDexieListPut(l)));
-          } catch {
-            await ctx.reloadAllCardsFromDb();
-          }
-        })();
+            try {
+              await api.reorderLists({
+                boardId: ctx.board.id,
+                listIds: finalListIds,
+              });
+              if (!ctx.viewAliveRef.current) {
+                return;
+              }
+              await db.lists.bulkPut(finalLists);
+            } catch {
+              await ctx.reloadAllCardsFromDb();
+            }
+          })();
+        });
         return;
       }
 
@@ -606,13 +607,15 @@ export function useKanbanDelegatedPointerDrag(
         r.cardVerticalDropHintRef.current = null;
         floatSetterRef.current(null);
         r.kanbanDropCtxRef.current.flushCardDropIndicatorNow(null);
-        runCardDropAsync(
-          e.clientX,
-          e.clientY,
-          { cardId: s.cardId, listId: s.listId },
-          verticalHintSnapshot,
-          indicatorSnapshotBeforeDrop,
-        );
+        requestAnimationFrame(() => {
+          runCardDropAsync(
+            e.clientX,
+            e.clientY,
+            { cardId: s.cardId, listId: s.listId },
+            verticalHintSnapshot,
+            indicatorSnapshotBeforeDrop,
+          );
+        });
       }
     };
 

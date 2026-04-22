@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { BoardDB, BoardSettingsLivePatch, CardDB, ListDB } from './database.js';
-import { moveCardBetweenListsInMap, withRenumberedPositions } from '../components/board/kanbanDragPure.js';
+import { moveCardBetweenListsInMap, withRenumberedPositions } from './kanbanDragPure.js';
 
 function sortListIdsByPosition(listsById: Readonly<Record<string, ListDB>>): string[] {
   return Object.values(listsById)
@@ -52,6 +52,7 @@ export type BoardRuntimeSlice = {
 
 type BoardRuntimeActions = {
   clear: () => void;
+  beginHydration: (params: { boardId: string; board: BoardDB }) => void;
   hydrateFromSnapshot: (params: {
     boardId: string;
     board: BoardDB;
@@ -97,6 +98,18 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
 
   clear: () => {
     set(empty);
+  },
+
+  beginHydration: ({ boardId, board }) => {
+    set((s) => ({
+      activeBoardId: boardId,
+      board,
+      listsById: {},
+      orderedListIds: [],
+      cardsById: {},
+      cardIdsByListId: {},
+      cardsVersion: s.cardsVersion + 1,
+    }));
   },
 
   hydrateFromSnapshot: ({ boardId, board, lists, cardsByList }) => {
@@ -176,12 +189,19 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
   },
 
   setListsFromArray: (lists) => {
+    const activeId = get().activeBoardId;
+    if (activeId == null) {
+      return;
+    }
+    if (lists.some((l) => l.boardId !== activeId)) {
+      return;
+    }
     const listsById: Record<string, ListDB> = {};
     for (const l of lists) {
       listsById[l.id] = l;
     }
     const orderedListIds = sortListIdsByPosition(listsById);
-    set({ listsById, orderedListIds, cardsVersion: get().cardsVersion + 1 });
+    set((s) => ({ listsById, orderedListIds, cardsVersion: s.cardsVersion + 1 }));
   },
 
   applyListsPositionsFromOrder: (orderedListIds) => {
@@ -308,8 +328,7 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
               })()
             : { ...row, color: colorTrimmed };
       }
-      const cardIdsByListId = rebuildAllCardIdsByList(s.orderedListIds, cardsById);
-      return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
+      return { cardsById, cardsVersion: s.cardsVersion + 1 };
     });
   },
 
@@ -322,13 +341,13 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
         if (row == null) {
           continue;
         }
+        const prevLabels = Array.isArray(row.labels) ? row.labels : [];
         cardsById[cid] = {
           ...row,
-          labels: row.labels.filter((l) => String(l.id) !== rm),
+          labels: prevLabels.filter((l) => String(l.id) !== rm),
         };
       }
-      const cardIdsByListId = rebuildAllCardIdsByList(s.orderedListIds, cardsById);
-      return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
+      return { cardsById, cardsVersion: s.cardsVersion + 1 };
     });
   },
 
@@ -394,13 +413,13 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
 export function boardRuntimeApplySetCardsFromUpdater(
   updater: (prev: Map<string, CardDB[]>) => Map<string, CardDB[]>,
 ): void {
-  const s = useBoardRuntimeStore.getState();
-  if (s.activeBoardId == null) {
+  const store = useBoardRuntimeStore.getState();
+  if (store.activeBoardId == null) {
     return;
   }
-  const prevMap = buildKanbanCardsMapFromRuntimeState(s);
+  const prevMap = buildKanbanCardsMapFromRuntimeState(store);
   const nextMap = updater(prevMap);
-  useBoardRuntimeStore.getState().applyKanbanCardsMapPartial(nextMap);
+  store.applyKanbanCardsMapPartial(nextMap);
 }
 
 export function boardRuntimeMoveCardBetweenLists(

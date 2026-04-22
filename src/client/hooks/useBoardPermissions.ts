@@ -127,14 +127,22 @@ export function useBoardPermissions(
     if (!socket || !boardId) {
       return;
     }
+    let refetchGen = 0;
     const refetch = (): void => {
+      const g = ++refetchGen;
       void api
         .getMyBoardPermissions(boardId)
         .then((r) => {
+          if (g !== refetchGen) {
+            return;
+          }
           setPermissions((r.permissions ?? []) as BoardPermissionKey[]);
           setLoaded(true);
         })
         .catch(() => {
+          if (g !== refetchGen) {
+            return;
+          }
           setPermissions([]);
           setLoaded(true);
         });
@@ -154,6 +162,7 @@ export function useBoardPermissions(
     };
     socket.on('permissions.updated', handler);
     return () => {
+      refetchGen += 1;
       socket.off('permissions.updated', handler);
     };
   }, [boardId, resolvedWorkspaceId]);

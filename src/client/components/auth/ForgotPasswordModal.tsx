@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
+import { useState, type FormEvent, type ReactElement } from 'react';
 import { isAxiosError } from 'axios';
 import { Alert, Button, Modal, Stack, Text, TextInput, Title } from '@mantine/core';
 import { z } from 'zod';
@@ -36,20 +36,11 @@ export interface ForgotPasswordModalProps {
   readonly onClose: () => void;
 }
 
-export function ForgotPasswordModal({ opened, onClose }: ForgotPasswordModalProps): ReactElement {
+function ForgotPasswordModalBody({ onClose }: { readonly onClose: () => void }): ReactElement {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (opened) {
-      setEmail('');
-      setError(null);
-      setSuccess(false);
-      setLoading(false);
-    }
-  }, [opened]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -73,13 +64,7 @@ export function ForgotPasswordModal({ opened, onClose }: ForgotPasswordModalProp
   };
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={<Title order={3}>Forgot password</Title>}
-      centered
-      overlayProps={{ backgroundOpacity: 0.45, blur: 4 }}
-    >
+    <>
       {success ? (
         <Stack gap="md" pt="xs">
           <Alert color="green">
@@ -118,6 +103,20 @@ export function ForgotPasswordModal({ opened, onClose }: ForgotPasswordModalProp
           </Stack>
         </form>
       )}
+    </>
+  );
+}
+
+export function ForgotPasswordModal({ opened, onClose }: ForgotPasswordModalProps): ReactElement {
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={<Title order={3}>Forgot password</Title>}
+      centered
+      overlayProps={{ backgroundOpacity: 0.45, blur: 4 }}
+    >
+      {opened ? <ForgotPasswordModalBody onClose={onClose} /> : null}
     </Modal>
   );
 }

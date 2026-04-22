@@ -200,6 +200,7 @@ export function LabelManagement({ boardId, layout = 'default' }: LabelManagement
 
       {showCreateModal && (
         <LabelEditModal
+          key={editingLabel?._id ?? 'create'}
           boardId={boardId}
           label={editingLabel}
           onClose={() => {
@@ -232,11 +233,6 @@ function LabelEditModal({ boardId, label, onClose, onSave }: LabelEditModalProps
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setName(label?.name ?? '');
-    setSelectedColor(normalizePresetHex(label?.color ?? defaultColor, BOARD_PRESET_COLOURS));
-  }, [label, defaultColor]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

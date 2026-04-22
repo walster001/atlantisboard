@@ -1,4 +1,11 @@
-import { forwardRef, memo, useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react';
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import { Virtuoso, type ListProps, type ScrollerProps } from 'react-virtuoso';
 import { Box } from '@mantine/core';
 import type { CardDB } from '../../store/database.js';
@@ -7,6 +14,9 @@ import { SortableCard } from './SortableCard.js';
 
 /** Mantine `pb="xs"` between Virtuoso rows (~10px). */
 const KANBAN_VIRTUOSO_ROW_GAP_PX = 10;
+
+const VIRTUOSO_OVERSCAN = { main: 3, reverse: 3 } as const;
+const VIRTUOSO_VIEWPORT_PAD = { top: 64, bottom: 64 } as const;
 
 /**
  * Matches SortableCard kanban layout closely so Virtuoso's initial height ≈ measured height
@@ -168,13 +178,15 @@ function VirtualizedCardListInner({
   kanbanCardBodyDraggable,
 }: VirtualizedCardListProps) {
   const maxBodyPx = cardListMaxBodyPx;
-  const [totalListPx, setTotalListPx] = useState(0);
+  const [measuredTotalListPx, setMeasuredTotalListPx] = useState(0);
 
   const sortedCards = useMemo(() => {
     const visible =
       draggingCardId == null ? cards : cards.filter((c) => c.id !== draggingCardId);
     return [...visible].sort((a, b) => a.position - b.position);
   }, [cards, draggingCardId]);
+
+  const totalListPx = sortedCards.length === 0 ? 0 : measuredTotalListPx;
 
   const heightEstimates = useMemo(
     () =>
@@ -205,7 +217,7 @@ function VirtualizedCardListInner({
     if (nh <= 0) {
       return;
     }
-    setTotalListPx((prev) => {
+    setMeasuredTotalListPx((prev) => {
       if (prev > 0 && Math.abs(prev - nh) < 3) {
         return prev;
       }
@@ -213,61 +225,108 @@ function VirtualizedCardListInner({
     });
   }, []);
 
-  useEffect(() => {
-    if (sortedCards.length === 0) {
-      setTotalListPx(0);
-    }
-  }, [sortedCards.length]);
+  const virtuosoHeightPx =
+    sortedCards.length === 0
+      ? 0
+      : Math.max(
+          72,
+          Math.ceil(
+            Math.min(totalListPx === 0 ? heightEstimatePx : totalListPx, maxBodyPx),
+          ),
+        );
 
-  const virtuosoHeightPx = useMemo(() => {
-    if (sortedCards.length === 0) {
-      return 0;
-    }
-    const cap = Math.min(totalListPx === 0 ? heightEstimatePx : totalListPx, maxBodyPx);
-    return Math.max(72, Math.ceil(cap));
-  }, [sortedCards.length, totalListPx, heightEstimatePx, maxBodyPx]);
+  const virtuosoRootStyle = useMemo(
+    () =>
+      ({
+        height: virtuosoHeightPx,
+        width: '100%',
+        flexShrink: 0,
+      }) as const,
+    [virtuosoHeightPx],
+  );
 
-  const matches = dropIndicator != null && dropIndicator.listId === listId;
-  const cardIdSet = new Set(sortedCards.map((c) => c.id));
-  const showEmpty =
-    matches && sortedCards.length === 0 && dropIndicator.columnIntent === 'empty-column';
-  const lastCardId =
-    sortedCards.length > 0 ? sortedCards[sortedCards.length - 1]?.id ?? null : null;
-  const showAbove = (cardId: string): boolean =>
-    matches &&
-    cardIdSet.has(cardId) &&
-    dropIndicator.anchorCardId === cardId &&
-    dropIndicator.columnIntent === 'above';
-  const showBelow = (cardId: string): boolean =>
-    matches &&
-    cardIdSet.has(cardId) &&
-    dropIndicator.anchorCardId === cardId &&
-    dropIndicator.columnIntent === 'below';
-  const showBelowLastInFooter =
-    lastCardId != null && showBelow(lastCardId) && dropIndicator != null;
+  const listDropChrome = useMemo(() => {
+    const di = dropIndicator;
+    const matches = di != null && di.listId === listId;
+    const showEmpty =
+      matches && sortedCards.length === 0 && di != null && di.columnIntent === 'empty-column';
+    const lastCardId =
+      sortedCards.length > 0 ? sortedCards[sortedCards.length - 1]?.id ?? null : null;
+    const showBelowLastInFooter =
+      lastCardId != null &&
+      di != null &&
+      matches &&
+      di.anchorCardId === lastCardId &&
+      di.columnIntent === 'below';
+    return { matches, showEmpty, lastCardId, showBelowLastInFooter, di };
+  }, [dropIndicator, listId, sortedCards]);
 
   const virtuosoComponents = useMemo(
     () => ({
       Scroller: KanbanVirtuosoScroller,
       List: KanbanVirtuosoList,
       Header: () =>
-        showEmpty && dropIndicator ? (
+        listDropChrome.showEmpty && listDropChrome.di != null ? (
           <Box pb="xs" px={0}>
-            <CardDropShadowIndicator target={dropIndicator} />
+            <CardDropShadowIndicator target={listDropChrome.di} />
           </Box>
         ) : null,
       Footer: () => {
-        if (!showBelowLastInFooter || dropIndicator == null) {
+        if (!listDropChrome.showBelowLastInFooter || listDropChrome.di == null) {
           return null;
         }
         return (
           <Box pb="xs" px={0}>
-            <CardDropShadowIndicator target={dropIndicator} />
+            <CardDropShadowIndicator target={listDropChrome.di} />
           </Box>
         );
       },
     }),
-    [showEmpty, dropIndicator, showBelowLastInFooter],
+    [listDropChrome],
+  );
+
+  const itemContent = useCallback(
+    (_index: number, card: CardDB) => {
+      const { matches, lastCardId, di } = listDropChrome;
+      const showAboveRow =
+        di != null && matches && di.anchorCardId === card.id && di.columnIntent === 'above';
+      const showBelowRow =
+        di != null && matches && di.anchorCardId === card.id && di.columnIntent === 'below';
+      return (
+        <Box pb="xs" px={0}>
+          {showAboveRow ? <CardDropShadowIndicator target={di} /> : null}
+          <SortableCard
+            card={card}
+            listId={listId}
+            showDescriptionPreview={showDescriptionPreview}
+            showKanbanCardMenu={showKanbanCardMenu}
+            kanbanCardBodyDraggable={kanbanCardBodyDraggable}
+            {...(assigneeDirectory != null ? { assigneeDirectory } : {})}
+            isDragSource={draggingCardId === card.id}
+            {...(suppressCardOpenClickRef != null ? { suppressCardOpenClickRef } : {})}
+            onOpenCard={onOpenCard}
+            onCardUpdatedOnBoard={onCardUpdatedOnBoard}
+            onCardDeletedFromBoard={onCardDeletedFromBoard}
+          />
+          {showBelowRow && di != null && card.id !== lastCardId ? (
+            <CardDropShadowIndicator target={di} />
+          ) : null}
+        </Box>
+      );
+    },
+    [
+      listDropChrome,
+      listId,
+      draggingCardId,
+      showDescriptionPreview,
+      showKanbanCardMenu,
+      kanbanCardBodyDraggable,
+      assigneeDirectory,
+      suppressCardOpenClickRef,
+      onOpenCard,
+      onCardUpdatedOnBoard,
+      onCardDeletedFromBoard,
+    ],
   );
 
   if (sortedCards.length === 0) {
@@ -282,9 +341,9 @@ function VirtualizedCardListInner({
         }}
         data-kanban-list-body={listId}
       >
-        {showEmpty && dropIndicator ? (
+        {listDropChrome.showEmpty && listDropChrome.di != null ? (
           <Box pb="xs" px={0}>
-            <CardDropShadowIndicator target={dropIndicator} />
+            <CardDropShadowIndicator target={listDropChrome.di} />
           </Box>
         ) : null}
       </Box>
@@ -303,37 +362,15 @@ function VirtualizedCardListInner({
       data-kanban-list-body={listId}
     >
       <Virtuoso
-        style={{ height: virtuosoHeightPx, width: '100%', flexShrink: 0 }}
+        style={virtuosoRootStyle}
         data={sortedCards}
         defaultItemHeight={defaultItemHeight}
         heightEstimates={heightEstimates}
         totalListHeightChanged={onTotalListHeightChanged}
-        itemContent={(_index, card) => (
-          <Box pb="xs" px={0}>
-            {showAbove(card.id) && dropIndicator ? (
-              <CardDropShadowIndicator target={dropIndicator} />
-            ) : null}
-            <SortableCard
-              card={card}
-              listId={listId}
-              showDescriptionPreview={showDescriptionPreview}
-              showKanbanCardMenu={showKanbanCardMenu}
-              kanbanCardBodyDraggable={kanbanCardBodyDraggable}
-              {...(assigneeDirectory != null ? { assigneeDirectory } : {})}
-              isDragSource={draggingCardId === card.id}
-              {...(suppressCardOpenClickRef != null ? { suppressCardOpenClickRef } : {})}
-              onOpenCard={onOpenCard}
-              onCardUpdatedOnBoard={onCardUpdatedOnBoard}
-              onCardDeletedFromBoard={onCardDeletedFromBoard}
-            />
-            {showBelow(card.id) && dropIndicator && card.id !== lastCardId ? (
-              <CardDropShadowIndicator target={dropIndicator} />
-            ) : null}
-          </Box>
-        )}
+        itemContent={itemContent}
         components={virtuosoComponents}
-        overscan={{ main: 3, reverse: 3 }}
-        increaseViewportBy={{ top: 64, bottom: 64 }}
+        overscan={VIRTUOSO_OVERSCAN}
+        increaseViewportBy={VIRTUOSO_VIEWPORT_PAD}
       />
     </Box>
   );

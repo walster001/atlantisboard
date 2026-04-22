@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Stack,
   Text,
@@ -55,6 +55,15 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
     new Map(),
   );
 
+  const checklistCompletionSignature = useMemo(
+    () =>
+      card.checklists
+        .flatMap((cl) => cl.items.map((it) => `${it.id}:${it.completed ? 1 : 0}`))
+        .sort((a, b) => a.localeCompare(b))
+        .join('|'),
+    [card.checklists],
+  );
+
   useEffect(() => {
     setOptimisticCompletedByItemId((prev) => {
       if (prev.size === 0) {
@@ -69,7 +78,7 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
       }
       return next.size === prev.size ? prev : next;
     });
-  }, [card]);
+  }, [checklistCompletionSignature]);
 
   const [checklistRename, setChecklistRename] = useState<{ checklistId: string; draft: string } | null>(
     null,

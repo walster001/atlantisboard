@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useLayoutEffect, useState, type ReactElement } from 'react';
 import type { Editor } from '@tiptap/core';
 import {
   ActionIcon,
@@ -19,6 +19,47 @@ import { DEFAULT_INLINE_BUTTON_ATTRS } from './tiptapInlineButtonExtension.js';
 
 const ICON_SIZE_OPTIONS = ['12', '16', '20', '24', '32', '40'] as const;
 const RADIUS_OPTIONS = ['0', '4', '8', '12', '16', '20'] as const;
+
+type InlineButtonDraft = {
+  readonly href: string;
+  readonly buttonText: string;
+  readonly textColor: string;
+  readonly bgColor: string;
+  readonly borderRadiusPx: string;
+  readonly iconSizePx: string;
+  readonly iconSrc: string | null;
+};
+
+function readInlineButtonDraft(editor: Editor, nodePos: number): InlineButtonDraft | null {
+  const node = editor.state.doc.nodeAt(nodePos);
+  if (node == null || node.type.name !== 'inlineButton') {
+    return null;
+  }
+  const a = node.attrs as {
+    href?: string;
+    buttonText?: string;
+    textColor?: string;
+    bgColor?: string;
+    borderRadiusPx?: number;
+    iconSizePx?: number;
+    iconSrc?: string | null;
+  };
+  return {
+    href: typeof a.href === 'string' ? a.href : '',
+    buttonText: typeof a.buttonText === 'string' ? a.buttonText : '',
+    textColor: typeof a.textColor === 'string' ? a.textColor : DEFAULT_INLINE_BUTTON_ATTRS.textColor,
+    bgColor: typeof a.bgColor === 'string' ? a.bgColor : DEFAULT_INLINE_BUTTON_ATTRS.bgColor,
+    borderRadiusPx:
+      typeof a.borderRadiusPx === 'number' && Number.isFinite(a.borderRadiusPx)
+        ? String(a.borderRadiusPx)
+        : String(DEFAULT_INLINE_BUTTON_ATTRS.borderRadiusPx),
+    iconSizePx:
+      typeof a.iconSizePx === 'number' && Number.isFinite(a.iconSizePx)
+        ? String(a.iconSizePx)
+        : String(DEFAULT_INLINE_BUTTON_ATTRS.iconSizePx),
+    iconSrc: typeof a.iconSrc === 'string' && a.iconSrc.trim() !== '' ? a.iconSrc : null,
+  };
+}
 
 function isAllowedHref(href: string): boolean {
   const t = href.trim();
@@ -49,56 +90,29 @@ export function CardDescriptionInlineButtonEditModal({
   nodePos,
   cardId,
 }: CardDescriptionInlineButtonEditModalProps): ReactElement {
-  const [href, setHref] = useState('');
-  const [buttonText, setButtonText] = useState('');
-  const [textColor, setTextColor] = useState(DEFAULT_INLINE_BUTTON_ATTRS.textColor);
-  const [bgColor, setBgColor] = useState(DEFAULT_INLINE_BUTTON_ATTRS.bgColor);
-  const [borderRadiusPx, setBorderRadiusPx] = useState(String(DEFAULT_INLINE_BUTTON_ATTRS.borderRadiusPx));
-  const [iconSizePx, setIconSizePx] = useState(String(DEFAULT_INLINE_BUTTON_ATTRS.iconSizePx));
-  const [iconSrc, setIconSrc] = useState<string | null>(null);
+  const draft = nodePos != null ? readInlineButtonDraft(editor, nodePos) : null;
+
+  const [href, setHref] = useState(() => draft?.href ?? '');
+  const [buttonText, setButtonText] = useState(() => draft?.buttonText ?? '');
+  const [textColor, setTextColor] = useState(() => draft?.textColor ?? DEFAULT_INLINE_BUTTON_ATTRS.textColor);
+  const [bgColor, setBgColor] = useState(() => draft?.bgColor ?? DEFAULT_INLINE_BUTTON_ATTRS.bgColor);
+  const [borderRadiusPx, setBorderRadiusPx] = useState(
+    () => draft?.borderRadiusPx ?? String(DEFAULT_INLINE_BUTTON_ATTRS.borderRadiusPx),
+  );
+  const [iconSizePx, setIconSizePx] = useState(
+    () => draft?.iconSizePx ?? String(DEFAULT_INLINE_BUTTON_ATTRS.iconSizePx),
+  );
+  const [iconSrc, setIconSrc] = useState<string | null>(() => draft?.iconSrc ?? null);
   const [iconUploadBusy, setIconUploadBusy] = useState(false);
 
-  const syncFromDoc = useCallback((): void => {
-    if (nodePos == null) {
-      return;
-    }
-    const node = editor.state.doc.nodeAt(nodePos);
-    if (node == null || node.type.name !== 'inlineButton') {
-      onClose();
-      return;
-    }
-    const a = node.attrs as {
-      href?: string;
-      buttonText?: string;
-      textColor?: string;
-      bgColor?: string;
-      borderRadiusPx?: number;
-      iconSizePx?: number;
-      iconSrc?: string | null;
-    };
-    setHref(typeof a.href === 'string' ? a.href : '');
-    setButtonText(typeof a.buttonText === 'string' ? a.buttonText : '');
-    setTextColor(typeof a.textColor === 'string' ? a.textColor : DEFAULT_INLINE_BUTTON_ATTRS.textColor);
-    setBgColor(typeof a.bgColor === 'string' ? a.bgColor : DEFAULT_INLINE_BUTTON_ATTRS.bgColor);
-    setBorderRadiusPx(
-      typeof a.borderRadiusPx === 'number' && Number.isFinite(a.borderRadiusPx)
-        ? String(a.borderRadiusPx)
-        : String(DEFAULT_INLINE_BUTTON_ATTRS.borderRadiusPx),
-    );
-    setIconSizePx(
-      typeof a.iconSizePx === 'number' && Number.isFinite(a.iconSizePx)
-        ? String(a.iconSizePx)
-        : String(DEFAULT_INLINE_BUTTON_ATTRS.iconSizePx),
-    );
-    setIconSrc(typeof a.iconSrc === 'string' && a.iconSrc.trim() !== '' ? a.iconSrc : null);
-  }, [editor, nodePos, onClose]);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!opened || nodePos == null) {
       return;
     }
-    syncFromDoc();
-  }, [opened, nodePos, syncFromDoc]);
+    if (readInlineButtonDraft(editor, nodePos) == null) {
+      onClose();
+    }
+  }, [opened, nodePos, editor, onClose]);
 
   const uploadIcon = (): void => {
     const input = document.createElement('input');

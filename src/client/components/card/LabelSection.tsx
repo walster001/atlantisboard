@@ -134,6 +134,15 @@ export function LabelSection({ card, boardId, onCardUpdate }: LabelSectionProps)
     });
   }, [boardId]);
 
+  const labelIdsMembershipKey = useMemo(
+    () =>
+      [...card.labels]
+        .map((l) => l.id)
+        .sort((a, b) => a.localeCompare(b))
+        .join('\0'),
+    [card.labels],
+  );
+
   useEffect(() => {
     setLabelPending((prev) => {
       let changed = false;
@@ -156,7 +165,16 @@ export function LabelSection({ card, boardId, onCardUpdate }: LabelSectionProps)
       }
       return { adds, removes };
     });
-  }, [card.labels]);
+  }, [labelIdsMembershipKey]);
+
+  const cardLabelsContentKey = useMemo(
+    () =>
+      [...card.labels]
+        .map((l) => `${l.id}\t${l.name}\t${l.color}`)
+        .sort((a, b) => a.localeCompare(b))
+        .join('\n'),
+    [card.labels],
+  );
 
   const displayCardLabels = useMemo((): CardDB['labels'] => {
     const list: CardDB['labels'] = card.labels.filter((l) => !labelPending.removes.has(l.id));
@@ -172,7 +190,7 @@ export function LabelSection({ card, boardId, onCardUpdate }: LabelSectionProps)
       }
     }
     return list;
-  }, [card.labels, labelPending, labels]);
+  }, [cardLabelsContentKey, labelPending, labels]);
 
   const handleToggleLabel = async (labelId: string) => {
     if (labelToggleInFlightRef.current.has(labelId)) {

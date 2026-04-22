@@ -9,7 +9,12 @@ import {
 } from 'react';
 import { api } from '../utils/api.js';
 import { useBrandingWebFonts } from '../hooks/useBrandingWebFonts.js';
-import { mergePublicLoginBranding, type PublicLoginBranding } from '../../shared/types/loginBranding.js';
+import {
+  BLANK_TAB_FAVICON_HREF,
+  mergePublicLoginBranding,
+  resolveBrowserTabFaviconHref,
+  type PublicLoginBranding,
+} from '../../shared/types/loginBranding.js';
 import {
   mergePublicAppBranding,
   resolveAppUiFontStack,
@@ -102,24 +107,18 @@ export function AppBrandingProvider({ children }: { readonly children: ReactNode
   }, [loginBrandingReady, branding.browserTabTitle, branding.browserTabTitleEnabled]);
 
   useEffect(() => {
+    let link = document.getElementById(FAVICON_LINK_ID) as HTMLLinkElement | null;
+    if (link == null) {
+      link = document.createElement('link');
+      link.id = FAVICON_LINK_ID;
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
     if (!loginBrandingReady) {
+      link.href = BLANK_TAB_FAVICON_HREF;
       return;
     }
-    const existing = document.getElementById(FAVICON_LINK_ID);
-    if (existing) {
-      existing.remove();
-    }
-    if (!branding.faviconEnabled || !branding.faviconUrl) {
-      return;
-    }
-    const link = document.createElement('link');
-    link.id = FAVICON_LINK_ID;
-    link.rel = 'icon';
-    link.href = branding.faviconUrl;
-    document.head.appendChild(link);
-    return () => {
-      link.remove();
-    };
+    link.href = resolveBrowserTabFaviconHref(branding);
   }, [loginBrandingReady, branding.faviconEnabled, branding.faviconUrl]);
 
   const value = useMemo(

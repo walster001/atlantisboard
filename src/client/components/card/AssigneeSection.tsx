@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { isAxiosError } from 'axios';
 import { Stack, Text, Button, Badge, Checkbox, Popover, Group, Avatar, ActionIcon, Box } from '@mantine/core';
 import { IconUserCircle, IconX } from '@tabler/icons-react';
@@ -109,11 +109,17 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
     return () => ac.abort();
   }, [boardId]);
 
-  useEffect(() => {
-    if (!showAssignPicker) {
+  const handleAssignPickerOpenChange = useCallback((opened: boolean) => {
+    setShowAssignPicker(opened);
+    if (!opened) {
       setMemberFilterQuery('');
     }
-  }, [showAssignPicker]);
+  }, []);
+
+  const assigneeMembershipKey = useMemo(
+    () => [...card.assignees].sort((a, b) => a.localeCompare(b)).join('\0'),
+    [card.assignees],
+  );
 
   useEffect(() => {
     setAssigneePending((prev) => {
@@ -137,7 +143,7 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
       }
       return { adds, removes };
     });
-  }, [card.assignees]);
+  }, [assigneeMembershipKey]);
 
   const sortedMembers = useMemo(
     () => [...boardMembers].sort(compareMembersByDisplayName),
@@ -164,7 +170,7 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
       s.add(id);
     }
     return [...s];
-  }, [card.assignees, assigneePending]);
+  }, [assigneeMembershipKey, assigneePending]);
 
   const handleToggleAssignee = async (userId: string) => {
     if (assigneeToggleInFlightRef.current.has(userId)) {
@@ -204,7 +210,7 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
       </Group>
       <Popover
         opened={showAssignPicker}
-        onChange={setShowAssignPicker}
+        onChange={handleAssignPickerOpenChange}
         position="bottom-start"
         shadow="md"
         zIndex={520}
@@ -221,7 +227,7 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
             size="sm"
             variant="default"
             styles={cardDetailSoftButtonStyles}
-            onClick={() => setShowAssignPicker(!showAssignPicker)}
+            onClick={() => handleAssignPickerOpenChange(!showAssignPicker)}
           >
             {displayAssigneeIds.length > 0 ? 'Add assignees' : 'Add assignee'}
           </Button>

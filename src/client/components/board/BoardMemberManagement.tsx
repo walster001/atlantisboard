@@ -441,7 +441,7 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
 
   useEffect(() => {
     void loadBoard();
-  }, [loadBoard, memberFilterQuery]);
+  }, [loadBoard]);
 
   const fetchNextMemberPage = useCallback(async () => {
     const cursor = membersNextCursorRef.current;

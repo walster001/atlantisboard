@@ -28,11 +28,6 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     isMountedRef.current = true;
-
-    if (!token) {
-      setError('Invalid or missing reset token');
-    }
-
     return () => {
       isMountedRef.current = false;
       if (timeoutRef.current) {
@@ -40,7 +35,7 @@ export default function ResetPasswordPage() {
         timeoutRef.current = null;
       }
     };
-  }, [token]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -23,6 +23,8 @@ const CardDetailViewLazy = lazy(async () => {
 
 interface BoardCardDetailOverlayProps {
   boardId: string;
+  /** When set, `useBoardPermissions` skips a Dexie `boards.get` on modal open. */
+  boardWorkspaceId?: string | null;
   cardId: string;
   initialCard?: CardDB;
   boardSettings?: BoardDB['settings'];
@@ -35,6 +37,7 @@ interface BoardCardDetailOverlayProps {
 
 export function BoardCardDetailOverlay({
   boardId,
+  boardWorkspaceId = null,
   cardId,
   initialCard,
   boardSettings,
@@ -120,6 +123,7 @@ export function BoardCardDetailOverlay({
       <CardDetailViewLazy
         card={card}
         boardId={boardId}
+        boardWorkspaceId={boardWorkspaceId}
         listId={card.listId}
         onClose={onClose}
         {...(boardSettings !== undefined ? { boardSettings } : {})}

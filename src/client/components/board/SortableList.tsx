@@ -1,4 +1,14 @@
-import { useState, useCallback, memo, useEffect, useLayoutEffect, useRef, type MutableRefObject } from 'react';
+import {
+  useState,
+  useCallback,
+  useMemo,
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type MutableRefObject,
+  type CSSProperties,
+} from 'react';
 import {
   Box,
   Text,
@@ -17,7 +27,10 @@ import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
 import { api } from '../../utils/api.js';
 import { transformList, normalizeCardFromApi } from '../../utils/transform.js';
-import { getBoardListColumnWidthChrome } from '../../utils/boardListColumnWidth.js';
+import {
+  getBoardListColumnWidthChrome,
+  getBoardListColumnWidthPx,
+} from '../../utils/boardListColumnWidth.js';
 import { CARD_TITLE_MAX_LENGTH } from '../../constants/cardFieldLimits.js';
 import { VirtualizedCardList, type CardDropIndicatorTarget } from './VirtualizedCardList.js';
 import { BoardInlineCardComposer } from './BoardInlineCardComposer.js';
@@ -101,6 +114,7 @@ function SortableListInner({
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(list.name);
   const [colorModalOpen, setColorModalOpen] = useState(false);
+  const [listColorModalNonce, setListColorModalNonce] = useState(0);
   const [renameSaving, setRenameSaving] = useState(false);
   const [cardComposerOpen, setCardComposerOpen] = useState(false);
   const [colourModalCardId, setColourModalCardId] = useState<string | null>(null);
@@ -112,33 +126,23 @@ function SortableListInner({
   const cardMenuAnchorRectRef = useRef<DOMRect | null>(null);
   const cardMenuFloatingTargetRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => {
-    if (renameModalOpen) {
-      setRenameValue(list.name);
-    }
-  }, [list.name, renameModalOpen]);
-
-  const sortedCards = [...cards].sort((a, b) => a.position - b.position);
+  const sortedCards = useMemo(
+    () => [...cards].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)),
+    [cards],
+  );
 
   const colourTargetCard = colourModalCardId != null ? sortedCards.find((c) => c.id === colourModalCardId) : null;
   const renameTargetCard = renameModalCardId != null ? sortedCards.find((c) => c.id === renameModalCardId) : null;
 
-  useEffect(() => {
-    if (cardMenuCardId == null) {
-      return undefined;
-    }
-    if (!sortedCards.some((c) => c.id === cardMenuCardId)) {
-      setCardMenuCardId(null);
-    }
-    return undefined;
-  }, [cardMenuCardId, sortedCards]);
+  const openCardMenuCardId =
+    cardMenuCardId != null && sortedCards.some((c) => c.id === cardMenuCardId) ? cardMenuCardId : null;
 
   useLayoutEffect(() => {
     const floater = cardMenuFloatingTargetRef.current;
     if (floater == null) {
       return;
     }
-    if (cardMenuCardId == null) {
+    if (openCardMenuCardId == null) {
       floater.style.position = 'fixed';
       floater.style.left = '-9999px';
       floater.style.top = '0';
@@ -160,7 +164,7 @@ function SortableListInner({
     floater.style.opacity = '0';
     floater.style.pointerEvents = 'none';
     floater.style.zIndex = '500';
-  }, [cardMenuCardId]);
+  }, [openCardMenuCardId]);
 
   useEffect(() => {
     const root = cardListDelegationRef.current;
@@ -206,13 +210,10 @@ function SortableListInner({
     if (!kanbanCaps.canAddCard && cardComposerOpen) {
       setCardComposerOpen(false);
     }
-  }, [kanbanCaps.canAddCard, cardComposerOpen]);
-
-  useEffect(() => {
     if (!kanbanCaps.canCardKanbanMenu) {
       setCardMenuCardId(null);
     }
-  }, [kanbanCaps.canCardKanbanMenu]);
+  }, [kanbanCaps.canAddCard, kanbanCaps.canCardKanbanMenu, cardComposerOpen]);
 
   const handleInlineCardCreated = useCallback(
     (cardDb: CardDB) => {
@@ -522,34 +523,44 @@ function SortableListInner({
     [onCardDeletedFromBoard],
   );
 
-  const widthChrome = getBoardListColumnWidthChrome(board);
+  const listColumnWidthPx = getBoardListColumnWidthPx(board);
+  const widthChrome = useMemo(
+    () => getBoardListColumnWidthChrome(board),
+    [listColumnWidthPx, board],
+  );
   const listSourceDrag = draggingListId === list.id;
   const columnClassName = `${widthChrome.columnClassName}${
     listSourceDrag ? ' board-column--list-dragging-source' : ''
   }${listReorderTarget ? ' board-column--list-reorder-target' : ''}`;
 
   const cardMenuTargetCard =
-    cardMenuCardId != null ? sortedCards.find((c) => c.id === cardMenuCardId) : null;
+    openCardMenuCardId != null ? sortedCards.find((c) => c.id === openCardMenuCardId) ?? null : null;
 
   const showListCardCount = board.settings.showListCardCount !== false;
   const showHeaderActions = showListCardCount || kanbanCaps.canListMenu;
 
+  const columnBoxStyle = useMemo((): CSSProperties => {
+    const colorExt: CSSProperties =
+      list.color && list.color.trim().length > 0
+        ? {
+            backgroundColor: list.color,
+            ['--board-list-header-text' as string]: '#ffffff',
+            ['--board-list-muted' as string]: 'rgba(255, 255, 255, 0.88)',
+            ['--board-list-muted-strong' as string]: '#ffffff',
+            ['--board-list-control-hover-bg' as string]: 'rgba(255, 255, 255, 0.18)',
+            ['--board-card-drop-surface' as string]: list.color,
+          }
+        : {};
+    return {
+      ...widthChrome.columnStyle,
+      ...colorExt,
+    };
+  }, [widthChrome, list.color]);
+
   return (
     <Box
       className={columnClassName}
-      style={{
-        ...widthChrome.columnStyle,
-        ...(list.color && list.color.trim().length > 0
-          ? {
-              backgroundColor: list.color,
-              ['--board-list-header-text' as string]: '#ffffff',
-              ['--board-list-muted' as string]: 'rgba(255, 255, 255, 0.88)',
-              ['--board-list-muted-strong' as string]: '#ffffff',
-              ['--board-list-control-hover-bg' as string]: 'rgba(255, 255, 255, 0.18)',
-              ['--board-card-drop-surface' as string]: list.color,
-            }
-          : {}),
-      }}
+      style={columnBoxStyle}
       data-kanban-list-id={list.id}
     >
       <Group justify="space-between" align="flex-start" mb="xs" wrap="nowrap" gap="xs">
@@ -599,6 +610,7 @@ function SortableListInner({
                 <Menu.Dropdown>
                   <Menu.Item
                     onClick={() => {
+                      setRenameValue(list.name);
                       setRenameModalOpen(true);
                     }}
                   >
@@ -606,6 +618,7 @@ function SortableListInner({
                   </Menu.Item>
                   <Menu.Item
                     onClick={() => {
+                      setListColorModalNonce((n) => n + 1);
                       setColorModalOpen(true);
                     }}
                   >
@@ -644,7 +657,7 @@ function SortableListInner({
 
       {kanbanCaps.canCardKanbanMenu ? (
         <Menu
-          opened={cardMenuCardId != null && cardMenuTargetCard != null}
+          opened={openCardMenuCardId != null}
           onChange={(opened) => {
             if (!opened) {
               setCardMenuCardId(null);
@@ -757,6 +770,7 @@ function SortableListInner({
       </Modal>
 
       <ListColorPickerModal
+        key={`list-${list.id}-${listColorModalNonce}`}
         opened={colorModalOpen}
         onClose={() => setColorModalOpen(false)}
         initialColor={list.color ?? ''}
@@ -767,6 +781,7 @@ function SortableListInner({
 
       {colourTargetCard != null ? (
         <ListColorPickerModal
+          key={`card-${colourTargetCard.id}`}
           opened
           onClose={() => setColourModalCardId(null)}
           initialColor={colourTargetCard.color ?? ''}

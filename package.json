@@ -33,9 +33,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@atlaskit/pragmatic-drag-and-drop": "1.7.9",
-    "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "2.1.5",
-    "@atlaskit/pragmatic-drag-and-drop-hitbox": "1.1.0",
     "@emoji-mart/data": "1.2.1",
     "@emoji-mart/react": "1.1.1",
     "@mantine/core": "8.3.0",
@@ -70,6 +67,7 @@
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.20",
     "dexie": "4.2.1",
+    "dragscroll": "^0.0.8",
     "emoji-datasource-twitter": "15.0.1",
     "express": "5.2.1",
     "express-rate-limit": "^8.2.1",

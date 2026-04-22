@@ -93,6 +93,7 @@ function shouldAcceptIncomingCard(current: CardDB, incoming: CardDB): boolean {
 interface CardDetailViewProps {
   card: CardDB;
   boardId: string;
+  boardWorkspaceId?: string | null;
   boardSettings?: BoardDB['settings'];
   listId: string;
   onClose: () => void;
@@ -106,6 +107,7 @@ interface CardDetailViewProps {
 export function CardDetailView({
   card: initialCard,
   boardId,
+  boardWorkspaceId,
   boardSettings,
   listId,
   onClose,
@@ -123,7 +125,22 @@ export function CardDetailView({
   cardRef.current = card;
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duePickerOpened, setDuePickerOpened] = useState(false);
-  const [dueLocal, setDueLocal] = useState('');
+  const dueTimeKey = card.dueDate != null ? new Date(card.dueDate).getTime() : 0;
+  const dueLocalFromCard = useMemo(
+    () => (card.dueDate != null ? toDatetimeLocalValue(new Date(card.dueDate)) : ''),
+    [dueTimeKey],
+  );
+  const [dueLocalOverride, setDueLocalOverride] = useState<string | null>(null);
+  const dueLocal = dueLocalOverride ?? dueLocalFromCard;
+  const setDueLocal = useCallback((value: string) => {
+    setDueLocalOverride(value);
+  }, []);
+  const handleDuePickerOpenedChange = useCallback((next: boolean) => {
+    setDuePickerOpened(next);
+    if (!next) {
+      setDueLocalOverride(null);
+    }
+  }, []);
   const showDueDateAndReminders = boardSettings?.showDueDateAndReminders !== false;
   const showLabels = boardSettings?.showLabels !== false;
   const showAssignees = boardSettings?.showAssignees !== false;
@@ -131,7 +148,7 @@ export function CardDetailView({
   const showAttachments = boardSettings?.showAttachments !== false;
   const showComments = boardSettings?.showComments !== false;
 
-  const { can, loaded: boardPermsLoaded } = useBoardPermissions(boardId);
+  const { can, loaded: boardPermsLoaded } = useBoardPermissions(boardId, boardWorkspaceId);
   const canDeleteCard = boardPermsLoaded && can('cards.delete');
   const canDuplicateCard = boardPermsLoaded && can('cards.duplicate');
   const canCreateComments = boardPermsLoaded && can('comments.create');
@@ -146,15 +163,11 @@ export function CardDetailView({
     [onCardUpdated],
   );
 
-  const dueTimeKey = card.dueDate != null ? new Date(card.dueDate).getTime() : 0;
   const parsedDescription = useMemo(() => parseCardDescriptionJson(card.description), [card.description]);
-  const isDescriptionEmpty = useMemo(
-    () => isCardDescriptionEmpty(parsedDescription),
-    [parsedDescription],
-  );
+  const isDescriptionEmpty = isCardDescriptionEmpty(parsedDescription);
 
   useEffect(() => {
-    setDueLocal(card.dueDate ? toDatetimeLocalValue(new Date(card.dueDate)) : '');
+    setDueLocalOverride(null);
   }, [dueTimeKey]);
 
   useEffect(() => {
@@ -384,7 +397,7 @@ export function CardDetailView({
           message: 'Could not read updated card from server.',
         });
       }
-      setDuePickerOpened(false);
+      handleDuePickerOpenedChange(false);
     } catch (error) {
       console.error('Error updating due date:', error);
       notifications.show({
@@ -395,7 +408,7 @@ export function CardDetailView({
     } finally {
       setLoading(false);
     }
-  }, [card.id, dueLocal, syncCardToBoardAndDexie]);
+  }, [card.id, dueLocal, syncCardToBoardAndDexie, handleDuePickerOpenedChange]);
 
   const handleClearDueDate = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -410,7 +423,7 @@ export function CardDetailView({
           message: 'Could not read updated card from server.',
         });
       }
-      setDuePickerOpened(false);
+      handleDuePickerOpenedChange(false);
     } catch (error) {
       console.error('Error clearing due date:', error);
       notifications.show({
@@ -421,7 +434,7 @@ export function CardDetailView({
     } finally {
       setLoading(false);
     }
-  }, [card.id, syncCardToBoardAndDexie]);
+  }, [card.id, syncCardToBoardAndDexie, handleDuePickerOpenedChange]);
 
   const handleDeleteCard = () => {
     modals.openConfirmModal({
@@ -649,7 +662,7 @@ export function CardDetailView({
                   dueLocal={dueLocal}
                   setDueLocal={setDueLocal}
                   duePickerOpened={duePickerOpened}
-                  setDuePickerOpened={setDuePickerOpened}
+                  setDuePickerOpened={handleDuePickerOpenedChange}
                   syncCardToBoardAndDexie={syncCardToBoardAndDexie}
                   onBeforeDeleteAttachment={onBeforeDeleteAttachment}
                   onSaveDueDate={handleSaveDueDate}

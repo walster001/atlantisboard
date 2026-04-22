@@ -430,8 +430,9 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
     },
   });
 
-  useEffect(() => {
-    if (!colorPopoverOpen) {
+  const handleColorPopoverChange = (open: boolean): void => {
+    setColorPopoverOpen(open);
+    if (!open) {
       return;
     }
     const raw = editor.getAttributes('textStyle').color;
@@ -440,14 +441,14 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
     } else {
       setTextColorPickerValue(EDITOR_TEXT_COLOR_FALLBACK);
     }
-  }, [editor, colorPopoverOpen]);
+  };
 
-  useEffect(() => {
-    if (!emojiPopoverOpen) {
-      return;
+  const handleEmojiPopoverChange = (open: boolean): void => {
+    setEmojiPopoverOpen(open);
+    if (open) {
+      void prefetchEmojiMartModules();
     }
-    prefetchEmojiMartModules();
-  }, [emojiPopoverOpen]);
+  };
 
   const isMediaUploadBusy = imageUploadBusy || videoUploadBusy;
 
@@ -615,7 +616,7 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
       </Menu>
       <Popover
         opened={colorPopoverOpen}
-        onChange={setColorPopoverOpen}
+        onChange={handleColorPopoverChange}
         position="bottom-start"
         width={300}
         zIndex={520}
@@ -626,7 +627,7 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
               size={TOOLBAR_BUTTON_SIZE}
               color="gray"
               variant={ui.hasTextColor ? 'filled' : 'subtle'}
-              onClick={() => setColorPopoverOpen((o) => !o)}
+              onClick={() => handleColorPopoverChange(!colorPopoverOpen)}
               aria-label="Text color"
             >
               <IconPalette size={TOOLBAR_ICON_SIZE} />
@@ -660,7 +661,7 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
       </Popover>
       <Popover
         opened={emojiPopoverOpen}
-        onChange={setEmojiPopoverOpen}
+        onChange={handleEmojiPopoverChange}
         position="bottom-start"
         width={360}
         zIndex={520}
@@ -672,7 +673,7 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
               size={TOOLBAR_BUTTON_SIZE}
               color="gray"
               variant="subtle"
-              onClick={() => setEmojiPopoverOpen((prev) => !prev)}
+              onClick={() => handleEmojiPopoverChange(!emojiPopoverOpen)}
               aria-label="Insert emoji"
             >
               <IconMoodSmile size={TOOLBAR_ICON_SIZE} />
@@ -1102,6 +1103,7 @@ export function CardDescriptionEditor({
       <CardDescriptionEditorToolbar editor={editor} cardId={cardId} />
       <EditorContent editor={editor} />
       <CardDescriptionInlineButtonEditModal
+        key={inlineButtonEditPos ?? 'inline-button-closed'}
         opened={inlineButtonEditPos !== null}
         nodePos={inlineButtonEditPos}
         onClose={closeInlineButtonModal}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Button, Alert, Stack, TextInput, Group, Badge, Text, Loader, Box } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { IconCopy } from '@tabler/icons-react';
@@ -26,11 +26,7 @@ export function InviteList({ workspaceId, boardId }: InviteListProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadInvites();
-  }, [workspaceId, boardId]);
-
-  const loadInvites = async () => {
+  const loadInvites = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -41,7 +37,11 @@ export function InviteList({ workspaceId, boardId }: InviteListProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [workspaceId, boardId]);
+
+  useEffect(() => {
+    void loadInvites();
+  }, [loadInvites]);
 
   useEffect(() => {
     return subscribeSocketInvitesChanged((p) => {
@@ -52,7 +52,7 @@ export function InviteList({ workspaceId, boardId }: InviteListProps) {
       }
       void loadInvites();
     });
-  }, [workspaceId, boardId]);
+  }, [workspaceId, boardId, loadInvites]);
 
   const handleDelete = (inviteId: string) => {
     modals.openConfirmModal({

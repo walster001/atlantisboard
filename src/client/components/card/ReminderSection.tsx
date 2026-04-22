@@ -204,6 +204,7 @@ export function ReminderSection({ card, onCardUpdate }: ReminderSectionProps) {
 
       {showReminderModal && (
         <ReminderModal
+          key={`${editingReminder?.id ?? 'new'}-${card.dueDate ?? ''}`}
           card={card}
           reminder={editingReminder}
           onClose={() => {

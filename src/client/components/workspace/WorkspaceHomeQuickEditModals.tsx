@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button, Group, Modal, Stack, TextInput, Textarea } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
@@ -21,14 +21,8 @@ interface RenameWorkspaceModalProps {
 
 /** Draft state lives here so HomePage does not re-render the full workspace list on every keystroke. */
 export function RenameWorkspaceModal({ target, onClose, onSuccess }: RenameWorkspaceModalProps) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => target?.initialName ?? '');
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (target !== null) {
-      setName(target.initialName);
-    }
-  }, [target]);
 
   const opened = target !== null;
 
@@ -96,14 +90,8 @@ export function EditWorkspaceDescriptionModal({
   onClose,
   onSuccess,
 }: EditWorkspaceDescriptionModalProps) {
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(() => target?.initialDescription ?? '');
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (target !== null) {
-      setDescription(target.initialDescription);
-    }
-  }, [target]);
 
   const opened = target !== null;
 

@@ -70,6 +70,34 @@ export function getBoardsInWorkspaceSorted(allBoards: BoardDB[], workspaceId: st
   });
 }
 
+/** One pass over `allBoards` — use from `useMemo` instead of calling `getBoardsInWorkspaceSorted` per workspace row. */
+export function buildBoardsByWorkspaceSortedMap(
+  allBoards: readonly BoardDB[],
+): ReadonlyMap<string, BoardDB[]> {
+  const map = new Map<string, BoardDB[]>();
+  for (const b of allBoards) {
+    const wid = boardWorkspaceKey(b);
+    if (wid === '') {
+      continue;
+    }
+    let bucket = map.get(wid);
+    if (bucket == null) {
+      bucket = [];
+      map.set(wid, bucket);
+    }
+    bucket.push(b);
+  }
+  for (const arr of map.values()) {
+    arr.sort((a, bb) => {
+      if (a.position !== bb.position) {
+        return a.position - bb.position;
+      }
+      return bb.createdAt.getTime() - a.createdAt.getTime();
+    });
+  }
+  return map;
+}
+
 export function sortBoardsFlatHome(prev: BoardDB[]): BoardDB[] {
   return [...prev].sort((a, b) => {
     const wa = boardWorkspaceKey(a);

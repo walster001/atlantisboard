@@ -142,6 +142,22 @@ describe('applyTrelloSmartLinksToDescriptionDoc', () => {
   });
 });
 
+describe('isValidCardDescriptionDoc', () => {
+  it('rejects codeBlock language longer than 256 characters', () => {
+    const longLang = 'x'.repeat(257);
+    const doc = {
+      type: 'doc' as const,
+      content: [
+        {
+          type: 'codeBlock' as const,
+          attrs: { language: longLang },
+        },
+      ],
+    };
+    expect(isValidCardDescriptionDoc(doc)).toBe(false);
+  });
+});
+
 describe('trelloLabelColors', () => {
   it('maps trello color keys to hex', async () => {
     const { trelloColorKeyToHex, trelloLabelDisplayName } = await import(

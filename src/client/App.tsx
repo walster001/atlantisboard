@@ -12,6 +12,8 @@ import { mantineTheme } from './config/mantineTheme.js';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 
+const MANTINE_MODALS_PROVIDER_PROPS = { centered: true } as const;
+
 // Lazy load routes for code splitting
 const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -42,7 +44,7 @@ function BoardCardRouteRedirect() {
 function App() {
   return (
     <MantineProvider theme={mantineTheme} defaultColorScheme="light">
-      <ModalsProvider modalProps={{ centered: true }}>
+      <ModalsProvider modalProps={MANTINE_MODALS_PROVIDER_PROPS}>
         <Notifications />
         <BrowserRouter>
           <AppBrandingProvider>

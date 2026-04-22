@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Alert, Stack, Title, Group, Box, Loader } from '@mantine/core';
 import { api } from '../utils/api.js';
@@ -12,23 +12,7 @@ export default function InviteAcceptPage() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-
-    if (token) {
-      void handleAccept();
-    }
-
-    return () => {
-      isMountedRef.current = false;
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
-  }, [token]);
-
-  const handleAccept = async () => {
+  const handleAccept = useCallback(async () => {
     if (!token || !isMountedRef.current) return;
 
     if (isMountedRef.current) {
@@ -62,7 +46,23 @@ export default function InviteAcceptPage() {
         setLoading(false);
       }
     }
-  };
+  }, [token, navigate]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    if (token) {
+      void handleAccept();
+    }
+
+    return () => {
+      isMountedRef.current = false;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [token, handleAccept]);
 
   if (loading) {
     return (

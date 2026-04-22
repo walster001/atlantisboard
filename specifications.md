@@ -11,14 +11,12 @@ NOTE: All code MUST STRICTLY adhere to OWASP standards, including passport authe
 ### Frontend
 - **React** (v19.2.3) - Component-based UI library
 - **TypeScript** (v5.9.3) - Type-safe JavaScript
-- **React Router** (v7.11.0) - Client-side routing for SPA navigation
+- **React Router** (v7.12.0) - Client-side routing for SPA navigation
 - **Tailwind CSS** (v4.1.18) - Utility-first CSS framework
 - **Mantine UI** (v8.3.0) - React component library with CSS-in-JS styling
 - **Dexie.js** (v4.2.1) - In-browser IndexedDB wrapper for real-time client-side storage
 - **Socket.io Client** (v4.8.3) - Real-time client communication
-- **@atlaskit/pragmatic-drag-and-drop** (v1.7.9) - Framework-agnostic element drag-and-drop (Kanban + home board grid)
-- **@atlaskit/pragmatic-drag-and-drop-hitbox** (v1.1.0) - Closest-edge hit testing for reorder affordances
-- **@atlaskit/pragmatic-drag-and-drop-auto-scroll** (v2.1.5) - Auto-scroll during drag (board and column scrollers)
+- **Custom pointer drag-and-drop** - Delegated pointer handlers for Kanban and home board grid (`useKanbanDelegatedPointerDrag`, `kanbanPointerDrag`); touch-friendly `touch-action` and column auto-scroll as implemented in client code (no `@atlaskit/pragmatic-drag-and-drop` dependency)
 - **Tiptap** (v3.20.4) - `@tiptap/core`, `@tiptap/react`, `@tiptap/starter-kit` — ProseMirror-based rich text editor for card descriptions
 - **@tiptap/static-renderer** (v3.20.4) - Read-only static rendering of stored JSON in card detail view
 - **lowlight** (v3.3.0) - Syntax highlighting for code blocks (via `@tiptap/extension-code-block-lowlight`)
@@ -1513,7 +1511,7 @@ All API endpoints use version `/api/v1/` prefix for future compatibility.
 
 ### Mobile Optimization
 - Touch-optimized drag-and-drop:
-  - Use Pragmatic drag and drop (`@atlaskit/pragmatic-drag-and-drop`) with appropriate `touch-action` and native drag previews
+  - Use the **custom delegated pointer** Kanban pipeline with appropriate `touch-action` and drag previews as implemented under `src/client/components/board/`
   - Implement touch gesture support
   - Minimum 44x44px touch targets for all interactive elements
 - Virtual scrolling for large lists:

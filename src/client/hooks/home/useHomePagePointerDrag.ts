@@ -5,7 +5,6 @@ import {
   type MutableRefObject,
   type RefObject,
 } from 'react';
-import { flushSync } from 'react-dom';
 import type { BoardDB, WorkspaceDB } from '../../store/database.js';
 import {
   boardIdKey,
@@ -125,6 +124,7 @@ export function useHomePagePointerDrag(
 } {
   const sessionRef = useRef<Session>(null);
   const rafRef = useRef<number | null>(null);
+  const commitRafRef = useRef<number | null>(null);
   const [floatPreview, setFloatPreview] = useState<FloatState>(null);
   const [draggingBoardId, setDraggingBoardId] = useState<string | null>(null);
   const suppressBoardClickRef = useRef(false);
@@ -145,6 +145,10 @@ export function useHomePagePointerDrag(
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
+      }
+      if (commitRafRef.current != null) {
+        cancelAnimationFrame(commitRafRef.current);
+        commitRafRef.current = null;
       }
     };
 
@@ -169,9 +173,7 @@ export function useHomePagePointerDrag(
           // ignore
         }
       }
-      flushSync(() => {
-        setFloatPreview(null);
-      });
+      setFloatPreview(null);
       actionsRef.current.setWorkspaceRowDrag({ workspaceId: null, insertIndex: null });
       actionsRef.current.setBoardGridDropTarget(null);
       setDraggingBoardId(null);
@@ -218,9 +220,7 @@ export function useHomePagePointerDrag(
           initialY: s.startY,
           boardsBefore: m.boards,
         };
-        flushSync(() => {
-          setFloatPreview({ kind: 'board', name: board.name });
-        });
+        setFloatPreview({ kind: 'board', name: board.name });
         setDraggingBoardId(s.boardId);
         actionsRef.current.setHomeDraggingClass(true);
         suppressBoardClickRef.current = true;
@@ -253,9 +253,7 @@ export function useHomePagePointerDrag(
           initialY: s.startY,
           orderedIdsBefore: [...m.orderedWorkspaceIds],
         };
-        flushSync(() => {
-          setFloatPreview({ kind: 'workspace', name: ws.name });
-        });
+        setFloatPreview({ kind: 'workspace', name: ws.name });
         actionsRef.current.setWorkspaceRowDrag({ workspaceId: s.workspaceId, insertIndex: null });
         actionsRef.current.setHomeDraggingClass(true);
         suppressBoardClickRef.current = true;
@@ -293,7 +291,7 @@ export function useHomePagePointerDrag(
       });
     };
 
-    const commitBoardDrag = async (ev: PointerEvent): Promise<void> => {
+    const commitBoardDrag = async (ev: Pick<PointerEvent, 'clientX' | 'clientY'>): Promise<void> => {
       const s = sessionRef.current;
       if (s == null || s.kind !== 'active_board') {
         disarm();
@@ -381,7 +379,7 @@ export function useHomePagePointerDrag(
       }, 0);
     };
 
-    const commitWorkspaceDrag = async (ev: PointerEvent): Promise<void> => {
+    const commitWorkspaceDrag = async (ev: Pick<PointerEvent, 'clientX' | 'clientY'>): Promise<void> => {
       const s = sessionRef.current;
       if (s == null || s.kind !== 'active_workspace') {
         disarm();
@@ -421,11 +419,25 @@ export function useHomePagePointerDrag(
         return;
       }
       if (s.kind === 'active_board' && s.pointerId === ev.pointerId) {
-        void commitBoardDrag(ev);
+        const evSnapshot = { clientX: ev.clientX, clientY: ev.clientY } satisfies Pick<
+          PointerEvent,
+          'clientX' | 'clientY'
+        >;
+        commitRafRef.current = requestAnimationFrame(() => {
+          commitRafRef.current = null;
+          void commitBoardDrag(evSnapshot);
+        });
         return;
       }
       if (s.kind === 'active_workspace' && s.pointerId === ev.pointerId) {
-        void commitWorkspaceDrag(ev);
+        const evSnapshot = { clientX: ev.clientX, clientY: ev.clientY } satisfies Pick<
+          PointerEvent,
+          'clientX' | 'clientY'
+        >;
+        commitRafRef.current = requestAnimationFrame(() => {
+          commitRafRef.current = null;
+          void commitWorkspaceDrag(evSnapshot);
+        });
       }
     };
 

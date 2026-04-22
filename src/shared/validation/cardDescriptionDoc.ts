@@ -306,8 +306,10 @@ function validateNode(node: unknown, depth: number): boolean {
         return false;
       }
       const lang = attrs.language;
-      if (lang !== undefined && typeof lang !== 'string') {
-        return false;
+      if (lang !== undefined) {
+        if (typeof lang !== 'string' || lang.length > 256) {
+          return false;
+        }
       }
     }
   }

@@ -17,13 +17,13 @@ import {
   resolveHomepageNavbarIconUrl,
   resolveHomepageNavbarLabelText,
 } from '../../shared/types/appBranding.js';
-import { useSync } from '../hooks/useSync.js';
 import { useHomeBoardPermissionsBatch } from '../hooks/useHomeBoardPermissionsBatch.js';
 import { useHomeWorkspacePermissionsBatch } from '../hooks/useHomeWorkspacePermissionsBatch.js';
-import { useSocket } from '../hooks/useSocket.js';
+import { useSocket, resyncWorkspaceSocketRoomsFromDexie } from '../hooks/useSocket.js';
 import { api } from '../utils/api.js';
 import { db, type BoardDB, type WorkspaceDB } from '../store/database.js';
 import { transformBoard, transformWorkspace } from '../utils/transform.js';
+import { replaceDexieWorkspacesFromHomeApiList } from '../utils/workspaceDexieReconcile.js';
 import { OfflineIndicator } from '../components/OfflineIndicator.js';
 import { UserMenu } from '../components/UserMenu.js';
 import { CreateWorkspaceModal } from '../components/workspace/CreateWorkspaceModal.js';
@@ -38,7 +38,7 @@ import { BoardCardMenu } from '../components/board/BoardCardMenu.js';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
-  getBoardsInWorkspaceSorted,
+  buildBoardsByWorkspaceSortedMap,
   mergeWorkspacesWithHomeOrder,
 } from '../hooks/homeBoard/homeBoardLayout.js';
 import { persistWorkspaceRowOrder } from '../hooks/homeBoard/homeBoardMove.js';
@@ -54,6 +54,18 @@ import { resolveHomeBoardTileCoverDisplay } from '../utils/boardCoverDisplay.js'
 import './HomePage.css';
 
 const HOME_BOARDS_PAGE_SIZE = 100;
+
+const HOME_BOARD_CARD_ROOT_STYLES = { root: { overflow: 'visible' } } as const;
+
+const HOME_WORKSPACE_SUMMARY_FIELDS = [
+  'name',
+  'description',
+  'ownerId',
+  'members',
+  'createdAt',
+  'updatedAt',
+  'boardScopedHomeOnly',
+] as const;
 
 const HOME_BOARD_SUMMARY_FIELDS = [
   'workspaceId',
@@ -124,7 +136,7 @@ function HomeBoardCardTile({
       shadow="md"
       padding={0}
       radius="md"
-      styles={{ root: { overflow: 'visible' } }}
+      styles={HOME_BOARD_CARD_ROOT_STYLES}
       className={`home-page__board-card${isDraggingSource ? ' home-page__board-card--drag-source' : ''}`}
       onClick={() => {
         if (suppressNavigateRef.current) {
@@ -202,7 +214,6 @@ export default function HomePage() {
   const [workspaceSettingsId, setWorkspaceSettingsId] = useState<string | null>(null);
   const { authenticated, loading: authLoading, user, refreshUser } = useAuthContext();
   const { branding: loginBranding, appBranding: appChrome } = useAppBranding();
-  const { syncWorkspaces } = useSync();
   useSocket();
   const navigate = useNavigate();
 
@@ -224,6 +235,7 @@ export default function HomePage() {
   const homeMainStyle: CSSProperties = { backgroundColor: 'transparent' };
   const homeUserNameStyle: CSSProperties = { color: appChrome.homepageNavbarTextColor };
   const isMountedRef = useRef(true);
+  const homeDataLoadGenRef = useRef(0);
   /** Home board list from API + socket (`board:*`, `boards:positionsSynced`). */
   const { allBoards, setAllBoards, workspaces, setWorkspaces } = useBoardRealtimeSync({
     isMountedRef,
@@ -236,6 +248,11 @@ export default function HomePage() {
   const orderedWorkspaces = useMemo(
     () => mergeWorkspacesWithHomeOrder(workspaces, user?.preferences?.homeWorkspaceOrder),
     [workspaces, user?.preferences?.homeWorkspaceOrder],
+  );
+
+  const boardsByWorkspaceMap = useMemo(
+    () => buildBoardsByWorkspaceSortedMap(allBoards),
+    [allBoards],
   );
 
   const listRootRef = useRef<HTMLDivElement | null>(null);
@@ -279,7 +296,7 @@ export default function HomePage() {
     canDragBoard: (b) => homePerms.canDragBoardOnHome(b),
     canReorderAllBoardsInWorkspace: (wsId) =>
       user != null &&
-      homePerms.canReorderAllBoardsInScope(user.id, getBoardsInWorkspaceSorted(allBoards, wsId)),
+      homePerms.canReorderAllBoardsInScope(user.id, boardsByWorkspaceMap.get(wsId.trim()) ?? []),
     hasBoardUpdate: homePerms.hasBoardUpdate,
     hasWorkspaceUpdate: (wid) =>
       user != null && wsPerms.loaded && wsPerms.can(wid, 'workspaces.update'),
@@ -307,32 +324,30 @@ export default function HomePage() {
     if (!isMountedRef.current) return;
 
     try {
-      const workspacesResponse = await api.getWorkspaces({
-        view: 'summary',
-        fields: [
-          'name',
-          'description',
-          'ownerId',
-          'members',
-          'createdAt',
-          'updatedAt',
-          'boardScopedHomeOnly',
-        ],
-      });
+      const [workspacesResponse, boards] = await Promise.all([
+        api.getWorkspaces({
+          view: 'summary',
+          fields: [...HOME_WORKSPACE_SUMMARY_FIELDS],
+        }),
+        loadAllHomeBoardSummaries(),
+      ]);
       const rawWorkspaces = (workspacesResponse as { workspaces: unknown[] }).workspaces;
       const transformedWorkspaces: WorkspaceDB[] = rawWorkspaces.map((workspace) =>
         transformWorkspace(workspace),
       );
-
-      const boards = await loadAllHomeBoardSummaries();
 
       if (!isMountedRef.current) return;
 
       setWorkspaces(transformedWorkspaces);
       setAllBoards(boards);
 
-      await Promise.all(transformedWorkspaces.map((workspace) => db.workspaces.put(workspace)));
-      await Promise.all(boards.map((board) => db.boards.put(board)));
+      await db.transaction('rw', db.workspaces, db.boards, async () => {
+        await replaceDexieWorkspacesFromHomeApiList(transformedWorkspaces);
+        if (boards.length > 0) {
+          await db.boards.bulkPut(boards);
+        }
+      });
+      void resyncWorkspaceSocketRoomsFromDexie();
     } catch (error) {
       console.error('Error refreshing data:', error);
     }
@@ -354,6 +369,8 @@ export default function HomePage() {
       return undefined;
     }
 
+    const myGen = ++homeDataLoadGenRef.current;
+
     const loadData = async () => {
       if (!isMountedRef.current) return;
 
@@ -361,43 +378,39 @@ export default function HomePage() {
         if (isMountedRef.current) {
           setLoading(true);
         }
-        await syncWorkspaces();
 
-        if (!isMountedRef.current) return;
+        const [workspacesResponse, boards] = await Promise.all([
+          api.getWorkspaces({
+            view: 'summary',
+            fields: [...HOME_WORKSPACE_SUMMARY_FIELDS],
+          }),
+          loadAllHomeBoardSummaries(),
+        ]);
 
-        // Load workspaces
-        const workspacesResponse = await api.getWorkspaces({
-          view: 'summary',
-          fields: [
-            'name',
-            'description',
-            'ownerId',
-            'members',
-            'createdAt',
-            'updatedAt',
-            'boardScopedHomeOnly',
-          ],
-        });
+        if (!isMountedRef.current || homeDataLoadGenRef.current !== myGen) {
+          return;
+        }
+
         const rawWorkspaces = (workspacesResponse as { workspaces: unknown[] }).workspaces;
         const transformedWorkspaces: WorkspaceDB[] = rawWorkspaces.map((workspace) =>
-          transformWorkspace(workspace)
+          transformWorkspace(workspace),
         );
-
-        const boards = await loadAllHomeBoardSummaries();
-
-        if (!isMountedRef.current) return;
 
         setWorkspaces(transformedWorkspaces);
         setAllBoards(boards);
 
-        // Save to IndexedDB
-        await Promise.all(transformedWorkspaces.map((workspace) => db.workspaces.put(workspace)));
-        await Promise.all(boards.map((board) => db.boards.put(board)));
+        await db.transaction('rw', db.workspaces, db.boards, async () => {
+          await replaceDexieWorkspacesFromHomeApiList(transformedWorkspaces);
+          if (boards.length > 0) {
+            await db.boards.bulkPut(boards);
+          }
+        });
+        void resyncWorkspaceSocketRoomsFromDexie();
       } catch (error) {
         console.error('Error loading data:', error);
         // If we get a 401, the API interceptor will handle redirect
       } finally {
-        if (isMountedRef.current) {
+        if (isMountedRef.current && homeDataLoadGenRef.current === myGen) {
           setLoading(false);
         }
       }
@@ -406,9 +419,10 @@ export default function HomePage() {
     void loadData();
 
     return () => {
+      homeDataLoadGenRef.current += 1;
       isMountedRef.current = false;
     };
-  }, [authenticated, authLoading, syncWorkspaces]);
+  }, [authenticated, authLoading]);
 
   const handleDeleteWorkspace = (workspaceId: string) => {
     modals.openConfirmModal({
@@ -566,7 +580,7 @@ export default function HomePage() {
             </Group>
 
             {orderedWorkspaces.map((workspace, fullIndex) => {
-              const workspaceBoards = getBoardsInWorkspaceSorted(allBoards, workspace.id);
+              const workspaceBoards = boardsByWorkspaceMap.get(workspace.id) ?? [];
               const boardScopedHomeOnly = workspace.boardScopedHomeOnly === true;
               const wsManage =
                 user != null &&
@@ -775,12 +789,14 @@ export default function HomePage() {
         )}
 
         <RenameWorkspaceModal
+          key={renameWorkspaceTarget?.id ?? 'rename-closed'}
           target={renameWorkspaceTarget}
           onClose={() => setRenameWorkspaceTarget(null)}
           onSuccess={refreshData}
         />
 
         <EditWorkspaceDescriptionModal
+          key={editDescriptionTarget?.id ?? 'description-closed'}
           target={editDescriptionTarget}
           onClose={() => setEditDescriptionTarget(null)}
           onSuccess={refreshData}

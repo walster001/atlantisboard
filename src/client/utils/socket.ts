@@ -3,6 +3,8 @@ import { env } from '../config/env.js';
 
 class SocketClient {
   private socket: Socket | null = null;
+  /** Last token passed to `connect` — used to avoid tearing down a handshaking socket on duplicate connect (e.g. React Strict Mode). */
+  private lastAuthToken: string | null = null;
   private reconnectAttempts = 0;
   private readonly maxReconnectAttempts = 5;
 
@@ -10,6 +12,22 @@ class SocketClient {
     if (this.socket?.connected) {
       return this.socket;
     }
+
+    if (
+      this.socket != null &&
+      !this.socket.connected &&
+      this.lastAuthToken === token
+    ) {
+      return this.socket;
+    }
+
+    if (this.socket != null) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
+    this.lastAuthToken = token;
 
     const SOCKET_URL = env.SOCKET_URL || window.location.origin;
 
@@ -40,6 +58,7 @@ class SocketClient {
       this.socket.disconnect();
       this.socket = null;
     }
+    this.lastAuthToken = null;
   }
 
   getSocket(): Socket | null {

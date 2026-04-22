@@ -228,6 +228,7 @@ function LoginOptionsSectionInner() {
     });
     setGoogleReplaceMode(false);
     setGoogleFormOpen(!gConfigured);
+    prevAuthMethodRef.current = c.defaultAuthMethod;
   }, [resetMysqlDraftFromConfig]);
 
   const loadConfig = useCallback(async () => {
@@ -283,14 +284,12 @@ function LoginOptionsSectionInner() {
       setGoogleFormOpen(false);
     }
 
+    setMysqlTestError(null);
+    setMysqlTestSuccess(null);
     if (method === 'google-external') {
       resetMysqlDraftFromConfig(config);
-      setMysqlTestError(null);
-      setMysqlTestSuccess(null);
     } else {
       setMysqlReplaceMode(false);
-      setMysqlTestError(null);
-      setMysqlTestSuccess(null);
     }
   }, [config, resetMysqlDraftFromConfig]);
 

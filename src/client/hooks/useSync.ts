@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { api } from '../utils/api.js';
-import { db, type BoardDB, type CardDB } from '../store/database.js';
+import { db, type BoardDB, type CardDB, type WorkspaceDB } from '../store/database.js';
 import {
   transformBoard,
   transformWorkspace,
@@ -8,25 +8,34 @@ import {
   transformCard,
   mergeDexieCardIfSnapshot,
 } from '../utils/transform.js';
+import { replaceDexieWorkspacesFromHomeApiList } from '../utils/workspaceDexieReconcile.js';
+import { resyncWorkspaceSocketRoomsFromDexie } from './useSocket.js';
 const WORKSPACE_BOARDS_PAGE_SIZE = 100;
 
 /**
  * Hook to sync data from API to Dexie.js
  */
 export function useSync() {
-  const syncWorkspaces = useCallback(async () => {
-    try {
-      const response = await api.getWorkspaces({ view: 'summary' });
-      const rawWorkspaces = (response as { workspaces: unknown[] }).workspaces;
-      
-      // Transform workspaces from API format (_id) to Dexie format (id)
-      const workspaces = rawWorkspaces.map(transformWorkspace);
-      
-      await Promise.all(workspaces.map((workspace) => db.workspaces.put(workspace)));
-    } catch {
-      /* sync failed */
-    }
-  }, []);
+  const syncWorkspaces = useCallback(
+    async (options?: { readonly fields?: readonly string[] }): Promise<WorkspaceDB[] | null> => {
+      try {
+        const response = await api.getWorkspaces({
+          view: 'summary',
+          ...(options?.fields != null && options.fields.length > 0
+            ? { fields: options.fields }
+            : {}),
+        });
+        const rawWorkspaces = (response as { workspaces: unknown[] }).workspaces;
+        const workspaces = rawWorkspaces.map(transformWorkspace);
+        await replaceDexieWorkspacesFromHomeApiList(workspaces);
+        void resyncWorkspaceSocketRoomsFromDexie();
+        return workspaces;
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
 
   const syncBoards = useCallback(async (workspaceId: string) => {
     try {
@@ -46,7 +55,9 @@ export function useSync() {
         skip += WORKSPACE_BOARDS_PAGE_SIZE;
       }
 
-      await Promise.all(boards.map((board) => db.boards.put(board)));
+      if (boards.length > 0) {
+        await db.boards.bulkPut(boards);
+      }
     } catch {
       /* sync failed */
     }
@@ -60,7 +71,9 @@ export function useSync() {
       // Transform lists from API format (_id) to Dexie format (id)
       const lists = rawLists.map(transformList);
       
-      await Promise.all(lists.map((list) => db.lists.put(list)));
+      if (lists.length > 0) {
+        await db.lists.bulkPut(lists);
+      }
     } catch {
       /* sync failed */
     }

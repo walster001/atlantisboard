@@ -1,6 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import type { Server as HTTPServer } from 'http';
 import { verifyToken } from '../utils/jwt.js';
+import { hasPermission, isWorkspaceMember } from '../utils/permissions.js';
 import { User } from '../models/User.js';
 import { logger } from '../utils/logger.js';
 import { setupChangeStreams } from './changeStreams.js';
@@ -67,9 +68,24 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
     socket.join(`user:${user.userId}`);
 
     // Handle workspace room joins
-    socket.on('workspace:join', (workspaceId: string) => {
-      socket.join(`workspace:${workspaceId}`);
-      logger.debug({ userId: user.userId, workspaceId }, 'User joined workspace room');
+    socket.on('workspace:join', async (workspaceId: string) => {
+      try {
+        const id = typeof workspaceId === 'string' ? workspaceId.trim() : '';
+        if (id === '') {
+          return;
+        }
+        // Membership only (same bar as loading a workspace over HTTP). Role permission sets may
+        // omit `workspaces.view` for custom roles while the user is still a listed member.
+        const allowed = await isWorkspaceMember(user.userId, id);
+        if (!allowed) {
+          logger.warn({ userId: user.userId, workspaceId: id }, 'Denied workspace:join');
+          return;
+        }
+        socket.join(`workspace:${id}`);
+        logger.debug({ userId: user.userId, workspaceId: id }, 'User joined workspace room');
+      } catch (error) {
+        logger.error({ error, userId: user.userId }, 'workspace:join handler error');
+      }
     });
 
     // Handle workspace room leaves
@@ -79,16 +95,28 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
     });
 
     // Handle board room joins
-    socket.on('board:join', (boardId: string) => {
-      socket.join(`board:${boardId}`);
-      logger.debug({ userId: user.userId, boardId }, 'User joined board room');
+    socket.on('board:join', async (boardId: string) => {
+      try {
+        const id = typeof boardId === 'string' ? boardId.trim() : '';
+        if (id === '') {
+          return;
+        }
+        const allowed = await hasPermission({ id: user.userId }, id, 'boards.view');
+        if (!allowed) {
+          logger.warn({ userId: user.userId, boardId: id }, 'Denied board:join');
+          return;
+        }
+        socket.join(`board:${id}`);
+        logger.debug({ userId: user.userId, boardId: id }, 'User joined board room');
 
-      // Notify others in the room
-      socket.to(`board:${boardId}`).emit('user:joined', {
-        userId: user.userId,
-        username: user.username,
-        boardId,
-      });
+        socket.to(`board:${id}`).emit('user:joined', {
+          userId: user.userId,
+          username: user.username,
+          boardId: id,
+        });
+      } catch (error) {
+        logger.error({ error, userId: user.userId }, 'board:join handler error');
+      }
     });
 
     // Handle board room leaves

@@ -187,6 +187,73 @@ function SortableCardInner({
     descDocForPreview != null &&
     !isCardDescriptionEmpty(descDocForPreview);
 
+  const kanbanLabelVisualKey = useMemo(
+    () => card.labels.map((l) => `${l.id}:${l.color}:${l.name}`).join('|'),
+    [card.labels],
+  );
+
+  const kanbanAssigneeVisualKey = useMemo(
+    () => card.assignees.map(String).join('\0'),
+    [card.assignees],
+  );
+
+  const kanbanLabelRow = useMemo(() => {
+    if (card.labels.length === 0) {
+      return null;
+    }
+    return (
+      <Group gap={6} wrap="wrap" mb="xs" className="board-card__kanban-labels">
+        {card.labels.map((label) => (
+          <Badge
+            key={label.id}
+            size="sm"
+            radius="xl"
+            variant="filled"
+            className="board-card__kanban-label-pill"
+            styles={{
+              root: {
+                backgroundColor: label.color,
+                textTransform: 'uppercase',
+                fontWeight: 500,
+              },
+              label: { color: 'var(--mantine-color-white)' },
+            }}
+          >
+            {label.name.toUpperCase()}
+          </Badge>
+        ))}
+      </Group>
+    );
+  }, [kanbanLabelVisualKey]);
+
+  const kanbanAssigneeRow = useMemo(() => {
+    if (card.assignees.length === 0) {
+      return null;
+    }
+    return (
+      <Group gap={6} mt="xs" wrap="nowrap">
+        {card.assignees.slice(0, 3).map((userId) => {
+          const uid = String(userId);
+          const u = assigneeDirectory?.get(uid);
+          const src =
+            u?.profilePicture != null && u.profilePicture !== '' ? u.profilePicture : null;
+          return (
+            <Avatar
+              key={uid}
+              size={APP_USER_AVATAR_SIZE}
+              {...(src != null ? { src } : {})}
+            >
+              {userMenuStyleAvatarInitials(u?.displayName ?? '', u?.email ?? uid)}
+            </Avatar>
+          );
+        })}
+        {card.assignees.length > 3 ? (
+          <Avatar size={APP_USER_AVATAR_SIZE}>{`+${card.assignees.length - 3}`}</Avatar>
+        ) : null}
+      </Group>
+    );
+  }, [kanbanAssigneeVisualKey, assigneeDirectory]);
+
   return (
     <Box
       ref={deferRef}
@@ -254,29 +321,7 @@ function SortableCardInner({
           />
         ) : null}
 
-        {card.labels.length > 0 ? (
-          <Group gap={6} wrap="wrap" mb="xs" className="board-card__kanban-labels">
-            {card.labels.map((label) => (
-              <Badge
-                key={label.id}
-                size="sm"
-                radius="xl"
-                variant="filled"
-                className="board-card__kanban-label-pill"
-                styles={{
-                  root: {
-                    backgroundColor: label.color,
-                    textTransform: 'uppercase',
-                    fontWeight: 500,
-                  },
-                  label: { color: 'var(--mantine-color-white)' },
-                }}
-              >
-                {label.name.toUpperCase()}
-              </Badge>
-            ))}
-          </Group>
-        ) : null}
+        {kanbanLabelRow}
 
         <Text component="div" className="board-card__kanban-title" fw={400}>
           {richReady ? (
@@ -358,30 +403,7 @@ function SortableCardInner({
           </Group>
         ) : null}
 
-        {card.assignees.length > 0 ? (
-          <Group gap={6} mt="xs" wrap="nowrap">
-            {card.assignees.slice(0, 3).map((userId) => {
-              const uid = String(userId);
-              const u = assigneeDirectory?.get(uid);
-              const src =
-                u?.profilePicture != null && u.profilePicture !== '' ? u.profilePicture : null;
-              return (
-                <Avatar
-                  key={uid}
-                  size={APP_USER_AVATAR_SIZE}
-                  {...(src != null ? { src } : {})}
-                >
-                  {userMenuStyleAvatarInitials(u?.displayName ?? '', u?.email ?? uid)}
-                </Avatar>
-              );
-            })}
-            {card.assignees.length > 3 ? (
-              <Avatar size={APP_USER_AVATAR_SIZE}>
-                {`+${card.assignees.length - 3}`}
-              </Avatar>
-            ) : null}
-          </Group>
-        ) : null}
+        {kanbanAssigneeRow}
 
         {card.dueDate ? (
           <Box className="board-card__kanban-due-wrap">

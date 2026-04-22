@@ -152,10 +152,14 @@ class ApiClient {
 
   async login(email: string, password: string): Promise<{ token: string; user: unknown }> {
     const response = await this.client.post('/auth/login', { email, password });
-    if (response.data.token) {
-      this.setToken(response.data.token);
+    const data = response.data;
+    if (data != null && typeof data === 'object' && 'token' in data) {
+      const token = (data as { token?: unknown }).token;
+      if (typeof token === 'string' && token.length > 0) {
+        this.setToken(token);
+      }
     }
-    return response.data;
+    return data as { token: string; user: unknown };
   }
 
   async logout(): Promise<void> {
@@ -633,9 +637,15 @@ class ApiClient {
     const response = await this.client.post(`/boards/${boardId}/cards/descriptions-batch`, {
       cardIds: [...cardIds],
     });
-    return response.data as {
-      cards: ReadonlyArray<{ id: string; description: string; descriptionHtml?: string }>;
-    };
+    const data = response.data;
+    if (data == null || typeof data !== 'object' || !('cards' in data)) {
+      return { cards: [] };
+    }
+    const cards = (data as { cards: unknown }).cards;
+    if (!Array.isArray(cards)) {
+      return { cards: [] };
+    }
+    return { cards: cards as ReadonlyArray<{ id: string; description: string; descriptionHtml?: string }> };
   }
 
   async patchBoardListsBulkColor(

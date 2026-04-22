@@ -13,6 +13,7 @@ import type {
   InlineButtonIconReplacement,
   WekanLegacyInlineButtonCandidate,
 } from '../../../shared/import/importPreflight.js';
+import { readImageAsDataUrl } from '../../utils/readImageAsDataUrl.js';
 
 interface ReplaceButtonsTabProps {
   readonly buttons: readonly WekanLegacyInlineButtonCandidate[];
@@ -53,19 +54,7 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
   }, [replacements]);
 
   const handlePick = useCallback(async (iconSrc: string, file: File): Promise<void> => {
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = typeof reader.result === 'string' ? reader.result : '';
-        if (result === '') {
-          reject(new Error('Could not read selected file'));
-          return;
-        }
-        resolve(result);
-      };
-      reader.onerror = () => reject(reader.error ?? new Error('Could not read selected file'));
-      reader.readAsDataURL(file);
-    });
+    const dataUrl = await readImageAsDataUrl(file);
 
     const filtered = replacements.filter((r) => r.iconSrc !== iconSrc);
     onChangeReplacements([

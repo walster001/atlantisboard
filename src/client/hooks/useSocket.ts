@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import type { Socket } from 'socket.io-client';
 import { socketClient } from '../utils/socket.js';
-import { db, type WorkspaceDB } from '../store/database.js';
+import { db, type BoardDB, type WorkspaceDB } from '../store/database.js';
 import {
   transformBoard,
   transformWorkspace,
@@ -49,26 +49,115 @@ function deferSocketWork(fn: () => void): void {
  * home; otherwise leave. Prevents ex-members from receiving `board:updated` fan-out that re-adds tiles
  * after `board:deleted` / workspace removal.
  */
-function syncWorkspaceSocketRoomForLocalUser(workspace: WorkspaceDB): void {
-  void db.users.toCollection().first().then((me) => {
-    const uid = me?.id?.trim() ?? '';
-    if (uid === '') {
-      return;
+function canJoinWorkspaceRoomForLocalUser(workspace: WorkspaceDB, localUserId: string): boolean {
+  const uid = localUserId.trim();
+  if (uid === '') {
+    return false;
+  }
+  const boardScoped = workspace.boardScopedHomeOnly === true;
+  const inWorkspace =
+    workspace.ownerId === uid || workspace.members.some((m) => m.userId === uid);
+  return !boardScoped && inWorkspace;
+}
+
+const joinedWorkspaceRoomIds = new Set<string>();
+let resyncWorkspaceRoomsInFlight: Promise<void> | null = null;
+let resyncWorkspaceRoomsQueued = false;
+
+function applyWorkspaceRoomMembership(workspaceId: string, shouldJoin: boolean): void {
+  const id = workspaceId.trim();
+  if (id === '') {
+    return;
+  }
+  if (shouldJoin) {
+    if (!joinedWorkspaceRoomIds.has(id)) {
+      joinedWorkspaceRoomIds.add(id);
+      socketClient.joinWorkspace(id);
     }
-    const boardScoped = workspace.boardScopedHomeOnly === true;
-    const inWorkspace =
-      workspace.ownerId === uid || workspace.members.some((m) => m.userId === uid);
-    if (!boardScoped && inWorkspace) {
-      socketClient.joinWorkspace(workspace.id);
-    } else {
-      socketClient.leaveWorkspace(workspace.id);
+  } else if (joinedWorkspaceRoomIds.has(id)) {
+    joinedWorkspaceRoomIds.delete(id);
+    socketClient.leaveWorkspace(id);
+  }
+}
+
+function resetJoinedWorkspaceRooms(): void {
+  joinedWorkspaceRoomIds.clear();
+}
+
+async function performWorkspaceRoomResyncFromDexie(): Promise<void> {
+  const uid = await getLocalUserId();
+  const workspaces = await db.workspaces.toArray();
+  const desired = new Set<string>();
+
+  for (const workspace of workspaces) {
+    const id = workspace.id.trim();
+    if (id === '') {
+      continue;
     }
+    if (canJoinWorkspaceRoomForLocalUser(workspace, uid)) {
+      desired.add(id);
+    }
+  }
+
+  for (const id of desired) {
+    applyWorkspaceRoomMembership(id, true);
+  }
+  const current = [...joinedWorkspaceRoomIds];
+  for (const id of current) {
+    if (!desired.has(id)) {
+      applyWorkspaceRoomMembership(id, false);
+    }
+  }
+}
+
+/** Re-read Dexie workspaces and join/leave `workspace:*` rooms for the signed-in user. */
+export async function resyncWorkspaceSocketRoomsFromDexie(): Promise<void> {
+  if (resyncWorkspaceRoomsInFlight != null) {
+    resyncWorkspaceRoomsQueued = true;
+    return resyncWorkspaceRoomsInFlight;
+  }
+  resyncWorkspaceRoomsInFlight = (async () => {
+    do {
+      resyncWorkspaceRoomsQueued = false;
+      await performWorkspaceRoomResyncFromDexie();
+    } while (resyncWorkspaceRoomsQueued);
+  })().finally(() => {
+    resyncWorkspaceRoomsInFlight = null;
   });
+  return resyncWorkspaceRoomsInFlight;
+}
+
+function onSocketConnectResyncWorkspaceRooms(): void {
+  resetJoinedWorkspaceRooms();
+  void resyncWorkspaceSocketRoomsFromDexie();
 }
 
 /** Multiple routes mount `useSocket`; handlers must attach exactly once per socket. */
 let globalRealtimeHandlerRefCount = 0;
 let reconnectListenerSocket: Socket | null = null;
+let localUserIdCache: string | null = null;
+let localUserIdLoadPromise: Promise<string> | null = null;
+
+async function getLocalUserId(): Promise<string> {
+  if (localUserIdCache != null) {
+    return localUserIdCache;
+  }
+  if (localUserIdLoadPromise != null) {
+    return localUserIdLoadPromise;
+  }
+  localUserIdLoadPromise = db.users
+    .toCollection()
+    .first()
+    .then((me) => {
+      const uid = me?.id?.trim() ?? '';
+      localUserIdCache = uid;
+      return uid;
+    })
+    .finally(() => {
+      localUserIdLoadPromise = null;
+    });
+  return localUserIdLoadPromise;
+}
 
 function onSocketIoReconnect(): void {
   const s = reconnectListenerSocket;
@@ -84,9 +173,14 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     deferSocketWork(() => {
       try {
         const workspace = transformWorkspace(data.data);
-        void db.workspaces.put(workspace).then(() => {
-          syncWorkspaceSocketRoomForLocalUser(workspace);
-          emitSocketWorkspaceCreated({ workspaceId: data.workspaceId, workspace });
+        void getLocalUserId().then((uid) => {
+          void db.workspaces.put(workspace).then(() => {
+            applyWorkspaceRoomMembership(
+              workspace.id,
+              canJoinWorkspaceRoomForLocalUser(workspace, uid),
+            );
+            emitSocketWorkspaceCreated({ workspaceId: data.workspaceId, workspace });
+          });
         });
       } catch {
         /* invalid payload */
@@ -98,9 +192,14 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     deferSocketWork(() => {
       try {
         const workspace = transformWorkspace(data.data);
-        void db.workspaces.put(workspace).then(() => {
-          syncWorkspaceSocketRoomForLocalUser(workspace);
-          emitSocketWorkspaceUpdated({ workspaceId: data.workspaceId, workspace });
+        void getLocalUserId().then((uid) => {
+          void db.workspaces.put(workspace).then(() => {
+            applyWorkspaceRoomMembership(
+              workspace.id,
+              canJoinWorkspaceRoomForLocalUser(workspace, uid),
+            );
+            emitSocketWorkspaceUpdated({ workspaceId: data.workspaceId, workspace });
+          });
         });
       } catch {
         /* invalid payload */
@@ -110,7 +209,7 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
 
   socket.on('workspace:deleted', (data: { workspaceId: string }) => {
     deferSocketWork(() => {
-      socketClient.leaveWorkspace(data.workspaceId);
+      applyWorkspaceRoomMembership(data.workspaceId, false);
       void db.workspaces.delete(data.workspaceId).then(() => {
         emitSocketWorkspaceDeleted({ workspaceId: data.workspaceId });
       });
@@ -180,24 +279,38 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
           try {
             const rowKey = (w: string | undefined): string =>
               w == null || w === '' ? '' : String(w).trim();
+            const ids = order.filter((id) => id !== '');
+            if (ids.length === 0) {
+              return;
+            }
+            const rows = await db.boards.bulkGet(ids);
+            const byId = new Map<string, BoardDB>();
+            for (let j = 0; j < ids.length; j++) {
+              const row = rows[j];
+              if (row != null) {
+                byId.set(ids[j]!, row);
+              }
+            }
+            const puts: BoardDB[] = [];
             for (let i = 0; i < order.length; i++) {
               const id = order[i];
               if (id === '') {
                 continue;
               }
-              const existing = await db.boards.get(id);
+              const existing = byId.get(id);
               if (existing == null) {
                 continue;
               }
-              // Stale `boards:positionsSynced` can still list a board after it moved to another row.
-              // Never re-assign workspace from this event; only bump position for rows we already match.
               if (rowKey(existing.workspaceId) !== wid) {
                 continue;
               }
-              await db.boards.put({
+              puts.push({
                 ...existing,
                 position: i,
               });
+            }
+            if (puts.length > 0) {
+              await db.boards.bulkPut(puts);
             }
           } catch {
             /* Dexie home board position sync failed */
@@ -656,9 +769,15 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
       });
     },
   );
+
+  socket.on('connect', onSocketConnectResyncWorkspaceRooms);
+  if (socket.connected) {
+    void resyncWorkspaceSocketRoomsFromDexie();
+  }
 }
 
 function detachGlobalRealtimeHandlers(socket: Socket): void {
+  socket.off('connect', onSocketConnectResyncWorkspaceRooms);
   socket.off('workspace:created');
   socket.off('workspace:updated');
   socket.off('workspace:deleted');
@@ -690,25 +809,6 @@ function detachGlobalRealtimeHandlers(socket: Socket): void {
 }
 
 export function useSocket(boardId?: string) {
-  useEffect(() => {
-    const socket = socketClient.getSocket();
-    if (!socket) {
-      return undefined;
-    }
-    let cancelled = false;
-    void db.workspaces.toArray().then((workspaces) => {
-      if (cancelled) {
-        return;
-      }
-      for (const workspace of workspaces) {
-        syncWorkspaceSocketRoomForLocalUser(workspace);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   useEffect(() => {
     const tryAttach = (): (() => void) | undefined => {
       const socket = socketClient.getSocket();

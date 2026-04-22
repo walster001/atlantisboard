@@ -350,6 +350,7 @@ export async function moveCard(
 
   // Store original listId for audit log
   const originalListId = card.listId.toString();
+  const originalPosition = card.position;
 
   // Reorder other cards in target list to make room
   await Card.updateMany(
@@ -360,6 +361,17 @@ export async function moveCard(
     },
     { $inc: { position: 1 } }
   );
+
+  if (originalListId !== targetListId) {
+    await Card.updateMany(
+      {
+        listId: originalListId,
+        _id: { $ne: cardId },
+        position: { $gt: originalPosition },
+      },
+      { $inc: { position: -1 } },
+    );
+  }
 
   // Update card position and listId
   card.listId = targetListId as unknown as typeof card.boardId;

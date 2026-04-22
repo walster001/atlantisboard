@@ -31,39 +31,108 @@ function buildCardsByListFromSnapshot(
   return map;
 }
 
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => resolve());
+      return;
+    }
+    setTimeout(resolve, 0);
+  });
+}
+
+async function hydrateCardsInBatches(
+  boardId: string,
+  lists: readonly ListDB[],
+  rawCardsByList: Record<string, unknown[]>,
+  signal?: AbortSignal,
+): Promise<Map<string, CardDB[]>> {
+  const BATCH_LIST_COUNT = 4;
+  const cardsByList = new Map<string, CardDB[]>();
+  for (let i = 0; i < lists.length; i += BATCH_LIST_COUNT) {
+    if (signal?.aborted === true || useBoardRuntimeStore.getState().activeBoardId !== boardId) {
+      return cardsByList;
+    }
+    const chunk = lists.slice(i, i + BATCH_LIST_COUNT);
+    const partial = new Map<string, CardDB[]>();
+    for (const list of chunk) {
+      const rawCards = rawCardsByList[list.id] ?? [];
+      const cards: CardDB[] = rawCards.map((raw) => {
+        const incoming = transformCard(raw) as CardDB;
+        return mergeDexieCardIfSnapshot(raw, undefined, incoming);
+      });
+      partial.set(list.id, cards);
+      cardsByList.set(list.id, cards);
+    }
+    useBoardRuntimeStore.getState().applyKanbanCardsMapPartial(partial);
+    await nextFrame();
+  }
+  return cardsByList;
+}
+
 /**
  * Loads board + kanban snapshot from API, hydrates runtime store once, persists Dexie in background,
  * then hydrates descriptions into the store (no Dexie read for UI).
  */
-export async function bootstrapBoardRuntimeFromApi(boardId: string): Promise<boolean> {
+export async function bootstrapBoardRuntimeFromApi(
+  boardId: string,
+  options?: { readonly signal?: AbortSignal; readonly staged?: boolean },
+): Promise<boolean> {
   const endBootstrapPerf = markBoardBootstrapStart();
+  const signal = options?.signal;
   try {
-    const boardResponse = await api.getBoard(boardId, { view: 'summary' });
+    const [boardResponse, snapshotResponse] = await Promise.all([
+      api.getBoard(boardId, { view: 'summary' }),
+      api.getBoardKanbanSnapshot(boardId),
+    ]);
+    if (signal?.aborted === true) {
+      endBootstrapPerf();
+      return false;
+    }
     const rawBoard = (boardResponse as { board: unknown }).board;
     const board = transformBoard(rawBoard);
-
-    const snapshotResponse = await api.getBoardKanbanSnapshot(boardId);
     const rawLists = snapshotResponse.lists;
     const rawCardsByList = snapshotResponse.cardsByList as Record<string, unknown[]>;
     const lists = rawLists.map(transformList);
-    const cardsByList = buildCardsByListFromSnapshot(lists, rawCardsByList);
+    const staged = options?.staged === true;
+    let cardsByList: Map<string, CardDB[]>;
+    if (staged) {
+      useBoardRuntimeStore.getState().beginHydration({ boardId, board });
+      await nextFrame();
+      if (options?.signal?.aborted === true || useBoardRuntimeStore.getState().activeBoardId !== boardId) {
+        endBootstrapPerf();
+        return false;
+      }
+      useBoardRuntimeStore.getState().setListsFromArray(lists);
+      await nextFrame();
+      cardsByList = await hydrateCardsInBatches(boardId, lists, rawCardsByList, signal);
+    } else {
+      cardsByList = buildCardsByListFromSnapshot(lists, rawCardsByList);
+      useBoardRuntimeStore.getState().hydrateFromSnapshot({
+        boardId,
+        board,
+        lists,
+        cardsByList,
+      });
+    }
+
+    if (options?.signal?.aborted === true || useBoardRuntimeStore.getState().activeBoardId !== boardId) {
+      endBootstrapPerf();
+      return false;
+    }
 
     const flatCards: CardDB[] = [];
     for (const lid of lists.map((l) => l.id)) {
       flatCards.push(...(cardsByList.get(lid) ?? []));
     }
 
-    useBoardRuntimeStore.getState().hydrateFromSnapshot({
-      boardId,
-      board,
-      lists,
-      cardsByList,
-    });
-
     void persistBoardSnapshotToDexie({ board, lists, cards: flatCards });
 
     const allIds = collectCardIdsFromSnapshot(rawCardsByList, lists.map((l) => l.id));
     void hydrateBoardCardDescriptionsRemote(boardId, allIds, (patches) => {
+      if (useBoardRuntimeStore.getState().activeBoardId !== boardId) {
+        return;
+      }
       useBoardRuntimeStore.getState().patchCardsDescription(patches);
       void persistDexieDescriptionPatches(patches);
     });
@@ -104,7 +173,10 @@ async function persistDexieDescriptionPatches(
 }
 
 /** Full resync after duplicate / admin operations — replaces runtime + cache. */
-export async function resyncBoardRuntimeFromApi(boardId: string): Promise<boolean> {
-  const ok = await bootstrapBoardRuntimeFromApi(boardId);
+export async function resyncBoardRuntimeFromApi(
+  boardId: string,
+  options?: { readonly signal?: AbortSignal },
+): Promise<boolean> {
+  const ok = await bootstrapBoardRuntimeFromApi(boardId, { ...options, staged: false });
   return ok;
 }

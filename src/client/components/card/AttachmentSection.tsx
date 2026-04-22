@@ -263,9 +263,6 @@ export function AttachmentSection({
 
   useEffect(() => {
     setLinkPreviewImageSize(null);
-  }, [linkPreviewAttachmentId]);
-
-  useEffect(() => {
     if (linkPreviewAttachmentId == null) {
       return;
     }

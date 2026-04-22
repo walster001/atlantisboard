@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Modal, Stack, Group, Button } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { BoardColourPickerPanel } from '../board/BoardColourPickerPanel.js';
@@ -41,13 +41,6 @@ export function ListColorPickerModal({
   const [saving, setSaving] = useState(false);
   const [applyingAll, setApplyingAll] = useState(false);
   const [removingAll, setRemovingAll] = useState(false);
-
-  useEffect(() => {
-    if (opened) {
-      setSelectedColor(normalizePresetHex(initialColor || '#3b82f6', BOARD_PRESET_COLOURS));
-      setUseThemeDefault(initialColor.trim().length === 0);
-    }
-  }, [opened, initialColor]);
 
   const handleSave = async (): Promise<void> => {
     setSaving(true);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Modal, NumberInput, Select, TextInput, Button, Alert, Stack, Group, Text } from '@mantine/core';
 import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
@@ -19,47 +19,61 @@ interface ReminderModalProps {
   onSave: () => void;
 }
 
+function initialReminderFields(
+  reminder: Reminder | null | undefined,
+  cardDue: CardDB['dueDate'],
+): {
+  offsetType: 'minutes' | 'hours' | 'days' | 'weeks';
+  offsetValue: number;
+  repeatFrequency: string;
+} {
+  if (!reminder) {
+    return { offsetType: 'days', offsetValue: 1, repeatFrequency: '' };
+  }
+  const dueDate = cardDue ? new Date(cardDue) : new Date();
+  const triggerAt = new Date(reminder.triggerAt);
+  const diffMs = triggerAt.getTime() - dueDate.getTime();
+  const diffMinutes = Math.round(diffMs / (1000 * 60));
+
+  let offsetType: 'minutes' | 'hours' | 'days' | 'weeks';
+  let offsetValue: number;
+  if (Math.abs(diffMinutes) < 60) {
+    offsetType = 'minutes';
+    offsetValue = Math.abs(diffMinutes);
+  } else if (Math.abs(diffMinutes) < 24 * 60) {
+    offsetType = 'hours';
+    offsetValue = Math.abs(diffMinutes / 60);
+  } else if (Math.abs(diffMinutes) < 7 * 24 * 60) {
+    offsetType = 'days';
+    offsetValue = Math.abs(diffMinutes / (24 * 60));
+  } else {
+    offsetType = 'weeks';
+    offsetValue = Math.abs(diffMinutes / (7 * 24 * 60));
+  }
+
+  return {
+    offsetType,
+    offsetValue,
+    repeatFrequency: reminder.repeatFrequency || '',
+  };
+}
+
 export function ReminderModal({ card, reminder, onClose, onSave }: ReminderModalProps) {
-  const [offsetType, setOffsetType] = useState<'minutes' | 'hours' | 'days' | 'weeks'>('days');
-  const [offsetValue, setOffsetValue] = useState<number>(1);
-  const [repeatFrequency, setRepeatFrequency] = useState<string>('');
+  const initial = initialReminderFields(reminder ?? null, card.dueDate);
+  const [offsetType, setOffsetType] = useState(initial.offsetType);
+  const [offsetValue, setOffsetValue] = useState(initial.offsetValue);
+  const [repeatFrequency, setRepeatFrequency] = useState(initial.repeatFrequency);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (reminder) {
-      // Calculate offset from due date
-      const dueDate = card.dueDate ? new Date(card.dueDate) : new Date();
-      const triggerAt = new Date(reminder.triggerAt);
-      const diffMs = triggerAt.getTime() - dueDate.getTime();
-      const diffMinutes = Math.round(diffMs / (1000 * 60));
-      
-      if (Math.abs(diffMinutes) < 60) {
-        setOffsetType('minutes');
-        setOffsetValue(Math.abs(diffMinutes));
-      } else if (Math.abs(diffMinutes) < 24 * 60) {
-        setOffsetType('hours');
-        setOffsetValue(Math.abs(diffMinutes / 60));
-      } else if (Math.abs(diffMinutes) < 7 * 24 * 60) {
-        setOffsetType('days');
-        setOffsetValue(Math.abs(diffMinutes / (24 * 60)));
-      } else {
-        setOffsetType('weeks');
-        setOffsetValue(Math.abs(diffMinutes / (7 * 24 * 60)));
-      }
-      
-      setRepeatFrequency(reminder.repeatFrequency || '');
-    }
-  }, [reminder, card.dueDate]);
 
   const calculateTriggerAt = (): Date => {
     if (!card.dueDate) {
       throw new Error('Card must have a due date');
     }
-    
+
     const dueDate = new Date(card.dueDate);
     let triggerAt: Date;
-    
+
     switch (offsetType) {
       case 'minutes':
         triggerAt = addMinutes(dueDate, -offsetValue);
@@ -76,7 +90,7 @@ export function ReminderModal({ card, reminder, onClose, onSave }: ReminderModal
       default:
         triggerAt = dueDate;
     }
-    
+
     return triggerAt;
   };
 
@@ -108,7 +122,7 @@ export function ReminderModal({ card, reminder, onClose, onSave }: ReminderModal
       }
 
       const triggerAt = calculateTriggerAt();
-      
+
       if (reminder) {
         // Update existing reminder
         const updateData: {
@@ -231,4 +245,3 @@ export function ReminderModal({ card, reminder, onClose, onSave }: ReminderModal
     </Modal>
   );
 }
-

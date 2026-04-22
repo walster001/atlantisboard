@@ -11,16 +11,20 @@ export async function persistBoardSnapshotToDexie(params: {
 }): Promise<void> {
   const { board, lists, cards } = params;
   try {
-    await db.boards.put(board);
-    await Promise.all(lists.map((l) => db.lists.put(l)));
-    const ids = cards.map((c) => c.id);
-    const existingRows = ids.length > 0 ? await db.cards.bulkGet(ids) : [];
-    const merged = cards.map((incoming, i) =>
-      mergeDexieCardIfSnapshot(incoming as unknown, existingRows[i] ?? undefined, incoming),
-    );
-    if (merged.length > 0) {
-      await db.cards.bulkPut(merged);
-    }
+    await db.transaction('rw', db.boards, db.lists, db.cards, async () => {
+      await db.boards.put(board);
+      if (lists.length > 0) {
+        await db.lists.bulkPut(lists);
+      }
+      const ids = cards.map((c) => c.id);
+      const existingRows = ids.length > 0 ? await db.cards.bulkGet(ids) : [];
+      const merged = cards.map((incoming, i) =>
+        mergeDexieCardIfSnapshot(incoming as unknown, existingRows[i] ?? undefined, incoming),
+      );
+      if (merged.length > 0) {
+        await db.cards.bulkPut(merged);
+      }
+    });
   } catch {
     /* cache write is best-effort */
   }
@@ -70,8 +74,10 @@ export async function persistDexieCardsBulk(cards: readonly CardDB[]): Promise<v
 
 export async function persistDexieListDelete(listId: string): Promise<void> {
   try {
-    await db.cards.where('listId').equals(listId).delete();
-    await db.lists.delete(listId);
+    await db.transaction('rw', db.cards, db.lists, async () => {
+      await db.cards.where('listId').equals(listId).delete();
+      await db.lists.delete(listId);
+    });
   } catch {
     /* noop */
   }

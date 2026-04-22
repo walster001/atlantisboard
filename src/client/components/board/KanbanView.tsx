@@ -4,12 +4,14 @@ import {
   useRef,
   useCallback,
   useMemo,
+  memo,
+  type ComponentProps,
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
 import { Box, Button, Group } from '@mantine/core';
 import { useShallow } from 'zustand/react/shallow';
-import type { ListDB, CardDB } from '../../store/database.js';
+import type { ListDB, CardDB, BoardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import { transformList } from '../../utils/transform.js';
 import {
@@ -30,7 +32,7 @@ import {
   moveCardBetweenListsInMap,
   moveListToHoverSlot,
   listOrderIdSignature,
-} from './kanbanDragPure.js';
+} from '../../store/kanbanDragPure.js';
 import {
   useBoardRuntimeStore,
   buildKanbanCardsMapFromRuntimeState,
@@ -42,6 +44,15 @@ import { useBoardAssigneeDirectory } from '../../hooks/useBoardAssigneeDirectory
 import { TwemojiPlainText } from '../common/TwemojiPlainText.js';
 import type { KanbanBoardEditCaps } from '../../hooks/useBoardPermissions.js';
 import './boardView.css';
+
+const KANBAN_ADD_LIST_BUTTON_STYLES = {
+  inner: {
+    padding: '11px 16px 11px 14px',
+  },
+  section: {
+    marginInlineEnd: 6,
+  },
+} as const;
 
 /** Same-list anchor switching: keep current anchor until pointer exits this expanded zone. */
 const KANBAN_CARD_ANCHOR_SWITCH_BUFFER_PX = 20;
@@ -149,6 +160,8 @@ function cardDropIndicatorsEqual(
 }
 
 interface KanbanViewProps {
+  /** Supplied by `BoardPage` so this view does not subscribe separately to `s.board`. */
+  board: BoardDB;
   onOpenCard: (card: CardDB) => void;
   /**
    * Assigned to the same patch used for socket `card:updated` so the card detail overlay can
@@ -174,25 +187,46 @@ function listDropIndicatorsEqual(
   return a.overListId === b.overListId;
 }
 
-export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: KanbanViewProps) {
-  const board = useBoardRuntimeStore((s) => s.board);
-  const lists = useBoardRuntimeStore(
-    useShallow((s) =>
-      s.orderedListIds
-        .map((id) => s.listsById[id])
-        .filter((l): l is ListDB => l != null),
-    ),
-  );
-  const cardsVersion = useBoardRuntimeStore((s) => s.cardsVersion);
-  const listOrderKey = useBoardRuntimeStore((s) => s.orderedListIds.join(','));
-  const cards = useMemo(() => buildKanbanCardsMapFromRuntimeState(useBoardRuntimeStore.getState()), [
-    cardsVersion,
-    listOrderKey,
-  ]);
+/** One column: subscribes only to that list's cards so remote card updates don't re-render every list. */
+type KanbanListColumnProps = Omit<ComponentProps<typeof SortableList>, 'cards'>;
 
-  if (board == null) {
-    return null;
-  }
+const KanbanListColumn = memo(function KanbanListColumn(props: KanbanListColumnProps) {
+  const listId = props.list.id;
+  const cards = useBoardRuntimeStore(
+    useShallow((s) => {
+      const ids = s.cardIdsByListId[listId] ?? [];
+      const out: CardDB[] = [];
+      for (let i = 0; i < ids.length; i += 1) {
+        const id = ids[i]!;
+        const c = s.cardsById[id];
+        if (c != null) {
+          out.push(c);
+        }
+      }
+      return out;
+    }),
+  );
+  return <SortableList {...props} cards={cards} />;
+});
+
+export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }: KanbanViewProps) {
+  const { orderedListIds, listsById } = useBoardRuntimeStore(
+    useShallow((s) => ({
+      orderedListIds: s.orderedListIds,
+      listsById: s.listsById,
+    })),
+  );
+  const lists = useMemo((): ListDB[] => {
+    const out: ListDB[] = [];
+    for (let i = 0; i < orderedListIds.length; i += 1) {
+      const id = orderedListIds[i]!;
+      const row = listsById[id];
+      if (row != null) {
+        out.push(row);
+      }
+    }
+    return out;
+  }, [orderedListIds, listsById]);
 
   const assigneeDirectory = useBoardAssigneeDirectory(board.id);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
@@ -278,19 +312,8 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
   const viewAliveRef = useRef(true);
   const listsRef = useRef(lists);
   listsRef.current = lists;
-  const cardsRef = useRef(cards);
-  cardsRef.current = cards;
-  /** O(1) lookup for drop handling — rebuilt when `cards` changes. */
+  /** O(1) lookup for drop handling — kept in sync with the runtime store (see subscription below). */
   const cardIdToListIdRef = useRef<Map<string, string>>(new Map());
-  useEffect(() => {
-    const m = new Map<string, string>();
-    for (const [listId, listCards] of cards) {
-      for (const c of listCards) {
-        m.set(c.id, listId);
-      }
-    }
-    cardIdToListIdRef.current = m;
-  }, [cards]);
   const columnsGroupRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -339,6 +362,10 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
     }
     await resyncBoardRuntimeFromApi(board.id);
   }, [board]);
+
+  const handleKanbanCardsReload = useCallback(() => {
+    void reloadAllCardsFromDb();
+  }, [reloadAllCardsFromDb]);
 
   const patchCardInBoardState = useCallback(
     (updated: CardDB) => {
@@ -394,9 +421,9 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
           return;
         }
 
-        let updatedLists: ListDB[] = useBoardRuntimeStore
-          .getState()
-          .orderedListIds.map((id) => useBoardRuntimeStore.getState().listsById[id])
+        const stLists = useBoardRuntimeStore.getState();
+        let updatedLists: ListDB[] = stLists.orderedListIds
+          .map((id) => stLists.listsById[id])
           .filter((l): l is ListDB => l != null);
 
         if (updatedLists.length === lengthBefore) {
@@ -429,11 +456,12 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
   }, []);
 
   const handleListUpdated = useCallback(async () => {
-    if (!viewAliveRef.current || board == null) {
+    if (!viewAliveRef.current) {
       return;
     }
+    const boardId = board.id;
     try {
-      const apiResponse = await api.getListsByBoard(board.id);
+      const apiResponse = await api.getListsByBoard(boardId);
       const rawLists = (apiResponse as { lists: unknown[] }).lists;
       const transformedLists = rawLists.map(transformList);
       if (viewAliveRef.current) {
@@ -443,14 +471,21 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
     } catch {
       /* noop */
     }
-  }, [board]);
+  }, [board.id]);
 
   const getNextListPosition = useCallback((): number => listsRef.current.length, []);
 
-  const listColumnChrome = useMemo(() => getBoardListColumnWidthChrome(board), [board]);
+  const listColumnChrome = useMemo(
+    () => getBoardListColumnWidthChrome(board),
+    [board.settings.listColumnWidthPx],
+  );
 
   const closeAddListComposer = useCallback((): void => {
     setAddListComposerOpen(false);
+  }, []);
+
+  const openAddListComposer = useCallback((): void => {
+    setAddListComposerOpen(true);
   }, []);
 
   useEffect(() => {
@@ -477,10 +512,11 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
     }
   }, []);
 
+  const cardsForDragSnapshot = buildKanbanCardsMapFromRuntimeState(useBoardRuntimeStore.getState());
   const kanbanDropCtxRef = useRef({
     board,
     lists,
-    cards,
+    cards: cardsForDragSnapshot,
     cardIdToListIdRef,
     setLists: setListsCompat,
     setCards: setCardsCompat,
@@ -496,7 +532,7 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
   kanbanDropCtxRef.current = {
     board,
     lists,
-    cards,
+    cards: cardsForDragSnapshot,
     cardIdToListIdRef,
     setLists: setListsCompat,
     setCards: setCardsCompat,
@@ -509,6 +545,49 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
       canReorderLists: kanbanCaps.canReorderLists,
     },
   };
+
+  useEffect(() => {
+    let syncRafId: number | null = null;
+    const rebuildCardIdIndex = (map: ReadonlyMap<string, readonly CardDB[]>) => {
+      const m = new Map<string, string>();
+      for (const [listId, listCards] of map) {
+        for (const c of listCards) {
+          m.set(c.id, listId);
+        }
+      }
+      cardIdToListIdRef.current = m;
+    };
+    const syncDragCardsFromStore = () => {
+      const map = buildKanbanCardsMapFromRuntimeState(useBoardRuntimeStore.getState());
+      kanbanDropCtxRef.current.cards = map;
+      rebuildCardIdIndex(map);
+    };
+    const scheduleSyncDragCardsFromStore = (): void => {
+      if (syncRafId != null) {
+        return;
+      }
+      syncRafId = window.requestAnimationFrame(() => {
+        syncRafId = null;
+        syncDragCardsFromStore();
+      });
+    };
+    syncDragCardsFromStore();
+    const unsub = useBoardRuntimeStore.subscribe((state, prev) => {
+      if (
+        state.cardsVersion !== prev.cardsVersion ||
+        state.orderedListIds !== prev.orderedListIds ||
+        state.activeBoardId !== prev.activeBoardId
+      ) {
+        scheduleSyncDragCardsFromStore();
+      }
+    });
+    return () => {
+      unsub();
+      if (syncRafId != null) {
+        window.cancelAnimationFrame(syncRafId);
+      }
+    };
+  }, []);
 
   const dragPreviewElRef = useRef<HTMLDivElement | null>(null);
   const previewPositionRef = useRef({ x: 0, y: 0 });
@@ -621,12 +700,11 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
         align="flex-start"
       >
         {lists.map((list) => (
-          <SortableList
+          <KanbanListColumn
             key={list.id}
             list={list}
             board={board}
             assigneeDirectory={assigneeDirectory}
-            cards={cards.get(list.id) || []}
             draggingCardId={draggingCardId}
             draggingListId={draggingListId}
             boardId={board.id}
@@ -647,9 +725,7 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
             onOpenCard={onOpenCard}
             onCardUpdatedOnBoard={patchCardInBoardState}
             onCardDeletedFromBoard={removeCardFromBoardState}
-            onKanbanCardsReload={() => {
-              void reloadAllCardsFromDb();
-            }}
+            onKanbanCardsReload={handleKanbanCardsReload}
             kanbanCaps={kanbanCaps}
           />
         ))}
@@ -676,15 +752,8 @@ export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: Kanban
                     +
                   </span>
                 }
-                styles={{
-                  inner: {
-                    padding: '11px 16px 11px 14px',
-                  },
-                  section: {
-                    marginInlineEnd: 6,
-                  },
-                }}
-                onClick={() => setAddListComposerOpen(true)}
+                styles={KANBAN_ADD_LIST_BUTTON_STYLES}
+                onClick={openAddListComposer}
               >
                 Add another list
               </Button>

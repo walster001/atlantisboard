@@ -525,12 +525,11 @@ export function RolesPermissionsTab() {
     }));
   };
 
-  const activeIsDirty = useMemo(() => {
-    if (!activeRole || activeIsAppAdmins || activeRole.isBuiltIn) {
-      return false;
-    }
-    return draftPermissions[activeRole.key] !== undefined;
-  }, [activeRole, draftPermissions, activeIsAppAdmins]);
+  const activeIsDirty =
+    activeRole != null &&
+    !activeIsAppAdmins &&
+    !activeRole.isBuiltIn &&
+    draftPermissions[activeRole.key] !== undefined;
 
   const togglePermission = (roleKey: string, permission: string): void => {
     const role = roleByKey.get(roleKey);

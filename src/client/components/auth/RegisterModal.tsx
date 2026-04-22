@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
+import { useState, type FormEvent, type ReactElement } from 'react';
 import { isAxiosError } from 'axios';
 import {
   Alert,
@@ -73,19 +73,17 @@ const emptyForm: RegisterFormState = {
   confirmPassword: '',
 };
 
-export function RegisterModal({ opened, onClose, onSuccess }: RegisterModalProps): ReactElement {
+function RegisterModalBody({
+  onClose,
+  onSuccess,
+}: {
+  readonly onClose: () => void;
+  readonly onSuccess?: (() => void) | undefined;
+}): ReactElement {
   const { register } = useAuthContext();
   const [form, setForm] = useState<RegisterFormState>({ ...emptyForm });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (opened) {
-      setForm({ ...emptyForm });
-      setError(null);
-      setLoading(false);
-    }
-  }, [opened]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -119,14 +117,7 @@ export function RegisterModal({ opened, onClose, onSuccess }: RegisterModalProps
   };
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={<Title order={3}>Create account</Title>}
-      centered
-      overlayProps={{ backgroundOpacity: 0.45, blur: 4 }}
-    >
-      <form onSubmit={(e) => void handleSubmit(e)}>
+    <form onSubmit={(e) => void handleSubmit(e)}>
         <Stack gap="md" pt="xs">
           {error ? (
             <Alert color="red" title="Error">
@@ -195,6 +186,19 @@ export function RegisterModal({ opened, onClose, onSuccess }: RegisterModalProps
           </Button>
         </Stack>
       </form>
+  );
+}
+
+export function RegisterModal({ opened, onClose, onSuccess }: RegisterModalProps): ReactElement {
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={<Title order={3}>Create account</Title>}
+      centered
+      overlayProps={{ backgroundOpacity: 0.45, blur: 4 }}
+    >
+      {opened ? <RegisterModalBody onClose={onClose} onSuccess={onSuccess} /> : null}
     </Modal>
   );
 }

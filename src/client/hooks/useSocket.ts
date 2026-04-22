@@ -137,6 +137,56 @@ let globalRealtimeHandlerRefCount = 0;
 let reconnectListenerSocket: Socket | null = null;
 let localUserIdCache: string | null = null;
 let localUserIdLoadPromise: Promise<string> | null = null;
+const lastCardEventTsById = new Map<string, number>();
+const lastListOrderEventTsByKey = new Map<string, number>();
+
+function shouldApplyCardEvent(cardId: string, serverTs: unknown): boolean {
+  if (typeof serverTs !== 'number' || !Number.isFinite(serverTs)) {
+    return true;
+  }
+  const id = String(cardId).trim();
+  if (id === '') {
+    return true;
+  }
+  const prev = lastCardEventTsById.get(id);
+  if (prev !== undefined && serverTs < prev) {
+    return false;
+  }
+  lastCardEventTsById.set(id, serverTs);
+  return true;
+}
+
+function shouldApplyListOrderEvent(boardId: string, listId: string, serverTs: unknown): boolean {
+  if (typeof serverTs !== 'number' || !Number.isFinite(serverTs)) {
+    return true;
+  }
+  const key = `${String(boardId).trim()}:${String(listId).trim()}`;
+  if (key === ':') {
+    return true;
+  }
+  const prev = lastListOrderEventTsByKey.get(key);
+  if (prev !== undefined && serverTs < prev) {
+    return false;
+  }
+  lastListOrderEventTsByKey.set(key, serverTs);
+  return true;
+}
+
+function markCardEventTs(cardIds: readonly string[], serverTs: unknown): void {
+  if (typeof serverTs !== 'number' || !Number.isFinite(serverTs)) {
+    return;
+  }
+  for (const id of cardIds) {
+    const key = String(id).trim();
+    if (key === '') {
+      continue;
+    }
+    const prev = lastCardEventTsById.get(key);
+    if (prev === undefined || serverTs >= prev) {
+      lastCardEventTsById.set(key, serverTs);
+    }
+  }
+}
 
 async function getLocalUserId(): Promise<string> {
   if (localUserIdCache != null) {
@@ -163,6 +213,8 @@ function onSocketIoReconnect(): void {
   const s = reconnectListenerSocket;
   if (s != null && globalRealtimeHandlerRefCount > 0) {
     clearCardSocketDedupeCache();
+    lastCardEventTsById.clear();
+    lastListOrderEventTsByKey.clear();
     detachGlobalRealtimeHandlers(s);
     attachGlobalRealtimeHandlers(s);
   }
@@ -392,8 +444,11 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     });
   });
 
-  socket.on('card:created', (data: { cardId: string; boardId: string; data: unknown }) => {
+  socket.on('card:created', (data: { cardId: string; boardId: string; data: unknown; serverTs?: number }) => {
     deferSocketWork(() => {
+      if (!shouldApplyCardEvent(data.cardId, data.serverTs)) {
+        return;
+      }
       try {
         const card = normalizeCardFromApi(data.data, data.cardId);
         void db.cards.get(data.cardId).then((existingDexie) => {
@@ -419,8 +474,11 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     });
   });
 
-  socket.on('card:updated', (data: { cardId: string; boardId: string; data: unknown }) => {
+  socket.on('card:updated', (data: { cardId: string; boardId: string; data: unknown; serverTs?: number }) => {
     deferSocketWork(() => {
+      if (!shouldApplyCardEvent(data.cardId, data.serverTs)) {
+        return;
+      }
       try {
         const card = normalizeCardFromApi(data.data, data.cardId);
         void db.cards
@@ -458,8 +516,12 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
       boardId: string;
       changedFields: Record<string, unknown>;
       removedFields: string[];
+      serverTs?: number;
     }) => {
       deferSocketWork(() => {
+        if (!shouldApplyCardEvent(data.cardId, data.serverTs)) {
+          return;
+        }
         void db.cards
           .get(data.cardId)
           .then((existingDexie) => {
@@ -498,32 +560,109 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
 
   socket.on(
     'cards:reordered',
-    (data: { boardId: string; listId: string; orderedCardIds: string[] }) => {
+    (data: { boardId: string; listId: string; orderedCardIds: string[]; serverTs?: number }) => {
       deferSocketWork(() => {
+        if (!shouldApplyListOrderEvent(data.boardId, data.listId, data.serverTs)) {
+          return;
+        }
+        const orderedIds = data.orderedCardIds.map(String);
         void db.cards
-          .where('listId')
-          .equals(data.listId)
-          .toArray()
+          .bulkGet(orderedIds)
           .then(async (cards) => {
-            const nextCards = cards.map((card) => {
-              const idx = data.orderedCardIds.indexOf(card.id);
-              return idx >= 0 ? { ...card, position: idx } : card;
-            });
-            if (nextCards.length > 0) {
-              if (runtimeActiveBoardId() === data.boardId) {
-                useBoardRuntimeStore.getState().applyCardsReorderedInList(data.listId, data.orderedCardIds);
-              }
-              await db.cards.bulkPut(nextCards);
-              for (const c of nextCards) {
-                if (!isRedundantCardSocketPayload(c.id, c)) {
-                  emitSocketCardUpdated({ boardId: data.boardId, card: c });
+            const nextCards = cards
+              .map((card, idx) => {
+                if (card == null) {
+                  return null;
                 }
+                return {
+                  ...card,
+                  listId: data.listId,
+                  position: idx,
+                };
+              })
+              .filter((card): card is NonNullable<typeof card> => card != null);
+            if (nextCards.length === 0) {
+              return;
+            }
+            if (runtimeActiveBoardId() === data.boardId) {
+              for (const card of nextCards) {
+                useBoardRuntimeStore.getState().upsertCard(card);
+              }
+              useBoardRuntimeStore.getState().applyCardsReorderedInList(data.listId, orderedIds);
+            }
+            await db.cards.bulkPut(nextCards);
+            markCardEventTs(
+              nextCards.map((c) => c.id),
+              data.serverTs,
+            );
+            for (const c of nextCards) {
+              if (!isRedundantCardSocketPayload(c.id, c)) {
+                emitSocketCardUpdated({ boardId: data.boardId, card: c });
               }
             }
           })
           .catch(() => {
             /* Dexie update failed */
           });
+      });
+    },
+  );
+
+  socket.on(
+    'cards:positions-batch-updated',
+    (data: {
+      boardId: string;
+      fromListId?: string;
+      toListId?: string;
+      movedCardId?: string;
+      position?: number;
+      lists?: Array<{ listId: string; orderedCardIds: string[] }>;
+      serverTs?: number;
+    }) => {
+      deferSocketWork(() => {
+        const listPayloads = (Array.isArray(data.lists) ? data.lists : []).filter((entry) =>
+          shouldApplyListOrderEvent(data.boardId, entry.listId, data.serverTs),
+        );
+        if (listPayloads.length === 0) {
+          return;
+        }
+        void Promise.all(
+          listPayloads.map(async (entry) => {
+            const orderedIds = (entry.orderedCardIds ?? []).map(String);
+            const nextCards = (await db.cards.bulkGet(orderedIds))
+              .map((card, idx) => {
+                if (card == null) {
+                  return null;
+                }
+                return {
+                  ...card,
+                  listId: entry.listId,
+                  position: idx,
+                };
+              })
+              .filter((card): card is NonNullable<typeof card> => card != null);
+            if (runtimeActiveBoardId() === data.boardId) {
+              for (const card of nextCards) {
+                useBoardRuntimeStore.getState().upsertCard(card);
+              }
+              useBoardRuntimeStore.getState().applyCardsReorderedInList(entry.listId, orderedIds);
+            }
+            if (nextCards.length > 0) {
+              await db.cards.bulkPut(nextCards);
+              markCardEventTs(
+                nextCards.map((c) => c.id),
+                data.serverTs,
+              );
+              for (const card of nextCards) {
+                if (!isRedundantCardSocketPayload(card.id, card)) {
+                  emitSocketCardUpdated({ boardId: data.boardId, card });
+                }
+              }
+            }
+          }),
+        ).catch(() => {
+          /* batch positions Dexie patch failed */
+        });
       });
     },
   );
@@ -794,6 +933,7 @@ function detachGlobalRealtimeHandlers(socket: Socket): void {
   socket.off('card:patched');
   socket.off('card:deleted');
   socket.off('cards:reordered');
+  socket.off('cards:positions-batch-updated');
   socket.off('labels:removedBulk');
   socket.off('label:created');
   socket.off('label:updated');

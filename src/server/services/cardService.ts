@@ -312,7 +312,7 @@ export async function moveCard(
   position: number,
   userId: string
 ): Promise<(Document & ICard) | null> {
-  const card = await Card.findById(cardId);
+  let card = await Card.findById(cardId);
   if (!card) {
     return null;
   }
@@ -351,13 +351,14 @@ export async function moveCard(
   // Store original listId for audit log
   const originalListId = card.listId.toString();
   const originalPosition = card.position;
+  const desiredTargetPosition = Math.max(0, Math.floor(position));
 
   // Reorder other cards in target list to make room
   await Card.updateMany(
     {
       listId: targetListId,
       _id: { $ne: cardId },
-      position: { $gte: position },
+      position: { $gte: desiredTargetPosition },
     },
     { $inc: { position: 1 } }
   );
@@ -375,37 +376,71 @@ export async function moveCard(
 
   // Update card position and listId
   card.listId = targetListId as unknown as typeof card.boardId;
-  card.position = position;
+  card.position = desiredTargetPosition;
 
   await card.save();
 
-  emitCardUpdatedRealtime(card);
+  const normalizeListPositions = async (
+    listId: string,
+    opts?: { movedCardId?: string; movedTargetIndex?: number },
+  ): Promise<void> => {
+    const rows = await Card.find({ listId }).sort({ position: 1, _id: 1 }).select('_id').lean();
+    const ids = rows.map((row) => String(row._id));
+    let orderedIds = ids;
+    if (opts?.movedCardId != null && opts.movedTargetIndex != null) {
+      const movedId = String(opts.movedCardId);
+      const withoutMoved = ids.filter((id) => id !== movedId);
+      const clamped = Math.max(0, Math.min(opts.movedTargetIndex, withoutMoved.length));
+      orderedIds = [...withoutMoved.slice(0, clamped), movedId, ...withoutMoved.slice(clamped)];
+    }
+    if (orderedIds.length > 0) {
+      await Promise.all(
+        orderedIds.map((id, index) => Card.findByIdAndUpdate(id, { position: index })),
+      );
+    }
+  };
+
+  await normalizeListPositions(targetListId, {
+    movedCardId: cardId,
+    movedTargetIndex: desiredTargetPosition,
+  });
+  if (originalListId !== targetListId) {
+    await normalizeListPositions(originalListId);
+  }
+  const refreshed = await Card.findById(cardId);
+  if (refreshed != null) {
+    card = refreshed;
+  }
+
   const boardId = card.boardId.toString();
   const targetOrderedCardIds = (
     await Card.find({ listId: targetListId }).sort({ position: 1, _id: 1 }).select('_id').lean()
   ).map((row) => String(row._id));
-  emitToBoard(boardId, 'cards:reordered', {
-    boardId,
-    listId: targetListId,
-    orderedCardIds: targetOrderedCardIds,
-  });
+  const listReorders: Array<{ listId: string; orderedCardIds: string[] }> = [
+    { listId: targetListId, orderedCardIds: targetOrderedCardIds },
+  ];
   if (originalListId !== targetListId) {
     const sourceOrderedCardIds = (
       await Card.find({ listId: originalListId }).sort({ position: 1, _id: 1 }).select('_id').lean()
     ).map((row) => String(row._id));
-    emitToBoard(boardId, 'cards:reordered', {
-      boardId,
-      listId: originalListId,
-      orderedCardIds: sourceOrderedCardIds,
-    });
+    listReorders.push({ listId: originalListId, orderedCardIds: sourceOrderedCardIds });
   }
+  emitToBoard(boardId, 'cards:positions-batch-updated', {
+    boardId,
+    fromListId: originalListId,
+    toListId: targetListId,
+    movedCardId: cardId,
+    position: desiredTargetPosition,
+    lists: listReorders,
+    serverTs: Date.now(),
+  });
 
   logAuditEvent({
     userId,
     action: 'card.move',
     resourceType: 'card',
     resourceId: cardId,
-    metadata: { fromListId: originalListId, toListId: targetListId, position },
+    metadata: { fromListId: originalListId, toListId: targetListId, position: desiredTargetPosition },
     timestamp: new Date(),
   });
 
@@ -451,10 +486,12 @@ export async function reorderCards(
     )
   );
 
-  emitToBoard(list.boardId.toString(), 'cards:reordered', {
+  emitToBoard(list.boardId.toString(), 'cards:positions-batch-updated', {
     boardId: list.boardId.toString(),
-    listId,
-    orderedCardIds: cardIds,
+    fromListId: listId,
+    toListId: listId,
+    lists: [{ listId, orderedCardIds: [...cardIds].map(String) }],
+    serverTs: Date.now(),
   });
 
   logAuditEvent({

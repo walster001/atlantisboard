@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } fro
 import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { Loader, Box, Text, Title, Group, ActionIcon } from '@mantine/core';
 import { IconArrowLeft, IconLayoutKanbanFilled, IconLink, IconSettings } from '@tabler/icons-react';
-import * as dragscroll from 'dragscroll';
 import { useSocket } from '../hooks/useSocket.js';
 import { UserMenu } from '../components/UserMenu.js';
 import type { BoardSettingsLivePatch, CardDB } from '../store/database.js';
@@ -45,7 +44,6 @@ export default function BoardPage() {
   const [showInvites, setShowInvites] = useState(false);
   const [overlayInitialCard, setOverlayInitialCard] = useState<CardDB | null>(null);
   const boardCardPatchRef = useRef<((card: CardDB) => void) | null>(null);
-  const boardBodyRef = useRef<HTMLDivElement | null>(null);
   const { appBranding, branding: loginBranding } = useAppBranding();
   const boardHomeIconUrl = resolveBoardNavbarIconUrl(appBranding, loginBranding);
   const boardNavIconPx = appBranding.boardNavbarIconSizePx;
@@ -124,58 +122,6 @@ export default function BoardPage() {
       useBoardRuntimeStore.getState().clear();
     };
   }, [boardId, loadData]);
-
-  useEffect(() => {
-    const boardPageEl = boardBodyRef.current;
-    if (boardPageEl == null) {
-      return undefined;
-    }
-    const draggingClass = 'dragscrolling';
-
-    const beginDragging = (ev: PointerEvent): void => {
-      if (ev.button !== 0) {
-        return;
-      }
-      const host = ev.currentTarget;
-      if (
-        host instanceof HTMLElement &&
-        host.hasAttribute('nochilddrag') &&
-        ev.target !== host
-      ) {
-        return;
-      }
-      document.body.classList.add(draggingClass);
-    };
-    const endDragging = (): void => {
-      document.body.classList.remove(draggingClass);
-    };
-    const wireHost = (el: HTMLElement): void => {
-      el.classList.add('dragscroll');
-      el.setAttribute('nochilddrag', '');
-      el.addEventListener('pointerdown', beginDragging);
-    };
-    const unwireHost = (el: HTMLElement): void => {
-      el.classList.remove('dragscroll');
-      el.removeAttribute('nochilddrag');
-      el.removeEventListener('pointerdown', beginDragging);
-    };
-
-    wireHost(boardPageEl);
-    dragscroll.reset();
-
-    window.addEventListener('pointerup', endDragging);
-    window.addEventListener('pointercancel', endDragging);
-    window.addEventListener('blur', endDragging);
-
-    return () => {
-      window.removeEventListener('pointerup', endDragging);
-      window.removeEventListener('pointercancel', endDragging);
-      window.removeEventListener('blur', endDragging);
-      unwireHost(boardPageEl);
-      endDragging();
-      dragscroll.reset();
-    };
-  }, [board?.id]);
 
   const handleBack = useCallback(() => {
     navigate('/');
@@ -277,7 +223,7 @@ export default function BoardPage() {
   }
 
   return (
-    <Box ref={boardBodyRef} className="board-page">
+    <Box className="board-page">
       <Box className="board-page__header">
         <Group justify="space-between" align="center" wrap="nowrap" gap="md">
           <Group gap={6} wrap="nowrap" align="center" style={{ flex: 1, minWidth: 0 }}>

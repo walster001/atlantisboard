@@ -86,11 +86,6 @@
   white-space: nowrap;
 }
 
-body.dragscrolling,
-body.dragscrolling * {
-  cursor: all-scroll !important;
-}
-
 .board-page__body {
   flex: 1;
   min-height: 0;
@@ -552,6 +547,17 @@ body.dragscrolling * {
 }
 
 /* Native drag preview mounts under body — no MantineProvider; use plain DOM + these classes. */
+.board-page__dnd-card-lift-preview {
+  box-sizing: border-box;
+  cursor: grabbing;
+  transform: rotate(-1.5deg) translate3d(0, -2px, 0);
+  transform-origin: center center;
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.14);
+  border-radius: 10px;
+}
+
 .board-page__dnd-native-card-preview {
   width: 272px;
   padding: 16px;

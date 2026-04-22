@@ -11022,10 +11022,6 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   line-height: 1.35;
 }
 
-body.dragscrolling, body.dragscrolling * {
-  cursor: all-scroll !important;
-}
-
 .board-page__body {
   padding: var(--board-viewport-gap) 16px var(--board-viewport-gap);
   overflow-x: auto;
@@ -11448,6 +11444,15 @@ body.dragscrolling, body.dragscrolling * {
   flex-shrink: 0;
   margin: 6px 0 10px;
   transition: min-height .14s ease-out, max-height .14s ease-out, opacity .12s ease-out;
+}
+
+.board-page__dnd-card-lift-preview {
+  box-sizing: border-box;
+  cursor: grabbing;
+  transform-origin: center center;
+  border-radius: 10px;
+  transform: rotate(-1.5deg)translate3d(0, -2px, 0);
+  box-shadow: 0 10px 20px #0000002e, 0 2px 8px #00000024;
 }
 
 .board-page__dnd-native-card-preview {

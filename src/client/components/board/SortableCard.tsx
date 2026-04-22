@@ -72,6 +72,28 @@ function sortableCardPropsEqual(
 /** Same as IntersectionObserver `rootMargin` below (px on each side). */
 const RICH_CONTENT_NEAR_VIEWPORT_MARGIN_PX = 240;
 
+function createCardLiftedDragPreview(cardRoot: HTMLElement): {
+  readonly preview: HTMLElement;
+  readonly offsetX: number;
+  readonly offsetY: number;
+} {
+  const rect = cardRoot.getBoundingClientRect();
+  const preview = cardRoot.cloneNode(true) as HTMLElement;
+  preview.classList.add('board-page__dnd-card-lift-preview');
+  preview.querySelectorAll('[data-kanban-delegated-drag-ignore="1"]').forEach((el) => el.remove());
+  preview.style.width = `${Math.max(1, Math.round(rect.width))}px`;
+  preview.style.height = `${Math.max(1, Math.round(rect.height))}px`;
+  preview.style.minHeight = '0';
+  // Keep only non-intrusive inline guardrails; let class CSS handle visual polish.
+  preview.style.setProperty('opacity', '1', 'important');
+  preview.setAttribute('aria-hidden', 'true');
+  return {
+    preview,
+    offsetX: Math.round(rect.width / 2),
+    offsetY: Math.round(rect.height / 2),
+  };
+}
+
 function isElementNearViewport(el: HTMLElement, marginPx: number): boolean {
   const r = el.getBoundingClientRect();
   const vw = globalThis.window.innerWidth;
@@ -144,7 +166,12 @@ function SortableCardInner({
   onCardDeletedFromBoard: _onCardDeletedFromBoard,
 }: SortableCardProps) {
   const [deferRef, richReady] = useRichContentWhenNearViewport();
+  const cardRootRef = useRef<HTMLDivElement | null>(null);
   const cardBodyRef = useRef<HTMLDivElement | null>(null);
+  const setCardRootRef = (node: HTMLDivElement | null): void => {
+    cardRootRef.current = node;
+    deferRef.current = node;
+  };
 
   const coverRenderUrl = useMemo(() => {
     const cover = typeof card.cover === 'string' ? card.cover.trim() : '';
@@ -280,16 +307,14 @@ function SortableCardInner({
   }, [kanbanAssigneeVisualKey, assigneeDirectory]);
 
   useEffect(() => {
-    const el = cardBodyRef.current;
-    if (el == null) {
+    const cardRootEl = cardRootRef.current;
+    if (cardRootEl == null) {
       return undefined;
     }
-    const edgeElement =
-      el.closest<HTMLElement>('[data-kanban-list-id][data-kanban-card-id]') ?? el;
     const cleanup = combine(
       !isDragSource
         ? dropTargetForElements({
-            element: el,
+            element: cardRootEl,
             getData: ({ input }) =>
               attachClosestEdge(
                 {
@@ -299,7 +324,7 @@ function SortableCardInner({
                   listId,
                 } as const,
                 {
-                  element: edgeElement,
+                  element: cardRootEl,
                   input,
                   allowedEdges: ['top', 'bottom'],
                 },
@@ -309,7 +334,7 @@ function SortableCardInner({
         : () => {},
       kanbanCardBodyDraggable
         ? draggable({
-            element: el,
+            element: cardRootEl,
             getInitialData: () =>
               ({
                 pdnd: PDND_KANBAN_CARD,
@@ -317,6 +342,16 @@ function SortableCardInner({
                 cardId: card.id,
                 listId,
               }) as const,
+            onGenerateDragPreview: ({ nativeSetDragImage }) => {
+              const { preview, offsetX, offsetY } = createCardLiftedDragPreview(cardRootEl);
+              document.body.appendChild(preview);
+              if (nativeSetDragImage != null) {
+                nativeSetDragImage(preview, offsetX, offsetY);
+              }
+              requestAnimationFrame(() => {
+                preview.remove();
+              });
+            },
           })
         : () => {},
     );
@@ -325,7 +360,7 @@ function SortableCardInner({
 
   return (
     <Card
-      ref={deferRef}
+      ref={setCardRootRef}
       className={`board-card board-card--kanban${
         card.color && card.color.trim().length > 0 ? ' board-card--kanban-colored' : ''
       }${showKanbanCardMenu ? '' : ' board-card--kanban--no-card-menu'}`}

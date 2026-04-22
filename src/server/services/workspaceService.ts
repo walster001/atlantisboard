@@ -11,6 +11,7 @@ import type { Document } from 'mongoose';
 import type { WorkspaceSummaryDTO } from '../../shared/types/viewModels.js';
 import { emitToBoard, emitToUser, emitToWorkspace } from '../utils/socketIO.js';
 import { hasPermission } from '../utils/permissions.js';
+import { getRoleHierarchyLevel } from './roleService.js';
 
 export interface CreateWorkspaceInput {
   name: string;
@@ -71,6 +72,17 @@ function workspaceRefUserId(ref: unknown): string {
     }
   }
   return '';
+}
+
+function workspaceActorRoleKey(workspace: Document & IWorkspace, userId: string): string | null {
+  if (workspace.ownerId.toString() === userId) {
+    return 'admin';
+  }
+  const member = workspace.members.find((m) => m.userId.toString() === userId);
+  if (member == null || member.roleKey.trim() === '') {
+    return null;
+  }
+  return member.roleKey;
 }
 
 function toWorkspaceSummary(workspace: Document & IWorkspace): WorkspaceSummaryDTO {
@@ -448,6 +460,21 @@ export async function addWorkspaceMember(
     throw new Error('Insufficient permissions to add members');
   }
 
+  const actorRoleKey = workspaceActorRoleKey(workspace, userId);
+  if (actorRoleKey == null) {
+    throw new Error('Insufficient permissions to assign member role');
+  }
+  const [actorLevel, targetLevel] = await Promise.all([
+    getRoleHierarchyLevel(actorRoleKey),
+    getRoleHierarchyLevel(input.roleKey),
+  ]);
+  if (actorLevel == null || targetLevel == null) {
+    throw new Error('Invalid role hierarchy configuration');
+  }
+  if (targetLevel > actorLevel) {
+    throw new Error('Cannot assign a role with higher hierarchy than your own');
+  }
+
   // Check if user is already a member
   if (workspace.members.some((m) => m.userId.toString() === input.userId)) {
     throw new Error('User is already a member');
@@ -577,6 +604,25 @@ export async function updateWorkspaceMemberRole(
   const member = workspace.members.find((m) => m.userId.toString() === memberUserId);
   if (!member) {
     throw new Error('Member not found');
+  }
+
+  const actorRoleKey = workspaceActorRoleKey(workspace, userId);
+  if (actorRoleKey == null) {
+    throw new Error('Insufficient permissions to update member roles');
+  }
+  const [actorLevel, targetCurrentLevel, targetNextLevel] = await Promise.all([
+    getRoleHierarchyLevel(actorRoleKey),
+    getRoleHierarchyLevel(member.roleKey),
+    getRoleHierarchyLevel(roleKey),
+  ]);
+  if (actorLevel == null || targetCurrentLevel == null || targetNextLevel == null) {
+    throw new Error('Invalid role hierarchy configuration');
+  }
+  if (targetCurrentLevel > actorLevel) {
+    throw new Error('Cannot update a member with higher hierarchy than your own');
+  }
+  if (targetNextLevel > actorLevel) {
+    throw new Error('Cannot assign a role with higher hierarchy than your own');
   }
 
   member.roleKey = roleKey;

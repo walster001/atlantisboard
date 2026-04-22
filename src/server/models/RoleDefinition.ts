@@ -5,6 +5,7 @@ export interface IRoleDefinition extends Document {
   displayName: string;
   description?: string;
   permissions: string[];
+  hierarchyLevel: number;
   isBuiltIn: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -35,6 +36,13 @@ const RoleDefinitionSchema = new Schema<IRoleDefinition>(
       type: [String],
       required: true,
       default: () => [],
+    },
+    hierarchyLevel: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 1000000,
+      index: true,
     },
     isBuiltIn: {
       type: Boolean,

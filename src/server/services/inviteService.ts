@@ -15,7 +15,13 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import type { Document } from 'mongoose';
 import { RoleDefinition } from '../models/RoleDefinition.js';
-import { isBuiltInRoleKey, isValidCustomRoleKey } from './roleService.js';
+import {
+  canAssignByBoardMemberRoleUpdateMode,
+  getRoleHierarchyLevel,
+  isBuiltInRoleKey,
+  isValidCustomRoleKey,
+  type BoardMemberRoleUpdateModeKey,
+} from './roleService.js';
 import { emitBoardUpdatedRealtime } from './boardService.js';
 import { emitWorkspaceHomeSnapshotToUserById } from './workspaceService.js';
 import { emitToBoard, emitToUser, emitToWorkspace } from '../utils/socketIO.js';
@@ -203,6 +209,77 @@ async function validateRoleKeyForInvite(roleKey: string): Promise<void> {
   }
 }
 
+function resolveWorkspaceRoleKeyForUser(
+  workspace: Document & { ownerId: mongoose.Types.ObjectId; members: Array<{ userId: unknown; roleKey: string }> },
+  userId: string,
+): string | null {
+  if (workspace.ownerId.toString() === userId) {
+    return 'admin';
+  }
+  const member = workspace.members.find((m) => String(m.userId) === userId);
+  if (member == null || member.roleKey.trim() === '') {
+    return null;
+  }
+  return member.roleKey.trim();
+}
+
+async function resolveBoardRoleKeyForUser(
+  board: Document & { ownerId: mongoose.Types.ObjectId; workspaceId?: mongoose.Types.ObjectId | null; members: Array<{ userId: unknown; roleKey: string }> },
+  userId: string,
+): Promise<string | null> {
+  if (board.ownerId.toString() === userId) {
+    return 'admin';
+  }
+  const boardMember = board.members.find((m) => String(m.userId) === userId);
+  if (boardMember != null && boardMember.roleKey.trim() !== '') {
+    return boardMember.roleKey.trim();
+  }
+  if (board.workspaceId == null) {
+    return null;
+  }
+  const workspace = await Workspace.findById(board.workspaceId).select('ownerId members').lean();
+  if (!workspace) {
+    return null;
+  }
+  if (String(workspace.ownerId) === userId) {
+    return 'admin';
+  }
+  const wsMember = (workspace.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
+    (m) => String(m.userId) === userId,
+  );
+  return typeof wsMember?.roleKey === 'string' && wsMember.roleKey.trim() !== ''
+    ? wsMember.roleKey.trim()
+    : null;
+}
+
+async function resolveBoardRoleUpdateModeForActor(
+  userId: string,
+  boardId: string,
+): Promise<BoardMemberRoleUpdateModeKey | null> {
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.any')) {
+    return 'boards.members.role.update.any';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.samehigher')) {
+    return 'boards.members.role.update.samehigher';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.samelower')) {
+    return 'boards.members.role.update.samelower';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.higher')) {
+    return 'boards.members.role.update.higher';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.lower')) {
+    return 'boards.members.role.update.lower';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.same')) {
+    return 'boards.members.role.update.same';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update')) {
+    return 'boards.members.role.update.samelower';
+  }
+  return null;
+}
+
 export async function createInviteLink(input: CreateInviteInput): Promise<Document & IInviteLink> {
   // Validate that either workspaceId or boardId is provided based on type
   if (input.type === 'workspace' && !input.workspaceId) {
@@ -244,6 +321,77 @@ export async function createInviteLink(input: CreateInviteInput): Promise<Docume
       ? input.roleKey.trim()
       : (input.role ?? 'viewer');
   await validateRoleKeyForInvite(roleKeyCandidate);
+
+  if (input.type === 'workspace' && input.workspaceId) {
+    const workspace = await Workspace.findById(input.workspaceId);
+    if (!workspace) {
+      throw new Error('Workspace not found');
+    }
+    const actorRoleKey = resolveWorkspaceRoleKeyForUser(
+      workspace as unknown as Document & {
+        ownerId: mongoose.Types.ObjectId;
+        members: Array<{ userId: unknown; roleKey: string }>;
+      },
+      input.createdBy,
+    );
+    if (actorRoleKey == null) {
+      throw new Error('Insufficient permissions to assign invite role');
+    }
+    const [actorLevel, targetLevel] = await Promise.all([
+      getRoleHierarchyLevel(actorRoleKey),
+      getRoleHierarchyLevel(roleKeyCandidate),
+    ]);
+    if (actorLevel == null || targetLevel == null) {
+      throw new Error('Invalid role hierarchy configuration');
+    }
+    if (targetLevel > actorLevel) {
+      throw new Error('Cannot assign invite role above your hierarchy level');
+    }
+  }
+
+  if (input.type === 'board' && input.boardId) {
+    const board = await Board.findById(input.boardId);
+    if (!board) {
+      throw new Error('Board not found');
+    }
+    if (board.ownerId.toString() !== input.createdBy) {
+      const actorRoleKey = await resolveBoardRoleKeyForUser(
+        board as unknown as Document & {
+          ownerId: mongoose.Types.ObjectId;
+          workspaceId?: mongoose.Types.ObjectId | null;
+          members: Array<{ userId: unknown; roleKey: string }>;
+        },
+        input.createdBy,
+      );
+      if (actorRoleKey == null) {
+        throw new Error('Insufficient permissions to assign invite role');
+      }
+      const mode = await resolveBoardRoleUpdateModeForActor(input.createdBy, input.boardId);
+      if (mode == null) {
+        throw new Error('Insufficient permissions to assign invite role');
+      }
+      const [actorLevel, targetLevel] = await Promise.all([
+        getRoleHierarchyLevel(actorRoleKey),
+        getRoleHierarchyLevel(roleKeyCandidate),
+      ]);
+      if (actorLevel == null || targetLevel == null) {
+        throw new Error('Invalid role hierarchy configuration');
+      }
+      const allowedByMode = canAssignByBoardMemberRoleUpdateMode({
+        mode,
+        actorLevel,
+        targetCurrentLevel: targetLevel,
+        targetNextLevel: targetLevel,
+        selfChange: false,
+      });
+      if (!allowedByMode) {
+        throw new Error('Cannot assign invite role at this hierarchy level');
+      }
+      if (mode !== 'boards.members.role.update.any' && targetLevel > actorLevel) {
+        throw new Error('Cannot assign invite role above your hierarchy level');
+      }
+    }
+  }
 
   // Generate cryptographically secure UUID v4 token (32 characters)
   const token = crypto.randomUUID().replace(/-/g, '').substring(0, 32);

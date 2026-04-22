@@ -228,10 +228,12 @@ WorkspaceMemberPanelOwnerCells.displayName = 'WorkspaceMemberPanelOwnerCells';
 const WorkspaceMemberPanelMemberCells = memo(function WorkspaceMemberPanelMemberCells(props: {
   readonly member: WorkspaceMemberRow;
   readonly roleOptions: ReadonlyArray<{ value: WorkspaceRoleKey; label: string }>;
+  readonly canRemoveMembers: boolean;
+  readonly canUpdateMemberRoles: boolean;
   readonly onRoleChange: (userId: string, roleKey: WorkspaceRoleKey) => void;
   readonly onRemove: (userId: string) => void;
 }) {
-  const { member, roleOptions, onRoleChange, onRemove } = props;
+  const { member, roleOptions, canRemoveMembers, canUpdateMemberRoles, onRoleChange, onRemove } = props;
   const user = member.user;
   return (
     <>
@@ -271,31 +273,43 @@ const WorkspaceMemberPanelMemberCells = memo(function WorkspaceMemberPanelMember
         </Group>
       </td>
       <td className="board-member-management__td board-member-management__td--role">
-        <Select
-          size="xs"
-          w="100%"
-          maw={ROLE_COL_PX - 16}
-          value={member.roleKey}
-          onChange={(v) => {
-            if (!v) return;
-            onRoleChange(user._id, v as WorkspaceRoleKey);
-          }}
-          data={roleOptions}
-          comboboxProps={{ withinPortal: false }}
-        />
+        {canUpdateMemberRoles ? (
+          <Select
+            size="xs"
+            w="100%"
+            maw={ROLE_COL_PX - 16}
+            value={member.roleKey}
+            onChange={(v) => {
+              if (!v) return;
+              onRoleChange(user._id, v as WorkspaceRoleKey);
+            }}
+            data={roleOptions}
+            comboboxProps={{ withinPortal: false }}
+          />
+        ) : (
+          <Text size="sm" c="dimmed" ta="center">
+            -
+          </Text>
+        )}
       </td>
       <td className="board-member-management__td board-member-management__td--action">
-        <Button
-          size="xs"
-          variant="subtle"
-          color="red"
-          leftSection={<IconUserMinus size={16} stroke={1.5} />}
-          onClick={() => {
-            onRemove(user._id);
-          }}
-        >
-          Remove
-        </Button>
+        {canRemoveMembers ? (
+          <Button
+            size="xs"
+            variant="subtle"
+            color="red"
+            leftSection={<IconUserMinus size={16} stroke={1.5} />}
+            onClick={() => {
+              onRemove(user._id);
+            }}
+          >
+            Remove
+          </Button>
+        ) : (
+          <Text size="sm" c="dimmed" ta="center">
+            -
+          </Text>
+        )}
       </td>
     </>
   );
@@ -304,9 +318,17 @@ WorkspaceMemberPanelMemberCells.displayName = 'WorkspaceMemberPanelMemberCells';
 
 interface WorkspaceMemberManagementProps {
   readonly workspaceId: string;
+  readonly canAddMembers?: boolean;
+  readonly canRemoveMembers?: boolean;
+  readonly canUpdateMemberRoles?: boolean;
 }
 
-export function WorkspaceMemberManagement({ workspaceId }: WorkspaceMemberManagementProps) {
+export function WorkspaceMemberManagement({
+  workspaceId,
+  canAddMembers = true,
+  canRemoveMembers = true,
+  canUpdateMemberRoles = true,
+}: WorkspaceMemberManagementProps) {
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [owner, setOwner] = useState<UserRow | null>(null);
   const [members, setMembers] = useState<WorkspaceMemberRow[]>([]);
@@ -565,6 +587,9 @@ export function WorkspaceMemberManagement({ workspaceId }: WorkspaceMemberManage
 
   const handleAddUser = useCallback(
     async (userId: string) => {
+      if (!canAddMembers) {
+        return;
+      }
       try {
         const roleKey = addRoles[userId] ?? 'viewer';
         const res = (await api.addWorkspaceMember(workspaceId, userId, roleKey)) as {
@@ -590,11 +615,14 @@ export function WorkspaceMemberManagement({ workspaceId }: WorkspaceMemberManage
         });
       }
     },
-    [addRoles, applyWorkspaceFromMutationResponse, loadWorkspaceMembers, workspaceId],
+    [addRoles, applyWorkspaceFromMutationResponse, canAddMembers, loadWorkspaceMembers, workspaceId],
   );
 
   const handleRemoveUser = useCallback(
     async (userId: string) => {
+      if (!canRemoveMembers) {
+        return;
+      }
       try {
         const res = await api.removeWorkspaceMember(workspaceId, userId);
         if (res.workspace !== undefined) {
@@ -616,11 +644,14 @@ export function WorkspaceMemberManagement({ workspaceId }: WorkspaceMemberManage
         });
       }
     },
-    [applyWorkspaceFromMutationResponse, loadWorkspaceMembers, workspaceId],
+    [applyWorkspaceFromMutationResponse, canRemoveMembers, loadWorkspaceMembers, workspaceId],
   );
 
   const handleUpdateRole = useCallback(
     async (userId: string, roleKey: WorkspaceRoleKey) => {
+      if (!canUpdateMemberRoles) {
+        return;
+      }
       try {
         const res = (await api.updateWorkspaceMemberRole(workspaceId, userId, roleKey)) as {
           workspace?: unknown;
@@ -639,7 +670,7 @@ export function WorkspaceMemberManagement({ workspaceId }: WorkspaceMemberManage
         });
       }
     },
-    [applyWorkspaceFromMutationResponse, loadWorkspaceMembers, workspaceId],
+    [applyWorkspaceFromMutationResponse, canUpdateMemberRoles, loadWorkspaceMembers, workspaceId],
   );
 
   if (workspaceLoading) {
@@ -741,31 +772,43 @@ export function WorkspaceMemberManagement({ workspaceId }: WorkspaceMemberManage
                       </Group>
                     </td>
                     <td className="board-member-management__td board-member-management__td--role">
-                      <Select
-                        size="xs"
-                        w="100%"
-                        maw={ROLE_COL_PX - 16}
-                        value={role}
-                        onChange={(v) => {
-                          if (!v) return;
-                          setAddRoles((prev) => ({ ...prev, [user._id]: v as WorkspaceRoleKey }));
-                        }}
-                        data={roleOptions}
-                        comboboxProps={{ withinPortal: false }}
-                      />
+                      {canUpdateMemberRoles ? (
+                        <Select
+                          size="xs"
+                          w="100%"
+                          maw={ROLE_COL_PX - 16}
+                          value={role}
+                          onChange={(v) => {
+                            if (!v) return;
+                            setAddRoles((prev) => ({ ...prev, [user._id]: v as WorkspaceRoleKey }));
+                          }}
+                          data={roleOptions}
+                          comboboxProps={{ withinPortal: false }}
+                        />
+                      ) : (
+                        <Text size="sm" c="dimmed" ta="center">
+                          -
+                        </Text>
+                      )}
                     </td>
                     <td className="board-member-management__td board-member-management__td--action">
-                      <Button
-                        size="xs"
-                        color="blue"
-                        leftSection={<IconPlus size={14} stroke={2} />}
-                        disabled={!canAdd}
-                        onClick={() => {
-                          void handleAddUser(user._id);
-                        }}
-                      >
-                        Add
-                      </Button>
+                      {canAddMembers ? (
+                        <Button
+                          size="xs"
+                          color="blue"
+                          leftSection={<IconPlus size={14} stroke={2} />}
+                          disabled={!canAdd}
+                          onClick={() => {
+                            void handleAddUser(user._id);
+                          }}
+                        >
+                          Add
+                        </Button>
+                      ) : (
+                        <Text size="sm" c="dimmed" ta="center">
+                          -
+                        </Text>
+                      )}
                     </td>
                   </>
                 );
@@ -818,6 +861,8 @@ export function WorkspaceMemberManagement({ workspaceId }: WorkspaceMemberManage
                   <WorkspaceMemberPanelMemberCells
                     member={row.member}
                     roleOptions={roleOptions}
+                    canRemoveMembers={canRemoveMembers}
+                    canUpdateMemberRoles={canUpdateMemberRoles}
                     onRoleChange={handleUpdateRole}
                     onRemove={handleRemoveUser}
                   />

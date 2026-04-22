@@ -23,6 +23,11 @@ import mongoose from 'mongoose';
 import type { BoardSummaryDTO } from '../../shared/types/viewModels.js';
 import { getBoardKanbanSnapshot } from './cardService.js';
 import { emitToBoard, emitToUser, emitToWorkspace } from '../utils/socketIO.js';
+import {
+  canAssignByBoardMemberRoleUpdateMode,
+  getRoleHierarchyLevel,
+  type BoardMemberRoleUpdateModeKey,
+} from './roleService.js';
 
 /** Monotonic counter for home `boards:positionsSynced` so clients can reject stale reorder events. */
 let homeBoardPositionsSequence = 0;
@@ -115,6 +120,62 @@ function emitBoardPermissionsUpdated(
       emitToUser(uid, 'permissions.updated', payload);
     }
   }
+}
+
+async function resolveBoardActorRoleKey(board: Document & IBoard, userId: string): Promise<string | null> {
+  if (board.ownerId.toString() === userId) {
+    return 'admin';
+  }
+  const boardMember = board.members.find((m) => m.userId.toString() === userId);
+  if (boardMember != null && typeof boardMember.roleKey === 'string' && boardMember.roleKey.trim() !== '') {
+    return boardMember.roleKey;
+  }
+  const workspace = await Workspace.findById(board.workspaceId)
+    .select('ownerId members')
+    .lean()
+    .catch(() => null);
+  if (workspace == null) {
+    return null;
+  }
+  if (workspace.ownerId?.toString() === userId) {
+    return 'admin';
+  }
+  const wsMember = (workspace.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
+    (m) => String(m.userId) === userId,
+  );
+  if (typeof wsMember?.roleKey === 'string' && wsMember.roleKey.trim() !== '') {
+    return wsMember.roleKey.trim();
+  }
+  return null;
+}
+
+async function resolveBoardRoleUpdateModeForActor(
+  userId: string,
+  boardId: string,
+): Promise<BoardMemberRoleUpdateModeKey | null> {
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.any')) {
+    return 'boards.members.role.update.any';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.samehigher')) {
+    return 'boards.members.role.update.samehigher';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.samelower')) {
+    return 'boards.members.role.update.samelower';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.higher')) {
+    return 'boards.members.role.update.higher';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.lower')) {
+    return 'boards.members.role.update.lower';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.same')) {
+    return 'boards.members.role.update.same';
+  }
+  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update')) {
+    // Backward-compatible default for legacy roles with coarse update key.
+    return 'boards.members.role.update.samelower';
+  }
+  return null;
 }
 
 function emitBoardCreatedRealtime(board: Document & IBoard): void {
@@ -964,6 +1025,34 @@ export async function addBoardMember(
     if (!allowed) {
       throw new Error('Insufficient permissions to add members');
     }
+    const mode = await resolveBoardRoleUpdateModeForActor(addedBy, boardId);
+    if (mode == null) {
+      throw new Error('Insufficient permissions to assign member role');
+    }
+    const actorRoleKey = await resolveBoardActorRoleKey(board, addedBy);
+    if (actorRoleKey == null) {
+      throw new Error('Insufficient permissions to assign member role');
+    }
+    const [actorLevel, targetNextLevel] = await Promise.all([
+      getRoleHierarchyLevel(actorRoleKey),
+      getRoleHierarchyLevel(roleKey),
+    ]);
+    if (actorLevel == null || targetNextLevel == null) {
+      throw new Error('Invalid role hierarchy configuration');
+    }
+    const allowedByMode = canAssignByBoardMemberRoleUpdateMode({
+      mode,
+      actorLevel,
+      targetCurrentLevel: targetNextLevel,
+      targetNextLevel,
+      selfChange: false,
+    });
+    if (!allowedByMode) {
+      throw new Error('Cannot assign role at this hierarchy level');
+    }
+    if (mode !== 'boards.members.role.update.any' && targetNextLevel > actorLevel) {
+      throw new Error('Cannot assign a role with higher hierarchy than your own');
+    }
   }
 
   // Check if user is already a member
@@ -1094,20 +1183,46 @@ export async function updateBoardMemberRole(
     throw new Error('Cannot change board owner role');
   }
 
-  // Check permissions (owner or admin only)
-  if (board.ownerId.toString() !== userId) {
-    const allowed = await hasPermission({ id: userId }, boardId, 'boards.members.role.update');
-    if (!allowed) {
-      throw new Error('Insufficient permissions to update member roles');
-    }
-  }
-
   const member = board.members.find((m) => m.userId.toString() === memberUserId);
   if (!member) {
     throw new Error('Member not found');
   }
 
   const previousRoleKey = member.roleKey;
+
+  // Check permissions + hierarchy restrictions (owner bypass).
+  if (board.ownerId.toString() !== userId) {
+    const mode = await resolveBoardRoleUpdateModeForActor(userId, boardId);
+    if (mode == null) {
+      throw new Error('Insufficient permissions to update member roles');
+    }
+    const actorRoleKey = await resolveBoardActorRoleKey(board, userId);
+    if (actorRoleKey == null) {
+      throw new Error('Insufficient permissions to update member roles');
+    }
+    const [actorLevel, targetCurrentLevel, targetNextLevel] = await Promise.all([
+      getRoleHierarchyLevel(actorRoleKey),
+      getRoleHierarchyLevel(previousRoleKey),
+      getRoleHierarchyLevel(newRoleKey),
+    ]);
+    if (actorLevel == null || targetCurrentLevel == null || targetNextLevel == null) {
+      throw new Error('Invalid role hierarchy configuration');
+    }
+    const allowedByMode = canAssignByBoardMemberRoleUpdateMode({
+      mode,
+      actorLevel,
+      targetCurrentLevel,
+      targetNextLevel,
+      selfChange: memberUserId === userId,
+    });
+    if (!allowedByMode) {
+      throw new Error('Role update exceeds your hierarchy permissions');
+    }
+    if (mode !== 'boards.members.role.update.any' && targetNextLevel > actorLevel) {
+      throw new Error('Cannot assign a role with higher hierarchy than your own');
+    }
+  }
+
   const targetDisplayName = await resolveTargetDisplayNameForAudit(memberUserId, auditHints);
   member.roleKey = newRoleKey;
   await board.save();

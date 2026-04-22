@@ -955,6 +955,7 @@ class ApiClient {
     displayName: string;
     description?: string;
     permissions: string[];
+    hierarchyLevel: number;
   }): Promise<{ role: unknown }> {
     const response = await this.client.post('/admin/roles', data);
     return response.data;
@@ -964,6 +965,7 @@ class ApiClient {
     displayName?: string;
     description?: string;
     permissions?: string[];
+    hierarchyLevel?: number;
   }): Promise<{ role: unknown }> {
     const response = await this.client.put(`/admin/roles/${encodeURIComponent(roleKey)}`, patch);
     return response.data;

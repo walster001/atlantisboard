@@ -9,7 +9,9 @@ import {
   Group,
   Loader,
   Modal,
+  NumberInput,
   ScrollArea,
+  Select,
   Stack,
   Switch,
   Tabs,
@@ -43,6 +45,7 @@ type RoleRow = {
   displayName: string;
   description?: string;
   permissions: string[];
+  hierarchyLevel: number;
   isBuiltIn: boolean;
 };
 
@@ -207,6 +210,18 @@ const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'boards.members.add': 'Add a member to a board.',
   'boards.members.remove': 'Remove a member from a board.',
   'boards.members.role.update': 'Change a board member’s role.',
+  'boards.members.role.update.same':
+    'Can update other board members role who have the same role hierarchy number as themself.',
+  'boards.members.role.update.lower':
+    'Can update other board members role to roles with a lower permissions hierarchy number than their own.',
+  'boards.members.role.update.higher':
+    'Can update other boards members role to roles with a higher permissions hierarchy number than their own.',
+  'boards.members.role.update.samehigher':
+    'Can update other boards members role to roles with the same number or higher.',
+  'boards.members.role.update.samelower':
+    'Can update other boards members role to roles with the same number or lower.',
+  'boards.members.role.update.any':
+    'Can update any board member role, including own role, to any role regardless of hierarchy.',
   // lists.*
   'lists.create': 'Create a column (list).',
   'lists.list': 'List columns (lists) in a board.',
@@ -267,6 +282,35 @@ const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   // ui.*
   'ui.admin_settings.open': 'Show the Admin Settings entry in the user menu.',
 };
+
+const MEMBERS_ROLE_UPDATE_MODE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  {
+    value: 'boards.members.role.update.same',
+    label: 'Same hierarchy only',
+  },
+  {
+    value: 'boards.members.role.update.lower',
+    label: 'Lower hierarchy only',
+  },
+  {
+    value: 'boards.members.role.update.higher',
+    label: 'Higher hierarchy only',
+  },
+  {
+    value: 'boards.members.role.update.samehigher',
+    label: 'Same or higher hierarchy',
+  },
+  {
+    value: 'boards.members.role.update.samelower',
+    label: 'Same or lower hierarchy',
+  },
+  {
+    value: 'boards.members.role.update.any',
+    label: 'Any hierarchy (includes own role)',
+  },
+] as const;
+
+const MEMBERS_ROLE_UPDATE_MODE_KEYS = new Set(MEMBERS_ROLE_UPDATE_MODE_OPTIONS.map((o) => o.value));
 
 function permissionCategoryForKey(permissionKey: string): PermissionCategoryKey {
   if (permissionKey.startsWith('boards.settings.')) return 'board-settings';
@@ -373,6 +417,7 @@ export function RolesPermissionsTab() {
   const [activeTab, setActiveTab] = useState<string>('admin');
   const [activeCategory, setActiveCategory] = useState<PermissionCategoryKey>('workspaces');
   const [draftPermissions, setDraftPermissions] = useState<Record<string, readonly string[]>>({});
+  const [draftHierarchyLevels, setDraftHierarchyLevels] = useState<Record<string, number>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const activeIsAppAdmins = activeTab === '__app_admins__';
@@ -382,7 +427,21 @@ export function RolesPermissionsTab() {
     setError(null);
     try {
       const [res, admins] = await Promise.all([api.getRoles(), api.getAppAdmins()]);
-      setRoles(((res.roles as unknown[]) ?? []) as RoleRow[]);
+      const rows = ((res.roles as unknown[]) ?? []).map((raw) => {
+        const row = raw as Partial<RoleRow>;
+        return {
+          key: typeof row.key === 'string' ? row.key : '',
+          displayName: typeof row.displayName === 'string' ? row.displayName : 'Unknown',
+          ...(typeof row.description === 'string' ? { description: row.description } : {}),
+          permissions: Array.isArray(row.permissions) ? row.permissions.map(String) : [],
+          hierarchyLevel:
+            typeof row.hierarchyLevel === 'number' && Number.isFinite(row.hierarchyLevel)
+              ? row.hierarchyLevel
+              : 0,
+          isBuiltIn: row.isBuiltIn === true,
+        } satisfies RoleRow;
+      }).filter((r) => r.key !== '');
+      setRoles(rows);
       setAppAdmins((admins.appAdmins as AppAdminRow[]) ?? []);
       setBootstrapAppAdminId(
         typeof admins.bootstrapAppAdminId === 'string' ? admins.bootstrapAppAdminId : null,
@@ -453,6 +512,9 @@ export function RolesPermissionsTab() {
       }
       // Hide `*.list` keys (list operations are implied by corresponding `*.view`).
       if (key.endsWith('.list')) {
+        continue;
+      }
+      if (MEMBERS_ROLE_UPDATE_MODE_KEYS.has(key)) {
         continue;
       }
       const cat = permissionCategoryForKey(key);
@@ -528,8 +590,9 @@ export function RolesPermissionsTab() {
   const activeIsDirty =
     activeRole != null &&
     !activeIsAppAdmins &&
-    !activeRole.isBuiltIn &&
-    draftPermissions[activeRole.key] !== undefined;
+    (draftPermissions[activeRole.key] !== undefined ||
+      (draftHierarchyLevels[activeRole.key] !== undefined &&
+        draftHierarchyLevels[activeRole.key] !== activeRole.hierarchyLevel));
 
   const togglePermission = (roleKey: string, permission: string): void => {
     const role = roleByKey.get(roleKey);
@@ -548,19 +611,75 @@ export function RolesPermissionsTab() {
     setDraftPermissions((prev) => ({ ...prev, [roleKey]: [...current].sort((a, b) => a.localeCompare(b)) }));
   };
 
+  const activeMemberRoleUpdateMode = useMemo((): string | null => {
+    if (!activeRole || activeIsAppAdmins) {
+      return null;
+    }
+    const perms = draftPermissions[activeRole.key] ?? activeRole.permissions;
+    for (const option of MEMBERS_ROLE_UPDATE_MODE_OPTIONS) {
+      if (perms.includes(option.value)) {
+        return option.value;
+      }
+    }
+    return null;
+  }, [activeRole, activeIsAppAdmins, draftPermissions]);
+
+  const setMemberRoleUpdateMode = (roleKey: string, modeKey: string | null): void => {
+    const role = roleByKey.get(roleKey);
+    if (!role || role.isBuiltIn) {
+      return;
+    }
+    const base = draftPermissions[roleKey] ?? role.permissions;
+    const next = new Set(
+      base
+        .map((p) => p.trim())
+        .filter((p) => p !== '')
+        .filter((p) => !MEMBERS_ROLE_UPDATE_MODE_KEYS.has(p)),
+    );
+    if (modeKey != null && modeKey !== '') {
+      next.add(modeKey);
+    }
+    setDraftPermissions((prev) => ({ ...prev, [roleKey]: [...next].sort((a, b) => a.localeCompare(b)) }));
+  };
+
+  const setHierarchyDraft = (roleKey: string, next: number): void => {
+    setDraftHierarchyLevels((prev) => ({ ...prev, [roleKey]: next }));
+  };
+
   const saveActiveRole = async (): Promise<void> => {
-    if (!activeRole || activeIsAppAdmins || activeRole.isBuiltIn) {
+    if (!activeRole || activeIsAppAdmins) {
       return;
     }
     const nextPerms = draftPermissions[activeRole.key];
-    if (!nextPerms) {
+    const nextHierarchy = draftHierarchyLevels[activeRole.key];
+    const hasPermDraft = nextPerms !== undefined;
+    const hasHierarchyDraft = nextHierarchy !== undefined && nextHierarchy !== activeRole.hierarchyLevel;
+    if (!hasPermDraft && !hasHierarchyDraft) {
       return;
+    }
+    const finalHierarchy = nextHierarchy ?? activeRole.hierarchyLevel;
+    const hierarchyToRole = new Map<number, string>();
+    for (const role of roles) {
+      const level = role.key === activeRole.key ? finalHierarchy : (draftHierarchyLevels[role.key] ?? role.hierarchyLevel);
+      const owner = hierarchyToRole.get(level);
+      if (owner && owner !== role.key) {
+        setError(`Hierarchy number ${level} is already used by role "${owner}".`);
+        return;
+      }
+      hierarchyToRole.set(level, role.key);
     }
     setSavingKey(activeRole.key);
     setError(null);
     try {
-      await api.updateRole(activeRole.key, { permissions: [...nextPerms] });
+      await api.updateRole(activeRole.key, {
+        ...(hasPermDraft && nextPerms ? { permissions: [...nextPerms] } : {}),
+        ...(hasHierarchyDraft ? { hierarchyLevel: finalHierarchy } : {}),
+      });
       setDraftPermissions((prev) => {
+        const { [activeRole.key]: _removed, ...rest } = prev;
+        return rest;
+      });
+      setDraftHierarchyLevels((prev) => {
         const { [activeRole.key]: _removed, ...rest } = prev;
         return rest;
       });
@@ -641,7 +760,12 @@ export function RolesPermissionsTab() {
                   <Text fw={600} size="sm">
                     {r.displayName}
                   </Text>
-                  <IconLock size={14} stroke={1.8} aria-hidden />
+                  <Group gap={4} wrap="nowrap">
+                    <Text size="xs" c="dimmed" fw={700}>
+                      {r.hierarchyLevel}
+                    </Text>
+                    <IconLock size={14} stroke={1.8} aria-hidden />
+                  </Group>
                 </Group>
               </Tabs.Tab>
             ))}
@@ -655,9 +779,12 @@ export function RolesPermissionsTab() {
                 </Text>
                 {custom.map((r) => (
                   <Tabs.Tab key={r.key} value={r.key}>
-                    <Group gap="xs" wrap="nowrap" justify="flex-start" align="center">
-                      <Text fw={600} size="sm" lineClamp={1}>
+                    <Group gap="xs" wrap="nowrap" justify="space-between" align="center">
+                      <Text fw={600} size="sm" lineClamp={1} style={{ flex: 1, minWidth: 0 }}>
                         {r.displayName}
+                      </Text>
+                      <Text size="xs" c="dimmed" fw={700}>
+                        {r.hierarchyLevel}
                       </Text>
                     </Group>
                   </Tabs.Tab>
@@ -785,6 +912,23 @@ export function RolesPermissionsTab() {
                       >
                         Save changes
                       </Button>
+                      <NumberInput
+                        size="sm"
+                        w={150}
+                        min={0}
+                        max={1000000}
+                        allowDecimal={false}
+                        allowNegative={false}
+                        label="Hierarchy"
+                        labelProps={{ style: { fontSize: 11 } }}
+                        value={draftHierarchyLevels[activeRole.key] ?? activeRole.hierarchyLevel}
+                        onChange={(value) => {
+                          const next = typeof value === 'number' && Number.isFinite(value)
+                            ? Math.max(0, Math.min(1000000, Math.floor(value)))
+                            : activeRole.hierarchyLevel;
+                          setHierarchyDraft(activeRole.key, next);
+                        }}
+                      />
                       {!activeRole.isBuiltIn ? (
                         <Button
                           size="sm"
@@ -828,6 +972,48 @@ export function RolesPermissionsTab() {
                         </Card>
                       </Grid.Col>
 
+                      {activeCategory === 'members' ? (
+                        <Grid.Col span={12}>
+                          <Card withBorder radius="md" p="sm">
+                            <Group justify="space-between" align="center" wrap="nowrap">
+                              <Box style={{ minWidth: 0 }}>
+                                <Text fw={600} size="sm" lineClamp={1}>
+                                  Board member role update mode
+                                </Text>
+                                <Text size="xs" c="dimmed" lineClamp={2}>
+                                  Choose exactly one hierarchy rule for board member role updates.
+                                </Text>
+                              </Box>
+                              <Group gap="sm" wrap="nowrap" align="center">
+                                <Select
+                                  size="xs"
+                                  w={280}
+                                  data={[...MEMBERS_ROLE_UPDATE_MODE_OPTIONS]}
+                                  value={activeMemberRoleUpdateMode}
+                                  onChange={(value) => setMemberRoleUpdateMode(activeRole.key, value)}
+                                  disabled={activeRole.isBuiltIn || !activeEnabledSet.has('boards.members.role.update')}
+                                  allowDeselect={false}
+                                />
+                                <Switch
+                                  size="md"
+                                  checked={activeMemberRoleUpdateMode != null}
+                                  disabled={activeRole.isBuiltIn}
+                                  onChange={(e) => {
+                                    if (e.currentTarget.checked) {
+                                      const fallback = activeMemberRoleUpdateMode ?? MEMBERS_ROLE_UPDATE_MODE_OPTIONS[0]?.value ?? null;
+                                      setMemberRoleUpdateMode(activeRole.key, fallback);
+                                    } else {
+                                      setMemberRoleUpdateMode(activeRole.key, null);
+                                    }
+                                  }}
+                                  aria-label="Toggle board member role update mode"
+                                  withThumbIndicator={false}
+                                />
+                              </Group>
+                            </Group>
+                          </Card>
+                        </Grid.Col>
+                      ) : null}
                       {(permissionKeysByCategory.get(activeCategory) ?? []).map((perm) => (
                         <Grid.Col key={perm} span={{ base: 12, md: 6 }}>
                           <Card withBorder radius="md" p="sm">
@@ -927,6 +1113,7 @@ function CreateRoleModal(props: {
   const { existingRoleKeys, onClose, onCreated } = props;
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
+  const [hierarchyLevel, setHierarchyLevel] = useState<number>(1000);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -950,6 +1137,7 @@ function CreateRoleModal(props: {
         displayName: displayName.trim(),
         ...(description.trim() !== '' ? { description: description.trim() } : {}),
         permissions: [],
+        hierarchyLevel,
       });
       await onCreated(key);
     } catch (e) {
@@ -974,6 +1162,18 @@ function CreateRoleModal(props: {
           value={description}
           onChange={(e) => setDescription(e.currentTarget.value)}
           rows={2}
+        />
+        <NumberInput
+          label="Hierarchy number"
+          value={hierarchyLevel}
+          min={0}
+          max={1000000}
+          allowDecimal={false}
+          allowNegative={false}
+          onChange={(value) => {
+            const next = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : 1000;
+            setHierarchyLevel(Math.max(0, Math.min(1000000, next)));
+          }}
         />
         <Group justify="flex-end">
           <Button variant="subtle" onClick={onClose} disabled={loading}>

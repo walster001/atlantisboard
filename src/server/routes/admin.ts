@@ -630,6 +630,7 @@ router.post('/permission-sets', async (req, res, next) => {
 });
 
 const roleKeySchema = z.string().trim().min(1).max(80);
+const roleHierarchyLevelSchema = z.number().int().min(0).max(1_000_000);
 const objectIdParamSchema = z.string().trim().regex(/^[a-fA-F0-9]{24}$/);
 
 const ADMIN_USERS_MAX_LIMIT = 200;
@@ -701,6 +702,7 @@ const createRoleSchema = z.object({
   displayName: z.string().trim().min(1).max(80),
   description: z.string().trim().max(300).optional(),
   permissions: z.array(z.string().trim().min(1).max(200)).default([]),
+  hierarchyLevel: roleHierarchyLevelSchema,
 });
 
 router.post('/roles', async (req, res, next) => {
@@ -725,11 +727,25 @@ router.post('/roles', async (req, res, next) => {
       });
       return;
     }
+    const hierarchyExists = await RoleDefinition.findOne({ hierarchyLevel: body.hierarchyLevel })
+      .select('_id key')
+      .lean();
+    if (hierarchyExists) {
+      res.status(409).json({
+        error: {
+          message: `Hierarchy number ${body.hierarchyLevel} is already assigned to role "${String(hierarchyExists.key)}".`,
+          code: 'CONFLICT',
+          statusCode: 409,
+        },
+      });
+      return;
+    }
     const created = await RoleDefinition.create({
       key: body.key,
       displayName: body.displayName,
       ...(body.description !== undefined ? { description: body.description } : {}),
       permissions: body.permissions,
+      hierarchyLevel: body.hierarchyLevel,
       isBuiltIn: false,
     });
     res.status(201).json({ role: created });
@@ -748,6 +764,7 @@ const updateRoleSchema = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),
   description: z.string().trim().max(300).optional(),
   permissions: z.array(z.string().trim().min(1).max(200)).optional(),
+  hierarchyLevel: roleHierarchyLevelSchema.optional(),
 });
 
 router.put('/roles/:roleKey', async (req, res, next) => {
@@ -762,6 +779,25 @@ router.put('/roles/:roleKey', async (req, res, next) => {
     if (patch.displayName !== undefined) role.displayName = patch.displayName;
     if (patch.description !== undefined) role.description = patch.description;
     if (patch.permissions !== undefined) role.permissions = patch.permissions;
+    if (patch.hierarchyLevel !== undefined) {
+      const hierarchyExists = await RoleDefinition.findOne({
+        hierarchyLevel: patch.hierarchyLevel,
+        key: { $ne: roleKey },
+      })
+        .select('_id key')
+        .lean();
+      if (hierarchyExists) {
+        res.status(409).json({
+          error: {
+            message: `Hierarchy number ${patch.hierarchyLevel} is already assigned to role "${String(hierarchyExists.key)}".`,
+            code: 'CONFLICT',
+            statusCode: 409,
+          },
+        });
+        return;
+      }
+      role.hierarchyLevel = patch.hierarchyLevel;
+    }
     await role.save();
     emitToAll('permissions.updated', {
       affectedUserIds: [],

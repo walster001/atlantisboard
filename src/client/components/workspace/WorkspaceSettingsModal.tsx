@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Tabs, Button, Stack, Group, Text } from '@mantine/core';
 import { InviteList } from '../invites/InviteList.js';
 import { CreateInviteModal } from '../invites/CreateInviteModal.js';
 import { WorkspaceMemberManagement } from './WorkspaceMemberManagement.js';
+import { api } from '../../utils/api.js';
 import './workspaceSettingsModal.css';
 
 interface WorkspaceSettingsModalProps {
@@ -14,6 +15,32 @@ export function WorkspaceSettingsModal({ workspaceId, onClose }: WorkspaceSettin
   const [activeTab, setActiveTab] = useState<'members' | 'invites'>('members');
   const [showCreateInvite, setShowCreateInvite] = useState(false);
   const [inviteListNonce, setInviteListNonce] = useState(0);
+  const [workspacePermissions, setWorkspacePermissions] = useState<ReadonlySet<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .getMyWorkspacePermissions(workspaceId)
+      .then((res) => {
+        if (!cancelled) {
+          setWorkspacePermissions(new Set(res.permissions ?? []));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWorkspacePermissions(new Set());
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  const canCreateInvites = workspacePermissions.has('invites.create');
+  const canDeleteInvites = workspacePermissions.has('invites.delete');
+  const canAddMembers = workspacePermissions.has('workspaces.members.add');
+  const canRemoveMembers = workspacePermissions.has('workspaces.members.remove');
+  const canUpdateMemberRoles = workspacePermissions.has('workspaces.members.role.update');
 
   return (
     <Modal
@@ -52,7 +79,12 @@ export function WorkspaceSettingsModal({ workspaceId, onClose }: WorkspaceSettin
             className="workspace-settings-modal__tab-panel workspace-settings-modal__tab-panel--fill"
           >
             <div className="workspace-settings-modal__panel-inner">
-              <WorkspaceMemberManagement workspaceId={workspaceId} />
+              <WorkspaceMemberManagement
+                workspaceId={workspaceId}
+                canAddMembers={canAddMembers}
+                canRemoveMembers={canRemoveMembers}
+                canUpdateMemberRoles={canUpdateMemberRoles}
+              />
             </div>
           </Tabs.Panel>
 
@@ -60,17 +92,23 @@ export function WorkspaceSettingsModal({ workspaceId, onClose }: WorkspaceSettin
             <Stack gap="md">
               <Group justify="space-between" align="center">
                 <Text fw={600}>Workspace Invites</Text>
-                <Button size="sm" color="blue" onClick={() => setShowCreateInvite(true)}>
-                  Create Invite
-                </Button>
+                {canCreateInvites ? (
+                  <Button size="sm" color="blue" onClick={() => setShowCreateInvite(true)}>
+                    Create Invite
+                  </Button>
+                ) : null}
               </Group>
-              <InviteList key={`${workspaceId}:${inviteListNonce}`} workspaceId={workspaceId} />
+              <InviteList
+                key={`${workspaceId}:${inviteListNonce}`}
+                workspaceId={workspaceId}
+                canDeleteInvites={canDeleteInvites}
+              />
             </Stack>
           </Tabs.Panel>
         </Tabs>
       </Stack>
 
-      {showCreateInvite && (
+      {showCreateInvite && canCreateInvites ? (
         <CreateInviteModal
           workspaceId={workspaceId}
           type="workspace"
@@ -80,7 +118,7 @@ export function WorkspaceSettingsModal({ workspaceId, onClose }: WorkspaceSettin
             setInviteListNonce((n) => n + 1);
           }}
         />
-      )}
+      ) : null}
     </Modal>
   );
 }

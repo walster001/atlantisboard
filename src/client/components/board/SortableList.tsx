@@ -12,8 +12,8 @@ import {
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { IconDots } from '@tabler/icons-react';
-import { isAxiosError } from 'axios';
 import { db, type ListDB, type CardDB, type BoardDB } from '../../store/database.js';
+import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
 import { api } from '../../utils/api.js';
 import { transformList, normalizeCardFromApi } from '../../utils/transform.js';
@@ -339,14 +339,9 @@ function SortableListInner({
       confirmProps: { color: 'red' },
       onConfirm: async () => {
         try {
-          await api.deleteList(list.id);
-          notifications.show({
-            title: 'List deleted',
-            message: 'The list has been removed.',
-            color: 'green',
-          });
-        } catch (e) {
-          if (isAxiosError(e) && e.response?.status === 404) {
+          const r = await api.deleteList(list.id);
+          if (!r.removed) {
+            useBoardRuntimeStore.getState().removeList(list.id);
             await db.cards.where('listId').equals(list.id).delete();
             await db.lists.delete(list.id);
             onListUpdated?.();
@@ -358,6 +353,12 @@ function SortableListInner({
             });
             return;
           }
+          notifications.show({
+            title: 'List deleted',
+            message: 'The list has been removed.',
+            color: 'green',
+          });
+        } catch (e) {
           notifications.show({
             title: 'Error',
             message: e instanceof Error ? e.message : 'Failed to delete list',

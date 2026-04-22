@@ -1,5 +1,4 @@
 import { api } from './api.js';
-import type { CardDB } from '../store/database.js';
 import { extractMongoStringId } from './transform.js';
 
 export const CARD_DESCRIPTION_BATCH_SIZE = 120;

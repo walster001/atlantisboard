@@ -185,7 +185,11 @@ router.put('/reorder', async (req, res, next) => {
       return;
     }
 
-    res.json({ message: 'Cards reordered successfully' });
+    res.json({
+      message: 'Cards reordered successfully',
+      listId: String(listId),
+      orderedCardIds: [...cardIds].map((id: unknown) => String(id)),
+    });
   } catch (error) {
     if (error instanceof Error && (error.message.includes('not found') || error.message.includes('permissions'))) {
       res.status(400).json({
@@ -363,18 +367,13 @@ router.put('/:id/move', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const deleted = await deleteCard(req.params.id, authReq.user.id);
-    if (!deleted) {
-      res.status(404).json({
-        error: {
-          message: 'Card not found',
-          code: 'NOT_FOUND',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-    res.json({ message: 'Card deleted successfully' });
+    const cardId = req.params.id;
+    const deleted = await deleteCard(cardId, authReq.user.id);
+    res.status(200).json({
+      cardId,
+      removed: deleted,
+      message: deleted ? 'Card deleted successfully' : 'Card was already deleted',
+    });
   } catch (error) {
     if (error instanceof Error && error.message.includes('permissions')) {
       res.status(403).json({

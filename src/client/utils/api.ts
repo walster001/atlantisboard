@@ -574,12 +574,22 @@ class ApiClient {
     return response.data;
   }
 
-  async deleteList(id: string): Promise<void> {
-    await this.client.delete(`/lists/${id}`);
+  async deleteList(id: string): Promise<{ listId: string; removed: boolean; message: string }> {
+    const response = await this.client.delete<{ listId: string; removed: boolean; message: string }>(
+      `/lists/${id}`,
+    );
+    return response.data;
   }
 
-  async reorderLists(data: { boardId: string; listIds: string[] }): Promise<void> {
-    await this.client.post('/lists/reorder', data);
+  async reorderLists(data: {
+    boardId: string;
+    listIds: string[];
+  }): Promise<{ message: string; boardId: string; orderedListIds: string[] }> {
+    const response = await this.client.post<{ message: string; boardId: string; orderedListIds: string[] }>(
+      '/lists/reorder',
+      data,
+    );
+    return response.data;
   }
 
   // Card endpoints
@@ -675,8 +685,11 @@ class ApiClient {
     return response.data;
   }
 
-  async deleteCard(id: string): Promise<void> {
-    await this.client.delete(`/cards/${id}`);
+  async deleteCard(id: string): Promise<{ cardId: string; removed: boolean; message: string }> {
+    const response = await this.client.delete<{ cardId: string; removed: boolean; message: string }>(
+      `/cards/${id}`,
+    );
+    return response.data;
   }
 
   async moveCard(cardId: string, listId: string, position: number): Promise<{ card: unknown }> {
@@ -684,8 +697,15 @@ class ApiClient {
     return response.data;
   }
 
-  async reorderCards(listId: string, cardIds: string[]): Promise<void> {
-    await this.client.put('/cards/reorder', { listId, cardIds });
+  async reorderCards(
+    listId: string,
+    cardIds: string[],
+  ): Promise<{ message: string; listId: string; orderedCardIds: string[] }> {
+    const response = await this.client.put<{ message: string; listId: string; orderedCardIds: string[] }>(
+      '/cards/reorder',
+      { listId, cardIds },
+    );
+    return response.data;
   }
 
   async duplicateCard(id: string, targetListId: string): Promise<{ card: unknown }> {

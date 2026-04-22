@@ -80,7 +80,11 @@ router.post('/reorder', async (req, res, next) => {
       return;
     }
     await reorderLists(boardId, listIds, authReq.user.id);
-    res.json({ message: 'Lists reordered successfully' });
+    res.json({
+      message: 'Lists reordered successfully',
+      boardId: String(boardId),
+      orderedListIds: [...listIds].map((id: unknown) => String(id)),
+    });
   } catch (error) {
     if (error instanceof Error && error.message.includes('permissions')) {
       res.status(403).json({
@@ -195,18 +199,13 @@ router.put('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const deleted = await deleteList(req.params.id, authReq.user.id);
-    if (!deleted) {
-      res.status(404).json({
-        error: {
-          message: 'List not found',
-          code: 'NOT_FOUND',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-    res.json({ message: 'List deleted successfully' });
+    const listId = req.params.id;
+    const deleted = await deleteList(listId, authReq.user.id);
+    res.status(200).json({
+      listId,
+      removed: deleted,
+      message: deleted ? 'List deleted successfully' : 'List was already deleted',
+    });
   } catch (error) {
     if (error instanceof Error && error.message.includes('permissions')) {
       res.status(403).json({

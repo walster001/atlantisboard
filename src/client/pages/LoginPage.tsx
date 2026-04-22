@@ -6,6 +6,7 @@ import { useAppBranding } from '../contexts/AppBrandingContext.js';
 import { api } from '../utils/api.js';
 import { BrandedLoginCard } from '../components/auth/BrandedLoginCard.js';
 import { RegisterModal } from '../components/auth/RegisterModal.js';
+import { ForgotPasswordModal } from '../components/auth/ForgotPasswordModal.js';
 import {
   consumePostLoginRedirect,
   isSafeAppInternalPath,
@@ -30,7 +31,9 @@ export default function LoginPage() {
   const [emailPasswordAllowed, setEmailPasswordAllowed] = useState(true);
   const [googleLoginAllowed, setGoogleLoginAllowed] = useState(false);
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
+  const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const strippedNextFromUrlRef = useRef(false);
+  const strippedForgotQueryRef = useRef(false);
 
   /** Legacy `?next=` in address bar → sessionStorage, then strip (avoids exposing return path in URL). */
   useEffect(() => {
@@ -113,6 +116,21 @@ export default function LoginPage() {
     }
   }, [searchParams, setSearchParams]);
 
+  /** Deep link `/login?forgot=1` (e.g. after `/forgot-password` redirect) opens the forgot-password modal once. */
+  useEffect(() => {
+    if (!loginBrandingReady || loginOptionsLoading || strippedForgotQueryRef.current) {
+      return;
+    }
+    if (searchParams.get('forgot') !== '1') {
+      return;
+    }
+    strippedForgotQueryRef.current = true;
+    setForgotModalOpen(true);
+    const p = new URLSearchParams(searchParams);
+    p.delete('forgot');
+    setSearchParams(p, { replace: true });
+  }, [loginBrandingReady, loginOptionsLoading, searchParams, setSearchParams]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -166,8 +184,14 @@ export default function LoginPage() {
         onSubmit={(e) => void handleSubmit(e)}
         submitLoading={loading}
         onGoogleClick={handleGoogleLogin}
-        {...(emailPasswordAllowed ? { onSignUpClick: () => setRegisterModalOpen(true) } : {})}
+        {...(emailPasswordAllowed
+          ? {
+              onSignUpClick: () => setRegisterModalOpen(true),
+              onForgotPasswordClick: () => setForgotModalOpen(true),
+            }
+          : {})}
       />
+      <ForgotPasswordModal opened={forgotModalOpen} onClose={() => setForgotModalOpen(false)} />
       <RegisterModal
         opened={registerModalOpen}
         onClose={() => setRegisterModalOpen(false)}

@@ -9,7 +9,7 @@ import {
 import type { CardDropIndicatorTarget } from './VirtualizedCardList.js';
 import { api } from '../../utils/api.js';
 import { normalizeCardFromApi } from '../../utils/transform.js';
-import { db } from '../../store/database.js';
+import { persistDexieCardPut, persistDexieListPut } from '../../store/boardDexieCache.js';
 
 const KANBAN_CARD_DRAG_START_DEADZONE_PX = 6;
 
@@ -76,7 +76,6 @@ export interface KanbanDelegatedDragRefs {
     cardIdToListIdRef: MutableRefObject<Map<string, string>>;
     setLists: React.Dispatch<React.SetStateAction<ListDB[]>>;
     setCards: React.Dispatch<React.SetStateAction<Map<string, CardDB[]>>>;
-    onListsReordered?: (lists: ListDB[]) => void;
     reloadAllCardsFromDb: () => Promise<void>;
     queueCardDropIndicator: (next: CardDropIndicatorTarget | null) => void;
     flushCardDropIndicatorNow: (next: CardDropIndicatorTarget | null) => void;
@@ -336,18 +335,9 @@ export function useKanbanDelegatedPointerDrag(
               (movePayload as { card: unknown }).card,
               activeIdStr,
             );
-            await db.cards.put(moved);
+            await persistDexieCardPut(moved);
           }
         } catch {
-          try {
-            const boardLists = await db.lists.where('boardId').equals(ctx.board.id).sortBy('position');
-            if (ctx.viewAliveRef.current) {
-              ctx.setLists(boardLists);
-              ctx.onListsReordered?.(boardLists);
-            }
-          } catch {
-            /* reload failed */
-          }
           await ctx.reloadAllCardsFromDb();
         }
       })();
@@ -592,20 +582,8 @@ export function useKanbanDelegatedPointerDrag(
             if (!ctx.viewAliveRef.current) {
               return;
             }
-            await Promise.all(finalLists.map((l) => db.lists.put(l)));
-            if (ctx.viewAliveRef.current) {
-              ctx.onListsReordered?.(finalLists);
-            }
+            await Promise.all(finalLists.map((l) => persistDexieListPut(l)));
           } catch {
-            try {
-              const boardLists = await db.lists.where('boardId').equals(ctx.board.id).sortBy('position');
-              if (ctx.viewAliveRef.current) {
-                ctx.setLists(boardLists);
-                ctx.onListsReordered?.(boardLists);
-              }
-            } catch {
-              /* reload failed */
-            }
             await ctx.reloadAllCardsFromDb();
           }
         })();
@@ -666,18 +644,7 @@ export function useKanbanDelegatedPointerDrag(
       st.setListDropIndicatorIfChanged(null);
       floatSetterRef.current(null);
       if (s.kind === 'active_list') {
-        void (async () => {
-          const ctx = r.kanbanDropCtxRef.current;
-          try {
-            const boardLists = await db.lists.where('boardId').equals(ctx.board.id).sortBy('position');
-            if (ctx.viewAliveRef.current) {
-              ctx.setLists(boardLists);
-              ctx.onListsReordered?.(boardLists);
-            }
-          } catch {
-            /* noop */
-          }
-        })();
+        void r.kanbanDropCtxRef.current.reloadAllCardsFromDb();
       }
     };
 

@@ -58,6 +58,8 @@ export interface BrandedLoginCardProps {
   readonly onGoogleClick?: () => void;
   /** Opens registration modal on live login when email/password sign-in is enabled. */
   readonly onSignUpClick?: () => void;
+  /** Opens forgot-password modal on live login when email/password sign-in is enabled. */
+  readonly onForgotPasswordClick?: () => void;
   /** Stored app default UI font (same shape as AdminConfig); injects @font-face with login fonts. */
   readonly defaultUiFontFamily?: string;
 }
@@ -75,6 +77,7 @@ export function BrandedLoginCard({
   submitLoading = false,
   onGoogleClick,
   onSignUpClick,
+  onForgotPasswordClick,
   defaultUiFontFamily,
 }: BrandedLoginCardProps): ReactElement {
   useBrandingWebFonts(
@@ -216,14 +219,28 @@ export function BrandedLoginCard({
             label="Remember me"
             styles={{ label: { color: inputTitleColor } }}
           />
-          <Anchor
-            component={Link}
-            to="/forgot-password"
-            size="sm"
-            style={{ color: linkTitleColor }}
-          >
-            Forgot password?
-          </Anchor>
+          {onForgotPasswordClick ? (
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              onClick={onForgotPasswordClick}
+              style={{
+                color: linkTitleColor,
+                cursor: 'pointer',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                font: 'inherit',
+              }}
+            >
+              Forgot password?
+            </Anchor>
+          ) : (
+            <Anchor component={Link} to="/login" size="sm" style={{ color: linkTitleColor }}>
+              Forgot password?
+            </Anchor>
+          )}
         </Group>
         <Button
           type="submit"

@@ -3,18 +3,11 @@ import { flushSync } from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader, Box, Text, Title, Group, ActionIcon } from '@mantine/core';
 import { IconArrowLeft, IconLayoutKanbanFilled, IconLink, IconSettings } from '@tabler/icons-react';
-import { useSync } from '../hooks/useSync.js';
 import { useSocket } from '../hooks/useSocket.js';
 import { UserMenu } from '../components/UserMenu.js';
-import { db, type BoardDB, type BoardSettingsLivePatch, type ListDB } from '../store/database.js';
-import { loadKanbanCardsMapFromDexie } from '../utils/kanbanDexieLoad.js';
-import {
-  subscribeSocketBoardUpdated,
-  subscribeSocketListCreated,
-  subscribeSocketListDeleted,
-  subscribeSocketListUpdated,
-  subscribeSocketListsBulkColorUpdated,
-} from '../utils/socketRealtimeBridge.js';
+import type { BoardSettingsLivePatch, CardDB } from '../store/database.js';
+import { useBoardRuntimeStore } from '../store/boardRuntimeStore.js';
+import { bootstrapBoardRuntimeFromApi, resyncBoardRuntimeFromApi } from '../store/boardBootstrap.js';
 const KanbanView = lazy(async () => {
   const m = await import('../components/board/KanbanView.js');
   return { default: m.KanbanView };
@@ -23,7 +16,6 @@ import {
   BoardCardDetailOverlay,
   preloadCardDetailView,
 } from '../components/card/BoardCardDetailOverlay.js';
-import type { CardDB } from '../store/database.js';
 import { BoardSettingsModal } from '../components/board/BoardSettingsModal.js';
 import { BoardInvitesModal } from '../components/board/BoardInvitesModal.js';
 import { OfflineIndicator } from '../components/OfflineIndicator.js';
@@ -37,18 +29,13 @@ export default function BoardPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const overlayCardId = searchParams.get('card')?.trim() || null;
-  const [board, setBoard] = useState<BoardDB | null>(null);
-  const [lists, setLists] = useState<ListDB[]>([]);
-  /** Built during initial route load so Kanban can paint lists+cards in one frame (no staggered Dexie read). */
-  const [initialKanbanCards, setInitialKanbanCards] = useState<Map<string, CardDB[]> | null>(null);
+  const board = useBoardRuntimeStore((s) => s.board);
+  const workspaceIdForPermissions = useBoardRuntimeStore((s) => s.board?.workspaceId);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showInvites, setShowInvites] = useState(false);
-  const [cardsRefreshKey, setCardsRefreshKey] = useState(0);
-  const [cardHydrateEpoch, setCardHydrateEpoch] = useState(0);
   const [overlayInitialCard, setOverlayInitialCard] = useState<CardDB | null>(null);
   const boardCardPatchRef = useRef<((card: CardDB) => void) | null>(null);
-  const { syncBoardData } = useSync();
   const { appBranding, branding: loginBranding } = useAppBranding();
   const boardHomeIconUrl = resolveBoardNavbarIconUrl(appBranding, loginBranding);
   const boardNavIconPx = appBranding.boardNavbarIconSizePx;
@@ -56,7 +43,7 @@ export default function BoardPage() {
   useSocket(boardId);
   const { can, loaded: permissionsLoaded, permissions } = useBoardPermissions(
     boardId,
-    board?.workspaceId,
+    workspaceIdForPermissions,
   );
   const kanbanCaps = useMemo(() => {
     const set = new Set(permissions);
@@ -81,37 +68,28 @@ export default function BoardPage() {
       const isInitial = mode === 'initial';
 
       try {
-        await syncBoardData(boardId);
+        const ok = await bootstrapBoardRuntimeFromApi(boardId);
 
         if (!isMountedRef.current) return;
-
-        const boardData = await db.boards.get(boardId);
-        const boardLists = await db.lists.where('boardId').equals(boardId).sortBy('position');
-        const kanbanCardsMap = await loadKanbanCardsMapFromDexie(boardLists);
 
         if (isInitial) {
           await import('../components/board/KanbanView.js');
         }
 
-        if (isMountedRef.current) {
-          setBoard(boardData || null);
-          setLists(boardLists);
-          if (isInitial) {
-            setInitialKanbanCards(kanbanCardsMap);
-          } else {
-            setInitialKanbanCards(null);
-            setCardHydrateEpoch((e) => e + 1);
-          }
+        if (!ok && isMountedRef.current) {
+          useBoardRuntimeStore.getState().clear();
         }
       } catch {
-        /* load failed */
+        if (isMountedRef.current) {
+          useBoardRuntimeStore.getState().clear();
+        }
       } finally {
         if (isInitial && isMountedRef.current) {
           setLoading(false);
         }
       }
     },
-    [boardId, syncBoardData],
+    [boardId],
   );
 
   useEffect(() => {
@@ -121,13 +99,12 @@ export default function BoardPage() {
     }
     flushSync(() => {
       setLoading(true);
-      setBoard(null);
-      setLists([]);
-      setInitialKanbanCards(null);
+      useBoardRuntimeStore.getState().clear();
     });
     void loadData({ mode: 'initial' });
     return () => {
       isMountedRef.current = false;
+      useBoardRuntimeStore.getState().clear();
     };
   }, [boardId, loadData]);
 
@@ -140,78 +117,9 @@ export default function BoardPage() {
     }
   }, [boardId, permissionsLoaded, can, navigate]);
 
-  useEffect(() => {
-    if (!boardId) {
-      return undefined;
-    }
-
-    const mergeListIntoState = (list: ListDB): void => {
-      setLists((prev) => {
-        const i = prev.findIndex((l) => l.id === list.id);
-        const next = i < 0 ? [...prev, list] : prev.map((l, idx) => (idx === i ? list : l));
-        return [...next].sort((a, b) => a.position - b.position);
-      });
-    };
-
-    const unsubBoard = subscribeSocketBoardUpdated(({ boardId: bid, board }) => {
-      if (!isMountedRef.current || bid !== boardId) {
-        return;
-      }
-      setBoard(board);
-    });
-
-    const unsubListCreated = subscribeSocketListCreated(({ boardId: bid, list }) => {
-      if (!isMountedRef.current || bid !== boardId) {
-        return;
-      }
-      mergeListIntoState(list);
-    });
-
-    const unsubListUpdated = subscribeSocketListUpdated(({ boardId: bid, list }) => {
-      if (!isMountedRef.current || bid !== boardId) {
-        return;
-      }
-      mergeListIntoState(list);
-    });
-
-    const unsubListDeleted = subscribeSocketListDeleted(({ boardId: bid, listId }) => {
-      if (!isMountedRef.current || bid !== boardId) {
-        return;
-      }
-      setLists((prev) => prev.filter((l) => l.id !== listId));
-    });
-
-    const unsubListsBulkColor = subscribeSocketListsBulkColorUpdated(({ boardId: bid }) => {
-      if (!isMountedRef.current || bid !== boardId) {
-        return;
-      }
-      void db.lists
-        .where('boardId')
-        .equals(boardId)
-        .sortBy('position')
-        .then((boardLists) => {
-          if (isMountedRef.current) {
-            setLists(boardLists);
-          }
-        });
-    });
-
-    return () => {
-      unsubBoard();
-      unsubListCreated();
-      unsubListUpdated();
-      unsubListDeleted();
-      unsubListsBulkColor();
-    };
-  }, [boardId]);
-
   const handleBack = useCallback(() => {
     navigate('/');
   }, [navigate]);
-
-  const handleListsReorderedFromKanban = useCallback((next: ListDB[]) => {
-    setLists(next);
-  }, []);
 
   const handleOpenCard = useCallback(
     (card: CardDB) => {
@@ -347,14 +255,8 @@ export default function BoardPage() {
           }
         >
           <KanbanView
-            board={board}
-            lists={lists}
-            cardsRefreshKey={cardsRefreshKey}
-            cardHydrateEpoch={cardHydrateEpoch}
-            {...(initialKanbanCards != null ? { preloadedCardsByListId: initialKanbanCards } : {})}
             boardCardPatchRef={boardCardPatchRef}
             kanbanCaps={kanbanCaps}
-            onListsReordered={handleListsReorderedFromKanban}
             onOpenCard={handleOpenCard}
           />
         </Suspense>
@@ -368,22 +270,7 @@ export default function BoardPage() {
             ? { allowedTopTabs: ['users'] as const }
             : {})}
           onSettingsLivePatch={(patch: BoardSettingsLivePatch) => {
-            setBoard((prev) => {
-              if (prev == null) {
-                return prev;
-              }
-              const nextSettings: BoardDB['settings'] = { ...prev.settings };
-              const { memberActivityLogRetentionDays: retentionPatch, ...restPatch } = patch;
-              Object.assign(nextSettings, restPatch);
-              if (Object.prototype.hasOwnProperty.call(patch, 'memberActivityLogRetentionDays')) {
-                if (retentionPatch === null || retentionPatch === undefined) {
-                  delete nextSettings.memberActivityLogRetentionDays;
-                } else {
-                  nextSettings.memberActivityLogRetentionDays = retentionPatch;
-                }
-              }
-              return { ...prev, settings: nextSettings };
-            });
+            useBoardRuntimeStore.getState().applyBoardSettingsLivePatch(patch);
           }}
         />
       ) : null}
@@ -399,8 +286,12 @@ export default function BoardPage() {
           {...(overlayInitialCardForId !== undefined ? { initialCard: overlayInitialCardForId } : {})}
           boardSettings={board.settings}
           onClose={handleCloseCardOverlay}
-          onCardDuplicated={() => void loadData({ mode: 'quiet' })}
-          onCardDeleted={() => setCardsRefreshKey((k) => k + 1)}
+          onCardDuplicated={() => void resyncBoardRuntimeFromApi(board.id)}
+          onCardDeleted={() => {
+            if (overlayCardId) {
+              useBoardRuntimeStore.getState().removeCard(overlayCardId);
+            }
+          }}
           onCardUpdated={(c) => {
             boardCardPatchRef.current?.(c);
           }}

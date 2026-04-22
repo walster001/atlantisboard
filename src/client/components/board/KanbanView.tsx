@@ -4,19 +4,14 @@ import {
   useRef,
   useCallback,
   useMemo,
-  startTransition,
   type MutableRefObject,
+  type SetStateAction,
 } from 'react';
 import { Box, Button, Group } from '@mantine/core';
-import { db, type BoardDB, type ListDB, type CardDB } from '../../store/database.js';
+import { useShallow } from 'zustand/react/shallow';
+import type { ListDB, CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import { transformList } from '../../utils/transform.js';
-import {
-  subscribeSocketCardDeleted,
-  subscribeSocketCardUpdated,
-  subscribeSocketCardsBulkColorUpdated,
-  subscribeSocketListDeleted,
-} from '../../utils/socketRealtimeBridge.js';
 import {
   getBoardListColumnWidthChrome,
   getBoardListColumnWidthPx,
@@ -25,11 +20,24 @@ import { SortableList } from './SortableList.js';
 import { BoardInlineListComposer } from './BoardInlineListComposer.js';
 import type { CardDropIndicatorTarget } from './VirtualizedCardList.js';
 import { getKanbanCardListMaxBodyPx } from './kanbanCardListLayout.js';
-import { loadKanbanCardsMapFromDexie } from '../../utils/kanbanDexieLoad.js';
 import {
   useKanbanDelegatedPointerDrag,
   type KanbanDelegatedDragRefs,
 } from './useKanbanDelegatedPointerDrag.js';
+import {
+  insertIndexAgainstAnchor,
+  withRenumberedPositions,
+  moveCardBetweenListsInMap,
+  moveListToHoverSlot,
+  listOrderIdSignature,
+} from './kanbanDragPure.js';
+import {
+  useBoardRuntimeStore,
+  buildKanbanCardsMapFromRuntimeState,
+  boardRuntimeApplySetCardsFromUpdater,
+} from '../../store/boardRuntimeStore.js';
+import { resyncBoardRuntimeFromApi } from '../../store/boardBootstrap.js';
+import { persistDexieListPut, persistDexieCardPut } from '../../store/boardDexieCache.js';
 import { useBoardAssigneeDirectory } from '../../hooks/useBoardAssigneeDirectory.js';
 import { TwemojiPlainText } from '../common/TwemojiPlainText.js';
 import type { KanbanBoardEditCaps } from '../../hooks/useBoardPermissions.js';
@@ -141,19 +149,6 @@ function cardDropIndicatorsEqual(
 }
 
 interface KanbanViewProps {
-  board: BoardDB;
-  lists: ListDB[];
-  /** Increment when a card is removed outside drag/API paths (e.g. delete from detail) to reload from Dexie. */
-  cardsRefreshKey?: number;
-  /** Bumped after background card sync finishes so Dexie data is merged into UI. */
-  cardHydrateEpoch?: number;
-  /** Keeps BoardPage state in sync after column reorder (positions + order). */
-  onListsReordered?: (lists: ListDB[]) => void;
-  /**
-   * When set on first mount (e.g. BoardPage loaded cards from Dexie during the route spinner),
-   * Kanban skips the first async Dexie read so columns render immediately.
-   */
-  preloadedCardsByListId?: Map<string, CardDB[]> | null;
   onOpenCard: (card: CardDB) => void;
   /**
    * Assigned to the same patch used for socket `card:updated` so the card detail overlay can
@@ -179,106 +174,27 @@ function listDropIndicatorsEqual(
   return a.overListId === b.overListId;
 }
 
-function insertIndexAgainstAnchor(
-  cardsWithoutActive: CardDB[],
-  anchorCardId: string,
-  edge: 'above' | 'below'
-): number {
-  const i = cardsWithoutActive.findIndex((c) => c.id === anchorCardId);
-  if (i < 0) {
-    return cardsWithoutActive.length;
-  }
-  return edge === 'above' ? i : i + 1;
-}
-
-/** Align `position` with array index (server order). */
-function withRenumberedPositions(list: CardDB[]): CardDB[] {
-  return list.map((c, i) => ({ ...c, position: i }));
-}
-
-/** Pure optimistic move: update only the two affected lists so memoized columns keep stable references. */
-function moveCardBetweenListsInMap(
-  prev: Map<string, CardDB[]>,
-  cardId: string,
-  fromListId: string,
-  toListId: string,
-  insertIndex: number,
-): Map<string, CardDB[]> {
-  if (fromListId === toListId) {
-    return prev;
-  }
-  const fromList = prev.get(fromListId);
-  if (!fromList) {
-    return prev;
-  }
-  const card = fromList.find((c) => c.id === cardId);
-  if (card == null) {
-    return prev;
-  }
-
-  const next = new Map(prev);
-  const newFrom = withRenumberedPositions(fromList.filter((c) => c.id !== cardId));
-
-  const toList = prev.get(toListId) || [];
-  const toWithout = toList.filter((c) => c.id !== cardId);
-  const clamped = Math.max(0, Math.min(insertIndex, toWithout.length));
-  const moved: CardDB = { ...card, listId: toListId };
-  const newTo = withRenumberedPositions([
-    ...toWithout.slice(0, clamped),
-    moved,
-    ...toWithout.slice(clamped),
+export function KanbanView({ onOpenCard, boardCardPatchRef, kanbanCaps }: KanbanViewProps) {
+  const board = useBoardRuntimeStore((s) => s.board);
+  const lists = useBoardRuntimeStore(
+    useShallow((s) =>
+      s.orderedListIds
+        .map((id) => s.listsById[id])
+        .filter((l): l is ListDB => l != null),
+    ),
+  );
+  const cardsVersion = useBoardRuntimeStore((s) => s.cardsVersion);
+  const listOrderKey = useBoardRuntimeStore((s) => s.orderedListIds.join(','));
+  const cards = useMemo(() => buildKanbanCardsMapFromRuntimeState(useBoardRuntimeStore.getState()), [
+    cardsVersion,
+    listOrderKey,
   ]);
 
-  next.set(fromListId, newFrom);
-  next.set(toListId, newTo);
-  return next;
-}
-
-/** Move active list to the index slot of the hovered column (Trello-style in a single drag). */
-function moveListToHoverSlot(
-  listsOrdered: ListDB[],
-  activeListId: string,
-  overListId: string,
-): ListDB[] | null {
-  if (activeListId === overListId) {
+  if (board == null) {
     return null;
   }
-  const ordered = [...listsOrdered].sort((a, b) => a.position - b.position);
-  const fromIdx = ordered.findIndex((l) => l.id === activeListId);
-  const overIdx = ordered.findIndex((l) => l.id === overListId);
-  if (fromIdx < 0 || overIdx < 0 || fromIdx === overIdx) {
-    return null;
-  }
-  const next = [...ordered];
-  const [removed] = next.splice(fromIdx, 1);
-  if (removed == null) {
-    return null;
-  }
-  /* Insert at hovered index in the post-removal array (same rule as arrayMove). */
-  next.splice(overIdx, 0, removed);
-  return next.map((l, i) => ({ ...l, position: i }));
-}
 
-function listOrderIdSignature(listsOrdered: readonly ListDB[]): string {
-  return listsOrdered.map((l) => l.id).join(',');
-}
-
-export function KanbanView({
-  board,
-  lists: initialLists,
-  cardsRefreshKey = 0,
-  cardHydrateEpoch = 0,
-  onListsReordered,
-  preloadedCardsByListId = null,
-  onOpenCard,
-  boardCardPatchRef,
-  kanbanCaps,
-}: KanbanViewProps) {
   const assigneeDirectory = useBoardAssigneeDirectory(board.id);
-  const [lists, setLists] = useState<ListDB[]>(initialLists);
-  const [cards, setCards] = useState<Map<string, CardDB[]>>(() =>
-    preloadedCardsByListId != null ? new Map(preloadedCardsByListId) : new Map(),
-  );
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [draggingListId, setDraggingListId] = useState<string | null>(null);
   const [addListComposerOpen, setAddListComposerOpen] = useState(false);
@@ -401,15 +317,6 @@ export function KanbanView({
   }, []);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Tracks list IDs used by the cards Dexie sync effect (incremental vs full reload). */
-  const cardSyncListIdsRef = useRef<ReadonlySet<string>>(new Set());
-  const cardSyncRefreshKeyRef = useRef(cardsRefreshKey);
-  const cardHydrateEpochRef = useRef(cardHydrateEpoch);
-  const cardsForSyncRef = useRef(cards);
-  cardsForSyncRef.current = cards;
-  /** Latest preload prop — not in the Dexie sync effect deps (avoids extra runs that cancel in-flight reloads). */
-  const preloadedForSyncRef = useRef(preloadedCardsByListId);
-  preloadedForSyncRef.current = preloadedCardsByListId;
   const dragMetricsRef = useRef({ width: 248, height: 88 });
   const cardVerticalDropHintRef = useRef<KanbanCardVerticalHint | null>(null);
 
@@ -426,71 +333,23 @@ export function KanbanView({
     };
   }, [cancelCardDragGeometryRaf]);
 
-  // Sync lists when parent passes updated data (e.g. after socket or refetch).
-  useEffect(() => {
-    const sorted = [...initialLists].sort((a, b) => a.position - b.position);
-    setLists(sorted);
-  }, [initialLists]);
-
   const reloadAllCardsFromDb = useCallback(async () => {
-    const currentLists = listsRef.current;
-    const cardsMap = await loadKanbanCardsMapFromDexie(currentLists);
-    if (viewAliveRef.current) {
-      setCards(cardsMap);
-      cardSyncListIdsRef.current = new Set(currentLists.map((l) => l.id));
-      cardSyncRefreshKeyRef.current = cardsRefreshKey;
-      cardHydrateEpochRef.current = cardHydrateEpoch;
+    if (!viewAliveRef.current || board == null) {
+      return;
     }
-  }, [cardsRefreshKey, cardHydrateEpoch]);
+    await resyncBoardRuntimeFromApi(board.id);
+  }, [board]);
 
   const patchCardInBoardState = useCallback(
     (updated: CardDB) => {
-      startTransition(() => {
-        setCards((prev) => {
-          let found: { readonly oldListId: string; readonly index: number } | null = null;
-          for (const [lid, listCards] of prev) {
-            const i = listCards.findIndex((c) => c.id === updated.id);
-            if (i >= 0) {
-              found = { oldListId: lid, index: i };
-              break;
-            }
-          }
-          if (found == null) {
-            void reloadAllCardsFromDb();
-            return prev;
-          }
-          const { oldListId, index } = found;
-          if (updated.listId === oldListId) {
-            const listCards = prev.get(oldListId);
-            if (listCards == null) {
-              return prev;
-            }
-            if (listCards[index] === updated) {
-              return prev;
-            }
-            const arr = [...listCards];
-            arr[index] = updated;
-            const next = new Map(prev);
-            next.set(oldListId, arr);
-            return next;
-          }
-          const fromArr = [...(prev.get(oldListId) ?? [])];
-          if (index < 0 || index >= fromArr.length) {
-            void reloadAllCardsFromDb();
-            return prev;
-          }
-          fromArr.splice(index, 1);
-          const toArr = [...(prev.get(updated.listId) ?? [])].filter((c) => c.id !== updated.id);
-          toArr.push(updated);
-          toArr.sort((a, b) => a.position - b.position);
-          const next = new Map(prev);
-          next.set(oldListId, fromArr);
-          next.set(updated.listId, toArr);
-          return next;
-        });
-      });
+      const found = useBoardRuntimeStore.getState().cardsById[updated.id];
+      if (found == null) {
+        void resyncBoardRuntimeFromApi(updated.boardId);
+        return;
+      }
+      useBoardRuntimeStore.getState().upsertCard(updated);
     },
-    [reloadAllCardsFromDb],
+    [],
   );
 
   useEffect(() => {
@@ -505,31 +364,7 @@ export function KanbanView({
   }, [boardCardPatchRef, patchCardInBoardState]);
 
   const removeCardFromBoardState = useCallback((cardId: string) => {
-    startTransition(() => {
-      setCards((prev) => {
-        let foundListId: string | null = null;
-        for (const [lid, listCards] of prev) {
-          if (listCards.some((c) => c.id === cardId)) {
-            foundListId = lid;
-            break;
-          }
-        }
-        if (foundListId == null) {
-          return prev;
-        }
-        const listCards = prev.get(foundListId);
-        if (listCards == null) {
-          return prev;
-        }
-        const filtered = listCards.filter((c) => c.id !== cardId);
-        if (filtered.length === listCards.length) {
-          return prev;
-        }
-        const next = new Map(prev);
-        next.set(foundListId, filtered);
-        return next;
-      });
-    });
+    useBoardRuntimeStore.getState().removeCard(cardId);
   }, []);
 
   const handleListCreated = useCallback(
@@ -541,9 +376,9 @@ export function KanbanView({
       if (response?.list) {
         const newList = transformList(response.list);
         if (viewAliveRef.current) {
-          setLists((prev) => [...prev, newList].sort((a, b) => a.position - b.position));
+          useBoardRuntimeStore.getState().upsertList(newList);
         }
-        void db.lists.put(newList);
+        void persistDexieListPut(newList);
         return;
       }
 
@@ -559,14 +394,17 @@ export function KanbanView({
           return;
         }
 
-        let updatedLists = await db.lists.where('boardId').equals(board.id).sortBy('position');
+        let updatedLists: ListDB[] = useBoardRuntimeStore
+          .getState()
+          .orderedListIds.map((id) => useBoardRuntimeStore.getState().listsById[id])
+          .filter((l): l is ListDB => l != null);
 
         if (updatedLists.length === lengthBefore) {
           try {
             const apiResponse = await api.getListsByBoard(board.id);
             const rawLists = (apiResponse as { lists: unknown[] }).lists;
             const transformedLists = rawLists.map(transformList);
-            await Promise.all(transformedLists.map((list) => db.lists.put(list)));
+            await Promise.all(transformedLists.map((list) => persistDexieListPut(list)));
             updatedLists = transformedLists;
           } catch {
             /* API fetch failed */
@@ -574,7 +412,7 @@ export function KanbanView({
         }
 
         if (viewAliveRef.current) {
-          setLists(updatedLists);
+          useBoardRuntimeStore.getState().setListsFromArray(updatedLists);
         }
         timeoutRef.current = null;
       }, 200);
@@ -582,47 +420,30 @@ export function KanbanView({
     [board.id],
   );
 
-  useEffect(() => {
-    const unsub = subscribeSocketCardUpdated(({ boardId, card }) => {
-      if (boardId !== board.id || !viewAliveRef.current) {
-        return;
-      }
-      patchCardInBoardState(card);
-    });
-    return unsub;
-  }, [board.id, patchCardInBoardState]);
-
-  useEffect(() => {
-    const unsub = subscribeSocketCardsBulkColorUpdated(({ boardId }) => {
-      if (boardId !== board.id || !viewAliveRef.current) {
-        return;
-      }
-      void reloadAllCardsFromDb();
-    });
-    return unsub;
-  }, [board.id, reloadAllCardsFromDb]);
-
-  const handleCardCreated = useCallback((listId: string, newCard: CardDB) => {
+  const handleCardCreated = useCallback((_listId: string, newCard: CardDB) => {
     if (!viewAliveRef.current) {
       return;
     }
-    setCards((prev) => {
-      const existing = [...(prev.get(listId) ?? [])];
-      const without = existing.filter((c) => c.id !== newCard.id);
-      without.push(newCard);
-      without.sort((a, b) => a.position - b.position);
-      return new Map(prev).set(listId, without);
-    });
+    useBoardRuntimeStore.getState().upsertCard(newCard);
+    void persistDexieCardPut(newCard);
   }, []);
 
   const handleListUpdated = useCallback(async () => {
-    if (!viewAliveRef.current || !board.id) return;
-    const updatedLists = await db.lists.where('boardId').equals(board.id).sortBy('position');
-    if (viewAliveRef.current) {
-      setLists(updatedLists);
-      onListsReordered?.(updatedLists);
+    if (!viewAliveRef.current || board == null) {
+      return;
     }
-  }, [board.id, onListsReordered]);
+    try {
+      const apiResponse = await api.getListsByBoard(board.id);
+      const rawLists = (apiResponse as { lists: unknown[] }).lists;
+      const transformedLists = rawLists.map(transformList);
+      if (viewAliveRef.current) {
+        useBoardRuntimeStore.getState().setListsFromArray(transformedLists);
+      }
+      await Promise.all(transformedLists.map((l) => persistDexieListPut(l)));
+    } catch {
+      /* noop */
+    }
+  }, [board]);
 
   const getNextListPosition = useCallback((): number => listsRef.current.length, []);
 
@@ -638,14 +459,31 @@ export function KanbanView({
     }
   }, [kanbanCaps.canAddList, addListComposerOpen]);
 
+  const setListsCompat = useCallback((action: SetStateAction<ListDB[]>) => {
+    const st = useBoardRuntimeStore.getState();
+    const prev = st.orderedListIds
+      .map((id) => st.listsById[id])
+      .filter((l): l is ListDB => l != null)
+      .sort((a, b) => a.position - b.position);
+    const next = typeof action === 'function' ? (action as (p: ListDB[]) => ListDB[])(prev) : action;
+    useBoardRuntimeStore.getState().setListsFromArray(next);
+  }, []);
+
+  const setCardsCompat = useCallback((action: SetStateAction<Map<string, CardDB[]>>) => {
+    if (typeof action === 'function') {
+      boardRuntimeApplySetCardsFromUpdater(action as (p: Map<string, CardDB[]>) => Map<string, CardDB[]>);
+    } else {
+      boardRuntimeApplySetCardsFromUpdater(() => action);
+    }
+  }, []);
+
   const kanbanDropCtxRef = useRef({
     board,
     lists,
     cards,
     cardIdToListIdRef,
-    setLists,
-    setCards,
-    onListsReordered,
+    setLists: setListsCompat,
+    setCards: setCardsCompat,
     reloadAllCardsFromDb,
     queueCardDropIndicator,
     flushCardDropIndicatorNow,
@@ -660,9 +498,8 @@ export function KanbanView({
     lists,
     cards,
     cardIdToListIdRef,
-    setLists,
-    setCards,
-    onListsReordered,
+    setLists: setListsCompat,
+    setCards: setCardsCompat,
     reloadAllCardsFromDb,
     queueCardDropIndicator,
     flushCardDropIndicatorNow,
@@ -734,145 +571,6 @@ export function KanbanView({
       root.classList.remove('board-page--kanban-dragging');
     };
   }, [draggingCardId, draggingListId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const listIds = new Set(lists.map((l) => l.id));
-    const keyBumped = cardSyncRefreshKeyRef.current !== cardsRefreshKey;
-    const hydrateBumped = cardHydrateEpochRef.current !== cardHydrateEpoch;
-
-    const commitCardSyncRefs = (ids: ReadonlySet<string>): void => {
-      cardSyncListIdsRef.current = ids;
-      cardSyncRefreshKeyRef.current = cardsRefreshKey;
-      cardHydrateEpochRef.current = cardHydrateEpoch;
-    };
-
-    const sync = async (): Promise<void> => {
-      if (listIds.size === 0) {
-        if (!cancelled && viewAliveRef.current) {
-          startTransition(() => {
-            setCards(new Map());
-          });
-        }
-        if (!cancelled) {
-          commitCardSyncRefs(new Set());
-        }
-        return;
-      }
-
-      const cardsSnap = cardsForSyncRef.current;
-      const preload = preloadedForSyncRef.current;
-      const preloadSkip =
-        preload != null &&
-        cardSyncListIdsRef.current.size === 0 &&
-        lists.length === cardsSnap.size &&
-        lists.every((l) => cardsSnap.has(l.id));
-
-      if (preloadSkip) {
-        if (!cancelled) {
-          commitCardSyncRefs(listIds);
-        }
-        return;
-      }
-
-      if (keyBumped || hydrateBumped) {
-        const cardsMap = await loadKanbanCardsMapFromDexie(lists);
-        if (!cancelled && viewAliveRef.current) {
-          startTransition(() => {
-            setCards(cardsMap);
-          });
-        }
-        if (!cancelled) {
-          commitCardSyncRefs(listIds);
-        }
-        return;
-      }
-
-      const prevIds = cardSyncListIdsRef.current;
-      const added = [...listIds].filter((id) => !prevIds.has(id));
-      const removed = [...prevIds].filter((id) => !listIds.has(id));
-
-      if (added.length === 0 && removed.length === 0) {
-        if (!cancelled) {
-          commitCardSyncRefs(listIds);
-        }
-        return;
-      }
-
-      if (prevIds.size === 0) {
-        const cardsMap = await loadKanbanCardsMapFromDexie(lists);
-        if (!cancelled && viewAliveRef.current) {
-          startTransition(() => {
-            setCards(cardsMap);
-          });
-        }
-        if (!cancelled) {
-          commitCardSyncRefs(listIds);
-        }
-        return;
-      }
-
-      const newEntries = await Promise.all(
-        added.map(async (id) => {
-          const listCards = await db.cards.where('listId').equals(id).sortBy('position');
-          return [id, listCards] as const;
-        }),
-      );
-
-      if (!cancelled && viewAliveRef.current) {
-        startTransition(() => {
-          setCards((prevMap) => {
-            const next = new Map(prevMap);
-            for (const id of removed) {
-              next.delete(id);
-            }
-            for (const [id, listCards] of newEntries) {
-              next.set(id, listCards);
-            }
-            return next;
-          });
-        });
-      }
-      if (!cancelled) {
-        commitCardSyncRefs(listIds);
-      }
-    };
-
-    void sync();
-
-    return () => {
-      cancelled = true;
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
-  }, [lists, cardsRefreshKey, cardHydrateEpoch]);
-
-  useEffect(() => {
-    const unsub = subscribeSocketCardDeleted(({ boardId, cardId }) => {
-      if (boardId !== board.id || !viewAliveRef.current) {
-        return;
-      }
-      removeCardFromBoardState(cardId);
-    });
-    return unsub;
-  }, [board.id, removeCardFromBoardState]);
-
-  useEffect(() => {
-    const unsub = subscribeSocketListDeleted(({ boardId, listId }) => {
-      if (boardId !== board.id || !viewAliveRef.current) {
-        return;
-      }
-      setLists((prev) => prev.filter((l) => l.id !== listId));
-      setCards((prev) => {
-        const next = new Map(prev);
-        next.delete(listId);
-        return next;
-      });
-    });
-    return unsub;
-  }, [board.id]);
 
   return (
     <>

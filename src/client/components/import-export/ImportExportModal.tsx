@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isAxiosError } from 'axios';
 import {
   Modal,
   Tabs,
@@ -30,6 +31,7 @@ import {
   type InlineButtonIconReplacement,
   type UnmappedUserPolicy,
 } from '../../../shared/import/importPreflight.js';
+import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
 import { BoardColourPickerPanel } from '../board/BoardColourPickerPanel.js';
 import {
   BOARD_PRESET_COLOURS,
@@ -301,8 +303,18 @@ export function ImportExportModal({
     }
     setPreflightBusy(true);
     try {
+      setError(null);
       const rawText = await nextFile.text();
       const parsed = JSON.parse(rawText) as unknown;
+      try {
+        assertImportJsonMatchesSource(parsed, nextImportType);
+      } catch (shapeErr) {
+        console.error('Import JSON shape check failed:', shapeErr);
+        const msg = shapeErr instanceof Error ? shapeErr.message : 'Could not validate import file.';
+        setError(msg);
+        resetPreflightState();
+        return;
+      }
       const result =
         nextImportType === 'trello'
           ? buildTrelloImportPreflight(parsed)
@@ -361,6 +373,17 @@ export function ImportExportModal({
             }
           : undefined;
 
+      if (importType === 'trello' || importType === 'wekan') {
+        const rawText = await file.text();
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(rawText) as unknown;
+        } catch {
+          throw new Error('Invalid JSON in import file.');
+        }
+        assertImportJsonMatchesSource(parsed, importType);
+      }
+
       if (importType === 'trello') {
         result = await api.importTrello(
           file,
@@ -382,7 +405,14 @@ export function ImportExportModal({
       setJobId(result.jobId);
       void pollJobStatus(result.jobId);
     } catch (err) {
-      if (err instanceof Error) {
+      if (isAxiosError(err)) {
+        const data = err.response?.data as { error?: { message?: string } } | undefined;
+        if (data?.error?.message) {
+          setError(data.error.message);
+        } else {
+          setError(err.message);
+        }
+      } else if (err instanceof Error) {
         setError(err.message);
       } else {
         setError('Import failed');

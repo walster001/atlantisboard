@@ -33,6 +33,11 @@ import {
   forgetCardSocketDedupe,
   isRedundantCardSocketPayload,
 } from '../utils/cardSocketDedupe.js';
+import { useBoardRuntimeStore } from '../store/boardRuntimeStore.js';
+
+function runtimeActiveBoardId(): string | null {
+  return useBoardRuntimeStore.getState().activeBoardId;
+}
 
 /** Yields so the WebSocket/engine.io message callback returns before transform/IDB work. */
 function deferSocketWork(fn: () => void): void {
@@ -129,6 +134,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     deferSocketWork(() => {
       try {
         const board = transformBoard(data.data);
+        if (runtimeActiveBoardId() === data.boardId) {
+          useBoardRuntimeStore.getState().commitBoard(board);
+        }
         void db.boards.put(board).then(() => {
           emitSocketBoardUpdated({ boardId: data.boardId, board });
         });
@@ -203,6 +211,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     deferSocketWork(() => {
       try {
         const list = transformList(data.data);
+        if (runtimeActiveBoardId() === data.boardId) {
+          useBoardRuntimeStore.getState().upsertList(list);
+        }
         void db.lists.put(list).then(() => {
           emitSocketListCreated({ boardId: data.boardId, list });
         });
@@ -216,6 +227,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     deferSocketWork(() => {
       try {
         const list = transformList(data.data);
+        if (runtimeActiveBoardId() === data.boardId) {
+          useBoardRuntimeStore.getState().upsertList(list);
+        }
         void db.lists.put(list).then(() => {
           emitSocketListUpdated({ boardId: data.boardId, list });
         });
@@ -227,6 +241,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
 
   socket.on('list:deleted', (data: { listId: string; boardId: string }) => {
     deferSocketWork(() => {
+      if (runtimeActiveBoardId() === data.boardId) {
+        useBoardRuntimeStore.getState().removeList(data.listId);
+      }
       void db.cards
         .where('listId')
         .equals(data.listId)
@@ -240,6 +257,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
 
   socket.on('lists:reordered', (data: { boardId: string; orderedListIds: string[] }) => {
     deferSocketWork(() => {
+      if (runtimeActiveBoardId() === data.boardId) {
+        useBoardRuntimeStore.getState().applyListsPositionsFromOrder(data.orderedListIds);
+      }
       void db.lists
         .where('boardId')
         .equals(data.boardId)
@@ -263,10 +283,18 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     deferSocketWork(() => {
       try {
         const card = normalizeCardFromApi(data.data, data.cardId);
-        void db.cards.get(data.cardId).then((existing) => {
-          const merged = mergeDexieCardIfSnapshot(data.data, existing ?? undefined, card);
+        void db.cards.get(data.cardId).then((existingDexie) => {
+          const existingRuntime =
+            runtimeActiveBoardId() === data.boardId
+              ? useBoardRuntimeStore.getState().cardsById[data.cardId]
+              : undefined;
+          const existing = existingRuntime ?? existingDexie ?? undefined;
+          const merged = mergeDexieCardIfSnapshot(data.data, existing, card);
           if (isRedundantCardSocketPayload(data.cardId, merged)) {
             return;
+          }
+          if (runtimeActiveBoardId() === data.boardId) {
+            useBoardRuntimeStore.getState().upsertCard(merged);
           }
           return db.cards.put(merged).then(() => {
             emitSocketCardUpdated({ boardId: data.boardId, card: merged });
@@ -284,10 +312,18 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
         const card = normalizeCardFromApi(data.data, data.cardId);
         void db.cards
           .get(data.cardId)
-          .then((existing) => {
-            const merged = mergeDexieCardIfSnapshot(data.data, existing ?? undefined, card);
+          .then((existingDexie) => {
+            const existingRuntime =
+              runtimeActiveBoardId() === data.boardId
+                ? useBoardRuntimeStore.getState().cardsById[data.cardId]
+                : undefined;
+            const existing = existingRuntime ?? existingDexie ?? undefined;
+            const merged = mergeDexieCardIfSnapshot(data.data, existing, card);
             if (isRedundantCardSocketPayload(data.cardId, merged)) {
               return;
+            }
+            if (runtimeActiveBoardId() === data.boardId) {
+              useBoardRuntimeStore.getState().upsertCard(merged);
             }
             return db.cards.put(merged).then(() => {
               emitSocketCardUpdated({ boardId: data.boardId, card: merged });
@@ -313,7 +349,12 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
       deferSocketWork(() => {
         void db.cards
           .get(data.cardId)
-          .then((existing) => {
+          .then((existingDexie) => {
+            const existingRuntime =
+              runtimeActiveBoardId() === data.boardId
+                ? useBoardRuntimeStore.getState().cardsById[data.cardId]
+                : undefined;
+            const existing = existingRuntime ?? existingDexie;
             if (!existing) {
               return;
             }
@@ -327,6 +368,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
             const normalized = normalizeCardFromApi(patched, data.cardId);
             if (isRedundantCardSocketPayload(data.cardId, normalized)) {
               return;
+            }
+            if (runtimeActiveBoardId() === data.boardId) {
+              useBoardRuntimeStore.getState().upsertCard(normalized);
             }
             return db.cards.put(normalized).then(() => {
               emitSocketCardUpdated({ boardId: data.boardId, card: normalized });
@@ -353,6 +397,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
               return idx >= 0 ? { ...card, position: idx } : card;
             });
             if (nextCards.length > 0) {
+              if (runtimeActiveBoardId() === data.boardId) {
+                useBoardRuntimeStore.getState().applyCardsReorderedInList(data.listId, data.orderedCardIds);
+              }
               await db.cards.bulkPut(nextCards);
               for (const c of nextCards) {
                 if (!isRedundantCardSocketPayload(c.id, c)) {
@@ -371,6 +418,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
   socket.on('card:deleted', (data: { cardId: string; boardId: string }) => {
     deferSocketWork(() => {
       forgetCardSocketDedupe(data.cardId);
+      if (runtimeActiveBoardId() === data.boardId) {
+        useBoardRuntimeStore.getState().removeCard(data.cardId);
+      }
       void db.cards
         .delete(data.cardId)
         .then(() => {
@@ -386,6 +436,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     'labels:removedBulk',
     (data: { boardId: string; labelId: string; affectedCardIds: string[] }) => {
       deferSocketWork(() => {
+        if (runtimeActiveBoardId() === data.boardId) {
+          useBoardRuntimeStore.getState().applyLabelsRemovedBulk(data.labelId, data.affectedCardIds);
+        }
         void db.cards
           .bulkGet(data.affectedCardIds)
           .then((cards) => {
@@ -437,7 +490,12 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
       deferSocketWork(() => {
         void db.cards
           .get(data.cardId)
-          .then((existing) => {
+          .then((existingDexie) => {
+            const existingRuntime =
+              runtimeActiveBoardId() === data.boardId
+                ? useBoardRuntimeStore.getState().cardsById[data.cardId]
+                : undefined;
+            const existing = existingRuntime ?? existingDexie;
             if (!existing) {
               return;
             }
@@ -449,6 +507,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
               ...existing,
               labels: [...existing.labels, { ...data.label, id: lid }],
             };
+            if (runtimeActiveBoardId() === data.boardId) {
+              useBoardRuntimeStore.getState().upsertCard(next);
+            }
             return db.cards.put(next).then(() => {
               emitSocketCardUpdated({ boardId: data.boardId, card: next });
             });
@@ -466,7 +527,12 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
       deferSocketWork(() => {
         void db.cards
           .get(data.cardId)
-          .then((existing) => {
+          .then((existingDexie) => {
+            const existingRuntime =
+              runtimeActiveBoardId() === data.boardId
+                ? useBoardRuntimeStore.getState().cardsById[data.cardId]
+                : undefined;
+            const existing = existingRuntime ?? existingDexie;
             if (!existing) {
               return;
             }
@@ -475,6 +541,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
               ...existing,
               labels: existing.labels.filter((l) => String(l.id) !== rm),
             };
+            if (runtimeActiveBoardId() === data.boardId) {
+              useBoardRuntimeStore.getState().upsertCard(next);
+            }
             return db.cards.put(next).then(() => {
               emitSocketCardUpdated({ boardId: data.boardId, card: next });
             });
@@ -514,6 +583,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
   socket.on('lists:bulk-color-updated', (data: { boardId: string; color: string; serverTs?: number }) => {
     deferSocketWork(() => {
       const trimmed = typeof data.color === 'string' ? data.color.trim() : '';
+      if (runtimeActiveBoardId() === data.boardId) {
+        useBoardRuntimeStore.getState().applyListsBulkColor(trimmed);
+      }
       void db.lists
         .where('boardId')
         .equals(data.boardId)
@@ -541,6 +613,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
         const trimmed = colorRaw.trim();
         const scopedListId =
           typeof data.listId === 'string' && data.listId.trim() !== '' ? data.listId.trim() : null;
+        if (runtimeActiveBoardId() === data.boardId) {
+          useBoardRuntimeStore.getState().applyCardsBulkColor(scopedListId, trimmed);
+        }
         const q =
           scopedListId != null
             ? db.cards.where('listId').equals(scopedListId)
@@ -569,6 +644,9 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
       deferSocketWork(() => {
         try {
           const card = normalizeCardFromApi(data.data, data.duplicatedCardId);
+          if (runtimeActiveBoardId() === data.boardId) {
+            useBoardRuntimeStore.getState().upsertCard(card);
+          }
           void db.cards.put(card).then(() => {
             emitSocketCardUpdated({ boardId: data.boardId, card });
           });

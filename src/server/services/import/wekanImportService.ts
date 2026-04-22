@@ -421,6 +421,7 @@ function sanitizeImportedDescriptionText(value: string): string {
 
 const LEGACY_INLINE_BUTTON_RE =
   /<span[^>]*display\s*:\s*inline-flex[^>]*>\s*<img[^>]*src=['"]([^'"]+)['"][^>]*>\s*<a[^>]*href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>\s*<\/span>/gi;
+const LEGACY_HORIZONTAL_RULE_RE = /<\s*hr\b[^>]*>(?:\s*<\/\s*hr\s*>)?/gi;
 
 function parseInlineStyleDeclarations(styleAttr: string): Map<string, string> {
   const out = new Map<string, string>();
@@ -558,12 +559,27 @@ function buildWekanDescriptionDocNodes(
   const nodes: Array<Record<string, unknown>> = [];
   let cursor = 0;
   LEGACY_INLINE_BUTTON_RE.lastIndex = 0;
-  let match: RegExpExecArray | null = LEGACY_INLINE_BUTTON_RE.exec(description);
-  while (match != null) {
-    const [full, rawIconSrc, rawHref, rawButtonText] = match;
-    const before = description.slice(cursor, match.index);
+  LEGACY_HORIZONTAL_RULE_RE.lastIndex = 0;
+  while (cursor < description.length) {
+    LEGACY_INLINE_BUTTON_RE.lastIndex = cursor;
+    LEGACY_HORIZONTAL_RULE_RE.lastIndex = cursor;
+    const inlineMatch = LEGACY_INLINE_BUTTON_RE.exec(description);
+    const hrMatch = LEGACY_HORIZONTAL_RULE_RE.exec(description);
+    if (inlineMatch == null && hrMatch == null) {
+      break;
+    }
+    const nextMatch =
+      inlineMatch != null && (hrMatch == null || inlineMatch.index <= hrMatch.index)
+        ? { kind: 'inlineButton' as const, match: inlineMatch }
+        : { kind: 'horizontalRule' as const, match: hrMatch as RegExpExecArray };
+    const before = description.slice(cursor, nextMatch.match.index);
     pushMarkdownOrPlainAsBlocks(before, nodes, plainTextSegmentsOnly);
-
+    if (nextMatch.kind === 'horizontalRule') {
+      nodes.push({ type: 'horizontalRule' });
+      cursor = nextMatch.match.index + nextMatch.match[0].length;
+      continue;
+    }
+    const [full, rawIconSrc, rawHref, rawButtonText] = nextMatch.match;
     const iconSrc = decodeHtmlEntities((rawIconSrc ?? '').trim());
     const href = decodeHtmlEntities((rawHref ?? '').trim());
     const buttonText = decodeHtmlEntities((rawButtonText ?? '').replace(/\s+/g, ' ').trim());
@@ -588,9 +604,7 @@ function buildWekanDescriptionDocNodes(
     } else {
       pushMarkdownOrPlainAsBlocks(full, nodes, true);
     }
-
-    cursor = match.index + full.length;
-    match = LEGACY_INLINE_BUTTON_RE.exec(description);
+    cursor = nextMatch.match.index + full.length;
   }
   const tail = description.slice(cursor);
   pushMarkdownOrPlainAsBlocks(tail, nodes, plainTextSegmentsOnly);

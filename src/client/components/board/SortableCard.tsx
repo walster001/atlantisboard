@@ -15,6 +15,7 @@ import {
   Avatar,
   Group,
   Card,
+  Tooltip,
 } from '@mantine/core';
 import { format } from 'date-fns';
 import { IconAlignLeft, IconCalendar, IconDots } from '@tabler/icons-react';
@@ -231,25 +232,48 @@ function SortableCardInner({
     if (card.assignees.length === 0) {
       return null;
     }
+    const totalAssignees = card.assignees.length;
+    const useOverflowAvatar = totalAssignees > 4;
+    const visibleAssignees = useOverflowAvatar ? card.assignees.slice(0, 3) : card.assignees;
+    const overflowCount = totalAssignees - visibleAssignees.length;
     return (
       <Group gap={6} mt="xs" wrap="nowrap">
-        {card.assignees.slice(0, 3).map((userId) => {
+        {visibleAssignees.map((userId) => {
           const uid = String(userId);
           const u = assigneeDirectory?.get(uid);
+          const displayName = u?.displayName?.trim() !== '' ? u?.displayName : uid;
+          const email = u?.email?.trim() !== '' ? u?.email : 'No email';
           const src =
             u?.profilePicture != null && u.profilePicture !== '' ? u.profilePicture : null;
           return (
-            <Avatar
+            <Tooltip
               key={uid}
-              size={APP_USER_AVATAR_SIZE}
-              {...(src != null ? { src } : {})}
+              withArrow
+              openDelay={120}
+              position="top"
+              withinPortal
+              label={
+                <Box>
+                  <Text size="xs" fw={600} lh={1.2}>
+                    {displayName}
+                  </Text>
+                  <Text size="xs" c="dimmed" lh={1.2}>
+                    {email}
+                  </Text>
+                </Box>
+              }
             >
-              {userMenuStyleAvatarInitials(u?.displayName ?? '', u?.email ?? uid)}
-            </Avatar>
+              <Avatar
+                size={APP_USER_AVATAR_SIZE}
+                {...(src != null ? { src } : {})}
+              >
+                {userMenuStyleAvatarInitials(u?.displayName ?? '', u?.email ?? uid)}
+              </Avatar>
+            </Tooltip>
           );
         })}
-        {card.assignees.length > 3 ? (
-          <Avatar size={APP_USER_AVATAR_SIZE}>{`+${card.assignees.length - 3}`}</Avatar>
+        {useOverflowAvatar ? (
+          <Avatar size={APP_USER_AVATAR_SIZE}>{`+${overflowCount}`}</Avatar>
         ) : null}
       </Group>
     );

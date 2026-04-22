@@ -188,7 +188,7 @@ function VirtualizedCardListInner({
   const sortedCards = useMemo(() => {
     const visible =
       draggingCardId == null ? cards : cards.filter((c) => c.id !== draggingCardId);
-    return [...visible].sort((a, b) => a.position - b.position);
+    return [...visible].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
   }, [cards, draggingCardId]);
 
   const totalListPx = sortedCards.length === 0 ? 0 : measuredTotalListPx;

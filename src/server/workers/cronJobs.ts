@@ -2,7 +2,10 @@ import { Activity } from '../models/Activity.js';
 import { ImportJob } from '../models/ImportJob.js';
 import { Card } from '../models/Card.js';
 import { Workspace } from '../models/Workspace.js';
-import { BOARD_MEMBER_AUDIT_ACTIVITY_TYPES } from '../../shared/constants/boardMemberAuditActivities.js';
+import {
+  BOARD_MEMBER_AUDIT_ACTIVITY_TYPES,
+  BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS,
+} from '../../shared/constants/boardMemberAuditActivities.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 
@@ -19,7 +22,8 @@ export async function cleanupActivityLogs(): Promise<void> {
     let cleanedCount = 0;
 
     for (const workspace of workspaces) {
-      const retentionDays = workspace.activityLogRetentionDays || 30;
+      const retentionDays =
+        workspace.activityLogRetentionDays || BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS;
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
@@ -64,19 +68,18 @@ export async function cleanupBoardMemberAuditRetention(): Promise<void> {
 
   try {
     const { Board } = await import('../models/Board.js');
-    const cursor = Board.find({
-      'settings.memberActivityLogRetentionDays': { $gte: 1, $lte: 3650 },
-    })
+    const cursor = Board.find({})
       .select('_id settings.memberActivityLogRetentionDays')
       .lean()
       .cursor();
 
     let totalDeleted = 0;
     for await (const b of cursor) {
-      const days = b.settings?.memberActivityLogRetentionDays;
-      if (typeof days !== 'number' || days < 1) {
-        continue;
-      }
+      const configured = b.settings?.memberActivityLogRetentionDays;
+      const days =
+        typeof configured === 'number' && configured >= 1 && configured <= 3650
+          ? configured
+          : BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS;
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
       const result = await Activity.deleteMany({

@@ -10,11 +10,11 @@ export const TRELLO_IMPORT_INLINE_BUTTON_DEFAULTS = {
   width: '320' as string | null,
   offsetXPx: 0,
   offsetYPx: 0,
-  wrapperStyle: 'display: flex;',
+  wrapperStyle: 'display: flex; justify-content: flex-start;',
 } as const;
 
 export function trelloImportContainerStyle(widthPx: string): string {
-  return `position: relative; width: ${widthPx}px; height: auto; cursor: pointer; `;
+  return `position: relative; width: ${widthPx}px; max-width: 100%; height: auto; cursor: pointer; box-sizing: border-box; `;
 }
 
 const THEME_TRELLO = { textColor: '#0C66E4', bgColor: '#E9F2FF' } as const;

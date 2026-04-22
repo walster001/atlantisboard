@@ -86,6 +86,11 @@
   white-space: nowrap;
 }
 
+body.dragscrolling,
+body.dragscrolling * {
+  cursor: all-scroll !important;
+}
+
 .board-page__body {
   flex: 1;
   min-height: 0;

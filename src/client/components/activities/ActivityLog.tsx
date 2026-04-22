@@ -26,12 +26,14 @@ import {
 import { format } from 'date-fns';
 import { api } from '../../utils/api.js';
 import type { BoardSettingsLivePatch } from '../../store/database.js';
+import { BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS } from '../../../shared/constants/boardMemberAuditActivities.js';
 import './activityLog.css';
 
 const PAGE_SIZE = 10;
 
 const RETENTION_OPTIONS = [
   { value: 'never', label: 'Never expire' },
+  { value: '10', label: '10 days' },
   { value: '30', label: '30 days' },
   { value: '90', label: '90 days' },
   { value: '365', label: '1 year' },
@@ -214,7 +216,9 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
   const [activities, setActivities] = useState<ParsedActivityRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [retentionValue, setRetentionValue] = useState<string>('never');
+  const [retentionValue, setRetentionValue] = useState<string>(
+    String(BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS),
+  );
   const [savingRetention, setSavingRetention] = useState(false);
   const [roleLabelByKey, setRoleLabelByKey] = useState<Record<string, string>>({});
 
@@ -232,12 +236,12 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
       const board = res.board as { settings?: { memberActivityLogRetentionDays?: number } } | null;
       const days = board?.settings?.memberActivityLogRetentionDays;
       if (days === undefined) {
-        setRetentionValue('never');
+        setRetentionValue(String(BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS));
       } else {
         setRetentionValue(String(days));
       }
     } catch {
-      setRetentionValue('never');
+      setRetentionValue(String(BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS));
     }
   }, [boardId]);
 

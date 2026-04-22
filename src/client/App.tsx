@@ -4,6 +4,7 @@ import { MantineProvider } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { OfflinePersistenceNotice } from './components/OfflinePersistenceNotice.js';
 import { AuthProvider } from './contexts/AuthContext';
 import { AppBrandingProvider } from './contexts/AppBrandingContext.js';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -46,6 +47,7 @@ function App() {
     <MantineProvider theme={mantineTheme} defaultColorScheme="light">
       <ModalsProvider modalProps={MANTINE_MODALS_PROVIDER_PROPS}>
         <Notifications />
+        <OfflinePersistenceNotice />
         <BrowserRouter>
           <AppBrandingProvider>
             <ErrorBoundary>

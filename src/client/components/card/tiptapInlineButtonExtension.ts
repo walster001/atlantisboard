@@ -88,14 +88,14 @@ function removeResizeElements(container: HTMLElement): void {
 }
 
 function getContainerStyle(inline: boolean, width: string | undefined): string {
-  const base = `width: ${width || '100%'}; height: auto; cursor: pointer;`;
+  const base = `width: ${width || '100%'}; max-width: 100%; height: auto; cursor: pointer; box-sizing: border-box;`;
   return inline ? `${base} display: inline-block;` : base;
 }
 
 function getWrapperStyle(inline: boolean): string {
   return inline
     ? 'display: inline-block; float: left; padding-right: 8px;'
-    : 'display: flex';
+    : 'display: flex; justify-content: flex-start;';
 }
 
 function clampOffset(n: number): number {
@@ -643,8 +643,9 @@ export const DEFAULT_INLINE_BUTTON_ATTRS = {
   width: '320' as string | null,
   offsetXPx: 0,
   offsetYPx: 0,
-  containerStyle: 'position: relative; width: 320px; height: auto; cursor: pointer; ',
-  wrapperStyle: 'display: flex;',
+  containerStyle:
+    'position: relative; width: 320px; max-width: 100%; height: auto; cursor: pointer; box-sizing: border-box; ',
+  wrapperStyle: 'display: flex; justify-content: flex-start;',
 };
 
 declare module '@tiptap/core' {

@@ -11022,6 +11022,10 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   line-height: 1.35;
 }
 
+body.dragscrolling, body.dragscrolling * {
+  cursor: all-scroll !important;
+}
+
 .board-page__body {
   padding: var(--board-viewport-gap) 16px var(--board-viewport-gap);
   overflow-x: auto;

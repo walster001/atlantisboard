@@ -380,6 +380,25 @@ export async function moveCard(
   await card.save();
 
   emitCardUpdatedRealtime(card);
+  const boardId = card.boardId.toString();
+  const targetOrderedCardIds = (
+    await Card.find({ listId: targetListId }).sort({ position: 1, _id: 1 }).select('_id').lean()
+  ).map((row) => String(row._id));
+  emitToBoard(boardId, 'cards:reordered', {
+    boardId,
+    listId: targetListId,
+    orderedCardIds: targetOrderedCardIds,
+  });
+  if (originalListId !== targetListId) {
+    const sourceOrderedCardIds = (
+      await Card.find({ listId: originalListId }).sort({ position: 1, _id: 1 }).select('_id').lean()
+    ).map((row) => String(row._id));
+    emitToBoard(boardId, 'cards:reordered', {
+      boardId,
+      listId: originalListId,
+      orderedCardIds: sourceOrderedCardIds,
+    });
+  }
 
   logAuditEvent({
     userId,

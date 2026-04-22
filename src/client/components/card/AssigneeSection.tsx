@@ -179,8 +179,16 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
     assigneeToggleInFlightRef.current.add(userId);
     setAssigneePending((prev) => flipAssigneePending(prev, userId, card.assignees));
 
+    const isAssigned = card.assignees.includes(userId);
+    const optimisticAssignees = isAssigned
+      ? card.assignees.filter((id) => id !== userId)
+      : [...card.assignees, userId];
+    onCardUpdate({
+      ...card,
+      assignees: optimisticAssignees,
+    });
+
     try {
-      const isAssigned = card.assignees.includes(userId);
       if (isAssigned) {
         await api.removeCardAssignee(card.id, userId);
       } else {
@@ -388,7 +396,14 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
                   void handleToggleAssignee(assigneeId);
                 }}
               >
-                {user?.displayName || 'Unknown'}
+                <Stack gap={0} style={{ minWidth: 0 }}>
+                  <Text size="sm" fw={500} lineClamp={1}>
+                    {user?.displayName || 'Unknown'}
+                  </Text>
+                  <Text size="xs" c="dimmed" lineClamp={1} style={{ wordBreak: 'break-all' }}>
+                    {user?.email || assigneeId}
+                  </Text>
+                </Stack>
               </Badge>
             );
           })}

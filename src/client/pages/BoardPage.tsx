@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { Loader, Box, Text, Title, Group, ActionIcon } from '@mantine/core';
 import { IconArrowLeft, IconLayoutKanbanFilled, IconLink, IconSettings } from '@tabler/icons-react';
 import * as dragscroll from 'dragscroll';
@@ -126,30 +126,56 @@ export default function BoardPage() {
   }, [boardId, loadData]);
 
   useEffect(() => {
-    if (!boardId || !permissionsLoaded) {
-      return;
+    const boardPageEl = boardBodyRef.current;
+    if (boardPageEl == null) {
+      return undefined;
     }
-    if (!can('boards.view')) {
-      navigate('/', { replace: true });
-    }
-  }, [boardId, permissionsLoaded, can, navigate]);
+    const draggingClass = 'dragscrolling';
 
-  useEffect(() => {
-    const boardBodyElement = boardBodyRef.current;
-    if (boardBodyElement == null) {
-      return;
-    }
+    const beginDragging = (ev: PointerEvent): void => {
+      if (ev.button !== 0) {
+        return;
+      }
+      const host = ev.currentTarget;
+      if (
+        host instanceof HTMLElement &&
+        host.hasAttribute('nochilddrag') &&
+        ev.target !== host
+      ) {
+        return;
+      }
+      document.body.classList.add(draggingClass);
+    };
+    const endDragging = (): void => {
+      document.body.classList.remove(draggingClass);
+    };
+    const wireHost = (el: HTMLElement): void => {
+      el.classList.add('dragscroll');
+      el.setAttribute('nochilddrag', '');
+      el.addEventListener('pointerdown', beginDragging);
+    };
+    const unwireHost = (el: HTMLElement): void => {
+      el.classList.remove('dragscroll');
+      el.removeAttribute('nochilddrag');
+      el.removeEventListener('pointerdown', beginDragging);
+    };
 
-    boardBodyElement.classList.add('dragscroll');
-    boardBodyElement.setAttribute('nochilddrag', '');
+    wireHost(boardPageEl);
     dragscroll.reset();
 
+    window.addEventListener('pointerup', endDragging);
+    window.addEventListener('pointercancel', endDragging);
+    window.addEventListener('blur', endDragging);
+
     return () => {
-      boardBodyElement.classList.remove('dragscroll');
-      boardBodyElement.removeAttribute('nochilddrag');
+      window.removeEventListener('pointerup', endDragging);
+      window.removeEventListener('pointercancel', endDragging);
+      window.removeEventListener('blur', endDragging);
+      unwireHost(boardPageEl);
+      endDragging();
       dragscroll.reset();
     };
-  }, []);
+  }, [board?.id]);
 
   const handleBack = useCallback(() => {
     navigate('/');
@@ -160,8 +186,12 @@ export default function BoardPage() {
   }, []);
 
   const handleOpenSettings = useCallback(() => {
+    if (!canOpenSettings) {
+      setShowSettings(false);
+      return;
+    }
     setShowSettings(true);
-  }, []);
+  }, [canOpenSettings]);
 
   const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
@@ -231,6 +261,10 @@ export default function BoardPage() {
     );
   }
 
+  if (boardId && permissionsLoaded && !can('boards.view')) {
+    return <Navigate to="/" replace />;
+  }
+
   if (!board) {
     return (
       <Box className="min-h-screen flex items-center justify-center">
@@ -243,7 +277,7 @@ export default function BoardPage() {
   }
 
   return (
-    <Box className="board-page">
+    <Box ref={boardBodyRef} className="board-page">
       <Box className="board-page__header">
         <Group justify="space-between" align="center" wrap="nowrap" gap="md">
           <Group gap={6} wrap="nowrap" align="center" style={{ flex: 1, minWidth: 0 }}>
@@ -317,7 +351,7 @@ export default function BoardPage() {
         </Group>
       </Box>
 
-      <Box ref={boardBodyRef} className="board-page__body">
+      <Box className="board-page__body">
         <Suspense fallback={KANBAN_VIEW_SUSPENSE_FALLBACK}>
           <KanbanView
             board={board}
@@ -328,8 +362,9 @@ export default function BoardPage() {
         </Suspense>
       </Box>
 
-      {showSettings ? (
+      {showSettings && canOpenSettings ? (
         <BoardSettingsModal
+          key={`settings:${board.id}:${permissionsLoaded ? 'ready' : 'loading'}`}
           boardId={board.id}
           onClose={handleCloseSettings}
           {...(!(can('boards.update') || can('boards.settings.update')) && can('boards.members.view')
@@ -340,11 +375,16 @@ export default function BoardPage() {
       ) : null}
 
       {showInvites ? (
-        <BoardInvitesModal boardId={board.id} onClose={handleCloseInvites} />
+        <BoardInvitesModal
+          key={`invites:${board.id}`}
+          boardId={board.id}
+          onClose={handleCloseInvites}
+        />
       ) : null}
 
       {overlayCardId ? (
         <BoardCardDetailOverlay
+          key={`overlay:${board.id}:${overlayCardId}`}
           boardId={board.id}
           boardWorkspaceId={board.workspaceId ?? null}
           cardId={overlayCardId}

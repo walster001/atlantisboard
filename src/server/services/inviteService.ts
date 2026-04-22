@@ -597,9 +597,9 @@ export async function getInviteLinks(
   const query: {
     workspaceId?: mongoose.Types.ObjectId;
     boardId?: mongoose.Types.ObjectId;
-    createdBy?: mongoose.Types.ObjectId;
+    $or?: Array<Record<string, unknown>>;
   } = {};
-  
+
   if (workspaceId) {
     query.workspaceId = new mongoose.Types.ObjectId(workspaceId);
   }
@@ -607,8 +607,31 @@ export async function getInviteLinks(
     query.boardId = new mongoose.Types.ObjectId(boardId);
   }
   if (userId) {
-    query.createdBy = new mongoose.Types.ObjectId(userId);
+    if (boardId) {
+      const allowed = await hasPermission({ id: userId }, boardId, 'invites.view');
+      if (!allowed) {
+        throw new Error('Insufficient permissions to view invites');
+      }
+    } else if (workspaceId) {
+      const allowed = await hasPermission(userId, workspaceId, 'invites.view', 'workspace');
+      if (!allowed) {
+        throw new Error('Insufficient permissions to view invites');
+      }
+    }
   }
+
+  // Show only active links in invite lists:
+  // - recurring links are always active
+  // - one-time links are active only if unused and unexpired
+  const now = new Date();
+  query.$or = [
+    { inviteType: 'recurring' },
+    {
+      inviteType: 'one-time',
+      usedCount: 0,
+      $or: [{ expiresAt: { $exists: false } }, { expiresAt: null }, { expiresAt: { $gt: now } }],
+    },
+  ];
 
   return await InviteLink.find(query)
     .sort({ createdAt: -1 })

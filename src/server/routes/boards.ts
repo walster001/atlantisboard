@@ -559,10 +559,17 @@ router.get('/:id/roles', async (req, res, next) => {
 
     const filtered: Array<{ key: string; displayName: string; isBuiltIn: boolean }> = [];
     for (const role of roles) {
+      const isActorOwnRoleKey = role.key === actorRoleKey;
       const level =
         typeof role.hierarchyLevel === 'number' && Number.isFinite(role.hierarchyLevel)
           ? role.hierarchyLevel
           : await getRoleHierarchyLevel(role.key);
+      // Always expose the viewer's own role in pickers so settings can display their current assignment,
+      // even when role-update mode (e.g. lower-only) forbids assigning that level to others.
+      if (isActorOwnRoleKey) {
+        filtered.push({ key: role.key, displayName: role.displayName, isBuiltIn: role.isBuiltIn });
+        continue;
+      }
       if (level == null) {
         continue;
       }

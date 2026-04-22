@@ -26,6 +26,7 @@ export async function deleteAllMongoAndStorageForBoardIds(boardIds: Types.Object
   await BoardLabel.deleteMany({ boardId: { $in: boardIds } });
   await Activity.deleteMany({ boardId: { $in: boardIds } });
   await InviteLink.deleteMany({ boardId: { $in: boardIds } });
+  await ImportJob.deleteMany({ 'result.boardId': { $in: boardIds } });
 }
 
 /**

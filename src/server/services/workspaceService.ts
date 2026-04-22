@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Workspace, type IWorkspace } from '../models/Workspace.js';
 import { Board } from '../models/Board.js';
+import { User } from '../models/User.js';
 import {
   deleteAllMongoAndStorageForBoardIds,
   deleteWorkspaceScopedMongoRecords,
@@ -705,6 +706,7 @@ export async function deleteWorkspace(
   await deleteWorkspaceScopedMongoRecords(workspace._id, boardObjectIds);
 
   await Board.deleteMany({ workspaceId: workspace._id });
+  await User.updateMany({}, { $pull: { 'preferences.homeWorkspaceOrder': workspaceId } });
 
   await Workspace.findByIdAndDelete(workspaceId);
 

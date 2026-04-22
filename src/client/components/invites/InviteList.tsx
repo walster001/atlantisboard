@@ -161,8 +161,9 @@ export function InviteList({ workspaceId, boardId, canDeleteInvites = true }: In
               {canDeleteInvites && invite.inviteType === 'recurring' ? (
                 <Button
                   size="xs"
-                  variant="subtle"
+                  variant="outline"
                   color="red"
+                  style={{ alignSelf: 'center' }}
                   onClick={() => handleDelete(invite._id)}
                 >
                   Delete

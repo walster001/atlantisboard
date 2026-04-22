@@ -298,6 +298,11 @@ router.get('/:id/roles', async (req, res, next) => {
 
     const filtered: Array<{ key: string; displayName: string; isBuiltIn: boolean }> = [];
     for (const role of roles) {
+      // Always include the member's own role so the settings list can show their current assignment.
+      if (role.key === actorRoleKey) {
+        filtered.push({ key: role.key, displayName: role.displayName, isBuiltIn: role.isBuiltIn });
+        continue;
+      }
       const level =
         typeof role.hierarchyLevel === 'number' && Number.isFinite(role.hierarchyLevel)
           ? role.hierarchyLevel

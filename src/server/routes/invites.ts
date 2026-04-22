@@ -149,6 +149,16 @@ router.get('/', apiRateLimiter, async (req, res, next) => {
 
     res.json({ inviteLinks });
   } catch (error) {
+    if (error instanceof Error && error.message.includes('permissions')) {
+      res.status(403).json({
+        error: {
+          message: error.message,
+          code: 'FORBIDDEN',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
     next(error);
   }
 });

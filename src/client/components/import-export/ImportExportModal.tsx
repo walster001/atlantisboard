@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState, type ReactElement } from 'react';
 import { isAxiosError } from 'axios';
 import {
   Modal,
@@ -158,6 +158,135 @@ function buildImportSuccessMessage(
   return 'Import completed.';
 }
 
+const IMPORT_PROGRESS_NOTIFICATION_ID = 'import-export-progress';
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function renderStartupProgressMessage(label: string, value: number): ReactElement {
+  return (
+    <Stack gap={6}>
+      <Text size="sm">{label}</Text>
+      <Progress value={value} radius="md" size="sm" />
+    </Stack>
+  );
+}
+
+function renderImportProgressNotificationMessage(job: ImportJobClientView): ReactElement {
+  const percent = Math.min(100, Math.max(0, Number.isFinite(job.progress) ? job.progress : 0));
+  const processed = Math.max(0, Number.isFinite(job.processedItems) ? job.processedItems : 0);
+  const total = Math.max(0, Number.isFinite(job.totalItems) ? job.totalItems : 0);
+  const phaseLabel = importPhaseDisplayLabel(job.currentPhase);
+  return (
+    <Stack gap={6}>
+      <Text size="sm">{phaseLabel}</Text>
+      <Progress value={percent} radius="md" size="sm" />
+      <Text size="xs" c="dimmed">
+        {processed}/{total} processed{job.currentPhase != null && job.currentPhase !== '' ? ` • phase: ${job.currentPhase}` : ''}
+      </Text>
+    </Stack>
+  );
+}
+
+async function pollImportJobWithNotifications(
+  jobId: string,
+  importType: ImportType,
+  onImportComplete?: () => void | Promise<void>,
+): Promise<void> {
+  const startedAt = Date.now();
+  const timeoutMs = 15 * 60 * 1000;
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const response = await api.getImportJobStatus(jobId);
+      const job = parseImportJob((response as { job: unknown }).job);
+      if (job == null) {
+        notifications.update({
+          id: IMPORT_PROGRESS_NOTIFICATION_ID,
+          color: 'red',
+          title: 'Import status error',
+          message: 'Invalid import job response.',
+          loading: false,
+          autoClose: false,
+          withCloseButton: true,
+          position: 'bottom-right',
+        });
+        return;
+      }
+      if (job.status === 'completed') {
+        try {
+          await onImportComplete?.();
+        } catch (completeErr) {
+          console.error('onImportComplete failed:', completeErr);
+        }
+        notifications.update({
+          id: IMPORT_PROGRESS_NOTIFICATION_ID,
+          color: 'green',
+          title: 'Import complete',
+          message: buildImportSuccessMessage(importType, job.type, job.result),
+          loading: false,
+          autoClose: 7000,
+          withCloseButton: true,
+          position: 'bottom-right',
+        });
+        return;
+      }
+      if (job.status === 'failed') {
+        const errors = job.importErrors ?? [];
+        notifications.update({
+          id: IMPORT_PROGRESS_NOTIFICATION_ID,
+          color: 'red',
+          title: 'Import failed',
+          message:
+            errors.length > 0
+              ? `Import failed with ${errors.length} error${errors.length === 1 ? '' : 's'}.`
+              : 'Import failed before completion.',
+          loading: false,
+          autoClose: false,
+          withCloseButton: true,
+          position: 'bottom-right',
+        });
+        return;
+      }
+      notifications.update({
+        id: IMPORT_PROGRESS_NOTIFICATION_ID,
+        color: 'blue',
+        title: 'Import in progress',
+        message: renderImportProgressNotificationMessage(job),
+        loading: true,
+        autoClose: false,
+        withCloseButton: false,
+        position: 'bottom-right',
+      });
+    } catch {
+      notifications.update({
+        id: IMPORT_PROGRESS_NOTIFICATION_ID,
+        color: 'red',
+        title: 'Import status error',
+        message: 'Failed to check import status.',
+        loading: false,
+        autoClose: false,
+        withCloseButton: true,
+        position: 'bottom-right',
+      });
+      return;
+    }
+    await wait(2000);
+  }
+  notifications.update({
+    id: IMPORT_PROGRESS_NOTIFICATION_ID,
+    color: 'orange',
+    title: 'Import delayed',
+    message: 'Import is taking longer than expected. Please check back later.',
+    loading: false,
+    autoClose: false,
+    withCloseButton: true,
+    position: 'bottom-right',
+  });
+}
+
 function ImportMappingCallout({ importType }: { importType: ImportType }) {
   if (!importType) {
     return null;
@@ -240,9 +369,6 @@ export function ImportExportModal({
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [importProgress, setImportProgress] = useState(0);
-  const [importPhaseKey, setImportPhaseKey] = useState<string | undefined>(undefined);
   const [importDefaultHex, setImportDefaultHex] = useState(() =>
     normalizePresetHex('#3b82f6', BOARD_PRESET_COLOURS),
   );
@@ -266,9 +392,6 @@ export function ImportExportModal({
     'dueDate',
   ]);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isMountedRef = useRef(true);
 
   const preflightUsers: readonly ImportPreflightUser[] = useMemo(() => preflight?.users.users ?? [], [preflight]);
   const needsUserManagement = (importType === 'trello' || importType === 'wekan') && preflightUsers.length > 0;
@@ -287,21 +410,6 @@ export function ImportExportModal({
     const replacedIconCount = new Set(inlineButtonReplacements.map((r) => r.iconSrc)).size;
     return Math.max(0, uniqueIconCount - replacedIconCount);
   }, [inlineButtonReplacements, needsReplaceButtons, wekanButtons]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
-  }, []);
 
   const resetPreflightState = useCallback((): void => {
     setPreflight(null);
@@ -365,183 +473,121 @@ export function ImportExportModal({
   const handleImport = async () => {
     if (!file || !importType) return;
 
-    setActiveTab('import');
-    setLoading(true);
-    setError(null);
-    setImportProgress(0);
-    setImportPhaseKey(undefined);
+    const nextImportType = importType;
+    const nextFile = file;
+    const nextWorkspaceId = workspaceId;
+    const nextBoardId = boardId;
+    const nextDefaultUncolouredCardColour = importDefaultUseTheme
+      ? undefined
+      : importDefaultHex.trim();
+    const nextPreflightPayload: ImportPreflightPayload | undefined =
+      nextImportType === 'trello' || nextImportType === 'wekan'
+        ? {
+            userDecisions,
+            unmappedUserPolicy,
+            ...(nextImportType === 'wekan'
+              ? { inlineButtonIconReplacements: inlineButtonReplacements }
+              : {}),
+          }
+        : undefined;
 
-    try {
-      let result: { message: string; jobId: string };
+    onClose();
 
-      const defaultUncolouredCardColour = importDefaultUseTheme
-        ? undefined
-        : importDefaultHex.trim();
-      const preflightPayload: ImportPreflightPayload | undefined =
-        importType === 'trello' || importType === 'wekan'
-          ? {
-              userDecisions,
-              unmappedUserPolicy,
-              ...(importType === 'wekan'
-                ? { inlineButtonIconReplacements: inlineButtonReplacements }
-                : {}),
-            }
-          : undefined;
+    notifications.show({
+      id: IMPORT_PROGRESS_NOTIFICATION_ID,
+      color: 'blue',
+      title: 'Import starting',
+      message: renderStartupProgressMessage('Preparing import request…', 2),
+      loading: true,
+      autoClose: false,
+      withCloseButton: false,
+      position: 'bottom-right',
+    });
 
-      if (importType === 'trello' || importType === 'wekan') {
-        const rawText = await file.text();
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(rawText) as unknown;
-        } catch {
-          throw new Error('Invalid JSON in import file.');
-        }
-        assertImportJsonMatchesSource(parsed, importType);
-      }
-
-      if (importType === 'trello') {
-        result = await api.importTrello(
-          file,
-          workspaceId,
-          defaultUncolouredCardColour,
-          preflightPayload,
-        );
-      } else if (importType === 'wekan') {
-        result = await api.importWekan(file, defaultUncolouredCardColour, preflightPayload);
-      } else if (importType === 'csv') {
-        if (!boardId) {
-          throw new Error('Board ID is required for CSV import');
-        }
-        result = await api.importCSV(file, boardId, undefined, defaultUncolouredCardColour);
-      } else {
-        throw new Error('Invalid import type');
-      }
-
-      setJobId(result.jobId);
-      void pollJobStatus(result.jobId);
-    } catch (err) {
-      if (isAxiosError(err)) {
-        const data = err.response?.data as { error?: { message?: string } } | undefined;
-        if (data?.error?.message) {
-          setError(data.error.message);
-        } else {
-          setError(err.message);
-        }
-      } else if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Import failed');
-      }
-      setLoading(false);
-    }
-  };
-
-  const clearPollTimers = (): void => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
-
-  const pollJobStatus = async (id: string): Promise<void> => {
-    clearPollTimers();
-
-    const runTick = async (): Promise<boolean> => {
-      if (!isMountedRef.current) {
-        clearPollTimers();
-        return false;
-      }
-
+    void (async () => {
       try {
-        const response = await api.getImportJobStatus(id);
-        const job = parseImportJob((response as { job: unknown }).job);
+        let result: { message: string; jobId: string };
+        await wait(0);
 
-        if (!isMountedRef.current) {
-          return false;
-        }
-
-        if (job == null) {
-          clearPollTimers();
-          setLoading(false);
-          setError('Invalid import job response');
-          return false;
-        }
-
-        if (job.status !== 'completed' && job.status !== 'failed') {
-          setImportProgress(Math.min(100, Math.max(0, job.progress)));
-          setImportPhaseKey(job.currentPhase);
-        }
-
-        if (job.status === 'completed') {
-          clearPollTimers();
-          if (!isMountedRef.current) {
-            return false;
-          }
-          setImportProgress(100);
-          setImportPhaseKey('done');
-          setLoading(false);
-          try {
-            await onImportComplete?.();
-          } catch (completeErr) {
-            console.error('onImportComplete failed:', completeErr);
-          }
-          notifications.show({
-            color: 'green',
-            title: 'Import complete',
-            message: buildImportSuccessMessage(importType, job.type, job.result),
+        if (nextImportType === 'trello' || nextImportType === 'wekan') {
+          notifications.update({
+            id: IMPORT_PROGRESS_NOTIFICATION_ID,
+            color: 'blue',
+            title: 'Import starting',
+            message: renderStartupProgressMessage('Parsing import file…', 12),
+            loading: true,
+            autoClose: false,
+            withCloseButton: false,
+            position: 'bottom-right',
           });
-          onClose();
-          return false;
-        }
-
-        if (job.status === 'failed') {
-          clearPollTimers();
-          if (!isMountedRef.current) {
-            return false;
+          const rawText = await nextFile.text();
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(rawText) as unknown;
+          } catch {
+            throw new Error('Invalid JSON in import file.');
           }
-          setLoading(false);
-          const errors = job.importErrors ?? [];
-          setError(`Import failed. ${errors.length > 0 ? `Errors: ${JSON.stringify(errors)}` : ''}`);
-          return false;
+          assertImportJsonMatchesSource(parsed, nextImportType);
         }
-      } catch {
-        if (!isMountedRef.current) {
-          return false;
+
+        if (nextImportType === 'trello') {
+          result = await api.importTrello(
+            nextFile,
+            nextWorkspaceId,
+            nextDefaultUncolouredCardColour,
+            nextPreflightPayload,
+          );
+        } else if (nextImportType === 'wekan') {
+          result = await api.importWekan(
+            nextFile,
+            nextDefaultUncolouredCardColour,
+            nextPreflightPayload,
+          );
+        } else if (nextImportType === 'csv') {
+          if (!nextBoardId) {
+            throw new Error('Board ID is required for CSV import');
+          }
+          result = await api.importCSV(
+            nextFile,
+            nextBoardId,
+            undefined,
+            nextDefaultUncolouredCardColour,
+          );
+        } else {
+          throw new Error('Invalid import type');
         }
-        clearPollTimers();
-        setLoading(false);
-        setError('Failed to check import status');
-        return false;
+
+        notifications.update({
+          id: IMPORT_PROGRESS_NOTIFICATION_ID,
+          color: 'blue',
+          title: 'Import started',
+          message: renderStartupProgressMessage('Import job created. Polling progress…', 20),
+          loading: true,
+          autoClose: false,
+          withCloseButton: false,
+          position: 'bottom-right',
+        });
+        await pollImportJobWithNotifications(result.jobId, nextImportType, onImportComplete);
+      } catch (err) {
+        let message = 'Import failed to start.';
+        if (isAxiosError(err)) {
+          const data = err.response?.data as { error?: { message?: string } } | undefined;
+          message = data?.error?.message ?? err.message;
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
+        notifications.update({
+          id: IMPORT_PROGRESS_NOTIFICATION_ID,
+          color: 'red',
+          title: 'Import start failed',
+          message,
+          loading: false,
+          autoClose: false,
+          withCloseButton: true,
+          position: 'bottom-right',
+        });
       }
-
-      return true;
-    };
-
-    const continuePolling = await runTick();
-    if (!continuePolling || !isMountedRef.current) {
-      return;
-    }
-    intervalRef.current = setInterval(() => {
-      void (async () => {
-        const next = await runTick();
-        if (!next && intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-      })();
-    }, 2000);
-
-    timeoutRef.current = setTimeout(() => {
-      clearPollTimers();
-      if (isMountedRef.current) {
-        setLoading(false);
-        setError('Import is taking longer than expected. Please check back later.');
-      }
-    }, 15 * 60 * 1000);
+    })();
   };
 
   const handleExport = async () => {
@@ -586,8 +632,6 @@ export function ImportExportModal({
           ? 'CSV / TSV File'
           : 'Export File';
 
-  const importBlocked = !!jobId && loading;
-  const cancelDisabled = loading && !jobId;
   const isUserManagementTab = activeTab === 'import-user-management';
   const modalStyles = isUserManagementTab
     ? {
@@ -602,7 +646,7 @@ export function ImportExportModal({
         body: {
           flex: '1 1 auto',
           minHeight: 0,
-          overflow: 'auto',
+          overflow: 'hidden',
         },
       }
     : undefined;
@@ -631,7 +675,7 @@ export function ImportExportModal({
   return (
     <Modal
       opened={true}
-      onClose={jobId ? () => {} : onClose}
+      onClose={onClose}
       title={modalTitle}
       centered
       size={isUserManagementTab ? 'auto' : 'lg'}
@@ -644,7 +688,14 @@ export function ImportExportModal({
         value={activeTab}
         onChange={(value) => setActiveTab((value || 'import') as TabType)}
         keepMounted={false}
-        style={{ display: 'flex', flexDirection: 'column', minHeight: 0, maxHeight: '76vh' }}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          flex: 1,
+          overflow: 'hidden',
+          maxHeight: isUserManagementTab ? '100%' : '76vh',
+        }}
       >
         <Tabs.List mb="md">
           <Tabs.Tab value="import">Import</Tabs.Tab>
@@ -704,15 +755,6 @@ export function ImportExportModal({
                 />
 
                 <Box>
-                  <Text size="xs" c="dimmed" mb="sm">
-                    Same palette as list and card colours. Click the field to choose a default, or
-                    “no colour” in the picker to leave cards uncoloured unless the file sets one (CSV:
-                    optional <Text component="span" fw={600}>color</Text> as{' '}
-                    <Text component="span" fw={600}>
-                      #RRGGBB
-                    </Text>
-                    ).
-                  </Text>
                   <ColorInput
                     label="Default colour for uncoloured cards"
                     placeholder="No default colour"
@@ -792,32 +834,6 @@ export function ImportExportModal({
                   </Alert>
                 ) : null}
 
-                {jobId ? (
-                  <Alert color="blue" radius="md">
-                    <Stack gap="sm">
-                      <Group gap="xs" wrap="nowrap">
-                        <Text size="sm" style={{ flex: 1, minWidth: 0 }}>
-                          {importPhaseDisplayLabel(importPhaseKey)}
-                        </Text>
-                        {loading ? <Loader size="xs" /> : null}
-                      </Group>
-                      <Progress
-                        value={importProgress}
-                        radius="md"
-                        size="sm"
-                        animated={loading && importProgress < 100}
-                      />
-                      <Group justify="space-between" gap="xs" wrap="nowrap">
-                        <Text size="xs" c="dimmed">
-                          {importProgress}%
-                        </Text>
-                        <Text size="xs" c="dimmed" style={{ textAlign: 'right' }} truncate>
-                          Job {jobId}
-                        </Text>
-                      </Group>
-                    </Stack>
-                  </Alert>
-                ) : null}
               </>
             ) : null}
 
@@ -827,7 +843,7 @@ export function ImportExportModal({
                 variant="default"
                 radius="md"
                 onClick={onClose}
-                disabled={importBlocked || cancelDisabled}
+                disabled={loading}
               >
                 Cancel
               </Button>
@@ -845,7 +861,7 @@ export function ImportExportModal({
                   }
                   void handleImport();
                 }}
-                disabled={!file || !importType || loading || !!jobId || preflightBusy}
+                disabled={!file || !importType || loading || preflightBusy}
                 loading={loading}
               >
                 {needsReplaceButtons || needsUserManagement ? 'Continue preflight' : 'Import'}
@@ -884,7 +900,7 @@ export function ImportExportModal({
                   }
                   void handleImport();
                 }}
-                disabled={!file || !importType || loading || !!jobId}
+                disabled={!file || !importType || loading}
               >
                 {needsUserManagement
                   ? 'Continue'
@@ -926,7 +942,7 @@ export function ImportExportModal({
                   color="blue"
                   radius="md"
                   onClick={() => void handleImport()}
-                  disabled={!file || !importType || loading || !!jobId}
+                  disabled={!file || !importType || loading}
                   loading={loading}
                 >
                   Save users and import

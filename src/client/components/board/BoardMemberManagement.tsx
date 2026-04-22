@@ -28,6 +28,7 @@ import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
 import { BoardMemberEnterToSearchField } from './BoardMemberEnterToSearchField.js';
+import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
 import './boardMemberManagement.css';
 
 function isSearchRequestCancelled(error: unknown): boolean {
@@ -203,10 +204,12 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
   readonly user: UserRow;
   readonly roleKey: RoleKey;
   readonly roleOptions: ReadonlyArray<{ value: RoleKey; label: string }>;
+  readonly canAddMember: boolean;
+  readonly canUpdateMemberRole: boolean;
   readonly onRoleChange: (userId: string, next: RoleKey) => void;
   readonly onAddUser: (userId: string) => void;
 }) {
-  const { user, roleKey, roleOptions, onRoleChange, onAddUser } = props;
+  const { user, roleKey, roleOptions, canAddMember, canUpdateMemberRole, onRoleChange, onAddUser } = props;
   return (
     <>
       <td className="board-member-management__td board-member-management__td--user">
@@ -223,31 +226,43 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
         </Group>
       </td>
       <td className="board-member-management__td board-member-management__td--role">
-        <Select
-          size="xs"
-          w="100%"
-          maw={BOARD_MEMBER_ROLE_COL_PX - 16}
-          value={roleKey}
-          onChange={(v) => {
-            if (v) {
-              onRoleChange(user._id, v as RoleKey);
-            }
-          }}
-          data={roleOptions}
-          comboboxProps={{ withinPortal: false }}
-        />
+        {canUpdateMemberRole ? (
+          <Select
+            size="xs"
+            w="100%"
+            maw={BOARD_MEMBER_ROLE_COL_PX - 16}
+            value={roleKey}
+            onChange={(v) => {
+              if (v) {
+                onRoleChange(user._id, v as RoleKey);
+              }
+            }}
+            data={roleOptions}
+            comboboxProps={{ withinPortal: false }}
+          />
+        ) : (
+          <Text size="sm" c="dimmed" ta="center">
+            -
+          </Text>
+        )}
       </td>
       <td className="board-member-management__td board-member-management__td--action">
-        <Button
-          size="xs"
-          color="blue"
-          leftSection={<IconPlus size={14} stroke={2} />}
-          onClick={() => {
-            onAddUser(user._id);
-          }}
-        >
-          Add
-        </Button>
+        {canAddMember ? (
+          <Button
+            size="xs"
+            color="blue"
+            leftSection={<IconPlus size={14} stroke={2} />}
+            onClick={() => {
+              onAddUser(user._id);
+            }}
+          >
+            Add
+          </Button>
+        ) : (
+          <Text size="sm" c="dimmed" ta="center">
+            -
+          </Text>
+        )}
       </td>
     </>
   );
@@ -285,10 +300,12 @@ const MemberTableCells = memo(function MemberTableCells(props: {
   readonly user: UserRow;
   readonly roleKey: RoleKey;
   readonly roleOptions: ReadonlyArray<{ value: RoleKey; label: string }>;
+  readonly canRemoveMember: boolean;
+  readonly canUpdateMemberRole: boolean;
   readonly onRoleChange: (userId: string, next: RoleKey) => void;
   readonly onRemoveMember: (userId: string) => void;
 }) {
-  const { user, roleKey, roleOptions, onRoleChange, onRemoveMember } = props;
+  const { user, roleKey, roleOptions, canRemoveMember, canUpdateMemberRole, onRoleChange, onRemoveMember } = props;
   return (
     <>
       <td className="board-member-management__td board-member-management__td--user">
@@ -305,32 +322,44 @@ const MemberTableCells = memo(function MemberTableCells(props: {
         </Group>
       </td>
       <td className="board-member-management__td board-member-management__td--role">
-        <Select
-          size="xs"
-          w="100%"
-          maw={BOARD_MEMBER_ROLE_COL_PX - 16}
-          value={roleKey}
-          onChange={(v) => {
-            if (v) {
-              onRoleChange(user._id, v as RoleKey);
-            }
-          }}
-          data={roleOptions}
-          comboboxProps={{ withinPortal: false }}
-        />
+        {canUpdateMemberRole ? (
+          <Select
+            size="xs"
+            w="100%"
+            maw={BOARD_MEMBER_ROLE_COL_PX - 16}
+            value={roleKey}
+            onChange={(v) => {
+              if (v) {
+                onRoleChange(user._id, v as RoleKey);
+              }
+            }}
+            data={roleOptions}
+            comboboxProps={{ withinPortal: false }}
+          />
+        ) : (
+          <Text size="sm" c="dimmed" ta="center">
+            -
+          </Text>
+        )}
       </td>
       <td className="board-member-management__td board-member-management__td--action">
-        <Button
-          size="xs"
-          variant="subtle"
-          color="red"
-          leftSection={<IconUserMinus size={16} stroke={1.5} />}
-          onClick={() => {
-            onRemoveMember(user._id);
-          }}
-        >
-          Remove
-        </Button>
+        {canRemoveMember ? (
+          <Button
+            size="xs"
+            variant="subtle"
+            color="red"
+            leftSection={<IconUserMinus size={16} stroke={1.5} />}
+            onClick={() => {
+              onRemoveMember(user._id);
+            }}
+          >
+            Remove
+          </Button>
+        ) : (
+          <Text size="sm" c="dimmed" ta="center">
+            -
+          </Text>
+        )}
       </td>
     </>
   );
@@ -341,6 +370,10 @@ interface BoardMemberManagementProps {
 }
 
 export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
+  const { can, loaded: permissionsLoaded } = useBoardPermissions(boardId);
+  const canAddMember = permissionsLoaded && can('boards.members.add');
+  const canRemoveMember = permissionsLoaded && can('boards.members.remove');
+  const canUpdateMemberRole = permissionsLoaded && can('boards.members.role.update');
   const [board, setBoard] = useState<BoardPayload | null>(null);
   const [boardLoading, setBoardLoading] = useState(true);
   const [membersNextCursor, setMembersNextCursor] = useState<string | undefined>(undefined);
@@ -644,11 +677,17 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
   const memberCount = (owner ? 1 : 0) + members.length;
 
   const handleDirectoryRoleChange = useCallback((userId: string, roleKey: RoleKey) => {
+    if (!canUpdateMemberRole) {
+      return;
+    }
     setAddRoles((prev) => ({ ...prev, [userId]: roleKey }));
-  }, []);
+  }, [canUpdateMemberRole]);
 
   const handleAddUser = useCallback(
     async (userId: string) => {
+      if (!canAddMember) {
+        return;
+      }
       const roleKey = addRolesRef.current[userId] ?? 'viewer';
       const row = directoryUsersRef.current.find((u) => u._id === userId);
       if (row === undefined) {
@@ -704,11 +743,14 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
         });
       }
     },
-    [boardId]
+    [boardId, canAddMember]
   );
 
   const handleRemoveMember = useCallback(
     (userId: string) => {
+      if (!canRemoveMember) {
+        return;
+      }
       const snapshot = boardRef.current;
       const found = snapshot?.members?.find((m) => extractUser(m.userId)._id === userId);
       if (found === undefined) {
@@ -763,10 +805,13 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
         }
       })();
     },
-    [boardId]
+    [boardId, canRemoveMember]
   );
 
   const handleRoleChange = useCallback(async (userId: string, roleKey: RoleKey) => {
+    if (!canUpdateMemberRole) {
+      return;
+    }
     const current = boardRef.current?.members?.find((m) => extractUser(m.userId)._id === userId);
     const previousRoleKey = current?.roleKey;
     if (previousRoleKey === undefined || previousRoleKey === roleKey) {
@@ -807,7 +852,7 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
-  }, [boardId]);
+  }, [boardId, canUpdateMemberRole]);
 
   const onMemberRoleChange = useCallback(
     (userId: string, roleKey: RoleKey) => {
@@ -839,7 +884,9 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
               onCommit={setDirectoryQuery}
             />
             <Text size="sm" c="dimmed">
-              Select a role and add users to this board.
+              {canAddMember
+                ? 'Select a role and add users to this board.'
+                : 'You do not have permission to add members to this board.'}
             </Text>
           </Stack>
 
@@ -880,6 +927,8 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
                     user={user}
                     roleKey={addRoles[user._id] ?? 'viewer'}
                     roleOptions={roleOptions}
+                    canAddMember={canAddMember}
+                    canUpdateMemberRole={canUpdateMemberRole}
                     onRoleChange={handleDirectoryRoleChange}
                     onAddUser={handleAddUser}
                   />
@@ -952,6 +1001,8 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
                         user={user}
                         roleKey={row.member.roleKey}
                         roleOptions={roleOptions}
+                        canRemoveMember={canRemoveMember}
+                        canUpdateMemberRole={canUpdateMemberRole}
                         onRoleChange={onMemberRoleChange}
                         onRemoveMember={handleRemoveMember}
                       />

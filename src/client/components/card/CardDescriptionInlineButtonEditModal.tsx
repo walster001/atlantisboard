@@ -17,7 +17,6 @@ import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import { DEFAULT_INLINE_BUTTON_ATTRS } from './tiptapInlineButtonExtension.js';
 
-const ICON_SIZE_OPTIONS = ['12', '16', '20', '24', '32', '40'] as const;
 const RADIUS_OPTIONS = ['0', '4', '8', '12', '16', '20'] as const;
 
 type InlineButtonDraft = {
@@ -318,12 +317,17 @@ export function CardDescriptionInlineButtonEditModal({
           ) : null}
         </Group>
 
-        <Select
+        <TextInput
           label="Icon size"
-          data={[...ICON_SIZE_OPTIONS]}
           value={iconSizePx}
-          onChange={(v) => setIconSizePx(v ?? String(DEFAULT_INLINE_BUTTON_ATTRS.iconSizePx))}
-          allowDeselect={false}
+          onChange={(e) => setIconSizePx(e.currentTarget.value)}
+          inputMode="numeric"
+          placeholder={String(DEFAULT_INLINE_BUTTON_ATTRS.iconSizePx)}
+          rightSection={
+            <Text size="xs" c="dimmed" mr={4}>
+              px
+            </Text>
+          }
         />
 
         <TextInput label="Link URL" value={href} onChange={(e) => setHref(e.currentTarget.value)} />

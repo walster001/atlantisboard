@@ -19,9 +19,10 @@ interface InviteLink {
 interface InviteListProps {
   workspaceId?: string;
   boardId?: string;
+  canDeleteInvites?: boolean;
 }
 
-export function InviteList({ workspaceId, boardId }: InviteListProps) {
+export function InviteList({ workspaceId, boardId, canDeleteInvites = true }: InviteListProps) {
   const [invites, setInvites] = useState<InviteLink[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +56,9 @@ export function InviteList({ workspaceId, boardId }: InviteListProps) {
   }, [workspaceId, boardId, loadInvites]);
 
   const handleDelete = (inviteId: string) => {
+    if (!canDeleteInvites) {
+      return;
+    }
     modals.openConfirmModal({
       title: 'Delete invite',
       children: <Text size="sm">Are you sure you want to delete this invite?</Text>,
@@ -154,7 +158,7 @@ export function InviteList({ workspaceId, boardId }: InviteListProps) {
                   )}
                 </Text>
               </Stack>
-              {invite.inviteType === 'recurring' && (
+              {canDeleteInvites && invite.inviteType === 'recurring' ? (
                 <Button
                   size="xs"
                   variant="subtle"
@@ -163,7 +167,7 @@ export function InviteList({ workspaceId, boardId }: InviteListProps) {
                 >
                   Delete
                 </Button>
-              )}
+              ) : null}
             </Group>
           </Card>
         );

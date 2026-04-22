@@ -6,7 +6,7 @@ export const TRELLO_IMPORT_INLINE_BUTTON_DEFAULTS = {
   textColor: '#579DFF',
   bgColor: '#1D2125',
   borderRadiusPx: 4,
-  iconSizePx: 20,
+  iconSizePx: 16,
   width: '320' as string | null,
   offsetXPx: 0,
   offsetYPx: 0,

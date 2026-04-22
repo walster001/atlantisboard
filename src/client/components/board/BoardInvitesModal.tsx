@@ -13,7 +13,9 @@ interface BoardInvitesModalProps {
 export function BoardInvitesModal({ boardId, onClose }: BoardInvitesModalProps) {
   const [showCreateInvite, setShowCreateInvite] = useState(false);
   const [inviteListKey, setInviteListKey] = useState(0);
-  const { can } = useBoardPermissions(boardId);
+  const { can, loaded } = useBoardPermissions(boardId);
+  const canCreateInvites = loaded && can('invites.create');
+  const canDeleteInvites = loaded && can('invites.delete');
 
   const handleInviteCreated = useCallback(() => {
     setInviteListKey((k) => k + 1);
@@ -51,16 +53,17 @@ export function BoardInvitesModal({ boardId, onClose }: BoardInvitesModalProps) 
         <Stack gap="md">
           <Group justify="space-between" align="center" wrap="nowrap">
             <Text fw={600}>Invite links</Text>
-            <Button
-              size="sm"
-              color="blue"
-              onClick={() => setShowCreateInvite(true)}
-              disabled={!can('invites.create')}
-            >
-              Create invite
-            </Button>
+            {canCreateInvites ? (
+              <Button
+                size="sm"
+                color="blue"
+                onClick={() => setShowCreateInvite(true)}
+              >
+                Create invite
+              </Button>
+            ) : null}
           </Group>
-          <InviteList key={inviteListKey} boardId={boardId} />
+          <InviteList key={inviteListKey} boardId={boardId} canDeleteInvites={canDeleteInvites} />
           <Group justify="space-between" align="center" mt="md" wrap="wrap">
             <Button variant="subtle" size="sm" onClick={() => void handleCopyBoardPageLink()}>
               Copy board page link
@@ -72,7 +75,7 @@ export function BoardInvitesModal({ boardId, onClose }: BoardInvitesModalProps) 
         </Stack>
       </Modal>
 
-      {showCreateInvite ? (
+      {showCreateInvite && canCreateInvites ? (
         <CreateInviteModal
           boardId={boardId}
           type="board"

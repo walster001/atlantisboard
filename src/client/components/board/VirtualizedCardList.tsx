@@ -4,6 +4,8 @@ import {
   useCallback,
   useMemo,
   useState,
+  useEffect,
+  useRef,
   type MutableRefObject,
 } from 'react';
 import { Virtuoso, type ListProps, type ScrollerProps } from 'react-virtuoso';
@@ -11,6 +13,8 @@ import { Box } from '@mantine/core';
 import type { CardDB } from '../../store/database.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
 import { SortableCard } from './SortableCard.js';
+import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { PDND_KANBAN_LIST_BODY } from '../../dnd/pragmatic/kanbanData.js';
 
 /** Mantine `pb="xs"` between Virtuoso rows (~10px). */
 const KANBAN_VIRTUOSO_ROW_GAP_PX = 10;
@@ -177,6 +181,7 @@ function VirtualizedCardListInner({
   showKanbanCardMenu,
   kanbanCardBodyDraggable,
 }: VirtualizedCardListProps) {
+  const listBodyDropRef = useRef<HTMLDivElement | null>(null);
   const maxBodyPx = cardListMaxBodyPx;
   const [measuredTotalListPx, setMeasuredTotalListPx] = useState(0);
 
@@ -329,9 +334,27 @@ function VirtualizedCardListInner({
     ],
   );
 
+  useEffect(() => {
+    const el = listBodyDropRef.current;
+    if (el == null) {
+      return undefined;
+    }
+    return dropTargetForElements({
+      element: el,
+      getData: () =>
+        ({
+          pdnd: PDND_KANBAN_LIST_BODY,
+          kind: 'kanban-list-body',
+          listId,
+        }) as const,
+      getIsSticky: () => true,
+    });
+  }, [listId]);
+
   if (sortedCards.length === 0) {
     return (
       <Box
+        ref={listBodyDropRef}
         className="board-column__cards board-column__cards--virtual"
         style={{
           flex: '1 1 auto',
@@ -352,6 +375,7 @@ function VirtualizedCardListInner({
 
   return (
     <Box
+      ref={listBodyDropRef}
       className="board-column__cards board-column__cards--virtual"
       style={{
         flex: '1 1 auto',

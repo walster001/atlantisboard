@@ -1,6 +1,7 @@
 import {
   memo,
   useState,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -13,6 +14,7 @@ import {
   Badge,
   Avatar,
   Group,
+  Card,
 } from '@mantine/core';
 import { format } from 'date-fns';
 import { IconAlignLeft, IconCalendar, IconDots } from '@tabler/icons-react';
@@ -24,6 +26,10 @@ import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInit
 import { CardDescriptionBoardPreview } from '../card/CardDescriptionBoardPreview.js';
 import { isCardDescriptionEmpty, parseCardDescriptionJson } from '../card/cardDescriptionTiptap.js';
 import { TwemojiPlainText } from '../common/TwemojiPlainText.js';
+import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+import { PDND_KANBAN_CARD, PDND_KANBAN_CARD_DROP } from '../../dnd/pragmatic/kanbanData.js';
 import './boardView.css';
 
 interface SortableCardProps {
@@ -137,6 +143,7 @@ function SortableCardInner({
   onCardDeletedFromBoard: _onCardDeletedFromBoard,
 }: SortableCardProps) {
   const [deferRef, richReady] = useRichContentWhenNearViewport();
+  const cardBodyRef = useRef<HTMLDivElement | null>(null);
 
   const coverRenderUrl = useMemo(() => {
     const cover = typeof card.cover === 'string' ? card.cover.trim() : '';
@@ -159,13 +166,7 @@ function SortableCardInner({
       return api.getAttachmentFileUrl(coverAttachment.id);
     }
 
-    if (cover.startsWith('/')) {
-      return cover;
-    }
-    if (cover.startsWith('https://')) {
-      return cover;
-    }
-    return '';
+    return api.resolveAttachmentUrl(cover);
   }, [card.attachments, card.cover]);
 
   const handleCardAreaClick = () => {
@@ -254,20 +255,65 @@ function SortableCardInner({
     );
   }, [kanbanAssigneeVisualKey, assigneeDirectory]);
 
+  useEffect(() => {
+    const el = cardBodyRef.current;
+    if (el == null) {
+      return undefined;
+    }
+    const edgeElement =
+      el.closest<HTMLElement>('[data-kanban-list-id][data-kanban-card-id]') ?? el;
+    const cleanup = combine(
+      !isDragSource
+        ? dropTargetForElements({
+            element: el,
+            getData: ({ input }) =>
+              attachClosestEdge(
+                {
+                  pdnd: PDND_KANBAN_CARD_DROP,
+                  kind: 'kanban-card-drop',
+                  cardId: card.id,
+                  listId,
+                } as const,
+                {
+                  element: edgeElement,
+                  input,
+                  allowedEdges: ['top', 'bottom'],
+                },
+              ),
+            getIsSticky: () => true,
+          })
+        : () => {},
+      kanbanCardBodyDraggable
+        ? draggable({
+            element: el,
+            getInitialData: () =>
+              ({
+                pdnd: PDND_KANBAN_CARD,
+                kind: 'kanban-card',
+                cardId: card.id,
+                listId,
+              }) as const,
+          })
+        : () => {},
+    );
+    return cleanup;
+  }, [card.id, listId, kanbanCardBodyDraggable, isDragSource]);
+
   return (
-    <Box
+    <Card
       ref={deferRef}
       className={`board-card board-card--kanban${
         card.color && card.color.trim().length > 0 ? ' board-card--kanban-colored' : ''
       }${showKanbanCardMenu ? '' : ' board-card--kanban--no-card-menu'}`}
       data-kanban-list-id={listId}
       data-kanban-card-id={card.id}
+      padding="md"
+      radius="md"
       style={{
         opacity: isDragSource ? 0 : 1,
-        padding: 'var(--mantine-spacing-md)',
-        borderRadius: 'var(--mantine-radius-md)',
         transition: 'opacity 0.12s ease',
         position: 'relative',
+        overflow: 'hidden',
         ...(card.color && card.color.trim().length > 0
           ? ({
               ['--board-card-bg' as string]: card.color,
@@ -279,6 +325,27 @@ function SortableCardInner({
           : {}),
       }}
     >
+      {coverRenderUrl ? (
+        <Card.Section
+          mb="xs"
+          style={{
+            borderTopLeftRadius: 'var(--mantine-radius-md)',
+            borderTopRightRadius: 'var(--mantine-radius-md)',
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            w="100%"
+            h="10rem"
+            style={{
+              backgroundImage: `url(${coverRenderUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          />
+        </Card.Section>
+      ) : null}
+
       {showKanbanCardMenu ? (
         <Box className="board-card__kanban-menu" data-kanban-delegated-drag-ignore="1">
           <button
@@ -297,6 +364,7 @@ function SortableCardInner({
       ) : null}
 
       <Box
+        ref={cardBodyRef}
         className={`board-card__kanban-body${
           kanbanCardBodyDraggable ? '' : ' board-card__kanban-body--no-drag'
         }`}
@@ -307,20 +375,6 @@ function SortableCardInner({
         }
         onClick={handleCardAreaClick}
       >
-        {coverRenderUrl ? (
-          <Box
-            w="100%"
-            h="10rem"
-            mb="xs"
-            style={{
-              backgroundImage: `url(${coverRenderUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              borderRadius: 'var(--mantine-radius-sm)',
-            }}
-          />
-        ) : null}
-
         {kanbanLabelRow}
 
         <Text component="div" className="board-card__kanban-title" fw={400}>
@@ -451,7 +505,7 @@ function SortableCardInner({
           </Box>
         ) : null}
       </Box>
-    </Box>
+    </Card>
   );
 }
 

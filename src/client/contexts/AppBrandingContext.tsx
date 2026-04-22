@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -30,6 +31,13 @@ const FALLBACK_BRANDING = mergePublicLoginBranding({}) as unknown as PublicLogin
 const FALLBACK_APP_BRANDING = mergePublicAppBranding({}) as unknown as PublicAppBranding;
 
 const FAVICON_LINK_ID = 'kanboard-app-branding-favicon';
+function resolveBrandingFontStack(preferredFamily: string | undefined, fallback: string): string {
+  const trimmed = typeof preferredFamily === 'string' ? preferredFamily.trim() : '';
+  if (trimmed === '') {
+    return fallback;
+  }
+  return `${trimmed}, ${fallback}`;
+}
 
 export interface AppBrandingContextValue {
   readonly branding: PublicLoginBranding;
@@ -45,13 +53,19 @@ export function AppBrandingProvider({ children }: { readonly children: ReactNode
   const [branding, setBranding] = useState<PublicLoginBranding>(FALLBACK_BRANDING);
   const [appBranding, setAppBranding] = useState<PublicAppBranding>(FALLBACK_APP_BRANDING);
   const [loginBrandingReady, setLoginBrandingReady] = useState(false);
+  const aliveRef = useRef(true);
+  const refetchGenRef = useRef(0);
 
   const refetch = useCallback(async () => {
+    const runGen = ++refetchGenRef.current;
     try {
       const [loginRes, appRes] = await Promise.allSettled([
         api.getLoginBranding(),
         api.getAppBranding(),
       ]);
+      if (!aliveRef.current || refetchGenRef.current !== runGen) {
+        return;
+      }
       if (loginRes.status === 'fulfilled') {
         setBranding(loginRes.value.branding);
       }
@@ -61,12 +75,19 @@ export function AppBrandingProvider({ children }: { readonly children: ReactNode
         );
       }
     } finally {
-      setLoginBrandingReady(true);
+      if (aliveRef.current && refetchGenRef.current === runGen) {
+        setLoginBrandingReady(true);
+      }
     }
   }, []);
 
   useEffect(() => {
+    aliveRef.current = true;
     void refetch();
+    return () => {
+      aliveRef.current = false;
+      refetchGenRef.current += 1;
+    };
   }, [refetch]);
 
   useEffect(() => {
@@ -90,10 +111,14 @@ export function AppBrandingProvider({ children }: { readonly children: ReactNode
   useEffect(() => {
     const resolved = resolveAppUiFontStack(appBranding.defaultUiFontFamily);
     const root = document.documentElement;
+    const appNameStack = resolveBrandingFontStack(branding.appNameFontFamily, resolved);
+    const taglineStack = resolveBrandingFontStack(branding.taglineFontFamily, resolved);
     root.style.setProperty('--kb-app-ui-font-family', resolved);
+    root.style.setProperty('--kb-branding-app-name-font-family', appNameStack);
+    root.style.setProperty('--kb-branding-tagline-font-family', taglineStack);
     root.style.setProperty('--font-sans', resolved);
     root.style.setProperty('--default-font-family', resolved);
-  }, [appBranding.defaultUiFontFamily]);
+  }, [appBranding.defaultUiFontFamily, branding.appNameFontFamily, branding.taglineFontFamily]);
 
   useEffect(() => {
     if (!loginBrandingReady) {

@@ -1223,6 +1223,35 @@ class ApiClient {
     return `${API_BASE_URL}/attachments/${safeId}/file`;
   }
 
+  /**
+   * Normalize persisted attachment URLs to app-origin friendly paths when possible.
+   * This keeps rendering compatible with CSP and reverse proxies.
+   */
+  resolveAttachmentUrl(rawUrl: string): string {
+    const trimmed = rawUrl.trim();
+    if (trimmed === '') {
+      return '';
+    }
+    if (trimmed.startsWith('/')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('api/')) {
+      return `/${trimmed}`;
+    }
+    if (/^https?:\/\//.test(trimmed)) {
+      try {
+        const parsed = new URL(trimmed);
+        if (parsed.pathname.startsWith('/card-attachments/')) {
+          return `${parsed.pathname}${parsed.search}`;
+        }
+      } catch {
+        return trimmed;
+      }
+      return trimmed;
+    }
+    return trimmed;
+  }
+
   // Admin endpoints
   async getAdminConfig(): Promise<{ config: unknown }> {
     const response = await this.client.get('/admin/config');

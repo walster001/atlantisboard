@@ -1,5 +1,7 @@
 /** Discriminator merged into drop-target data (with hitbox `attachClosestEdge`). */
 export const PDND_KANBAN_CARD = 'kanban-card' as const;
+export const PDND_KANBAN_CARD_DROP = 'kanban-card-drop' as const;
+export const PDND_KANBAN_LIST = 'kanban-list' as const;
 export const PDND_KANBAN_LIST_BODY = 'kanban-list-body' as const;
 export const PDND_KANBAN_LIST_COLUMN = 'kanban-list-column' as const;
 
@@ -9,10 +11,26 @@ export type KanbanCardDragData = {
   readonly listId: string;
 };
 
+export type KanbanCardDropData = {
+  readonly kind: 'kanban-card-drop';
+  readonly cardId: string;
+  readonly listId: string;
+};
+
 export type KanbanListDragData = {
   readonly kind: 'kanban-list';
   readonly listId: string;
   readonly title: string;
+};
+
+export type KanbanListBodyDropData = {
+  readonly kind: 'kanban-list-body';
+  readonly listId: string;
+};
+
+export type KanbanListColumnDropData = {
+  readonly kind: 'kanban-list-column';
+  readonly listId: string;
 };
 
 export function readKanbanCardDragData(data: Record<string, unknown>): KanbanCardDragData | null {
@@ -37,6 +55,40 @@ export function readKanbanListDragData(data: Record<string, unknown>): KanbanLis
     return null;
   }
   return { kind: 'kanban-list', listId, title };
+}
+
+export function readKanbanCardDropData(data: Record<string, unknown>): KanbanCardDropData | null {
+  if (data.kind !== 'kanban-card-drop') {
+    return null;
+  }
+  const cardId = data.cardId;
+  const listId = data.listId;
+  if (typeof cardId !== 'string' || typeof listId !== 'string') {
+    return null;
+  }
+  return { kind: 'kanban-card-drop', cardId, listId };
+}
+
+export function readKanbanListBodyDropData(data: Record<string, unknown>): KanbanListBodyDropData | null {
+  if (data.kind !== 'kanban-list-body') {
+    return null;
+  }
+  const listId = data.listId;
+  if (typeof listId !== 'string') {
+    return null;
+  }
+  return { kind: 'kanban-list-body', listId };
+}
+
+export function readKanbanListColumnDropData(data: Record<string, unknown>): KanbanListColumnDropData | null {
+  if (data.kind !== 'kanban-list-column') {
+    return null;
+  }
+  const listId = data.listId;
+  if (typeof listId !== 'string') {
+    return null;
+  }
+  return { kind: 'kanban-list-column', listId };
 }
 
 export function payloadData(payload: { readonly data: Record<string, unknown> }): Record<string, unknown> {

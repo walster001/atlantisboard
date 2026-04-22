@@ -14,6 +14,9 @@ let offlineHandler: (() => void) | null = null;
  * Initialize offline sync service
  */
 export function initializeOfflineSync(): void {
+  // Hot reload / repeated bootstrap safety: avoid stacking listeners.
+  cleanupOfflineSync();
+
   // Create handler functions
   onlineHandler = handleOnline;
   offlineHandler = handleOffline;

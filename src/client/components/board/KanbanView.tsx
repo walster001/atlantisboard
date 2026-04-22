@@ -16,23 +16,12 @@ import { api } from '../../utils/api.js';
 import { transformList } from '../../utils/transform.js';
 import {
   getBoardListColumnWidthChrome,
-  getBoardListColumnWidthPx,
 } from '../../utils/boardListColumnWidth.js';
 import { SortableList } from './SortableList.js';
 import { BoardInlineListComposer } from './BoardInlineListComposer.js';
 import type { CardDropIndicatorTarget } from './VirtualizedCardList.js';
 import { getKanbanCardListMaxBodyPx } from './kanbanCardListLayout.js';
-import {
-  useKanbanDelegatedPointerDrag,
-  type KanbanDelegatedDragRefs,
-} from './useKanbanDelegatedPointerDrag.js';
-import {
-  insertIndexAgainstAnchor,
-  withRenumberedPositions,
-  moveCardBetweenListsInMap,
-  moveListToHoverSlot,
-  listOrderIdSignature,
-} from '../../store/kanbanDragPure.js';
+import { useKanbanPragmaticDnd } from './useKanbanPragmaticDnd.js';
 import {
   useBoardRuntimeStore,
   buildKanbanCardsMapFromRuntimeState,
@@ -41,7 +30,6 @@ import {
 import { resyncBoardRuntimeFromApi } from '../../store/boardBootstrap.js';
 import { persistDexieListPut, persistDexieCardPut } from '../../store/boardDexieCache.js';
 import { useBoardAssigneeDirectory } from '../../hooks/useBoardAssigneeDirectory.js';
-import { TwemojiPlainText } from '../common/TwemojiPlainText.js';
 import type { KanbanBoardEditCaps } from '../../hooks/useBoardPermissions.js';
 import './boardView.css';
 
@@ -54,90 +42,8 @@ const KANBAN_ADD_LIST_BUTTON_STYLES = {
   },
 } as const;
 
-/** Same-list anchor switching: keep current anchor until pointer exits this expanded zone. */
-const KANBAN_CARD_ANCHOR_SWITCH_BUFFER_PX = 20;
-/** Midline band: keep above/below intent stable while pointer crosses card center (reduces flicker). */
-const KANBAN_CARD_MIDLINE_HYSTERESIS_PX = 12;
-interface KanbanCardVerticalHint {
-  readonly listId: string;
-  readonly anchorCardId: string;
-  readonly intent: 'above' | 'below';
-}
-
 interface ListDropIndicatorTarget {
   readonly overListId: string;
-}
-
-function findKanbanCardElementByIdentity(
-  root: HTMLElement | null,
-  listId: string,
-  cardId: string,
-): HTMLElement | null {
-  if (root == null) {
-    return null;
-  }
-  const escapedListId = CSS.escape(listId);
-  const escapedCardId = CSS.escape(cardId);
-  return root.querySelector<HTMLElement>(
-    `[data-kanban-list-id="${escapedListId}"][data-kanban-card-id="${escapedCardId}"]`,
-  );
-}
-
-/**
- * Resolve insertion anchor from pointer position using rendered card bounds.
- * This mirrors the pragmatic board approach: one active drop location in a list at a time.
- */
-function resolveCardDropInListFromPointer(
-  cardsInList: readonly CardDB[],
-  sourceCardId: string,
-  listId: string,
-  clientY: number,
-  root: HTMLElement | null,
-  prev: KanbanCardVerticalHint | null,
-): { anchorCardId: string | null; columnIntent: 'empty-column' | 'above' | 'below' } {
-  const withoutSource = cardsInList.filter((c) => c.id !== sourceCardId);
-  if (withoutSource.length === 0) {
-    return { anchorCardId: null, columnIntent: 'empty-column' };
-  }
-
-  if (prev != null && prev.listId === listId) {
-    const prevAnchor = findKanbanCardElementByIdentity(root, prev.listId, prev.anchorCardId);
-    if (prevAnchor != null) {
-      const r = prevAnchor.getBoundingClientRect();
-      if (
-        clientY >= r.top - KANBAN_CARD_ANCHOR_SWITCH_BUFFER_PX &&
-        clientY <= r.bottom + KANBAN_CARD_ANCHOR_SWITCH_BUFFER_PX
-      ) {
-        return { anchorCardId: prev.anchorCardId, columnIntent: prev.intent };
-      }
-    }
-  }
-
-  let lastId: string | null = null;
-  for (const card of withoutSource) {
-    const el = findKanbanCardElementByIdentity(root, listId, card.id);
-    lastId = card.id;
-    if (el == null) {
-      continue;
-    }
-    const rect = el.getBoundingClientRect();
-    const midY = rect.top + rect.height / 2;
-    const h = KANBAN_CARD_MIDLINE_HYSTERESIS_PX;
-    const inMidBand = clientY >= midY - h && clientY <= midY + h;
-    if (
-      prev != null &&
-      prev.listId === listId &&
-      prev.anchorCardId === card.id &&
-      (prev.intent === 'above' || prev.intent === 'below') &&
-      inMidBand
-    ) {
-      return { anchorCardId: card.id, columnIntent: prev.intent };
-    }
-    if (clientY < midY) {
-      return { anchorCardId: card.id, columnIntent: 'above' };
-    }
-  }
-  return { anchorCardId: lastId, columnIntent: 'below' };
 }
 
 /** Layout intent only — boxWidth/boxHeight are display hints and must not trigger re-renders every tick. */
@@ -209,7 +115,12 @@ const KanbanListColumn = memo(function KanbanListColumn(props: KanbanListColumnP
   return <SortableList {...props} cards={cards} />;
 });
 
-export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }: KanbanViewProps) {
+export function KanbanView({
+  board,
+  onOpenCard,
+  boardCardPatchRef,
+  kanbanCaps,
+}: KanbanViewProps) {
   const { orderedListIds, listsById } = useBoardRuntimeStore(
     useShallow((s) => ({
       orderedListIds: s.orderedListIds,
@@ -241,28 +152,12 @@ export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }:
   /** One rAF per frame batches pointermove; avoids double-rAF latency on drop hints. */
   const cardDropIndicatorRafRef = useRef<number | null>(null);
 
-  const cancelPendingCardDropIndicatorRaf = (): void => {
+  const cancelPendingCardDropIndicatorRaf = useCallback((): void => {
     const id = cardDropIndicatorRafRef.current;
     if (id != null) {
       cancelAnimationFrame(id);
       cardDropIndicatorRafRef.current = null;
     }
-  };
-
-  const cardDragGeometryRafRef = useRef<number | null>(null);
-  const pendingCardDragGeometryRef = useRef<{
-    listId: string;
-    sourceCardId: string;
-    sourceListId: string;
-    clientY: number;
-  } | null>(null);
-
-  const cancelCardDragGeometryRaf = useCallback((): void => {
-    if (cardDragGeometryRafRef.current != null) {
-      cancelAnimationFrame(cardDragGeometryRafRef.current);
-      cardDragGeometryRafRef.current = null;
-    }
-    pendingCardDragGeometryRef.current = null;
   }, []);
 
   const setCardDropIndicatorIfChanged = useCallback((next: CardDropIndicatorTarget | null) => {
@@ -283,9 +178,6 @@ export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }:
 
   const queueCardDropIndicator = useCallback(
     (next: CardDropIndicatorTarget | null) => {
-      if (next == null) {
-        cancelCardDragGeometryRaf();
-      }
       pendingCardDropIndicatorRef.current = next;
       if (cardDropIndicatorRafRef.current != null) {
         return;
@@ -295,17 +187,16 @@ export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }:
         setCardDropIndicatorIfChanged(pendingCardDropIndicatorRef.current);
       });
     },
-    [setCardDropIndicatorIfChanged, cancelCardDragGeometryRaf],
+    [setCardDropIndicatorIfChanged, cancelPendingCardDropIndicatorRaf],
   );
 
   const flushCardDropIndicatorNow = useCallback(
     (next: CardDropIndicatorTarget | null) => {
       cancelPendingCardDropIndicatorRaf();
-      cancelCardDragGeometryRaf();
       pendingCardDropIndicatorRef.current = next;
       setCardDropIndicatorIfChanged(next);
     },
-    [setCardDropIndicatorIfChanged, cancelCardDragGeometryRaf],
+    [setCardDropIndicatorIfChanged],
   );
 
   /** True only while this view is mounted — never cleared by nested effects (lists/cards load). */
@@ -337,24 +228,21 @@ export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }:
         window.cancelAnimationFrame(rafId);
       }
     };
-  }, []);
+  }, [cancelPendingCardDropIndicatorRaf]);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dragMetricsRef = useRef({ width: 248, height: 88 });
-  const cardVerticalDropHintRef = useRef<KanbanCardVerticalHint | null>(null);
 
   useEffect(() => {
     viewAliveRef.current = true;
     return () => {
       cancelPendingCardDropIndicatorRaf();
-      cancelCardDragGeometryRaf();
       viewAliveRef.current = false;
       if (timeoutRef.current != null) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
     };
-  }, [cancelCardDragGeometryRaf]);
+  }, []);
 
   const reloadAllCardsFromDb = useCallback(async () => {
     if (!viewAliveRef.current || board == null) {
@@ -524,10 +412,6 @@ export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }:
     queueCardDropIndicator,
     flushCardDropIndicatorNow,
     viewAliveRef,
-    dragCaps: {
-      canDragKanbanCards: kanbanCaps.canDragKanbanCards,
-      canReorderLists: kanbanCaps.canReorderLists,
-    },
   });
   kanbanDropCtxRef.current = {
     board,
@@ -540,10 +424,6 @@ export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }:
     queueCardDropIndicator,
     flushCardDropIndicatorNow,
     viewAliveRef,
-    dragCaps: {
-      canDragKanbanCards: kanbanCaps.canDragKanbanCards,
-      canReorderLists: kanbanCaps.canReorderLists,
-    },
   };
 
   useEffect(() => {
@@ -589,55 +469,13 @@ export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }:
     };
   }, []);
 
-  const dragPreviewElRef = useRef<HTMLDivElement | null>(null);
-  const previewPositionRef = useRef({ x: 0, y: 0 });
   const suppressCardOpenClickRef = useRef(false);
-  const [floatPreviewCard, setFloatPreviewCard] = useState<CardDB | null>(null);
-
-  /** Order-independent — list reorder during drag must not re-run the delegated drag effect (would disarm window listeners). */
-  const kanbanDelegatedDragListIdentityKey = useMemo(() => {
-    const ids = lists.map((l) => l.id);
-    ids.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-    return ids.join(',');
-  }, [lists]);
-
-  useKanbanDelegatedPointerDrag(
-    {
-      columnsGroupRef,
-      dragPreviewElRef,
-      kanbanDropCtxRef,
-      cardVerticalDropHintRef,
-      dragMetricsRef,
-      listDropIndicatorRef,
-      pendingCardDragGeometryRef,
-      cardDragGeometryRafRef,
-      cardDropIndicatorRef,
-      suppressCardOpenClickRef,
-      previewPositionRef,
-    } as KanbanDelegatedDragRefs,
-    {
-      resolveCardDropInListFromPointer,
-      insertIndexAgainstAnchor,
-      withRenumberedPositions,
-      moveCardBetweenListsInMap,
-      moveListToHoverSlot,
-      listOrderIdSignature,
-    },
-    {
-      setDraggingCardId,
-      setDraggingListId,
-      setListDropIndicatorIfChanged,
-      cancelCardDragGeometryRaf,
-      cancelPendingCardDropIndicatorRaf,
-    },
-    setFloatPreviewCard,
-    [
-      board.id,
-      kanbanDelegatedDragListIdentityKey,
-      kanbanCaps.canDragKanbanCards,
-      kanbanCaps.canReorderLists,
-    ],
-  );
+  useKanbanPragmaticDnd({
+    kanbanDropCtxRef,
+    setDraggingCardId,
+    setDraggingListId,
+    setListDropIndicatorIfChanged,
+  });
 
   useEffect(() => {
     const root = columnsGroupRef.current?.closest('.board-page');
@@ -652,53 +490,13 @@ export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }:
   }, [draggingCardId, draggingListId]);
 
   return (
-    <>
-      <div
-        ref={dragPreviewElRef}
-        data-kanban-drag-preview="1"
-        className="kanban-drag-float-host"
-        style={{
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          zIndex: 6000,
-          pointerEvents: 'none',
-          visibility: floatPreviewCard != null ? 'visible' : 'hidden',
-          transform: 'translate(-12px, -8px)',
-        }}
-        aria-hidden
-      >
-        {floatPreviewCard != null ? (
-          <div
-            className="board-page__dnd-native-card-preview"
-            style={{ width: getBoardListColumnWidthPx(board) }}
-          >
-            {floatPreviewCard.labels.length > 0 ? (
-              <div className="board-page__dnd-native-card-preview-labels">
-                {floatPreviewCard.labels.map((label) => (
-                  <span
-                    key={label.id}
-                    className="board-page__dnd-native-card-preview-badge"
-                    style={{ backgroundColor: label.color }}
-                  >
-                    {label.name.toUpperCase()}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            <div className="board-page__dnd-native-card-preview-title">
-              <TwemojiPlainText text={floatPreviewCard.title} />
-            </div>
-          </div>
-        ) : null}
-      </div>
-      <Group
-        ref={columnsGroupRef}
-        gap="md"
-        className="board-page__columns"
-        wrap="nowrap"
-        align="flex-start"
-      >
+    <Group
+      ref={columnsGroupRef}
+      gap="md"
+      className="board-page__columns"
+      wrap="nowrap"
+      align="flex-start"
+    >
         {lists.map((list) => (
           <KanbanListColumn
             key={list.id}
@@ -760,7 +558,6 @@ export function KanbanView({ board, onOpenCard, boardCardPatchRef, kanbanCaps }:
             )}
           </Box>
         ) : null}
-      </Group>
-    </>
+    </Group>
   );
 }

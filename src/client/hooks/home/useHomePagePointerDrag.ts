@@ -273,7 +273,6 @@ export function useHomePagePointerDrag(
         if (live == null) {
           return;
         }
-        positionFloat(ev.clientX, ev.clientY);
 
         if (live.kind === 'active_board') {
           const targetWs = pickHomeTargetWorkspaceIdUnderPointer(ev.clientX, ev.clientY);
@@ -288,6 +287,12 @@ export function useHomePagePointerDrag(
           const idx = pickHomeWorkspaceRowInsertIndex(root, ev.clientY, live.workspaceId);
           actionsRef.current.setWorkspaceRowDrag({ workspaceId: live.workspaceId, insertIndex: idx });
         }
+
+        /**
+         * Keep style writes after all geometry reads/hit-tests in this frame.
+         * This reduces read-after-write pressure that can trigger forced sync layout.
+         */
+        positionFloat(ev.clientX, ev.clientY);
       });
     };
 

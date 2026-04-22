@@ -84,11 +84,8 @@ export function AttachmentSection({
       const isCurrentCover = isCurrentCoverAttachment(imageUrl);
       let nextCover = '';
       if (!isCurrentCover) {
-        const fresh = await api.getAttachmentUrl(attachmentId);
-        nextCover =
-          typeof fresh.url === 'string' && fresh.url.trim() !== ''
-            ? fresh.url
-            : imageUrl;
+        // Persist cover as app-origin API stream URL to stay reverse-proxy/CSP friendly.
+        nextCover = api.getAttachmentFileUrl(attachmentId);
       }
 
       const response = await api.updateCard(card.id, { cover: nextCover });
@@ -253,7 +250,7 @@ export function AttachmentSection({
   const linkPreviewUrl =
     linkPreviewAttachment == null || isPlaceholderCardAttachment(linkPreviewAttachment)
       ? ''
-      : (resolvedUrls[linkPreviewAttachment.id] ?? linkPreviewAttachment.url);
+      : (resolvedUrls[linkPreviewAttachment.id] ?? api.resolveAttachmentUrl(linkPreviewAttachment.url));
   const isLinkPreviewImage =
     linkPreviewAttachment != null && linkPreviewAttachment.type.startsWith('image/');
   const isLinkPreviewVideo =
@@ -385,7 +382,7 @@ export function AttachmentSection({
                       </Text>
                     ) : (
                     <Image
-                      src={resolvedUrls[attachment.id] ?? attachment.url}
+                      src={resolvedUrls[attachment.id] ?? api.resolveAttachmentUrl(attachment.url)}
                       alt={attachment.name}
                       width={160}
                       height={96}
@@ -415,7 +412,7 @@ export function AttachmentSection({
                       </Text>
                     ) : (
                     <video
-                      src={resolvedUrls[attachment.id] ?? attachment.url}
+                      src={resolvedUrls[attachment.id] ?? api.resolveAttachmentUrl(attachment.url)}
                       muted
                       playsInline
                       preload="metadata"
@@ -459,7 +456,7 @@ export function AttachmentSection({
                     </Text>
                   ) : (
                   <Anchor
-                    href={resolvedUrls[attachment.id] ?? attachment.url}
+                    href={resolvedUrls[attachment.id] ?? api.resolveAttachmentUrl(attachment.url)}
                     fw={500}
                     onClick={(event) => {
                       event.preventDefault();

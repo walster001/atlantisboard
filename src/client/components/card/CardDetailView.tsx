@@ -37,6 +37,20 @@ const CardDetailViewScrollSections = lazy(async () => {
   const m = await import('./CardDetailViewScrollSections.js');
   return { default: m.CardDetailViewScrollSections };
 });
+
+let cardDescriptionEditorModulePromise: Promise<typeof import('./CardDescriptionEditor.js')> | undefined;
+let cardDetailSectionsModulePromise:
+  | Promise<typeof import('./CardDetailViewScrollSections.js')>
+  | undefined;
+
+export function preloadCardDetailViewPanels(): void {
+  if (cardDescriptionEditorModulePromise === undefined) {
+    cardDescriptionEditorModulePromise = import('./CardDescriptionEditor.js');
+  }
+  if (cardDetailSectionsModulePromise === undefined) {
+    cardDetailSectionsModulePromise = import('./CardDetailViewScrollSections.js');
+  }
+}
 import { TwemojiPlainText } from '../common/TwemojiPlainText.js';
 import { CardDescriptionReadonly } from './CardDescriptionReadonly.js';
 import {
@@ -51,6 +65,33 @@ import {
   cardDetailSoftButtonStyles,
 } from './cardDetailSectionUi.js';
 import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
+
+const CARD_DETAIL_MODAL_STYLES = {
+  body: {
+    padding: 0,
+    backgroundColor: '#f8f9fb',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+    minHeight: 0,
+  },
+  content: {
+    width: '54vw',
+    minWidth: '44vw',
+    maxWidth: '62vw',
+    height: 'calc(100vh - 24px)',
+    minHeight: 'calc(100vh - 24px)',
+    maxHeight: 'calc(100vh - 24px)',
+    backgroundColor: '#f8f9fb',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  header: { backgroundColor: '#f8f9fb', alignItems: 'center' },
+  title: { flex: 1, marginRight: 'var(--mantine-spacing-sm)' },
+} as const;
+
 function toDatetimeLocalValue(d: Date): string {
   const x = new Date(d);
   const p = (n: number) => String(n).padStart(2, '0');
@@ -515,31 +556,7 @@ export function CardDetailView({
         centered
         closeButtonProps={{ 'aria-label': 'Close' }}
         withCloseButton
-        styles={{
-          body: {
-            padding: 0,
-            backgroundColor: '#f8f9fb',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            minHeight: 0,
-          },
-          content: {
-            width: '54vw',
-            minWidth: '44vw',
-            maxWidth: '62vw',
-            height: 'calc(100vh - 24px)',
-            minHeight: 'calc(100vh - 24px)',
-            maxHeight: 'calc(100vh - 24px)',
-            backgroundColor: '#f8f9fb',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-          },
-          header: { backgroundColor: '#f8f9fb', alignItems: 'center' },
-          title: { flex: 1, marginRight: 'var(--mantine-spacing-sm)' },
-        }}
+        styles={CARD_DETAIL_MODAL_STYLES}
       >
         <Stack gap={0} style={{ minHeight: 0, flex: 1 }}>
           <Divider color="gray.3" />

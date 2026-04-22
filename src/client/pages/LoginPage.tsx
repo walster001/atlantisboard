@@ -23,7 +23,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { login, refreshUser } = useAuthContext();
-  const { branding, appBranding, loginBrandingReady } = useAppBranding();
+  const { branding, loginBrandingReady } = useAppBranding();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -172,9 +172,6 @@ export default function LoginPage() {
       <BrandedLoginCard
         variant="live"
         branding={branding}
-        {...(appBranding.defaultUiFontFamily
-          ? { defaultUiFontFamily: appBranding.defaultUiFontFamily }
-          : {})}
         showLocalForm={emailPasswordAllowed}
         showGoogle={googleLoginAllowed}
         loginOptionsLoading={loginOptionsLoading}

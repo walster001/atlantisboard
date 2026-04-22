@@ -29,7 +29,6 @@ import {
 import { IconUpload, IconX } from '@tabler/icons-react';
 import { useDebouncedValue, useDisclosure } from '@mantine/hooks';
 import { api } from '../../utils/api.js';
-import { useAppBranding } from '../../contexts/AppBrandingContext.js';
 import { isAppHostedBrandingAssetUrl } from '../../../shared/brandingAssetUrl.js';
 import {
   dispatchLoginBrandingUpdated,
@@ -79,12 +78,10 @@ const LoginBrandingCardPreview = memo(function LoginBrandingCardPreview({
   branding,
   showLocalForm,
   showGoogle,
-  defaultUiFontFamily,
 }: {
   readonly branding: PublicLoginBranding;
   readonly showLocalForm: boolean;
   readonly showGoogle: boolean;
-  readonly defaultUiFontFamily?: string;
 }) {
   return (
     <BrandedLoginCard
@@ -92,7 +89,6 @@ const LoginBrandingCardPreview = memo(function LoginBrandingCardPreview({
       branding={branding}
       showLocalForm={showLocalForm}
       showGoogle={showGoogle}
-      {...(defaultUiFontFamily ? { defaultUiFontFamily } : {})}
     />
   );
 });
@@ -601,12 +597,10 @@ const LoginBrandingPreviewPane = memo(function LoginBrandingPreviewPane({
   previewBranding,
   showLocalForm,
   showGoogle,
-  defaultUiFontFamily,
 }: {
   readonly previewBranding: PublicLoginBranding;
   readonly showLocalForm: boolean;
   readonly showGoogle: boolean;
-  readonly defaultUiFontFamily?: string;
 }) {
   return (
     <Box>
@@ -628,7 +622,6 @@ const LoginBrandingPreviewPane = memo(function LoginBrandingPreviewPane({
           branding={previewBranding}
           showLocalForm={showLocalForm}
           showGoogle={showGoogle}
-          {...(defaultUiFontFamily ? { defaultUiFontFamily } : {})}
         />
       </Box>
     </Box>
@@ -655,7 +648,6 @@ function migrateLegacyBranding(
 }
 
 function LoginBrandingSectionInner() {
-  const { appBranding } = useAppBranding();
   const [draft, setDraft] = useState<LoginBrandingDraft>(DEFAULT_LOGIN_BRANDING_DRAFT);
   const [pageLoading, setPageLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1132,9 +1124,6 @@ function LoginBrandingSectionInner() {
             previewBranding={previewBranding}
             showLocalForm={loginPreviewOpts.emailPassword}
             showGoogle={loginPreviewOpts.googleLogin}
-            {...(appBranding.defaultUiFontFamily
-              ? { defaultUiFontFamily: appBranding.defaultUiFontFamily }
-              : {})}
           />
         </Box>
       </SimpleGrid>

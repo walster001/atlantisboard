@@ -325,6 +325,10 @@ class InlineButtonNodeView {
   private readonly inline: boolean;
   private readonly resizeLimits: { minWidth?: number; maxWidth?: number };
   private readonly elements: ResizeElements;
+  private onContainerClick: ((e: MouseEvent) => void) | null = null;
+  private onDocumentClick: ((e: MouseEvent) => void) | null = null;
+  private onInnerClick: ((e: MouseEvent) => void) | null = null;
+  private onInnerDblClick: ((e: MouseEvent) => void) | null = null;
 
   constructor(
     context: NodeViewContext,
@@ -488,7 +492,7 @@ class InlineButtonNodeView {
     if (!editorEditable) {
       return;
     }
-    this.elements.container.addEventListener('click', () => {
+    this.onContainerClick = () => {
       const pm = document.querySelector('.ProseMirror-focused');
       if (isMobile() && pm instanceof HTMLElement) {
         pm.blur();
@@ -508,9 +512,10 @@ class InlineButtonNodeView {
         this.elements.container.appendChild(rh.createResizeHandle(i));
       }
       this.elements.container.appendChild(this.createMoveHandle());
-    });
+    };
+    this.elements.container.addEventListener('click', this.onContainerClick);
 
-    document.addEventListener('click', (e) => {
+    this.onDocumentClick = (e) => {
       const target = e.target;
       if (!(target instanceof globalThis.Node)) {
         return;
@@ -520,10 +525,31 @@ class InlineButtonNodeView {
         clearContainerBorder(this.elements.container);
         this.removeResizeElements();
       }
-    });
+    };
+    document.addEventListener('click', this.onDocumentClick);
   }
 
-  initialize(): { dom: HTMLElement; update?: (node: PMNode) => boolean } {
+  private teardownListeners(): void {
+    if (this.onContainerClick != null) {
+      this.elements.container.removeEventListener('click', this.onContainerClick);
+      this.onContainerClick = null;
+    }
+    if (this.onDocumentClick != null) {
+      document.removeEventListener('click', this.onDocumentClick);
+      this.onDocumentClick = null;
+    }
+    if (this.onInnerClick != null) {
+      this.elements.inner.removeEventListener('click', this.onInnerClick);
+      this.onInnerClick = null;
+    }
+    if (this.onInnerDblClick != null) {
+      this.elements.inner.removeEventListener('dblclick', this.onInnerDblClick);
+      this.onInnerDblClick = null;
+    }
+    this.removeResizeElements();
+  }
+
+  initialize(): { dom: HTMLElement; update?: (node: PMNode) => boolean; destroy?: () => void } {
     const attrs = this.context.node.attrs as Record<string, unknown>;
     const ws =
       typeof attrs.wrapperStyle === 'string' && attrs.wrapperStyle.trim() !== ''
@@ -544,12 +570,13 @@ class InlineButtonNodeView {
     this.applyResizeLimits();
 
     const editable = this.context.editor.isEditable;
-    this.elements.inner.addEventListener('click', (e) => {
+    this.onInnerClick = (e) => {
       if (editable) {
         e.preventDefault();
       }
-    });
-    this.elements.inner.addEventListener('dblclick', (e) => {
+    };
+    this.elements.inner.addEventListener('click', this.onInnerClick);
+    this.onInnerDblClick = (e) => {
       if (!editable) {
         return;
       }
@@ -563,10 +590,16 @@ class InlineButtonNodeView {
       if (p !== undefined) {
         this.context.editor.storage.inlineButton?.openEditModal?.(p);
       }
-    });
+    };
+    this.elements.inner.addEventListener('dblclick', this.onInnerDblClick);
 
     if (!editable) {
-      return { dom: this.elements.wrapper };
+      return {
+        dom: this.elements.wrapper,
+        destroy: () => {
+          this.teardownListeners();
+        },
+      };
     }
     this.setupContainerClick(true);
     const self = this;
@@ -591,6 +624,9 @@ class InlineButtonNodeView {
         self.elements.wrapper.setAttribute('style', buildWrapperStyleWithOffsets(baseWs, off.x, off.y));
         self.applyResizeLimits();
         return true;
+      },
+      destroy: () => {
+        self.teardownListeners();
       },
     };
   }

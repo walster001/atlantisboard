@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Modal, Loader, Box, Text, Button, Stack } from '@mantine/core';
-import { useCardDetailLoader } from '../../hooks/useCardDetailLoader.js';
+import { prefetchCardDetail, useCardDetailLoader } from '../../hooks/useCardDetailLoader.js';
 import type { BoardDB, CardDB } from '../../store/database.js';
 
 let cardDetailViewModulePromise: Promise<typeof import('./CardDetailView.js')> | undefined;
@@ -14,6 +14,29 @@ function loadCardDetailViewModule(): Promise<typeof import('./CardDetailView.js'
 
 export function preloadCardDetailView(): void {
   void loadCardDetailViewModule();
+}
+
+function scheduleLowPriority(task: () => void): void {
+  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    (window as Window & { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback(() => {
+      task();
+    });
+    return;
+  }
+  globalThis.setTimeout(task, 120);
+}
+
+export function primeCardDetailWindow(cardId: string, seed?: CardDB): void {
+  // Fast path: warm shell + local seed immediately on click.
+  preloadCardDetailView();
+  prefetchCardDetail(cardId, seed);
+
+  // Heavier panel bundles are non-critical for first paint; load in low-priority batch.
+  scheduleLowPriority(() => {
+    void loadCardDetailViewModule().then((m) => {
+      m.preloadCardDetailViewPanels();
+    });
+  });
 }
 
 const CardDetailViewLazy = lazy(async () => {

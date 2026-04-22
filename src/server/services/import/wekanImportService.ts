@@ -422,6 +422,79 @@ function sanitizeImportedDescriptionText(value: string): string {
 const LEGACY_INLINE_BUTTON_RE =
   /<span[^>]*display\s*:\s*inline-flex[^>]*>\s*<img[^>]*src=['"]([^'"]+)['"][^>]*>\s*<a[^>]*href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>\s*<\/span>/gi;
 
+function parseInlineStyleDeclarations(styleAttr: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const rawDecl of styleAttr.split(';')) {
+    const idx = rawDecl.indexOf(':');
+    if (idx <= 0) {
+      continue;
+    }
+    const key = rawDecl.slice(0, idx).trim().toLowerCase();
+    const value = rawDecl.slice(idx + 1).trim();
+    if (key !== '' && value !== '') {
+      out.set(key, value);
+    }
+  }
+  return out;
+}
+
+function extractStyleAttributeFromOpeningTag(openingTag: string): string | null {
+  const styleMatch = /\sstyle\s*=\s*(['"])([\s\S]*?)\1/i.exec(openingTag);
+  if (styleMatch == null) {
+    return null;
+  }
+  const styleRaw = decodeHtmlEntities((styleMatch[2] ?? '').trim());
+  return styleRaw === '' ? null : styleRaw;
+}
+
+function extractInlineStyleDeclarationsFromTag(
+  html: string,
+  tagName: 'span' | 'a',
+): Map<string, string> {
+  const openingTagMatch = new RegExp(`<${tagName}\\b[^>]*>`, 'i').exec(html);
+  if (openingTagMatch == null) {
+    return new Map<string, string>();
+  }
+  const style = extractStyleAttributeFromOpeningTag(openingTagMatch[0]);
+  if (style == null) {
+    return new Map<string, string>();
+  }
+  return parseInlineStyleDeclarations(style);
+}
+
+function normalizeImportedInlineColor(value: string | undefined): string | null {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (raw === '') {
+    return null;
+  }
+  // Keep this intentionally strict; these values are persisted and rendered inline in Tiptap attrs.
+  if (!/^[#(),.%/\-\s0-9a-zA-Z]+$/.test(raw)) {
+    return null;
+  }
+  return raw.slice(0, 80);
+}
+
+function extractInlineButtonColorsFromLegacySpan(fullHtml: string): {
+  textColor?: string;
+  bgColor?: string;
+} {
+  const spanDecls = extractInlineStyleDeclarationsFromTag(fullHtml, 'span');
+  const anchorDecls = extractInlineStyleDeclarationsFromTag(fullHtml, 'a');
+  // Fidelity: Wekan often stores the button text color on <a>, while background lives on <span>.
+  const textColor =
+    normalizeImportedInlineColor(anchorDecls.get('color')) ??
+    normalizeImportedInlineColor(spanDecls.get('color'));
+  const bgColor =
+    normalizeImportedInlineColor(spanDecls.get('background-color')) ??
+    normalizeImportedInlineColor(spanDecls.get('background')) ??
+    normalizeImportedInlineColor(anchorDecls.get('background-color')) ??
+    normalizeImportedInlineColor(anchorDecls.get('background'));
+  return {
+    ...(textColor != null ? { textColor } : {}),
+    ...(bgColor != null ? { bgColor } : {}),
+  };
+}
+
 function plainTextParagraphNodes(raw: string): Array<Record<string, unknown>> {
   const text = raw.trim();
   if (text === '') {
@@ -498,8 +571,10 @@ function buildWekanDescriptionDocNodes(
     if (inlineButton != null) {
       const replacement = replacementByIconSrc.get(iconSrc);
       const localized = localizedByIconSrc.get(iconSrc);
+      const colors = extractInlineButtonColorsFromLegacySpan(full);
       const attrs = {
         ...inlineButton.attrs,
+        ...colors,
         ...(replacement != null
           ? { iconSrc: replacement }
           : localized != null

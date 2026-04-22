@@ -15,7 +15,6 @@ import {
   Title,
 } from '@mantine/core';
 import { type PublicLoginBranding } from '../../../shared/types/loginBranding.js';
-import { useBrandingWebFonts } from '../../hooks/useBrandingWebFonts.js';
 
 export function GoogleMark(): ReactElement {
   return (
@@ -60,8 +59,6 @@ export interface BrandedLoginCardProps {
   readonly onSignUpClick?: () => void;
   /** Opens forgot-password modal on live login when email/password sign-in is enabled. */
   readonly onForgotPasswordClick?: () => void;
-  /** Stored app default UI font (same shape as AdminConfig); injects @font-face with login fonts. */
-  readonly defaultUiFontFamily?: string;
 }
 
 export function BrandedLoginCard({
@@ -78,14 +75,7 @@ export function BrandedLoginCard({
   onGoogleClick,
   onSignUpClick,
   onForgotPasswordClick,
-  defaultUiFontFamily,
 }: BrandedLoginCardProps): ReactElement {
-  useBrandingWebFonts(
-    branding.appNameFontFamily,
-    branding.taglineFontFamily,
-    defaultUiFontFamily
-  );
-
   const pageBgStyle: CSSProperties = branding.backgroundEnabled
     ? branding.backgroundType === 'gradient'
       ? {
@@ -146,7 +136,8 @@ export function BrandedLoginCard({
           fw={700}
           {...(isPreview ? {} : { mb: 'xs' })}
           style={{
-            fontFamily: branding.appNameFontFamily,
+            fontFamily:
+              'var(--kb-branding-app-name-font-family, var(--kb-app-ui-font-family))',
             fontSize: branding.appNameFontSizePx,
             color: branding.appNameColor,
             lineHeight: 1.15,
@@ -170,7 +161,8 @@ export function BrandedLoginCard({
         <Text
           size="sm"
           style={{
-            fontFamily: branding.taglineFontFamily,
+            fontFamily:
+              'var(--kb-branding-tagline-font-family, var(--kb-app-ui-font-family))',
             fontSize: branding.taglineFontSizePx,
             color: branding.taglineColor,
             lineHeight: 1.4,

@@ -36,6 +36,10 @@ import { VirtualizedCardList, type CardDropIndicatorTarget } from './Virtualized
 import { BoardInlineCardComposer } from './BoardInlineCardComposer.js';
 import { ListColorPickerModal } from '../lists/ListColorPickerModal.js';
 import type { KanbanBoardEditCaps } from '../../hooks/useBoardPermissions.js';
+import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+import { PDND_KANBAN_LIST, PDND_KANBAN_LIST_COLUMN } from '../../dnd/pragmatic/kanbanData.js';
 import './boardView.css';
 
 interface SortableListProps {
@@ -123,6 +127,8 @@ function SortableListInner({
   const [renameCardLoading, setRenameCardLoading] = useState(false);
   const [cardMenuCardId, setCardMenuCardId] = useState<string | null>(null);
   const cardListDelegationRef = useRef<HTMLDivElement | null>(null);
+  const listTitleDragRef = useRef<HTMLDivElement | null>(null);
+  const listColumnDropRef = useRef<HTMLDivElement | null>(null);
   const cardMenuAnchorRectRef = useRef<DOMRect | null>(null);
   const cardMenuFloatingTargetRef = useRef<HTMLButtonElement | null>(null);
 
@@ -142,28 +148,35 @@ function SortableListInner({
     if (floater == null) {
       return;
     }
+    const applyFloaterStyles = (styles: Readonly<Record<string, string>>): void => {
+      Object.assign(floater.style, styles);
+    };
     if (openCardMenuCardId == null) {
-      floater.style.position = 'fixed';
-      floater.style.left = '-9999px';
-      floater.style.top = '0';
-      floater.style.width = '1px';
-      floater.style.height = '1px';
-      floater.style.opacity = '0';
-      floater.style.pointerEvents = 'none';
+      applyFloaterStyles({
+        position: 'fixed',
+        left: '-9999px',
+        top: '0',
+        width: '1px',
+        height: '1px',
+        opacity: '0',
+        pointerEvents: 'none',
+      });
       return;
     }
     const rect = cardMenuAnchorRectRef.current;
     if (rect == null) {
       return;
     }
-    floater.style.position = 'fixed';
-    floater.style.left = `${rect.right - 1}px`;
-    floater.style.top = `${rect.bottom}px`;
-    floater.style.width = '1px';
-    floater.style.height = '1px';
-    floater.style.opacity = '0';
-    floater.style.pointerEvents = 'none';
-    floater.style.zIndex = '500';
+    applyFloaterStyles({
+      position: 'fixed',
+      left: `${rect.right - 1}px`,
+      top: `${rect.bottom}px`,
+      width: '1px',
+      height: '1px',
+      opacity: '0',
+      pointerEvents: 'none',
+      zIndex: '500',
+    });
   }, [openCardMenuCardId]);
 
   useEffect(() => {
@@ -201,6 +214,40 @@ function SortableListInner({
       root.removeEventListener('click', onClickCapture, true);
     };
   }, [list.id, kanbanCaps.canCardKanbanMenu]);
+
+  useEffect(() => {
+    const columnEl = listColumnDropRef.current;
+    const titleEl = listTitleDragRef.current;
+    if (columnEl == null || titleEl == null) {
+      return undefined;
+    }
+    return combine(
+      dropTargetForElements({
+        element: columnEl,
+        getData: ({ element, input }) =>
+          attachClosestEdge(
+            {
+              pdnd: PDND_KANBAN_LIST_COLUMN,
+              kind: 'kanban-list-column',
+              listId: list.id,
+            } as const,
+            { element, input, allowedEdges: ['left', 'right'] },
+          ),
+      }),
+      kanbanCaps.canReorderLists
+        ? draggable({
+            element: titleEl,
+            getInitialData: () =>
+              ({
+                pdnd: PDND_KANBAN_LIST,
+                kind: 'kanban-list',
+                listId: list.id,
+                title: list.name,
+              }) as const,
+          })
+        : () => {},
+    );
+  }, [list.id, list.name, kanbanCaps.canReorderLists]);
 
   const closeCardComposer = useCallback((): void => {
     setCardComposerOpen(false);
@@ -559,12 +606,14 @@ function SortableListInner({
 
   return (
     <Box
+      ref={listColumnDropRef}
       className={columnClassName}
       style={columnBoxStyle}
       data-kanban-list-id={list.id}
     >
       <Group justify="space-between" align="flex-start" mb="xs" wrap="nowrap" gap="xs">
         <Box
+          ref={listTitleDragRef}
           className="board-column__title-row"
           style={{ flex: 1, minWidth: 0, touchAction: 'none' }}
         >

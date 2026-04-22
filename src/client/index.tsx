@@ -9,22 +9,18 @@ import { initializeOfflineSync } from './services/offlineSync.js';
 
 // Register service worker for PWA with update detection
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+  const onWindowLoad = (): void => {
     navigator.serviceWorker
       .register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => {
-        void registration;
-
         // Check for updates every hour
         const updateInterval = setInterval(() => {
-          registration.update();
+          void registration.update();
         }, 60 * 60 * 1000);
-        
-        // Store interval for cleanup (though it's unlikely to be needed in this context)
-        // The interval will be cleared when the page unloads
-        window.addEventListener('beforeunload', () => {
+        const onBeforeUnload = (): void => {
           clearInterval(updateInterval);
-        });
+        };
+        window.addEventListener('beforeunload', onBeforeUnload, { once: true });
 
         // Listen for service worker updates
         registration.addEventListener('updatefound', () => {
@@ -51,11 +47,20 @@ if ('serviceWorker' in navigator) {
       .catch(() => {
         /* registration optional */
       });
-  });
+  };
+  if (document.readyState === 'complete') {
+    onWindowLoad();
+  } else {
+    window.addEventListener('load', onWindowLoad, { once: true });
+  }
 }
 
 // Show update prompt
 function showUpdatePrompt(): void {
+  const existing = document.getElementById('sw-update-banner');
+  if (existing != null) {
+    return;
+  }
   // Create update banner
   const banner = document.createElement('div');
   banner.id = 'sw-update-banner';
@@ -75,12 +80,12 @@ function showUpdatePrompt(): void {
       navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
     }
     banner.remove();
-  });
+  }, { once: true });
 
   // Handle dismiss button click
   document.getElementById('sw-update-dismiss')?.addEventListener('click', () => {
     banner.remove();
-  });
+  }, { once: true });
 }
 
 // Initialize offline sync

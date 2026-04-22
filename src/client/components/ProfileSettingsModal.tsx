@@ -95,6 +95,12 @@ export function ProfileSettingsModal({ opened, onClose }: ProfileSettingsModalPr
     setSaveError(null);
   }, [opened, loadFromUserAndServer]);
 
+  useEffect(() => {
+    return () => {
+      revokePreviewUrl(avatarPreviewUrl);
+    };
+  }, [avatarPreviewUrl]);
+
   const handlePickAvatar = (file: File | null): void => {
     setSaveError(null);
     setAvatarPreviewUrl((prev) => {

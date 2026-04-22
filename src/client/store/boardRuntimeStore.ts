@@ -263,6 +263,13 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
 
   applyCardsReorderedInList: (listId, orderedCardIds) => {
     set((s) => {
+      const prevOrdered = s.cardIdsByListId[listId] ?? [];
+      const sameOrder =
+        prevOrdered.length === orderedCardIds.length &&
+        prevOrdered.every((id, i) => id === orderedCardIds[i]);
+      if (sameOrder) {
+        return s;
+      }
       const cardsById = { ...s.cardsById };
       for (let i = 0; i < orderedCardIds.length; i += 1) {
         const id = orderedCardIds[i];

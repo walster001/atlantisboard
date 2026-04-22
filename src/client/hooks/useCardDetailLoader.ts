@@ -4,6 +4,39 @@ import { db, type CardDB } from '../store/database.js';
 import { api } from '../utils/api.js';
 import { normalizeCardFromApi } from '../utils/transform.js';
 
+const cardDetailWarmCache = new Map<string, CardDB>();
+const inFlightPrefetches = new Map<string, Promise<void>>();
+
+export function prefetchCardDetail(cardId: string, seed?: CardDB): void {
+  if (cardId.trim() === '') {
+    return;
+  }
+  if (seed != null && seed.id === cardId) {
+    cardDetailWarmCache.set(cardId, seed);
+  }
+  if (inFlightPrefetches.has(cardId)) {
+    return;
+  }
+  const p = (async (): Promise<void> => {
+    try {
+      const response = await api.getCard(cardId);
+      const raw = (response as { card: unknown }).card;
+      const normalized = normalizeCardFromApi(raw, cardId);
+      cardDetailWarmCache.set(cardId, normalized);
+      try {
+        await db.cards.put(normalized);
+      } catch {
+        /* cache write best effort */
+      }
+    } catch {
+      /* prefetch best effort */
+    } finally {
+      inFlightPrefetches.delete(cardId);
+    }
+  })();
+  inFlightPrefetches.set(cardId, p);
+}
+
 /**
  * Loads a single card for detail UI (Dexie first for fast paint, then GET /cards/:id).
  * Relies on Dexie `liveQuery` for realtime updates (socket handlers write to `db.cards`).
@@ -17,9 +50,19 @@ export function useCardDetailLoader(cardId: string | null, initialCard?: CardDB)
   initialCardRef.current = initialCard;
 
   const [card, setCard] = useState<CardDB | null>(() =>
-    cardId != null && initialCard?.id === cardId ? initialCard : null,
+    cardId != null && initialCard?.id === cardId
+      ? initialCard
+      : cardId != null
+        ? (cardDetailWarmCache.get(cardId) ?? null)
+        : null,
   );
-  const [loading, setLoading] = useState(() => !(cardId != null && initialCard?.id === cardId));
+  const [loading, setLoading] = useState(
+    () =>
+      !(
+        (cardId != null && initialCard?.id === cardId) ||
+        (cardId != null && cardDetailWarmCache.has(cardId))
+      ),
+  );
   const isMountedRef = useRef(true);
   const sawRowRef = useRef(false);
   const initialLoadFinishedRef = useRef(false);
@@ -44,8 +87,15 @@ export function useCardDetailLoader(cardId: string | null, initialCard?: CardDB)
       setCard(init);
       setLoading(false);
     } else {
-      setCard(null);
-      setLoading(true);
+      const warmed = cardDetailWarmCache.get(cardId) ?? null;
+      if (warmed != null) {
+        sawRowRef.current = true;
+        setCard(warmed);
+        setLoading(false);
+      } else {
+        setCard(null);
+        setLoading(true);
+      }
     }
 
     const loadCard = async (): Promise<void> => {

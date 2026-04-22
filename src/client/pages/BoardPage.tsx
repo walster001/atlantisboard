@@ -14,7 +14,7 @@ const KanbanView = lazy(async () => {
 });
 import {
   BoardCardDetailOverlay,
-  preloadCardDetailView,
+  primeCardDetailWindow,
 } from '../components/card/BoardCardDetailOverlay.js';
 import { BoardSettingsModal } from '../components/board/BoardSettingsModal.js';
 import { BoardInvitesModal } from '../components/board/BoardInvitesModal.js';
@@ -177,7 +177,7 @@ export default function BoardPage() {
 
   const handleOpenCard = useCallback(
     (card: CardDB) => {
-      preloadCardDetailView();
+      primeCardDetailWindow(card.id, card);
       setOverlayInitialCard(card);
       setSearchParams(
         (prev) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, isPublicPath } from '../utils/api.js';
 import { socketClient } from '../utils/socket.js';
 import { db, type UserDB } from '../store/database.js';
@@ -33,12 +33,17 @@ export function useAuth() {
     loading: true,
     authenticated: false,
   });
+  const aliveRef = useRef(true);
+  const loadGenRef = useRef(0);
 
   const loadUser = useCallback(async () => {
+    const runGen = ++loadGenRef.current;
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        setAuthState({ user: null, loading: false, authenticated: false });
+        if (aliveRef.current && loadGenRef.current === runGen) {
+          setAuthState({ user: null, loading: false, authenticated: false });
+        }
         return;
       }
 
@@ -70,7 +75,9 @@ export function useAuth() {
       // Connect socket with token
       socketClient.connect(token);
 
-      setAuthState({ user, loading: false, authenticated: true });
+      if (aliveRef.current && loadGenRef.current === runGen) {
+        setAuthState({ user, loading: false, authenticated: true });
+      }
     } catch (error) {
       console.error('Error loading user:', error);
       // Clear token and user data
@@ -79,7 +86,9 @@ export function useAuth() {
         // Ignore IndexedDB errors
       });
       socketClient.disconnect();
-      setAuthState({ user: null, loading: false, authenticated: false });
+      if (aliveRef.current && loadGenRef.current === runGen) {
+        setAuthState({ user: null, loading: false, authenticated: false });
+      }
       if (!isPublicPath(window.location.pathname)) {
         window.location.href = '/login';
       }
@@ -87,7 +96,12 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
+    aliveRef.current = true;
     loadUser();
+    return () => {
+      aliveRef.current = false;
+      loadGenRef.current += 1;
+    };
   }, [loadUser]);
 
   const login = useCallback(async (email: string, password: string): Promise<void> => {

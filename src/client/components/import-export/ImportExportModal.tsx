@@ -221,6 +221,20 @@ export function ImportExportModal({
   onClose,
   onImportComplete,
 }: ImportExportModalProps) {
+  const PANEL_SCROLL_AREA_STYLE = {
+    flex: '1 1 0%',
+    minHeight: 0,
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    paddingRight: 4,
+  } as const;
+  const PANEL_FOOTER_STYLE = {
+    borderTop: '1px solid var(--mantine-color-gray-3)',
+    paddingTop: 'var(--mantine-spacing-sm)',
+    marginTop: 'var(--mantine-spacing-sm)',
+    backgroundColor: 'var(--mantine-color-body)',
+    flexShrink: 0,
+  } as const;
   const [activeTab, setActiveTab] = useState<TabType>('import');
   const [importType, setImportType] = useState<ImportType>('wekan');
   const [file, setFile] = useState<File | null>(null);
@@ -351,6 +365,7 @@ export function ImportExportModal({
   const handleImport = async () => {
     if (!file || !importType) return;
 
+    setActiveTab('import');
     setLoading(true);
     setError(null);
     setImportProgress(0);
@@ -629,6 +644,7 @@ export function ImportExportModal({
         value={activeTab}
         onChange={(value) => setActiveTab((value || 'import') as TabType)}
         keepMounted={false}
+        style={{ display: 'flex', flexDirection: 'column', minHeight: 0, maxHeight: '76vh' }}
       >
         <Tabs.List mb="md">
           <Tabs.Tab value="import">Import</Tabs.Tab>
@@ -645,8 +661,9 @@ export function ImportExportModal({
           </Alert>
         ) : null}
 
-        <Tabs.Panel value="import">
-          <Stack gap="lg">
+        <Tabs.Panel value="import" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Stack gap="lg" style={{ minHeight: 0, flex: 1 }}>
+            <Box style={PANEL_SCROLL_AREA_STYLE}>
             <Select
               label="Import Source"
               placeholder="Select import source…"
@@ -804,7 +821,8 @@ export function ImportExportModal({
               </>
             ) : null}
 
-            <Group justify="flex-end" gap="sm" mt="md">
+            </Box>
+            <Group justify="flex-end" gap="sm" style={PANEL_FOOTER_STYLE}>
               <Button
                 variant="default"
                 radius="md"
@@ -836,8 +854,9 @@ export function ImportExportModal({
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel value="replace-buttons">
-          <Stack gap="md">
+        <Tabs.Panel value="replace-buttons" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Stack gap="md" style={{ minHeight: 0, flex: 1 }}>
+            <Box style={PANEL_SCROLL_AREA_STYLE}>
             <Suspense fallback={<Loader size="sm" />}>
               <ReplaceButtonsTab
                 buttons={wekanButtons}
@@ -845,7 +864,8 @@ export function ImportExportModal({
                 onChangeReplacements={(next) => setInlineButtonReplacements([...next])}
               />
             </Suspense>
-            <Group justify="flex-end" gap="sm" mt="md">
+            </Box>
+            <Group justify="flex-end" gap="sm" style={PANEL_FOOTER_STYLE}>
               <Button
                 variant="default"
                 radius="md"
@@ -876,8 +896,9 @@ export function ImportExportModal({
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel value="import-user-management">
-          <Stack gap="md">
+        <Tabs.Panel value="import-user-management" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Stack gap="md" style={{ minHeight: 0, flex: 1 }}>
+            <Box style={PANEL_SCROLL_AREA_STYLE}>
             <Suspense fallback={<Loader size="sm" />}>
               <ImportUserManagementTab
                 users={preflightUsers}
@@ -887,7 +908,8 @@ export function ImportExportModal({
                 onChangePolicy={setUnmappedUserPolicy}
               />
             </Suspense>
-            <Group justify="space-between" gap="sm" mt="md">
+            </Box>
+            <Group justify="space-between" gap="sm" style={PANEL_FOOTER_STYLE}>
               <Text size="xs" c={unresolvedUsersCount > 0 ? 'orange' : 'green'}>
                 {unresolvedUsersCount} unresolved user(s); policy: {unmappedUserPolicy}
               </Text>
@@ -914,8 +936,9 @@ export function ImportExportModal({
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel value="export">
-          <Stack gap="md">
+        <Tabs.Panel value="export" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Stack gap="md" style={{ minHeight: 0, flex: 1 }}>
+            <Box style={PANEL_SCROLL_AREA_STYLE}>
             <Select
               label="Export Format"
               value={exportFormat}
@@ -962,7 +985,8 @@ export function ImportExportModal({
               </Stack>
             ) : null}
 
-            <Group justify="flex-end" gap="sm" mt="xl">
+            </Box>
+            <Group justify="flex-end" gap="sm" style={PANEL_FOOTER_STYLE}>
               <Button variant="default" radius="md" onClick={onClose} disabled={loading}>
                 Cancel
               </Button>

@@ -32,6 +32,7 @@ import './attachmentSection.css';
 
 interface AttachmentSectionProps {
   card: CardDB;
+  canEdit?: boolean;
   onCardUpdate: (card: CardDB) => void;
   /**
    * Runs before `deleteCardAttachment` (e.g. strip description + clear cover when the file is both
@@ -42,6 +43,7 @@ interface AttachmentSectionProps {
 
 export function AttachmentSection({
   card,
+  canEdit = true,
   onCardUpdate,
   onBeforeDeleteAttachment,
 }: AttachmentSectionProps) {
@@ -146,6 +148,9 @@ export function AttachmentSection({
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canEdit) {
+      return;
+    }
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -193,6 +198,9 @@ export function AttachmentSection({
   };
 
   const handleDelete = (attachmentId: string) => {
+    if (!canEdit) {
+      return;
+    }
     modals.openConfirmModal({
       title: 'Delete attachment',
       children: <Text size="sm">Delete this attachment?</Text>,
@@ -305,24 +313,28 @@ export function AttachmentSection({
           <IconPaperclip size={18} stroke={1.5} color={CARD_DETAIL_SECTION_ICON_COLOR} aria-hidden />
           <Text {...cardDetailSectionTitleProps}>Attachments</Text>
         </Group>
-        <input
-          ref={fileInputRef}
-          type="file"
-          style={{ display: 'none' }}
-          multiple
-          onChange={handleFileSelect}
-          disabled={uploading}
-        />
-        <Button
-          size="sm"
-          variant="default"
-          leftSection={<IconUpload size={16} />}
-          styles={cardDetailSoftButtonStyles}
-          onClick={() => (fileInputRef.current as HTMLInputElement)?.click()}
-          disabled={uploading}
-        >
-          {uploading ? `Uploading... ${uploadProgress}%` : 'Add'}
-        </Button>
+        {canEdit ? (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              multiple
+              onChange={handleFileSelect}
+              disabled={uploading}
+            />
+            <Button
+              size="sm"
+              variant="default"
+              leftSection={<IconUpload size={16} />}
+              styles={cardDetailSoftButtonStyles}
+              onClick={() => (fileInputRef.current as HTMLInputElement)?.click()}
+              disabled={uploading}
+            >
+              {uploading ? `Uploading... ${uploadProgress}%` : 'Add'}
+            </Button>
+          </>
+        ) : null}
       </Group>
 
       {error && (
@@ -480,7 +492,7 @@ export function AttachmentSection({
                       Original filename (for mapping): {mappingName}
                     </Text>
                   ) : null}
-                  {attachment.type.startsWith('image/') && !isPh ? (
+                  {canEdit && attachment.type.startsWith('image/') && !isPh ? (
                     <Button
                       size="xs"
                       variant="light"
@@ -493,6 +505,7 @@ export function AttachmentSection({
                   ) : null}
                 </Box>
               </Group>
+              {canEdit ? (
               <ActionIcon
                 size="sm"
                 variant="subtle"
@@ -501,6 +514,7 @@ export function AttachmentSection({
               >
                 <IconTrash size={16} />
               </ActionIcon>
+              ) : null}
             </Group>
             );
           })}

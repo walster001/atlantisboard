@@ -27,10 +27,11 @@ interface Reminder {
 
 interface ReminderSectionProps {
   card: CardDB;
+  canEdit?: boolean;
   onCardUpdate: (card: CardDB) => void;
 }
 
-export function ReminderSection({ card, onCardUpdate }: ReminderSectionProps) {
+export function ReminderSection({ card, canEdit = true, onCardUpdate }: ReminderSectionProps) {
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,6 +39,9 @@ export function ReminderSection({ card, onCardUpdate }: ReminderSectionProps) {
   const activeReminders = (card.reminders || []).filter((r) => !r.dismissed);
 
   const handleDelete = (reminderId: string) => {
+    if (!canEdit) {
+      return;
+    }
     modals.openConfirmModal({
       title: 'Delete reminder',
       children: <Text size="sm">Delete this reminder?</Text>,
@@ -65,6 +69,9 @@ export function ReminderSection({ card, onCardUpdate }: ReminderSectionProps) {
   };
 
   const handleDismiss = async (reminderId: string) => {
+    if (!canEdit) {
+      return;
+    }
     setLoading(true);
     try {
       await api.dismissCardReminder(card.id, reminderId);
@@ -84,11 +91,17 @@ export function ReminderSection({ card, onCardUpdate }: ReminderSectionProps) {
   };
 
   const handleEdit = (reminder: Reminder) => {
+    if (!canEdit) {
+      return;
+    }
     setEditingReminder(reminder);
     setShowReminderModal(true);
   };
 
   const handleCreate = () => {
+    if (!canEdit) {
+      return;
+    }
     if (!card.dueDate) {
       notifications.show({
         color: 'yellow',
@@ -124,7 +137,7 @@ export function ReminderSection({ card, onCardUpdate }: ReminderSectionProps) {
           <IconBell size={18} stroke={1.5} color={CARD_DETAIL_SECTION_ICON_COLOR} aria-hidden />
           <Text {...cardDetailSectionTitleProps}>Reminders</Text>
         </Group>
-        {card.dueDate && activeReminders.length < 3 && (
+        {canEdit && card.dueDate && activeReminders.length < 3 && (
           <Button
             size="sm"
             variant="default"
@@ -170,6 +183,7 @@ export function ReminderSection({ card, onCardUpdate }: ReminderSectionProps) {
                   {reminder.sent && ' • Sent'}
                 </Text>
               </Box>
+              {canEdit ? (
               <Group gap="xs">
                 <Button
                   size="xs"
@@ -197,12 +211,13 @@ export function ReminderSection({ card, onCardUpdate }: ReminderSectionProps) {
                   Delete
                 </Button>
               </Group>
+              ) : null}
             </Group>
           ))}
         </Stack>
       )}
 
-      {showReminderModal && (
+      {canEdit && showReminderModal && (
         <ReminderModal
           key={`${editingReminder?.id ?? 'new'}-${card.dueDate ?? ''}`}
           card={card}

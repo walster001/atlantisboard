@@ -78,10 +78,11 @@ function compareMembersByDisplayName(a: BoardMemberUserDisplay, b: BoardMemberUs
 interface AssigneeSectionProps {
   card: CardDB;
   boardId: string;
+  canEdit?: boolean;
   onCardUpdate: (card: CardDB) => void;
 }
 
-export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSectionProps) {
+export function AssigneeSection({ card, boardId, canEdit = true, onCardUpdate }: AssigneeSectionProps) {
   const [boardMembers, setBoardMembers] = useState<BoardMemberUserDisplay[]>([]);
   const [showAssignPicker, setShowAssignPicker] = useState(false);
   const [memberFilterQuery, setMemberFilterQuery] = useState('');
@@ -173,6 +174,9 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
   }, [assigneeMembershipKey, assigneePending]);
 
   const handleToggleAssignee = async (userId: string) => {
+    if (!canEdit) {
+      return;
+    }
     if (assigneeToggleInFlightRef.current.has(userId)) {
       return;
     }
@@ -216,6 +220,7 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
         <IconUserCircle size={18} stroke={1.5} color={CARD_DETAIL_SECTION_ICON_COLOR} aria-hidden />
         <Text {...cardDetailSectionTitleProps}>Assignees</Text>
       </Group>
+      {canEdit ? (
       <Popover
         opened={showAssignPicker}
         onChange={handleAssignPickerOpenChange}
@@ -339,6 +344,7 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
           </Stack>
         </Popover.Dropdown>
       </Popover>
+      ) : null}
 
       {displayAssigneeIds.length > 0 ? (
         <Group
@@ -379,6 +385,7 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
                   </Avatar>
                 }
                 rightSection={
+                  canEdit ? (
                   <ActionIcon
                     size="sm"
                     variant="subtle"
@@ -391,9 +398,12 @@ export function AssigneeSection({ card, boardId, onCardUpdate }: AssigneeSection
                   >
                     <IconX size={14} stroke={1.5} />
                   </ActionIcon>
+                  ) : undefined
                 }
                 onClick={() => {
-                  void handleToggleAssignee(assigneeId);
+                  if (canEdit) {
+                    void handleToggleAssignee(assigneeId);
+                  }
                 }}
               >
                 <Stack gap={0} style={{ minWidth: 0 }}>

@@ -86,6 +86,7 @@ export interface CardDetailViewScrollSectionsProps {
   readonly showComments: boolean;
   readonly canCreateComments: boolean;
   readonly canDeleteOthersComments: boolean;
+  readonly canEditCard: boolean;
   readonly dueLocal: string;
   readonly setDueLocal: (value: string) => void;
   readonly duePickerOpened: boolean;
@@ -108,6 +109,7 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
   showComments,
   canCreateComments,
   canDeleteOthersComments,
+  canEditCard,
   dueLocal,
   setDueLocal,
   duePickerOpened,
@@ -137,47 +139,61 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
               return (
                 <>
                   <Group gap="xs" align="center" wrap="wrap">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      leftSection={<IconCalendar size={16} />}
-                      styles={{
-                        root: {
-                          backgroundColor: '#f0f1f4',
-                          border: 'none',
-                          color: 'var(--mantine-color-dark-7)',
-                          borderRadius: 8,
-                          paddingInline: 'var(--mantine-spacing-md)',
-                          fontWeight: 500,
-                          boxShadow: 'none',
-                          width: 'fit-content',
-                          maxWidth: '100%',
-                          '&:hover': {
-                            backgroundColor: '#e4e6ea',
-                            color: 'var(--mantine-color-dark-7)',
-                          },
-                          '&:disabled': {
+                    {canEditCard ? (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        leftSection={<IconCalendar size={16} />}
+                        styles={{
+                          root: {
                             backgroundColor: '#f0f1f4',
-                            opacity: 0.55,
+                            border: 'none',
+                            color: 'var(--mantine-color-dark-7)',
+                            borderRadius: 8,
+                            paddingInline: 'var(--mantine-spacing-md)',
+                            fontWeight: 500,
+                            boxShadow: 'none',
+                            width: 'fit-content',
+                            maxWidth: '100%',
+                            '&:hover': {
+                              backgroundColor: '#e4e6ea',
+                              color: 'var(--mantine-color-dark-7)',
+                            },
+                            '&:disabled': {
+                              backgroundColor: '#f0f1f4',
+                              opacity: 0.55,
+                            },
                           },
-                        },
-                        label: { color: 'var(--mantine-color-dark-7)' },
-                        section: { color: 'var(--mantine-color-dark-7)', pointerEvents: 'auto' },
-                      }}
-                      onClick={() => setDuePickerOpened(true)}
-                      disabled={loading}
-                    >
-                      {card.dueDate
-                        ? new Date(card.dueDate).toLocaleString(undefined, {
-                            year: 'numeric',
-                            month: 'numeric',
-                            day: 'numeric',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                          })
-                        : 'Set due date'}
-                    </Button>
-                    {card.dueDate ? (
+                          label: { color: 'var(--mantine-color-dark-7)' },
+                          section: { color: 'var(--mantine-color-dark-7)', pointerEvents: 'auto' },
+                        }}
+                        onClick={() => setDuePickerOpened(true)}
+                        disabled={loading}
+                      >
+                        {card.dueDate
+                          ? new Date(card.dueDate).toLocaleString(undefined, {
+                              year: 'numeric',
+                              month: 'numeric',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })
+                          : 'Set due date'}
+                      </Button>
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {card.dueDate
+                          ? new Date(card.dueDate).toLocaleString(undefined, {
+                              year: 'numeric',
+                              month: 'numeric',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })
+                          : 'No due date'}
+                      </Text>
+                    )}
+                    {card.dueDate && canEditCard ? (
                       <ActionIcon
                         size="sm"
                         variant="subtle"
@@ -235,10 +251,14 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
                           setDueLocal(toDatetimeLocalValue(base));
                         }}
                         aria-label="Due time"
+                        disabled={!canEditCard}
                       />
                       <DatePicker
                         value={dueDraft}
                         onChange={(date: unknown) => {
+                          if (!canEditCard) {
+                            return;
+                          }
                           if (date == null) {
                             return;
                           }
@@ -272,6 +292,7 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
                           styles={cardDetailSoftButtonStyles}
                           onClick={() => void onSaveDueDate()}
                           loading={loading}
+                          disabled={!canEditCard}
                         >
                           Save
                         </Button>
@@ -285,6 +306,7 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
           <Box mt="md">
             <ReminderSection
               card={card}
+              canEdit={canEditCard}
               onCardUpdate={(updatedCard) => {
                 syncCardToBoardAndDexie(updatedCard);
               }}
@@ -297,6 +319,7 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
         <LabelSection
           card={card}
           boardId={boardId}
+          canEdit={canEditCard}
           onCardUpdate={(updatedCard) => {
             syncCardToBoardAndDexie(updatedCard);
           }}
@@ -307,6 +330,7 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
         <AssigneeSection
           card={card}
           boardId={boardId}
+          canEdit={canEditCard}
           onCardUpdate={(updatedCard) => {
             syncCardToBoardAndDexie(updatedCard);
           }}
@@ -317,6 +341,7 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
         <LazyMountWhenVisible minHeight={160}>
           <ChecklistSection
             card={card}
+            canEdit={canEditCard}
             onCardUpdate={(updatedCard) => {
               syncCardToBoardAndDexie(updatedCard);
             }}
@@ -328,6 +353,7 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
         <LazyMountWhenVisible minHeight={180}>
           <AttachmentSection
             card={card}
+            canEdit={canEditCard}
             {...(onBeforeDeleteAttachment != null
               ? { onBeforeDeleteAttachment }
               : {})}

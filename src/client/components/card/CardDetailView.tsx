@@ -190,6 +190,7 @@ export function CardDetailView({
   const showComments = boardSettings?.showComments !== false;
 
   const { can, loaded: boardPermsLoaded } = useBoardPermissions(boardId, boardWorkspaceId);
+  const canEditCard = boardPermsLoaded && can('cards.update');
   const canDeleteCard = boardPermsLoaded && can('cards.delete');
   const canDuplicateCard = boardPermsLoaded && can('cards.duplicate');
   const canCreateComments = boardPermsLoaded && can('comments.create');
@@ -541,13 +542,17 @@ export function CardDetailView({
           ) : (
             <Text
               style={{
-                cursor: 'pointer',
+                cursor: canEditCard ? 'pointer' : 'default',
                 lineHeight: 1.25,
                 fontFamily: 'var(--kb-app-ui-font-family)',
                 fontWeight: 600,
                 fontSize: '1.6rem',
               }}
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                if (canEditCard) {
+                  setIsEditing(true);
+                }
+              }}
             >
               <TwemojiPlainText text={card.title} />
             </Text>
@@ -573,7 +578,7 @@ export function CardDetailView({
                     <IconAlignLeft size={18} stroke={1.5} color={CARD_DETAIL_SECTION_ICON_COLOR} aria-hidden />
                     <Text {...cardDetailSectionTitleProps}>Description</Text>
                   </Group>
-                  {!isEditingDescription && (
+                  {canEditCard && !isEditingDescription && (
                     <Button
                       size="sm"
                       variant="default"
@@ -639,9 +644,13 @@ export function CardDetailView({
                       border: 'none',
                       borderRadius: 0,
                       minHeight: 'unset',
-                      cursor: 'pointer',
+                      cursor: canEditCard ? 'pointer' : 'default',
                     }}
-                    onClick={() => setIsEditingDescription(true)}
+                    onClick={() => {
+                      if (canEditCard) {
+                        setIsEditingDescription(true);
+                      }
+                    }}
                   >
                     {isDescriptionEmpty ? (
                       <Text {...cardDetailEmptyStateProps}>
@@ -676,6 +685,7 @@ export function CardDetailView({
                   showComments={showComments}
                   canCreateComments={canCreateComments}
                   canDeleteOthersComments={canDeleteOthersComments}
+                  canEditCard={canEditCard}
                   dueLocal={dueLocal}
                   setDueLocal={setDueLocal}
                   duePickerOpened={duePickerOpened}

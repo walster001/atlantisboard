@@ -41,10 +41,11 @@ function findChecklistItemCompleted(card: CardDB, itemId: string): boolean | und
 
 interface ChecklistSectionProps {
   card: CardDB;
+  canEdit?: boolean;
   onCardUpdate: (card: CardDB) => void;
 }
 
-export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) {
+export function ChecklistSection({ card, canEdit = true, onCardUpdate }: ChecklistSectionProps) {
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
   const [showNewChecklist, setShowNewChecklist] = useState(false);
   const [isCreatingChecklist, setIsCreatingChecklist] = useState(false);
@@ -93,6 +94,9 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
   const [itemRenameSaving, setItemRenameSaving] = useState(false);
 
   const handleCreateChecklist = async () => {
+    if (!canEdit) {
+      return;
+    }
     if (!newChecklistTitle.trim()) return;
 
     setIsCreatingChecklist(true);
@@ -113,6 +117,9 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
   };
 
   const handleCreateItem = async (checklistId: string, text: string) => {
+    if (!canEdit) {
+      return;
+    }
     if (!text.trim()) return;
 
     setCreatingItemChecklistId(checklistId);
@@ -132,6 +139,9 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
   };
 
   const handleToggleItem = async (checklistId: string, itemId: string, completed: boolean) => {
+    if (!canEdit) {
+      return;
+    }
     if (checklistItemToggleInFlightRef.current.has(itemId)) {
       return;
     }
@@ -281,6 +291,9 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
   };
 
   const handleDeleteItem = async (checklistId: string, itemId: string) => {
+    if (!canEdit) {
+      return;
+    }
     setDeletingItemIds((prev) => {
       const next = new Set(prev);
       next.add(itemId);
@@ -340,6 +353,7 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
           <IconListCheck size={18} stroke={1.5} color={CARD_DETAIL_SECTION_ICON_COLOR} aria-hidden />
           <Text {...cardDetailSectionTitleProps}>Checklist</Text>
         </Group>
+        {canEdit ? (
         <Button
           size="sm"
           variant="default"
@@ -349,6 +363,7 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
         >
           + Add Item
         </Button>
+        ) : null}
       </Group>
 
       {card.checklists.length === 0 && !showNewChecklist ? (
@@ -371,6 +386,7 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
             <Text fw={500} className="checklist-block__title">
               {checklist.title}
             </Text>
+            {canEdit ? (
             <Box
               className="checklist-block__menu"
               onClick={(e) => {
@@ -417,6 +433,7 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
                 </Menu.Dropdown>
               </Menu>
             </Box>
+            ) : null}
           </div>
           <Stack gap="xs">
             {checklist.items.map((item) => {
@@ -433,7 +450,7 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
                   <Checkbox
                     checked={isCompleted}
                     onChange={() => handleToggleItem(checklist.id, item.id, isCompleted)}
-                    disabled={deletingItemIds.has(item.id) || isEditingItem}
+                    disabled={!canEdit || deletingItemIds.has(item.id) || isEditingItem}
                     style={{ flexShrink: 0 }}
                   />
                   <Box
@@ -521,6 +538,7 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
                         >
                           {item.text}
                         </Text>
+                        {canEdit ? (
                         <Box
                           className="checklist-item-row__menu"
                           style={{ flexShrink: 0 }}
@@ -570,12 +588,14 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
                             </Menu.Dropdown>
                           </Menu>
                         </Box>
+                        ) : null}
                       </>
                     )}
                   </Box>
                 </Group>
               );
             })}
+            {canEdit ? (
             <Group gap="xs" mt="xs">
               <TextInput
                 size="sm"
@@ -590,11 +610,12 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
                 disabled={creatingItemChecklistId === checklist.id}
               />
             </Group>
+            ) : null}
           </Stack>
         </Box>
       ))}
 
-      {showNewChecklist ? (
+      {showNewChecklist && canEdit ? (
         <Box
           p="md"
           style={{
@@ -645,7 +666,7 @@ export function ChecklistSection({ card, onCardUpdate }: ChecklistSectionProps) 
       ) : null}
 
       <Modal
-        opened={checklistRename !== null}
+        opened={canEdit && checklistRename !== null}
         onClose={() => setChecklistRename(null)}
         title="Rename checklist"
         centered

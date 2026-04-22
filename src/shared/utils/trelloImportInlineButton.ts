@@ -13,6 +13,16 @@ export const TRELLO_IMPORT_INLINE_BUTTON_DEFAULTS = {
   wrapperStyle: 'display: flex; justify-content: flex-start;',
 } as const;
 
+function inferInlineButtonWidthPxFromLabel(label: string, hasIcon: boolean): string {
+  // Keep this heuristic simple and deterministic: approximate text width + paddings.
+  const charPx = 8;
+  const horizontalPaddingPx = hasIcon ? 68 : 44;
+  const minPx = 96;
+  const maxPx = 720;
+  const px = Math.round(label.length * charPx + horizontalPaddingPx);
+  return String(Math.max(minPx, Math.min(maxPx, px)));
+}
+
 export function trelloImportContainerStyle(widthPx: string): string {
   return `position: relative; width: ${widthPx}px; max-width: 100%; height: auto; cursor: pointer; box-sizing: border-box; `;
 }
@@ -192,9 +202,9 @@ export function buildTrelloImportInlineButton(
   }
   const theme = themeForHref(resolved);
   const icon = faviconUrlForHref(resolved);
-  const w = TRELLO_IMPORT_INLINE_BUTTON_DEFAULTS.width ?? '320';
   const btn = buttonText.trim().slice(0, 500);
   const label = btn.length > 0 ? btn : 'Open link';
+  const w = inferInlineButtonWidthPxFromLabel(label, icon != null);
   return {
     type: 'inlineButton',
     attrs: {

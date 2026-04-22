@@ -37,6 +37,7 @@ function normalizeBoardLabelList(
 interface LabelSectionProps {
   card: CardDB;
   boardId: string;
+  canEdit?: boolean;
   onCardUpdate: (card: CardDB) => void;
 }
 
@@ -77,7 +78,7 @@ function flipLabelPending(
   return { adds, removes };
 }
 
-export function LabelSection({ card, boardId, onCardUpdate }: LabelSectionProps) {
+export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: LabelSectionProps) {
   const [labels, setLabels] = useState<Label[]>([]);
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [labelPending, setLabelPending] = useState<LabelPending>(() => emptyLabelPending());
@@ -193,6 +194,9 @@ export function LabelSection({ card, boardId, onCardUpdate }: LabelSectionProps)
   }, [cardLabelsContentKey, labelPending, labels]);
 
   const handleToggleLabel = async (labelId: string) => {
+    if (!canEdit) {
+      return;
+    }
     if (labelToggleInFlightRef.current.has(labelId)) {
       return;
     }
@@ -224,6 +228,7 @@ export function LabelSection({ card, boardId, onCardUpdate }: LabelSectionProps)
         <IconTag size={18} stroke={1.5} color={CARD_DETAIL_SECTION_ICON_COLOR} aria-hidden />
         <Text {...cardDetailSectionTitleProps}>Labels</Text>
       </Group>
+      {canEdit ? (
       <Popover
         opened={showLabelPicker}
         onChange={setShowLabelPicker}
@@ -296,6 +301,7 @@ export function LabelSection({ card, boardId, onCardUpdate }: LabelSectionProps)
             </Stack>
           </Popover.Dropdown>
       </Popover>
+      ) : null}
 
       {displayCardLabels.length > 0 && (
         <Group
@@ -333,6 +339,7 @@ export function LabelSection({ card, boardId, onCardUpdate }: LabelSectionProps)
               >
                 {label.name.toUpperCase()}
               </Text>
+              {canEdit ? (
               <ActionIcon
                 size="xs"
                 variant="transparent"
@@ -349,6 +356,7 @@ export function LabelSection({ card, boardId, onCardUpdate }: LabelSectionProps)
               >
                 <IconX size={11} stroke={2.5} />
               </ActionIcon>
+              ) : null}
             </Box>
           ))}
         </Group>

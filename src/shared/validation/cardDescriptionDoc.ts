@@ -1,3 +1,5 @@
+import { parseTwemojiSpriteCoord } from '../twemojiSpriteCoord.js';
+
 const MAX_DEPTH = 64;
 
 const ALLOWED_BLOCK_NODES = new Set<string>([
@@ -39,6 +41,8 @@ function validateHref(href: unknown): boolean {
     t.startsWith('https://') ||
     t.startsWith('http://') ||
     t.startsWith('/') ||
+    t.startsWith('./') ||
+    t.startsWith('../') ||
     t.startsWith('#') ||
     t.startsWith('mailto:')
   );
@@ -105,6 +109,41 @@ function isAllowedTextStyleFontSize(value: unknown): boolean {
 
 const TEXT_ALIGN_VALUES = new Set(['left', 'center', 'right', 'justify']);
 
+/** HTML `ol type` + TipTap defaults (`null`). */
+const ORDERED_LIST_TYPE_VALUES = new Set(['1', 'a', 'A', 'i', 'I']);
+
+function parsePositiveInt1To999999(raw: unknown): number | null {
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  if (typeof raw === 'number' && Number.isInteger(raw)) {
+    return raw >= 1 && raw <= 999_999 ? raw : null;
+  }
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const n = Number.parseInt(raw.trim(), 10);
+    return Number.isInteger(n) && n >= 1 && n <= 999_999 ? n : null;
+  }
+  return null;
+}
+
+function parseHeadingLevel(raw: unknown): number | null {
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  if (typeof raw === 'number' && Number.isInteger(raw)) {
+    return raw >= 1 && raw <= 6 ? raw : null;
+  }
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const n = Number.parseInt(raw.trim(), 10);
+    return Number.isInteger(n) && n >= 1 && n <= 6 ? n : null;
+  }
+  return null;
+}
+
+function isAbsentOrEmptyLeafContent(value: unknown): boolean {
+  return value === undefined || value === null || (Array.isArray(value) && value.length === 0);
+}
+
 function isSafeLineHeightValue(value: unknown): boolean {
   if (value === null || value === undefined) {
     return true;
@@ -146,12 +185,7 @@ function isSafeInlineStyleString(value: unknown): boolean {
 }
 
 function validateTextStyleAttrs(attrs: Record<string, unknown>): boolean {
-  const allowedKeys = new Set(['color', 'fontSize']);
-  for (const key of Object.keys(attrs)) {
-    if (!allowedKeys.has(key)) {
-      return false;
-    }
-  }
+  // Only validate fields we render; ignore extra keys from paste / editor defaults so saves do not 400.
   if (!isAllowedTextStyleColor(attrs.color)) {
     return false;
   }
@@ -219,7 +253,8 @@ function validateNode(node: unknown, depth: number): boolean {
   }
 
   if (type === 'hardBreak') {
-    return node.content === undefined;
+    const c = node.content;
+    return c === undefined || c === null || (Array.isArray(c) && c.length === 0);
   }
 
   if (!ALLOWED_BLOCK_NODES.has(type)) {
@@ -242,9 +277,8 @@ function validateNode(node: unknown, depth: number): boolean {
           if (!isSafeLineHeightValue(attrs.lineHeight)) {
             return false;
           }
-        } else {
-          return false;
         }
+        // Ignore unknown keys (imports / paste); only textAlign + lineHeight are rendered.
       }
     }
   }
@@ -259,7 +293,8 @@ function validateNode(node: unknown, depth: number): boolean {
         if (key === 'level') {
           const level = attrs.level;
           if (level !== undefined) {
-            if (typeof level !== 'number' || level < 1 || level > 6 || !Number.isInteger(level)) {
+            const n = parseHeadingLevel(level);
+            if (n == null) {
               return false;
             }
           }
@@ -272,9 +307,8 @@ function validateNode(node: unknown, depth: number): boolean {
           if (!isSafeLineHeightValue(attrs.lineHeight)) {
             return false;
           }
-        } else {
-          return false;
         }
+        // Ignore unknown keys (imports / paste).
       }
     }
   }
@@ -286,13 +320,19 @@ function validateNode(node: unknown, depth: number): boolean {
         return false;
       }
       for (const key of Object.keys(attrs)) {
-        if (key !== 'start') {
+        if (key !== 'start' && key !== 'type') {
           return false;
         }
       }
       const start = attrs.start;
       if (start !== undefined) {
-        if (typeof start !== 'number' || !Number.isInteger(start) || start < 1 || start > 999_999) {
+        if (parsePositiveInt1To999999(start) == null) {
+          return false;
+        }
+      }
+      const listType = attrs.type;
+      if (listType !== undefined && listType !== null) {
+        if (typeof listType !== 'string' || !ORDERED_LIST_TYPE_VALUES.has(listType)) {
           return false;
         }
       }
@@ -322,7 +362,7 @@ function validateNode(node: unknown, depth: number): boolean {
     if (!validateMediaSrc(attrs.src)) {
       return false;
     }
-    if (node.content !== undefined) {
+    if (!isAbsentOrEmptyLeafContent(node.content)) {
       return false;
     }
     return true;
@@ -388,7 +428,7 @@ function validateNode(node: unknown, depth: number): boolean {
         return false;
       }
     }
-    if (node.content !== undefined) {
+    if (!isAbsentOrEmptyLeafContent(node.content)) {
       return false;
     }
     return true;
@@ -402,16 +442,14 @@ function validateNode(node: unknown, depth: number): boolean {
     if (typeof attrs.emoji !== 'string' || attrs.emoji.trim() === '') {
       return false;
     }
-    if (node.content !== undefined) {
+    if (!isAbsentOrEmptyLeafContent(node.content)) {
       return false;
     }
-    const sx = attrs.spriteX;
-    const sy = attrs.spriteY;
+    const sx = parseTwemojiSpriteCoord(attrs.spriteX);
+    const sy = parseTwemojiSpriteCoord(attrs.spriteY);
     const hasSprite =
-      typeof sx === 'number' &&
-      typeof sy === 'number' &&
-      Number.isInteger(sx) &&
-      Number.isInteger(sy) &&
+      sx != null &&
+      sy != null &&
       sx >= 0 &&
       sy >= 0 &&
       sx < 512 &&

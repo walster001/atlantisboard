@@ -25,6 +25,7 @@ import {
 } from '../../../shared/cardDescriptionAttachmentRefs.js';
 import { CARD_TITLE_MAX_LENGTH } from '../../constants/cardFieldLimits.js';
 import { db, type BoardDB, type CardDB } from '../../store/database.js';
+import { isAxiosError } from 'axios';
 import { api } from '../../utils/api.js';
 import { normalizeCardFromApi } from '../../utils/transform.js';
 import { serializeCardDescriptionEditor } from './cardDescriptionEditorSerialize.js';
@@ -462,6 +463,32 @@ export function CardDetailView({
       setIsEditingDescription(false);
     } catch (error) {
       console.error('Error updating card description:', error);
+      let message = 'Could not save the description.';
+      if (isAxiosError(error) && error.response?.status === 400) {
+        const data = error.response.data as { error?: { message?: string; details?: unknown } } | undefined;
+        const detailMsg = data?.error?.message;
+        const issues = data?.error?.details;
+        if (typeof detailMsg === 'string' && detailMsg.trim() !== '') {
+          message = detailMsg;
+        }
+        if (Array.isArray(issues) && issues.length > 0) {
+          const first = issues[0] as { message?: string; path?: unknown };
+          const part =
+            typeof first?.message === 'string'
+              ? first.message
+              : typeof first?.path !== 'undefined'
+                ? JSON.stringify(first.path)
+                : '';
+          if (part !== '') {
+            message = `${message} ${part}`.trim();
+          }
+        }
+      }
+      notifications.show({
+        color: 'red',
+        title: 'Description',
+        message,
+      });
     } finally {
       setLoading(false);
     }

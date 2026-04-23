@@ -5,6 +5,7 @@ import {
   parseCardDescriptionJson,
   stripInlineButtonsForBoardPreview,
 } from './cardDescriptionTiptap.js';
+import { renderCardDescriptionTwemojiStaticNode } from './twemojiStaticNodeRender.js';
 import './cardDescriptionTiptap.css';
 
 export interface CardDescriptionBoardPreviewProps {
@@ -24,5 +25,10 @@ export function CardDescriptionBoardPreview({ valueJson }: CardDescriptionBoardP
   return renderToReactElement({
     content: doc,
     extensions: getCardDescriptionExtensions(),
+    options: {
+      nodeMapping: {
+        twemojiEmoji: renderCardDescriptionTwemojiStaticNode,
+      },
+    },
   });
 }

@@ -161,6 +161,13 @@ router.get('/:id/permissions/me', async (req, res, next) => {
         allowed.push(key);
       }
     }
+    if (authReq.user.isAppAdmin === true) {
+      for (const imp of ['import.trello', 'import.wekan'] as const) {
+        if (!allowed.includes(imp)) {
+          allowed.push(imp);
+        }
+      }
+    }
     const ownerId =
       typeof (workspace as { ownerId?: unknown }).ownerId === 'string'
         ? (workspace as { ownerId: string }).ownerId

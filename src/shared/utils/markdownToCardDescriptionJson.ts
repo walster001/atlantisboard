@@ -1,4 +1,16 @@
-import { createRequire } from 'node:module';
+import type { JSONContent } from '@tiptap/core';
+import MarkdownIt from 'markdown-it';
+import {
+  CARD_DESCRIPTION_JSON_MAX_LENGTH,
+  CARD_DESCRIPTION_TEXT_MAX_LENGTH,
+} from '../constants/cardDescription.js';
+import { isValidCardDescriptionDoc } from '../validation/cardDescriptionDoc.js';
+import { plainTextToCardDescriptionJson } from './plainTextToCardDescriptionJson.js';
+import { applyUtf8EmojiToTwemojiInCardDescriptionDoc } from './utf8EmojiToTwemojiInCardDescriptionDoc.js';
+import {
+  applyTrelloSmartLinksToDescriptionDoc,
+} from './trelloSmartLinksPostProcess.js';
+import { preprocessTrelloDescriptionForMarkdown } from './trelloDescriptionMarkdownPreprocess.js';
 
 /** Subset of markdown-it Token used by this converter. */
 interface MdToken {
@@ -11,28 +23,11 @@ interface MdToken {
   attrGet(name: string): string | null;
 }
 
-const requireMarkdownIt = createRequire(import.meta.url);
-// markdown-it ships as CJS; avoid default-import typing friction with `export =`.
-const MarkdownItCtor = requireMarkdownIt('markdown-it') as new (
-  preset?: string,
-  options?: { html?: boolean; linkify?: boolean; typographer?: boolean }
-) => { parse: (src: string, env?: object) => MdToken[] };
-
-const MD_PARSER = new MarkdownItCtor('commonmark', {
+const MD_PARSER = new MarkdownIt('commonmark', {
   html: false,
   linkify: false,
   typographer: false,
 });
-import {
-  CARD_DESCRIPTION_JSON_MAX_LENGTH,
-  CARD_DESCRIPTION_TEXT_MAX_LENGTH,
-} from '../constants/cardDescription.js';
-import { isValidCardDescriptionDoc } from '../validation/cardDescriptionDoc.js';
-import { plainTextToCardDescriptionJson } from './plainTextToCardDescriptionJson.js';
-import {
-  applyTrelloSmartLinksToDescriptionDoc,
-} from './trelloSmartLinksPostProcess.js';
-import { preprocessTrelloDescriptionForMarkdown } from './trelloDescriptionMarkdownPreprocess.js';
 
 function isTextNode(n: unknown): n is { type: string; text: string; marks?: unknown[] } {
   return (
@@ -398,14 +393,15 @@ export function markdownToCardDescriptionJson(markdown: string): string | undefi
     content: body.length > 0 ? body : [{ type: 'paragraph', content: [{ type: 'hardBreak' }] }],
   };
   applyTrelloSmartLinksToDescriptionDoc(doc);
-  if (countTextCharsInDoc(doc) > CARD_DESCRIPTION_TEXT_MAX_LENGTH) {
+  const docWithTwemoji = applyUtf8EmojiToTwemojiInCardDescriptionDoc(doc as JSONContent);
+  if (countTextCharsInDoc(docWithTwemoji) > CARD_DESCRIPTION_TEXT_MAX_LENGTH) {
     return plainTextToCardDescriptionJson(markdown);
   }
-  let json = JSON.stringify(doc);
+  let json = JSON.stringify(docWithTwemoji);
   if (json.length > CARD_DESCRIPTION_JSON_MAX_LENGTH) {
     return plainTextToCardDescriptionJson(markdown);
   }
-  if (!isValidCardDescriptionDoc(doc)) {
+  if (!isValidCardDescriptionDoc(docWithTwemoji)) {
     return plainTextToCardDescriptionJson(markdown);
   }
   return json;

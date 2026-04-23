@@ -415,13 +415,13 @@
   min-width: 0;
 }
 
-.board-card__kanban-title {
-  font-weight: 600;
+.board-card.board-card--kanban .board-card__kanban-title {
+  font-weight: 500;
   font-size: 0.875rem;
   line-height: 1.35;
   text-transform: uppercase;
-  letter-spacing: normal;
-  word-spacing: normal;
+  letter-spacing: 0.02em;
+  word-spacing: 0.02em;
   color: var(--board-card-title-color, var(--mantine-color-dark-7));
   /* Prevent title text from colliding with top-right menu icon. */
   padding-right: 24px;
@@ -435,7 +435,7 @@
 }
 
 /* Non-Twemoji images in titles (rare); Twemoji uses `.twemoji-plain-text img` sizing */
-.board-card__kanban-title img:not(.card-desc-twemoji):not(.emoji) {
+.board-card.board-card--kanban .board-card__kanban-title img:not(.card-desc-twemoji):not(.emoji) {
   max-width: 100%;
   height: auto;
   vertical-align: -0.125em;

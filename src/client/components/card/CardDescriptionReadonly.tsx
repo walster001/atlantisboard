@@ -5,6 +5,7 @@ import {
   isCardDescriptionEmpty,
   parseCardDescriptionJson,
 } from './cardDescriptionTiptap.js';
+import { renderCardDescriptionTwemojiStaticNode } from './twemojiStaticNodeRender.js';
 import './cardDescriptionTiptap.css';
 
 export interface CardDescriptionReadonlyProps {
@@ -21,6 +22,11 @@ function CardDescriptionReadonlyInner({ valueJson, valueHtml }: CardDescriptionR
     return renderToReactElement({
       content: doc,
       extensions: getCardDescriptionExtensions(),
+      options: {
+        nodeMapping: {
+          twemojiEmoji: renderCardDescriptionTwemojiStaticNode,
+        },
+      },
     });
   }, [valueJson]);
 

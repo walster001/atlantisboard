@@ -13,8 +13,10 @@ import {
   buildTrelloImportInlineButton,
   type InlineButtonDocNode,
 } from '../../../shared/utils/trelloImportInlineButton.js';
+import type { JSONContent } from '@tiptap/core';
 import { plainTextToCardDescriptionJson } from '../../../shared/utils/plainTextToCardDescriptionJson.js';
 import { markdownToCardDescriptionJson } from '../../../shared/utils/markdownToCardDescriptionJson.js';
+import { applyUtf8EmojiToTwemojiInCardDescriptionDoc } from '../../../shared/utils/utf8EmojiToTwemojiInCardDescriptionDoc.js';
 import { CARD_DESCRIPTION_JSON_MAX_LENGTH } from '../../../shared/constants/cardDescription.js';
 import { isValidCardDescriptionDoc } from '../../../shared/validation/cardDescriptionDoc.js';
 import type { ImportPreflightPayloadParsed } from '../../../shared/import/importPreflightSchema.js';
@@ -647,14 +649,17 @@ function wekanDescriptionToCardJson(
   if (nodes.length === 0) {
     return plainTextToCardDescriptionJson(description) ?? '';
   }
-  let doc: { type: 'doc'; content: Array<Record<string, unknown>> } = {
+  let doc: JSONContent = applyUtf8EmojiToTwemojiInCardDescriptionDoc({
     type: 'doc',
-    content: nodes,
-  };
+    content: nodes as JSONContent[],
+  });
   let json = JSON.stringify(doc);
   if (json.length > CARD_DESCRIPTION_JSON_MAX_LENGTH || !isValidCardDescriptionDoc(doc)) {
     nodes = buildWekanDescriptionDocNodes(description, replacementByIconSrc, localizedByIconSrc, true);
-    doc = { type: 'doc', content: nodes };
+    doc = applyUtf8EmojiToTwemojiInCardDescriptionDoc({
+      type: 'doc',
+      content: nodes as JSONContent[],
+    });
     json = JSON.stringify(doc);
   }
   if (nodes.length === 0) {

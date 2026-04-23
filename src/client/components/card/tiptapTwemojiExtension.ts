@@ -4,7 +4,8 @@ import { rewriteTwemojiSrcToPublic } from '../../../shared/twemojiPublic.js';
 import {
   getTwitterEmojiSheetMeta,
   getTwitterEmojiSpriteCell,
-} from './twitterEmojiSpriteLookup.js';
+} from '../../../shared/twemoji/twitterEmojiSpriteLookup.js';
+import { parseTwemojiSpriteCoord } from '../../../shared/twemojiSpriteCoord.js';
 import { buildTwemojiSpritesheetInlineStyle } from './twemojiSheetSpanStyle.js';
 
 export interface InsertTwemojiOptions {
@@ -37,17 +38,6 @@ function toTwemojiSrc(emoji: string, baseUrl: string, fileExtension: string): st
   const src = `${baseUrl}${codePoint}${fileExtension}`;
   twemojiSrcCache.set(cacheKey, src);
   return src;
-}
-
-function parseSpriteCoord(raw: unknown): number | null {
-  if (typeof raw === 'number' && Number.isInteger(raw)) {
-    return raw;
-  }
-  if (typeof raw === 'string' && raw.trim() !== '') {
-    const n = Number.parseInt(raw, 10);
-    return Number.isNaN(n) ? null : n;
-  }
-  return null;
 }
 
 export const TwemojiEmoji = Node.create<TwemojiExtensionOptions>({
@@ -120,8 +110,8 @@ export const TwemojiEmoji = Node.create<TwemojiExtensionOptions>({
         ? HTMLAttributes.alt
         : emoji;
 
-    const sx = parseSpriteCoord(HTMLAttributes.spriteX);
-    const sy = parseSpriteCoord(HTMLAttributes.spriteY);
+    const sx = parseTwemojiSpriteCoord(HTMLAttributes.spriteX);
+    const sy = parseTwemojiSpriteCoord(HTMLAttributes.spriteY);
 
     if (sx != null && sy != null && sx >= 0 && sy >= 0) {
       const { cols, rows } = getTwitterEmojiSheetMeta();

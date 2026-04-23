@@ -156,6 +156,169 @@ describe('isValidCardDescriptionDoc', () => {
     };
     expect(isValidCardDescriptionDoc(doc)).toBe(false);
   });
+
+  it('accepts textStyle marks with extra attrs (only color/fontSize are validated)', () => {
+    const doc = {
+      type: 'doc' as const,
+      content: [
+        {
+          type: 'paragraph' as const,
+          content: [
+            {
+              type: 'text' as const,
+              text: 'Hi',
+              marks: [
+                {
+                  type: 'textStyle' as const,
+                  attrs: { color: '#112233', fontSize: '16px', fontFamily: 'Arial' },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(isValidCardDescriptionDoc(doc)).toBe(true);
+  });
+
+  it('accepts hardBreak with null or empty content', () => {
+    expect(
+      isValidCardDescriptionDoc({
+        type: 'doc' as const,
+        content: [{ type: 'paragraph' as const, content: [{ type: 'hardBreak' as const, content: null }] }],
+      }),
+    ).toBe(true);
+    expect(
+      isValidCardDescriptionDoc({
+        type: 'doc' as const,
+        content: [{ type: 'paragraph' as const, content: [{ type: 'hardBreak' as const, content: [] }] }],
+      }),
+    ).toBe(true);
+  });
+
+  it('accepts twemojiEmoji with string sprite coords from JSON', () => {
+    const doc = {
+      type: 'doc' as const,
+      content: [
+        {
+          type: 'paragraph' as const,
+          content: [
+            {
+              type: 'twemojiEmoji' as const,
+              attrs: { emoji: '😀', alt: '😀', src: '', spriteX: '3', spriteY: '12' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(isValidCardDescriptionDoc(doc)).toBe(true);
+  });
+
+  it('accepts orderedList attrs from TipTap v3 (start + type)', () => {
+    const doc = {
+      type: 'doc' as const,
+      content: [
+        {
+          type: 'orderedList' as const,
+          attrs: { start: 1, type: null },
+          content: [
+            {
+              type: 'listItem' as const,
+              content: [{ type: 'paragraph' as const, content: [{ type: 'text', text: 'x' }] }],
+            },
+          ],
+        },
+      ],
+    };
+    expect(isValidCardDescriptionDoc(doc)).toBe(true);
+  });
+
+  it('accepts orderedList start as string and type a/A/i/I', () => {
+    expect(
+      isValidCardDescriptionDoc({
+        type: 'doc' as const,
+        content: [
+          {
+            type: 'orderedList' as const,
+            attrs: { start: '3', type: 'a' },
+            content: [
+              {
+                type: 'listItem' as const,
+                content: [{ type: 'paragraph' as const, content: [{ type: 'text', text: 'x' }] }],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects orderedList with invalid type', () => {
+    expect(
+      isValidCardDescriptionDoc({
+        type: 'doc' as const,
+        content: [
+          {
+            type: 'orderedList' as const,
+            attrs: { start: 1, type: 'bogus' },
+            content: [
+              {
+                type: 'listItem' as const,
+                content: [{ type: 'paragraph' as const, content: [{ type: 'text', text: 'x' }] }],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it('accepts heading level as string from JSON', () => {
+    const doc = {
+      type: 'doc' as const,
+      content: [
+        {
+          type: 'heading' as const,
+          attrs: { level: '2' },
+          content: [{ type: 'text', text: 'Hi' }],
+        },
+      ],
+    };
+    expect(isValidCardDescriptionDoc(doc)).toBe(true);
+  });
+
+  it('accepts paragraph attrs with unknown keys when textAlign/lineHeight are valid', () => {
+    const doc = {
+      type: 'doc' as const,
+      content: [
+        {
+          type: 'paragraph' as const,
+          attrs: { textAlign: 'left', dataLegacy: 'x' },
+          content: [{ type: 'text', text: 'Hi' }],
+        },
+      ],
+    };
+    expect(isValidCardDescriptionDoc(doc)).toBe(true);
+  });
+
+  it('accepts link href with ./ and ../ prefixes', () => {
+    const doc = {
+      type: 'doc' as const,
+      content: [
+        {
+          type: 'paragraph' as const,
+          content: [
+            {
+              type: 'text' as const,
+              text: 'x',
+              marks: [{ type: 'link' as const, attrs: { href: './cards/1' } }],
+            },
+          ],
+        },
+      ],
+    };
+    expect(isValidCardDescriptionDoc(doc)).toBe(true);
+  });
 });
 
 describe('trelloLabelColors', () => {

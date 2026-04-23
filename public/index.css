@@ -11314,17 +11314,17 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   min-width: 0;
 }
 
-.board-card__kanban-title {
+.board-card.board-card--kanban .board-card__kanban-title {
   text-transform: uppercase;
-  letter-spacing: normal;
-  word-spacing: normal;
+  letter-spacing: .02em;
+  word-spacing: .02em;
   color: var(--board-card-title-color, var(--mantine-color-dark-7));
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
   padding-right: 24px;
   font-size: .875rem;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.35;
 }
 
@@ -11332,7 +11332,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   padding-right: 0;
 }
 
-.board-card__kanban-title img:not(.card-desc-twemoji):not(.emoji) {
+.board-card.board-card--kanban .board-card__kanban-title img:not(.card-desc-twemoji):not(.emoji) {
   vertical-align: -.125em;
   max-width: 100%;
   height: auto;

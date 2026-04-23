@@ -44,6 +44,7 @@ export function OfflinePersistenceNotice() {
         color: 'yellow',
         autoClose: false,
         withCloseButton: false,
+        loading: true,
         position: 'top-center',
       });
     };

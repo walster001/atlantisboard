@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { AxiosError } from 'axios';
 import {
   Alert,
@@ -23,13 +23,15 @@ import {
   IconUserPlus,
   IconUsersGroup,
 } from '@tabler/icons-react';
-import { format } from 'date-fns';
+import { Virtuoso } from 'react-virtuoso';
+import { eachDayOfInterval, endOfDay, format, startOfDay, subDays } from 'date-fns';
 import { api } from '../../utils/api.js';
 import type { BoardSettingsLivePatch } from '../../store/database.js';
 import { BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS } from '../../../shared/constants/boardMemberAuditActivities.js';
 import './activityLog.css';
 
-const PAGE_SIZE = 10;
+/** When retention is "never", limit date-based pages to the longest finite retention preset (1 year). */
+const MEMBER_AUDIT_DATE_PAGE_SPAN_NEVER_DAYS = 365;
 
 const RETENTION_OPTIONS = [
   { value: 'never', label: 'Never expire' },
@@ -125,7 +127,13 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-function EntryBody({ row, resolveRoleLabel }: { row: ParsedActivityRow; resolveRoleLabel: (roleKey: string) => string }) {
+const EntryBody = memo(function EntryBody({
+  row,
+  resolveRoleLabel,
+}: {
+  row: ParsedActivityRow;
+  resolveRoleLabel: (roleKey: string) => string;
+}) {
   const target = readString(row.meta, 'targetDisplayName') ?? 'Unknown user';
   const roleKey = readString(row.meta, 'roleKey') ?? readString(row.meta, 'role') ?? '';
   const prevRoleKey =
@@ -186,7 +194,7 @@ function EntryBody({ row, resolveRoleLabel }: { row: ParsedActivityRow; resolveR
       {newRoleKey !== '' ? <RoleBadge role={resolveRoleLabel(newRoleKey)} /> : '—'}
     </Text>
   );
-}
+});
 
 function EntryIcon({ type }: { type: MemberAuditActivityType }) {
   if (type === 'board.member.add') {
@@ -210,17 +218,65 @@ function EntryIcon({ type }: { type: MemberAuditActivityType }) {
   );
 }
 
+const ActivityLogEntryRow = memo(function ActivityLogEntryRow({
+  row,
+  resolveRoleLabel,
+}: {
+  readonly row: ParsedActivityRow;
+  readonly resolveRoleLabel: (roleKey: string) => string;
+}) {
+  return (
+    <Box className="board-member-activity-log__entry">
+      <Group align="flex-start" gap="md" wrap="nowrap">
+        <EntryIcon type={row.type} />
+        <Stack gap={4} style={{ minWidth: 0 }}>
+          <EntryBody row={row} resolveRoleLabel={resolveRoleLabel} />
+          <Text size="xs" c="dimmed">
+            {format(row.createdAt, 'MMM d, yyyy, h:mm a')}
+          </Text>
+        </Stack>
+      </Group>
+    </Box>
+  );
+});
+
+function memberAuditRetentionSpanDays(retentionValue: string): number {
+  if (retentionValue === 'never') {
+    return MEMBER_AUDIT_DATE_PAGE_SPAN_NEVER_DAYS;
+  }
+  const n = parseInt(retentionValue, 10);
+  return Number.isFinite(n) && n > 0 ? n : BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS;
+}
+
 export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) {
+  const [calendarAnchor, setCalendarAnchor] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [activities, setActivities] = useState<ParsedActivityRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [totalForDay, setTotalForDay] = useState(0);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [retentionValue, setRetentionValue] = useState<string>(
     String(BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS),
   );
   const [savingRetention, setSavingRetention] = useState(false);
   const [roleLabelByKey, setRoleLabelByKey] = useState<Record<string, string>>({});
+
+  const retentionSpanDays = useMemo(() => memberAuditRetentionSpanDays(retentionValue), [retentionValue]);
+
+  const datePages = useMemo(() => {
+    const end = startOfDay(new Date(calendarAnchor));
+    const start = startOfDay(subDays(end, retentionSpanDays - 1));
+    const ascending = eachDayOfInterval({ start, end });
+    return ascending.slice().reverse();
+  }, [retentionSpanDays, calendarAnchor]);
+
+  useEffect(() => {
+    setCalendarAnchor(Date.now());
+  }, [boardId, retentionValue]);
+
+  useEffect(() => {
+    setSelectedDayIndex((i) => Math.min(Math.max(0, i), Math.max(0, datePages.length - 1)));
+  }, [datePages]);
 
   const retentionSelectData = useMemo(() => {
     const preset = new Set<string>(RETENTION_OPTIONS.map((o) => o.value));
@@ -238,43 +294,56 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
       if (days === undefined) {
         setRetentionValue(String(BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS));
       } else {
-        setRetentionValue(String(days));
+        setRetentionValue(days === null ? 'never' : String(days));
       }
     } catch {
       setRetentionValue(String(BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS));
     }
   }, [boardId]);
 
+  const selectedDayStartMs = useMemo(() => {
+    const d = datePages[selectedDayIndex];
+    return d !== undefined ? startOfDay(d).getTime() : NaN;
+  }, [datePages, selectedDayIndex]);
+
   const loadActivities = useCallback(async () => {
+    if (!Number.isFinite(selectedDayStartMs)) {
+      setActivities([]);
+      setTotalForDay(0);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setForbidden(false);
+      const dayStart = new Date(selectedDayStartMs);
+      const dayEnd = endOfDay(dayStart);
       const data = await api.getBoardActivities(boardId, {
         memberAudit: true,
-        page,
-        pageSize: PAGE_SIZE,
+        dayStartMs: dayStart.getTime(),
+        dayEndMs: dayEnd.getTime(),
       });
       if (!('total' in data)) {
         setActivities([]);
-        setTotal(0);
+        setTotalForDay(0);
         return;
       }
       const rows = data.activities
         .map(parseRow)
         .filter((r): r is ParsedActivityRow => r !== null);
       setActivities(rows);
-      setTotal(data.total);
+      setTotalForDay(data.total);
     } catch (err: unknown) {
       const ax = err as AxiosError;
       if (ax.response?.status === 403) {
         setForbidden(true);
       }
       setActivities([]);
-      setTotal(0);
+      setTotalForDay(0);
     } finally {
       setLoading(false);
     }
-  }, [boardId, page]);
+  }, [boardId, selectedDayStartMs]);
 
   useEffect(() => {
     void loadBoardRetention();
@@ -339,6 +408,7 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
           memberActivityLogRetentionDays: days,
         },
       });
+      setSelectedDayIndex(0);
       if (days === null) {
         onSettingsLivePatch?.({ memberActivityLogRetentionDays: null });
       } else {
@@ -351,9 +421,13 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const startIdx = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const endIdx = total === 0 ? 0 : Math.min(page * PAGE_SIZE, total);
+  const dayPagesTotal = datePages.length;
+  const canGoNewer = selectedDayIndex > 0;
+  const canGoOlder = selectedDayIndex < dayPagesTotal - 1;
+  const dayLabel = useMemo(() => {
+    const d = datePages[selectedDayIndex];
+    return d !== undefined ? format(d, 'EEE, MMM d, yyyy') : '—';
+  }, [datePages, selectedDayIndex]);
 
   if (forbidden) {
     return (
@@ -417,33 +491,28 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
           className={
             loading
               ? 'board-member-activity-log__scroll board-member-activity-log__scroll--center'
-              : 'board-member-activity-log__scroll'
+              : 'board-member-activity-log__scroll board-member-activity-log__virtuoso-host'
           }
         >
           {loading ? (
             <Group justify="center" py="md">
               <Loader size="sm" />
             </Group>
-          ) : activities.length === 0 ? (
+          ) : totalForDay === 0 ? (
             <Text size="sm" c="dimmed" ta="center" py="lg">
-              No member activity recorded yet.
+              No member activity on {dayLabel}.
             </Text>
           ) : (
-            <Stack gap="sm">
-              {activities.map((row) => (
-                <Box key={row.id} className="board-member-activity-log__entry">
-                  <Group align="flex-start" gap="md" wrap="nowrap">
-                    <EntryIcon type={row.type} />
-                    <Stack gap={4} style={{ minWidth: 0 }}>
-                      <EntryBody row={row} resolveRoleLabel={resolveRoleLabel} />
-                    <Text size="xs" c="dimmed">
-                      {format(row.createdAt, 'MMM d, yyyy, h:mm a')}
-                    </Text>
-                    </Stack>
-                  </Group>
-                </Box>
-              ))}
-            </Stack>
+            <Virtuoso
+              className="board-member-activity-log__virtuoso"
+              style={{ flex: 1, minHeight: 200 }}
+              data={activities}
+              computeItemKey={(_, row) => row.id}
+              defaultItemHeight={96}
+              itemContent={(_index, row) => (
+                <ActivityLogEntryRow row={row} resolveRoleLabel={resolveRoleLabel} />
+              )}
+            />
           )}
         </Box>
 
@@ -455,7 +524,8 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
           gap="sm"
         >
           <Text size="sm" c="dimmed">
-            Showing {startIdx}–{endIdx} of {total} {total === 1 ? 'entry' : 'entries'}
+            Day {selectedDayIndex + 1} of {dayPagesTotal} · {dayLabel} · {totalForDay}{' '}
+            {totalForDay === 1 ? 'entry' : 'entries'}
           </Text>
           <Group gap="xs" wrap="nowrap">
             <Button
@@ -463,24 +533,21 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
               variant="default"
               size="sm"
               leftSection={<IconChevronLeft size={16} stroke={1.75} aria-hidden />}
-              disabled={page <= 1 || loading}
+              disabled={!canGoNewer || loading}
               onClick={() => {
-                setPage((p) => Math.max(1, p - 1));
+                setSelectedDayIndex((i) => Math.max(0, i - 1));
               }}
             >
               Previous
             </Button>
-            <Text size="sm" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
-              Page {page} of {totalPages}
-            </Text>
             <Button
               type="button"
               variant="default"
               size="sm"
               rightSection={<IconChevronRight size={16} stroke={1.75} aria-hidden />}
-              disabled={page >= totalPages || loading || total === 0}
+              disabled={!canGoOlder || loading || dayPagesTotal === 0}
               onClick={() => {
-                setPage((p) => p + 1);
+                setSelectedDayIndex((i) => Math.min(dayPagesTotal - 1, i + 1));
               }}
             >
               Next

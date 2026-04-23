@@ -143,7 +143,11 @@ export function KanbanView({
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [draggingListId, setDraggingListId] = useState<string | null>(null);
   const [addListComposerOpen, setAddListComposerOpen] = useState(false);
-  const [cardListMaxBodyPx, setCardListMaxBodyPx] = useState(getKanbanCardListMaxBodyPx);
+  const canAddCardRef = useRef(kanbanCaps.canAddCard);
+  canAddCardRef.current = kanbanCaps.canAddCard;
+  const [cardListMaxBodyPx, setCardListMaxBodyPx] = useState(() =>
+    getKanbanCardListMaxBodyPx(kanbanCaps.canAddCard),
+  );
   const [cardDropIndicator, setCardDropIndicator] = useState<CardDropIndicatorTarget | null>(null);
   const cardDropIndicatorRef = useRef<CardDropIndicatorTarget | null>(null);
   const [listDropIndicator, setListDropIndicator] = useState<ListDropIndicatorTarget | null>(null);
@@ -208,6 +212,10 @@ export function KanbanView({
   const columnsGroupRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    setCardListMaxBodyPx(getKanbanCardListMaxBodyPx(kanbanCaps.canAddCard));
+  }, [kanbanCaps.canAddCard]);
+
+  useEffect(() => {
     const ac = new AbortController();
     const { signal } = ac;
     let rafId: number | null = null;
@@ -217,7 +225,7 @@ export function KanbanView({
       }
       rafId = window.requestAnimationFrame(() => {
         rafId = null;
-        setCardListMaxBodyPx(getKanbanCardListMaxBodyPx());
+        setCardListMaxBodyPx(getKanbanCardListMaxBodyPx(canAddCardRef.current));
       });
     };
     window.addEventListener('resize', schedule, { signal });
@@ -228,7 +236,7 @@ export function KanbanView({
         window.cancelAnimationFrame(rafId);
       }
     };
-  }, [cancelPendingCardDropIndicatorRaf]);
+  }, []);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

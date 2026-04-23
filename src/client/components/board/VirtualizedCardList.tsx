@@ -29,6 +29,9 @@ const VIRTUOSO_VIEWPORT_PAD = { top: 64, bottom: 64 } as const;
 function estimateKanbanVirtuosoItemHeightPx(
   card: CardDB,
   showDescriptionPreview: boolean,
+  showStartDateOnCards: boolean,
+  showDueDateOnCards: boolean,
+  showEndDateOnCards: boolean,
 ): number {
   let inner = 32;
   inner += 26;
@@ -50,7 +53,7 @@ function estimateKanbanVirtuosoItemHeightPx(
 
   if (showDescriptionPreview && hasDescription) {
     inner += 6;
-    inner += 44;
+    inner += 36;
   } else if (showDescriptionPreview && descPreview) {
     inner += 6;
     inner += 36;
@@ -64,9 +67,19 @@ function estimateKanbanVirtuosoItemHeightPx(
     inner += 42;
   }
 
-  if (card.dueDate != null) {
+  let dateSlots = 0;
+  if (showStartDateOnCards && card.startDate != null) {
+    dateSlots += 1;
+  }
+  if (showDueDateOnCards && card.dueDate != null) {
+    dateSlots += 1;
+  }
+  if (showEndDateOnCards && card.endDate != null) {
+    dateSlots += 1;
+  }
+  if (dateSlots > 0) {
     inner += 10;
-    inner += 22;
+    inner += dateSlots === 1 ? 22 : dateSlots === 2 ? 36 : 50;
   }
 
   return inner + KANBAN_VIRTUOSO_ROW_GAP_PX;
@@ -86,9 +99,12 @@ export interface CardDropIndicatorTarget {
 interface VirtualizedCardListProps {
   cards: CardDB[];
   listId: string;
-  /** From KanbanView: single board-level resize subscription. */
+  /** Max pixel height of the card viewport; list stays content-sized until this cap (overflow scroll). */
   cardListMaxBodyPx: number;
   showDescriptionPreview: boolean;
+  showStartDateOnCards: boolean;
+  showDueDateOnCards: boolean;
+  showEndDateOnCards: boolean;
   assigneeDirectory?: ReadonlyMap<string, BoardMemberUserDisplay>;
   draggingCardId: string | null;
   dropIndicator: CardDropIndicatorTarget | null;
@@ -109,6 +125,9 @@ function virtualizedCardListPropsEqual(
     prev.listId === next.listId &&
     prev.cardListMaxBodyPx === next.cardListMaxBodyPx &&
     prev.showDescriptionPreview === next.showDescriptionPreview &&
+    prev.showStartDateOnCards === next.showStartDateOnCards &&
+    prev.showDueDateOnCards === next.showDueDateOnCards &&
+    prev.showEndDateOnCards === next.showEndDateOnCards &&
     prev.assigneeDirectory === next.assigneeDirectory &&
     prev.draggingCardId === next.draggingCardId &&
     prev.dropIndicator === next.dropIndicator &&
@@ -171,6 +190,9 @@ function VirtualizedCardListInner({
   listId,
   cardListMaxBodyPx,
   showDescriptionPreview,
+  showStartDateOnCards,
+  showDueDateOnCards,
+  showEndDateOnCards,
   assigneeDirectory,
   draggingCardId = null,
   dropIndicator = null,
@@ -196,9 +218,15 @@ function VirtualizedCardListInner({
   const heightEstimates = useMemo(
     () =>
       sortedCards.map((c) =>
-        estimateKanbanVirtuosoItemHeightPx(c, showDescriptionPreview),
+        estimateKanbanVirtuosoItemHeightPx(
+          c,
+          showDescriptionPreview,
+          showStartDateOnCards,
+          showDueDateOnCards,
+          showEndDateOnCards,
+        ),
       ),
-    [sortedCards, showDescriptionPreview],
+    [sortedCards, showDescriptionPreview, showStartDateOnCards, showDueDateOnCards, showEndDateOnCards],
   );
 
   const defaultItemHeight = useMemo(() => {
@@ -235,9 +263,7 @@ function VirtualizedCardListInner({
       ? 0
       : Math.max(
           72,
-          Math.ceil(
-            Math.min(totalListPx === 0 ? heightEstimatePx : totalListPx, maxBodyPx),
-          ),
+          Math.ceil(Math.min(totalListPx === 0 ? heightEstimatePx : totalListPx, maxBodyPx)),
         );
 
   const virtuosoRootStyle = useMemo(
@@ -304,6 +330,9 @@ function VirtualizedCardListInner({
             card={card}
             listId={listId}
             showDescriptionPreview={showDescriptionPreview}
+            showStartDateOnCards={showStartDateOnCards}
+            showDueDateOnCards={showDueDateOnCards}
+            showEndDateOnCards={showEndDateOnCards}
             showKanbanCardMenu={showKanbanCardMenu}
             kanbanCardBodyDraggable={kanbanCardBodyDraggable}
             {...(assigneeDirectory != null ? { assigneeDirectory } : {})}
@@ -324,6 +353,9 @@ function VirtualizedCardListInner({
       listId,
       draggingCardId,
       showDescriptionPreview,
+      showStartDateOnCards,
+      showDueDateOnCards,
+      showEndDateOnCards,
       showKanbanCardMenu,
       kanbanCardBodyDraggable,
       assigneeDirectory,

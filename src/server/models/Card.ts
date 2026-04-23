@@ -67,6 +67,8 @@ export interface ICard extends Document {
   labels: ICardLabel[];
   dueDate?: Date;
   startDate?: Date;
+  /** Optional “end by” / target end timestamp (distinct from due date). */
+  endDate?: Date;
   completed: boolean;
   completedAt?: Date;
   createdAt: Date;
@@ -228,6 +230,7 @@ const CardSchema = new Schema<ICard>(
       index: true,
     },
     startDate: Date,
+    endDate: Date,
     completed: {
       type: Boolean,
       default: false,

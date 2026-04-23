@@ -189,8 +189,8 @@ router.get('/attachments/:attachmentId/url', async (req, res, next) => {
       return;
     }
 
-    // Check permissions
-    const allowed = await hasPermission(authReq.user, card.boardId.toString(), 'attachments.download_url.view');
+    // Any board member may request a download URL (upload/delete remain permission-gated).
+    const allowed = await hasPermission(authReq.user, card.boardId.toString(), 'boards.view');
     if (!allowed) {
       res.status(403).json({
         error: {
@@ -254,7 +254,8 @@ router.get('/attachments/:attachmentId/file', async (req, res, next) => {
       return;
     }
 
-    const allowed = await hasPermission(authReq.user, card.boardId.toString(), 'attachments.file.stream');
+    // Stream/download is allowed for any board member (same baseline as `boards.view`); upload/delete stay gated.
+    const allowed = await hasPermission(authReq.user, card.boardId.toString(), 'boards.view');
     if (!allowed) {
       res.status(403).json({
         error: {

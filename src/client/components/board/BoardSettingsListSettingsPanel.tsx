@@ -1,15 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Group,
-  NumberInput,
-  Paper,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-} from '@mantine/core';
+import { Alert, Button, Group, Paper, Stack, Switch, Text, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import { db, type BoardDB, type BoardSettingsLivePatch } from '../../store/database.js';
@@ -32,6 +22,13 @@ function clampListColumnWidthPx(n: number): number {
   );
 }
 
+const LIST_MAX_CARDS_MIN = 1;
+const LIST_MAX_CARDS_MAX = 100_000;
+
+function clampListMaxCards(n: number): number {
+  return Math.min(LIST_MAX_CARDS_MAX, Math.max(LIST_MAX_CARDS_MIN, Math.round(n)));
+}
+
 interface BoardSettingsListSettingsPanelProps {
   boardId: string;
   onSettingsLivePatch?: (patch: BoardSettingsLivePatch) => void;
@@ -43,6 +40,7 @@ export function BoardSettingsListSettingsPanel({
 }: BoardSettingsListSettingsPanelProps) {
   const [board, setBoard] = useState<BoardDB | null>(null);
   const [maxCards, setMaxCards] = useState<number>(DEFAULT_BOARD_LIST_MAX_CARDS);
+  const [maxCardsDraft, setMaxCardsDraft] = useState<string>(String(DEFAULT_BOARD_LIST_MAX_CARDS));
   const [enforceMaxCards, setEnforceMaxCards] = useState<boolean>(true);
   const [listColumnWidthPx, setListColumnWidthPx] = useState<number>(DEFAULT_LIST_COLUMN_WIDTH_PX);
   const [widthDraft, setWidthDraft] = useState<string>(String(DEFAULT_LIST_COLUMN_WIDTH_PX));
@@ -55,6 +53,7 @@ export function BoardSettingsListSettingsPanel({
       setBoard(row);
       const { max, enforce } = getBoardListCardLimits(row);
       setMaxCards(max);
+      setMaxCardsDraft(String(max));
       setEnforceMaxCards(enforce);
       const w = getBoardListColumnWidthPx(row);
       setListColumnWidthPx(w);
@@ -66,7 +65,7 @@ export function BoardSettingsListSettingsPanel({
     void refreshBoard();
   }, [refreshBoard]);
 
-  const handleApplyListColumnWidth = useCallback((): void => {
+  const handleSave = async (): Promise<void> => {
     const digits = widthDraft.replace(/\D/g, '');
     if (digits === '') {
       notifications.show({
@@ -77,37 +76,57 @@ export function BoardSettingsListSettingsPanel({
       setWidthDraft(String(listColumnWidthPx));
       return;
     }
-    const n = Number.parseInt(digits, 10);
-    if (!Number.isFinite(n)) {
+    const parsed = Number.parseInt(digits, 10);
+    if (!Number.isFinite(parsed)) {
       setWidthDraft(String(listColumnWidthPx));
       return;
     }
-    const clamped = clampListColumnWidthPx(n);
-    setListColumnWidthPx(clamped);
-    setWidthDraft(String(clamped));
-    if (clamped !== n) {
+    const columnWidthPx = clampListColumnWidthPx(parsed);
+    if (columnWidthPx !== parsed) {
       notifications.show({
         title: 'Width adjusted',
         message: `Clamped to ${BOARD_LIST_COLUMN_WIDTH_MIN_PX}–${BOARD_LIST_COLUMN_WIDTH_MAX_PX}px.`,
         color: 'blue',
       });
     }
-    onSettingsLivePatch?.({
-      listColumnWidthAuto: true,
-      listColumnWidthPx: clamped,
-    });
-  }, [widthDraft, listColumnWidthPx, onSettingsLivePatch]);
+    setListColumnWidthPx(columnWidthPx);
+    setWidthDraft(String(columnWidthPx));
 
-  const handleSave = async (): Promise<void> => {
+    const maxDigits = maxCardsDraft.replace(/\D/g, '');
+    if (maxDigits === '') {
+      notifications.show({
+        title: 'Enter max cards',
+        message: `Use a whole number from ${LIST_MAX_CARDS_MIN.toLocaleString()} to ${LIST_MAX_CARDS_MAX.toLocaleString()}.`,
+        color: 'yellow',
+      });
+      setMaxCardsDraft(String(maxCards));
+      return;
+    }
+    const maxParsed = Number.parseInt(maxDigits, 10);
+    if (!Number.isFinite(maxParsed)) {
+      setMaxCardsDraft(String(maxCards));
+      return;
+    }
+    const listMaxCardsResolved = clampListMaxCards(maxParsed);
+    if (listMaxCardsResolved !== maxParsed) {
+      notifications.show({
+        title: 'Limit adjusted',
+        message: `Clamped to ${LIST_MAX_CARDS_MIN.toLocaleString()}–${LIST_MAX_CARDS_MAX.toLocaleString()}.`,
+        color: 'blue',
+      });
+    }
+    setMaxCards(listMaxCardsResolved);
+    setMaxCardsDraft(String(listMaxCardsResolved));
+
     setLoading(true);
     setError(null);
     try {
       const response = await api.updateBoard(boardId, {
         settings: {
-          listMaxCards: maxCards,
+          listMaxCards: listMaxCardsResolved,
           listEnforceMaxCards: enforceMaxCards,
           listColumnWidthAuto: true,
-          listColumnWidthPx,
+          listColumnWidthPx: columnWidthPx,
         },
       });
       const next = transformBoard((response as { board: unknown }).board);
@@ -116,9 +135,13 @@ export function BoardSettingsListSettingsPanel({
       const w = getBoardListColumnWidthPx(next);
       setListColumnWidthPx(w);
       setWidthDraft(String(w));
+      const limits = getBoardListCardLimits(next);
+      setMaxCards(limits.max);
+      setMaxCardsDraft(String(limits.max));
+      setEnforceMaxCards(limits.enforce);
       onSettingsLivePatch?.({
-        listMaxCards: maxCards,
-        listEnforceMaxCards: enforceMaxCards,
+        listMaxCards: limits.max,
+        listEnforceMaxCards: limits.enforce,
         listColumnWidthAuto: true,
         listColumnWidthPx: w,
       });
@@ -131,6 +154,7 @@ export function BoardSettingsListSettingsPanel({
       const msg = e instanceof Error ? e.message : 'Failed to save';
       setError(msg);
       notifications.show({ title: 'Error', message: msg, color: 'red' });
+      void refreshBoard();
     } finally {
       setLoading(false);
     }
@@ -154,37 +178,23 @@ export function BoardSettingsListSettingsPanel({
         <Text fw={600} size="sm" mb="sm">
           List sizing
         </Text>
-        <Group align="flex-end" wrap="nowrap" gap="xs">
-          <TextInput
-            label="Default column width"
-            description={`Used on wide screens; columns narrow automatically on smaller viewports (${BOARD_LIST_COLUMN_WIDTH_MIN_PX}–${BOARD_LIST_COLUMN_WIDTH_MAX_PX}).`}
-            value={widthDraft}
-            onChange={(e) => {
-              setWidthDraft(e.currentTarget.value);
-            }}
-            inputMode="numeric"
-            disabled={loading}
-            style={{ flex: '1 1 220px' }}
-            styles={{ input: { fontVariantNumeric: 'tabular-nums' } }}
-          />
-          <Text component="span" size="sm" c="dimmed" pb={4} style={{ flexShrink: 0 }}>
-            px
-          </Text>
-          <Button
-            variant="light"
-            onClick={() => {
-              handleApplyListColumnWidth();
-            }}
-            disabled={loading}
-            style={{ flexShrink: 0 }}
-          >
-            Apply
-          </Button>
-        </Group>
-        <Text size="xs" c="dimmed" mt="xs">
-          Click Apply to update the board column width on this device. Use Save below to persist all list
-          settings to the server.
-        </Text>
+        <TextInput
+          label="Default column width"
+          description={`Used on wide screens; columns narrow automatically on smaller viewports (${BOARD_LIST_COLUMN_WIDTH_MIN_PX}–${BOARD_LIST_COLUMN_WIDTH_MAX_PX}px). Saved with the button below for everyone on this board.`}
+          value={widthDraft}
+          onChange={(e) => {
+            setWidthDraft(e.currentTarget.value);
+          }}
+          inputMode="numeric"
+          disabled={loading}
+          style={{ maxWidth: 320 }}
+          styles={{ input: { fontVariantNumeric: 'tabular-nums' } }}
+          rightSection={
+            <Text component="span" size="sm" c="dimmed" pr="xs">
+              px
+            </Text>
+          }
+        />
       </Paper>
 
       <Paper withBorder p="md" radius="md">
@@ -195,14 +205,18 @@ export function BoardSettingsListSettingsPanel({
           These limits apply to every list on this board. When hard limit is on, new cards cannot be
           added past the limit; with soft limit, the server still allows adds (warn in UI later).
         </Text>
-        <NumberInput
+        <TextInput
           label="Max cards per list"
-          value={maxCards}
-          onChange={(v) => setMaxCards(typeof v === 'number' ? v : DEFAULT_BOARD_LIST_MAX_CARDS)}
-          min={1}
-          max={100000}
+          description={`Whole number, ${LIST_MAX_CARDS_MIN.toLocaleString()}–${LIST_MAX_CARDS_MAX.toLocaleString()}. Saved with the button below.`}
+          value={maxCardsDraft}
+          onChange={(e) => {
+            setMaxCardsDraft(e.currentTarget.value);
+          }}
+          inputMode="numeric"
           disabled={loading}
           mb="md"
+          style={{ maxWidth: 320 }}
+          styles={{ input: { fontVariantNumeric: 'tabular-nums' } }}
         />
         <Switch
           label={enforceMaxCards ? 'Hard limit' : 'Soft limit'}

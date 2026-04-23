@@ -18,14 +18,18 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { format } from 'date-fns';
-import { IconAlignLeft, IconCalendar, IconDots } from '@tabler/icons-react';
+import { IconAlignLeft, IconCalendarEvent, IconClock, IconDots, IconFlag } from '@tabler/icons-react';
 import type { CardDB } from '../../store/database.js';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
 import { CardDescriptionBoardPreview } from '../card/CardDescriptionBoardPreview.js';
-import { isCardDescriptionEmpty, parseCardDescriptionJson } from '../card/cardDescriptionTiptap.js';
+import {
+  cardDescriptionFirstLogicalLinePlain,
+  isCardDescriptionEmpty,
+  parseCardDescriptionJson,
+} from '../card/cardDescriptionTiptap.js';
 import { TwemojiPlainText } from '../common/TwemojiPlainText.js';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -37,6 +41,9 @@ interface SortableCardProps {
   card: CardDB;
   listId: string;
   showDescriptionPreview: boolean;
+  showStartDateOnCards: boolean;
+  showDueDateOnCards: boolean;
+  showEndDateOnCards: boolean;
   /** Kanban ⋮ menu (colour / rename / delete) — off for viewers without `cards.update`/`cards.delete`. */
   showKanbanCardMenu: boolean;
   /** Card-body pointer drag for reorder/move; off when user lacks `cards.move`/`cards.reorder`. */
@@ -58,6 +65,9 @@ function sortableCardPropsEqual(
     prev.card === next.card &&
     prev.listId === next.listId &&
     prev.showDescriptionPreview === next.showDescriptionPreview &&
+    prev.showStartDateOnCards === next.showStartDateOnCards &&
+    prev.showDueDateOnCards === next.showDueDateOnCards &&
+    prev.showEndDateOnCards === next.showEndDateOnCards &&
     prev.showKanbanCardMenu === next.showKanbanCardMenu &&
     prev.kanbanCardBodyDraggable === next.kanbanCardBodyDraggable &&
     prev.assigneeDirectory === next.assigneeDirectory &&
@@ -156,6 +166,9 @@ function SortableCardInner({
   card,
   listId,
   showDescriptionPreview,
+  showStartDateOnCards,
+  showDueDateOnCards,
+  showEndDateOnCards,
   showKanbanCardMenu,
   kanbanCardBodyDraggable,
   assigneeDirectory,
@@ -215,6 +228,21 @@ function SortableCardInner({
     hasDescription &&
     descDocForPreview != null &&
     !isCardDescriptionEmpty(descDocForPreview);
+
+  const descriptionFirstLinePlain = useMemo((): string => {
+    if (!showRichDescPreview) {
+      return '';
+    }
+    return cardDescriptionFirstLogicalLinePlain(card.description);
+  }, [showRichDescPreview, card.description]);
+
+  const descriptionPreviewFirstLine = useMemo((): string => {
+    const raw = card.descriptionPreview;
+    if (typeof raw !== 'string' || raw.trim() === '') {
+      return '';
+    }
+    return (raw.split(/\r?\n/)[0] ?? '').trim();
+  }, [card.descriptionPreview]);
 
   const kanbanLabelVisualKey = useMemo(
     () => card.labels.map((l) => `${l.id}:${l.color}:${l.name}`).join('|'),
@@ -366,8 +394,9 @@ function SortableCardInner({
       }${showKanbanCardMenu ? '' : ' board-card--kanban--no-card-menu'}`}
       data-kanban-list-id={listId}
       data-kanban-card-id={card.id}
-      padding="md"
-      radius="md"
+      padding={0}
+      radius={12}
+      styles={{ root: { padding: '14px' } }}
       style={{
         opacity: isDragSource ? 0 : 1,
         transition: 'opacity 0.12s ease',
@@ -388,8 +417,8 @@ function SortableCardInner({
         <Card.Section
           mb="xs"
           style={{
-            borderTopLeftRadius: 'var(--mantine-radius-md)',
-            borderTopRightRadius: 'var(--mantine-radius-md)',
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
             overflow: 'hidden',
           }}
         >
@@ -436,7 +465,7 @@ function SortableCardInner({
       >
         {kanbanLabelRow}
 
-        <Text component="div" className="board-card__kanban-title" fw={400}>
+        <Text component="div" className="board-card__kanban-title">
           {richReady ? (
             <TwemojiPlainText text={card.title} />
           ) : (
@@ -445,16 +474,27 @@ function SortableCardInner({
         </Text>
 
         {showRichDescPreview ? (
-          <Box
-            mt={6}
-            style={{
-              minHeight: '2.75rem',
-            }}
-          >
-            {richReady ? (
+          richReady ? (
+            descriptionFirstLinePlain !== '' ? (
               <Text
                 component="div"
                 fw={200}
+                mt={6}
+                c={card.color && card.color.trim().length > 0 ? 'white' : 'dimmed'}
+                lineClamp={2}
+                className="board-card__desc board-card__kanban-desc"
+                style={{
+                  wordBreak: 'break-word',
+                  ...(card.color && card.color.trim().length > 0 ? { opacity: 0.92 } : {}),
+                }}
+              >
+                <TwemojiPlainText text={descriptionFirstLinePlain} />
+              </Text>
+            ) : (
+              <Text
+                component="div"
+                fw={200}
+                mt={6}
                 c={card.color && card.color.trim().length > 0 ? 'white' : 'dimmed'}
                 lineClamp={2}
                 className="board-card__desc board-card__kanban-desc board-card__kanban-desc-board-preview"
@@ -467,17 +507,14 @@ function SortableCardInner({
                   <CardDescriptionBoardPreview valueJson={card.description} />
                 </div>
               </Text>
-            ) : (
-              <Text component="div" size="xs" c="dimmed" lineClamp={2}>
-                …
-              </Text>
-            )}
-          </Box>
+            )
+          ) : (
+            <Text component="div" size="xs" c="dimmed" lineClamp={1} mt={6}>
+              …
+            </Text>
+          )
         ) : null}
-        {showDescriptionPreview &&
-        !showRichDescPreview &&
-        typeof card.descriptionPreview === 'string' &&
-        card.descriptionPreview.trim() !== '' ? (
+        {showDescriptionPreview && !showRichDescPreview && descriptionPreviewFirstLine !== '' ? (
           <Text
             component="div"
             fw={200}
@@ -486,14 +523,14 @@ function SortableCardInner({
             lineClamp={2}
             className="board-card__desc board-card__kanban-desc"
             style={{
-              whiteSpace: 'pre-line',
+              wordBreak: 'break-word',
               ...(card.color && card.color.trim().length > 0 ? { opacity: 0.92 } : {}),
             }}
           >
             {richReady ? (
-              <TwemojiPlainText text={card.descriptionPreview} />
+              <TwemojiPlainText text={descriptionPreviewFirstLine} />
             ) : (
-              <span>{card.descriptionPreview}</span>
+              <span>{descriptionPreviewFirstLine}</span>
             )}
           </Text>
         ) : null}
@@ -518,50 +555,140 @@ function SortableCardInner({
 
         {kanbanAssigneeRow}
 
-        {card.dueDate ? (
-          <Box className="board-card__kanban-due-wrap">
-            <Badge
-              size="xs"
-              radius={4}
-              variant={card.color && card.color.trim().length > 0 ? 'filled' : 'light'}
-              color={card.color && card.color.trim().length > 0 ? 'gray' : 'gray'}
-              leftSection={<IconCalendar size={11} stroke={1.5} aria-hidden />}
-              className="board-card__kanban-due"
-              styles={
-                card.color && card.color.trim().length > 0
-                  ? {
-                      root: {
-                        fontSize: '0.6875rem',
-                        fontWeight: 400,
-                        lineHeight: 1.3,
-                        minHeight: '1.125rem',
-                        paddingInline: 6,
-                        backgroundColor: 'rgba(0, 0, 0, 0.32)',
-                        color: '#ffffff',
-                        border: 'none',
-                      },
-                      section: { color: '#ffffff' },
-                      label: {
-                        color: '#ffffff',
-                        fontSize: 'inherit',
-                        fontWeight: 'inherit',
-                      },
-                    }
-                  : {
-                      root: {
-                        fontSize: '0.6875rem',
-                        fontWeight: 400,
-                        lineHeight: 1.3,
-                        minHeight: '1.125rem',
-                        paddingInline: 6,
-                      },
-                      label: { fontSize: 'inherit', fontWeight: 'inherit' },
-                    }
-              }
-            >
-              {format(new Date(card.dueDate), 'MMM d')}
-            </Badge>
-          </Box>
+        {(showStartDateOnCards && card.startDate != null) ||
+        (showDueDateOnCards && card.dueDate != null) ||
+        (showEndDateOnCards && card.endDate != null) ? (
+          <Group gap={6} mt={6} wrap="wrap" className="board-card__kanban-due-wrap">
+            {showStartDateOnCards && card.startDate != null ? (
+              <Badge
+                size="xs"
+                radius={4}
+                variant={card.color && card.color.trim().length > 0 ? 'filled' : 'light'}
+                color={card.color && card.color.trim().length > 0 ? 'gray' : 'gray'}
+                leftSection={<IconCalendarEvent size={11} stroke={1.5} aria-hidden />}
+                className="board-card__kanban-due"
+                styles={
+                  card.color && card.color.trim().length > 0
+                    ? {
+                        root: {
+                          fontSize: '0.6875rem',
+                          fontWeight: 400,
+                          lineHeight: 1.3,
+                          minHeight: '1.125rem',
+                          paddingInline: 6,
+                          backgroundColor: 'rgba(0, 0, 0, 0.32)',
+                          color: '#ffffff',
+                          border: 'none',
+                        },
+                        section: { color: '#ffffff' },
+                        label: {
+                          color: '#ffffff',
+                          fontSize: 'inherit',
+                          fontWeight: 'inherit',
+                        },
+                      }
+                    : {
+                        root: {
+                          fontSize: '0.6875rem',
+                          fontWeight: 400,
+                          lineHeight: 1.3,
+                          minHeight: '1.125rem',
+                          paddingInline: 6,
+                        },
+                        label: { fontSize: 'inherit', fontWeight: 'inherit' },
+                      }
+                }
+              >
+                {format(new Date(card.startDate), 'MMM d')}
+              </Badge>
+            ) : null}
+            {showDueDateOnCards && card.dueDate != null ? (
+              <Badge
+                size="xs"
+                radius={4}
+                variant={card.color && card.color.trim().length > 0 ? 'filled' : 'light'}
+                color={card.color && card.color.trim().length > 0 ? 'gray' : 'gray'}
+                leftSection={<IconClock size={11} stroke={1.5} aria-hidden />}
+                className="board-card__kanban-due"
+                styles={
+                  card.color && card.color.trim().length > 0
+                    ? {
+                        root: {
+                          fontSize: '0.6875rem',
+                          fontWeight: 400,
+                          lineHeight: 1.3,
+                          minHeight: '1.125rem',
+                          paddingInline: 6,
+                          backgroundColor: 'rgba(0, 0, 0, 0.32)',
+                          color: '#ffffff',
+                          border: 'none',
+                        },
+                        section: { color: '#ffffff' },
+                        label: {
+                          color: '#ffffff',
+                          fontSize: 'inherit',
+                          fontWeight: 'inherit',
+                        },
+                      }
+                    : {
+                        root: {
+                          fontSize: '0.6875rem',
+                          fontWeight: 400,
+                          lineHeight: 1.3,
+                          minHeight: '1.125rem',
+                          paddingInline: 6,
+                        },
+                        label: { fontSize: 'inherit', fontWeight: 'inherit' },
+                      }
+                }
+              >
+                {format(new Date(card.dueDate), 'MMM d')}
+              </Badge>
+            ) : null}
+            {showEndDateOnCards && card.endDate != null ? (
+              <Badge
+                size="xs"
+                radius={4}
+                variant={card.color && card.color.trim().length > 0 ? 'filled' : 'light'}
+                color={card.color && card.color.trim().length > 0 ? 'gray' : 'gray'}
+                leftSection={<IconFlag size={11} stroke={1.5} aria-hidden />}
+                className="board-card__kanban-due"
+                styles={
+                  card.color && card.color.trim().length > 0
+                    ? {
+                        root: {
+                          fontSize: '0.6875rem',
+                          fontWeight: 400,
+                          lineHeight: 1.3,
+                          minHeight: '1.125rem',
+                          paddingInline: 6,
+                          backgroundColor: 'rgba(0, 0, 0, 0.32)',
+                          color: '#ffffff',
+                          border: 'none',
+                        },
+                        section: { color: '#ffffff' },
+                        label: {
+                          color: '#ffffff',
+                          fontSize: 'inherit',
+                          fontWeight: 'inherit',
+                        },
+                      }
+                    : {
+                        root: {
+                          fontSize: '0.6875rem',
+                          fontWeight: 400,
+                          lineHeight: 1.3,
+                          minHeight: '1.125rem',
+                          paddingInline: 6,
+                        },
+                        label: { fontSize: 'inherit', fontWeight: 'inherit' },
+                      }
+                }
+              >
+                {format(new Date(card.endDate), 'MMM d')}
+              </Badge>
+            ) : null}
+          </Group>
         ) : null}
       </Box>
     </Card>

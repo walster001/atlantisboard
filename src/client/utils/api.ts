@@ -430,6 +430,10 @@ class ApiClient {
       allowAttachments?: boolean;
       cardCoverImages?: boolean;
       showDueDateAndReminders?: boolean;
+      showRemindersOnCards?: boolean;
+      showStartDateOnCards?: boolean;
+      showDueDateOnCards?: boolean;
+      showEndDateOnCards?: boolean;
       showLabels?: boolean;
       showAssignees?: boolean;
       showChecklist?: boolean;
@@ -688,7 +692,8 @@ class ApiClient {
     color?: string;
     cover?: string;
     dueDate?: string | null;
-    startDate?: string;
+    startDate?: string | null;
+    endDate?: string | null;
     completed?: boolean;
   }): Promise<{ card: unknown }> {
     const response = await this.client.put(`/cards/${id}`, data);
@@ -850,12 +855,13 @@ class ApiClient {
       cardId?: string;
       cursor?: string;
       memberAudit?: boolean;
-      page?: number;
-      pageSize?: number;
+      /** Inclusive local-day bounds as `Date.getTime()` (member audit only). */
+      dayStartMs?: number;
+      dayEndMs?: number;
     }
   ): Promise<
     | { activities: unknown[]; nextCursor?: string }
-    | { activities: unknown[]; total: number; page: number; pageSize: number }
+    | { activities: unknown[]; total: number }
   > {
     const params = new URLSearchParams();
     const o = options ?? {};
@@ -865,8 +871,8 @@ class ApiClient {
     if (o.cardId !== undefined && o.cardId !== '') params.append('cardId', o.cardId);
     if (o.cursor !== undefined && o.cursor !== '') params.append('cursor', o.cursor);
     if (o.memberAudit === true) params.append('memberAudit', 'true');
-    if (o.page !== undefined) params.append('page', o.page.toString());
-    if (o.pageSize !== undefined) params.append('pageSize', o.pageSize.toString());
+    if (o.dayStartMs !== undefined) params.append('dayStart', String(o.dayStartMs));
+    if (o.dayEndMs !== undefined) params.append('dayEnd', String(o.dayEndMs));
     const response = await this.client.get(`/activities/boards/${boardId}?${params.toString()}`);
     return response.data;
   }

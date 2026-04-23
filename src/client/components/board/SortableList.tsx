@@ -31,6 +31,11 @@ import {
   getBoardListColumnWidthChrome,
   getBoardListColumnWidthPx,
 } from '../../utils/boardListColumnWidth.js';
+import {
+  boardShowsDueDateOnCards,
+  boardShowsEndDateOnCards,
+  boardShowsStartDateOnCards,
+} from '../../../shared/utils/boardCardDateVisibility.js';
 import { CARD_TITLE_MAX_LENGTH } from '../../constants/cardFieldLimits.js';
 import { VirtualizedCardList, type CardDropIndicatorTarget } from './VirtualizedCardList.js';
 import { BoardInlineCardComposer } from './BoardInlineCardComposer.js';
@@ -115,6 +120,15 @@ function SortableListInner({
   onKanbanCardsReload,
   kanbanCaps,
 }: SortableListProps) {
+  const cardDateVisibility = useMemo(
+    () => ({
+      showStartDateOnCards: boardShowsStartDateOnCards(board.settings),
+      showDueDateOnCards: boardShowsDueDateOnCards(board.settings),
+      showEndDateOnCards: boardShowsEndDateOnCards(board.settings),
+    }),
+    [board],
+  );
+
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(list.name);
   const [colorModalOpen, setColorModalOpen] = useState(false);
@@ -611,7 +625,14 @@ function SortableListInner({
       style={columnBoxStyle}
       data-kanban-list-id={list.id}
     >
-      <Group justify="space-between" align="flex-start" mb="xs" wrap="nowrap" gap="xs">
+      <Group
+        justify="space-between"
+        align="flex-start"
+        mb="xs"
+        wrap="nowrap"
+        gap="xs"
+        className="board-column__header-row"
+      >
         <Box
           ref={listTitleDragRef}
           className="board-column__title-row"
@@ -692,6 +713,9 @@ function SortableListInner({
           listId={list.id}
           cardListMaxBodyPx={cardListMaxBodyPx}
           showDescriptionPreview={board.settings.showCardDescriptionPreview !== false}
+          showStartDateOnCards={cardDateVisibility.showStartDateOnCards}
+          showDueDateOnCards={cardDateVisibility.showDueDateOnCards}
+          showEndDateOnCards={cardDateVisibility.showEndDateOnCards}
           {...(assigneeDirectory != null ? { assigneeDirectory } : {})}
           draggingCardId={draggingCardId ?? null}
           dropIndicator={cardDropIndicator ?? null}

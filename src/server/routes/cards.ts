@@ -54,7 +54,8 @@ const updateCardSchema = z.object({
   color: z.string().optional(),
   cover: z.string().optional(),
   dueDate: z.string().datetime().nullable().optional(),
-  startDate: z.string().datetime().optional(),
+  startDate: z.string().datetime().nullable().optional(),
+  endDate: z.string().datetime().nullable().optional(),
   completed: z.boolean().optional(),
 });
 
@@ -262,7 +263,8 @@ router.put('/:id', async (req, res, next) => {
       color?: string | undefined;
       cover?: string | undefined;
       dueDate?: Date | null | undefined;
-      startDate?: Date | undefined;
+      startDate?: Date | null | undefined;
+      endDate?: Date | null | undefined;
       completed?: boolean | undefined;
     } = {};
 
@@ -276,7 +278,10 @@ router.put('/:id', async (req, res, next) => {
       updateData.dueDate = validated.dueDate === null ? null : new Date(validated.dueDate);
     }
     if (validated.startDate !== undefined) {
-      updateData.startDate = new Date(validated.startDate);
+      updateData.startDate = validated.startDate === null ? null : new Date(validated.startDate);
+    }
+    if (validated.endDate !== undefined) {
+      updateData.endDate = validated.endDate === null ? null : new Date(validated.endDate);
     }
     if (validated.completed !== undefined) updateData.completed = validated.completed;
 

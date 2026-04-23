@@ -42,7 +42,10 @@ export type BoardPermissionKey =
   | 'cards.delete'
   | 'cards.duplicate'
   | 'cards.move'
-  | 'cards.reorder';
+  | 'cards.reorder'
+  | 'cards.dates.start.edit'
+  | 'cards.dates.due.edit'
+  | 'cards.dates.end.edit';
 
 export function useBoardPermissions(
   boardId: string | undefined,

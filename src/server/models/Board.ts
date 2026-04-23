@@ -18,7 +18,13 @@ export interface IBoardSettings {
   allowComments: boolean;
   allowAttachments: boolean;
   cardCoverImages: boolean;
+  /** Legacy bundled flag; retained for older documents. Reminder visibility prefers `showRemindersOnCards`. */
   showDueDateAndReminders: boolean;
+  /** When unset, `boardShowsRemindersOnCards` falls back to `showDueDateAndReminders`. */
+  showRemindersOnCards?: boolean;
+  showStartDateOnCards?: boolean;
+  showDueDateOnCards?: boolean;
+  showEndDateOnCards?: boolean;
   showLabels: boolean;
   showAssignees: boolean;
   showChecklist: boolean;
@@ -81,6 +87,10 @@ const BoardSettingsSchema = new Schema<IBoardSettings>(
     allowAttachments: { type: Boolean, default: true },
     cardCoverImages: { type: Boolean, default: true },
     showDueDateAndReminders: { type: Boolean, default: true },
+    showRemindersOnCards: { type: Boolean, default: true },
+    showStartDateOnCards: { type: Boolean, default: true },
+    showDueDateOnCards: { type: Boolean, default: true },
+    showEndDateOnCards: { type: Boolean, default: true },
     showLabels: { type: Boolean, default: true },
     showAssignees: { type: Boolean, default: true },
     showChecklist: { type: Boolean, default: true },

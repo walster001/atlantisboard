@@ -92,6 +92,10 @@ const updateBoardSchema = z.object({
       allowAttachments: z.boolean().optional(),
       cardCoverImages: z.boolean().optional(),
       showDueDateAndReminders: z.boolean().optional(),
+      showRemindersOnCards: z.boolean().optional(),
+      showStartDateOnCards: z.boolean().optional(),
+      showDueDateOnCards: z.boolean().optional(),
+      showEndDateOnCards: z.boolean().optional(),
       showLabels: z.boolean().optional(),
       showAssignees: z.boolean().optional(),
       showChecklist: z.boolean().optional(),
@@ -471,6 +475,9 @@ router.get('/:id/permissions/me', async (req, res, next) => {
       'cards.duplicate',
       'cards.move',
       'cards.reorder',
+      'cards.dates.start.edit',
+      'cards.dates.due.edit',
+      'cards.dates.end.edit',
     ] as const;
     const allowed: string[] = [];
     for (const key of keys) {

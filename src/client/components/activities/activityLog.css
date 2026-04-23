@@ -40,6 +40,16 @@
   justify-content: center;
 }
 
+.board-member-activity-log__virtuoso-host {
+  display: flex;
+  flex-direction: column;
+}
+
+.board-member-activity-log__virtuoso {
+  flex: 1;
+  min-height: 0;
+}
+
 .board-member-activity-log__card {
   border: 1px solid var(--mantine-color-gray-3);
   background-color: var(--mantine-color-white);

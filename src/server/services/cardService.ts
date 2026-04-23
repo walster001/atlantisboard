@@ -46,8 +46,27 @@ export interface UpdateCardInput {
   color?: string | undefined;
   cover?: string | undefined;
   dueDate?: Date | null | undefined;
-  startDate?: Date | undefined;
+  startDate?: Date | null | undefined;
+  endDate?: Date | null | undefined;
   completed?: boolean | undefined;
+}
+
+function dateValueMs(value: Date | undefined | null): number | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const t = value.getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function cardDateFieldChanged(
+  before: Date | undefined | null,
+  after: Date | null | undefined,
+): boolean {
+  if (after === undefined) {
+    return false;
+  }
+  return dateValueMs(before ?? undefined) !== dateValueMs(after);
 }
 
 export async function createCard(input: CreateCardInput, userId: string): Promise<Document & ICard> {
@@ -209,12 +228,41 @@ export async function updateCard(
     throw new Error('Board not found');
   }
 
-  if (board.ownerId.toString() !== userId) {
-    const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.update');
+  const boardIdStr = card.boardId.toString();
+  const isBoardOwner = board.ownerId.toString() === userId;
+
+  if (!isBoardOwner) {
+    const allowed = await hasPermission({ id: userId }, boardIdStr, 'cards.update');
     if (!allowed) {
       throw new Error('Insufficient permissions to update card');
     }
   }
+
+  const assertDateEditIfChanged = async (
+    kind: 'start' | 'due' | 'end',
+    before: Date | undefined | null,
+    after: Date | null | undefined,
+  ): Promise<void> => {
+    if (!cardDateFieldChanged(before, after)) {
+      return;
+    }
+    if (isBoardOwner) {
+      return;
+    }
+    const key =
+      kind === 'start'
+        ? 'cards.dates.start.edit'
+        : kind === 'due'
+          ? 'cards.dates.due.edit'
+          : 'cards.dates.end.edit';
+    if (!(await hasPermission({ id: userId }, boardIdStr, key))) {
+      throw new Error(`Insufficient permissions to edit ${kind} date`);
+    }
+  };
+
+  await assertDateEditIfChanged('due', card.dueDate, input.dueDate);
+  await assertDateEditIfChanged('start', card.startDate, input.startDate);
+  await assertDateEditIfChanged('end', card.endDate, input.endDate);
 
   if (input.title !== undefined) card.title = input.title;
   if (input.description !== undefined) {
@@ -235,7 +283,20 @@ export async function updateCard(
       card.dueDate = input.dueDate;
     }
   }
-  if (input.startDate !== undefined) card.startDate = input.startDate;
+  if (input.startDate !== undefined) {
+    if (input.startDate === null) {
+      card.set('startDate', undefined);
+    } else {
+      card.startDate = input.startDate;
+    }
+  }
+  if (input.endDate !== undefined) {
+    if (input.endDate === null) {
+      card.set('endDate', undefined);
+    } else {
+      card.endDate = input.endDate;
+    }
+  }
   if (input.completed !== undefined) {
     card.completed = input.completed;
     if (input.completed) {
@@ -564,6 +625,7 @@ export async function duplicateCard(
     labels: sourceCard.labels,
     dueDate: sourceCard.dueDate,
     startDate: sourceCard.startDate,
+    endDate: sourceCard.endDate,
     completed: false,
     createdBy: userId,
     assignees: sourceCard.assignees,

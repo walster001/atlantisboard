@@ -36,7 +36,10 @@ export interface BoardDB {
     allowComments: boolean;
     allowAttachments: boolean;
     cardCoverImages: boolean;
-    showDueDateAndReminders?: boolean;
+    showReminders: boolean;
+    showStartDateOnCards?: boolean;
+    showDueDateOnCards?: boolean;
+    showEndDateOnCards?: boolean;
     showLabels?: boolean;
     showAssignees?: boolean;
     showChecklist?: boolean;
@@ -97,6 +100,7 @@ export interface CardDB {
   }>;
   dueDate?: Date;
   startDate?: Date;
+  endDate?: Date;
   completed: boolean;
   completedAt?: Date;
   createdBy: string;

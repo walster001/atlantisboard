@@ -243,6 +243,9 @@ const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'cards.list': 'List cards.',
   'cards.view': 'View a card.',
   'cards.update': 'Update a card.',
+  'cards.dates.start.edit': 'Edit a card’s start date.',
+  'cards.dates.due.edit': 'Edit a card’s due date.',
+  'cards.dates.end.edit': 'Edit a card’s end date.',
   'cards.delete': 'Delete a card.',
   'cards.move': 'Move a card between columns.',
   'cards.reorder': 'Reorder cards within a column.',
@@ -263,8 +266,6 @@ const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   // attachments.*
   'attachments.upload': 'Upload an attachment to a card.',
   'attachments.delete': 'Delete an attachment from a card.',
-  'attachments.download_url.view': 'Get a temporary download URL for an attachment.',
-  'attachments.file.stream': 'Download/stream an attachment file.',
   // comments.*
   'comments.create': 'Create a comment.',
   'comments.update': 'Edit a comment (typically author-only).',

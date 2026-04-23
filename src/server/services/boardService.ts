@@ -28,6 +28,12 @@ import {
   getRoleHierarchyLevel,
   type BoardMemberRoleUpdateModeKey,
 } from './roleService.js';
+import {
+  boardShowsDueDateOnCards,
+  boardShowsEndDateOnCards,
+  boardShowsRemindersOnCards,
+  boardShowsStartDateOnCards,
+} from '../../shared/utils/boardCardDateVisibility.js';
 
 /** Monotonic counter for home `boards:positionsSynced` so clients can reject stale reorder events. */
 let homeBoardPositionsSequence = 0;
@@ -209,6 +215,10 @@ export interface UpdateBoardInput {
     allowAttachments?: boolean | undefined;
     cardCoverImages?: boolean | undefined;
     showDueDateAndReminders?: boolean | undefined;
+    showRemindersOnCards?: boolean | undefined;
+    showStartDateOnCards?: boolean | undefined;
+    showDueDateOnCards?: boolean | undefined;
+    showEndDateOnCards?: boolean | undefined;
     showLabels?: boolean | undefined;
     showAssignees?: boolean | undefined;
     showChecklist?: boolean | undefined;
@@ -268,7 +278,10 @@ function toBoardSummary(board: Document & IBoard): BoardSummaryDTO {
       allowComments: s.allowComments !== false,
       allowAttachments: s.allowAttachments !== false,
       cardCoverImages: s.cardCoverImages !== false,
-      showDueDateAndReminders: s.showDueDateAndReminders !== false,
+      showRemindersOnCards: boardShowsRemindersOnCards(s),
+      showStartDateOnCards: boardShowsStartDateOnCards(s),
+      showDueDateOnCards: boardShowsDueDateOnCards(s),
+      showEndDateOnCards: boardShowsEndDateOnCards(s),
       showLabels: s.showLabels !== false,
       showAssignees: s.showAssignees !== false,
       showChecklist: s.showChecklist !== false,
@@ -607,6 +620,7 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
       allowAttachments: true,
       cardCoverImages: true,
       showDueDateAndReminders: true,
+      showRemindersOnCards: true,
       showLabels: true,
       showAssignees: true,
       showChecklist: true,
@@ -915,6 +929,18 @@ export async function updateBoard(
     if (input.settings.cardCoverImages !== undefined) board.settings.cardCoverImages = input.settings.cardCoverImages;
     if (input.settings.showDueDateAndReminders !== undefined) {
       board.settings.showDueDateAndReminders = input.settings.showDueDateAndReminders;
+    }
+    if (input.settings.showRemindersOnCards !== undefined) {
+      board.settings.showRemindersOnCards = input.settings.showRemindersOnCards;
+    }
+    if (input.settings.showStartDateOnCards !== undefined) {
+      board.settings.showStartDateOnCards = input.settings.showStartDateOnCards;
+    }
+    if (input.settings.showDueDateOnCards !== undefined) {
+      board.settings.showDueDateOnCards = input.settings.showDueDateOnCards;
+    }
+    if (input.settings.showEndDateOnCards !== undefined) {
+      board.settings.showEndDateOnCards = input.settings.showEndDateOnCards;
     }
     if (input.settings.showLabels !== undefined) board.settings.showLabels = input.settings.showLabels;
     if (input.settings.showAssignees !== undefined) board.settings.showAssignees = input.settings.showAssignees;

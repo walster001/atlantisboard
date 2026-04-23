@@ -13,10 +13,11 @@ import {
   Loader,
   Center,
   Skeleton,
+  ActionIcon,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import { IconAlignLeft, IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconAlignLeft, IconLink, IconPencil, IconTrash } from '@tabler/icons-react';
 import {
   cardCoverReferencesAttachment,
   collectReferencedAttachmentIdsFromDescriptionJson,
@@ -65,6 +66,12 @@ import {
   cardDetailSoftButtonStyles,
 } from './cardDetailSectionUi.js';
 import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
+import {
+  boardShowsDueDateOnCards,
+  boardShowsEndDateOnCards,
+  boardShowsRemindersOnCards,
+  boardShowsStartDateOnCards,
+} from '../../../shared/utils/boardCardDateVisibility.js';
 
 const CARD_DETAIL_MODAL_STYLES = {
   body: {
@@ -89,7 +96,7 @@ const CARD_DETAIL_MODAL_STYLES = {
     flexDirection: 'column',
   },
   header: { backgroundColor: '#f8f9fb', alignItems: 'center' },
-  title: { flex: 1, marginRight: 'var(--mantine-spacing-sm)' },
+  title: { flex: 1, marginRight: 0, width: '100%', maxWidth: '100%' },
 } as const;
 
 function toDatetimeLocalValue(d: Date): string {
@@ -125,6 +132,7 @@ function shouldAcceptIncomingCard(current: CardDB, incoming: CardDB): boolean {
     if (card.comments.length > 0) score += 1;
     if (card.checklists.length > 0) score += 1;
     if (card.reminders.length > 0) score += 1;
+    if (card.endDate != null) score += 1;
     return score;
   };
 
@@ -182,7 +190,47 @@ export function CardDetailView({
       setDueLocalOverride(null);
     }
   }, []);
-  const showDueDateAndReminders = boardSettings?.showDueDateAndReminders !== false;
+
+  const [startPickerOpened, setStartPickerOpened] = useState(false);
+  const startTimeKey = card.startDate != null ? new Date(card.startDate).getTime() : 0;
+  const startLocalFromCard = useMemo(
+    () => (card.startDate != null ? toDatetimeLocalValue(new Date(card.startDate)) : ''),
+    [startTimeKey],
+  );
+  const [startLocalOverride, setStartLocalOverride] = useState<string | null>(null);
+  const startLocal = startLocalOverride ?? startLocalFromCard;
+  const setStartLocal = useCallback((value: string) => {
+    setStartLocalOverride(value);
+  }, []);
+  const handleStartPickerOpenedChange = useCallback((next: boolean) => {
+    setStartPickerOpened(next);
+    if (!next) {
+      setStartLocalOverride(null);
+    }
+  }, []);
+
+  const [endPickerOpened, setEndPickerOpened] = useState(false);
+  const endTimeKey = card.endDate != null ? new Date(card.endDate).getTime() : 0;
+  const endLocalFromCard = useMemo(
+    () => (card.endDate != null ? toDatetimeLocalValue(new Date(card.endDate)) : ''),
+    [endTimeKey],
+  );
+  const [endLocalOverride, setEndLocalOverride] = useState<string | null>(null);
+  const endLocal = endLocalOverride ?? endLocalFromCard;
+  const setEndLocal = useCallback((value: string) => {
+    setEndLocalOverride(value);
+  }, []);
+  const handleEndPickerOpenedChange = useCallback((next: boolean) => {
+    setEndPickerOpened(next);
+    if (!next) {
+      setEndLocalOverride(null);
+    }
+  }, []);
+
+  const showStartDateOnCards = boardShowsStartDateOnCards(boardSettings);
+  const showDueDateOnCards = boardShowsDueDateOnCards(boardSettings);
+  const showEndDateOnCards = boardShowsEndDateOnCards(boardSettings);
+  const showRemindersSection = boardShowsRemindersOnCards(boardSettings);
   const showLabels = boardSettings?.showLabels !== false;
   const showAssignees = boardSettings?.showAssignees !== false;
   const showChecklist = boardSettings?.showChecklist !== false;
@@ -191,6 +239,9 @@ export function CardDetailView({
 
   const { can, loaded: boardPermsLoaded } = useBoardPermissions(boardId, boardWorkspaceId);
   const canEditCard = boardPermsLoaded && can('cards.update');
+  const canEditStartDate = boardPermsLoaded && can('cards.dates.start.edit');
+  const canEditDueDate = boardPermsLoaded && can('cards.dates.due.edit');
+  const canEditEndDate = boardPermsLoaded && can('cards.dates.end.edit');
   const canDeleteCard = boardPermsLoaded && can('cards.delete');
   const canDuplicateCard = boardPermsLoaded && can('cards.duplicate');
   const canCreateComments = boardPermsLoaded && can('comments.create');
@@ -211,6 +262,14 @@ export function CardDetailView({
   useEffect(() => {
     setDueLocalOverride(null);
   }, [dueTimeKey]);
+
+  useEffect(() => {
+    setStartLocalOverride(null);
+  }, [startTimeKey]);
+
+  useEffect(() => {
+    setEndLocalOverride(null);
+  }, [endTimeKey]);
 
   useEffect(() => {
     const current = cardRef.current;
@@ -478,6 +537,165 @@ export function CardDetailView({
     }
   }, [card.id, syncCardToBoardAndDexie, handleDuePickerOpenedChange]);
 
+  const handleSaveStartDate = useCallback(async () => {
+    if (!startLocal.trim()) {
+      notifications.show({
+        color: 'yellow',
+        title: 'Start date',
+        message: 'Choose a date and time.',
+      });
+      return;
+    }
+    const parsed = new Date(startLocal);
+    if (Number.isNaN(parsed.getTime())) {
+      notifications.show({
+        color: 'red',
+        title: 'Invalid date',
+        message: 'Could not read that date.',
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.updateCard(card.id, { startDate: parsed.toISOString() });
+      try {
+        syncCardToBoardAndDexie(normalizeCardFromApi((response as { card: unknown }).card, card.id));
+      } catch {
+        notifications.show({
+          color: 'red',
+          title: 'Update failed',
+          message: 'Could not read updated card from server.',
+        });
+      }
+      handleStartPickerOpenedChange(false);
+    } catch (error) {
+      console.error('Error updating start date:', error);
+      notifications.show({
+        color: 'red',
+        title: 'Could not save start date',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [card.id, startLocal, syncCardToBoardAndDexie, handleStartPickerOpenedChange]);
+
+  const handleClearStartDate = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    try {
+      const response = await api.updateCard(card.id, { startDate: null });
+      try {
+        syncCardToBoardAndDexie(normalizeCardFromApi((response as { card: unknown }).card, card.id));
+      } catch {
+        notifications.show({
+          color: 'red',
+          title: 'Update failed',
+          message: 'Could not read updated card from server.',
+        });
+      }
+      handleStartPickerOpenedChange(false);
+    } catch (error) {
+      console.error('Error clearing start date:', error);
+      notifications.show({
+        color: 'red',
+        title: 'Could not clear start date',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [card.id, syncCardToBoardAndDexie, handleStartPickerOpenedChange]);
+
+  const handleSaveEndDate = useCallback(async () => {
+    if (!endLocal.trim()) {
+      notifications.show({
+        color: 'yellow',
+        title: 'End date',
+        message: 'Choose a date and time.',
+      });
+      return;
+    }
+    const parsed = new Date(endLocal);
+    if (Number.isNaN(parsed.getTime())) {
+      notifications.show({
+        color: 'red',
+        title: 'Invalid date',
+        message: 'Could not read that date.',
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.updateCard(card.id, { endDate: parsed.toISOString() });
+      try {
+        syncCardToBoardAndDexie(normalizeCardFromApi((response as { card: unknown }).card, card.id));
+      } catch {
+        notifications.show({
+          color: 'red',
+          title: 'Update failed',
+          message: 'Could not read updated card from server.',
+        });
+      }
+      handleEndPickerOpenedChange(false);
+    } catch (error) {
+      console.error('Error updating end date:', error);
+      notifications.show({
+        color: 'red',
+        title: 'Could not save end date',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [card.id, endLocal, syncCardToBoardAndDexie, handleEndPickerOpenedChange]);
+
+  const handleClearEndDate = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    try {
+      const response = await api.updateCard(card.id, { endDate: null });
+      try {
+        syncCardToBoardAndDexie(normalizeCardFromApi((response as { card: unknown }).card, card.id));
+      } catch {
+        notifications.show({
+          color: 'red',
+          title: 'Update failed',
+          message: 'Could not read updated card from server.',
+        });
+      }
+      handleEndPickerOpenedChange(false);
+    } catch (error) {
+      console.error('Error clearing end date:', error);
+      notifications.show({
+        color: 'red',
+        title: 'Could not clear end date',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [card.id, syncCardToBoardAndDexie, handleEndPickerOpenedChange]);
+
+  const handleCopyCardLink = useCallback(async () => {
+    try {
+      const path = `/boards/${boardId}?card=${encodeURIComponent(card.id)}`;
+      const text = `${window.location.origin}${path}`;
+      await navigator.clipboard.writeText(text);
+      notifications.show({
+        color: 'teal',
+        title: 'Link copied',
+        message: 'Only people who can access this board can open the link.',
+      });
+    } catch {
+      notifications.show({
+        color: 'red',
+        title: 'Could not copy link',
+        message: 'Clipboard access was denied or is unavailable.',
+      });
+    }
+  }, [boardId, card.id]);
+
   const handleDeleteCard = () => {
     modals.openConfirmModal({
       title: 'Delete card',
@@ -518,49 +736,86 @@ export function CardDetailView({
         transitionProps={{ duration: 0 }}
         overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
         title={
-          isEditing ? (
-            <TextInput
-              size="md"
-              fw={700}
-              variant="unstyled"
-              value={title}
-              maxLength={CARD_TITLE_MAX_LENGTH}
-              onChange={(e) => setTitle(e.currentTarget.value)}
-              onBlur={handleUpdateTitle}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  void handleUpdateTitle();
-                }
-                if (e.key === 'Escape') {
-                  setTitle(card.title);
-                  setIsEditing(false);
-                }
-              }}
-              autoFocus
-              disabled={loading}
-            />
-          ) : (
-            <Text
-              style={{
-                cursor: canEditCard ? 'pointer' : 'default',
-                lineHeight: 1.25,
-                fontFamily: 'var(--kb-app-ui-font-family)',
-                fontWeight: 600,
-                fontSize: '1.6rem',
-              }}
-              onClick={() => {
-                if (canEditCard) {
-                  setIsEditing(true);
-                }
-              }}
-            >
-              <TwemojiPlainText text={card.title} />
-            </Text>
-          )
+          <Group
+            justify="space-between"
+            align="center"
+            wrap="nowrap"
+            gap="md"
+            style={{ width: '100%', minWidth: 0 }}
+          >
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              {isEditing ? (
+                <TextInput
+                  size="md"
+                  fw={700}
+                  variant="unstyled"
+                  value={title}
+                  maxLength={CARD_TITLE_MAX_LENGTH}
+                  onChange={(e) => setTitle(e.currentTarget.value)}
+                  onBlur={handleUpdateTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      void handleUpdateTitle();
+                    }
+                    if (e.key === 'Escape') {
+                      setTitle(card.title);
+                      setIsEditing(false);
+                    }
+                  }}
+                  autoFocus
+                  disabled={loading}
+                />
+              ) : (
+                <Text
+                  style={{
+                    cursor: canEditCard ? 'pointer' : 'default',
+                    lineHeight: 1.25,
+                    fontFamily: 'var(--kb-app-ui-font-family)',
+                    fontWeight: 600,
+                    fontSize: '1.6rem',
+                  }}
+                  onClick={() => {
+                    if (canEditCard) {
+                      setIsEditing(true);
+                    }
+                  }}
+                >
+                  <TwemojiPlainText text={card.title} />
+                </Text>
+              )}
+            </Box>
+            <Group gap={4} wrap="nowrap" align="center">
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="lg"
+                radius="md"
+                aria-label="Copy link to this card"
+                title="Copy link to this card"
+                onClick={() => void handleCopyCardLink()}
+                styles={{
+                  root: {
+                    color: 'var(--mantine-color-gray-6)',
+                  },
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    lineHeight: 0,
+                    transform: 'rotate(45deg)',
+                  }}
+                  aria-hidden
+                >
+                  <IconLink size={19} stroke={1.5} />
+                </span>
+              </ActionIcon>
+              <Modal.CloseButton aria-label="Close" />
+            </Group>
+          </Group>
         }
         centered
-        closeButtonProps={{ 'aria-label': 'Close' }}
-        withCloseButton
+        withCloseButton={false}
         styles={CARD_DETAIL_MODAL_STYLES}
       >
         <Stack gap={0} style={{ minHeight: 0, flex: 1 }}>
@@ -677,7 +932,10 @@ export function CardDetailView({
                   card={card}
                   boardId={boardId}
                   loading={loading}
-                  showDueDateAndReminders={showDueDateAndReminders}
+                  showStartDateOnCards={showStartDateOnCards}
+                  showDueDateOnCards={showDueDateOnCards}
+                  showEndDateOnCards={showEndDateOnCards}
+                  showRemindersSection={showRemindersSection}
                   showLabels={showLabels}
                   showAssignees={showAssignees}
                   showChecklist={showChecklist}
@@ -686,6 +944,15 @@ export function CardDetailView({
                   canCreateComments={canCreateComments}
                   canDeleteOthersComments={canDeleteOthersComments}
                   canEditCard={canEditCard}
+                  canEditStartDate={canEditStartDate}
+                  canEditDueDate={canEditDueDate}
+                  canEditEndDate={canEditEndDate}
+                  startLocal={startLocal}
+                  setStartLocal={setStartLocal}
+                  startPickerOpened={startPickerOpened}
+                  setStartPickerOpened={handleStartPickerOpenedChange}
+                  onSaveStartDate={handleSaveStartDate}
+                  onClearStartDate={handleClearStartDate}
                   dueLocal={dueLocal}
                   setDueLocal={setDueLocal}
                   duePickerOpened={duePickerOpened}
@@ -694,6 +961,12 @@ export function CardDetailView({
                   onBeforeDeleteAttachment={onBeforeDeleteAttachment}
                   onSaveDueDate={handleSaveDueDate}
                   onClearDueDate={handleClearDueDate}
+                  endLocal={endLocal}
+                  setEndLocal={setEndLocal}
+                  endPickerOpened={endPickerOpened}
+                  setEndPickerOpened={handleEndPickerOpenedChange}
+                  onSaveEndDate={handleSaveEndDate}
+                  onClearEndDate={handleClearEndDate}
                 />
               </Suspense>
               </Stack>

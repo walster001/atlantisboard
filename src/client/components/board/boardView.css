@@ -69,7 +69,7 @@
   min-width: 0;
   font-weight: 700;
   font-size: 1.125rem;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: #fff;
   text-transform: uppercase;
   line-height: 1.25;
@@ -234,6 +234,16 @@
   z-index: 1;
 }
 
+/*
+ * Lists cap at .board-column max-height; the scrollable card body fills what remains after header + footer.
+ * Without a fixed header slot, a one-line title leaves more room for cards than a two-line title.
+ * Reserve two lines of title metrics so overflowing columns share the same card viewport height.
+ */
+.board-column__header-row {
+  flex-shrink: 0;
+  min-height: calc(0.875rem * 1.25 * 2);
+}
+
 .board-column__title-row {
   cursor: grab;
   touch-action: none;
@@ -261,7 +271,7 @@
   font-size: 0.875rem;
   line-height: 1.25;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: var(--board-list-header-text);
   white-space: normal;
   word-break: break-word;
@@ -381,7 +391,7 @@
   word-break: break-word;
 }
 
-/* Kanban list card: labels → title (caps) → 2-line description → due pill; menu top-right */
+/* Kanban list card: labels → title (caps) → first logical line of description (≤2 visual lines) → due pill */
 /* Keep full content width by default; reserve menu space only where needed (title row). */
 /* No text selection: avoids highlighting titles/descriptions when dragging across columns. */
 .board-card--kanban {
@@ -406,11 +416,12 @@
 }
 
 .board-card__kanban-title {
-  font-weight: 400;
+  font-weight: 600;
   font-size: 0.875rem;
   line-height: 1.35;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: normal;
+  word-spacing: normal;
   color: var(--board-card-title-color, var(--mantine-color-dark-7));
   /* Prevent title text from colliding with top-right menu icon. */
   padding-right: 24px;
@@ -535,7 +546,7 @@
   flex-shrink: 0;
   margin: 6px 0 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   box-sizing: border-box;
   pointer-events: none;
   background: color-mix(in srgb, var(--board-card-drop-surface, #ffffff) 90%, #000000);
@@ -555,13 +566,13 @@
   box-shadow:
     0 10px 20px rgba(0, 0, 0, 0.18),
     0 2px 8px rgba(0, 0, 0, 0.14);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .board-page__dnd-native-card-preview {
   width: 272px;
-  padding: 16px;
-  border-radius: 8px;
+  padding: 14px;
+  border-radius: 12px;
   cursor: grabbing;
   box-sizing: border-box;
   background: #fff;
@@ -570,7 +581,7 @@
 }
 
 .board-page__dnd-native-card-preview-title {
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.875rem;
   line-height: 1.35;
   color: #1a1a1a;
@@ -578,7 +589,8 @@
   overflow-wrap: anywhere;
   word-break: break-word;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: normal;
+  word-spacing: normal;
 }
 
 .board-page__dnd-native-card-preview-labels {
@@ -620,7 +632,7 @@
   font-weight: 700;
   font-size: 0.875rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: #000;
   white-space: nowrap;
   overflow: hidden;

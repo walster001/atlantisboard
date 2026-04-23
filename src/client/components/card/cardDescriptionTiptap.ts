@@ -144,9 +144,9 @@ export function parseCardDescriptionJson(value: string | undefined | null): JSON
 }
 
 /**
- * Kanban list cards render descriptions in a 2-line clamped preview. `inlineButton` is a block
- * node (flex wrapper, fixed width, offsets) and breaks that layout and list-item flow. For that
- * surface only, drop inline button nodes entirely (no label text in the preview).
+ * Kanban list cards use a plain-text first-line preview. `inlineButton` is a block node (flex
+ * wrapper, fixed width, offsets) and breaks list-item flow. For that surface only, drop inline
+ * button nodes entirely (no label text in the preview).
  */
 export function stripInlineButtonsForBoardPreview(doc: JSONContent): JSONContent {
   const mapNodes = (nodes: JSONContent[] | undefined): JSONContent[] | undefined => {
@@ -256,8 +256,8 @@ export function cardDescriptionPreviewText(value: string | undefined | null): st
 }
 
 /**
- * Plain text with newlines between blocks — for board/list card previews with `white-space: pre-line`
- * and `lineClamp={2}` so wrapping matches the card detail content (first ~two visual lines).
+ * Plain text with newlines between blocks — for surfaces that need multi-line plain text from a
+ * TipTap doc (e.g. exports); list cards use {@link cardDescriptionFirstLogicalLinePlain} instead.
  */
 export function cardDescriptionPlainMultiline(value: string | undefined | null): string {
   const doc = parseCardDescriptionJson(value ?? '');
@@ -265,6 +265,23 @@ export function cardDescriptionPlainMultiline(value: string | undefined | null):
     blockSeparator: '\n',
   });
   return raw.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * First logical line for kanban card previews: first paragraph / block before a newline from
+ * TipTap `generateText` (so “Who:” on the next line in the editor stays off the first line).
+ */
+export function cardDescriptionFirstLogicalLinePlain(value: string | undefined | null): string {
+  const docRaw = parseCardDescriptionJson(value ?? '');
+  const doc = stripInlineButtonsForBoardPreview(docRaw);
+  if (isCardDescriptionEmpty(doc)) {
+    return '';
+  }
+  const raw = generateText(doc, getCardDescriptionExtensions(), {
+    blockSeparator: '\n',
+  });
+  const first = raw.split(/\r?\n/)[0];
+  return (first ?? '').trim();
 }
 
 /** Plain-text length used for description limits/counter (without Tiptap CharacterCount extension). */

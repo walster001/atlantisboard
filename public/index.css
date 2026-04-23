@@ -10922,6 +10922,16 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   justify-content: center;
 }
 
+.board-member-activity-log__virtuoso-host {
+  display: flex;
+  flex-direction: column;
+}
+
+.board-member-activity-log__virtuoso {
+  flex: 1;
+  min-height: 0;
+}
+
 .board-member-activity-log__card {
   border: 1px solid var(--mantine-color-gray-3);
   background-color: var(--mantine-color-white);
@@ -11003,7 +11013,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
 .board-page__title {
   display: block;
-  letter-spacing: .06em;
+  letter-spacing: .04em;
   color: #fff;
   text-transform: uppercase;
   white-space: normal;
@@ -11142,6 +11152,11 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   left: 0;
 }
 
+.board-column__header-row {
+  flex-shrink: 0;
+  min-height: 2.1875rem;
+}
+
 .board-column__title-row {
   cursor: grab;
   touch-action: none;
@@ -11164,7 +11179,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
 .board-column__title {
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: .02em;
   color: var(--board-list-header-text);
   white-space: normal;
   word-break: break-word;
@@ -11301,14 +11316,15 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
 .board-card__kanban-title {
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: normal;
+  word-spacing: normal;
   color: var(--board-card-title-color, var(--mantine-color-dark-7));
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
   padding-right: 24px;
   font-size: .875rem;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.35;
 }
 
@@ -11442,7 +11458,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   background: color-mix(in srgb, var(--board-card-drop-surface, #fff) 90%, #000);
   box-shadow: none;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   flex-shrink: 0;
   margin: 6px 0 10px;
   transition: min-height .14s ease-out, max-height .14s ease-out, opacity .12s ease-out;
@@ -11452,7 +11468,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   box-sizing: border-box;
   cursor: grabbing;
   transform-origin: center center;
-  border-radius: 10px;
+  border-radius: 12px;
   transform: rotate(-1.5deg)translate3d(0, -2px, 0);
   box-shadow: 0 10px 20px #0000002e, 0 2px 8px #00000024;
 }
@@ -11462,9 +11478,9 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   box-sizing: border-box;
   background: #fff;
   border: 1px solid #00000014;
-  border-radius: 8px;
+  border-radius: 12px;
   width: 272px;
-  padding: 16px;
+  padding: 14px;
   box-shadow: 0 8px 24px #0000002e;
 }
 
@@ -11474,9 +11490,10 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   overflow-wrap: anywhere;
   word-break: break-word;
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: normal;
+  word-spacing: normal;
   font-size: .875rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.35;
 }
 
@@ -11516,7 +11533,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
 .board-page__dnd-native-list-preview-title {
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: .02em;
   color: #000;
   white-space: nowrap;
   overflow: hidden;

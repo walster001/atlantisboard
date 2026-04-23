@@ -35,38 +35,66 @@ router.get('/boards/:boardId', async (req, res, next) => {
       req.query.memberAudit === 'true';
 
     if (memberAudit) {
-      const pageSizeRaw = req.query.pageSize
-        ? parseInt(String(req.query.pageSize), 10)
-        : 10;
-      const pageRaw = req.query.page ? parseInt(String(req.query.page), 10) : 1;
-      const pageSize = Number.isFinite(pageSizeRaw)
-        ? Math.min(50, Math.max(1, pageSizeRaw))
-        : 10;
-      const page = Number.isFinite(pageRaw) ? Math.max(1, pageRaw) : 1;
-      const skip = (page - 1) * pageSize;
+      const dayStartMs = Number(req.query.dayStart);
+      const dayEndMs = Number(req.query.dayEnd);
+      if (!Number.isFinite(dayStartMs) || !Number.isFinite(dayEndMs)) {
+        res.status(400).json({
+          error: {
+            message: 'Member audit log requires dayStart and dayEnd (epoch milliseconds, local calendar day bounds).',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      if (dayEndMs < dayStartMs) {
+        res.status(400).json({
+          error: {
+            message: 'dayEnd must be greater than or equal to dayStart.',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      /** Upper bound for one local calendar day (DST can exceed 24h wall span in UTC). */
+      const maxSpanMs = 49 * 60 * 60 * 1000;
+      if (dayEndMs - dayStartMs > maxSpanMs) {
+        res.status(400).json({
+          error: {
+            message: 'dayStart/dayEnd span is too large for a single-day member audit query.',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+
+      const dayStart = new Date(dayStartMs);
+      const dayEnd = new Date(dayEndMs);
+      const memberAuditDayFetchLimit = 10_000;
 
       const filter: {
         boardId: string;
         type: { $in: readonly string[] };
+        createdAt: { $gte: Date; $lte: Date };
       } = {
         boardId,
         type: { $in: BOARD_MEMBER_AUDIT_ACTIVITY_TYPES },
+        createdAt: { $gte: dayStart, $lte: dayEnd },
       };
 
       const [total, rows] = await Promise.all([
         Activity.countDocuments(filter),
         Activity.find(filter)
           .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(pageSize)
+          .limit(memberAuditDayFetchLimit)
           .populate('userId', 'displayName email profilePicture'),
       ]);
 
       res.json({
         activities: rows,
         total,
-        page,
-        pageSize,
       });
       return;
     }

@@ -48,8 +48,6 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'cards.view',
       'export.board.json',
       'export.board.csv',
-      'attachments.download_url.view',
-      'attachments.file.stream',
       'invites.accept',
       'labels.view',
       'boards.members.view',
@@ -74,6 +72,9 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'lists.delete',
       'cards.create',
       'cards.update',
+      'cards.dates.start.edit',
+      'cards.dates.due.edit',
+      'cards.dates.end.edit',
       'cards.delete',
       'cards.move',
       'cards.reorder',
@@ -103,8 +104,6 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'cards.view',
       'export.board.json',
       'export.board.csv',
-      'attachments.download_url.view',
-      'attachments.file.stream',
       'invites.accept',
       'labels.view',
       'boards.members.view',
@@ -147,8 +146,6 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'cards.view',
       'export.board.json',
       'export.board.csv',
-      'attachments.download_url.view',
-      'attachments.file.stream',
       'invites.accept',
       'labels.view',
     ],
@@ -259,11 +256,38 @@ export async function initializeRoleDefinitions(): Promise<void> {
     },
   ).catch(() => undefined);
 
+  // Attachment download URL + file streaming are not configurable permissions (any board member).
+  await RoleDefinition.updateMany(
+    {
+      permissions: {
+        $in: ['attachments.file.stream', 'attachments.download_url.view'],
+      },
+    },
+    {
+      $pull: {
+        permissions: {
+          $in: ['attachments.file.stream', 'attachments.download_url.view'],
+        },
+      },
+    },
+  ).catch(() => undefined);
+
   await RoleDefinition.updateMany(
     { key: 'admin', isBuiltIn: true },
     {
       $addToSet: {
         permissions: { $each: ['boards.create'] },
+      },
+    },
+  ).catch(() => undefined);
+
+  await RoleDefinition.updateMany(
+    { key: 'admin', isBuiltIn: true },
+    {
+      $addToSet: {
+        permissions: {
+          $each: ['cards.dates.start.edit', 'cards.dates.due.edit', 'cards.dates.end.edit'],
+        },
       },
     },
   ).catch(() => undefined);

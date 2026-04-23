@@ -1,4 +1,10 @@
 import type { BoardDB, WorkspaceDB, ListDB, CardDB } from '../store/database.js';
+import {
+  boardShowsDueDateOnCards,
+  boardShowsEndDateOnCards,
+  boardShowsRemindersOnCards,
+  boardShowsStartDateOnCards,
+} from '../../shared/utils/boardCardDateVisibility.js';
 
 /**
  * Coerce Mongo ObjectId, EJSON `{ $oid }`, or string ids to a plain string for Dexie primary keys.
@@ -57,6 +63,10 @@ export function transformBoard(board: unknown): BoardDB {
       allowAttachments?: boolean;
       cardCoverImages?: boolean;
       showDueDateAndReminders?: boolean;
+      showRemindersOnCards?: boolean;
+      showStartDateOnCards?: boolean;
+      showDueDateOnCards?: boolean;
+      showEndDateOnCards?: boolean;
       showLabels?: boolean;
       showAssignees?: boolean;
       showChecklist?: boolean;
@@ -138,7 +148,10 @@ export function transformBoard(board: unknown): BoardDB {
       allowComments: b.settings?.allowComments ?? true,
       allowAttachments: b.settings?.allowAttachments ?? true,
       cardCoverImages: b.settings?.cardCoverImages ?? true,
-      showDueDateAndReminders: b.settings?.showDueDateAndReminders ?? true,
+      showReminders: boardShowsRemindersOnCards(b.settings),
+      showStartDateOnCards: boardShowsStartDateOnCards(b.settings),
+      showDueDateOnCards: boardShowsDueDateOnCards(b.settings),
+      showEndDateOnCards: boardShowsEndDateOnCards(b.settings),
       showLabels: b.settings?.showLabels ?? true,
       showAssignees: b.settings?.showAssignees ?? true,
       showChecklist: b.settings?.showChecklist ?? true,
@@ -289,6 +302,7 @@ export function transformCard(card: unknown): CardDB {
     }>;
     dueDate?: Date | string;
     startDate?: Date | string;
+    endDate?: Date | string;
     completed: boolean;
     completedAt?: Date | string;
     createdBy?: string | { toString: () => string };
@@ -459,6 +473,9 @@ export function transformCard(card: unknown): CardDB {
     }),
     ...(c.startDate !== undefined && {
       startDate: typeof c.startDate === 'string' ? new Date(c.startDate) : c.startDate,
+    }),
+    ...(c.endDate !== undefined && {
+      endDate: typeof c.endDate === 'string' ? new Date(c.endDate) : c.endDate,
     }),
     completed: c.completed || false,
     ...(c.completedAt !== undefined && {

@@ -4,6 +4,12 @@ import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import { db, type BoardDB, type BoardSettingsLivePatch } from '../../store/database.js';
 import { transformBoard } from '../../utils/transform.js';
+import {
+  boardShowsDueDateOnCards,
+  boardShowsEndDateOnCards,
+  boardShowsRemindersOnCards,
+  boardShowsStartDateOnCards,
+} from '../../../shared/utils/boardCardDateVisibility.js';
 
 interface BoardSettingsCardSettingsPanelProps {
   boardId: string;
@@ -11,7 +17,10 @@ interface BoardSettingsCardSettingsPanelProps {
 }
 
 interface CardSettingsState {
-  showDueDateAndReminders: boolean;
+  showReminders: boolean;
+  showStartDateOnCards: boolean;
+  showDueDateOnCards: boolean;
+  showEndDateOnCards: boolean;
   showLabels: boolean;
   showAssignees: boolean;
   showChecklist: boolean;
@@ -23,7 +32,10 @@ interface CardSettingsState {
 
 function readCardSettings(board: BoardDB): CardSettingsState {
   return {
-    showDueDateAndReminders: board.settings.showDueDateAndReminders !== false,
+    showReminders: boardShowsRemindersOnCards(board.settings),
+    showStartDateOnCards: boardShowsStartDateOnCards(board.settings),
+    showDueDateOnCards: boardShowsDueDateOnCards(board.settings),
+    showEndDateOnCards: boardShowsEndDateOnCards(board.settings),
     showLabels: board.settings.showLabels !== false,
     showAssignees: board.settings.showAssignees !== false,
     showChecklist: board.settings.showChecklist !== false,
@@ -42,7 +54,10 @@ export function BoardSettingsCardSettingsPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<CardSettingsState>({
-    showDueDateAndReminders: true,
+    showReminders: true,
+    showStartDateOnCards: true,
+    showDueDateOnCards: true,
+    showEndDateOnCards: true,
     showLabels: true,
     showAssignees: true,
     showChecklist: true,
@@ -68,11 +83,37 @@ export function BoardSettingsCardSettingsPanel({
     setLoading(true);
     setError(null);
     try {
-      const response = await api.updateBoard(boardId, { settings });
+      const response = await api.updateBoard(boardId, {
+        settings: {
+          showStartDateOnCards: settings.showStartDateOnCards,
+          showDueDateOnCards: settings.showDueDateOnCards,
+          showEndDateOnCards: settings.showEndDateOnCards,
+          showRemindersOnCards: settings.showReminders,
+          showLabels: settings.showLabels,
+          showAssignees: settings.showAssignees,
+          showChecklist: settings.showChecklist,
+          showAttachments: settings.showAttachments,
+          showComments: settings.showComments,
+          showListCardCount: settings.showListCardCount,
+          showCardDescriptionPreview: settings.showCardDescriptionPreview,
+        },
+      });
       const next = transformBoard((response as { board: unknown }).board);
       await db.boards.put(next);
       setBoard(next);
-      onSettingsLivePatch?.(settings);
+      onSettingsLivePatch?.({
+        showReminders: settings.showReminders,
+        showStartDateOnCards: settings.showStartDateOnCards,
+        showDueDateOnCards: settings.showDueDateOnCards,
+        showEndDateOnCards: settings.showEndDateOnCards,
+        showLabels: settings.showLabels,
+        showAssignees: settings.showAssignees,
+        showChecklist: settings.showChecklist,
+        showAttachments: settings.showAttachments,
+        showComments: settings.showComments,
+        showListCardCount: settings.showListCardCount,
+        showCardDescriptionPreview: settings.showCardDescriptionPreview,
+      });
       notifications.show({
         title: 'Saved',
         message: 'Card settings have been saved.',
@@ -109,16 +150,67 @@ export function BoardSettingsCardSettingsPanel({
             labelPosition="right"
             thumbIcon={null}
             withThumbIndicator={false}
-            checked={settings.showDueDateAndReminders}
+            checked={settings.showStartDateOnCards}
             onChange={(e) => {
               const checked = e.currentTarget.checked;
               setSettings((prev) => ({
                 ...prev,
-                showDueDateAndReminders: checked,
+                showStartDateOnCards: checked,
               }));
             }}
-            label="Due date + reminders"
-            description="Hide/show due date section, set due date button, and reminders for all cards on this board."
+            label="Start date on cards"
+            description="Show or hide start dates on list cards and in the card detail panel."
+          />
+          <Switch
+            size="sm"
+            color="gray"
+            labelPosition="right"
+            thumbIcon={null}
+            withThumbIndicator={false}
+            checked={settings.showDueDateOnCards}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setSettings((prev) => ({
+                ...prev,
+                showDueDateOnCards: checked,
+              }));
+            }}
+            label="Due date on cards"
+            description="Show or hide due dates on list cards and the due date section in card detail."
+          />
+          <Switch
+            size="sm"
+            color="gray"
+            labelPosition="right"
+            thumbIcon={null}
+            withThumbIndicator={false}
+            checked={settings.showEndDateOnCards}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setSettings((prev) => ({
+                ...prev,
+                showEndDateOnCards: checked,
+              }));
+            }}
+            label="End date on cards"
+            description="Show or hide end dates on list cards and in the card detail panel."
+          />
+          <Switch
+            size="sm"
+            color="gray"
+            labelPosition="right"
+            thumbIcon={null}
+            withThumbIndicator={false}
+            checked={settings.showReminders}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setSettings((prev) => ({
+                ...prev,
+                showReminders: checked,
+              }));
+            }}
+            label="Reminders"
+            description="Show or hide reminder controls on cards (reminders are tied to due dates)."
           />
           <Switch
             size="sm"

@@ -1,7 +1,8 @@
 import { Router, type RequestHandler } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
-import { apiRateLimiter } from '../middleware/rateLimit.js';
+import { apiRateLimiter, fileUploadRateLimiter } from '../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
 import {
   createBoard,
@@ -29,17 +30,64 @@ import {
   isBuiltInRoleKey,
   isValidCustomRoleKey,
 } from '../services/roleService.js';
-import {
-  BOARD_DESCRIPTION_MAX_LENGTH,
-  BOARD_NAME_MAX_LENGTH,
-} from '../../shared/constants/entityTextLimits.js';
 import { bulkUpdateListColorsForBoard } from '../services/listService.js';
 import {
   bulkUpdateCardColorsForBoard,
   getCardDescriptionFieldsBatchForBoard,
 } from '../services/cardService.js';
+import {
+  BOARD_DESCRIPTION_MAX_LENGTH,
+  BOARD_NAME_MAX_LENGTH,
+} from '../../shared/constants/entityTextLimits.js';
+import { normalizeBoardThemeSettings } from '../../shared/boardTheme.js';
+import {
+  deleteBoardBackgroundByPublicUrl,
+  uploadBoardBackgroundAsset,
+} from '../services/boardBackgroundService.js';
+const boardThemePaletteSchema = z.object({
+  navbarBg: z.string().min(1),
+  navbarBorder: z.string().min(1),
+  canvasBg: z.string().min(1),
+  listBg: z.string().min(1),
+  listHeaderText: z.string().min(1),
+  listMuted: z.string().min(1),
+  listMutedStrong: z.string().min(1),
+  listControlHoverBg: z.string().min(1),
+  listShadow: z.string().min(1),
+  addListBg: z.string().min(1),
+  addListBgHover: z.string().min(1),
+  cardDetailBg: z.string().min(1),
+  cardDetailText: z.string().min(1),
+  cardDetailButtonBg: z.string().min(1),
+  cardDetailButtonText: z.string().min(1),
+  cardDetailButtonHoverBg: z.string().min(1),
+  cardDetailButtonHoverText: z.string().min(1),
+  scrollbarColor: z.string().min(1),
+  scrollbarTrackColor: z.string().min(1),
+});
+
+const boardThemeDefinitionSchema = z.object({
+  id: z.string().min(1).max(80),
+  name: z.string().min(1).max(80),
+  palette: boardThemePaletteSchema,
+});
+
+const boardThemeSettingsSchema = z.object({
+  selectedThemeId: z.string().min(1).max(80),
+  selectedTheme: boardThemeDefinitionSchema,
+  customThemes: z.array(boardThemeDefinitionSchema),
+  smartContrast: z.boolean(),
+  backgroundMode: z.enum(['theme', 'color', 'image']),
+  backgroundColor: z.string().min(1).max(64).optional(),
+  backgroundImageUrl: z.string().min(1).max(500_000).optional(),
+  backgroundImageScale: z.enum(['fill', 'fit', 'stretch']).optional(),
+});
 
 const router = Router();
+const boardBackgroundUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024 },
+});
 
 async function resolveBoardRoleUpdateModeForActor(
   userId: string,
@@ -77,6 +125,7 @@ const createBoardSchema = z.object({
   name: z.string().min(1).max(BOARD_NAME_MAX_LENGTH),
   description: z.string().max(BOARD_DESCRIPTION_MAX_LENGTH).optional(),
   background: z.string().optional(),
+  themeSettings: boardThemeSettingsSchema.optional(),
   visibility: z.enum(['private', 'workspace', 'public']).optional(),
 });
 
@@ -85,6 +134,7 @@ const updateBoardSchema = z.object({
   name: z.string().min(1).max(BOARD_NAME_MAX_LENGTH).optional(),
   description: z.string().max(BOARD_DESCRIPTION_MAX_LENGTH).optional(),
   background: z.string().optional(),
+  themeSettings: boardThemeSettingsSchema.optional(),
   visibility: z.enum(['private', 'workspace', 'public']).optional(),
   settings: z
     .object({
@@ -183,8 +233,13 @@ router.post('/', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const validated = createBoardSchema.parse(req.body);
+    const normalizedThemeSettings =
+      validated.themeSettings !== undefined
+        ? normalizeBoardThemeSettings(validated.themeSettings)
+        : undefined;
     const board = await createBoard({
       ...validated,
+      ...(normalizedThemeSettings !== undefined ? { themeSettings: normalizedThemeSettings } : {}),
       ownerId: authReq.user.id,
     });
 
@@ -729,7 +784,18 @@ router.put('/:id', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const validated = updateBoardSchema.parse(req.body);
-    const board = await updateBoard(req.params.id, validated, authReq.user.id);
+    const normalizedThemeSettings =
+      validated.themeSettings !== undefined
+        ? normalizeBoardThemeSettings(validated.themeSettings)
+        : undefined;
+    const board = await updateBoard(
+      req.params.id,
+      {
+        ...validated,
+        ...(normalizedThemeSettings !== undefined ? { themeSettings: normalizedThemeSettings } : {}),
+      },
+      authReq.user.id,
+    );
     if (!board) {
       res.status(404).json({
         error: {
@@ -763,6 +829,140 @@ router.put('/:id', async (req, res, next) => {
       });
       return;
     }
+    next(error);
+  }
+});
+
+router.post(
+  '/:id/background-image',
+  fileUploadRateLimiter,
+  boardBackgroundUpload.single('file'),
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      if (req.file == null) {
+        res.status(400).json({
+          error: {
+            message: 'File is required',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+
+      const boardDoc = await Board.findById(req.params.id);
+      if (boardDoc == null) {
+        res.status(404).json({
+          error: {
+            message: 'Board not found',
+            code: 'NOT_FOUND',
+            statusCode: 404,
+          },
+        });
+        return;
+      }
+
+      const previousThemeSettings = normalizeBoardThemeSettings(boardDoc.themeSettings);
+      const previousImageUrl =
+        previousThemeSettings.backgroundMode === 'image'
+          ? previousThemeSettings.backgroundImageUrl?.trim() ?? ''
+          : '';
+      if (previousImageUrl !== '') {
+        await deleteBoardBackgroundByPublicUrl(previousImageUrl);
+      }
+
+      const url = await uploadBoardBackgroundAsset(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname,
+      );
+      const nextThemeSettings = normalizeBoardThemeSettings(boardDoc.themeSettings);
+      nextThemeSettings.backgroundMode = 'image';
+      nextThemeSettings.backgroundImageUrl = url;
+      const board = await updateBoard(
+        req.params.id,
+        {
+          themeSettings: nextThemeSettings,
+          background: url,
+        },
+        authReq.user.id,
+      );
+      if (board == null) {
+        res.status(404).json({
+          error: {
+            message: 'Board not found',
+            code: 'NOT_FOUND',
+            statusCode: 404,
+          },
+        });
+        return;
+      }
+      res.json({ url, board });
+    } catch (error) {
+      if (error instanceof Error) {
+        res.status(400).json({
+          error: {
+            message: error.message,
+            code: 'BACKGROUND_UPLOAD_FAILED',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+router.delete('/:id/background-image', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const boardDoc = await Board.findById(req.params.id);
+    if (boardDoc == null) {
+      res.status(404).json({
+        error: {
+          message: 'Board not found',
+          code: 'NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+
+    const nextThemeSettings = normalizeBoardThemeSettings(boardDoc.themeSettings);
+    const existingImageUrl =
+      nextThemeSettings.backgroundMode === 'image'
+        ? nextThemeSettings.backgroundImageUrl?.trim() ?? ''
+        : '';
+    if (existingImageUrl !== '') {
+      await deleteBoardBackgroundByPublicUrl(existingImageUrl);
+    }
+    delete nextThemeSettings.backgroundImageUrl;
+    nextThemeSettings.backgroundMode = 'color';
+    if ((nextThemeSettings.backgroundColor?.trim() ?? '') === '') {
+      nextThemeSettings.backgroundColor = nextThemeSettings.selectedTheme.palette.canvasBg;
+    }
+    const board = await updateBoard(
+      req.params.id,
+      {
+        themeSettings: nextThemeSettings,
+        background: nextThemeSettings.backgroundColor,
+      },
+      authReq.user.id,
+    );
+    if (board == null) {
+      res.status(404).json({
+        error: {
+          message: 'Board not found',
+          code: 'NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+    res.json({ board });
+  } catch (error) {
     next(error);
   }
 });

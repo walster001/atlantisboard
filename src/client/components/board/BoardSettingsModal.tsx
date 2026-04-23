@@ -13,6 +13,7 @@ import { IconAdjustmentsHorizontal, IconHistory, IconList, IconTag } from '@tabl
 import type { BoardSettingsLivePatch } from '../../store/database.js';
 import { BoardSettingsListSettingsPanel } from './BoardSettingsListSettingsPanel.js';
 import { BoardSettingsCardSettingsPanel } from './BoardSettingsCardSettingsPanel.js';
+import { BoardThemeBackgroundTab } from './BoardThemeBackgroundTab.js';
 import './boardSettingsModal.css';
 
 const LabelManagement = lazy(async () => {
@@ -165,7 +166,7 @@ export function BoardSettingsModal({
           </Tabs.Panel>
 
           <Tabs.Panel value="theme" pt="md" className="board-settings-modal__tab-panel">
-            <Box style={{ minHeight: 120 }} />
+            <BoardThemeBackgroundTab boardId={boardId} />
           </Tabs.Panel>
 
           <Tabs.Panel

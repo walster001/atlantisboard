@@ -34,6 +34,12 @@ import {
   boardShowsRemindersOnCards,
   boardShowsStartDateOnCards,
 } from '../../shared/utils/boardCardDateVisibility.js';
+import {
+  createDefaultBoardThemeSettings,
+  normalizeBoardThemeSettings,
+  resolveBoardBackgroundFromThemeSettings,
+  type BoardThemeSettings,
+} from '../../shared/boardTheme.js';
 
 /** Monotonic counter for home `boards:positionsSynced` so clients can reject stale reorder events. */
 let homeBoardPositionsSequence = 0;
@@ -200,6 +206,7 @@ export interface CreateBoardInput {
   name: string;
   description?: string | undefined;
   background?: string | undefined;
+  themeSettings?: BoardThemeSettings | undefined;
   visibility?: BoardVisibility | undefined;
   ownerId: string;
 }
@@ -209,6 +216,7 @@ export interface UpdateBoardInput {
   name?: string | undefined;
   description?: string | undefined;
   background?: string | undefined;
+  themeSettings?: BoardThemeSettings | undefined;
   visibility?: BoardVisibility | undefined;
   settings?: {
     allowComments?: boolean | undefined;
@@ -267,6 +275,7 @@ function toBoardSummary(board: Document & IBoard): BoardSummaryDTO {
     name: board.name,
     ...(board.description !== undefined ? { description: board.description } : {}),
     ...(board.background !== undefined ? { background: board.background } : {}),
+    ...(board.themeSettings !== undefined ? { themeSettings: board.themeSettings } : {}),
     visibility: board.visibility,
     ownerId: board.ownerId.toString(),
     members: board.members.map((member) => ({
@@ -611,7 +620,11 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
     position,
     name: input.name,
     description: input.description,
-    background: input.background,
+    background: undefined,
+    themeSettings: normalizeBoardThemeSettings(
+      input.themeSettings,
+      createDefaultBoardThemeSettings(),
+    ),
     visibility: input.visibility || 'private',
     ownerId: input.ownerId,
     members: [],
@@ -630,6 +643,15 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
       showCardDescriptionPreview: true,
     },
   });
+
+  if (input.background !== undefined) {
+    board.background = input.background;
+  } else if (board.themeSettings != null) {
+    const resolvedBackground = resolveBoardBackgroundFromThemeSettings(board.themeSettings);
+    if (resolvedBackground !== undefined) {
+      board.background = resolvedBackground;
+    }
+  }
 
   await board.save();
 
@@ -922,6 +944,15 @@ export async function updateBoard(
   if (input.name !== undefined) board.name = input.name;
   if (input.description !== undefined) board.description = input.description;
   if (input.background !== undefined) board.background = input.background;
+  if (input.themeSettings !== undefined) {
+    board.themeSettings = normalizeBoardThemeSettings(input.themeSettings, board.themeSettings);
+    if (input.background === undefined && board.themeSettings != null) {
+      const resolvedBackground = resolveBoardBackgroundFromThemeSettings(board.themeSettings);
+      if (resolvedBackground !== undefined) {
+        board.background = resolvedBackground;
+      }
+    }
+  }
   if (input.visibility !== undefined) board.visibility = input.visibility;
   if (input.settings) {
     if (input.settings.allowComments !== undefined) board.settings.allowComments = input.settings.allowComments;

@@ -16,6 +16,7 @@ import { userRoutes } from './users.js';
 import { attachmentRoutes } from './attachments.js';
 import { csrfRoutes } from './csrf.js';
 import { brandingRoutes } from './branding.js';
+import { boardBackgroundRoutes } from './boardBackgrounds.js';
 import { fontRoutes } from './fonts.js';
 import { importInlineRoutes } from './importInline.js';
 
@@ -26,6 +27,9 @@ apiRoutes.use('/csrf', csrfRoutes);
 
 // Public branding assets (MinIO branding bucket)
 apiRoutes.use('/branding', brandingRoutes);
+
+// Public board background assets (MinIO backgrounds bucket)
+apiRoutes.use('/board-backgrounds', boardBackgroundRoutes);
 
 // Wekan-import inline button icons (MinIO import-inline bucket)
 apiRoutes.use('/import-inline', importInlineRoutes);

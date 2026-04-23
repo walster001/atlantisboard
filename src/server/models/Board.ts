@@ -3,6 +3,7 @@ import {
   BOARD_DESCRIPTION_MAX_LENGTH,
   BOARD_NAME_MAX_LENGTH,
 } from '../../shared/constants/entityTextLimits.js';
+import type { BoardThemeSettings } from '../../shared/boardTheme.js';
 
 export type BoardVisibility = 'private' | 'workspace' | 'public';
 export type BoardRole = 'admin' | 'manager' | 'viewer';
@@ -52,6 +53,7 @@ export interface IBoard extends Document {
   name: string;
   description?: string;
   background?: string;
+  themeSettings?: BoardThemeSettings;
   visibility: BoardVisibility;
   ownerId: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -131,6 +133,10 @@ const BoardSchema = new Schema<IBoard>(
       maxlength: BOARD_DESCRIPTION_MAX_LENGTH,
     },
     background: String,
+    themeSettings: {
+      type: Schema.Types.Mixed,
+      required: false,
+    },
     visibility: {
       type: String,
       enum: ['private', 'workspace', 'public'],

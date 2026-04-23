@@ -147,6 +147,7 @@ services:
       mc mb myminio/branding --ignore-existing;
       mc mb myminio/fonts --ignore-existing;
       mc mb myminio/user-avatars --ignore-existing;
+      mc mb myminio/backgrounds --ignore-existing;
       mc mb myminio/backups --ignore-existing;
       mc anonymous set public myminio/branding;
       exit 0;

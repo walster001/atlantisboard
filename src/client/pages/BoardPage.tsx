@@ -22,6 +22,7 @@ import { useAppBranding } from '../contexts/AppBrandingContext.js';
 import { resolveBoardNavbarIconUrl } from '../../shared/types/appBranding.js';
 import { buildKanbanBoardEditCaps } from '../hooks/kanbanBoardEditCaps.js';
 import { useBoardPermissions } from '../hooks/useBoardPermissions.js';
+import { getBoardPageThemeStyle } from '../utils/boardThemeStyle.js';
 import '../components/board/boardView.css';
 
 const KANBAN_VIEW_SUSPENSE_FALLBACK = (
@@ -198,6 +199,7 @@ export default function BoardPage() {
 
   const overlayInitialCardForId =
     overlayCardId != null && overlayInitialCard?.id === overlayCardId ? overlayInitialCard : undefined;
+  const boardThemeStyle = useMemo(() => (board != null ? getBoardPageThemeStyle(board) : undefined), [board]);
 
   if (loading) {
     return (
@@ -223,7 +225,7 @@ export default function BoardPage() {
   }
 
   return (
-    <Box className="board-page">
+    <Box className="board-page" {...(boardThemeStyle !== undefined ? { style: boardThemeStyle } : {})}>
       <Box className="board-page__header">
         <Group justify="space-between" align="center" wrap="nowrap" gap="md">
           <Group gap={6} wrap="nowrap" align="center" style={{ flex: 1, minWidth: 0 }}>

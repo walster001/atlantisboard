@@ -1,4 +1,5 @@
 import type { BoardDB, WorkspaceDB, ListDB, CardDB } from '../store/database.js';
+import type { BoardThemeSettings } from '../../shared/boardTheme.js';
 import {
   boardShowsDueDateOnCards,
   boardShowsEndDateOnCards,
@@ -51,6 +52,7 @@ export function transformBoard(board: unknown): BoardDB {
     descriptionPreview?: string;
     descriptionCharCount?: number;
     background?: string;
+    themeSettings?: BoardThemeSettings;
     visibility: 'private' | 'workspace' | 'public';
     members?: Array<{
       userId?: string | { toString: () => string } | { _id?: string | { toString: () => string } };
@@ -141,6 +143,7 @@ export function transformBoard(board: unknown): BoardDB {
     name: b.name,
     ...(b.description !== undefined && { description: b.description }),
     ...(b.background !== undefined && { background: b.background }),
+    ...(b.themeSettings !== undefined ? { themeSettings: b.themeSettings } : {}),
     visibility: b.visibility,
     ownerId,
     members,

@@ -10779,6 +10779,82 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 }
 
+/* src/client/components/board/boardThemeBackgroundTab.css */
+.board-theme-tab {
+  min-height: 0;
+}
+
+.board-theme-tab__sidenav {
+  padding-right: var(--mantine-spacing-lg);
+  border-right: 1px solid var(--mantine-color-gray-3);
+  flex-shrink: 0;
+  width: 248px;
+}
+
+.board-theme-tab__sidenav .mantine-NavLink-root {
+  border-radius: var(--mantine-radius-md);
+}
+
+.board-theme-tab__sidenav .mantine-NavLink-root[data-active] {
+  background-color: var(--mantine-color-blue-filled);
+  color: var(--mantine-color-white);
+}
+
+.board-theme-tab__sidenav .mantine-NavLink-root[data-active] .mantine-NavLink-section {
+  color: var(--mantine-color-white);
+}
+
+.board-theme-tab__main {
+  padding-left: var(--mantine-spacing-lg);
+  flex: 1;
+  min-width: 0;
+}
+
+.board-theme-card {
+  cursor: pointer;
+  min-height: 220px;
+}
+
+.board-theme-card--selected {
+  border-color: var(--mantine-color-blue-5);
+  box-shadow: 0 0 0 1px var(--mantine-color-blue-5) inset;
+}
+
+.board-theme-card__preview {
+  overflow: hidden;
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: 8px;
+  min-height: 148px;
+}
+
+.board-theme-card__preview-nav {
+  height: 22px;
+}
+
+.board-theme-tab__preview {
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+  background-position: center;
+  background-size: cover;
+  min-height: 220px;
+}
+
+.board-theme-tab__preview-nav {
+  height: 30px;
+}
+
+.board-theme-tab__preview-columns {
+  padding: 16px;
+}
+
+.board-theme-tab__preview-list {
+  border-radius: 8px;
+  width: 180px;
+  padding: 12px;
+  box-shadow: 0 1px 3px #0000001f;
+}
+
 /* src/client/components/board/boardSettingsModal.css */
 .board-settings-modal__inner {
   --board-settings-modal-gutter: clamp(12px, 3vmin, 28px);
@@ -10968,6 +11044,18 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   --board-list-shadow: 0 1px 3px #0000001f;
   --board-add-list-bg: #fff3;
   --board-add-list-bg-hover: #ffffff47;
+  --board-canvas-bg-image: none;
+  --board-canvas-bg-image-size: cover;
+  --board-canvas-bg-image-repeat: no-repeat;
+  --board-canvas-bg-image-position: center;
+  --board-scrollbar-color: #495057;
+  --board-scrollbar-track-color: #ced4da;
+  --board-card-detail-bg: #f8f9fb;
+  --board-card-detail-text: #868e96;
+  --board-card-detail-button-bg: #f0f1f4;
+  --board-card-detail-button-text: #1f2937;
+  --board-card-detail-button-hover-bg: #e4e6ea;
+  --board-card-detail-button-hover-text: #1f2937;
   --board-viewport-gap: 2.5dvh;
   --board-header-height: 56px;
   display: flex;
@@ -11039,6 +11127,10 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   overflow-x: auto;
   overflow-y: hidden;
   background: var(--board-canvas-bg);
+  background-image: var(--board-canvas-bg-image);
+  background-size: var(--board-canvas-bg-image-size);
+  background-repeat: var(--board-canvas-bg-image-repeat);
+  background-position: var(--board-canvas-bg-image-position);
   flex: 1;
   min-height: 0;
 }
@@ -11048,7 +11140,8 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   align-items:  flex-start;
   gap: 12px;
   width: max-content;
-  min-height: calc(100vh - 120px);
+  height: 100%;
+  min-height: 100%;
 }
 
 .board-column {
@@ -11059,13 +11152,13 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   box-shadow: var(--board-list-shadow);
   display: flex;
   overflow: hidden;
-  max-height: calc(100dvh - var(--board-header-height)  - (var(--board-viewport-gap) * 2));
   content-visibility: visible;
   contain-intrinsic-size: 280px 160px;
   border-radius: 10px;
   flex-direction: column;
   flex-shrink: 0;
   min-height: 0;
+  max-height: 100%;
 }
 
 .board-page--kanban-dragging .board-column, .board-column__cards, .board-column__cards--virtual {
@@ -11104,11 +11197,27 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   overflow-x: hidden;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
+  scrollbar-color: var(--board-scrollbar-color) var(--board-scrollbar-track-color);
   flex: 1;
   width: 100%;
   min-height: 0;
   max-height: 100%;
   padding-right: 2px;
+}
+
+.board-column__cards--plain {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--board-scrollbar-color) var(--board-scrollbar-track-color);
+  padding-right: 2px;
+}
+
+@supports (scrollbar-gutter: stable only-if-overflow) {
+  .board-column__cards--plain {
+    scrollbar-gutter: stable only-if-overflow;
+  }
 }
 
 .board-column__cards--virtual {
@@ -11122,7 +11231,15 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 .board-column__virtuoso-scroller {
   box-sizing: border-box;
   scrollbar-gutter: auto;
+  scrollbar-color: var(--board-scrollbar-color) var(--board-scrollbar-track-color);
   width: 100%;
+  min-height: 0;
+}
+
+@supports (scrollbar-gutter: stable only-if-overflow) {
+  .board-column__virtuoso-scroller {
+    scrollbar-gutter: stable only-if-overflow;
+  }
 }
 
 .board-column__cards--virtual:not(:has(.board-column__virtuoso-scroller)) {

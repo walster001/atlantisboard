@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import type { BoardThemeSettings } from '../../shared/boardTheme.js';
 
 // Database interfaces
 export interface WorkspaceDB {
@@ -25,6 +26,7 @@ export interface BoardDB {
   name: string;
   description?: string;
   background?: string;
+  themeSettings?: BoardThemeSettings;
   visibility: 'private' | 'workspace' | 'public';
   ownerId: string;
   members: Array<{

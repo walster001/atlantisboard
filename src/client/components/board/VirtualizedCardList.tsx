@@ -19,8 +19,13 @@ import { PDND_KANBAN_LIST_BODY } from '../../dnd/pragmatic/kanbanData.js';
 /** Mantine `pb="xs"` between Virtuoso rows (~10px). */
 const KANBAN_VIRTUOSO_ROW_GAP_PX = 10;
 
-const VIRTUOSO_OVERSCAN = { main: 3, reverse: 3 } as const;
-const VIRTUOSO_VIEWPORT_PAD = { top: 64, bottom: 64 } as const;
+const VIRTUOSO_OVERSCAN = { main: 2, reverse: 2 } as const;
+
+/**
+ * At or below this count, render cards in a normal column with `overflow-y: auto` (no Virtuoso).
+ * ~20 minimal cards fit one viewport; keeps real DOM for short lists while virtualizing deeper columns.
+ */
+const KANBAN_CARD_COUNT_VIRTUALIZE_THRESHOLD = 20;
 
 /**
  * Matches SortableCard kanban layout closely so Virtuoso's initial height ≈ measured height
@@ -140,6 +145,7 @@ function virtualizedCardListPropsEqual(
   );
 }
 
+/** Native scroller only — Virtuoso depends on this `div` for scroll metrics; wrapping it breaks virtualization. */
 const KanbanVirtuosoScroller = forwardRef<HTMLDivElement, ScrollerProps>(
   function KanbanVirtuosoScroller({ style, ...props }, ref) {
     return (
@@ -204,6 +210,7 @@ function VirtualizedCardListInner({
   kanbanCardBodyDraggable,
 }: VirtualizedCardListProps) {
   const listBodyDropRef = useRef<HTMLDivElement | null>(null);
+  const measureRafRef = useRef<number | null>(null);
   const maxBodyPx = cardListMaxBodyPx;
   const [measuredTotalListPx, setMeasuredTotalListPx] = useState(0);
 
@@ -213,7 +220,27 @@ function VirtualizedCardListInner({
     return [...visible].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
   }, [cards, draggingCardId]);
 
-  const totalListPx = sortedCards.length === 0 ? 0 : measuredTotalListPx;
+  /** When membership/order changes (e.g. bulk import), drop Virtuoso’s last measured height so we don’t size to stale totals (scrollbar glitches / layout thrash). */
+  const cardRunSignature = useMemo(
+    () => sortedCards.map((c) => c.id).join('\u001f'),
+    [sortedCards],
+  );
+
+  const usePlainScroll =
+    sortedCards.length > 0 && sortedCards.length <= KANBAN_CARD_COUNT_VIRTUALIZE_THRESHOLD;
+
+  useEffect(() => {
+    if (usePlainScroll) {
+      return undefined;
+    }
+    setMeasuredTotalListPx(0);
+    return () => {
+      if (measureRafRef.current != null) {
+        cancelAnimationFrame(measureRafRef.current);
+        measureRafRef.current = null;
+      }
+    };
+  }, [cardRunSignature, usePlainScroll]);
 
   const heightEstimates = useMemo(
     () =>
@@ -250,21 +277,28 @@ function VirtualizedCardListInner({
     if (nh <= 0) {
       return;
     }
-    setMeasuredTotalListPx((prev) => {
-      if (prev > 0 && Math.abs(prev - nh) < 3) {
-        return prev;
-      }
-      return nh;
+    if (measureRafRef.current != null) {
+      cancelAnimationFrame(measureRafRef.current);
+    }
+    measureRafRef.current = requestAnimationFrame(() => {
+      measureRafRef.current = null;
+      const rounded = Math.round(nh);
+      setMeasuredTotalListPx((prev) => {
+        if (prev > 0 && Math.abs(prev - rounded) < 8) {
+          return prev;
+        }
+        return rounded;
+      });
     });
   }, []);
+
+  const blendedListHeightPx =
+    sortedCards.length === 0 ? 0 : Math.max(heightEstimatePx, measuredTotalListPx);
 
   const virtuosoHeightPx =
     sortedCards.length === 0
       ? 0
-      : Math.max(
-          72,
-          Math.ceil(Math.min(totalListPx === 0 ? heightEstimatePx : totalListPx, maxBodyPx)),
-        );
+      : Math.max(72, Math.ceil(Math.min(blendedListHeightPx, maxBodyPx)));
 
   const virtuosoRootStyle = useMemo(
     () =>
@@ -292,32 +326,8 @@ function VirtualizedCardListInner({
     return { matches, showEmpty, lastCardId, showBelowLastInFooter, di };
   }, [dropIndicator, listId, sortedCards]);
 
-  const virtuosoComponents = useMemo(
-    () => ({
-      Scroller: KanbanVirtuosoScroller,
-      List: KanbanVirtuosoList,
-      Header: () =>
-        listDropChrome.showEmpty && listDropChrome.di != null ? (
-          <Box pb="xs" px={0}>
-            <CardDropShadowIndicator target={listDropChrome.di} />
-          </Box>
-        ) : null,
-      Footer: () => {
-        if (!listDropChrome.showBelowLastInFooter || listDropChrome.di == null) {
-          return null;
-        }
-        return (
-          <Box pb="xs" px={0}>
-            <CardDropShadowIndicator target={listDropChrome.di} />
-          </Box>
-        );
-      },
-    }),
-    [listDropChrome],
-  );
-
-  const itemContent = useCallback(
-    (_index: number, card: CardDB) => {
+  const renderCardRow = useCallback(
+    (card: CardDB) => {
       const { matches, lastCardId, di } = listDropChrome;
       const showAboveRow =
         di != null && matches && di.anchorCardId === card.id && di.columnIntent === 'above';
@@ -366,6 +376,35 @@ function VirtualizedCardListInner({
     ],
   );
 
+  const virtuosoComponents = useMemo(
+    () => ({
+      Scroller: KanbanVirtuosoScroller,
+      List: KanbanVirtuosoList,
+      Header: () =>
+        listDropChrome.showEmpty && listDropChrome.di != null ? (
+          <Box pb="xs" px={0}>
+            <CardDropShadowIndicator target={listDropChrome.di} />
+          </Box>
+        ) : null,
+      Footer: () => {
+        if (!listDropChrome.showBelowLastInFooter || listDropChrome.di == null) {
+          return null;
+        }
+        return (
+          <Box pb="xs" px={0}>
+            <CardDropShadowIndicator target={listDropChrome.di} />
+          </Box>
+        );
+      },
+    }),
+    [listDropChrome],
+  );
+
+  const itemContent = useCallback(
+    (_index: number, card: CardDB) => renderCardRow(card),
+    [renderCardRow],
+  );
+
   useEffect(() => {
     const el = listBodyDropRef.current;
     if (el == null) {
@@ -382,6 +421,32 @@ function VirtualizedCardListInner({
       getIsSticky: () => true,
     });
   }, [listId]);
+
+  if (usePlainScroll) {
+    return (
+      <Box
+        ref={listBodyDropRef}
+        className="board-column__cards board-column__cards--plain"
+        style={{
+          flex: '1 1 auto',
+          minHeight: 0,
+          maxHeight: maxBodyPx,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        data-kanban-list-body={listId}
+      >
+        {sortedCards.map((card) => (
+          <Box key={card.id}>{renderCardRow(card)}</Box>
+        ))}
+        {listDropChrome.showBelowLastInFooter && listDropChrome.di != null ? (
+          <Box pb="xs" px={0}>
+            <CardDropShadowIndicator target={listDropChrome.di} />
+          </Box>
+        ) : null}
+      </Box>
+    );
+  }
 
   if (sortedCards.length === 0) {
     return (
@@ -426,7 +491,6 @@ function VirtualizedCardListInner({
         itemContent={itemContent}
         components={virtuosoComponents}
         overscan={VIRTUOSO_OVERSCAN}
-        increaseViewportBy={VIRTUOSO_VIEWPORT_PAD}
       />
     </Box>
   );

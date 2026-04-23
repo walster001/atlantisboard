@@ -15,6 +15,18 @@
   --board-list-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   --board-add-list-bg: rgba(255, 255, 255, 0.2);
   --board-add-list-bg-hover: rgba(255, 255, 255, 0.28);
+  --board-canvas-bg-image: none;
+  --board-canvas-bg-image-size: cover;
+  --board-canvas-bg-image-repeat: no-repeat;
+  --board-canvas-bg-image-position: center;
+  --board-scrollbar-color: #495057;
+  --board-scrollbar-track-color: #ced4da;
+  --board-card-detail-bg: #f8f9fb;
+  --board-card-detail-text: #868e96;
+  --board-card-detail-button-bg: #f0f1f4;
+  --board-card-detail-button-text: #1f2937;
+  --board-card-detail-button-hover-bg: #e4e6ea;
+  --board-card-detail-button-hover-text: #1f2937;
   /* Shared top/bottom breathing room as viewport percentage. */
   --board-viewport-gap: 2.5dvh;
   /* Header bar footprint (nav + border) used for column max-height calc. */
@@ -94,6 +106,10 @@
   overflow-x: auto;
   overflow-y: hidden;
   background: var(--board-canvas-bg);
+  background-image: var(--board-canvas-bg-image);
+  background-size: var(--board-canvas-bg-image-size);
+  background-repeat: var(--board-canvas-bg-image-repeat);
+  background-position: var(--board-canvas-bg-image-position);
 }
 
 .board-page__columns {
@@ -101,7 +117,8 @@
   align-items: flex-start;
   gap: 12px;
   width: max-content;
-  min-height: calc(100vh - 120px);
+  min-height: 100%;
+  height: 100%;
 }
 
 .board-column {
@@ -119,10 +136,9 @@
   min-height: 0;
   overflow: hidden;
   /*
-   * Constrain tall lists while allowing short lists to stay compact.
-   * Formula: viewport - header - (top gap + bottom gap).
+   * Constrain columns to the board body's padded content box so top/bottom canvas gaps stay symmetric.
    */
-  max-height: calc(100dvh - var(--board-header-height) - (var(--board-viewport-gap) * 2));
+  max-height: 100%;
   content-visibility: visible;
   contain-intrinsic-size: 280px 160px;
 }
@@ -178,6 +194,26 @@
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
   padding-right: 2px;
+  scrollbar-color: var(--board-scrollbar-color) var(--board-scrollbar-track-color);
+}
+
+/*
+ * Short lists: native column scroll (no Virtuoso). Do not use `scrollbar-gutter: stable` here or
+ * a track appears even when content does not overflow.
+ */
+.board-column__cards--plain {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  scrollbar-gutter: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--board-scrollbar-color) var(--board-scrollbar-track-color);
+}
+
+@supports (scrollbar-gutter: stable only-if-overflow) {
+  .board-column__cards--plain {
+    scrollbar-gutter: stable only-if-overflow;
+  }
 }
 
 /* Virtuoso provides its own scroller element; avoid nested wheel-scroll containers. */
@@ -196,8 +232,17 @@
 /* Scrollbar on this element’s outer edge; horizontal inset for cards is on Virtuoso `List` (merged inline style). */
 .board-column__virtuoso-scroller {
   box-sizing: border-box;
-  scrollbar-gutter: auto;
+  min-height: 0;
   width: 100%;
+  /* Avoid a permanent gutter when the list is shorter than the viewport (false “overflow” scrollbar). */
+  scrollbar-gutter: auto;
+  scrollbar-color: var(--board-scrollbar-color) var(--board-scrollbar-track-color);
+}
+
+@supports (scrollbar-gutter: stable only-if-overflow) {
+  .board-column__virtuoso-scroller {
+    scrollbar-gutter: stable only-if-overflow;
+  }
 }
 
 /* Empty list: no Virtuoso scroller — mirror the scroller’s end inset. */
@@ -244,6 +289,7 @@
   min-height: calc(0.875rem * 1.25 * 2);
 }
 
+/* Keep a persistent divider between card viewport and footer actions. */
 .board-column__title-row {
   cursor: grab;
   touch-action: none;

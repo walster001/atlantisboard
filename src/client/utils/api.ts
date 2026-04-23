@@ -5,6 +5,7 @@ import type { PublicLoginBranding } from '../../shared/types/loginBranding.js';
 import type { PublicAppBranding } from '../../shared/types/appBranding.js';
 import type { PublicCustomFontEntry } from '../../shared/types/customFonts.js';
 import type { ImportPreflightPayload } from '../../shared/import/importPreflight.js';
+import type { BoardThemeSettings } from '../../shared/boardTheme.js';
 
 const API_BASE_URL = env.API_BASE_URL || '/api/v1';
 
@@ -413,6 +414,7 @@ class ApiClient {
     name: string;
     description?: string;
     background?: string;
+    themeSettings?: BoardThemeSettings;
     visibility?: 'private' | 'workspace' | 'public';
   }): Promise<{ board: unknown }> {
     const response = await this.client.post('/boards', data);
@@ -423,6 +425,7 @@ class ApiClient {
     name?: string;
     description?: string;
     background?: string;
+    themeSettings?: BoardThemeSettings;
     visibility?: 'private' | 'workspace' | 'public';
     workspaceId?: string | null;
     settings?: {
@@ -449,6 +452,26 @@ class ApiClient {
     };
   }): Promise<{ board: unknown }> {
     const response = await this.client.put(`/boards/${id}`, data);
+    return response.data;
+  }
+
+  async uploadBoardBackgroundImage(boardId: string, file: File): Promise<{ url: string; board: unknown }> {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await this.client.post<{ url: string; board: unknown }>(
+      `/boards/${boardId}/background-image`,
+      form,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
+    );
+    return response.data;
+  }
+
+  async deleteBoardBackgroundImage(boardId: string): Promise<{ board: unknown }> {
+    const response = await this.client.delete<{ board: unknown }>(`/boards/${boardId}/background-image`);
     return response.data;
   }
 

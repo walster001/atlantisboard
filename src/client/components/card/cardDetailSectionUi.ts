@@ -4,7 +4,7 @@ import type { ButtonProps, TextProps } from '@mantine/core';
 export const CARD_DETAIL_SECTION_ICON_COLOR = 'var(--mantine-color-gray-6)';
 
 /** Card detail modal shell (body/content/header in `CardDetailView`). */
-export const CARD_DETAIL_MODAL_BACKGROUND_HEX = '#f8f9fb';
+export const CARD_DETAIL_MODAL_BACKGROUND_HEX = 'var(--board-card-detail-bg, #f8f9fb)';
 
 /**
  * Comma-separated RGB for emoji-mart `--rgb-background` (inherits into shadow DOM).
@@ -16,7 +16,7 @@ export const CARD_DETAIL_MODAL_BACKGROUND_RGB = '248, 249, 251';
  * Section heading text (`cardDetailSectionTitleProps` / `c: 'gray.6'`) and matching header icons.
  * Default Mantine `gray.6` is `#868e96`; if the theme overrides `gray`, update this to match index 6.
  */
-export const CARD_DETAIL_SECTION_HEADING_HEX = '#868e96';
+export const CARD_DETAIL_SECTION_HEADING_HEX = 'var(--board-card-detail-text, #868e96)';
 
 /**
  * Comma-separated RGB for emoji-mart `--rgb-color` (foreground: headings, search text, nav icons).
@@ -53,9 +53,9 @@ export const cardDetailMutedLineProps: Partial<TextProps> = {
  */
 export const cardDetailSoftButtonStyles: NonNullable<ButtonProps['styles']> = {
   root: {
-    backgroundColor: '#f0f1f4',
+    backgroundColor: 'var(--board-card-detail-button-bg, #f0f1f4)',
     border: 'none',
-    color: 'var(--mantine-color-dark-7)',
+    color: 'var(--board-card-detail-button-text, var(--mantine-color-dark-7))',
     borderRadius: 8,
     paddingInline: 'var(--mantine-spacing-md)',
     fontWeight: 500,
@@ -63,14 +63,14 @@ export const cardDetailSoftButtonStyles: NonNullable<ButtonProps['styles']> = {
     width: 'fit-content',
     maxWidth: '100%',
     '&:hover': {
-      backgroundColor: '#e4e6ea',
-      color: 'var(--mantine-color-dark-7)',
+      backgroundColor: 'var(--board-card-detail-button-hover-bg, #e4e6ea)',
+      color: 'var(--board-card-detail-button-hover-text, var(--mantine-color-dark-7))',
     },
     '&:disabled': {
-      backgroundColor: '#f0f1f4',
+      backgroundColor: 'var(--board-card-detail-button-bg, #f0f1f4)',
       opacity: 0.55,
     },
   },
-  label: { color: 'var(--mantine-color-dark-7)' },
-  section: { color: 'var(--mantine-color-dark-7)' },
+  label: { color: 'var(--board-card-detail-button-text, var(--mantine-color-dark-7))' },
+  section: { color: 'var(--board-card-detail-button-text, var(--mantine-color-dark-7))' },
 };

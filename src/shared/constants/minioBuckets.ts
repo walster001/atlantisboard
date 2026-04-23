@@ -13,6 +13,9 @@ export const MINIO_BUCKET_FONTS = 'fonts' as const;
 /** MinIO bucket for user profile pictures. */
 export const MINIO_BUCKET_USER_AVATARS = 'user-avatars' as const;
 
+/** MinIO bucket for board background images uploaded via board theme settings. */
+export const MINIO_BUCKET_BACKGROUNDS = 'backgrounds' as const;
+
 /** MinIO bucket for application backups (private). */
 export const MINIO_BUCKET_BACKUPS = 'backups' as const;
 
@@ -26,6 +29,7 @@ export const MINIO_BUCKET_NAMES = [
   MINIO_BUCKET_BRANDING,
   MINIO_BUCKET_FONTS,
   MINIO_BUCKET_USER_AVATARS,
+  MINIO_BUCKET_BACKGROUNDS,
   MINIO_BUCKET_BACKUPS,
 ] as const;
 

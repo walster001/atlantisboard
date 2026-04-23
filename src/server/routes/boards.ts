@@ -57,6 +57,7 @@ const boardThemePaletteSchema = z.object({
   addListBg: z.string().min(1),
   addListBgHover: z.string().min(1),
   cardDetailBg: z.string().min(1),
+  cardDetailTitleText: z.string().min(1),
   cardDetailText: z.string().min(1),
   cardDetailButtonBg: z.string().min(1),
   cardDetailButtonText: z.string().min(1),
@@ -80,7 +81,9 @@ const boardThemeSettingsSchema = z.object({
   backgroundMode: z.enum(['theme', 'color', 'image']),
   backgroundColor: z.string().min(1).max(64).optional(),
   backgroundImageUrl: z.string().min(1).max(500_000).optional(),
-  backgroundImageScale: z.enum(['fill', 'fit', 'stretch']).optional(),
+  backgroundImageScale: z.enum(['fill', 'fit', 'fit-top-left', 'smart-fill']).optional(),
+  backgroundFocalX: z.number().min(0).max(1).optional(),
+  backgroundFocalY: z.number().min(0).max(1).optional(),
 });
 
 const router = Router();
@@ -878,8 +881,22 @@ router.post(
         req.file.originalname,
       );
       const nextThemeSettings = normalizeBoardThemeSettings(boardDoc.themeSettings);
+      const scaleInput = typeof req.body.backgroundImageScale === 'string' ? req.body.backgroundImageScale : '';
+      const focalXInput =
+        typeof req.body.backgroundFocalX === 'string' ? Number.parseFloat(req.body.backgroundFocalX) : undefined;
+      const focalYInput =
+        typeof req.body.backgroundFocalY === 'string' ? Number.parseFloat(req.body.backgroundFocalY) : undefined;
       nextThemeSettings.backgroundMode = 'image';
       nextThemeSettings.backgroundImageUrl = url;
+      if (scaleInput === 'fill' || scaleInput === 'fit' || scaleInput === 'fit-top-left' || scaleInput === 'smart-fill') {
+        nextThemeSettings.backgroundImageScale = scaleInput;
+      }
+      if (focalXInput != null && Number.isFinite(focalXInput)) {
+        nextThemeSettings.backgroundFocalX = Math.max(0, Math.min(1, focalXInput));
+      }
+      if (focalYInput != null && Number.isFinite(focalYInput)) {
+        nextThemeSettings.backgroundFocalY = Math.max(0, Math.min(1, focalYInput));
+      }
       const board = await updateBoard(
         req.params.id,
         {

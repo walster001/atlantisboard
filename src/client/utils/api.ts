@@ -455,9 +455,26 @@ class ApiClient {
     return response.data;
   }
 
-  async uploadBoardBackgroundImage(boardId: string, file: File): Promise<{ url: string; board: unknown }> {
+  async uploadBoardBackgroundImage(
+    boardId: string,
+    file: File,
+    options?: {
+      backgroundImageScale?: 'fill' | 'fit' | 'fit-top-left' | 'smart-fill';
+      backgroundFocalX?: number;
+      backgroundFocalY?: number;
+    },
+  ): Promise<{ url: string; board: unknown }> {
     const form = new FormData();
     form.append('file', file);
+    if (options?.backgroundImageScale != null) {
+      form.append('backgroundImageScale', options.backgroundImageScale);
+    }
+    if (options?.backgroundFocalX != null && Number.isFinite(options.backgroundFocalX)) {
+      form.append('backgroundFocalX', String(options.backgroundFocalX));
+    }
+    if (options?.backgroundFocalY != null && Number.isFinite(options.backgroundFocalY)) {
+      form.append('backgroundFocalY', String(options.backgroundFocalY));
+    }
     const response = await this.client.post<{ url: string; board: unknown }>(
       `/boards/${boardId}/background-image`,
       form,

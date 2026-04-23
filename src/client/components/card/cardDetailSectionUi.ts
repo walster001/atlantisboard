@@ -1,51 +1,56 @@
 import type { ButtonProps, TextProps } from '@mantine/core';
 
-/** Matches `cardDetailSectionTitleProps` (Mantine `gray.6`) for Tabler header icons. */
-export const CARD_DETAIL_SECTION_ICON_COLOR = 'var(--mantine-color-gray-6)';
+/** Parse `getComputedStyle(...).color` / `.backgroundColor` into emoji-mart `r, g, b` triplets. */
+export function parseCssColorToRgbTriplet(css: string): string | null {
+  const trimmed = css.trim();
+  const rgb = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(trimmed);
+  if (rgb != null) {
+    return `${rgb[1]}, ${rgb[2]}, ${rgb[3]}`;
+  }
+  return null;
+}
+
+/** Section header icons: align with board `--board-card-detail-text`. */
+export const CARD_DETAIL_SECTION_ICON_COLOR = 'var(--board-card-detail-text, #868e96)';
 
 /** Card detail modal shell (body/content/header in `CardDetailView`). */
 export const CARD_DETAIL_MODAL_BACKGROUND_HEX = 'var(--board-card-detail-bg, #f8f9fb)';
 
 /**
- * Comma-separated RGB for emoji-mart `--rgb-background` (inherits into shadow DOM).
- * Must stay in sync with `CARD_DETAIL_MODAL_BACKGROUND_HEX`.
+ * Fallback comma-separated RGB for emoji-mart `--rgb-background` when probes have not run yet.
+ * Prefer values resolved from `--board-card-detail-bg` in `CardDescriptionEditorToolbar`.
  */
 export const CARD_DETAIL_MODAL_BACKGROUND_RGB = '248, 249, 251';
 
 /**
- * Section heading text (`cardDetailSectionTitleProps` / `c: 'gray.6'`) and matching header icons.
- * Default Mantine `gray.6` is `#868e96`; if the theme overrides `gray`, update this to match index 6.
+ * Section heading text and emoji-mart foreground fallback (see `parseCssColorToRgbTriplet`).
  */
 export const CARD_DETAIL_SECTION_HEADING_HEX = 'var(--board-card-detail-text, #868e96)';
 
-/**
- * Comma-separated RGB for emoji-mart `--rgb-color` (foreground: headings, search text, nav icons).
- * Matches section titles (`gray.6` / `#868e96`). Requires `theme="light"` on the picker when the shell
- * uses a light `--rgb-background`, or OS dark mode yields light text on a light panel.
- */
+/** Fallback RGB for emoji-mart `--rgb-color` before CSS-var probes resolve. */
 export const CARD_DETAIL_SECTION_HEADING_RGB = '134, 142, 150';
 
 /** Emoji-mart `--rgb-input` → focused search field background in light theme (default sheet white). */
 export const CARD_DETAIL_EMOJI_MART_INPUT_FOCUS_RGB = '255, 255, 255';
 
-/** Section headers: icon + label (medium grey, semi-bold). */
+/** Section headers: icon + label (uses board card-detail text token). */
 export const cardDetailSectionTitleProps: Partial<TextProps> = {
   size: 'sm',
   fw: 600,
-  c: 'gray.6',
+  style: { color: 'var(--board-card-detail-text, #868e96)' },
 };
 
-/** Empty / helper lines under sections (light grey, italic). */
+/** Empty / helper lines under sections (same token, softened). */
 export const cardDetailEmptyStateProps: Partial<TextProps> = {
   size: 'sm',
-  c: 'gray.5',
   fs: 'italic',
+  style: { color: 'var(--board-card-detail-text, #868e96)', opacity: 0.72 },
 };
 
 /** Secondary hint without italics (e.g. short status lines). */
 export const cardDetailMutedLineProps: Partial<TextProps> = {
   size: 'sm',
-  c: 'gray.5',
+  style: { color: 'var(--board-card-detail-text, #868e96)', opacity: 0.78 },
 };
 
 /**

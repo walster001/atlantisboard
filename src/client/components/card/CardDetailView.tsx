@@ -61,6 +61,7 @@ import {
 } from './cardDescriptionTiptap.js';
 import { DuplicateCardModal } from './DuplicateCardModal.js';
 import {
+  CARD_DETAIL_MODAL_BACKGROUND_HEX,
   CARD_DETAIL_SECTION_ICON_COLOR,
   cardDetailEmptyStateProps,
   cardDetailSectionTitleProps,
@@ -77,7 +78,7 @@ import {
 const CARD_DETAIL_MODAL_STYLES = {
   body: {
     padding: 0,
-    backgroundColor: '#f8f9fb',
+    backgroundColor: CARD_DETAIL_MODAL_BACKGROUND_HEX,
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
@@ -91,12 +92,12 @@ const CARD_DETAIL_MODAL_STYLES = {
     height: 'calc(100vh - 24px)',
     minHeight: 'calc(100vh - 24px)',
     maxHeight: 'calc(100vh - 24px)',
-    backgroundColor: '#f8f9fb',
+    backgroundColor: CARD_DETAIL_MODAL_BACKGROUND_HEX,
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
   },
-  header: { backgroundColor: '#f8f9fb', alignItems: 'center' },
+  header: { backgroundColor: CARD_DETAIL_MODAL_BACKGROUND_HEX, alignItems: 'center' },
   title: { flex: 1, marginRight: 0, width: '100%', maxWidth: '100%' },
 } as const;
 
@@ -760,6 +761,7 @@ export function CardDetailView({
         opened={true}
         onClose={onClose}
         size="54vw"
+        withinPortal={false}
         transitionProps={{ duration: 0 }}
         overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
         title={
@@ -791,6 +793,9 @@ export function CardDetailView({
                   }}
                   autoFocus
                   disabled={loading}
+                  styles={{
+                    input: { color: 'var(--board-card-detail-title-text, #1a1b1e)' },
+                  }}
                 />
               ) : (
                 <Text
@@ -800,6 +805,7 @@ export function CardDetailView({
                     fontFamily: 'var(--kb-app-ui-font-family)',
                     fontWeight: 600,
                     fontSize: '1.6rem',
+                    color: 'var(--board-card-detail-title-text, #1a1b1e)',
                   }}
                   onClick={() => {
                     if (canEditCard) {
@@ -822,7 +828,7 @@ export function CardDetailView({
                 onClick={() => void handleCopyCardLink()}
                 styles={{
                   root: {
-                    color: 'var(--mantine-color-gray-6)',
+                    color: 'var(--board-card-detail-text, #868e96)',
                   },
                 }}
               >
@@ -837,7 +843,10 @@ export function CardDetailView({
                   <IconLink size={19} stroke={1.5} />
                 </span>
               </ActionIcon>
-              <Modal.CloseButton aria-label="Close" />
+              <Modal.CloseButton
+                aria-label="Close"
+                style={{ color: 'var(--board-card-detail-text, #868e96)' }}
+              />
             </Group>
           </Group>
         }
@@ -1010,7 +1019,7 @@ export function CardDetailView({
               py="sm"
               style={{
                 flexShrink: 0,
-                backgroundColor: '#f8f9fb',
+                backgroundColor: CARD_DETAIL_MODAL_BACKGROUND_HEX,
                 borderTop: '1px solid var(--mantine-color-gray-3)',
               }}
             >

@@ -5,6 +5,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -13,6 +14,7 @@ import {
 import type { Editor } from '@tiptap/core';
 import {
   ActionIcon,
+  Box,
   Button,
   Divider,
   Group,
@@ -64,6 +66,7 @@ import {
   CARD_DETAIL_MODAL_BACKGROUND_HEX,
   CARD_DETAIL_MODAL_BACKGROUND_RGB,
   CARD_DETAIL_SECTION_HEADING_RGB,
+  parseCssColorToRgbTriplet,
 } from './cardDetailSectionUi.js';
 import { api } from '../../utils/api.js';
 import { CardDescriptionInlineButtonEditModal } from './CardDescriptionInlineButtonEditModal.js';
@@ -99,6 +102,8 @@ function applyBlockLineHeight(editor: Editor, lineHeight: string | null): void {
 
 interface EmojiMartLazyProps {
   onEmojiSelect: (payload: unknown) => void;
+  rgbBackground: string;
+  rgbColor: string;
 }
 
 /**
@@ -265,7 +270,7 @@ const LazyEmojiMartPicker = lazy(async () => {
     import('@emoji-mart/data/sets/15/twitter.json'),
   ]);
 
-  function EmojiMartPicker({ onEmojiSelect }: EmojiMartLazyProps) {
+  function EmojiMartPicker({ onEmojiSelect, rgbBackground, rgbColor }: EmojiMartLazyProps) {
     const wrapRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
       const el = wrapRef.current;
@@ -314,8 +319,8 @@ const LazyEmojiMartPicker = lazy(async () => {
         className="card-desc-emoji-mart-root"
         style={
           {
-            '--rgb-background': CARD_DETAIL_MODAL_BACKGROUND_RGB,
-            '--rgb-color': CARD_DETAIL_SECTION_HEADING_RGB,
+            '--rgb-background': rgbBackground,
+            '--rgb-color': rgbColor,
             '--rgb-input': CARD_DETAIL_EMOJI_MART_INPUT_FOCUS_RGB,
           } as CSSProperties
         }
@@ -388,6 +393,38 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
   );
   const [imageUploadBusy, setImageUploadBusy] = useState(false);
   const [videoUploadBusy, setVideoUploadBusy] = useState(false);
+
+  const emojiRgbProbeBgRef = useRef<HTMLSpanElement>(null);
+  const emojiRgbProbeFgRef = useRef<HTMLSpanElement>(null);
+  const [emojiMartRgbBackground, setEmojiMartRgbBackground] = useState(CARD_DETAIL_MODAL_BACKGROUND_RGB);
+  const [emojiMartRgbColor, setEmojiMartRgbColor] = useState(CARD_DETAIL_SECTION_HEADING_RGB);
+
+  const syncEmojiMartRgbFromCssVars = useCallback((): void => {
+    const bgEl = emojiRgbProbeBgRef.current;
+    const fgEl = emojiRgbProbeFgRef.current;
+    if (bgEl != null) {
+      const triplet = parseCssColorToRgbTriplet(getComputedStyle(bgEl).backgroundColor);
+      if (triplet != null) {
+        setEmojiMartRgbBackground(triplet);
+      }
+    }
+    if (fgEl != null) {
+      const triplet = parseCssColorToRgbTriplet(getComputedStyle(fgEl).color);
+      if (triplet != null) {
+        setEmojiMartRgbColor(triplet);
+      }
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    syncEmojiMartRgbFromCssVars();
+  }, [syncEmojiMartRgbFromCssVars]);
+
+  useLayoutEffect(() => {
+    if (emojiPopoverOpen) {
+      syncEmojiMartRgbFromCssVars();
+    }
+  }, [emojiPopoverOpen, syncEmojiMartRgbFromCssVars]);
 
   const ui = useEditorState({
     editor,
@@ -533,8 +570,31 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
       gap={4}
       p="xs"
       wrap="wrap"
-      style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}
+      style={{ borderBottom: '1px solid var(--mantine-color-gray-3)', position: 'relative' }}
     >
+      <Box
+        aria-hidden
+        style={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          opacity: 0,
+          pointerEvents: 'none',
+          overflow: 'hidden',
+          zIndex: -1,
+        }}
+      >
+        <span
+          ref={emojiRgbProbeBgRef}
+          style={{ display: 'block', backgroundColor: 'var(--board-card-detail-bg, #f8f9fb)' }}
+        />
+        <span
+          ref={emojiRgbProbeFgRef}
+          style={{ display: 'block', color: 'var(--board-card-detail-text, #868e96)' }}
+        >
+          &nbsp;
+        </span>
+      </Box>
       <Tooltip label="Bold">
         <ActionIcon
           size={TOOLBAR_BUTTON_SIZE}
@@ -691,7 +751,11 @@ const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar(
           }}
         >
           <Suspense fallback={<div style={{ padding: 12, fontSize: 13 }}>Loading emoji picker...</div>}>
-            <LazyEmojiMartPicker onEmojiSelect={handleEmojiPick} />
+            <LazyEmojiMartPicker
+              onEmojiSelect={handleEmojiPick}
+              rgbBackground={emojiMartRgbBackground}
+              rgbColor={emojiMartRgbColor}
+            />
           </Suspense>
         </Popover.Dropdown>
       </Popover>

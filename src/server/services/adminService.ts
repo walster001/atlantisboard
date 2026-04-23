@@ -265,6 +265,20 @@ export async function updateAdminConfig(
     };
   }
 
+  if (u.backupSettings) {
+    const bs = u.backupSettings as { retentionDays?: number };
+    if (!config.backupSettings) {
+      config.backupSettings = { retentionDays: 14 };
+    }
+    if (bs.retentionDays !== undefined) {
+      const d = Math.floor(Number(bs.retentionDays));
+      if (Number.isFinite(d)) {
+        config.backupSettings.retentionDays = Math.min(3650, Math.max(1, d));
+      }
+    }
+    config.markModified('backupSettings');
+  }
+
   if (u.vapidKeys) {
     const vk = u.vapidKeys;
     if (!config.vapidKeys) {

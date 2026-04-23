@@ -291,7 +291,13 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 }
 
 .card-desc-tiptap-toolbar .mantine-ActionIcon-root {
-  color: var(--mantine-color-dark-8);
+  color: var(--board-card-detail-prose, var(--mantine-color-dark-8));
+}
+
+/* Card detail modal only (under `.board-page`): description body matches derived prose color. */
+.board-page .card-desc-tiptap-read--detail,
+.board-page .card-desc-tiptap-editor .ProseMirror {
+  color: var(--board-card-detail-prose, var(--mantine-color-dark-7));
 }
 
 /* Emoji Mart: `@emoji-mart/data` default is native.json (no sprite x/y). We load twitter.json + set="twitter".

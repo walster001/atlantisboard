@@ -4,6 +4,7 @@
  */
 .board-page {
   --board-nav-bg: #1a5b99;
+  --board-nav-fg: #fff;
   --board-nav-border: rgba(255, 255, 255, 0.12);
   --board-canvas-bg: #2b82c9;
   --board-list-bg: #ffffff;
@@ -19,17 +20,22 @@
   --board-canvas-bg-image-size: cover;
   --board-canvas-bg-image-repeat: no-repeat;
   --board-canvas-bg-image-position: center;
-  --board-scrollbar-color: #495057;
-  --board-scrollbar-track-color: #ced4da;
+  /* List + body: thumb follows palette (`unset` → navbar); track always transparent (see getBoardPageThemeStyle). */
+  --board-scrollbar-color: var(--board-nav-bg);
+  --board-scrollbar-track-color: #00000000;
+  --board-body-scrollbar-color: var(--board-nav-bg);
+  --board-body-scrollbar-track-color: #00000000;
   --board-card-detail-bg: #f8f9fb;
   --board-card-detail-text: #868e96;
   --board-card-detail-button-bg: #f0f1f4;
   --board-card-detail-button-text: #1f2937;
   --board-card-detail-button-hover-bg: #e4e6ea;
   --board-card-detail-button-hover-text: #1f2937;
+  --board-card-detail-title-text: #1a1b1e;
+  --board-card-detail-prose: #373a40;
   /* Shared top/bottom breathing room as viewport percentage. */
   --board-viewport-gap: 2.5dvh;
-  /* Header bar footprint (nav + border) used for column max-height calc. */
+  /* Header bar footprint (approx. nav bar height) used for column max-height calc. */
   --board-header-height: 56px;
 
   min-height: 100dvh;
@@ -42,12 +48,11 @@
 .board-page__header {
   flex-shrink: 0;
   background: var(--board-nav-bg);
-  border-bottom: 1px solid var(--board-nav-border);
   padding: 6px 16px;
 }
 
 .board-page__header-icon {
-  color: #fff;
+  color: var(--board-nav-fg, #fff);
 }
 
 .board-page__header-icon:hover {
@@ -60,7 +65,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #fff;
+  color: var(--board-nav-fg, #fff);
   line-height: 0;
   min-width: 44px;
   min-height: 44px;
@@ -82,7 +87,7 @@
   font-weight: 700;
   font-size: 1.125rem;
   letter-spacing: 0.04em;
-  color: #fff;
+  color: var(--board-nav-fg, #fff);
   text-transform: uppercase;
   line-height: 1.25;
   white-space: normal;
@@ -91,7 +96,7 @@
 }
 
 .board-page__user-name {
-  color: #fff;
+  color: var(--board-nav-fg, #fff);
   font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.35;
@@ -101,10 +106,11 @@
 .board-page__body {
   flex: 1;
   min-height: 0;
-  /* Keep top and bottom canvas gaps symmetric using viewport units. */
+  /* Flush under the navbar; keep side and bottom breathing room. */
   padding: var(--board-viewport-gap) 16px var(--board-viewport-gap);
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-color: var(--board-body-scrollbar-color) var(--board-body-scrollbar-track-color);
   background: var(--board-canvas-bg);
   background-image: var(--board-canvas-bg-image);
   background-size: var(--board-canvas-bg-image-size);

@@ -77,6 +77,7 @@ export function BoardCardDetailOverlay({
         opened
         onClose={onClose}
         centered
+        withinPortal={false}
         title={null}
         size="sm"
         transitionProps={{ duration: 0 }}
@@ -95,6 +96,7 @@ export function BoardCardDetailOverlay({
         opened
         onClose={onClose}
         centered
+        withinPortal={false}
         title="Card"
         transitionProps={{ duration: 0 }}
         closeButtonProps={{ 'aria-label': 'Close' }}
@@ -113,6 +115,7 @@ export function BoardCardDetailOverlay({
         opened
         onClose={onClose}
         centered
+        withinPortal={false}
         title="Card"
         transitionProps={{ duration: 0 }}
         closeButtonProps={{ 'aria-label': 'Close' }}
@@ -132,6 +135,7 @@ export function BoardCardDetailOverlay({
           opened
           onClose={onClose}
           centered
+          withinPortal={false}
           title={null}
           size="xl"
           transitionProps={{ duration: 0 }}

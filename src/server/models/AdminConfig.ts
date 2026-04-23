@@ -99,6 +99,11 @@ export interface IVapidKeys {
   privateKey?: string;
 }
 
+export interface IBackupSettings {
+  /** How long full MinIO backups are kept (by folder timestamp). */
+  retentionDays: number;
+}
+
 export interface IAdminConfig extends Document {
   authMethods: IAuthMethods;
   googleOAuth: IGoogleOAuth;
@@ -108,6 +113,7 @@ export interface IAdminConfig extends Document {
   appScreenBranding: IAppScreenBranding;
   rateLimiting: IRateLimiting;
   vapidKeys?: IVapidKeys;
+  backupSettings?: IBackupSettings;
   updatedBy: mongoose.Types.ObjectId;
   updatedAt: Date;
 }
@@ -236,6 +242,13 @@ const VapidKeysSchema = new Schema<IVapidKeys>(
   { _id: false }
 );
 
+const BackupSettingsSchema = new Schema<IBackupSettings>(
+  {
+    retentionDays: { type: Number, default: 14, min: 1, max: 3650 },
+  },
+  { _id: false }
+);
+
 const AdminConfigSchema = new Schema<IAdminConfig>(
   {
     authMethods: {
@@ -278,6 +291,10 @@ const AdminConfigSchema = new Schema<IAdminConfig>(
     vapidKeys: {
       type: VapidKeysSchema,
       default: undefined,
+    },
+    backupSettings: {
+      type: BackupSettingsSchema,
+      default: () => ({ retentionDays: 14 }),
     },
     updatedBy: {
       type: Schema.Types.ObjectId,

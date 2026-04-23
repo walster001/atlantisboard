@@ -139,29 +139,7 @@ function CardDateTimeSection({
               size="sm"
               variant="default"
               leftSection={<IconCalendar size={16} />}
-              styles={{
-                root: {
-                  backgroundColor: '#f0f1f4',
-                  border: 'none',
-                  color: 'var(--mantine-color-dark-7)',
-                  borderRadius: 8,
-                  paddingInline: 'var(--mantine-spacing-md)',
-                  fontWeight: 500,
-                  boxShadow: 'none',
-                  width: 'fit-content',
-                  maxWidth: '100%',
-                  '&:hover': {
-                    backgroundColor: '#e4e6ea',
-                    color: 'var(--mantine-color-dark-7)',
-                  },
-                  '&:disabled': {
-                    backgroundColor: '#f0f1f4',
-                    opacity: 0.55,
-                  },
-                },
-                label: { color: 'var(--mantine-color-dark-7)' },
-                section: { color: 'var(--mantine-color-dark-7)', pointerEvents: 'auto' },
-              }}
+              styles={cardDetailSoftButtonStyles}
               onClick={() => setPickerOpened(true)}
               disabled={loading}
             >
@@ -192,6 +170,7 @@ function CardDateTimeSection({
           onClose={() => setPickerOpened(false)}
           title={modalTitle}
           centered
+          withinPortal={false}
           size="sm"
           transitionProps={{ duration: 0 }}
         >

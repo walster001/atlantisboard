@@ -1,4 +1,8 @@
 import { Client as MinIOClient } from 'minio';
+import {
+  MINIO_BUCKET_BRANDING,
+  MINIO_BUCKET_NAMES,
+} from '../../shared/constants/minioBuckets.js';
 import { logger } from '../utils/logger.js';
 
 let minioClient: MinIOClient | null = null;
@@ -28,9 +32,8 @@ export function getMinIOClient(): MinIOClient {
 
 export async function initializeMinIOBuckets(): Promise<void> {
   const client = getMinIOClient();
-  const buckets = ['import-inline', 'card-attachments', 'branding', 'fonts', 'user-avatars'];
 
-  for (const bucketName of buckets) {
+  for (const bucketName of MINIO_BUCKET_NAMES) {
     try {
       const exists = await client.bucketExists(bucketName);
       if (!exists) {
@@ -40,7 +43,7 @@ export async function initializeMinIOBuckets(): Promise<void> {
 
       // Public read for direct MinIO URLs (optional; API also proxies GET /branding/*).
       // Do not fail startup if the bucket uses a custom policy in the console.
-      if (bucketName === 'branding') {
+      if (bucketName === MINIO_BUCKET_BRANDING) {
         try {
           await client.setBucketPolicy(
             bucketName,

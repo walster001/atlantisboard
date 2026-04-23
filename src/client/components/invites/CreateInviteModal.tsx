@@ -194,6 +194,7 @@ export function CreateInviteModal({
                   { value: 'recurring', label: 'Recurring (no expiry)' },
                 ]}
                 disabled={loading}
+                style={{ width: '100%', minWidth: 200, maxWidth: '100%' }}
               />
 
               <Select
@@ -202,6 +203,7 @@ export function CreateInviteModal({
                 onChange={(value) => setRoleKey(value || 'viewer')}
                 data={roleOptions}
                 disabled={loading}
+                style={{ width: '100%', minWidth: 220, maxWidth: '100%' }}
               />
 
               <Group justify="flex-end" mt="md">

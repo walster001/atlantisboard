@@ -1,10 +1,11 @@
 import crypto from 'crypto';
 import type { Types } from 'mongoose';
+import { MINIO_BUCKET_IMPORT_INLINE } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient } from '../config/minio.js';
 import { Card } from '../models/Card.js';
 import { logger } from '../utils/logger.js';
 
-const BUCKET = 'import-inline';
+const BUCKET = MINIO_BUCKET_IMPORT_INLINE;
 const MAX_BYTES = 5 * 1024 * 1024;
 
 const IMPORT_INLINE_OBJECT_STEM_RE =

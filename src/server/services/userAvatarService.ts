@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { MINIO_BUCKET_USER_AVATARS } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient } from '../config/minio.js';
 
 async function readableToBuffer(stream: Readable): Promise<Buffer> {
@@ -9,7 +10,7 @@ async function readableToBuffer(stream: Readable): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-const BUCKET_NAME = 'user-avatars';
+const BUCKET_NAME = MINIO_BUCKET_USER_AVATARS;
 
 function avatarObjectKey(userId: string): string {
   return `${userId}/avatar.webp`;

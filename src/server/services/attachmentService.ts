@@ -1,5 +1,6 @@
 import { isPlaceholderCardAttachment } from '../../shared/cardAttachmentPlaceholder.js';
 import { stripAttachmentFromDescriptionJsonString } from '../../shared/cardDescriptionAttachmentRefs.js';
+import { MINIO_BUCKET_CARD_ATTACHMENTS } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { Card } from '../models/Card.js';
 import type { Types } from 'mongoose';
@@ -38,7 +39,7 @@ initializeMinIOBuckets().catch((error) => {
 });
 
 const MAX_FILE_SIZE = 1000 * 1024 * 1024; // 1000 MB
-const BUCKET_NAME = 'card-attachments';
+const BUCKET_NAME = MINIO_BUCKET_CARD_ATTACHMENTS;
 
 function extractObjectNameFromAttachmentUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim();

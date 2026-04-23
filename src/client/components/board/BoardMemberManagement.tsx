@@ -24,6 +24,7 @@ import { notifications } from '@mantine/notifications';
 import { IconPlus, IconUserMinus } from '@tabler/icons-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import axios from 'axios';
+import { MEMBER_MANAGEMENT_ROLE_COL_PX } from '../../constants/memberManagementLayout.js';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
@@ -116,7 +117,6 @@ const BUILTIN_ROLE_OPTIONS: { value: RoleKey; label: string }[] = [
 /** Must match `fixedItemHeight` on TableVirtuoso (room for 2-line email + name). */
 const BOARD_MEMBER_TABLE_ROW_PX = 96;
 /** Fixed columns keep role + action aligned while virtual rows mount/unmount. */
-const BOARD_MEMBER_ROLE_COL_PX = 122;
 const BOARD_MEMBER_ACTION_COL_PX = 118;
 /** Matches server `userDirectoryService` max page size (see MAX_LIMIT). */
 const DIRECTORY_PAGE_LIMIT = 100;
@@ -139,7 +139,7 @@ const BoardMemberDataTable = forwardRef<HTMLTableElement, ComponentPropsWithoutR
     >
       <colgroup>
         <col />
-        <col style={{ width: BOARD_MEMBER_ROLE_COL_PX }} />
+        <col style={{ width: MEMBER_MANAGEMENT_ROLE_COL_PX }} />
         <col style={{ width: BOARD_MEMBER_ACTION_COL_PX }} />
       </colgroup>
       {children}
@@ -230,7 +230,6 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
           <Select
             size="xs"
             w="100%"
-            maw={BOARD_MEMBER_ROLE_COL_PX - 16}
             value={roleKey}
             onChange={(v) => {
               if (v) {
@@ -326,7 +325,6 @@ const MemberTableCells = memo(function MemberTableCells(props: {
           <Select
             size="xs"
             w="100%"
-            maw={BOARD_MEMBER_ROLE_COL_PX - 16}
             value={roleKey}
             onChange={(v) => {
               if (v) {

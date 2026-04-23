@@ -24,6 +24,7 @@ import { notifications } from '@mantine/notifications';
 import { IconPlus, IconUserMinus } from '@tabler/icons-react';
 import axios from 'axios';
 import { TableVirtuoso } from 'react-virtuoso';
+import { MEMBER_MANAGEMENT_ROLE_COL_PX } from '../../constants/memberManagementLayout.js';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
@@ -64,7 +65,6 @@ const BUILTIN_WORKSPACE_ROLE_OPTIONS: ReadonlyArray<{ value: WorkspaceRoleKey; l
 
 const DIRECTORY_PAGE_LIMIT = 100;
 const MEMBER_ROW_PX = 96;
-const ROLE_COL_PX = 122;
 const ACTION_COL_PX = 118;
 
 /** Stable for TableVirtuoso `components` — inline objects remount the table every render and glitch on data changes. */
@@ -83,7 +83,7 @@ const WorkspaceMemberDataTable = forwardRef<HTMLTableElement, ComponentPropsWith
     >
       <colgroup>
         <col />
-        <col style={{ width: ROLE_COL_PX }} />
+        <col style={{ width: MEMBER_MANAGEMENT_ROLE_COL_PX }} />
         <col style={{ width: ACTION_COL_PX }} />
       </colgroup>
       {children}
@@ -277,7 +277,6 @@ const WorkspaceMemberPanelMemberCells = memo(function WorkspaceMemberPanelMember
           <Select
             size="xs"
             w="100%"
-            maw={ROLE_COL_PX - 16}
             value={member.roleKey}
             onChange={(v) => {
               if (!v) return;
@@ -776,7 +775,6 @@ export function WorkspaceMemberManagement({
                         <Select
                           size="xs"
                           w="100%"
-                          maw={ROLE_COL_PX - 16}
                           value={role}
                           onChange={(v) => {
                             if (!v) return;

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { MINIO_BUCKET_BRANDING } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { logger } from '../utils/logger.js';
 
@@ -6,7 +7,7 @@ initializeMinIOBuckets().catch((error) => {
   logger.error({ error }, 'Failed to initialize MinIO buckets (branding)');
 });
 
-const BUCKET = 'branding';
+const BUCKET = MINIO_BUCKET_BRANDING;
 
 function guessContentTypeFromName(fileName: string): string {
   const ext = fileName.split('.').pop()?.toLowerCase();

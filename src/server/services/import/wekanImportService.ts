@@ -18,6 +18,7 @@ import { markdownToCardDescriptionJson } from '../../../shared/utils/markdownToC
 import { CARD_DESCRIPTION_JSON_MAX_LENGTH } from '../../../shared/constants/cardDescription.js';
 import { isValidCardDescriptionDoc } from '../../../shared/validation/cardDescriptionDoc.js';
 import type { ImportPreflightPayloadParsed } from '../../../shared/import/importPreflightSchema.js';
+import { mapWekanBoardMemberToBoardRoleKey } from '../../../shared/import/wekanBoardMemberRoleMap.js';
 import { resolveImportUserResolution } from '../../../shared/import/importUserResolution.js';
 import { uploadImportInlineImage } from '../importInlineAssetService.js';
 import { resolveImportedCardColour } from '../../../shared/utils/importDefaultCardColour.js';
@@ -45,6 +46,14 @@ interface WekanBoard {
     userId: string;
     isAdmin: boolean;
     isActive: boolean;
+    isCommentOnly: boolean;
+    isNoComments: boolean;
+    isWorker: boolean;
+    isReadOnly: boolean;
+    isReadAssignedOnly: boolean;
+    isNormalAssignedOnly: boolean;
+    isCommentAssignedOnly: boolean;
+    permission?: string;
   }>;
 }
 
@@ -211,6 +220,16 @@ function normalizeWekanBoardRecord(record: Record<string, unknown>): WekanBoard 
             userId,
             isAdmin: m.isAdmin === true,
             isActive: m.isActive !== false,
+            isCommentOnly: m.isCommentOnly === true,
+            isNoComments: m.isNoComments === true,
+            isWorker: m.isWorker === true,
+            isReadOnly: m.isReadOnly === true,
+            isReadAssignedOnly: m.isReadAssignedOnly === true,
+            isNormalAssignedOnly: m.isNormalAssignedOnly === true,
+            isCommentAssignedOnly: m.isCommentAssignedOnly === true,
+            ...(typeof m.permission === 'string' && m.permission.trim() !== ''
+              ? { permission: m.permission.trim() }
+              : {}),
           },
         ];
       })
@@ -1236,7 +1255,7 @@ export async function importWekan(
               seen.add(mapped);
               out.push({
                 userId: new mongoose.Types.ObjectId(mapped),
-                roleKey: member.isAdmin ? 'admin' : 'viewer',
+                roleKey: mapWekanBoardMemberToBoardRoleKey(member),
                 addedAt: new Date(),
               });
             }

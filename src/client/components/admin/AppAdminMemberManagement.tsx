@@ -24,6 +24,7 @@ import { notifications } from '@mantine/notifications';
 import { IconPlus, IconUserMinus } from '@tabler/icons-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import axios from 'axios';
+import { MEMBER_MANAGEMENT_ROLE_COL_PX } from '../../constants/memberManagementLayout.js';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
@@ -42,7 +43,6 @@ export interface AppAdminUserRow {
 }
 
 const ROW_PX = 96;
-const ROLE_COL_PX = 122;
 const ACTION_COL_PX = 118;
 const DIRECTORY_PAGE_LIMIT = 100;
 const VIRTUOSO_VIEWPORT_PAD = { top: 80, bottom: 120 } as const;
@@ -63,7 +63,7 @@ const AdminDirectoryTable = forwardRef<HTMLTableElement, ComponentPropsWithoutRe
     >
       <colgroup>
         <col />
-        <col style={{ width: ROLE_COL_PX }} />
+        <col style={{ width: MEMBER_MANAGEMENT_ROLE_COL_PX }} />
         <col style={{ width: ACTION_COL_PX }} />
       </colgroup>
       {children}

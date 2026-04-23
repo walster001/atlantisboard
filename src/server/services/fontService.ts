@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { MINIO_BUCKET_FONTS } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -10,7 +11,7 @@ initializeMinIOBuckets().catch((error) => {
   logger.error({ error }, 'Failed to initialize MinIO buckets (fonts)');
 });
 
-const BUCKET = 'fonts';
+const BUCKET = MINIO_BUCKET_FONTS;
 /** Variable TTFs and full families are often larger than static webfonts. */
 const MAX_FONT_BYTES = 15 * 1024 * 1024;
 

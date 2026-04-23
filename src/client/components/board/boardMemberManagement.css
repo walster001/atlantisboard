@@ -84,6 +84,8 @@
   padding-right: var(--mantine-spacing-xs);
   text-align: end;
   vertical-align: middle;
+  min-width: 200px;
+  max-width: 320px;
 }
 
 /*

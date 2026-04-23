@@ -8848,6 +8848,8 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   padding-right: var(--mantine-spacing-xs);
   text-align: end;
   vertical-align: middle;
+  min-width: 200px;
+  max-width: 320px;
 }
 
 .board-member-management__td--user.board-member-management__td--user-row-owner {

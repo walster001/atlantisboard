@@ -38,6 +38,7 @@ export {
   type IAdminConfig,
   initializeAdminConfig,
 } from './AdminConfig.js';
+export { BackupJob, type IBackupJob, type IBackupJobResult, type BackupJobStatus } from './BackupJob.js';
 export { PermissionSet, type IPermissionSet } from './PermissionSet.js';
 export { RoleDefinition, type IRoleDefinition } from './RoleDefinition.js';
 

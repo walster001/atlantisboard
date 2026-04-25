@@ -22,6 +22,11 @@ import { IconUpload, IconFileText } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import {
+  LONG_TASK_NOTIFICATION_POSITION,
+  renderStartupProgressMessage,
+  wait,
+} from '../../utils/longTaskProgressNotifications.js';
+import {
   buildTrelloImportPreflight,
   buildWekanImportPreflight,
   type ImportPreflightPayload,
@@ -160,21 +165,6 @@ function buildImportSuccessMessage(
 
 const IMPORT_PROGRESS_NOTIFICATION_ID = 'import-export-progress';
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function renderStartupProgressMessage(label: string, value: number): ReactElement {
-  return (
-    <Stack gap={6}>
-      <Text size="sm">{label}</Text>
-      <Progress value={value} radius="md" size="sm" />
-    </Stack>
-  );
-}
-
 function renderImportProgressNotificationMessage(job: ImportJobClientView): ReactElement {
   const percent = Math.min(100, Math.max(0, Number.isFinite(job.progress) ? job.progress : 0));
   const processed = Math.max(0, Number.isFinite(job.processedItems) ? job.processedItems : 0);
@@ -211,11 +201,11 @@ async function pollImportJobWithNotifications(
           loading: false,
           autoClose: false,
           withCloseButton: true,
-          position: 'bottom-right',
-        });
-        return;
-      }
-      if (job.status === 'completed') {
+      position: LONG_TASK_NOTIFICATION_POSITION,
+    });
+    return;
+  }
+  if (job.status === 'completed') {
         try {
           await onImportComplete?.();
         } catch (completeErr) {
@@ -229,7 +219,7 @@ async function pollImportJobWithNotifications(
           loading: false,
           autoClose: 7000,
           withCloseButton: true,
-          position: 'bottom-right',
+          position: LONG_TASK_NOTIFICATION_POSITION,
         });
         return;
       }
@@ -246,7 +236,7 @@ async function pollImportJobWithNotifications(
           loading: false,
           autoClose: false,
           withCloseButton: true,
-          position: 'bottom-right',
+          position: LONG_TASK_NOTIFICATION_POSITION,
         });
         return;
       }
@@ -258,7 +248,7 @@ async function pollImportJobWithNotifications(
         loading: true,
         autoClose: false,
         withCloseButton: false,
-        position: 'bottom-right',
+        position: LONG_TASK_NOTIFICATION_POSITION,
       });
     } catch {
       notifications.update({
@@ -269,7 +259,7 @@ async function pollImportJobWithNotifications(
         loading: false,
         autoClose: false,
         withCloseButton: true,
-        position: 'bottom-right',
+        position: LONG_TASK_NOTIFICATION_POSITION,
       });
       return;
     }
@@ -283,7 +273,7 @@ async function pollImportJobWithNotifications(
     loading: false,
     autoClose: false,
     withCloseButton: true,
-    position: 'bottom-right',
+    position: LONG_TASK_NOTIFICATION_POSITION,
   });
 }
 
@@ -501,7 +491,7 @@ export function ImportExportModal({
       loading: true,
       autoClose: false,
       withCloseButton: false,
-      position: 'bottom-right',
+      position: LONG_TASK_NOTIFICATION_POSITION,
     });
 
     void (async () => {
@@ -518,7 +508,7 @@ export function ImportExportModal({
             loading: true,
             autoClose: false,
             withCloseButton: false,
-            position: 'bottom-right',
+            position: LONG_TASK_NOTIFICATION_POSITION,
           });
           const rawText = await nextFile.text();
           let parsed: unknown;
@@ -565,7 +555,7 @@ export function ImportExportModal({
           loading: true,
           autoClose: false,
           withCloseButton: false,
-          position: 'bottom-right',
+          position: LONG_TASK_NOTIFICATION_POSITION,
         });
         await pollImportJobWithNotifications(result.jobId, nextImportType, onImportComplete);
       } catch (err) {
@@ -584,7 +574,7 @@ export function ImportExportModal({
           loading: false,
           autoClose: false,
           withCloseButton: true,
-          position: 'bottom-right',
+          position: LONG_TASK_NOTIFICATION_POSITION,
         });
       }
     })();

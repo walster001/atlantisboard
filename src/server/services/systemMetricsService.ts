@@ -84,16 +84,7 @@ async function readMinioVersionLabel(): Promise<string | null> {
     return res.ok ? 'connected' : `http_${res.status}`;
   } catch {
     try {
-      await new Promise<void>((resolve, reject) => {
-        getMinIOClient().listBuckets((err, buckets) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          resolve();
-          void buckets;
-        });
-      });
+      await getMinIOClient().listBuckets();
       return 'connected';
     } catch {
       return null;
@@ -121,7 +112,11 @@ export async function getAdminSystemMetricsSnapshot(): Promise<AdminSystemMetric
   const load = os.loadavg();
   const linuxMem = readLinuxMeminfoMb();
   const [mongoV, minioV] = await Promise.all([readMongoDbVersion(), readMinioVersionLabel()]);
-  const bunVer = typeof Bun !== 'undefined' && typeof Bun.version === 'string' ? Bun.version : null;
+  const bunGlobal = globalThis as typeof globalThis & { Bun?: { version?: string } };
+  const bunVer =
+    typeof bunGlobal.Bun?.version === 'string' && bunGlobal.Bun.version.trim() !== ''
+      ? bunGlobal.Bun.version.trim()
+      : null;
 
   const load1m = load[0] ?? 0;
   const load5m = load[1] ?? 0;

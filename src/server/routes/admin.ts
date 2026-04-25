@@ -42,9 +42,12 @@ import { Session } from '../models/Session.js';
 import { Notification } from '../models/Notification.js';
 import { InviteLink } from '../models/InviteLink.js';
 import { ImportJob } from '../models/ImportJob.js';
+import { BackupJob } from '../models/BackupJob.js';
 import { BoardLabel } from '../models/BoardLabel.js';
 import { createActivity } from '../services/activityService.js';
 import { deleteUserAvatar } from '../services/userAvatarService.js';
+import { adminBackupRoutes } from './adminBackupRoutes.js';
+import { getAdminSystemMetricsSnapshot } from '../services/systemMetricsService.js';
 
 const router = Router();
 
@@ -70,6 +73,17 @@ const fontDisplayNameSchema = z
 router.use(requireAuth as RequestHandler);
 router.use(requireAppAdmin as RequestHandler);
 router.use(apiRateLimiter);
+
+router.use('/backup', adminBackupRoutes);
+
+router.get('/system/metrics', async (_req, res, next) => {
+  try {
+    const metrics = await getAdminSystemMetricsSnapshot();
+    res.json(metrics);
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Account unlock endpoint (admin only)
 router.post('/users/:id/unlock', async (req, res, next) => {
@@ -1081,6 +1095,7 @@ router.delete('/users/:id', async (req, res, next) => {
       deletedSessions,
       deletedNotifications,
       deletedImportJobs,
+      deletedBackupJobs,
       deletedPermissionSets,
       deletedInvites,
       deletedBoardLabels,
@@ -1093,6 +1108,7 @@ router.delete('/users/:id', async (req, res, next) => {
       Session.deleteMany({ userId: id }),
       Notification.deleteMany({ userId: id }),
       ImportJob.deleteMany({ userId: id }),
+      BackupJob.deleteMany({ userId: id }),
       PermissionSet.deleteMany({ createdBy: id }),
       InviteLink.deleteMany({ createdBy: id }),
       BoardLabel.deleteMany({ createdBy: id }),
@@ -1142,6 +1158,7 @@ router.delete('/users/:id', async (req, res, next) => {
         deletedSessions: deletedSessions.deletedCount ?? 0,
         deletedNotifications: deletedNotifications.deletedCount ?? 0,
         deletedImportJobs: deletedImportJobs.deletedCount ?? 0,
+        deletedBackupJobs: deletedBackupJobs.deletedCount ?? 0,
         deletedPermissionSets: deletedPermissionSets.deletedCount ?? 0,
         deletedInvites: deletedInvites.deletedCount ?? 0,
         deletedBoardLabels: deletedBoardLabels.deletedCount ?? 0,

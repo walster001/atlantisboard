@@ -11,6 +11,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { mantineTheme } from './config/mantineTheme.js';
 import '@mantine/core/styles.css';
+import '@mantine/charts/styles.css';
 import '@mantine/notifications/styles.css';
 
 const MANTINE_MODALS_PROVIDER_PROPS = { centered: true } as const;

@@ -28,6 +28,16 @@ const AdminUsersTab = lazy(async () => {
   return { default: m.AdminUsersTab };
 });
 
+const AdminBackupPanel = lazy(async () => {
+  const m = await import('../components/admin/AdminBackupPanel.js');
+  return { default: m.AdminBackupPanel };
+});
+
+const AdminMonitorPanel = lazy(async () => {
+  const m = await import('../components/admin/AdminMonitorPanel.js');
+  return { default: m.AdminMonitorPanel };
+});
+
 /** Main Configuration / Customisation pill tabs */
 const MAIN_TAB_ICON_SIZE = 22;
 const MAIN_TAB_ICON_STROKE = 1.5;
@@ -38,6 +48,8 @@ const CONFIGURATION_SUBTABS = [
   { value: 'permissions', label: 'Permissions' },
   { value: 'users', label: 'Users' },
   { value: 'integrations', label: 'Integrations' },
+  { value: 'backup', label: 'Backup' },
+  { value: 'monitor', label: 'Monitor' },
 ] as const;
 
 const CUSTOMISATION_SUBTABS = [
@@ -170,6 +182,14 @@ export default function AdminConfigurationPage() {
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminUsersTab currentUserId={user.id} />
                 </Suspense>
+              ) : configSubtab === 'backup' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminBackupPanel />
+                </Suspense>
+              ) : configSubtab === 'monitor' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminMonitorPanel />
+                </Suspense>
               ) : (
                 <Stack gap="xs">
                   <Title order={3}>{activeSubLabel}</Title>
@@ -232,7 +252,7 @@ function LoaderCentered() {
   return (
     <Group justify="center" py="md">
       <Text size="sm" c="dimmed">
-        Loading users...
+        Loading…
       </Text>
     </Group>
   );

@@ -1,5 +1,6 @@
 import { Activity } from '../models/Activity.js';
 import { ImportJob } from '../models/ImportJob.js';
+import { BackupJob } from '../models/BackupJob.js';
 import { Card } from '../models/Card.js';
 import { Workspace } from '../models/Workspace.js';
 import {
@@ -126,6 +127,22 @@ export async function cleanupImportJobs(): Promise<void> {
     logger.info({ deletedCount: result.deletedCount || 0 }, 'Import job cleanup completed');
   } catch (error) {
     logger.error({ error }, 'Import job cleanup failed');
+    throw error;
+  }
+}
+
+export async function cleanupBackupJobs(): Promise<void> {
+  logger.info('Starting admin backup job cleanup');
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 2);
+    const result = await BackupJob.deleteMany({
+      status: { $in: ['completed', 'failed'] },
+      createdAt: { $lt: cutoffDate },
+    });
+    logger.info({ deletedCount: result.deletedCount ?? 0 }, 'Backup job cleanup completed');
+  } catch (error) {
+    logger.error({ error }, 'Backup job cleanup failed');
     throw error;
   }
 }
@@ -261,6 +278,9 @@ export function scheduleCronJobs(): void {
       lastImportJobRun = timeKey;
       cleanupImportJobs().catch((error) => {
         logger.error({ error }, 'Scheduled import job cleanup failed');
+      });
+      cleanupBackupJobs().catch((error) => {
+        logger.error({ error }, 'Scheduled backup job cleanup failed');
       });
     }
   }, 5 * 60 * 1000); // Check every 5 minutes

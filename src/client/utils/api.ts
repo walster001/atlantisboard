@@ -6,6 +6,8 @@ import type { PublicAppBranding } from '../../shared/types/appBranding.js';
 import type { PublicCustomFontEntry } from '../../shared/types/customFonts.js';
 import type { ImportPreflightPayload } from '../../shared/import/importPreflight.js';
 import type { BoardThemeSettings } from '../../shared/boardTheme.js';
+import type { AdminBackupListItem } from '../../shared/types/adminBackup.js';
+import type { AdminSystemMetricsSnapshot } from '../../shared/types/adminSystemMetrics.js';
 
 const API_BASE_URL = env.API_BASE_URL || '/api/v1';
 
@@ -1390,6 +1392,7 @@ class ApiClient {
       deletedSessions: number;
       deletedNotifications: number;
       deletedImportJobs: number;
+      deletedBackupJobs: number;
       deletedPermissionSets: number;
       deletedInvites: number;
       deletedBoardLabels: number;
@@ -1409,6 +1412,7 @@ class ApiClient {
         deletedSessions: number;
         deletedNotifications: number;
         deletedImportJobs: number;
+        deletedBackupJobs: number;
         deletedPermissionSets: number;
         deletedInvites: number;
         deletedBoardLabels: number;
@@ -1457,6 +1461,48 @@ class ApiClient {
   async deleteCustomFontFile(fileName: string): Promise<void> {
     await this.client.delete(`/admin/fonts/${encodeURIComponent(fileName)}`);
     invalidateFontsCatalogCache();
+  }
+
+  async listAdminBackups(): Promise<{ backups: AdminBackupListItem[] }> {
+    const response = await this.client.get<{ backups: AdminBackupListItem[] }>('/admin/backup/list');
+    return response.data;
+  }
+
+  async startAdminBackup(): Promise<{ message: string; jobId: string; reusedExisting: boolean }> {
+    const response = await this.client.post<{ message: string; jobId: string; reusedExisting: boolean }>(
+      '/admin/backup/run',
+      {},
+      { timeout: 60_000 }
+    );
+    return response.data;
+  }
+
+  async getAdminBackupJob(jobId: string): Promise<{ job: unknown }> {
+    const response = await this.client.get<{ job: unknown }>(
+      `/admin/backup/jobs/${encodeURIComponent(jobId)}`
+    );
+    return response.data;
+  }
+
+  async deleteAdminBackup(folderId: string): Promise<void> {
+    await this.client.delete(`/admin/backup/${encodeURIComponent(folderId)}`);
+  }
+
+  async restoreAdminBackup(
+    folderId: string,
+    confirmFolder: string
+  ): Promise<{ message: string }> {
+    const response = await this.client.post<{ message: string }>(
+      `/admin/backup/${encodeURIComponent(folderId)}/restore`,
+      { confirmFolder },
+      { timeout: 600_000 }
+    );
+    return response.data;
+  }
+
+  async getAdminSystemMetrics(): Promise<AdminSystemMetricsSnapshot> {
+    const response = await this.client.get<AdminSystemMetricsSnapshot>('/admin/system/metrics');
+    return response.data;
   }
 }
 

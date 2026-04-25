@@ -1,6 +1,18 @@
 import { isAbsolute, normalize, resolve } from 'node:path';
 import { BACKUP_LOCATION_SETUP_GUIDANCE } from '../../shared/constants/backupLocationEnv.js';
 
+/** Thrown when BACKUP_LOCATION is missing or not a valid absolute path (operator-safe message). */
+export class BackupLocationNotConfiguredError extends Error {
+  readonly statusCode: number;
+  readonly code: string;
+  constructor(statusCode: number = 503) {
+    super(BACKUP_LOCATION_SETUP_GUIDANCE);
+    this.name = 'BackupLocationNotConfiguredError';
+    this.statusCode = statusCode;
+    this.code = statusCode === 400 ? 'BACKUP_LOCATION_REQUIRED' : 'BACKUP_LOCATION_NOT_CONFIGURED';
+  }
+}
+
 function normalizeLocationPath(input: string): string {
   const trimmed = input.trim().replace(/\\/g, '/');
   if (!isAbsolute(trimmed)) {
@@ -32,5 +44,5 @@ export function requireBackupLocationFromEnv(): string {
   if (resolved != null) {
     return resolved;
   }
-  throw new Error(BACKUP_LOCATION_SETUP_GUIDANCE);
+  throw new BackupLocationNotConfiguredError(503);
 }

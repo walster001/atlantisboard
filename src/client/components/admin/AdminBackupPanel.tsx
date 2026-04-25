@@ -17,9 +17,22 @@ import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { IconDatabase, IconTrash } from '@tabler/icons-react';
 import type { AdminBackupListItem } from '../../../shared/types/adminBackup.js';
+import { BACKUP_LOCATION_SETUP_GUIDANCE } from '../../../shared/constants/backupLocationEnv.js';
 import { api } from '../../utils/api.js';
 import { formatBackupBytes } from '../../utils/adminBackupJobPoll.js';
-import { AdminBackupLocationModal } from './AdminBackupLocationModal.js';
+
+function readApiErrorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const data = (err as { response?: { data?: unknown } }).response?.data;
+    if (data && typeof data === 'object' && 'error' in data) {
+      const msg = (data as { error?: { message?: string } }).error?.message;
+      if (typeof msg === 'string' && msg.trim() !== '') {
+        return msg;
+      }
+    }
+  }
+  return err instanceof Error ? err.message : fallback;
+}
 
 export const AdminBackupPanel = memo(function AdminBackupPanel() {
   const [backups, setBackups] = useState<readonly AdminBackupListItem[]>([]);
@@ -28,6 +41,7 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
   const [retention, setRetention] = useState(14);
   const [savingRetention, setSavingRetention] = useState(false);
   const [defaultLocation, setDefaultLocation] = useState('');
+  const [backupLocationConfigured, setBackupLocationConfigured] = useState(false);
   const [scheduleDays, setScheduleDays] = useState(14);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -39,7 +53,6 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
   const [restoreTarget, setRestoreTarget] = useState<AdminBackupListItem | null>(null);
   const [restoreConfirm, setRestoreConfirm] = useState('');
   const [restoring, setRestoring] = useState(false);
-  const [locationOpen, setLocationOpen] = useState(false);
 
   /** Refreshes only the backup table (no full-tab loading state). Used for polling and after mutations. */
   const refreshBackupList = useCallback(async (): Promise<void> => {
@@ -64,17 +77,21 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
       const cfg = cfgRes.config as {
         backupSettings?: {
           retentionDays?: number;
-          location?: string;
           scheduleFrequencyDays?: number;
           scheduleEnabled?: boolean;
+          environmentBackupLocation?: string | null;
+          environmentBackupLocationConfigured?: boolean;
         };
       };
       const d = cfg.backupSettings?.retentionDays;
       if (typeof d === 'number' && Number.isFinite(d)) {
         setRetention(Math.min(3650, Math.max(1, Math.floor(d))));
       }
-      if (typeof cfg.backupSettings?.location === 'string') {
-        setDefaultLocation(cfg.backupSettings.location);
+      setBackupLocationConfigured(cfg.backupSettings?.environmentBackupLocationConfigured === true);
+      if (typeof cfg.backupSettings?.environmentBackupLocation === 'string') {
+        setDefaultLocation(cfg.backupSettings.environmentBackupLocation);
+      } else {
+        setDefaultLocation('');
       }
       if (typeof cfg.backupSettings?.scheduleFrequencyDays === 'number') {
         setScheduleDays(Math.min(3650, Math.max(1, Math.floor(cfg.backupSettings.scheduleFrequencyDays))));
@@ -241,15 +258,14 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
       return;
     }
     const filename = createFilename.trim();
-    const location = defaultLocation.trim();
     if (filename === '') {
       notifications.show({ title: 'Missing filename', message: 'Enter a backup file name.', color: 'red' });
       return;
     }
-    if (location === '') {
+    if (!backupLocationConfigured) {
       notifications.show({
-        title: 'Backup location not set',
-        message: 'Use Set Location to choose a folder on the server, or save a path in admin configuration. Scheduled backups use the same path.',
+        title: 'Backup location not configured',
+        message: BACKUP_LOCATION_SETUP_GUIDANCE,
         color: 'red',
       });
       return;
@@ -257,7 +273,7 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     setCreating(true);
     setRunning(true);
     try {
-      await api.startAdminBackup({ filename, location });
+      await api.startAdminBackup({ filename });
       notifications.show({
         title: 'Backup started',
         message: 'Server backup job is running. Progress is shown in the table.',
@@ -267,7 +283,7 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     } catch (err: unknown) {
       notifications.show({
         title: 'Backup start failed',
-        message: err instanceof Error ? err.message : 'Backup failed to start.',
+        message: readApiErrorMessage(err, 'Backup failed to start.'),
         color: 'red',
       });
     } finally {
@@ -334,9 +350,6 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         <Button variant="default" onClick={() => setScheduleOpen(true)}>
           Create Scheduled Backup
         </Button>
-        <Button variant="default" onClick={() => setLocationOpen(true)}>
-          Set Location
-        </Button>
       </Group>
 
       {loading ? (
@@ -372,12 +385,12 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
             Archive path uses the server backup location
-            {defaultLocation.trim() !== '' ? (
+            {backupLocationConfigured ? (
               <>
                 : <Text span ff="monospace">{defaultLocation}</Text>
               </>
             ) : (
-              <> (not set — use Set Location, or save a path in admin config).</>
+              <> (not set — configure BACKUP_LOCATION on the server; see .env.example).</>
             )}
           </Text>
           <TextInput
@@ -410,12 +423,12 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
             Scheduled archives use the same server backup location as manual backups
-            {defaultLocation.trim() !== '' ? (
+            {backupLocationConfigured ? (
               <>
                 : <Text span ff="monospace">{defaultLocation}</Text>
               </>
             ) : (
-              <> (configure via Set Location or admin config).</>
+              <> (set BACKUP_LOCATION on the server; see .env.example).</>
             )}
           </Text>
           <NumberInput
@@ -438,6 +451,14 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
             <Button
               loading={savingSchedule}
               onClick={async () => {
+                if (!backupLocationConfigured) {
+                  notifications.show({
+                    title: 'Backup location not configured',
+                    message: BACKUP_LOCATION_SETUP_GUIDANCE,
+                    color: 'red',
+                  });
+                  return;
+                }
                 setSavingSchedule(true);
                 try {
                   await api.updateAdminConfig({
@@ -445,7 +466,6 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
                       retentionDays: retention,
                       scheduleEnabled: true,
                       scheduleFrequencyDays: scheduleDays,
-                      ...(defaultLocation.trim() !== '' ? { location: defaultLocation.trim() } : {}),
                     },
                   });
                   setScheduleEnabled(true);
@@ -455,7 +475,7 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
                 } catch (e: unknown) {
                   notifications.show({
                     title: 'Save failed',
-                    message: e instanceof Error ? e.message : 'Unknown error',
+                    message: readApiErrorMessage(e, 'Unknown error'),
                     color: 'red',
                   });
                 } finally {
@@ -470,17 +490,9 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
       </Modal>
 
       <Text size="xs" c="dimmed">
-        Default location: <Text span ff="monospace">{defaultLocation || 'Not set'}</Text> | Scheduled:{' '}
+        Backup path (BACKUP_LOCATION): <Text span ff="monospace">{defaultLocation || 'Not set'}</Text> | Scheduled:{' '}
         {scheduleEnabled ? `Every ${scheduleDays} day(s)` : 'Disabled'}
       </Text>
-
-      <AdminBackupLocationModal
-        opened={locationOpen}
-        onClose={() => setLocationOpen(false)}
-        onSaved={(location) => {
-          setDefaultLocation(location);
-        }}
-      />
 
       <Modal
         opened={restoreOpen}

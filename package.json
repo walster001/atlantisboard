@@ -13,7 +13,7 @@
     "sync-twemoji": "bun run scripts/sync-twemoji-assets.ts",
     "build:client": "bun run scripts/build-client-with-css.ts",
     "build:client:watch": "bun run scripts/build-client-watch.ts",
-    "build": "bun build src/server/index.ts --outdir dist/server --target bun && bun build src/client/index.tsx --outdir dist/client --target browser --external mongoose --external ioredis --external mongodb --external minio --external express --external socket.io --external passport && bun build src/server/workers/index.ts --outdir dist/workers --target bun",
+    "build": "bun build src/server/index.ts --outdir dist/server --target bun --external @aws-sdk/client-s3 && bun build src/client/index.tsx --outdir dist/client --target browser --external mongoose --external ioredis --external mongodb --external minio --external express --external socket.io --external passport && bun build src/server/workers/index.ts --outdir dist/workers --target bun --external @aws-sdk/client-s3",
     "build:analyze": "bun build src/client/index.tsx --outdir dist/client --target browser --analyze",
     "start": "bun run dist/server/index.js",
     "start:worker": "bun run dist/workers/index.js",
@@ -21,6 +21,7 @@
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
     "typecheck": "tsc --noEmit",
+    "release:bundle": "./scripts/release-bundle.sh",
     "db:drop-activity-legacy-indexes": "bun run scripts/drop-activity-legacy-indexes.ts"
   },
   "keywords": [
@@ -35,7 +36,6 @@
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "1.8.0",
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "1.1.0",
-    "@cubone/react-file-manager": "1.35.0",
     "@emoji-mart/data": "1.2.1",
     "@emoji-mart/react": "1.1.1",
     "@mantine/charts": "8.3.0",

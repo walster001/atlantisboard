@@ -20,7 +20,8 @@ export function errorHandler(
   });
 
   // Don't expose sensitive error information to clients
-  const statusCode = err.statusCode || 500;
+  const statusCode =
+    typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 600 ? err.statusCode : 500;
   const message =
     statusCode === 500
       ? 'Internal server error'

@@ -6,8 +6,7 @@ import type mongoose from 'mongoose';
 import { DEFAULT_VERIFICATION_QUERY } from './mysqlService.js';
 import { normalizeGoogleOAuthCallbackUrl } from '../../shared/utils/googleOAuthCallbackUrl.js';
 import { normalizeDefaultUiFontFamilyInput } from './fontService.js';
-import { getResolvedBackupLocationFromEnv } from './backupLocationEnv.js';
-import { BACKUP_LOCATION_SETUP_GUIDANCE } from '../../shared/constants/backupLocationEnv.js';
+import { BackupLocationNotConfiguredError, getResolvedBackupLocationFromEnv } from './backupLocationEnv.js';
 
 const ENCRYPTED_PLACEHOLDER = '***ENCRYPTED***';
 
@@ -303,7 +302,7 @@ export async function updateAdminConfig(
       }
     }
     if (bs.scheduleEnabled === true && getResolvedBackupLocationFromEnv() == null) {
-      throw new Error(`Cannot enable scheduled backups: ${BACKUP_LOCATION_SETUP_GUIDANCE}`);
+      throw new BackupLocationNotConfiguredError(400);
     }
     if (bs.scheduleFrequencyDays !== undefined) {
       const d = Math.floor(Number(bs.scheduleFrequencyDays));

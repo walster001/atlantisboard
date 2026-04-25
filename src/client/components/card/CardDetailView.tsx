@@ -14,6 +14,7 @@ import {
   Center,
   Skeleton,
   ActionIcon,
+  FocusTrap,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
@@ -854,7 +855,9 @@ export function CardDetailView({
         withCloseButton={false}
         styles={CARD_DETAIL_MODAL_STYLES}
       >
-        <Stack gap={0} style={{ minHeight: 0, flex: 1 }}>
+        <>
+          <FocusTrap.InitialFocus />
+          <Stack gap={0} style={{ minHeight: 0, flex: 1 }}>
           <Divider color="gray.3" />
           <ScrollArea
             type="auto"
@@ -1047,6 +1050,7 @@ export function CardDetailView({
             </Group>
           ) : null}
         </Stack>
+        </>
       </Modal>
 
       {showDuplicateModal && (

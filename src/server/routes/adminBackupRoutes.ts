@@ -5,6 +5,7 @@ import type { AuthenticatedRequest } from '../../shared/types/express.js';
 import { BackupJob } from '../models/BackupJob.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import {
+  cancelBackupJob,
   deleteBackupFolder,
   listBackups,
   restoreFullBackup,
@@ -31,9 +32,14 @@ router.get('/list', async (_req, res, next) => {
 router.post('/run', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
+    const bodySchema = z.object({
+      filename: z.string().trim().min(1).max(240),
+    });
+    const body = bodySchema.parse(req.body);
     const { jobId, reusedExisting } = await startBackupJob({
       userId: authReq.user.id,
       ipAddress: req.ip || undefined,
+      filename: body.filename,
     });
     res.status(202).json({
       message: reusedExisting ? 'Backup already in progress for your account.' : 'Backup started',
@@ -41,6 +47,17 @@ router.post('/run', async (req, res, next) => {
       reusedExisting,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          errors: error.issues,
+        },
+      });
+      return;
+    }
     next(error);
   }
 });
@@ -81,6 +98,37 @@ router.get('/jobs/:jobId', async (req, res, next) => {
       return;
     }
     res.json({ job });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/jobs/:jobId/cancel', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const rawId = req.params.jobId;
+    if (!mongoose.isValidObjectId(rawId)) {
+      res.status(400).json({
+        error: {
+          message: 'Invalid job id',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+    const cancelled = await cancelBackupJob(rawId, authReq.user.id);
+    if (!cancelled) {
+      res.status(409).json({
+        error: {
+          message: 'Backup job is not cancellable',
+          code: 'CONFLICT',
+          statusCode: 409,
+        },
+      });
+      return;
+    }
+    res.json({ message: 'Cancel requested' });
   } catch (error) {
     next(error);
   }

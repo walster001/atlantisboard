@@ -11,6 +11,7 @@ import {
 } from '@mantine/core';
 import { IconAdjustmentsHorizontal, IconHistory, IconList, IconTag } from '@tabler/icons-react';
 import type { BoardSettingsLivePatch } from '../../store/database.js';
+import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
 import { BoardSettingsListSettingsPanel } from './BoardSettingsListSettingsPanel.js';
 import { BoardSettingsCardSettingsPanel } from './BoardSettingsCardSettingsPanel.js';
 import { BoardThemeBackgroundTab } from './BoardThemeBackgroundTab.js';
@@ -44,6 +45,7 @@ interface BoardSettingsModalProps {
   onClose: () => void;
   /** Merges into board state on the page so list width updates live while this modal is open. */
   onSettingsLivePatch?: (patch: BoardSettingsLivePatch) => void;
+  onThemeLivePatch?: (patch: { themeSettings: BoardThemeSettings; background?: string }) => void;
   allowedTopTabs?: readonly TopTab[];
 }
 
@@ -54,6 +56,7 @@ export function BoardSettingsModal({
   boardId,
   onClose,
   onSettingsLivePatch,
+  onThemeLivePatch,
   allowedTopTabs,
 }: BoardSettingsModalProps) {
   const [topTab, setTopTab] = useState<TopTab>('board');
@@ -101,10 +104,10 @@ export function BoardSettingsModal({
             value="board"
             pt="md"
             keepMounted
-            className="board-settings-modal__tab-panel"
+            className="board-settings-modal__tab-panel board-settings-modal__tab-panel--board"
           >
-            <Flex align="flex-start" gap={0} wrap="nowrap">
-              <Stack gap={4} className="board-settings-modal__sidenav">
+            <Flex align="stretch" gap={0} wrap="nowrap" className="board-settings-modal__board-layout">
+              <Stack gap={4} className="board-settings-modal__sidenav board-settings-modal__sidenav--sticky">
                 <NavLink
                   label="Card settings"
                   leftSection={<IconAdjustmentsHorizontal size={18} stroke={1.5} />}
@@ -127,7 +130,7 @@ export function BoardSettingsModal({
                   variant="subtle"
                 />
               </Stack>
-              <Box className="board-settings-modal__main">
+              <Box className="board-settings-modal__main board-settings-modal__main--scrollable">
                 {boardSideNav === 'card-settings' ? (
                   <BoardSettingsCardSettingsPanel
                     boardId={boardId}
@@ -166,7 +169,7 @@ export function BoardSettingsModal({
           </Tabs.Panel>
 
           <Tabs.Panel value="theme" pt="md" className="board-settings-modal__tab-panel">
-            <BoardThemeBackgroundTab boardId={boardId} />
+            <BoardThemeBackgroundTab boardId={boardId} {...(onThemeLivePatch !== undefined ? { onThemeLivePatch } : {})} />
           </Tabs.Panel>
 
           <Tabs.Panel

@@ -6,6 +6,8 @@ import type mongoose from 'mongoose';
 import { DEFAULT_VERIFICATION_QUERY } from './mysqlService.js';
 import { normalizeGoogleOAuthCallbackUrl } from '../../shared/utils/googleOAuthCallbackUrl.js';
 import { normalizeDefaultUiFontFamilyInput } from './fontService.js';
+import { getResolvedBackupLocationFromEnv } from './backupLocationEnv.js';
+import { BACKUP_LOCATION_SETUP_GUIDANCE } from '../../shared/constants/backupLocationEnv.js';
 
 const ENCRYPTED_PLACEHOLDER = '***ENCRYPTED***';
 
@@ -63,10 +65,29 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
     safeGoogle.callbackUrl = go.callbackUrl ?? '';
   }
 
+  const envPath = getResolvedBackupLocationFromEnv();
+  const rawBs = o.backupSettings;
+  const safeBackupSettings: Record<string, unknown> = rawBs
+    ? {
+        retentionDays: typeof rawBs.retentionDays === 'number' ? rawBs.retentionDays : 14,
+        scheduleFrequencyDays: rawBs.scheduleFrequencyDays,
+        scheduleEnabled: rawBs.scheduleEnabled === true,
+        lastScheduledRunAt: rawBs.lastScheduledRunAt,
+        environmentBackupLocation: envPath,
+        environmentBackupLocationConfigured: envPath !== null,
+      }
+    : {
+        retentionDays: 14,
+        scheduleEnabled: false,
+        environmentBackupLocation: envPath,
+        environmentBackupLocationConfigured: envPath !== null,
+      };
+
   return {
     ...o,
     googleOAuth: safeGoogle,
     externalMySQL: safeExternal,
+    backupSettings: safeBackupSettings,
   };
 }
 
@@ -266,14 +287,37 @@ export async function updateAdminConfig(
   }
 
   if (u.backupSettings) {
-    const bs = u.backupSettings as { retentionDays?: number };
+    const bs = u.backupSettings as {
+      retentionDays?: number;
+      scheduleFrequencyDays?: number;
+      scheduleEnabled?: boolean;
+      lastScheduledRunAt?: string | Date;
+    };
     if (!config.backupSettings) {
-      config.backupSettings = { retentionDays: 14 };
+      config.backupSettings = { retentionDays: 14, scheduleEnabled: false };
     }
     if (bs.retentionDays !== undefined) {
       const d = Math.floor(Number(bs.retentionDays));
       if (Number.isFinite(d)) {
         config.backupSettings.retentionDays = Math.min(3650, Math.max(1, d));
+      }
+    }
+    if (bs.scheduleEnabled === true && getResolvedBackupLocationFromEnv() == null) {
+      throw new Error(`Cannot enable scheduled backups: ${BACKUP_LOCATION_SETUP_GUIDANCE}`);
+    }
+    if (bs.scheduleFrequencyDays !== undefined) {
+      const d = Math.floor(Number(bs.scheduleFrequencyDays));
+      if (Number.isFinite(d)) {
+        config.backupSettings.scheduleFrequencyDays = Math.min(3650, Math.max(1, d));
+      }
+    }
+    if (bs.scheduleEnabled !== undefined) {
+      config.backupSettings.scheduleEnabled = bs.scheduleEnabled === true;
+    }
+    if (bs.lastScheduledRunAt !== undefined) {
+      const v = bs.lastScheduledRunAt instanceof Date ? bs.lastScheduledRunAt : new Date(String(bs.lastScheduledRunAt));
+      if (!Number.isNaN(v.getTime())) {
+        config.backupSettings.lastScheduledRunAt = v;
       }
     }
     config.markModified('backupSettings');

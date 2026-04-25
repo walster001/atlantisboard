@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { Alert, Box, Button, Group, Loader, NavLink, Stack, Text } from '@mantine/core';
+import { Alert, Box, Button, Flex, Group, Loader, NavLink, Stack, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { IconPalette, IconPhoto } from '@tabler/icons-react';
 import smartcrop from 'smartcrop';
@@ -29,11 +29,12 @@ import './boardThemeBackgroundTab.css';
 
 interface BoardThemeBackgroundTabProps {
   boardId: string;
+  onThemeLivePatch?: (patch: { themeSettings: BoardThemeSettings; background?: string }) => void;
 }
 
 type ThemeNav = 'theme' | 'background';
 
-export function BoardThemeBackgroundTab({ boardId }: BoardThemeBackgroundTabProps) {
+export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThemeBackgroundTabProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -83,6 +84,7 @@ export function BoardThemeBackgroundTab({ boardId }: BoardThemeBackgroundTabProp
 
   const handleSelectTheme = useCallback((themeId: string) => {
     const previousDraft = draft;
+    const previousBackground = resolveBoardBackgroundFromThemeSettings(previousDraft);
     const custom = previousDraft.customThemes.find((theme) => theme.id === themeId);
     const selected = custom ?? findBoardThemeById(themeId) ?? previousDraft.selectedTheme;
     const nextDraft: BoardThemeSettings = {
@@ -94,6 +96,10 @@ export function BoardThemeBackgroundTab({ boardId }: BoardThemeBackgroundTabProp
     const normalized = normalizeBoardThemeSettings(nextDraft, previousDraft);
     const background = resolveBoardBackgroundFromThemeSettings(normalized);
     setDraft(normalized);
+    onThemeLivePatch?.({
+      themeSettings: normalized,
+      ...(background !== undefined ? { background } : {}),
+    });
     void (async () => {
       try {
         setSaving(true);
@@ -105,12 +111,16 @@ export function BoardThemeBackgroundTab({ boardId }: BoardThemeBackgroundTabProp
         setSavedSettings(normalized);
       } catch (err) {
         setDraft(previousDraft);
+        onThemeLivePatch?.({
+          themeSettings: previousDraft,
+          ...(previousBackground !== undefined ? { background: previousBackground } : {}),
+        });
         setError(err instanceof Error ? err.message : 'Failed to apply theme');
       } finally {
         setSaving(false);
       }
     })();
-  }, [boardId, draft]);
+  }, [boardId, draft, onThemeLivePatch]);
 
   const openThemeEditorAdd = useCallback(() => {
     setThemeEditorError(null);
@@ -330,8 +340,8 @@ export function BoardThemeBackgroundTab({ boardId }: BoardThemeBackgroundTabProp
 
   return (
     <Box className="board-theme-tab">
-      <Group align="flex-start" wrap="nowrap" gap="md">
-        <Stack gap={4} className="board-theme-tab__sidenav">
+      <Flex align="stretch" wrap="nowrap" gap="md" className="board-theme-tab__layout">
+        <Stack gap={4} className="board-theme-tab__sidenav board-theme-tab__sidenav--sticky">
           <NavLink
             label="Theme / Colouring"
             leftSection={<IconPalette size={18} stroke={1.5} />}
@@ -348,7 +358,7 @@ export function BoardThemeBackgroundTab({ boardId }: BoardThemeBackgroundTabProp
           />
         </Stack>
 
-        <Box className="board-theme-tab__main">
+        <Box className="board-theme-tab__main board-theme-tab__main--scrollable">
           {error != null ? <Alert color="red">{error}</Alert> : null}
 
           {nav === 'theme' ? (
@@ -398,7 +408,7 @@ export function BoardThemeBackgroundTab({ boardId }: BoardThemeBackgroundTabProp
             </Group>
           ) : null}
         </Box>
-      </Group>
+      </Flex>
 
       <BoardThemeEditorModal
         opened={themeEditorOpen}

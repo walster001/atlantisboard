@@ -1,4 +1,12 @@
 .board-theme-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.board-theme-tab__layout {
+  flex: 1;
   min-height: 0;
 }
 
@@ -7,6 +15,12 @@
   flex-shrink: 0;
   padding-right: var(--mantine-spacing-lg);
   border-right: 1px solid var(--mantine-color-gray-3);
+}
+
+.board-theme-tab__sidenav--sticky {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
 }
 
 .board-theme-tab__sidenav .mantine-NavLink-root {
@@ -26,6 +40,12 @@
   flex: 1;
   min-width: 0;
   padding-left: var(--mantine-spacing-lg);
+}
+
+.board-theme-tab__main--scrollable {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .board-theme-card {

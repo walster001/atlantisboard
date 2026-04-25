@@ -170,7 +170,7 @@ function CardDateTimeSection({
           onClose={() => setPickerOpened(false)}
           title={modalTitle}
           centered
-          withinPortal={false}
+          withinPortal
           size="sm"
           transitionProps={{ duration: 0 }}
         >

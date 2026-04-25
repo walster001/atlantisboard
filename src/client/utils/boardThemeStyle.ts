@@ -4,19 +4,62 @@ import {
   BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
   boardThemePrefersNavbarLightForeground,
   createDefaultBoardThemeSettings,
-  normalizeBoardThemeSettings,
   resolveBoardBackgroundFromThemeSettings,
   type BoardThemePalette,
   type BoardThemeSettings,
 } from '../../shared/boardTheme.js';
 
+const RGB_CACHE = new Map<string, { r: number; g: number; b: number } | null>();
+const LUMINANCE_CACHE = new Map<string, number>();
+const SMART_TEXT_CACHE = new Map<string, string>();
+const BOARD_THEME_STYLE_CACHE = new Map<string, CSSProperties>();
+
+const BOARD_THEME_STYLE_CACHE_MAX = 128;
+const COLOR_CACHE_MAX = 512;
+
+const PALETTE_SIGNATURE_KEYS: ReadonlyArray<keyof BoardThemePalette> = [
+  'navbarBg',
+  'navbarBorder',
+  'canvasBg',
+  'listBg',
+  'listHeaderText',
+  'listMuted',
+  'listMutedStrong',
+  'listControlHoverBg',
+  'listShadow',
+  'addListBg',
+  'addListBgHover',
+  'cardDetailBg',
+  'cardDetailTitleText',
+  'cardDetailText',
+  'cardDetailButtonBg',
+  'cardDetailButtonText',
+  'cardDetailButtonHoverBg',
+  'cardDetailButtonHoverText',
+  'scrollbarColor',
+  'scrollbarTrackColor',
+];
+
+function setCacheValue<K, V>(cache: Map<K, V>, key: K, value: V, max: number): V {
+  if (cache.size >= max) {
+    cache.clear();
+  }
+  cache.set(key, value);
+  return value;
+}
+
 function hexToRgb(color: string | undefined): { r: number; g: number; b: number } | null {
   if (color == null || typeof color !== 'string') {
     return null;
   }
-  const match = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.exec(color.trim());
+  const key = color.trim().toLowerCase();
+  const cached = RGB_CACHE.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const match = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.exec(key);
   if (match == null) {
-    return null;
+    return setCacheValue(RGB_CACHE, key, null, COLOR_CACHE_MAX);
   }
   const raw = match[1];
   const full =
@@ -25,13 +68,18 @@ function hexToRgb(color: string | undefined): { r: number; g: number; b: number 
   const g = Number.parseInt(full.slice(2, 4), 16);
   const b = Number.parseInt(full.slice(4, 6), 16);
   if ([r, g, b].some((n) => Number.isNaN(n))) {
-    return null;
+    return setCacheValue(RGB_CACHE, key, null, COLOR_CACHE_MAX);
   }
-  return { r, g, b };
+  return setCacheValue(RGB_CACHE, key, { r, g, b }, COLOR_CACHE_MAX);
 }
 
 function relativeLuminance(color: string): number {
-  const rgb = hexToRgb(color);
+  const key = color.trim().toLowerCase();
+  const cached = LUMINANCE_CACHE.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const rgb = hexToRgb(key);
   if (rgb == null) {
     return 0;
   }
@@ -39,7 +87,8 @@ function relativeLuminance(color: string): number {
     const s = value / 255;
     return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
   };
-  return 0.2126 * transform(rgb.r) + 0.7152 * transform(rgb.g) + 0.0722 * transform(rgb.b);
+  const value = 0.2126 * transform(rgb.r) + 0.7152 * transform(rgb.g) + 0.0722 * transform(rgb.b);
+  return setCacheValue(LUMINANCE_CACHE, key, value, COLOR_CACHE_MAX);
 }
 
 function contrastRatio(fg: string, bg: string): number {
@@ -53,12 +102,18 @@ function contrastRatio(fg: string, bg: string): number {
 function smartTextColor(bg: string | undefined, preferred: string | undefined): string {
   const safeBg = typeof bg === 'string' && bg.trim() !== '' ? bg.trim() : '#000000';
   const safePreferred = typeof preferred === 'string' && preferred.trim() !== '' ? preferred.trim() : '#1f2937';
+  const cacheKey = `${safeBg.toLowerCase()}|${safePreferred.toLowerCase()}`;
+  const cached = SMART_TEXT_CACHE.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
   const light = '#ffffff';
   const dark = '#1f2937';
   if (contrastRatio(safePreferred, safeBg) >= 4.5) {
-    return safePreferred;
+    return setCacheValue(SMART_TEXT_CACHE, cacheKey, safePreferred, COLOR_CACHE_MAX);
   }
-  return contrastRatio(light, safeBg) >= contrastRatio(dark, safeBg) ? light : dark;
+  const value = contrastRatio(light, safeBg) >= contrastRatio(dark, safeBg) ? light : dark;
+  return setCacheValue(SMART_TEXT_CACHE, cacheKey, value, COLOR_CACHE_MAX);
 }
 
 /** Navbar labels/icons, card modal title, and description body — always contrast-tuned to their surfaces. */
@@ -104,8 +159,25 @@ export function applySmartContrastToThemePalette(
 }
 
 function effectiveThemeSettings(board: BoardDB): BoardThemeSettings {
-  const defaults = createDefaultBoardThemeSettings();
-  return normalizeBoardThemeSettings(board.themeSettings ?? defaults, defaults);
+  return board.themeSettings ?? createDefaultBoardThemeSettings();
+}
+
+function boardThemeStyleSignature(
+  themeSettings: BoardThemeSettings,
+  palette: BoardThemePalette,
+  resolvedBackground: string,
+): string {
+  const palettePart = PALETTE_SIGNATURE_KEYS.map((key) => palette[key]).join('|');
+  return [
+    themeSettings.selectedTheme.id,
+    themeSettings.smartContrast ? '1' : '0',
+    themeSettings.backgroundMode,
+    resolvedBackground,
+    themeSettings.backgroundImageScale ?? 'fill',
+    (themeSettings.backgroundFocalX ?? 0.5).toFixed(3),
+    (themeSettings.backgroundFocalY ?? 0.5).toFixed(3),
+    palettePart,
+  ].join('||');
 }
 
 /** Thumb + track for native board scrollbars — same rules as `getBoardPageThemeStyle` CSS vars. */
@@ -146,7 +218,12 @@ export function getBoardPageThemeStyle(board: BoardDB): CSSProperties {
         : 'center';
   const derived = getDerivedBoardTextColors(palette, themeSettings.selectedTheme.id);
   const sb = getBoardPaletteScrollbarColors(palette);
-  return {
+  const signature = boardThemeStyleSignature(themeSettings, palette, canvasBg);
+  const cachedStyle = BOARD_THEME_STYLE_CACHE.get(signature);
+  if (cachedStyle != null) {
+    return cachedStyle;
+  }
+  const style = {
     '--board-nav-bg': palette.navbarBg,
     '--board-nav-fg': derived.navFg,
     '--board-nav-border': palette.navbarBorder,
@@ -176,4 +253,5 @@ export function getBoardPageThemeStyle(board: BoardDB): CSSProperties {
     '--board-card-detail-title-text': derived.cardDetailTitle,
     '--board-card-detail-prose': derived.cardDetailProse,
   } as CSSProperties;
+  return setCacheValue(BOARD_THEME_STYLE_CACHE, signature, style, BOARD_THEME_STYLE_CACHE_MAX);
 }

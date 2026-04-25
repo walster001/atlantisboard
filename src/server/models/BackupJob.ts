@@ -1,10 +1,10 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
-export type BackupJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type BackupJobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
 export interface IBackupJobResult {
   folderId: string;
-  objectKey: string;
+  filePath: string;
   sizeBytes: number;
   prunedCount: number;
 }
@@ -18,6 +18,10 @@ export interface IBackupJob extends Document {
   currentPhase?: string;
   failureMessage?: string;
   result?: IBackupJobResult;
+  filename: string;
+  location: string;
+  cancelRequestedAt?: Date;
+  startedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
@@ -27,7 +31,7 @@ export interface IBackupJob extends Document {
 const BackupJobResultSchema = new Schema<IBackupJobResult>(
   {
     folderId: { type: String, required: true },
-    objectKey: { type: String, required: true },
+    filePath: { type: String, required: true },
     sizeBytes: { type: Number, required: true, min: 0 },
     prunedCount: { type: Number, required: true, min: 0 },
   },
@@ -44,7 +48,7 @@ const BackupJobSchema = new Schema<IBackupJob>(
     },
     status: {
       type: String,
-      enum: ['pending', 'processing', 'completed', 'failed'],
+      enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
       default: 'pending',
       index: true,
     },
@@ -54,6 +58,10 @@ const BackupJobSchema = new Schema<IBackupJob>(
     currentPhase: { type: String, trim: true, maxlength: 64 },
     failureMessage: { type: String, trim: true, maxlength: 4000 },
     result: { type: BackupJobResultSchema, required: false },
+    filename: { type: String, required: true, trim: true, maxlength: 240 },
+    location: { type: String, required: true, trim: true, maxlength: 1200 },
+    cancelRequestedAt: Date,
+    startedAt: Date,
     completedAt: Date,
     expiresAt: {
       type: Date,

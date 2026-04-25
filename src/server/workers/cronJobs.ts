@@ -9,6 +9,7 @@ import {
 } from '../../shared/constants/boardMemberAuditActivities.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
+import { runScheduledBackupIfDue } from '../services/backupService.js';
 
 /**
  * Activity log cleanup job
@@ -247,6 +248,7 @@ let lastActivityLogRun = 0;
 let lastImportJobRun = 0;
 let lastAttachmentRun = 0;
 let lastMemberAuditRetentionRun = 0;
+let lastScheduledBackupCheckRun = 0;
 export function scheduleCronJobs(): void {
   // Activity log cleanup - weekly (every Monday at 2 AM)
   // Check every 5 minutes instead of every minute to reduce CPU usage
@@ -325,6 +327,19 @@ export function scheduleCronJobs(): void {
     });
   }, 15 * 60 * 1000);
   intervalIds.push(reminderInterval);
+
+  // Scheduled backup run check - every 30 minutes
+  const scheduledBackupInterval = setInterval(() => {
+    const now = Date.now();
+    if (now - lastScheduledBackupCheckRun < 60_000) {
+      return;
+    }
+    lastScheduledBackupCheckRun = now;
+    runScheduledBackupIfDue().catch((error) => {
+      logger.error({ error }, 'Scheduled backup run check failed');
+    });
+  }, 30 * 60 * 1000);
+  intervalIds.push(scheduledBackupInterval);
 
   logger.info('Cron jobs scheduled');
 }

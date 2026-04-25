@@ -7,6 +7,7 @@ import type { PublicCustomFontEntry } from '../../shared/types/customFonts.js';
 import type { ImportPreflightPayload } from '../../shared/import/importPreflight.js';
 import type { BoardThemeSettings } from '../../shared/boardTheme.js';
 import type { AdminBackupListItem } from '../../shared/types/adminBackup.js';
+import type { AdminBackupFsEntry } from '../../shared/types/adminBackupFs.js';
 import type { AdminSystemMetricsSnapshot } from '../../shared/types/adminSystemMetrics.js';
 
 const API_BASE_URL = env.API_BASE_URL || '/api/v1';
@@ -1468,10 +1469,28 @@ class ApiClient {
     return response.data;
   }
 
-  async startAdminBackup(): Promise<{ message: string; jobId: string; reusedExisting: boolean }> {
+  async listAdminBackupFs(path: string): Promise<{
+    path: string;
+    directoryMtime: string;
+    entries: AdminBackupFsEntry[];
+  }> {
+    const response = await this.client.get<{
+      path: string;
+      directoryMtime: string;
+      entries: AdminBackupFsEntry[];
+    }>('/admin/backup/fs/list', {
+      params: { path: path === '' ? '/' : path },
+    });
+    return response.data;
+  }
+
+  async startAdminBackup(input: {
+    filename: string;
+    location: string;
+  }): Promise<{ message: string; jobId: string; reusedExisting: boolean }> {
     const response = await this.client.post<{ message: string; jobId: string; reusedExisting: boolean }>(
       '/admin/backup/run',
-      {},
+      input,
       { timeout: 60_000 }
     );
     return response.data;
@@ -1480,6 +1499,21 @@ class ApiClient {
   async getAdminBackupJob(jobId: string): Promise<{ job: unknown }> {
     const response = await this.client.get<{ job: unknown }>(
       `/admin/backup/jobs/${encodeURIComponent(jobId)}`
+    );
+    return response.data;
+  }
+
+  async cancelAdminBackupJob(jobId: string): Promise<{ message: string }> {
+    const response = await this.client.post<{ message: string }>(
+      `/admin/backup/jobs/${encodeURIComponent(jobId)}/cancel`
+    );
+    return response.data;
+  }
+
+  async testAdminBackupPath(location: string): Promise<{ ok: boolean; location: string; message: string }> {
+    const response = await this.client.post<{ ok: boolean; location: string; message: string }>(
+      '/admin/backup/test-path',
+      { location },
     );
     return response.data;
   }

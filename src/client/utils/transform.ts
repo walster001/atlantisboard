@@ -1,5 +1,6 @@
 import type { BoardDB, WorkspaceDB, ListDB, CardDB } from '../store/database.js';
 import type { BoardThemeSettings } from '../../shared/boardTheme.js';
+import { createDefaultBoardThemeSettings, normalizeBoardThemeSettings } from '../../shared/boardTheme.js';
 import {
   boardShowsDueDateOnCards,
   boardShowsEndDateOnCards,
@@ -88,6 +89,10 @@ export function transformBoard(board: unknown): BoardDB {
 
   const id = b.id || (typeof b._id === 'string' ? b._id : b._id?.toString() || '');
   const position = typeof b.position === 'number' && !Number.isNaN(b.position) ? b.position : 0;
+  const normalizedThemeSettings =
+    b.themeSettings !== undefined
+      ? normalizeBoardThemeSettings(b.themeSettings, createDefaultBoardThemeSettings())
+      : undefined;
 
   let ownerId = '';
   const rawOwner = b.ownerId;
@@ -143,7 +148,7 @@ export function transformBoard(board: unknown): BoardDB {
     name: b.name,
     ...(b.description !== undefined && { description: b.description }),
     ...(b.background !== undefined && { background: b.background }),
-    ...(b.themeSettings !== undefined ? { themeSettings: b.themeSettings } : {}),
+    ...(normalizedThemeSettings !== undefined ? { themeSettings: normalizedThemeSettings } : {}),
     visibility: b.visibility,
     ownerId,
     members,

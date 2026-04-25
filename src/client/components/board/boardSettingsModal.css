@@ -64,6 +64,16 @@
   flex-direction: column;
 }
 
+/* Board tab: keep left nav visible while only right pane scrolls. */
+.board-settings-modal__tab-panel--board {
+  overflow: hidden;
+}
+
+.board-settings-modal__board-layout {
+  flex: 1;
+  min-height: 0;
+}
+
 /* Users & Permissions: fill height; lists scroll inside All Users / Current Members papers. */
 .board-settings-modal__tab-panel--fill {
   overflow: hidden;
@@ -85,6 +95,12 @@
   border-right: 1px solid var(--mantine-color-gray-3);
 }
 
+.board-settings-modal__sidenav--sticky {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+}
+
 .board-settings-modal__sidenav .mantine-NavLink-root {
   border-radius: var(--mantine-radius-md);
 }
@@ -102,4 +118,10 @@
   flex: 1;
   min-width: 0;
   padding-left: var(--mantine-spacing-md);
+}
+
+.board-settings-modal__main--scrollable {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }

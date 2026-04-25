@@ -19,7 +19,7 @@ export interface BackupJobClientView {
   failureMessage?: string;
   result?: {
     folderId: string;
-    objectKey: string;
+    filePath: string;
     sizeBytes: number;
     prunedCount: number;
   };
@@ -44,11 +44,11 @@ export function parseBackupJob(job: unknown): BackupJobClientView | null {
   if (rawResult != null && typeof rawResult === 'object') {
     const r = rawResult as Record<string, unknown>;
     const folderId = typeof r.folderId === 'string' ? r.folderId : '';
-    const objectKey = typeof r.objectKey === 'string' ? r.objectKey : '';
+    const filePath = typeof r.filePath === 'string' ? r.filePath : '';
     const sizeBytes = typeof r.sizeBytes === 'number' ? r.sizeBytes : 0;
     const prunedCount = typeof r.prunedCount === 'number' ? r.prunedCount : 0;
-    if (folderId !== '' && objectKey !== '') {
-      parsedResult = { folderId, objectKey, sizeBytes, prunedCount };
+    if (folderId !== '' && filePath !== '') {
+      parsedResult = { folderId, filePath, sizeBytes, prunedCount };
     }
   }
   return {
@@ -76,7 +76,7 @@ export function backupPhaseDisplayLabel(phase: string | undefined): string {
     case 'zip_finalize':
       return 'Compressing archive…';
     case 'upload':
-      return 'Uploading to backups bucket…';
+      return 'Writing archive to local storage…';
     case 'retention':
       return 'Applying retention policy…';
     case 'done':
@@ -107,7 +107,7 @@ export function renderBackupJobSuccessMessage(result: NonNullable<BackupJobClien
   return (
     <Stack gap={8}>
       <Text size="sm" fw={600}>
-        Full backup stored in MinIO
+        Full backup written to local path
       </Text>
       <Text size="sm">
         Folder id:{' '}
@@ -116,9 +116,9 @@ export function renderBackupJobSuccessMessage(result: NonNullable<BackupJobClien
         </Text>
       </Text>
       <Text size="sm">
-        Object key:{' '}
+        File path:{' '}
         <Text component="span" ff="monospace" fz="xs">
-          {result.objectKey}
+          {result.filePath}
         </Text>
       </Text>
       <Text size="sm">Archive size: {formatBackupBytes(result.sizeBytes)}</Text>

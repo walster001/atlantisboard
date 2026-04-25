@@ -5,6 +5,7 @@ import { IconArrowLeft, IconLayoutKanbanFilled, IconLink, IconSettings } from '@
 import { useSocket } from '../hooks/useSocket.js';
 import { UserMenu } from '../components/UserMenu.js';
 import type { BoardSettingsLivePatch, CardDB } from '../store/database.js';
+import type { BoardThemeSettings } from '../../shared/boardTheme.js';
 import { useBoardRuntimeStore } from '../store/boardRuntimeStore.js';
 import { bootstrapBoardRuntimeFromApi, resyncBoardRuntimeFromApi } from '../store/boardBootstrap.js';
 const KanbanView = lazy(async () => {
@@ -152,6 +153,19 @@ export default function BoardPage() {
     useBoardRuntimeStore.getState().applyBoardSettingsLivePatch(patch);
   }, []);
 
+  const handleThemeLivePatch = useCallback((patch: { themeSettings: BoardThemeSettings; background?: string }) => {
+    const store = useBoardRuntimeStore.getState();
+    const current = store.board;
+    if (current == null) {
+      return;
+    }
+    store.commitBoard({
+      ...current,
+      themeSettings: patch.themeSettings,
+      ...(patch.background !== undefined ? { background: patch.background } : {}),
+    });
+  }, []);
+
   const handleOpenCard = useCallback(
     (card: CardDB) => {
       primeCardDetailWindow(card.id, card);
@@ -199,7 +213,10 @@ export default function BoardPage() {
 
   const overlayInitialCardForId =
     overlayCardId != null && overlayInitialCard?.id === overlayCardId ? overlayInitialCard : undefined;
-  const boardThemeStyle = useMemo(() => (board != null ? getBoardPageThemeStyle(board) : undefined), [board]);
+  const boardThemeStyle = useMemo(
+    () => (board != null ? getBoardPageThemeStyle(board) : undefined),
+    [board?.themeSettings, board?.background],
+  );
 
   if (loading) {
     return (
@@ -319,6 +336,7 @@ export default function BoardPage() {
             ? { allowedTopTabs: ['users'] as const }
             : {})}
           onSettingsLivePatch={handleSettingsLivePatch}
+          onThemeLivePatch={handleThemeLivePatch}
         />
       ) : null}
 

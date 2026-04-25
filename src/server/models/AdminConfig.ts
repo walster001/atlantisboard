@@ -100,8 +100,16 @@ export interface IVapidKeys {
 }
 
 export interface IBackupSettings {
-  /** How long full MinIO backups are kept (by folder timestamp). */
+  /** How long full backups are kept (by folder timestamp). */
   retentionDays: number;
+  /** Default directory where local backup archives are written. */
+  location?: string;
+  /** Automatic full-backup interval in days (1..3650). */
+  scheduleFrequencyDays?: number;
+  /** Whether scheduled backups are enabled. */
+  scheduleEnabled?: boolean;
+  /** Timestamp of the last successful scheduled backup run. */
+  lastScheduledRunAt?: Date;
 }
 
 export interface IAdminConfig extends Document {
@@ -245,6 +253,10 @@ const VapidKeysSchema = new Schema<IVapidKeys>(
 const BackupSettingsSchema = new Schema<IBackupSettings>(
   {
     retentionDays: { type: Number, default: 14, min: 1, max: 3650 },
+    location: { type: String, trim: true, maxlength: 1200 },
+    scheduleFrequencyDays: { type: Number, min: 1, max: 3650 },
+    scheduleEnabled: { type: Boolean, default: false },
+    lastScheduledRunAt: { type: Date },
   },
   { _id: false }
 );
@@ -294,7 +306,7 @@ const AdminConfigSchema = new Schema<IAdminConfig>(
     },
     backupSettings: {
       type: BackupSettingsSchema,
-      default: () => ({ retentionDays: 14 }),
+      default: () => ({ retentionDays: 14, scheduleEnabled: false }),
     },
     updatedBy: {
       type: Schema.Types.ObjectId,

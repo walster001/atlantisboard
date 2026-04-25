@@ -51,6 +51,8 @@ docker-compose.override.yml
 tmp/
 temp/
 *.tmp
+.kombai/
+wsl/
 
 # MinIO data
 minio-data/

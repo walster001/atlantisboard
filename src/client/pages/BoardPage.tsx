@@ -42,6 +42,7 @@ export default function BoardPage() {
   const latestBoardIdRef = useRef(boardId);
   latestBoardIdRef.current = boardId;
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showInvites, setShowInvites] = useState(false);
   const [overlayInitialCard, setOverlayInitialCard] = useState<CardDB | null>(null);
@@ -86,14 +87,20 @@ export default function BoardPage() {
           await import('../components/board/KanbanView.js');
         }
 
-        if (!ok && isMountedRef.current && latestBoardIdRef.current === requestedBoardId) {
-          useBoardRuntimeStore.getState().clear();
+        if (isMountedRef.current && latestBoardIdRef.current === requestedBoardId) {
+          if (!ok) {
+            setLoadFailed(true);
+            useBoardRuntimeStore.getState().clear();
+          } else {
+            setLoadFailed(false);
+          }
         }
       } catch {
         if (
           isMountedRef.current &&
           latestBoardIdRef.current === requestedBoardId
         ) {
+          setLoadFailed(true);
           useBoardRuntimeStore.getState().clear();
         }
       } finally {
@@ -116,6 +123,7 @@ export default function BoardPage() {
     }
     const ac = new AbortController();
     setLoading(true);
+    setLoadFailed(false);
     useBoardRuntimeStore.getState().clear();
     void loadData({ mode: 'initial', signal: ac.signal });
     return () => {
@@ -228,6 +236,14 @@ export default function BoardPage() {
 
   if (boardId && permissionsLoaded && !can('boards.view')) {
     return <Navigate to="/" replace />;
+  }
+
+  if (!board && !loadFailed) {
+    return (
+      <Box className="min-h-screen flex items-center justify-center">
+        <Loader size="lg" />
+      </Box>
+    );
   }
 
   if (!board) {

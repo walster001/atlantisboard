@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, isPublicPath } from '../utils/api.js';
 import { socketClient } from '../utils/socket.js';
 import { db, type UserDB } from '../store/database.js';
+import type { BoardThemeDefinition } from '../../shared/boardTheme.js';
 
 interface User {
   id: string;
@@ -17,6 +18,7 @@ interface User {
     language: string;
     notificationPreferences: Record<string, unknown>;
     homeWorkspaceOrder?: string[];
+    customBoardThemes?: BoardThemeDefinition[];
   };
   emailVerified: boolean;
 }

@@ -96,6 +96,9 @@ export default function BoardPage() {
           }
         }
       } catch {
+        if (signal?.aborted === true) {
+          return;
+        }
         if (
           isMountedRef.current &&
           latestBoardIdRef.current === requestedBoardId
@@ -107,7 +110,8 @@ export default function BoardPage() {
         if (
           isInitial &&
           isMountedRef.current &&
-          latestBoardIdRef.current === requestedBoardId
+          latestBoardIdRef.current === requestedBoardId &&
+          signal?.aborted !== true
         ) {
           setLoading(false);
         }

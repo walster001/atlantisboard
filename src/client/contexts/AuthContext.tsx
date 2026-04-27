@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { useAuth } from '../hooks/useAuth.js';
+import type { BoardThemeDefinition } from '../../shared/boardTheme.js';
 
 interface AuthContextType {
   user: {
@@ -15,6 +16,7 @@ interface AuthContextType {
       language: string;
       notificationPreferences: Record<string, unknown>;
       homeWorkspaceOrder?: string[];
+      customBoardThemes?: BoardThemeDefinition[];
     };
     emailVerified: boolean;
   } | null;

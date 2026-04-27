@@ -19,6 +19,7 @@ import {
 } from '../services/userAvatarService.js';
 import { logger } from '../utils/logger.js';
 import { sanitizeAndMergeHomeWorkspaceOrder } from '../services/workspaceService.js';
+import { normalizeBoardThemeSettings } from '../../shared/boardTheme.js';
 
 const router = Router();
 
@@ -70,6 +71,37 @@ const updatePreferencesSchema = z
   .object({
     language: z.string().min(2).max(20).optional(),
     homeWorkspaceOrder: z.array(z.string().min(1)).max(500).optional(),
+    customBoardThemes: z
+      .array(
+        z.object({
+          id: z.string().min(1).max(80),
+          name: z.string().min(1).max(80),
+          palette: z.object({
+            navbarBg: z.string().min(1),
+            navbarBorder: z.string().min(1),
+            canvasBg: z.string().min(1),
+            listBg: z.string().min(1),
+            listHeaderText: z.string().min(1),
+            listMuted: z.string().min(1),
+            listMutedStrong: z.string().min(1),
+            listControlHoverBg: z.string().min(1),
+            listShadow: z.string().min(1),
+            addListBg: z.string().min(1),
+            addListBgHover: z.string().min(1),
+            cardDetailBg: z.string().min(1),
+            cardDetailTitleText: z.string().min(1),
+            cardDetailText: z.string().min(1),
+            cardDetailButtonBg: z.string().min(1),
+            cardDetailButtonText: z.string().min(1),
+            cardDetailButtonHoverBg: z.string().min(1),
+            cardDetailButtonHoverText: z.string().min(1),
+            scrollbarColor: z.string().min(1),
+            scrollbarTrackColor: z.string().min(1),
+          }),
+        }),
+      )
+      .max(250)
+      .optional(),
   })
   .strict();
 
@@ -442,6 +474,20 @@ router.put('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, asy
         authReq.user.id,
         validated.homeWorkspaceOrder,
       );
+    }
+    if (validated.customBoardThemes !== undefined) {
+      const normalizedThemes = validated.customBoardThemes.map((theme) => {
+        const normalized = normalizeBoardThemeSettings({
+          selectedThemeId: theme.id,
+          selectedTheme: theme,
+          customThemes: [theme],
+          smartContrast: true,
+          backgroundMode: 'theme',
+          backgroundColor: theme.palette.canvasBg,
+        });
+        return normalized.selectedTheme;
+      });
+      user.preferences.customBoardThemes = normalizedThemes;
     }
 
     user.preferences.theme = 'light';

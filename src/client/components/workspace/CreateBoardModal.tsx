@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import {
   Modal,
   TextInput,
@@ -17,7 +17,9 @@ import {
   createDefaultBoardThemeSettings,
   findBoardThemeById,
   resolveBoardBackgroundFromThemeSettings,
+  type BoardThemeDefinition,
 } from '../../../shared/boardTheme.js';
+import { useAuthContext } from '../../contexts/AuthContext.js';
 
 interface CreateBoardModalProps {
   workspaceId: string;
@@ -26,11 +28,31 @@ interface CreateBoardModalProps {
 }
 
 export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoardModalProps) {
+  const { user } = useAuthContext();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedThemeId, setSelectedThemeId] = useState(BOARD_DEFAULT_THEMES[0]?.id ?? 'ocean-blue');
+
+  const availableThemes = useMemo<BoardThemeDefinition[]>(() => {
+    const userCustomThemes = Array.isArray(user?.preferences.customBoardThemes)
+      ? user.preferences.customBoardThemes
+      : [];
+    const seen = new Set<string>();
+    const merged: BoardThemeDefinition[] = [];
+    for (const theme of BOARD_DEFAULT_THEMES) {
+      if (seen.has(theme.id)) continue;
+      seen.add(theme.id);
+      merged.push({ id: theme.id, name: theme.name, palette: { ...theme.palette } });
+    }
+    for (const theme of userCustomThemes) {
+      if (seen.has(theme.id)) continue;
+      seen.add(theme.id);
+      merged.push({ id: theme.id, name: theme.name, palette: { ...theme.palette } });
+    }
+    return merged;
+  }, [user?.preferences.customBoardThemes]);
 
   const nameOverLimit = name.length > BOARD_NAME_MAX_LENGTH;
   const descriptionOverLimit = description.length > BOARD_DESCRIPTION_MAX_LENGTH;
@@ -68,7 +90,10 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
         boardData.description = description.trim();
       }
       const selectedTheme =
-        findBoardThemeById(selectedThemeId) ?? findBoardThemeById('ocean-blue') ?? BOARD_DEFAULT_THEMES[0];
+        availableThemes.find((theme) => theme.id === selectedThemeId) ??
+        findBoardThemeById(selectedThemeId) ??
+        findBoardThemeById('ocean-blue') ??
+        BOARD_DEFAULT_THEMES[0];
       if (selectedTheme != null) {
         const themeSettings = createDefaultBoardThemeSettings(selectedTheme.id);
         themeSettings.selectedTheme = {
@@ -140,7 +165,7 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
 
           <Select
             label="Theme"
-            data={BOARD_DEFAULT_THEMES.map((theme) => ({ value: theme.id, label: theme.name }))}
+            data={availableThemes.map((theme) => ({ value: theme.id, label: theme.name }))}
             value={selectedThemeId}
             onChange={(value) => setSelectedThemeId(value ?? selectedThemeId)}
             disabled={loading}

@@ -47,6 +47,26 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
   const [themeEditorInitial, setThemeEditorInitial] = useState<BoardThemeSettings>(createDefaultBoardThemeSettings());
   const [themeEditorSaving, setThemeEditorSaving] = useState(false);
   const [themeEditorError, setThemeEditorError] = useState<string | null>(null);
+  const [appCustomThemes, setAppCustomThemes] = useState<BoardThemeDefinition[]>([]);
+
+  const mergeCustomThemes = useCallback(
+    (globalThemes: readonly BoardThemeDefinition[], boardThemes: readonly BoardThemeDefinition[]): BoardThemeDefinition[] => {
+      const next: BoardThemeDefinition[] = [];
+      const seen = new Set<string>();
+      for (const source of [globalThemes, boardThemes]) {
+        for (const theme of source) {
+          const id = theme.id.trim();
+          if (id === '' || seen.has(id)) {
+            continue;
+          }
+          seen.add(id);
+          next.push(cloneTheme(theme));
+        }
+      }
+      return next;
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -57,9 +77,27 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         const response = await api.getBoard(boardId, { view: 'detail' });
         const board = transformBoard((response as { board: unknown }).board);
         const normalized = normalizeBoardThemeSettings(board.themeSettings, createDefaultBoardThemeSettings());
+        let globalThemes: BoardThemeDefinition[] = [];
+        try {
+          const prefs = await api.getUserPreferences();
+          globalThemes = Array.isArray(prefs.preferences.customBoardThemes)
+            ? prefs.preferences.customBoardThemes.map((theme) => cloneTheme(theme))
+            : [];
+        } catch {
+          globalThemes = [];
+        }
+        const mergedCustomThemes = mergeCustomThemes(globalThemes, normalized.customThemes);
+        const normalizedWithGlobal = normalizeBoardThemeSettings(
+          {
+            ...normalized,
+            customThemes: mergedCustomThemes,
+          },
+          normalized,
+        );
         if (!cancelled) {
-          setSavedSettings(normalized);
-          setDraft(normalized);
+          setAppCustomThemes(mergedCustomThemes);
+          setSavedSettings(normalizedWithGlobal);
+          setDraft(normalizedWithGlobal);
         }
       } catch (err) {
         if (!cancelled) {
@@ -75,7 +113,7 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
     return () => {
       cancelled = true;
     };
-  }, [boardId]);
+  }, [boardId, mergeCustomThemes]);
 
   const hasUnsavedChanges = useMemo(() => JSON.stringify(draft) !== JSON.stringify(savedSettings), [draft, savedSettings]);
   const themeCards = useMemo(() => toThemeCardItems(draft), [draft]);
@@ -105,7 +143,7 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         setSaving(true);
         setError(null);
         await api.updateBoard(boardId, {
-          themeSettings: normalized,
+          themeSettings: { ...normalized, customThemes: [] },
           ...(background !== undefined ? { background } : {}),
         });
         setSavedSettings(normalized);
@@ -145,9 +183,12 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         setThemeEditorSaving(true);
         setThemeEditorError(null);
         const normalized = normalizeBoardThemeSettings(next, draft);
+        const nextGlobalThemes = normalized.customThemes.map((theme) => cloneTheme(theme));
+        await api.updateUserPreferences({ customBoardThemes: nextGlobalThemes });
+        setAppCustomThemes(nextGlobalThemes);
         const background = resolveBoardBackgroundFromThemeSettings(normalized);
         await api.updateBoard(boardId, {
-          themeSettings: normalized,
+          themeSettings: { ...normalized, customThemes: [] },
           ...(background !== undefined ? { background } : {}),
         });
         setSavedSettings(normalized);
@@ -185,7 +226,12 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         prev,
       ),
     );
-  }, []);
+    const nextGlobalThemes = [...appCustomThemes.map((entry) => cloneTheme(entry)), copy];
+    setAppCustomThemes(nextGlobalThemes);
+    void api.updateUserPreferences({ customBoardThemes: nextGlobalThemes }).catch(() => {
+      setError('Failed to save app-wide custom theme copy');
+    });
+  }, [appCustomThemes]);
 
   const handleDeleteCustomTheme = useCallback((theme: BoardThemeDefinition) => {
     modals.openConfirmModal({
@@ -214,7 +260,13 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
             wasSelected && prev.backgroundMode === 'theme'
               ? { ...baseNext, backgroundColor: selectedTheme.palette.canvasBg }
               : baseNext;
-          return normalizeBoardThemeSettings(merged, prev);
+          const normalized = normalizeBoardThemeSettings(merged, prev);
+          const nextGlobalThemes = normalized.customThemes.map((entry) => cloneTheme(entry));
+          setAppCustomThemes(nextGlobalThemes);
+          void api.updateUserPreferences({ customBoardThemes: nextGlobalThemes }).catch(() => {
+            setError('Failed to delete app-wide custom theme');
+          });
+          return normalized;
         });
       },
     });
@@ -316,7 +368,7 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
       const normalized = normalizeBoardThemeSettings(draft, savedSettings);
       const background = resolveBoardBackgroundFromThemeSettings(normalized);
       await api.updateBoard(boardId, {
-        themeSettings: normalized,
+        themeSettings: { ...normalized, customThemes: [] },
         ...(background !== undefined ? { background } : {}),
       });
       setSavedSettings(normalized);

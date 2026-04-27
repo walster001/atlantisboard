@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
+import type { BoardThemeDefinition } from '../../shared/boardTheme.js';
 
 export interface IUser extends Document {
   email: string;
@@ -39,6 +40,8 @@ export interface IUser extends Document {
     };
     /** Per-user boards homepage workspace row order (visible workspace ids only). */
     homeWorkspaceOrder?: string[];
+    /** App-wide custom board themes for this user (used by create-board + board settings). */
+    customBoardThemes?: BoardThemeDefinition[];
   };
   emailVerified: boolean;
   verificationToken?: string;
@@ -87,6 +90,41 @@ const NotificationPreferencesSchema = new Schema(
   { _id: false }
 );
 
+const BoardThemePaletteSchema = new Schema(
+  {
+    navbarBg: { type: String, required: true },
+    navbarBorder: { type: String, required: true },
+    canvasBg: { type: String, required: true },
+    listBg: { type: String, required: true },
+    listHeaderText: { type: String, required: true },
+    listMuted: { type: String, required: true },
+    listMutedStrong: { type: String, required: true },
+    listControlHoverBg: { type: String, required: true },
+    listShadow: { type: String, required: true },
+    addListBg: { type: String, required: true },
+    addListBgHover: { type: String, required: true },
+    cardDetailBg: { type: String, required: true },
+    cardDetailTitleText: { type: String, required: true },
+    cardDetailText: { type: String, required: true },
+    cardDetailButtonBg: { type: String, required: true },
+    cardDetailButtonText: { type: String, required: true },
+    cardDetailButtonHoverBg: { type: String, required: true },
+    cardDetailButtonHoverText: { type: String, required: true },
+    scrollbarColor: { type: String, required: true },
+    scrollbarTrackColor: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const BoardThemeDefinitionSchema = new Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    palette: { type: BoardThemePaletteSchema, required: true },
+  },
+  { _id: false }
+);
+
 const PreferencesSchema = new Schema(
   {
     theme: { type: String, enum: ['light', 'dark', 'auto'], default: 'light' },
@@ -94,6 +132,7 @@ const PreferencesSchema = new Schema(
     language: { type: String, default: 'en' },
     notificationPreferences: { type: NotificationPreferencesSchema, default: () => ({}) },
     homeWorkspaceOrder: { type: [String], default: undefined },
+    customBoardThemes: { type: [BoardThemeDefinitionSchema], default: undefined },
   },
   { _id: false }
 );

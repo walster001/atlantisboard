@@ -5,7 +5,7 @@ import type { PublicLoginBranding } from '../../shared/types/loginBranding.js';
 import type { PublicAppBranding } from '../../shared/types/appBranding.js';
 import type { PublicCustomFontEntry } from '../../shared/types/customFonts.js';
 import type { ImportPreflightPayload } from '../../shared/import/importPreflight.js';
-import type { BoardThemeSettings } from '../../shared/boardTheme.js';
+import type { BoardThemeDefinition, BoardThemeSettings } from '../../shared/boardTheme.js';
 import type { AdminBackupListItem } from '../../shared/types/adminBackup.js';
 import type { AdminSystemMetricsSnapshot } from '../../shared/types/adminSystemMetrics.js';
 
@@ -1074,14 +1074,27 @@ class ApiClient {
   async updateUserPreferences(preferences: {
     language?: string;
     homeWorkspaceOrder?: readonly string[];
+    customBoardThemes?: readonly BoardThemeDefinition[];
   }): Promise<{ user: unknown }> {
     const response = await this.client.put('/users/me/preferences', preferences);
     return response.data;
   }
 
-  async getUserPreferences(): Promise<{ preferences: unknown }> {
+  async getUserPreferences(): Promise<{
+    preferences: {
+      language?: string;
+      homeWorkspaceOrder?: string[];
+      customBoardThemes?: BoardThemeDefinition[];
+    };
+  }> {
     const response = await this.client.get('/users/me/preferences');
-    return response.data;
+    return response.data as {
+      preferences: {
+        language?: string;
+        homeWorkspaceOrder?: string[];
+        customBoardThemes?: BoardThemeDefinition[];
+      };
+    };
   }
 
   // Push subscription endpoints

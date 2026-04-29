@@ -64,6 +64,12 @@ const cardViewQuerySchema = z.object({
   fields: z.string().optional(),
 });
 
+const reorderCardsBulkReflowSchema = z.object({
+  listId: z.string().min(1),
+  cardIds: z.array(z.string().min(1)),
+  mode: z.literal('bulk_reflow'),
+});
+
 // Create card
 router.post('/', async (req, res, next) => {
   try {
@@ -157,24 +163,14 @@ router.get('/list/:listId', async (req, res, next) => {
   }
 });
 
-// Reorder cards (must be registered before PUT /:id or "reorder" is parsed as a card id)
+// Deprecated for interactive DnD; reserved for admin/bulk list reflow operations.
+// Must be registered before PUT /:id or "reorder" is parsed as a card id.
 router.put('/reorder', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const { listId, cardIds } = req.body;
+    const { listId, cardIds, mode } = reorderCardsBulkReflowSchema.parse(req.body);
 
-    if (!listId || !Array.isArray(cardIds)) {
-      res.status(400).json({
-        error: {
-          message: 'listId and cardIds array are required',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-        },
-      });
-      return;
-    }
-
-    const success = await reorderCards(listId, cardIds, authReq.user.id);
+    const success = await reorderCards(listId, cardIds, authReq.user.id, { mode });
     if (!success) {
       res.status(404).json({
         error: {
@@ -187,11 +183,24 @@ router.put('/reorder', async (req, res, next) => {
     }
 
     res.json({
-      message: 'Cards reordered successfully',
+      message: 'Cards reordered successfully (bulk reflow mode)',
       listId: String(listId),
       orderedCardIds: [...cardIds].map((id: unknown) => String(id)),
+      mode,
+      deprecatedForInteractiveDnD: true,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          details: error.issues,
+        },
+      });
+      return;
+    }
     if (error instanceof Error && (error.message.includes('not found') || error.message.includes('permissions'))) {
       res.status(400).json({
         error: {

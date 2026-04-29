@@ -24,6 +24,8 @@ import { resolveBoardNavbarIconUrl } from '../../shared/types/appBranding.js';
 import { buildKanbanBoardEditCaps } from '../hooks/kanbanBoardEditCaps.js';
 import { useBoardPermissions } from '../hooks/useBoardPermissions.js';
 import { getBoardPageThemeStyle } from '../utils/boardThemeStyle.js';
+import type { ScaleMode } from '../components/board/scaleModePolicy.js';
+import { env } from '../config/env.js';
 import '../components/board/boardView.css';
 
 const KANBAN_VIEW_SUSPENSE_FALLBACK = (
@@ -36,6 +38,10 @@ export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const forcedScaleMode = (
+    searchParams.get('scaleMode')?.trim() ??
+    env.BOARD_SCALE_FIXTURE_MODE.trim()
+  ) as ScaleMode | '';
   const overlayCardId = searchParams.get('card')?.trim() || null;
   const board = useBoardRuntimeStore((s) => s.board);
   const workspaceIdForPermissions = board?.workspaceId;
@@ -75,8 +81,23 @@ export default function BoardPage() {
         const ok = await bootstrapBoardRuntimeFromApi(
           requestedBoardId,
           signal != null
-            ? { signal, staged: isInitial }
-            : { staged: isInitial },
+            ? {
+                signal,
+                staged: isInitial,
+                ...(forcedScaleMode === 'large'
+                  ? { listLimit: 400, hydrateDescriptions: 'viewport' as const }
+                  : forcedScaleMode === 'extreme'
+                    ? { listLimit: 240, hydrateDescriptions: 'viewport' as const }
+                    : {}),
+              }
+            : {
+                staged: isInitial,
+                ...(forcedScaleMode === 'large'
+                  ? { listLimit: 400, hydrateDescriptions: 'viewport' as const }
+                  : forcedScaleMode === 'extreme'
+                    ? { listLimit: 240, hydrateDescriptions: 'viewport' as const }
+                    : {}),
+              },
         );
 
         if (!isMountedRef.current) return;
@@ -117,7 +138,7 @@ export default function BoardPage() {
         }
       }
     },
-    [boardId],
+    [boardId, forcedScaleMode],
   );
 
   useEffect(() => {
@@ -229,7 +250,6 @@ export default function BoardPage() {
     () => (board != null ? getBoardPageThemeStyle(board) : undefined),
     [board?.themeSettings, board?.background],
   );
-
   if (loading) {
     return (
       <Box className="min-h-screen flex items-center justify-center">

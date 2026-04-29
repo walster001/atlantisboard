@@ -4,7 +4,7 @@ import {
   useCallback,
   useMemo,
   useState,
-  useEffect,
+  useLayoutEffect,
   useRef,
   type MutableRefObject,
 } from 'react';
@@ -148,10 +148,13 @@ function virtualizedCardListPropsEqual(
 /** Native scroller only — Virtuoso depends on this `div` for scroll metrics; wrapping it breaks virtualization. */
 const KanbanVirtuosoScroller = forwardRef<HTMLDivElement, ScrollerProps>(
   function KanbanVirtuosoScroller({ style, ...props }, ref) {
+    const domProps = { ...props } as Record<string, unknown>;
+    delete domProps.containerStyle;
+    delete domProps.wrapperStyle;
     return (
       <div
         ref={ref}
-        {...props}
+        {...domProps}
         style={style}
         className="board-column__virtuoso-scroller"
       />
@@ -163,10 +166,13 @@ KanbanVirtuosoScroller.displayName = 'KanbanVirtuosoScroller';
 /** Insets card rows from the list edge; Virtuoso’s List uses inline `style` so padding must merge here (scroller-only CSS padding did not shrink item layout). */
 const KanbanVirtuosoList = forwardRef<HTMLDivElement, ListProps>(
   function KanbanVirtuosoList({ style, ...props }, ref) {
+    const domProps = { ...props } as Record<string, unknown>;
+    delete domProps.containerStyle;
+    delete domProps.wrapperStyle;
     return (
       <div
         ref={ref}
-        {...props}
+        {...domProps}
         style={
           style == null
             ? { paddingInlineEnd: 'var(--board-column-pad)' }
@@ -209,7 +215,28 @@ function VirtualizedCardListInner({
   showKanbanCardMenu,
   kanbanCardBodyDraggable,
 }: VirtualizedCardListProps) {
-  const listBodyDropRef = useRef<HTMLDivElement | null>(null);
+  const listBodyDropCleanupRef = useRef<(() => void) | null>(null);
+  const setListBodyDropRef = useCallback(
+    (node: HTMLDivElement | null): void => {
+      listBodyDropCleanupRef.current?.();
+      listBodyDropCleanupRef.current = null;
+      if (node == null) {
+        return;
+      }
+      listBodyDropCleanupRef.current = dropTargetForElements({
+        element: node,
+        getData: () =>
+          ({
+            pdnd: PDND_KANBAN_LIST_BODY,
+            kind: 'kanban-list-body',
+            listId,
+          }) as const,
+        getIsSticky: () => true,
+      });
+    },
+    [listId],
+  );
+
   const measureRafRef = useRef<number | null>(null);
   const maxBodyPx = cardListMaxBodyPx;
   const [measuredTotalListPx, setMeasuredTotalListPx] = useState(0);
@@ -229,7 +256,7 @@ function VirtualizedCardListInner({
   const usePlainScroll =
     sortedCards.length > 0 && sortedCards.length <= KANBAN_CARD_COUNT_VIRTUALIZE_THRESHOLD;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (usePlainScroll) {
       return undefined;
     }
@@ -323,7 +350,9 @@ function VirtualizedCardListInner({
       matches &&
       di.anchorCardId === lastCardId &&
       di.columnIntent === 'below';
-    return { matches, showEmpty, lastCardId, showBelowLastInFooter, di };
+    const showAppendEndInFooter =
+      sortedCards.length > 0 && di != null && matches && di.columnIntent === 'append-end';
+    return { matches, showEmpty, lastCardId, showBelowLastInFooter, showAppendEndInFooter, di };
   }, [dropIndicator, listId, sortedCards]);
 
   const renderCardRow = useCallback(
@@ -387,7 +416,10 @@ function VirtualizedCardListInner({
           </Box>
         ) : null,
       Footer: () => {
-        if (!listDropChrome.showBelowLastInFooter || listDropChrome.di == null) {
+        if (
+          (!listDropChrome.showBelowLastInFooter && !listDropChrome.showAppendEndInFooter) ||
+          listDropChrome.di == null
+        ) {
           return null;
         }
         return (
@@ -405,27 +437,10 @@ function VirtualizedCardListInner({
     [renderCardRow],
   );
 
-  useEffect(() => {
-    const el = listBodyDropRef.current;
-    if (el == null) {
-      return undefined;
-    }
-    return dropTargetForElements({
-      element: el,
-      getData: () =>
-        ({
-          pdnd: PDND_KANBAN_LIST_BODY,
-          kind: 'kanban-list-body',
-          listId,
-        }) as const,
-      getIsSticky: () => true,
-    });
-  }, [listId]);
-
   if (usePlainScroll) {
     return (
       <Box
-        ref={listBodyDropRef}
+        ref={setListBodyDropRef}
         className="board-column__cards board-column__cards--plain"
         style={{
           flex: '1 1 auto',
@@ -439,7 +454,8 @@ function VirtualizedCardListInner({
         {sortedCards.map((card) => (
           <Box key={card.id}>{renderCardRow(card)}</Box>
         ))}
-        {listDropChrome.showBelowLastInFooter && listDropChrome.di != null ? (
+        {(listDropChrome.showBelowLastInFooter || listDropChrome.showAppendEndInFooter) &&
+        listDropChrome.di != null ? (
           <Box pb="xs" px={0}>
             <CardDropShadowIndicator target={listDropChrome.di} />
           </Box>
@@ -451,7 +467,7 @@ function VirtualizedCardListInner({
   if (sortedCards.length === 0) {
     return (
       <Box
-        ref={listBodyDropRef}
+        ref={setListBodyDropRef}
         className="board-column__cards board-column__cards--virtual"
         style={{
           flex: '1 1 auto',
@@ -472,7 +488,7 @@ function VirtualizedCardListInner({
 
   return (
     <Box
-      ref={listBodyDropRef}
+      ref={setListBodyDropRef}
       className="board-column__cards board-column__cards--virtual"
       style={{
         flex: '1 1 auto',

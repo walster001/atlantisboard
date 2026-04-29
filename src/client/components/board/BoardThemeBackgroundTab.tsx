@@ -4,6 +4,7 @@ import { modals } from '@mantine/modals';
 import { IconPalette, IconPhoto } from '@tabler/icons-react';
 import smartcrop from 'smartcrop';
 import { api } from '../../utils/api.js';
+import { useAuthContext } from '../../contexts/AuthContext.js';
 import { transformBoard } from '../../utils/transform.js';
 import {
   BOARD_DEFAULT_THEME_ID,
@@ -35,6 +36,7 @@ interface BoardThemeBackgroundTabProps {
 type ThemeNav = 'theme' | 'background';
 
 export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThemeBackgroundTabProps) {
+  const { refreshUser } = useAuthContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -185,6 +187,7 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         const normalized = normalizeBoardThemeSettings(next, draft);
         const nextGlobalThemes = normalized.customThemes.map((theme) => cloneTheme(theme));
         await api.updateUserPreferences({ customBoardThemes: nextGlobalThemes });
+        await refreshUser();
         setAppCustomThemes(nextGlobalThemes);
         const background = resolveBoardBackgroundFromThemeSettings(normalized);
         await api.updateBoard(boardId, {
@@ -228,7 +231,12 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
     );
     const nextGlobalThemes = [...appCustomThemes.map((entry) => cloneTheme(entry)), copy];
     setAppCustomThemes(nextGlobalThemes);
-    void api.updateUserPreferences({ customBoardThemes: nextGlobalThemes }).catch(() => {
+    void api.updateUserPreferences({ customBoardThemes: nextGlobalThemes }).then(
+      () => refreshUser(),
+      () => {
+        setError('Failed to save app-wide custom theme copy');
+      },
+    ).catch(() => {
       setError('Failed to save app-wide custom theme copy');
     });
   }, [appCustomThemes]);
@@ -263,14 +271,19 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
           const normalized = normalizeBoardThemeSettings(merged, prev);
           const nextGlobalThemes = normalized.customThemes.map((entry) => cloneTheme(entry));
           setAppCustomThemes(nextGlobalThemes);
-          void api.updateUserPreferences({ customBoardThemes: nextGlobalThemes }).catch(() => {
+          void api.updateUserPreferences({ customBoardThemes: nextGlobalThemes }).then(
+            () => refreshUser(),
+            () => {
+              setError('Failed to delete app-wide custom theme');
+            },
+          ).catch(() => {
             setError('Failed to delete app-wide custom theme');
           });
           return normalized;
         });
       },
     });
-  }, []);
+  }, [refreshUser]);
 
   const handleBackgroundModeChange = useCallback((mode: string | null) => {
     setDraft((prev) => ({

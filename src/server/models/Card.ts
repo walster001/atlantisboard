@@ -62,6 +62,8 @@ export interface ICard extends Document {
   descriptionPreview: string;
   descriptionCharCount: number;
   position: number;
+  /** Trello-style fractional order within the list (sort key; `position` is a dense index cache). */
+  pos?: number;
   color?: string;
   cover?: string;
   labels: ICardLabel[];
@@ -222,6 +224,10 @@ const CardSchema = new Schema<ICard>(
       default: 0,
       index: true,
     },
+    pos: {
+      type: Number,
+      index: true,
+    },
     color: String,
     cover: String,
     labels: [CardLabelSchema],
@@ -258,6 +264,7 @@ const CardSchema = new Schema<ICard>(
 );
 
 CardSchema.index({ listId: 1, position: 1 });
+CardSchema.index({ listId: 1, pos: 1 });
 CardSchema.index({ boardId: 1, dueDate: 1 });
 CardSchema.index({ createdBy: 1 });
 CardSchema.index({ assignees: 1 });

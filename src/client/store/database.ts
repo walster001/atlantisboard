@@ -93,6 +93,8 @@ export interface CardDB {
   descriptionPreview?: string;
   descriptionCharCount?: number;
   position: number;
+  /** Fractional order within list (server); optional on older IndexedDB rows. */
+  pos?: number;
   color?: string;
   cover?: string;
   labels: Array<{

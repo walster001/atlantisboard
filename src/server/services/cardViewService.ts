@@ -1,4 +1,5 @@
 import type { ICard } from '../models/Card.js';
+import { spreadPosForIndex } from '../../shared/utils/cardListPos.js';
 import type { ChecklistProgressDTO, CardDetailDTO, CardSummaryDTO } from '../../shared/types/viewModels.js';
 
 export type CardViewMode = 'summary' | 'detail';
@@ -66,12 +67,15 @@ export function computeChecklistProgress(checklists: ICard['checklists']): Check
 }
 
 export function toCardSummary(card: ICard): CardSummaryDTO {
+  const pos =
+    typeof card.pos === 'number' && Number.isFinite(card.pos) ? card.pos : spreadPosForIndex(card.position);
   return {
     id: card._id.toString(),
     listId: card.listId.toString(),
     boardId: card.boardId.toString(),
     title: card.title,
     position: card.position,
+    pos,
     ...(card.color !== undefined ? { color: card.color } : {}),
     ...(card.cover !== undefined ? { cover: card.cover } : {}),
     labels: card.labels,
@@ -93,6 +97,8 @@ export function toCardSummary(card: ICard): CardSummaryDTO {
 }
 
 export function toCardDetail(card: ICard): CardDetailDTO {
+  const pos =
+    typeof card.pos === 'number' && Number.isFinite(card.pos) ? card.pos : spreadPosForIndex(card.position);
   return {
     id: card._id.toString(),
     listId: card.listId.toString(),
@@ -105,6 +111,7 @@ export function toCardDetail(card: ICard): CardDetailDTO {
     descriptionPreview: card.descriptionPreview,
     descriptionCharCount: card.descriptionCharCount,
     position: card.position,
+    pos,
     ...(card.color !== undefined ? { color: card.color } : {}),
     ...(card.cover !== undefined ? { cover: card.cover } : {}),
     labels: card.labels,

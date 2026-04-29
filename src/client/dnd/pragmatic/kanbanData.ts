@@ -113,7 +113,7 @@ export function pickKanbanCardDropTargetData(
 
   for (const t of dropTargets) {
     const rec = asRecord(t.data);
-    if (readPdnd(rec) === PDND_KANBAN_CARD) {
+    if (readPdnd(rec) === PDND_KANBAN_CARD_DROP) {
       return rec;
     }
   }

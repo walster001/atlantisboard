@@ -3,7 +3,6 @@ import {
   useCallback,
   useMemo,
   memo,
-  useEffect,
   useLayoutEffect,
   useRef,
   type MutableRefObject,
@@ -24,6 +23,7 @@ import { notifications } from '@mantine/notifications';
 import { IconDots } from '@tabler/icons-react';
 import { db, type ListDB, type CardDB, type BoardDB } from '../../store/database.js';
 import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
+import { useBoardInteractionStore } from './boardInteractionStore.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
 import { api } from '../../utils/api.js';
 import { transformList, normalizeCardFromApi } from '../../utils/transform.js';
@@ -139,12 +139,12 @@ function SortableListInner({
   const [renameModalCardId, setRenameModalCardId] = useState<string | null>(null);
   const [renameCardTitle, setRenameCardTitle] = useState('');
   const [renameCardLoading, setRenameCardLoading] = useState(false);
-  const [cardMenuCardId, setCardMenuCardId] = useState<string | null>(null);
-  const cardListDelegationRef = useRef<HTMLDivElement | null>(null);
   const listTitleDragRef = useRef<HTMLDivElement | null>(null);
   const listColumnDropRef = useRef<HTMLDivElement | null>(null);
-  const cardMenuAnchorRectRef = useRef<DOMRect | null>(null);
+  const listDndCleanupRef = useRef<(() => void) | null>(null);
   const cardMenuFloatingTargetRef = useRef<HTMLButtonElement | null>(null);
+  const cardMenuTarget = useBoardInteractionStore((s) => s.cardMenuTarget);
+  const closeCardMenu = useBoardInteractionStore((s) => s.closeCardMenu);
 
   const sortedCards = useMemo(
     () => [...cards].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)),
@@ -155,7 +155,11 @@ function SortableListInner({
   const renameTargetCard = renameModalCardId != null ? sortedCards.find((c) => c.id === renameModalCardId) : null;
 
   const openCardMenuCardId =
-    cardMenuCardId != null && sortedCards.some((c) => c.id === cardMenuCardId) ? cardMenuCardId : null;
+    cardMenuTarget != null &&
+    cardMenuTarget.listId === list.id &&
+    sortedCards.some((c) => c.id === cardMenuTarget.cardId)
+      ? cardMenuTarget.cardId
+      : null;
 
   useLayoutEffect(() => {
     const floater = cardMenuFloatingTargetRef.current;
@@ -177,7 +181,7 @@ function SortableListInner({
       });
       return;
     }
-    const rect = cardMenuAnchorRectRef.current;
+    const rect = cardMenuTarget?.anchorRect ?? null;
     if (rect == null) {
       return;
     }
@@ -191,51 +195,17 @@ function SortableListInner({
       pointerEvents: 'none',
       zIndex: '500',
     });
-  }, [openCardMenuCardId]);
+  }, [openCardMenuCardId, cardMenuTarget?.anchorRect]);
 
-  useEffect(() => {
-    const root = cardListDelegationRef.current;
-    if (root == null) {
-      return undefined;
-    }
-    const onClickCapture = (e: MouseEvent): void => {
-      const t = e.target;
-      if (!(t instanceof Element)) {
-        return;
-      }
-      const trigger = t.closest<HTMLElement>('[data-kanban-card-menu-trigger="1"]');
-      if (trigger == null) {
-        return;
-      }
-      /* Card root must include list id; the ⋮ button also has data-kanban-card-id, so :closest would match the button first. */
-      const cardRoot = trigger.closest<HTMLElement>(
-        '[data-kanban-list-id][data-kanban-card-id]',
-      );
-      if (cardRoot?.getAttribute('data-kanban-list-id') !== list.id) {
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      const cardId = trigger.getAttribute('data-kanban-card-id');
-      if (cardId == null || cardId === '') {
-        return;
-      }
-      cardMenuAnchorRectRef.current = trigger.getBoundingClientRect();
-      setCardMenuCardId(cardId);
-    };
-    root.addEventListener('click', onClickCapture, true);
-    return () => {
-      root.removeEventListener('click', onClickCapture, true);
-    };
-  }, [list.id, kanbanCaps.canCardKanbanMenu]);
-
-  useEffect(() => {
+  const bindListDnd = useCallback((): void => {
+    listDndCleanupRef.current?.();
+    listDndCleanupRef.current = null;
     const columnEl = listColumnDropRef.current;
     const titleEl = listTitleDragRef.current;
     if (columnEl == null || titleEl == null) {
-      return undefined;
+      return;
     }
-    return combine(
+    listDndCleanupRef.current = combine(
       dropTargetForElements({
         element: columnEl,
         getData: ({ element, input }) =>
@@ -263,18 +233,26 @@ function SortableListInner({
     );
   }, [list.id, list.name, kanbanCaps.canReorderLists]);
 
+  useLayoutEffect(() => {
+    bindListDnd();
+    return () => {
+      listDndCleanupRef.current?.();
+      listDndCleanupRef.current = null;
+    };
+  }, [bindListDnd]);
+
   const closeCardComposer = useCallback((): void => {
     setCardComposerOpen(false);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!kanbanCaps.canAddCard && cardComposerOpen) {
       setCardComposerOpen(false);
     }
     if (!kanbanCaps.canCardKanbanMenu) {
-      setCardMenuCardId(null);
+      closeCardMenu();
     }
-  }, [kanbanCaps.canAddCard, kanbanCaps.canCardKanbanMenu, cardComposerOpen]);
+  }, [kanbanCaps.canAddCard, kanbanCaps.canCardKanbanMenu, cardComposerOpen, closeCardMenu]);
 
   const handleInlineCardCreated = useCallback(
     (cardDb: CardDB) => {
@@ -620,7 +598,10 @@ function SortableListInner({
 
   return (
     <Box
-      ref={listColumnDropRef}
+      ref={(node) => {
+        listColumnDropRef.current = node;
+        bindListDnd();
+      }}
       className={columnClassName}
       style={columnBoxStyle}
       data-kanban-list-id={list.id}
@@ -634,7 +615,10 @@ function SortableListInner({
         className="board-column__header-row"
       >
         <Box
-          ref={listTitleDragRef}
+          ref={(node) => {
+            listTitleDragRef.current = node;
+            bindListDnd();
+          }}
           className="board-column__title-row"
           style={{ flex: 1, minWidth: 0, touchAction: 'none' }}
         >
@@ -704,10 +688,7 @@ function SortableListInner({
         ) : null}
       </Group>
 
-      <Box
-        ref={cardListDelegationRef}
-        style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
-      >
+      <Box style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <VirtualizedCardList
           cards={cards}
           listId={list.id}
@@ -733,7 +714,7 @@ function SortableListInner({
           opened={openCardMenuCardId != null}
           onChange={(opened) => {
             if (!opened) {
-              setCardMenuCardId(null);
+              closeCardMenu();
             }
           }}
           position="bottom-end"
@@ -758,7 +739,7 @@ function SortableListInner({
                 if (cardMenuTargetCard != null) {
                   setColourModalCardId(cardMenuTargetCard.id);
                 }
-                setCardMenuCardId(null);
+                closeCardMenu();
               }}
             >
               Card colour
@@ -770,7 +751,7 @@ function SortableListInner({
                   setRenameCardTitle(cardMenuTargetCard.title);
                   setRenameModalCardId(cardMenuTargetCard.id);
                 }
-                setCardMenuCardId(null);
+                closeCardMenu();
               }}
             >
               Rename card
@@ -783,7 +764,7 @@ function SortableListInner({
                 if (cardMenuTargetCard != null) {
                   openDeleteCardForId(cardMenuTargetCard.id);
                 }
-                setCardMenuCardId(null);
+                closeCardMenu();
               }}
             >
               Delete card

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { BoardDB, BoardSettingsLivePatch, CardDB, ListDB } from './database.js';
+import { compareCardListOrder, spreadPosForIndex } from '../../shared/utils/cardListPos.js';
 import { moveCardBetweenListsInMap, withRenumberedPositions } from './kanbanDragPure.js';
 
 function sortListIdsByPosition(listsById: Readonly<Record<string, ListDB>>): string[] {
@@ -15,7 +16,7 @@ function rebuildCardIdsForList(
 ): string[] {
   return Object.values(cardsById)
     .filter((c) => c.listId === listId)
-    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+    .sort((a, b) => compareCardListOrder(a, b))
     .map((c) => c.id);
 }
 
@@ -28,6 +29,39 @@ function rebuildAllCardIdsByList(
     out[lid] = rebuildCardIdsForList(lid, cardsById);
   }
   return out;
+}
+
+function removeCardIdFromList(ids: readonly string[], cardId: string): string[] {
+  if (!ids.includes(cardId)) {
+    return [...ids];
+  }
+  return ids.filter((id) => id !== cardId);
+}
+
+function insertCardIdByPosition(
+  existingIds: readonly string[],
+  cardId: string,
+  position: number,
+): string[] {
+  const without = removeCardIdFromList(existingIds, cardId);
+  const clamped = Math.max(0, Math.min(position, without.length));
+  const out = [...without];
+  out.splice(clamped, 0, cardId);
+  return out;
+}
+
+function normalizeListCardPositions(
+  cardsById: Record<string, CardDB>,
+  listId: string,
+  orderedCardIds: readonly string[],
+): void {
+  for (let i = 0; i < orderedCardIds.length; i += 1) {
+    const id = orderedCardIds[i];
+    const row = cardsById[id];
+    if (row != null && row.listId === listId && row.position !== i) {
+      cardsById[id] = { ...row, position: i };
+    }
+  }
 }
 
 export function buildKanbanCardsMapFromRuntimeState(s: BoardRuntimeSlice): Map<string, CardDB[]> {
@@ -65,8 +99,20 @@ type BoardRuntimeActions = {
   setListsFromArray: (lists: readonly ListDB[]) => void;
   applyListsPositionsFromOrder: (orderedListIds: readonly string[]) => void;
   upsertCard: (card: CardDB) => void;
+  upsertCards: (cards: readonly CardDB[]) => void;
   removeCard: (cardId: string) => void;
-  applyCardsReorderedInList: (listId: string, orderedCardIds: readonly string[]) => void;
+  applyCardsReorderedInList: (
+    listId: string,
+    orderedCardIds: readonly string[],
+    orderedPos?: readonly number[],
+  ) => void;
+  applyCardsBulkPositionPatch: (
+    patches: ReadonlyArray<{
+      listId: string;
+      orderedCardIds: readonly string[];
+      orderedPos?: readonly number[];
+    }>,
+  ) => void;
   applyListsBulkColor: (colorTrimmed: string) => void;
   applyCardsBulkColor: (listId: string | null, colorTrimmed: string) => void;
   applyLabelsRemovedBulk: (labelId: string, affectedCardIds: readonly string[]) => void;
@@ -229,18 +275,51 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
     set((s) => {
       const prev = s.cardsById[card.id];
       const cardsById = { ...s.cardsById, [card.id]: card };
-      let cardIdsByListId = { ...s.cardIdsByListId };
+      const cardIdsByListId = { ...s.cardIdsByListId };
       if (prev != null && prev.listId !== card.listId) {
-        cardIdsByListId = {
-          ...cardIdsByListId,
-          [prev.listId]: rebuildCardIdsForList(prev.listId, cardsById),
-          [card.listId]: rebuildCardIdsForList(card.listId, cardsById),
-        };
+        const fromIds = removeCardIdFromList(cardIdsByListId[prev.listId] ?? [], card.id);
+        cardIdsByListId[prev.listId] = fromIds;
+        const toIds = insertCardIdByPosition(cardIdsByListId[card.listId] ?? [], card.id, card.position);
+        cardIdsByListId[card.listId] = toIds;
+        normalizeListCardPositions(cardsById, prev.listId, fromIds);
+        normalizeListCardPositions(cardsById, card.listId, toIds);
       } else {
-        cardIdsByListId = {
-          ...cardIdsByListId,
-          [card.listId]: rebuildCardIdsForList(card.listId, cardsById),
-        };
+        const nextIds = insertCardIdByPosition(cardIdsByListId[card.listId] ?? [], card.id, card.position);
+        cardIdsByListId[card.listId] = nextIds;
+        normalizeListCardPositions(cardsById, card.listId, nextIds);
+      }
+      return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
+    });
+  },
+
+  upsertCards: (cards) => {
+    if (cards.length === 0) {
+      return;
+    }
+    const activeBoardId = get().activeBoardId;
+    if (activeBoardId == null) {
+      return;
+    }
+    set((s) => {
+      const cardsById: Record<string, CardDB> = { ...s.cardsById };
+      const touchedListIds = new Set<string>();
+      for (const card of cards) {
+        if (card.boardId !== activeBoardId) {
+          continue;
+        }
+        const prev = cardsById[card.id];
+        cardsById[card.id] = card;
+        touchedListIds.add(card.listId);
+        if (prev != null) {
+          touchedListIds.add(prev.listId);
+        }
+      }
+      if (touchedListIds.size === 0) {
+        return s;
+      }
+      const cardIdsByListId = { ...s.cardIdsByListId };
+      for (const listId of touchedListIds) {
+        cardIdsByListId[listId] = rebuildCardIdsForList(listId, cardsById);
       }
       return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
     });
@@ -253,15 +332,18 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
         return s;
       }
       const { [cardId]: _r, ...rest } = s.cardsById;
+      const nextListIds = removeCardIdFromList(s.cardIdsByListId[prev.listId] ?? [], cardId);
+      const normalizedRest = { ...rest };
+      normalizeListCardPositions(normalizedRest, prev.listId, nextListIds);
       const cardIdsByListId = {
         ...s.cardIdsByListId,
-        [prev.listId]: rebuildCardIdsForList(prev.listId, rest),
+        [prev.listId]: nextListIds,
       };
-      return { cardsById: rest, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
+      return { cardsById: normalizedRest, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
     });
   },
 
-  applyCardsReorderedInList: (listId, orderedCardIds) => {
+  applyCardsReorderedInList: (listId, orderedCardIds, orderedPos) => {
     set((s) => {
       const prevOrdered = s.cardIdsByListId[listId] ?? [];
       const sameOrder =
@@ -271,17 +353,62 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
         return s;
       }
       const cardsById = { ...s.cardsById };
+      const hasServerPos =
+        orderedPos != null &&
+        orderedPos.length === orderedCardIds.length &&
+        orderedPos.every((p) => typeof p === 'number' && Number.isFinite(p));
       for (let i = 0; i < orderedCardIds.length; i += 1) {
         const id = orderedCardIds[i];
         const row = cardsById[id];
         if (row != null && row.listId === listId) {
-          cardsById[id] = { ...row, position: i };
+          const pos = hasServerPos ? orderedPos[i]! : spreadPosForIndex(i);
+          cardsById[id] = { ...row, position: i, pos };
         }
       }
       const cardIdsByListId = {
         ...s.cardIdsByListId,
         [listId]: [...orderedCardIds],
       };
+      return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
+    });
+  },
+
+  applyCardsBulkPositionPatch: (patches) => {
+    if (patches.length === 0) {
+      return;
+    }
+    set((s) => {
+      const cardsById = { ...s.cardsById };
+      const cardIdsByListId = { ...s.cardIdsByListId };
+      let touched = false;
+      for (const patch of patches) {
+        const listId = patch.listId;
+        const orderedIds = [...patch.orderedCardIds];
+        const orderedPos = patch.orderedPos;
+        const prev = cardIdsByListId[listId] ?? [];
+        const sameOrder =
+          prev.length === orderedIds.length && prev.every((id, i) => id === orderedIds[i]);
+        if (sameOrder) {
+          continue;
+        }
+        touched = true;
+        cardIdsByListId[listId] = orderedIds;
+        const hasServerPos =
+          orderedPos != null &&
+          orderedPos.length === orderedIds.length &&
+          orderedPos.every((p) => typeof p === 'number' && Number.isFinite(p));
+        for (let i = 0; i < orderedIds.length; i += 1) {
+          const id = orderedIds[i];
+          const row = cardsById[id];
+          const pos = hasServerPos ? orderedPos[i]! : spreadPosForIndex(i);
+          if (row != null && (row.listId !== listId || row.position !== i || row.pos !== pos)) {
+            cardsById[id] = { ...row, listId, position: i, pos };
+          }
+        }
+      }
+      if (!touched) {
+        return s;
+      }
       return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
     });
   },
@@ -426,7 +553,18 @@ export function boardRuntimeApplySetCardsFromUpdater(
   }
   const prevMap = buildKanbanCardsMapFromRuntimeState(store);
   const nextMap = updater(prevMap);
-  store.applyKanbanCardsMapPartial(nextMap);
+  const partial = new Map<string, CardDB[]>();
+  for (const [listId, nextCards] of nextMap) {
+    const prevCards = prevMap.get(listId) ?? [];
+    const unchanged =
+      prevCards.length === nextCards.length && prevCards.every((card, idx) => card.id === nextCards[idx]?.id);
+    if (!unchanged) {
+      partial.set(listId, nextCards);
+    }
+  }
+  if (partial.size > 0) {
+    store.applyKanbanCardsMapPartial(partial);
+  }
 }
 
 export function boardRuntimeMoveCardBetweenLists(
@@ -449,4 +587,14 @@ export function boardRuntimeRenumberListOrder(activeListId: string, renumbered: 
 export function boardRuntimeReorderSingleListCards(activeListId: string, newListCards: readonly CardDB[]): void {
   const renumbered = withRenumberedPositions([...newListCards]);
   boardRuntimeRenumberListOrder(activeListId, renumbered);
+}
+
+export function boardRuntimeApplyBulkListCardOrderPatches(
+  patches: ReadonlyArray<{
+    listId: string;
+    orderedCardIds: readonly string[];
+    orderedPos?: readonly number[];
+  }>,
+): void {
+  useBoardRuntimeStore.getState().applyCardsBulkPositionPatch(patches);
 }

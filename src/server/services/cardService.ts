@@ -19,6 +19,14 @@ import type { CardDetailDTO, CardSummaryDTO } from '../../shared/types/viewModel
 import { renderCardDescriptionHtml } from '../utils/cardDescriptionHtml.js';
 import { CARD_TITLE_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 import { removeImportInlineObjectsForCardFields } from './importInlineAssetService.js';
+import {
+  CARD_POS_STEP,
+  compareCardListOrder,
+  insertPosBetween,
+  posGapTooSmall,
+  posNeedsNormalize,
+  spreadPosForIndex,
+} from '../../shared/utils/cardListPos.js';
 
 function getBoardListCardLimits(board: Document & IBoard): { max: number; enforce: boolean } {
   const s = board.settings;
@@ -49,6 +57,59 @@ export interface UpdateCardInput {
   startDate?: Date | null | undefined;
   endDate?: Date | null | undefined;
   completed?: boolean | undefined;
+}
+
+type CardPosLeanRow = { _id: mongoose.Types.ObjectId; pos?: number; position: number };
+
+function sortCardRowsByPos(rows: readonly CardPosLeanRow[]): CardPosLeanRow[] {
+  return [...rows].sort((a, b) => {
+    const ap = typeof a.pos === 'number' && Number.isFinite(a.pos) ? a.pos : (a.position + 1) * CARD_POS_STEP;
+    const bp = typeof b.pos === 'number' && Number.isFinite(b.pos) ? b.pos : (b.position + 1) * CARD_POS_STEP;
+    if (ap !== bp) {
+      return ap - bp;
+    }
+    return String(a._id).localeCompare(String(b._id));
+  });
+}
+
+async function ensureCardsHavePosForList(listId: string | mongoose.Types.ObjectId): Promise<void> {
+  const lid = typeof listId === 'string' ? listId : listId.toString();
+  const anyMissing = await Card.exists({
+    listId: lid,
+    $or: [{ pos: { $exists: false } }, { pos: null }],
+  });
+  if (!anyMissing) {
+    return;
+  }
+  const cards = await Card.find({ listId: lid }).sort({ position: 1, _id: 1 }).lean();
+  await Promise.all(
+    cards.map((c, i) =>
+      Card.findByIdAndUpdate(c._id, { pos: spreadPosForIndex(i), position: i }),
+    ),
+  );
+}
+
+async function syncListPositionsFromPosOrder(listId: string | mongoose.Types.ObjectId): Promise<void> {
+  const lid = typeof listId === 'string' ? listId : listId.toString();
+  const rows = sortCardRowsByPos(
+    await Card.find({ listId: lid }).select('pos position').lean<CardPosLeanRow[]>(),
+  );
+  await Promise.all(rows.map((row, i) => Card.findByIdAndUpdate(row._id, { position: i })));
+}
+
+/** Re-spread `pos` to STEP,2*STEP,... and dense `position` indices (Trello-style periodic normalize). */
+export async function normalizeListPosSpread(listId: string | mongoose.Types.ObjectId): Promise<{
+  orderedIds: string[];
+  orderedPos: number[];
+}> {
+  const lid = typeof listId === 'string' ? listId : listId.toString();
+  const rows = sortCardRowsByPos(
+    await Card.find({ listId: lid }).select('pos position').lean<CardPosLeanRow[]>(),
+  );
+  const orderedIds = rows.map((r) => r._id.toString());
+  const orderedPos = rows.map((_, i) => spreadPosForIndex(i));
+  await Promise.all(rows.map((r, i) => Card.findByIdAndUpdate(r._id, { pos: orderedPos[i], position: i })));
+  return { orderedIds, orderedPos };
 }
 
 function dateValueMs(value: Date | undefined | null): number | null {
@@ -96,14 +157,24 @@ export async function createCard(input: CreateCardInput, userId: string): Promis
     }
   }
 
-  // Get max position if not provided
+  await ensureCardsHavePosForList(input.listId);
+
   let position = input.position;
   if (position === undefined) {
-    const maxCard = await Card.findOne({ listId: input.listId })
-      .sort({ position: -1 })
-      .limit(1);
-    position = maxCard ? maxCard.position + 1 : 0;
+    const count = await Card.countDocuments({ listId: input.listId });
+    position = count;
   }
+
+  const maxPosDoc = await Card.findOne({ listId: input.listId }).sort({ pos: -1 }).limit(1).lean<{
+    pos?: number;
+    position: number;
+  } | null>();
+  const maxPos =
+    maxPosDoc != null && typeof maxPosDoc.pos === 'number' && Number.isFinite(maxPosDoc.pos)
+      ? maxPosDoc.pos
+      : null;
+  const nextPos =
+    maxPos != null ? maxPos + CARD_POS_STEP : spreadPosForIndex(Math.max(0, Math.floor(position)));
 
   const descriptionPreviewData = deriveCardDescriptionPreview(input.description);
   const descriptionHtml = renderCardDescriptionHtml(input.description);
@@ -119,6 +190,7 @@ export async function createCard(input: CreateCardInput, userId: string): Promis
     descriptionCharCount: descriptionPreviewData.charCount,
     descriptionHtml,
     position,
+    pos: nextPos,
     createdBy: userId,
     completed: false,
     labels: [],
@@ -190,9 +262,24 @@ export async function getCardsByList(
   if (!allowed) {
     throw new Error('Insufficient permissions to view cards');
   }
-  const cards = await Card.find({ listId }).sort({ position: 1 });
+  const cardsLean = await Card.find({ listId }).lean<ICard[]>();
+  cardsLean.sort((a, b) =>
+    compareCardListOrder(
+      {
+        ...(typeof a.pos === 'number' && Number.isFinite(a.pos) ? { pos: a.pos } : {}),
+        position: a.position,
+        id: a._id.toString(),
+      },
+      {
+        ...(typeof b.pos === 'number' && Number.isFinite(b.pos) ? { pos: b.pos } : {}),
+        position: b.position,
+        id: b._id.toString(),
+      },
+    ),
+  );
+  const cards = cardsLean;
   if (options?.view === 'summary') {
-    const summaries = cards.map((card) => toCardSummary(card));
+    const summaries = cards.map((card) => toCardSummary(card as unknown as ICard));
     if (Array.isArray(options.fields) && options.fields.length > 0) {
       return summaries.map((summary) => {
         const selected: Record<string, unknown> = {};
@@ -409,92 +496,107 @@ export async function moveCard(
     }
   }
 
-  // Store original listId for audit log
   const originalListId = card.listId.toString();
-  const originalPosition = card.position;
   const desiredTargetPosition = Math.max(0, Math.floor(position));
+  const normalizedListIds = new Set<string>();
 
-  // Reorder other cards in target list to make room
-  await Card.updateMany(
-    {
-      listId: targetListId,
-      _id: { $ne: cardId },
-      position: { $gte: desiredTargetPosition },
-    },
-    { $inc: { position: 1 } }
-  );
+  await ensureCardsHavePosForList(targetListId);
+  await ensureCardsHavePosForList(originalListId);
 
-  if (originalListId !== targetListId) {
-    await Card.updateMany(
-      {
-        listId: originalListId,
-        _id: { $ne: cardId },
-        position: { $gt: originalPosition },
-      },
-      { $inc: { position: -1 } },
-    );
-  }
+  const rowNumericPos = (r: CardPosLeanRow): number =>
+    typeof r.pos === 'number' && Number.isFinite(r.pos) ? r.pos : (r.position + 1) * CARD_POS_STEP;
 
-  // Update card position and listId
-  card.listId = targetListId as unknown as typeof card.boardId;
-  card.position = desiredTargetPosition;
-
-  await card.save();
-
-  const normalizeListPositions = async (
-    listId: string,
-    opts?: { movedCardId?: string; movedTargetIndex?: number },
-  ): Promise<void> => {
-    const rows = await Card.find({ listId }).sort({ position: 1, _id: 1 }).select('_id').lean();
-    const ids = rows.map((row) => String(row._id));
-    let orderedIds = ids;
-    if (opts?.movedCardId != null && opts.movedTargetIndex != null) {
-      const movedId = String(opts.movedCardId);
-      const withoutMoved = ids.filter((id) => id !== movedId);
-      const clamped = Math.max(0, Math.min(opts.movedTargetIndex, withoutMoved.length));
-      orderedIds = [...withoutMoved.slice(0, clamped), movedId, ...withoutMoved.slice(clamped)];
-    }
-    if (orderedIds.length > 0) {
-      await Promise.all(
-        orderedIds.map((id, index) => Card.findByIdAndUpdate(id, { position: index })),
-      );
-    }
+  const loadTargetNeighbors = async (): Promise<CardPosLeanRow[]> => {
+    const rows = await Card.find({ listId: targetListId, _id: { $ne: cardId } })
+      .select('pos position')
+      .lean<CardPosLeanRow[]>();
+    return sortCardRowsByPos(rows);
   };
 
-  await normalizeListPositions(targetListId, {
-    movedCardId: cardId,
-    movedTargetIndex: desiredTargetPosition,
-  });
-  if (originalListId !== targetListId) {
-    await normalizeListPositions(originalListId);
+  let neighbors = await loadTargetNeighbors();
+  let neighborPos = neighbors.map(rowNumericPos);
+  if (posNeedsNormalize(neighborPos)) {
+    await normalizeListPosSpread(targetListId);
+    normalizedListIds.add(targetListId);
+    neighbors = await loadTargetNeighbors();
+    neighborPos = neighbors.map(rowNumericPos);
   }
+
+  let insertIndex = Math.min(desiredTargetPosition, neighbors.length);
+  let before = insertIndex > 0 ? neighborPos[insertIndex - 1]! : null;
+  let after = insertIndex < neighborPos.length ? neighborPos[insertIndex]! : null;
+  let newPos = insertPosBetween(before, after);
+  if (posGapTooSmall(before, after)) {
+    await normalizeListPosSpread(targetListId);
+    normalizedListIds.add(targetListId);
+    neighbors = await loadTargetNeighbors();
+    neighborPos = neighbors.map(rowNumericPos);
+    insertIndex = Math.min(desiredTargetPosition, neighbors.length);
+    before = insertIndex > 0 ? neighborPos[insertIndex - 1]! : null;
+    after = insertIndex < neighborPos.length ? neighborPos[insertIndex]! : null;
+    newPos = insertPosBetween(before, after);
+  }
+
+  card.listId = targetListId as unknown as typeof card.boardId;
+  card.set('pos', newPos);
+  card.markModified('pos');
+  await card.save();
+
+  await syncListPositionsFromPosOrder(targetListId);
+  if (originalListId !== targetListId) {
+    await syncListPositionsFromPosOrder(originalListId);
+  }
+
+  const maybeRenormalize = async (lid: string): Promise<void> => {
+    const rows = sortCardRowsByPos(
+      await Card.find({ listId: lid }).select('pos position').lean<CardPosLeanRow[]>(),
+    );
+    const pl = rows.map(rowNumericPos);
+    if (pl.length >= 2 && posNeedsNormalize(pl)) {
+      await normalizeListPosSpread(lid);
+      normalizedListIds.add(lid);
+    }
+  };
+  await maybeRenormalize(targetListId);
+  if (originalListId !== targetListId) {
+    await maybeRenormalize(originalListId);
+  }
+
   const refreshed = await Card.findById(cardId);
   if (refreshed != null) {
     card = refreshed;
   }
 
   const boardId = card.boardId.toString();
-  const targetOrderedCardIds = (
-    await Card.find({ listId: targetListId }).sort({ position: 1, _id: 1 }).select('_id').lean()
-  ).map((row) => String(row._id));
-  const listReorders: Array<{ listId: string; orderedCardIds: string[] }> = [
-    { listId: targetListId, orderedCardIds: targetOrderedCardIds },
-  ];
-  if (originalListId !== targetListId) {
-    const sourceOrderedCardIds = (
-      await Card.find({ listId: originalListId }).sort({ position: 1, _id: 1 }).select('_id').lean()
-    ).map((row) => String(row._id));
-    listReorders.push({ listId: originalListId, orderedCardIds: sourceOrderedCardIds });
-  }
-  emitToBoard(boardId, 'cards:positions-batch-updated', {
+  const serverTs = Date.now();
+  emitToBoard(boardId, 'card:updated', {
+    cardId,
     boardId,
-    fromListId: originalListId,
-    toListId: targetListId,
-    movedCardId: cardId,
-    position: desiredTargetPosition,
-    lists: listReorders,
-    serverTs: Date.now(),
+    data: card.toObject(),
+    serverTs,
   });
+  if (normalizedListIds.size > 0) {
+    const buildListPayload = async (lid: string) => {
+      const rows = sortCardRowsByPos(
+        await Card.find({ listId: lid }).select('pos position').lean<CardPosLeanRow[]>(),
+      );
+      return {
+        listId: lid,
+        orderedCardIds: rows.map((r) => r._id.toString()),
+        orderedPos: rows.map((r) => rowNumericPos(r)),
+      };
+    };
+    const listReorders = await Promise.all([...normalizedListIds].map((lid) => buildListPayload(lid)));
+    emitToBoard(boardId, 'cards:positions-batch-updated', {
+      boardId,
+      fromListId: originalListId,
+      toListId: targetListId,
+      movedCardId: cardId,
+      position: desiredTargetPosition,
+      lists: listReorders,
+      serverTs,
+    });
+  }
 
   logAuditEvent({
     userId,
@@ -519,7 +621,8 @@ export async function moveCard(
 export async function reorderCards(
   listId: string,
   cardIds: string[],
-  userId: string
+  userId: string,
+  options?: { readonly mode?: 'bulk_reflow' },
 ): Promise<boolean> {
   // Verify list exists
   const list = await List.findById(listId);
@@ -533,34 +636,49 @@ export async function reorderCards(
     throw new Error('Board not found');
   }
 
+  const mode = options?.mode ?? 'bulk_reflow';
+  if (mode !== 'bulk_reflow') {
+    throw new Error('reorderCards only supports bulk_reflow mode');
+  }
+
   if (board.ownerId.toString() !== userId) {
-    const allowed = await hasPermission({ id: userId }, list.boardId.toString(), 'cards.reorder');
-    if (!allowed) {
-      throw new Error('Insufficient permissions to reorder cards');
+    const [canReorderCards, canUpdateBoard] = await Promise.all([
+      hasPermission({ id: userId }, list.boardId.toString(), 'cards.reorder'),
+      hasPermission({ id: userId }, list.boardId.toString(), 'boards.update'),
+    ]);
+    if (!canReorderCards || !canUpdateBoard) {
+      throw new Error('Insufficient permissions to reorder cards in bulk reflow mode');
     }
   }
 
-  // Update card positions
+  await ensureCardsHavePosForList(listId);
+  const orderedPos = cardIds.map((_, index) => spreadPosForIndex(index));
   await Promise.all(
-    cardIds.map((cardId, index) =>
-      Card.findByIdAndUpdate(cardId, { position: index, listId })
-    )
+    cardIds.map((cid, index) =>
+      Card.findByIdAndUpdate(cid, { position: index, listId, pos: orderedPos[index] }),
+    ),
   );
 
   emitToBoard(list.boardId.toString(), 'cards:positions-batch-updated', {
     boardId: list.boardId.toString(),
     fromListId: listId,
     toListId: listId,
-    lists: [{ listId, orderedCardIds: [...cardIds].map(String) }],
+    lists: [
+      {
+        listId,
+        orderedCardIds: [...cardIds].map(String),
+        orderedPos,
+      },
+    ],
     serverTs: Date.now(),
   });
 
   logAuditEvent({
     userId,
-    action: 'card.reorder',
+    action: 'card.reorder.bulk_reflow',
     resourceType: 'list',
     resourceId: listId,
-    metadata: { cardIds },
+    metadata: { cardIds, mode: 'bulk_reflow' },
     timestamp: new Date(),
   });
 
@@ -604,11 +722,19 @@ export async function duplicateCard(
     }
   }
 
-  // Get position in target list
-  const maxCard = await Card.findOne({ listId: targetListId })
-    .sort({ position: -1 })
-    .limit(1);
-  const position = maxCard ? maxCard.position + 1 : 0;
+  await ensureCardsHavePosForList(targetListId);
+  const count = await Card.countDocuments({ listId: targetListId });
+  const position = count;
+  const maxPosDoc = await Card.findOne({ listId: targetListId }).sort({ pos: -1 }).limit(1).lean<{
+    pos?: number;
+    position: number;
+  } | null>();
+  const maxPos =
+    maxPosDoc != null && typeof maxPosDoc.pos === 'number' && Number.isFinite(maxPosDoc.pos)
+      ? maxPosDoc.pos
+      : null;
+  const nextPos =
+    maxPos != null ? maxPos + CARD_POS_STEP : spreadPosForIndex(Math.max(0, position));
 
   // Create duplicate
   const duplicate = new Card({
@@ -620,6 +746,7 @@ export async function duplicateCard(
     descriptionPreview: sourceCard.descriptionPreview,
     descriptionCharCount: sourceCard.descriptionCharCount,
     position,
+    pos: nextPos,
     color: sourceCard.color,
     cover: sourceCard.cover,
     labels: sourceCard.labels,
@@ -763,7 +890,7 @@ export async function getBoardKanbanSnapshot(
   const lists = await List.find({ boardId }).sort({ position: 1 });
   const cardsByList: Record<string, CardSummaryDTO[]> = {};
   for (const list of lists) {
-    const query = Card.find({ listId: list._id }).sort({ position: 1 });
+    const query = Card.find({ listId: list._id }).sort({ pos: 1, position: 1, _id: 1 });
     if (typeof options?.listLimit === 'number' && options.listLimit > 0) {
       query.limit(options.listLimit);
     }

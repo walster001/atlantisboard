@@ -75,6 +75,8 @@ export interface CardSummaryDTO {
   boardId: string;
   title: string;
   position: number;
+  /** Fractional sort key within the list (Trello-style); falls back to spread from `position` when unset. */
+  pos: number;
   color?: string;
   cover?: string;
   labels: Array<{
@@ -109,6 +111,7 @@ export interface CardDetailDTO {
   descriptionPreview: string;
   descriptionCharCount: number;
   position: number;
+  pos: number;
   color?: string;
   cover?: string;
   labels: Array<{

@@ -1,11 +1,12 @@
 import {
   useState,
-  useEffect,
+  useLayoutEffect,
   useRef,
   useCallback,
   useMemo,
   memo,
   type ComponentProps,
+  type MouseEvent as ReactMouseEvent,
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
@@ -16,6 +17,7 @@ import { api } from '../../utils/api.js';
 import { transformList } from '../../utils/transform.js';
 import {
   getBoardListColumnWidthChrome,
+  getBoardListColumnWidthPx,
 } from '../../utils/boardListColumnWidth.js';
 import { SortableList } from './SortableList.js';
 import { BoardInlineListComposer } from './BoardInlineListComposer.js';
@@ -31,6 +33,7 @@ import { resyncBoardRuntimeFromApi } from '../../store/boardBootstrap.js';
 import { persistDexieListPut, persistDexieCardPut } from '../../store/boardDexieCache.js';
 import { useBoardAssigneeDirectory } from '../../hooks/useBoardAssigneeDirectory.js';
 import type { KanbanBoardEditCaps } from '../../hooks/useBoardPermissions.js';
+import { routeBoardClick } from './boardInteractionBus.js';
 import './boardView.css';
 
 const KANBAN_ADD_LIST_BUTTON_STYLES = {
@@ -45,6 +48,9 @@ const KANBAN_ADD_LIST_BUTTON_STYLES = {
 interface ListDropIndicatorTarget {
   readonly overListId: string;
 }
+
+const LIST_HORIZONTAL_GAP_PX = 12;
+const LIST_WINDOW_OVERSCAN_COLUMNS = 2;
 
 /** Layout intent only — boxWidth/boxHeight are display hints and must not trigger re-renders every tick. */
 function cardDropIndicatorsEqual(
@@ -210,12 +216,19 @@ export function KanbanView({
   /** O(1) lookup for drop handling — kept in sync with the runtime store (see subscription below). */
   const cardIdToListIdRef = useRef<Map<string, string>>(new Map());
   const columnsGroupRef = useRef<HTMLDivElement | null>(null);
+  const boardScrollFrameRef = useRef<HTMLDivElement | null>(null);
+  const boardScrollRafRef = useRef<number | null>(null);
+  const boardScrollCleanupRef = useRef<(() => void) | null>(null);
+  const [boardScrollMetrics, setBoardScrollMetrics] = useState(() => ({
+    left: 0,
+    viewportWidth: 0,
+  }));
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setCardListMaxBodyPx(getKanbanCardListMaxBodyPx(kanbanCaps.canAddCard));
   }, [kanbanCaps.canAddCard]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const ac = new AbortController();
     const { signal } = ac;
     let rafId: number | null = null;
@@ -240,7 +253,7 @@ export function KanbanView({
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     viewAliveRef.current = true;
     return () => {
       cancelPendingCardDropIndicatorRaf();
@@ -275,7 +288,7 @@ export function KanbanView({
     [],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const ref = boardCardPatchRef;
     if (ref == null) {
       return undefined;
@@ -384,7 +397,7 @@ export function KanbanView({
     setAddListComposerOpen(true);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!kanbanCaps.canAddList && addListComposerOpen) {
       setAddListComposerOpen(false);
     }
@@ -434,7 +447,7 @@ export function KanbanView({
     viewAliveRef,
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let syncRafId: number | null = null;
     const rebuildCardIdIndex = (map: ReadonlyMap<string, readonly CardDB[]>) => {
       const m = new Map<string, string>();
@@ -485,7 +498,7 @@ export function KanbanView({
     setListDropIndicatorIfChanged,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = columnsGroupRef.current?.closest('.board-page');
     if (!(root instanceof HTMLElement)) {
       return undefined;
@@ -497,15 +510,115 @@ export function KanbanView({
     };
   }, [draggingCardId, draggingListId]);
 
+  const listSlotWidthPx = useMemo(() => {
+    const preferred = getBoardListColumnWidthPx(board);
+    const responsiveMax = Math.max(200, (Math.max(boardScrollMetrics.viewportWidth, 0) - 120) / 5.25);
+    return Math.min(preferred, responsiveMax);
+  }, [board, boardScrollMetrics.viewportWidth]);
+
+  const listStridePx = listSlotWidthPx + LIST_HORIZONTAL_GAP_PX;
+  const totalListCount = lists.length;
+  const visibleStart = Math.max(
+    0,
+    Math.floor(boardScrollMetrics.left / Math.max(1, listStridePx)) - LIST_WINDOW_OVERSCAN_COLUMNS,
+  );
+  const estimatedVisibleCount =
+    boardScrollMetrics.viewportWidth > 0
+      ? Math.ceil(boardScrollMetrics.viewportWidth / Math.max(1, listStridePx))
+      : totalListCount;
+  const visibleEnd = Math.min(
+    totalListCount,
+    visibleStart + estimatedVisibleCount + LIST_WINDOW_OVERSCAN_COLUMNS * 2,
+  );
+  const mountedLists =
+    totalListCount > 0 && visibleEnd > visibleStart ? lists.slice(visibleStart, visibleEnd) : lists;
+  const leftSpacerPx = visibleStart * listStridePx;
+  const rightSpacerPx = Math.max(0, (totalListCount - visibleEnd) * listStridePx);
+
+  const commitBoardScrollMetrics = useCallback((left: number, viewportWidth: number): void => {
+    setBoardScrollMetrics((prev) => {
+      if (Math.abs(prev.left - left) < 1 && Math.abs(prev.viewportWidth - viewportWidth) < 1) {
+        return prev;
+      }
+      return { left, viewportWidth };
+    });
+  }, []);
+
+  const scheduleBoardScrollMetricsRead = useCallback((): void => {
+    if (boardScrollRafRef.current != null) {
+      return;
+    }
+    boardScrollRafRef.current = requestAnimationFrame(() => {
+      boardScrollRafRef.current = null;
+      const node = boardScrollFrameRef.current;
+      if (node == null) {
+        return;
+      }
+      commitBoardScrollMetrics(node.scrollLeft, node.clientWidth);
+    });
+  }, [commitBoardScrollMetrics]);
+
+  const handleColumnsClickCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const root = columnsGroupRef.current;
+      if (root == null) {
+        return;
+      }
+      routeBoardClick(event.nativeEvent, { root, suppressCardOpenClickRef });
+    },
+    [],
+  );
+
+  const setColumnsGroupRef = useCallback(
+    (node: HTMLDivElement | null): void => {
+      boardScrollCleanupRef.current?.();
+      boardScrollCleanupRef.current = null;
+      columnsGroupRef.current = node;
+      if (node == null) {
+        boardScrollFrameRef.current = null;
+        return;
+      }
+
+      const scrollFrame = node.parentElement instanceof HTMLDivElement ? node.parentElement : null;
+      boardScrollFrameRef.current = scrollFrame;
+      if (scrollFrame == null) {
+        return;
+      }
+      commitBoardScrollMetrics(scrollFrame.scrollLeft, scrollFrame.clientWidth);
+      const ro = new ResizeObserver(() => {
+        scheduleBoardScrollMetricsRead();
+      });
+      ro.observe(scrollFrame);
+      const onScroll = (): void => {
+        scheduleBoardScrollMetricsRead();
+      };
+      scrollFrame.addEventListener('scroll', onScroll, { passive: true });
+      const cleanup = (): void => {
+        scrollFrame.removeEventListener('scroll', onScroll);
+        ro.disconnect();
+        if (boardScrollRafRef.current != null) {
+          cancelAnimationFrame(boardScrollRafRef.current);
+          boardScrollRafRef.current = null;
+        }
+      };
+      boardScrollCleanupRef.current = cleanup;
+    },
+    [commitBoardScrollMetrics, scheduleBoardScrollMetricsRead],
+  );
+
   return (
     <Group
-      ref={columnsGroupRef}
+      ref={setColumnsGroupRef}
       gap="md"
       className="board-page__columns"
       wrap="nowrap"
       align="flex-start"
+      onClickCapture={handleColumnsClickCapture}
     >
-        {lists.map((list) => (
+        {leftSpacerPx > 0 ? (
+          <Box aria-hidden style={{ width: leftSpacerPx, minWidth: leftSpacerPx, height: 1, flexShrink: 0 }} />
+        ) : null}
+        {mountedLists.map((list) => (
           <KanbanListColumn
             key={list.id}
             list={list}
@@ -536,7 +649,7 @@ export function KanbanView({
           />
         ))}
 
-        {kanbanCaps.canAddList ? (
+        {kanbanCaps.canAddList && visibleEnd >= totalListCount ? (
           <Box
             className={listColumnChrome.trackClassName}
             style={listColumnChrome.trackStyle}
@@ -565,6 +678,12 @@ export function KanbanView({
               </Button>
             )}
           </Box>
+        ) : null}
+        {rightSpacerPx > 0 ? (
+          <Box
+            aria-hidden
+            style={{ width: rightSpacerPx, minWidth: rightSpacerPx, height: 1, flexShrink: 0 }}
+          />
         ) : null}
     </Group>
   );

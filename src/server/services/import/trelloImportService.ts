@@ -36,6 +36,7 @@ import {
 import { resolveTrelloBoardBackgroundForImport } from '../../../shared/import/trelloBoardBackground.js';
 import type { ImportPreflightPayloadParsed } from '../../../shared/import/importPreflightSchema.js';
 import { resolveImportUserResolution } from '../../../shared/import/importUserResolution.js';
+import { spreadPosForIndex } from '../../../shared/utils/cardListPos.js';
 
 const CARD_INSERT_BATCH = 80;
 
@@ -421,6 +422,16 @@ export async function importTrello(
       (c) => listMap.has(c.idList) && boardMap.has(c.idBoard),
     );
 
+    const trelloCardDensePosition = new Map<string, number>();
+    {
+      const counterByListId = new Map<string, number>();
+      for (const c of cardsToImport) {
+        const n = counterByListId.get(c.idList) ?? 0;
+        trelloCardDensePosition.set(c.id, n);
+        counterByListId.set(c.idList, n + 1);
+      }
+    }
+
     const commentEmails = new Set<string>();
     for (const c of cardsToImport) {
       for (const co of c.comments ?? []) {
@@ -529,7 +540,11 @@ export async function importTrello(
           descriptionHtml: '',
           descriptionPreview: descFields.descriptionPreview,
           descriptionCharCount: descFields.descriptionCharCount,
-          position: trelloCard.pos / 10000,
+          position: trelloCardDensePosition.get(trelloCard.id) ?? 0,
+          pos:
+            typeof trelloCard.pos === 'number' && Number.isFinite(trelloCard.pos)
+              ? trelloCard.pos
+              : spreadPosForIndex(trelloCardDensePosition.get(trelloCard.id) ?? 0),
           color: resolveImportedCardColour(coverColorHex, defaultUncolouredCardColour),
           cover: coverUrl,
           labels: cardLabels,

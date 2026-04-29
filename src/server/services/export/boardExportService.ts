@@ -18,7 +18,7 @@ export async function exportBoard(boardId: string, userId: string): Promise<unkn
 
   // Get all related data
   const lists = await List.find({ boardId }).sort({ position: 1 });
-  const cards = await Card.find({ boardId }).sort({ position: 1 });
+  const cards = await Card.find({ boardId }).sort({ listId: 1, pos: 1, position: 1, _id: 1 });
   const labels = await BoardLabel.find({ boardId });
 
   // Format export data

@@ -54,6 +54,12 @@ export interface BoardMemberUserDisplay {
   readonly profilePicture?: string;
 }
 
+interface LoadBoardMemberUsersOptions {
+  readonly prioritizedUserIds?: readonly string[];
+  readonly pageSize?: number;
+  readonly onPage?: (users: readonly BoardMemberUserDisplay[], phase: 'first-page' | 'full') => void;
+}
+
 function extractUser(userId: string | PopulatedUser): BoardMemberUserDisplay {
   if (typeof userId === 'string') {
     return { _id: userId, displayName: '', email: '' };
@@ -76,6 +82,7 @@ function extractUser(userId: string | PopulatedUser): BoardMemberUserDisplay {
 export async function loadBoardMemberUsersForDisplay(
   boardId: string,
   signal: AbortSignal,
+  options?: LoadBoardMemberUsersOptions,
 ): Promise<BoardMemberUserDisplay[]> {
   const boardResponse = await api.getBoard(boardId, { signal });
   const board = boardResponse as {
@@ -86,11 +93,15 @@ export async function loadBoardMemberUsersForDisplay(
     };
   };
 
-  const members: BoardMemberUserDisplay[] = [];
+  const membersById = new Map<string, BoardMemberUserDisplay>();
 
   const pushUnique = (u: BoardMemberUserDisplay): void => {
-    if (!members.some((m) => m._id === u._id)) {
-      members.push(u);
+    const id = String(u._id).trim();
+    if (id === '') {
+      return;
+    }
+    if (!membersById.has(id)) {
+      membersById.set(id, { ...u, _id: id });
     }
   };
 
@@ -131,7 +142,7 @@ export async function loadBoardMemberUsersForDisplay(
       }
     } catch (error) {
       if (isAbortOrCancelError(error)) {
-        return members;
+        return [...membersById.values()];
       }
       if (!(isAxiosError(error) && isWorkspaceFetchSkippedStatus(error.response?.status))) {
         console.error('Error loading workspace members:', error);
@@ -139,5 +150,45 @@ export async function loadBoardMemberUsersForDisplay(
     }
   }
 
-  return members;
+  const allMembers = [...membersById.values()];
+  const prioritized = options?.prioritizedUserIds ?? [];
+  const prioritizedIds = new Set<string>();
+  const ordered: BoardMemberUserDisplay[] = [];
+  for (const id of prioritized) {
+    const key = String(id).trim();
+    if (key === '' || prioritizedIds.has(key)) {
+      continue;
+    }
+    const row = membersById.get(key);
+    if (row != null) {
+      ordered.push(row);
+      prioritizedIds.add(key);
+    }
+  }
+  for (const member of allMembers) {
+    if (!prioritizedIds.has(member._id)) {
+      ordered.push(member);
+    }
+  }
+
+  const pageSizeRaw = options?.pageSize ?? 64;
+  const pageSize = Number.isFinite(pageSizeRaw) ? Math.max(1, Math.floor(pageSizeRaw)) : 64;
+  const emitPage = options?.onPage;
+  if (emitPage != null && ordered.length > 0) {
+    const first = ordered.slice(0, Math.min(pageSize, ordered.length));
+    emitPage(first, 'first-page');
+    if (ordered.length > first.length) {
+      for (let offset = first.length; offset < ordered.length; offset += pageSize) {
+        if (signal.aborted) {
+          break;
+        }
+        await Promise.resolve();
+        emitPage(ordered.slice(0, Math.min(offset + pageSize, ordered.length)), 'full');
+      }
+    } else {
+      emitPage(first, 'full');
+    }
+  }
+
+  return ordered;
 }

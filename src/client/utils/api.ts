@@ -661,17 +661,32 @@ class ApiClient {
 
   async getBoardKanbanSnapshot(
     boardId: string,
-    options?: { listLimit?: number }
-  ): Promise<{ board: unknown; lists: unknown[]; cardsByList: Record<string, unknown[]> }> {
+    options?: { listLimit?: number; listCursor?: string }
+  ): Promise<{
+    board: unknown;
+    lists: unknown[];
+    cardsByList: Record<string, unknown[]>;
+    nextListCursor?: string;
+    hasMoreLists?: boolean;
+  }> {
     const params = new URLSearchParams();
     if (typeof options?.listLimit === 'number') {
       params.set('listLimit', String(options.listLimit));
+    }
+    if (typeof options?.listCursor === 'string' && options.listCursor.trim() !== '') {
+      params.set('listCursor', options.listCursor.trim());
     }
     const suffix = params.toString();
     const response = await this.client.get(
       `/boards/${boardId}/kanban-snapshot${suffix === '' ? '' : `?${suffix}`}`
     );
-    return response.data;
+    return response.data as {
+      board: unknown;
+      lists: unknown[];
+      cardsByList: Record<string, unknown[]>;
+      nextListCursor?: string;
+      hasMoreLists?: boolean;
+    };
   }
 
   async postBoardCardDescriptionsBatch(
@@ -754,13 +769,29 @@ class ApiClient {
     return response.data;
   }
 
+  /**
+   * @deprecated Interactive DnD should use `moveCard` (fractional `pos` ordering).
+   * Reserved for admin/bulk order reflow tasks.
+   */
   async reorderCards(
     listId: string,
     cardIds: string[],
-  ): Promise<{ message: string; listId: string; orderedCardIds: string[] }> {
-    const response = await this.client.put<{ message: string; listId: string; orderedCardIds: string[] }>(
+  ): Promise<{
+    message: string;
+    listId: string;
+    orderedCardIds: string[];
+    mode: 'bulk_reflow';
+    deprecatedForInteractiveDnD: boolean;
+  }> {
+    const response = await this.client.put<{
+      message: string;
+      listId: string;
+      orderedCardIds: string[];
+      mode: 'bulk_reflow';
+      deprecatedForInteractiveDnD: boolean;
+    }>(
       '/cards/reorder',
-      { listId, cardIds },
+      { listId, cardIds, mode: 'bulk_reflow' },
     );
     return response.data;
   }

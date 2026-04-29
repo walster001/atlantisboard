@@ -1,8 +1,9 @@
 import type { CardDB, ListDB } from './database.js';
+import { spreadPosForIndex } from '../../shared/utils/cardListPos.js';
 
-/** Align `position` with array index (server order). */
+/** Align `position` and optimistic `pos` with array index (until server confirms). */
 export function withRenumberedPositions(list: CardDB[]): CardDB[] {
-  return list.map((c, i) => ({ ...c, position: i }));
+  return list.map((c, i) => ({ ...c, position: i, pos: spreadPosForIndex(i) }));
 }
 
 /** Pure optimistic move: update only the two affected lists so memoized columns keep stable references. */

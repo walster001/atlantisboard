@@ -70,20 +70,75 @@ async function hydrateCardsInBatches(
   return cardsByList;
 }
 
+async function fetchBoardSnapshotWindowed(
+  boardId: string,
+  options?: {
+    readonly listLimit?: number;
+    readonly signal?: AbortSignal;
+  },
+): Promise<{
+  readonly combinedLists: unknown[];
+  readonly combinedCardsByList: Record<string, unknown[]>;
+}> {
+  const first = await api.getBoardKanbanSnapshot(
+    boardId,
+    typeof options?.listLimit === 'number' ? { listLimit: options.listLimit } : undefined,
+  );
+  const combinedLists = [...first.lists];
+  const combinedCardsByList: Record<string, unknown[]> = { ...first.cardsByList };
+  let nextCursor = first.nextListCursor;
+  let hasMore = first.hasMoreLists === true;
+  let pagesRead = 1;
+  const MAX_PAGES = 20;
+  while (
+    hasMore &&
+    typeof nextCursor === 'string' &&
+    nextCursor.trim() !== '' &&
+    pagesRead < MAX_PAGES &&
+    options?.signal?.aborted !== true
+  ) {
+    const page = await api.getBoardKanbanSnapshot(boardId, {
+      ...(typeof options?.listLimit === 'number' ? { listLimit: options.listLimit } : {}),
+      listCursor: nextCursor,
+    });
+    for (const list of page.lists) {
+      combinedLists.push(list);
+    }
+    for (const [listId, cards] of Object.entries(page.cardsByList)) {
+      combinedCardsByList[listId] = cards;
+    }
+    nextCursor = page.nextListCursor;
+    hasMore = page.hasMoreLists === true;
+    pagesRead += 1;
+  }
+  return {
+    combinedLists,
+    combinedCardsByList,
+  };
+}
+
 /**
  * Loads board + kanban snapshot from API, hydrates runtime store once, persists Dexie in background,
  * then hydrates descriptions into the store (no Dexie read for UI).
  */
 export async function bootstrapBoardRuntimeFromApi(
   boardId: string,
-  options?: { readonly signal?: AbortSignal; readonly staged?: boolean },
+  options?: {
+    readonly signal?: AbortSignal;
+    readonly staged?: boolean;
+    readonly listLimit?: number;
+    readonly hydrateDescriptions?: 'all' | 'viewport';
+  },
 ): Promise<boolean> {
   const endBootstrapPerf = markBoardBootstrapStart();
   const signal = options?.signal;
   try {
     const [boardResponse, snapshotResponse] = await Promise.all([
       api.getBoard(boardId, { view: 'summary' }),
-      api.getBoardKanbanSnapshot(boardId),
+      fetchBoardSnapshotWindowed(boardId, {
+        ...(typeof options?.listLimit === 'number' ? { listLimit: options.listLimit } : {}),
+        ...(signal !== undefined ? { signal } : {}),
+      }),
     ]);
     if (signal?.aborted === true) {
       endBootstrapPerf();
@@ -91,8 +146,8 @@ export async function bootstrapBoardRuntimeFromApi(
     }
     const rawBoard = (boardResponse as { board: unknown }).board;
     const board = transformBoard(rawBoard);
-    const rawLists = snapshotResponse.lists;
-    const rawCardsByList = snapshotResponse.cardsByList as Record<string, unknown[]>;
+    const rawLists = snapshotResponse.combinedLists;
+    const rawCardsByList = snapshotResponse.combinedCardsByList;
     const lists = rawLists.map(transformList);
     const staged = options?.staged === true;
     let cardsByList: Map<string, CardDB[]>;
@@ -129,7 +184,9 @@ export async function bootstrapBoardRuntimeFromApi(
     void persistBoardSnapshotToDexie({ board, lists, cards: flatCards });
 
     const allIds = collectCardIdsFromSnapshot(rawCardsByList, lists.map((l) => l.id));
-    void hydrateBoardCardDescriptionsRemote(boardId, allIds, (patches) => {
+    const descriptionIds =
+      options?.hydrateDescriptions === 'viewport' ? allIds.slice(0, 600) : allIds;
+    void hydrateBoardCardDescriptionsRemote(boardId, descriptionIds, (patches) => {
       if (useBoardRuntimeStore.getState().activeBoardId !== boardId) {
         return;
       }

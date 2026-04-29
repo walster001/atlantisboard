@@ -300,6 +300,7 @@ export function transformCard(card: unknown): CardDB {
     descriptionPreview?: string;
     descriptionCharCount?: number;
     position: number;
+    pos?: number;
     color?: string;
     cover?: string;
     labels?: Array<{
@@ -473,6 +474,7 @@ export function transformCard(card: unknown): CardDB {
       ? { descriptionCharCount: c.descriptionCharCount }
       : {}),
     position: c.position || 0,
+    ...(typeof c.pos === 'number' && Number.isFinite(c.pos) ? { pos: c.pos } : {}),
     ...(c.color !== undefined && { color: c.color }),
     ...(c.cover !== undefined && { cover: c.cover }),
     labels,

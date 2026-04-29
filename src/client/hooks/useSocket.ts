@@ -34,6 +34,9 @@ import {
   isRedundantCardSocketPayload,
 } from '../utils/cardSocketDedupe.js';
 import { useBoardRuntimeStore } from '../store/boardRuntimeStore.js';
+import { spreadPosForIndex } from '../../shared/utils/cardListPos.js';
+import { env } from '../config/env.js';
+import { logBoardRealtimePatchFlush } from '../perf/boardPerf.js';
 
 function runtimeActiveBoardId(): string | null {
   return useBoardRuntimeStore.getState().activeBoardId;
@@ -139,6 +142,15 @@ let localUserIdCache: string | null = null;
 let localUserIdLoadPromise: Promise<string> | null = null;
 const lastCardEventTsById = new Map<string, number>();
 const lastListOrderEventTsByKey = new Map<string, number>();
+type PendingCardPatchEvent = {
+  readonly cardId: string;
+  readonly boardId: string;
+  readonly changedFields: Readonly<Record<string, unknown>>;
+  readonly removedFields: readonly string[];
+  readonly serverTs?: number;
+};
+const pendingCardPatchedEvents = new Map<string, PendingCardPatchEvent>();
+let cardPatchFlushQueued = false;
 
 function shouldApplyCardEvent(cardId: string, serverTs: unknown): boolean {
   if (typeof serverTs !== 'number' || !Number.isFinite(serverTs)) {
@@ -186,6 +198,126 @@ function markCardEventTs(cardIds: readonly string[], serverTs: unknown): void {
       lastCardEventTsById.set(key, serverTs);
     }
   }
+}
+
+function coalesceCardPatchedEvent(next: PendingCardPatchEvent): void {
+  const prev = pendingCardPatchedEvents.get(next.cardId);
+  if (prev == null) {
+    pendingCardPatchedEvents.set(next.cardId, next);
+    return;
+  }
+  const mergedChanged: Record<string, unknown> = { ...prev.changedFields, ...next.changedFields };
+  const removed = new Set<string>(prev.removedFields);
+  for (const key of next.removedFields) {
+    removed.add(key);
+    delete mergedChanged[key];
+  }
+  for (const key of Object.keys(next.changedFields)) {
+    removed.delete(key);
+  }
+  pendingCardPatchedEvents.set(next.cardId, {
+    cardId: next.cardId,
+    boardId: next.boardId,
+    changedFields: mergedChanged,
+    removedFields: [...removed],
+      ...(next.serverTs !== undefined
+        ? { serverTs: next.serverTs }
+        : prev.serverTs !== undefined
+          ? { serverTs: prev.serverTs }
+          : {}),
+  });
+}
+
+async function flushPendingCardPatchedEvents(): Promise<void> {
+  const queued = [...pendingCardPatchedEvents.values()];
+  pendingCardPatchedEvents.clear();
+  cardPatchFlushQueued = false;
+  if (queued.length === 0) {
+    return;
+  }
+  const t0 =
+    typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : null;
+  const byBoardId = new Map<string, PendingCardPatchEvent[]>();
+  for (const entry of queued) {
+    const arr = byBoardId.get(entry.boardId);
+    if (arr == null) {
+      byBoardId.set(entry.boardId, [entry]);
+    } else {
+      arr.push(entry);
+    }
+  }
+  for (const [boardId, events] of byBoardId) {
+    const ids = events.map((event) => event.cardId);
+    let rows: Array<Awaited<ReturnType<typeof db.cards.get>> | undefined>;
+    try {
+      rows = await db.cards.bulkGet(ids);
+    } catch {
+      continue;
+    }
+    const runtimeActive = runtimeActiveBoardId() === boardId;
+    const runtimeCards = runtimeActive ? useBoardRuntimeStore.getState().cardsById : undefined;
+    const nextCards: Array<ReturnType<typeof normalizeCardFromApi>> = [];
+    const appliedCardIds: string[] = [];
+    for (let i = 0; i < events.length; i += 1) {
+      const event = events[i]!;
+      const existingRuntime = runtimeCards != null ? runtimeCards[event.cardId] : undefined;
+      const existing = existingRuntime ?? rows[i];
+      if (existing == null) {
+        continue;
+      }
+      const patched: Record<string, unknown> = { ...existing };
+      for (const [key, value] of Object.entries(event.changedFields)) {
+        patched[key] = value;
+      }
+      for (const key of event.removedFields) {
+        delete patched[key];
+      }
+      const normalized = normalizeCardFromApi(patched, event.cardId);
+      if (isRedundantCardSocketPayload(event.cardId, normalized)) {
+        continue;
+      }
+      nextCards.push(normalized);
+      appliedCardIds.push(event.cardId);
+    }
+    if (nextCards.length === 0) {
+      continue;
+    }
+    if (runtimeActive) {
+      useBoardRuntimeStore.getState().upsertCards(nextCards);
+    }
+    try {
+      await db.cards.bulkPut(nextCards);
+      for (const card of nextCards) {
+        emitSocketCardUpdated({ boardId, card });
+      }
+    } catch {
+      /* Dexie bulk patch failed */
+    }
+    const serverTs = events[events.length - 1]?.serverTs;
+    markCardEventTs(appliedCardIds, serverTs);
+  }
+  const elapsed =
+    t0 != null && typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now() - t0
+      : 0;
+  logBoardRealtimePatchFlush({
+    patchedCardCount: queued.length,
+    queueDepth: queued.length,
+    flushMs: elapsed,
+  });
+}
+
+function queueCardPatchedEvent(event: PendingCardPatchEvent): void {
+  coalesceCardPatchedEvent(event);
+  if (cardPatchFlushQueued) {
+    return;
+  }
+  cardPatchFlushQueued = true;
+  queueMicrotask(() => {
+    void flushPendingCardPatchedEvents();
+  });
 }
 
 async function getLocalUserId(): Promise<string> {
@@ -522,6 +654,16 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
         if (!shouldApplyCardEvent(data.cardId, data.serverTs)) {
           return;
         }
+        if (env.REALTIME_BULK_CARD_PATCH_ENABLED) {
+          queueCardPatchedEvent({
+            cardId: data.cardId,
+            boardId: data.boardId,
+            changedFields: data.changedFields,
+            removedFields: data.removedFields,
+            ...(data.serverTs !== undefined ? { serverTs: data.serverTs } : {}),
+          });
+          return;
+        }
         void db.cards
           .get(data.cardId)
           .then((existingDexie) => {
@@ -578,6 +720,7 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
                   ...card,
                   listId: data.listId,
                   position: idx,
+                  pos: spreadPosForIndex(idx),
                 };
               })
               .filter((card): card is NonNullable<typeof card> => card != null);
@@ -616,7 +759,7 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
       toListId?: string;
       movedCardId?: string;
       position?: number;
-      lists?: Array<{ listId: string; orderedCardIds: string[] }>;
+      lists?: Array<{ listId: string; orderedCardIds: string[]; orderedPos?: number[] }>;
       serverTs?: number;
     }) => {
       deferSocketWork(() => {
@@ -629,15 +772,22 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
         void Promise.all(
           listPayloads.map(async (entry) => {
             const orderedIds = (entry.orderedCardIds ?? []).map(String);
+            const rawPos = entry.orderedPos;
+            const hasServerPos =
+              Array.isArray(rawPos) &&
+              rawPos.length === orderedIds.length &&
+              rawPos.every((p) => typeof p === 'number' && Number.isFinite(p));
             const nextCards = (await db.cards.bulkGet(orderedIds))
               .map((card, idx) => {
                 if (card == null) {
                   return null;
                 }
+                const pos = hasServerPos ? rawPos[idx]! : spreadPosForIndex(idx);
                 return {
                   ...card,
                   listId: entry.listId,
                   position: idx,
+                  pos,
                 };
               })
               .filter((card): card is NonNullable<typeof card> => card != null);
@@ -645,7 +795,11 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
               for (const card of nextCards) {
                 useBoardRuntimeStore.getState().upsertCard(card);
               }
-              useBoardRuntimeStore.getState().applyCardsReorderedInList(entry.listId, orderedIds);
+              useBoardRuntimeStore.getState().applyCardsReorderedInList(
+                entry.listId,
+                orderedIds,
+                hasServerPos ? rawPos : undefined,
+              );
             }
             if (nextCards.length > 0) {
               await db.cards.bulkPut(nextCards);

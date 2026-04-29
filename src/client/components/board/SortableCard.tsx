@@ -1,7 +1,6 @@
 import {
   memo,
   useState,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -24,17 +23,14 @@ import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
-import { CardDescriptionBoardPreview } from '../card/CardDescriptionBoardPreview.js';
 import {
   cardDescriptionFirstLogicalLinePlain,
   isCardDescriptionEmpty,
   parseCardDescriptionJson,
 } from '../card/cardDescriptionTiptap.js';
 import { TwemojiPlainText } from '../common/TwemojiPlainText.js';
-import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
-import { attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
-import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
-import { PDND_KANBAN_CARD, PDND_KANBAN_CARD_DROP } from '../../dnd/pragmatic/kanbanData.js';
+import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { PDND_KANBAN_CARD } from '../../dnd/pragmatic/kanbanData.js';
 import './boardView.css';
 
 interface SortableCardProps {
@@ -180,10 +176,35 @@ function SortableCardInner({
 }: SortableCardProps) {
   const [deferRef, richReady] = useRichContentWhenNearViewport();
   const cardRootRef = useRef<HTMLDivElement | null>(null);
-  const cardBodyRef = useRef<HTMLDivElement | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
   const setCardRootRef = (node: HTMLDivElement | null): void => {
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
     cardRootRef.current = node;
     deferRef.current = node;
+    if (node == null || isDragSource || !kanbanCardBodyDraggable) {
+      return;
+    }
+    dragCleanupRef.current = draggable({
+      element: node,
+      getInitialData: () =>
+        ({
+          pdnd: PDND_KANBAN_CARD,
+          kind: 'kanban-card',
+          cardId: card.id,
+          listId,
+        }) as const,
+      onGenerateDragPreview: ({ nativeSetDragImage }) => {
+        const { preview, offsetX, offsetY } = createCardLiftedDragPreview(node);
+        document.body.appendChild(preview);
+        if (nativeSetDragImage != null) {
+          nativeSetDragImage(preview, offsetX, offsetY);
+        }
+        requestAnimationFrame(() => {
+          preview.remove();
+        });
+      },
+    });
   };
 
   const coverRenderUrl = useMemo(() => {
@@ -243,6 +264,15 @@ function SortableCardInner({
     }
     return (raw.split(/\r?\n/)[0] ?? '').trim();
   }, [card.descriptionPreview]);
+  const deferredDescriptionFallbackText = useMemo((): string => {
+    if (descriptionFirstLinePlain !== '') {
+      return descriptionFirstLinePlain;
+    }
+    if (descriptionPreviewFirstLine !== '') {
+      return descriptionPreviewFirstLine;
+    }
+    return '\u00a0';
+  }, [descriptionFirstLinePlain, descriptionPreviewFirstLine]);
 
   const kanbanLabelVisualKey = useMemo(
     () => card.labels.map((l) => `${l.id}:${l.color}:${l.name}`).join('|'),
@@ -334,58 +364,6 @@ function SortableCardInner({
     );
   }, [kanbanAssigneeVisualKey, assigneeDirectory]);
 
-  useEffect(() => {
-    const cardRootEl = cardRootRef.current;
-    if (cardRootEl == null) {
-      return undefined;
-    }
-    const cleanup = combine(
-      !isDragSource
-        ? dropTargetForElements({
-            element: cardRootEl,
-            getData: ({ input }) =>
-              attachClosestEdge(
-                {
-                  pdnd: PDND_KANBAN_CARD_DROP,
-                  kind: 'kanban-card-drop',
-                  cardId: card.id,
-                  listId,
-                } as const,
-                {
-                  element: cardRootEl,
-                  input,
-                  allowedEdges: ['top', 'bottom'],
-                },
-              ),
-            getIsSticky: () => true,
-          })
-        : () => {},
-      kanbanCardBodyDraggable
-        ? draggable({
-            element: cardRootEl,
-            getInitialData: () =>
-              ({
-                pdnd: PDND_KANBAN_CARD,
-                kind: 'kanban-card',
-                cardId: card.id,
-                listId,
-              }) as const,
-            onGenerateDragPreview: ({ nativeSetDragImage }) => {
-              const { preview, offsetX, offsetY } = createCardLiftedDragPreview(cardRootEl);
-              document.body.appendChild(preview);
-              if (nativeSetDragImage != null) {
-                nativeSetDragImage(preview, offsetX, offsetY);
-              }
-              requestAnimationFrame(() => {
-                preview.remove();
-              });
-            },
-          })
-        : () => {},
-    );
-    return cleanup;
-  }, [card.id, listId, kanbanCardBodyDraggable, isDragSource]);
-
   return (
     <Card
       ref={setCardRootRef}
@@ -452,7 +430,6 @@ function SortableCardInner({
       ) : null}
 
       <Box
-        ref={cardBodyRef}
         className={`board-card__kanban-body${
           kanbanCardBodyDraggable ? '' : ' board-card__kanban-body--no-drag'
         }`}
@@ -475,42 +452,34 @@ function SortableCardInner({
 
         {showRichDescPreview ? (
           richReady ? (
-            descriptionFirstLinePlain !== '' ? (
-              <Text
-                component="div"
-                fw={200}
-                mt={6}
-                c={card.color && card.color.trim().length > 0 ? 'white' : 'dimmed'}
-                lineClamp={2}
-                className="board-card__desc board-card__kanban-desc"
-                style={{
-                  wordBreak: 'break-word',
-                  ...(card.color && card.color.trim().length > 0 ? { opacity: 0.92 } : {}),
-                }}
-              >
-                <TwemojiPlainText text={descriptionFirstLinePlain} />
-              </Text>
-            ) : (
-              <Text
-                component="div"
-                fw={200}
-                mt={6}
-                c={card.color && card.color.trim().length > 0 ? 'white' : 'dimmed'}
-                lineClamp={2}
-                className="board-card__desc board-card__kanban-desc board-card__kanban-desc-board-preview"
-                style={{
-                  wordBreak: 'break-word',
-                  ...(card.color && card.color.trim().length > 0 ? { opacity: 0.92 } : {}),
-                }}
-              >
-                <div className="card-desc-tiptap-read card-desc-tiptap-read--board-preview">
-                  <CardDescriptionBoardPreview valueJson={card.description} />
-                </div>
-              </Text>
-            )
+            <Text
+              component="div"
+              fw={200}
+              mt={6}
+              c={card.color && card.color.trim().length > 0 ? 'white' : 'dimmed'}
+              lineClamp={2}
+              className="board-card__desc board-card__kanban-desc"
+              style={{
+                wordBreak: 'break-word',
+                ...(card.color && card.color.trim().length > 0 ? { opacity: 0.92 } : {}),
+              }}
+            >
+              <TwemojiPlainText text={deferredDescriptionFallbackText} />
+            </Text>
           ) : (
-            <Text component="div" size="xs" c="dimmed" lineClamp={1} mt={6}>
-              …
+            <Text
+              component="div"
+              fw={200}
+              mt={6}
+              c={card.color && card.color.trim().length > 0 ? 'white' : 'dimmed'}
+              lineClamp={2}
+              className="board-card__desc board-card__kanban-desc"
+              style={{
+                wordBreak: 'break-word',
+                ...(card.color && card.color.trim().length > 0 ? { opacity: 0.92 } : {}),
+              }}
+            >
+              <span>{deferredDescriptionFallbackText}</span>
             </Text>
           )
         ) : null}

@@ -195,6 +195,8 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
         displayName: user.displayName,
         profilePicture: user.profilePicture,
         isAppAdmin: user.isAppAdmin,
+        preferences: user.preferences,
+        emailVerified: user.emailVerified,
       },
     });
   } catch (error) {
@@ -320,6 +322,8 @@ router.post('/login', authRateLimiter, async (req, res, next) => {
         displayName: user.displayName,
         profilePicture: user.profilePicture,
         isAppAdmin: user.isAppAdmin,
+        preferences: user.preferences,
+        emailVerified: user.emailVerified,
       },
     });
   } catch (error) {

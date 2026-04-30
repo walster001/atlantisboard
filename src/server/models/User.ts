@@ -6,6 +6,7 @@ export interface IUser extends Document {
   username: string;
   passwordHash?: string;
   googleId?: string;
+  googleProfilePicture?: string;
   profilePicture?: string;
   displayName: string;
   createdAt: Date;
@@ -171,6 +172,7 @@ const UserSchema = new Schema<IUser>(
       unique: true,
       index: true,
     },
+    googleProfilePicture: String,
     profilePicture: String,
     displayName: {
       type: String,

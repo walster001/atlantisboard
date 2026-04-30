@@ -333,11 +333,17 @@ router.delete(
         const authReq = req as AuthenticatedRequest;
         const userId = authReq.user.id;
         await deleteUserAvatar(userId);
-        const user = await User.findByIdAndUpdate(
-          userId,
-          { $unset: { profilePicture: 1 } },
-          { new: true }
-        );
+        const existingUser = await User.findById(userId).select('googleId googleProfilePicture');
+        const restoreGoogleAvatar =
+          existingUser != null &&
+          typeof existingUser.googleId === 'string' &&
+          existingUser.googleId.trim() !== '' &&
+          typeof existingUser.googleProfilePicture === 'string' &&
+          existingUser.googleProfilePicture.trim() !== '';
+        const update = restoreGoogleAvatar
+          ? { $set: { profilePicture: existingUser.googleProfilePicture } }
+          : { $unset: { profilePicture: 1 } };
+        const user = await User.findByIdAndUpdate(userId, update, { new: true });
         if (!user) {
           res.status(404).json({
             error: {

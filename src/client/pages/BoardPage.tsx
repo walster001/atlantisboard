@@ -24,6 +24,7 @@ import { resolveBoardNavbarIconUrl } from '../../shared/types/appBranding.js';
 import { buildKanbanBoardEditCaps } from '../hooks/kanbanBoardEditCaps.js';
 import { useBoardPermissions } from '../hooks/useBoardPermissions.js';
 import { getBoardPageThemeStyle } from '../utils/boardThemeStyle.js';
+import { resolveBoardSettingsGate } from '../utils/boardSettingsPermissions.js';
 import type { ScaleMode } from '../components/board/scaleModePolicy.js';
 import { env } from '../config/env.js';
 import '../components/board/boardView.css';
@@ -66,7 +67,8 @@ export default function BoardPage() {
     () => buildKanbanBoardEditCaps(permissionsLoaded, permissions),
     [permissionsLoaded, permissions],
   );
-  const canOpenSettings = can('boards.members.view') || can('boards.update') || can('boards.settings.update');
+  const boardSettingsGate = useMemo(() => resolveBoardSettingsGate(can), [can]);
+  const { canManageBoardSettings, canManageBoardMembers, canOpenSettings } = boardSettingsGate;
 
   const loadData = useCallback(
     async (options?: { mode?: 'initial' | 'quiet'; signal?: AbortSignal }) => {
@@ -372,7 +374,7 @@ export default function BoardPage() {
           key={`settings:${board.id}:${permissionsLoaded ? 'ready' : 'loading'}`}
           boardId={board.id}
           onClose={handleCloseSettings}
-          {...(!(can('boards.update') || can('boards.settings.update')) && can('boards.members.view')
+          {...(!canManageBoardSettings && canManageBoardMembers
             ? { allowedTopTabs: ['users'] as const }
             : {})}
           onSettingsLivePatch={handleSettingsLivePatch}

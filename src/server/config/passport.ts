@@ -128,6 +128,7 @@ export async function configureGoogleStrategy(): Promise<void> {
                   existingUser.emailVerified = !!profile.emails?.[0]?.verified;
                   existingUser.displayName = profile.displayName || existingUser.placeholderName || email.split('@')[0] || 'User';
                   if (profile.photos?.[0]?.value) {
+                    existingUser.googleProfilePicture = profile.photos[0].value;
                     existingUser.profilePicture = profile.photos[0].value;
                   }
                   if (isFirstUser) {
@@ -164,8 +165,11 @@ export async function configureGoogleStrategy(): Promise<void> {
                   existingUser.lastLogin = new Date();
 
                   const googlePhoto = profile.photos?.[0]?.value;
-                  if (googlePhoto && !existingUser.profilePicture?.trim()) {
-                    existingUser.profilePicture = googlePhoto;
+                  if (googlePhoto) {
+                    existingUser.googleProfilePicture = googlePhoto;
+                    if (!existingUser.profilePicture?.trim()) {
+                      existingUser.profilePicture = googlePhoto;
+                    }
                   }
 
                   const googleName = profile.displayName?.trim();
@@ -198,6 +202,7 @@ export async function configureGoogleStrategy(): Promise<void> {
                   email,
                   username,
                   googleId: profile.id,
+                  googleProfilePicture: profile.photos?.[0]?.value,
                   displayName: profile.displayName || email.split('@')[0] || 'User',
                   profilePicture: profile.photos?.[0]?.value,
                   emailVerified: !!profile.emails?.[0]?.verified,
@@ -227,8 +232,14 @@ export async function configureGoogleStrategy(): Promise<void> {
               const googleVerified = !!profile.emails?.[0]?.verified;
               user.emailVerified = Boolean(user.emailVerified) || googleVerified;
               // Update profile picture and name if changed
-              if (profile.photos?.[0]?.value && user.profilePicture !== profile.photos[0].value) {
-                user.profilePicture = profile.photos[0].value;
+              if (profile.photos?.[0]?.value) {
+                user.googleProfilePicture = profile.photos[0].value;
+                if (
+                  !user.profilePicture?.includes('/users/avatar/') &&
+                  user.profilePicture !== profile.photos[0].value
+                ) {
+                  user.profilePicture = profile.photos[0].value;
+                }
               }
               if (profile.displayName && user.displayName !== profile.displayName) {
                 user.displayName = profile.displayName;

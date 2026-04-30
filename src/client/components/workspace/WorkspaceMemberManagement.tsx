@@ -24,7 +24,6 @@ import { notifications } from '@mantine/notifications';
 import { IconPlus, IconUserMinus } from '@tabler/icons-react';
 import axios from 'axios';
 import { TableVirtuoso } from 'react-virtuoso';
-import { MEMBER_MANAGEMENT_ROLE_COL_PX } from '../../constants/memberManagementLayout.js';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
@@ -83,7 +82,7 @@ const WorkspaceMemberDataTable = forwardRef<HTMLTableElement, ComponentPropsWith
     >
       <colgroup>
         <col />
-        <col style={{ width: MEMBER_MANAGEMENT_ROLE_COL_PX }} />
+        <col style={{ width: '1%' }} />
         <col style={{ width: ACTION_COL_PX }} />
       </colgroup>
       {children}
@@ -276,7 +275,8 @@ const WorkspaceMemberPanelMemberCells = memo(function WorkspaceMemberPanelMember
         {canUpdateMemberRoles ? (
           <Select
             size="xs"
-            w="100%"
+            w="fit-content"
+            miw={96}
             value={member.roleKey}
             onChange={(v) => {
               if (!v) return;
@@ -774,7 +774,8 @@ export function WorkspaceMemberManagement({
                       {canUpdateMemberRoles ? (
                         <Select
                           size="xs"
-                          w="100%"
+                          w="fit-content"
+                          miw={96}
                           value={role}
                           onChange={(v) => {
                             if (!v) return;

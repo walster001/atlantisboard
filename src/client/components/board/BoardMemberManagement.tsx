@@ -24,7 +24,6 @@ import { notifications } from '@mantine/notifications';
 import { IconPlus, IconUserMinus } from '@tabler/icons-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import axios from 'axios';
-import { MEMBER_MANAGEMENT_ROLE_COL_PX } from '../../constants/memberManagementLayout.js';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
@@ -139,7 +138,7 @@ const BoardMemberDataTable = forwardRef<HTMLTableElement, ComponentPropsWithoutR
     >
       <colgroup>
         <col />
-        <col style={{ width: MEMBER_MANAGEMENT_ROLE_COL_PX }} />
+        <col style={{ width: '1%' }} />
         <col style={{ width: BOARD_MEMBER_ACTION_COL_PX }} />
       </colgroup>
       {children}
@@ -229,7 +228,8 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
         {canUpdateMemberRole ? (
           <Select
             size="xs"
-            w="100%"
+            w="fit-content"
+            miw={96}
             value={roleKey}
             onChange={(v) => {
               if (v) {
@@ -324,7 +324,8 @@ const MemberTableCells = memo(function MemberTableCells(props: {
         {canUpdateMemberRole ? (
           <Select
             size="xs"
-            w="100%"
+            w="fit-content"
+            miw={96}
             value={roleKey}
             onChange={(v) => {
               if (v) {

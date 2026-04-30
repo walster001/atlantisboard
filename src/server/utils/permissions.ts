@@ -138,6 +138,8 @@ const BUILTIN_ROLE_PERMISSION_FALLBACKS: Readonly<Record<UserRole, readonly stri
     'invites.delete',
     'boards.update',
     'boards.settings.update',
+    'boards.themes.changetheme',
+    'boards.themes.customtheme',
     'boards.reorder_in_home',
     'boards.create',
     'lists.create',

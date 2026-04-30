@@ -511,6 +511,8 @@ router.get('/:id/permissions/me', async (req, res, next) => {
       'boards.update',
       'boards.reorder_in_home',
       'boards.settings.update',
+      'boards.themes.changetheme',
+      'boards.themes.customtheme',
       'boards.members.view',
       'boards.members.add',
       'boards.members.remove',
@@ -865,6 +867,20 @@ router.post(
         });
         return;
       }
+      const isOwner = boardDoc.ownerId.toString() === authReq.user.id;
+      if (!isOwner) {
+        const canChangeTheme = await hasPermission(authReq.user, req.params.id, 'boards.themes.changetheme');
+        if (!canChangeTheme) {
+          res.status(403).json({
+            error: {
+              message: 'Insufficient permissions to update board theme/background',
+              code: 'FORBIDDEN',
+              statusCode: 403,
+            },
+          });
+          return;
+        }
+      }
 
       const previousThemeSettings = normalizeBoardThemeSettings(boardDoc.themeSettings);
       const previousImageUrl =
@@ -945,6 +961,20 @@ router.delete('/:id/background-image', async (req, res, next) => {
         },
       });
       return;
+    }
+    const isOwner = boardDoc.ownerId.toString() === authReq.user.id;
+    if (!isOwner) {
+      const canChangeTheme = await hasPermission(authReq.user, req.params.id, 'boards.themes.changetheme');
+      if (!canChangeTheme) {
+        res.status(403).json({
+          error: {
+            message: 'Insufficient permissions to update board theme/background',
+            code: 'FORBIDDEN',
+            statusCode: 403,
+          },
+        });
+        return;
+      }
     }
 
     const nextThemeSettings = normalizeBoardThemeSettings(boardDoc.themeSettings);

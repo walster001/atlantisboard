@@ -886,11 +886,40 @@ export async function updateBoard(
 
   const prevWorkspaceId = board.workspaceId?.toString() ?? null;
 
-  // Check permissions (owner or admin/manager)
-  if (board.ownerId.toString() !== userId) {
-    const allowed = await hasPermission({ id: userId }, boardId, 'boards.update');
-    if (!allowed) {
-      throw new Error('Insufficient permissions to update board');
+  const isOwner = board.ownerId.toString() === userId;
+  const hasThemeMutation = input.background !== undefined || input.themeSettings !== undefined;
+  const hasNonThemeMutation =
+    input.workspaceId !== undefined ||
+    input.name !== undefined ||
+    input.description !== undefined ||
+    input.visibility !== undefined ||
+    input.settings !== undefined;
+
+  if (!isOwner) {
+    if (hasThemeMutation) {
+      const canChangeTheme = await hasPermission({ id: userId }, boardId, 'boards.themes.changetheme');
+      if (!canChangeTheme) {
+        throw new Error('Insufficient permissions to update board theme/background');
+      }
+    }
+    if (input.themeSettings !== undefined) {
+      const previousThemeSettings = normalizeBoardThemeSettings(board.themeSettings);
+      const previousCustomThemes = previousThemeSettings.customThemes;
+      const nextCustomThemes = input.themeSettings.customThemes;
+      const customThemesChanged =
+        JSON.stringify(previousCustomThemes) !== JSON.stringify(nextCustomThemes);
+      if (customThemesChanged) {
+        const canManageCustomThemes = await hasPermission({ id: userId }, boardId, 'boards.themes.customtheme');
+        if (!canManageCustomThemes) {
+          throw new Error('Insufficient permissions to manage custom board themes');
+        }
+      }
+    }
+    if (hasNonThemeMutation) {
+      const allowed = await hasPermission({ id: userId }, boardId, 'boards.update');
+      if (!allowed) {
+        throw new Error('Insufficient permissions to update board');
+      }
     }
   }
 

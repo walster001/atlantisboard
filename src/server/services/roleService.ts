@@ -64,6 +64,8 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'invites.delete',
       'boards.update',
       'boards.settings.update',
+      'boards.themes.changetheme',
+      'boards.themes.customtheme',
       'boards.reorder_in_home',
       'boards.create',
       'lists.create',
@@ -277,6 +279,28 @@ export async function initializeRoleDefinitions(): Promise<void> {
     {
       $addToSet: {
         permissions: { $each: ['boards.create'] },
+      },
+    },
+  ).catch(() => undefined);
+
+  // Theme permissions: admin defaults + compatibility backfill for existing role docs.
+  await RoleDefinition.updateMany(
+    { key: 'admin', isBuiltIn: true },
+    {
+      $addToSet: {
+        permissions: {
+          $each: ['boards.themes.changetheme', 'boards.themes.customtheme'],
+        },
+      },
+    },
+  ).catch(() => undefined);
+  await RoleDefinition.updateMany(
+    { permissions: 'boards.settings.update' },
+    {
+      $addToSet: {
+        permissions: {
+          $each: ['boards.themes.changetheme', 'boards.themes.customtheme'],
+        },
       },
     },
   ).catch(() => undefined);

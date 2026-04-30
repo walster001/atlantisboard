@@ -29,6 +29,7 @@ import {
   IconLock,
   IconPlus,
   IconMessageCircle,
+  IconPalette,
   IconPaperclip,
   IconSettings,
   IconTag,
@@ -66,6 +67,7 @@ type PermissionCategoryKey =
   | 'workspaces'
   | 'boards'
   | 'board-settings'
+  | 'theme-background'
   | 'members'
   | 'columns'
   | 'cards'
@@ -82,6 +84,7 @@ const CATEGORY_ORDER: readonly PermissionCategoryKey[] = [
   'workspaces',
   'boards',
   'board-settings',
+  'theme-background',
   'members',
   'columns',
   'cards',
@@ -103,6 +106,8 @@ function categoryLabel(key: PermissionCategoryKey): string {
       return 'Boards';
     case 'board-settings':
       return 'Board Settings';
+    case 'theme-background':
+      return 'Theme & Background';
     case 'members':
       return 'Members';
     case 'columns':
@@ -138,6 +143,8 @@ function categoryIcon(key: PermissionCategoryKey): ReactNode {
       return <IconLayoutKanbanFilled size={size} stroke={stroke} />;
     case 'board-settings':
       return <IconSettings size={size} stroke={stroke} />;
+    case 'theme-background':
+      return <IconPalette size={size} stroke={stroke} />;
     case 'members':
       return <IconUsers size={size} stroke={stroke} />;
     case 'columns':
@@ -215,6 +222,10 @@ const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'boards.reorder_in_home': 'Reorder boards on the home page.',
   'boards.settings.open': 'Open Board Settings (UI affordance).',
   'boards.settings.update': 'Update board settings (appearance + behavior).',
+  'boards.themes.changetheme':
+    'Open Theme & Background tab and apply board theme/background changes.',
+  'boards.themes.customtheme':
+    'Create, edit, duplicate, and delete custom board themes.',
   'boards.members.view': 'View board members.',
   'boards.members.add': 'Add a member to a board.',
   'boards.members.remove': 'Remove a member from a board.',
@@ -337,6 +348,7 @@ function parseHierarchyFromInput(input: string, fallback: number): number {
 }
 
 function permissionCategoryForKey(permissionKey: string): PermissionCategoryKey {
+  if (permissionKey.startsWith('boards.themes.')) return 'theme-background';
   if (permissionKey.startsWith('boards.settings.')) return 'board-settings';
   if (permissionKey.startsWith('boards.members.')) return 'members';
   if (permissionKey.startsWith('lists.')) return 'columns';

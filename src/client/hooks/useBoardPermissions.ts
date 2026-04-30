@@ -21,6 +21,8 @@ export type BoardPermissionKey =
   | 'boards.update'
   | 'boards.reorder_in_home'
   | 'boards.settings.update'
+  | 'boards.themes.changetheme'
+  | 'boards.themes.customtheme'
   | 'boards.members.view'
   | 'boards.members.add'
   | 'boards.members.remove'

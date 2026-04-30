@@ -68,7 +68,23 @@ export default function BoardPage() {
     [permissionsLoaded, permissions],
   );
   const boardSettingsGate = useMemo(() => resolveBoardSettingsGate(can), [can]);
-  const { canManageBoardSettings, canManageBoardMembers, canOpenSettings } = boardSettingsGate;
+  const {
+    canManageBoardSettings,
+    canManageBoardMembers,
+    canChangeTheme,
+    canManageCustomThemes,
+    canOpenSettings,
+  } = boardSettingsGate;
+  const allowedSettingsTabs = useMemo(() => {
+    if (!canManageBoardSettings && canManageBoardMembers) {
+      return ['users'] as const;
+    }
+    const tabs: Array<'board' | 'users' | 'theme' | 'audit'> = ['board', 'users', 'audit'];
+    if (canChangeTheme) {
+      tabs.splice(2, 0, 'theme');
+    }
+    return tabs;
+  }, [canManageBoardSettings, canManageBoardMembers, canChangeTheme]);
 
   const loadData = useCallback(
     async (options?: { mode?: 'initial' | 'quiet'; signal?: AbortSignal }) => {
@@ -374,9 +390,8 @@ export default function BoardPage() {
           key={`settings:${board.id}:${permissionsLoaded ? 'ready' : 'loading'}`}
           boardId={board.id}
           onClose={handleCloseSettings}
-          {...(!canManageBoardSettings && canManageBoardMembers
-            ? { allowedTopTabs: ['users'] as const }
-            : {})}
+          allowedTopTabs={allowedSettingsTabs}
+          canManageCustomThemes={canManageCustomThemes}
           onSettingsLivePatch={handleSettingsLivePatch}
           onThemeLivePatch={handleThemeLivePatch}
         />

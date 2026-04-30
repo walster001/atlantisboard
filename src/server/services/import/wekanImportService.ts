@@ -21,7 +21,6 @@ import { CARD_DESCRIPTION_JSON_MAX_LENGTH } from '../../../shared/constants/card
 import { isValidCardDescriptionDoc } from '../../../shared/validation/cardDescriptionDoc.js';
 import type { ImportPreflightPayloadParsed } from '../../../shared/import/importPreflightSchema.js';
 import { mapWekanBoardMemberToBoardRoleKey } from '../../../shared/import/wekanBoardMemberRoleMap.js';
-import { resolveImportUserResolution } from '../../../shared/import/importUserResolution.js';
 import { uploadImportInlineImage } from '../importInlineAssetService.js';
 import { resolveImportedCardColour } from '../../../shared/utils/importDefaultCardColour.js';
 import { cssNamedColorToHex } from '../../../shared/utils/cssNamedColorToHex.js';
@@ -406,10 +405,6 @@ function normalizeWekanExportData(
         }
       : {}),
   };
-}
-
-function normalizeKey(value: string | undefined): string {
-  return (value ?? '').trim().toLowerCase();
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -1097,27 +1092,21 @@ export async function importWekan(
 
   try {
     const data = normalizeWekanExport(jsonData);
-    const decisionBySourceUserId = new Map(
-      (preflight?.userDecisions ?? []).map((d) => [d.sourceUserId, d]),
-    );
     const replacementByIconSrc = new Map(
       (preflight?.inlineButtonIconReplacements ?? []).map((r) => [r.iconSrc.trim(), r.replacementDataUrl]),
     );
     const localizedByIconSrc = await buildLocalizedInlineIconMap(
       extractLegacyInlineButtonCandidates(data.cards),
     );
-    const unmappedPolicy = preflight?.unmappedUserPolicy ?? 'map_to_importer';
 
     if (data.boards.length === 0) {
       throw new Error('Wekan import: no boards found in file.');
     }
 
-    // Map Wekan users to application users (decision -> auto-match -> policy fallback)
+    // Map Wekan users to application users by direct auto-match only.
     const userMap = new Map<string, string>();
-    const placeholderByEmail = new Map<string, string>();
     if (data.users) {
       for (const wekanUser of data.users) {
-        const decision = decisionBySourceUserId.get(wekanUser._id);
         let matchedUser: (typeof User) | null = null;
         const email = wekanUser.emails?.[0]?.address;
         if (email) {
@@ -1130,53 +1119,9 @@ export async function importWekan(
           matchedUser = await User.findOne({ displayName: wekanUser.profile.fullname });
         }
 
-        const autoMatchedUserId = matchedUser
-          ? (matchedUser as unknown as { _id: { toString: () => string } })._id.toString()
-          : undefined;
-        const resolution = resolveImportUserResolution({
-          ...(decision != null ? { decision } : {}),
-          ...(autoMatchedUserId != null ? { autoMatchedUserId } : {}),
-          policy: unmappedPolicy,
-          importerUserId: userId,
-        });
-        if (resolution.kind === 'discard') {
-          continue;
-        }
-        if (resolution.kind === 'map') {
-          userMap.set(wekanUser._id, resolution.userId);
-          continue;
-        }
-
-        // create_placeholder fallback
-        const normalizedEmail = normalizeKey(email);
-        const existingPlaceholderId =
-          normalizedEmail !== '' ? placeholderByEmail.get(normalizedEmail) : undefined;
-        if (existingPlaceholderId) {
-          userMap.set(wekanUser._id, existingPlaceholderId);
-          continue;
-        }
-        const placeholderUser = new User({
-          email: email || `placeholder-${wekanUser._id}@wekan.import`,
-          username: wekanUser.username || `wekan_${wekanUser._id}`,
-          displayName: wekanUser.profile?.fullname || wekanUser.username || 'Imported User',
-          passwordHash: undefined,
-          emailVerified: false,
-          isPlaceholder: true,
-          placeholderSource: 'wekan',
-          placeholderEmail: email,
-          placeholderName: wekanUser.profile?.fullname || wekanUser.username,
-          preferences: {
-            theme: 'light',
-            notifications: true,
-            language: 'en',
-            notificationPreferences: {},
-          },
-        });
-        await placeholderUser.save();
-        const placeholderId = placeholderUser._id.toString();
-        userMap.set(wekanUser._id, placeholderId);
-        if (normalizedEmail !== '') {
-          placeholderByEmail.set(normalizedEmail, placeholderId);
+        if (matchedUser) {
+          const autoMatchedUserId = (matchedUser as unknown as { _id: { toString: () => string } })._id.toString();
+          userMap.set(wekanUser._id, autoMatchedUserId);
         }
       }
     }

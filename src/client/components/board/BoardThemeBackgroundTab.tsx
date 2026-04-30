@@ -30,12 +30,19 @@ import './boardThemeBackgroundTab.css';
 
 interface BoardThemeBackgroundTabProps {
   boardId: string;
+  canChangeTheme: boolean;
+  canManageCustomThemes: boolean;
   onThemeLivePatch?: (patch: { themeSettings: BoardThemeSettings; background?: string }) => void;
 }
 
 type ThemeNav = 'theme' | 'background';
 
-export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThemeBackgroundTabProps) {
+export function BoardThemeBackgroundTab({
+  boardId,
+  canChangeTheme,
+  canManageCustomThemes,
+  onThemeLivePatch,
+}: BoardThemeBackgroundTabProps) {
   const { refreshUser } = useAuthContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -123,6 +130,9 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
   const previewIsImage = previewBackground != null && /^(https?:|data:|\/)/i.test(previewBackground);
 
   const handleSelectTheme = useCallback((themeId: string) => {
+    if (!canChangeTheme) {
+      return;
+    }
     const previousDraft = draft;
     const previousBackground = resolveBoardBackgroundFromThemeSettings(previousDraft);
     const custom = previousDraft.customThemes.find((theme) => theme.id === themeId);
@@ -160,27 +170,36 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         setSaving(false);
       }
     })();
-  }, [boardId, draft, onThemeLivePatch]);
+  }, [boardId, canChangeTheme, draft, onThemeLivePatch]);
 
   const openThemeEditorAdd = useCallback(() => {
+    if (!canManageCustomThemes) {
+      return;
+    }
     setThemeEditorError(null);
     setThemeEditorInitial(buildAddThemeDraft(draft));
     setThemeEditorVariant('add');
     setThemeEditorOpen(true);
-  }, [draft]);
+  }, [canManageCustomThemes, draft]);
 
   const openThemeEditorEdit = useCallback(
     (themeId: string) => {
+      if (!canManageCustomThemes) {
+        return;
+      }
       setThemeEditorError(null);
       setThemeEditorInitial(buildEditThemeDraft(draft, themeId));
       setThemeEditorVariant('edit');
       setThemeEditorOpen(true);
     },
-    [draft],
+    [canManageCustomThemes, draft],
   );
 
   const handleThemeEditorSave = useCallback(
     async (next: BoardThemeSettings) => {
+      if (!canManageCustomThemes) {
+        return;
+      }
       try {
         setThemeEditorSaving(true);
         setThemeEditorError(null);
@@ -203,7 +222,7 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         setThemeEditorSaving(false);
       }
     },
-    [boardId, draft],
+    [boardId, canManageCustomThemes, draft],
   );
 
   const handleThemeEditorClose = useCallback(() => {
@@ -212,6 +231,9 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
   }, []);
 
   const handleDuplicateCustomTheme = useCallback((theme: BoardThemeDefinition) => {
+    if (!canManageCustomThemes) {
+      return;
+    }
     const newId = `custom-${Date.now()}`;
     const copy: BoardThemeDefinition = {
       id: newId,
@@ -239,9 +261,12 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
     ).catch(() => {
       setError('Failed to save app-wide custom theme copy');
     });
-  }, [appCustomThemes]);
+  }, [appCustomThemes, canManageCustomThemes]);
 
   const handleDeleteCustomTheme = useCallback((theme: BoardThemeDefinition) => {
+    if (!canManageCustomThemes) {
+      return;
+    }
     modals.openConfirmModal({
       title: 'Delete theme',
       children: (
@@ -283,17 +308,23 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         });
       },
     });
-  }, [refreshUser]);
+  }, [canManageCustomThemes, refreshUser]);
 
   const handleBackgroundModeChange = useCallback((mode: string | null) => {
+    if (!canChangeTheme) {
+      return;
+    }
     setDraft((prev) => ({
       ...prev,
       backgroundMode: mode === 'color' || mode === 'image' ? mode : prev.backgroundMode,
     }));
-  }, []);
+  }, [canChangeTheme]);
 
   const handleBackgroundImageFile = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
+      if (!canChangeTheme) {
+        return;
+      }
       const file = event.target.files?.[0];
       event.currentTarget.value = '';
       if (file == null) {
@@ -350,10 +381,13 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         }
       })();
     },
-    [boardId, draft, savedSettings],
+    [boardId, canChangeTheme, draft, savedSettings],
   );
 
   const handleDeleteBackgroundImage = useCallback(() => {
+    if (!canChangeTheme) {
+      return;
+    }
     void (async () => {
       try {
         setSaving(true);
@@ -372,9 +406,12 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
         setSaving(false);
       }
     })();
-  }, [boardId, draft, savedSettings]);
+  }, [boardId, canChangeTheme, draft, savedSettings]);
 
   const handleSave = useCallback(async () => {
+    if (!canChangeTheme) {
+      return;
+    }
     try {
       setSaving(true);
       setError(null);
@@ -391,7 +428,7 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
     } finally {
       setSaving(false);
     }
-  }, [boardId, draft, savedSettings]);
+  }, [boardId, canChangeTheme, draft, savedSettings]);
 
   const hasBackgroundImage = (draft.backgroundImageUrl?.trim() ?? '') !== '';
 
@@ -428,6 +465,8 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
 
           {nav === 'theme' ? (
             <BoardThemeColouringPanel
+              canChangeTheme={canChangeTheme}
+              canManageCustomThemes={canManageCustomThemes}
               draft={draft}
               themeCards={themeCards}
               saving={saving}
@@ -441,6 +480,7 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
             />
           ) : (
             <BoardThemeBackgroundPanel
+              canChangeTheme={canChangeTheme}
               draft={draft}
               setDraft={setDraft}
               saving={saving}
@@ -458,7 +498,7 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
             <Group justify="flex-end" mt="md">
               <Button
                 variant="default"
-                disabled={!hasUnsavedChanges || saving || themeEditorSaving}
+                disabled={!canChangeTheme || !hasUnsavedChanges || saving || themeEditorSaving}
                 onClick={() => setDraft(savedSettings)}
               >
                 Cancel
@@ -466,7 +506,7 @@ export function BoardThemeBackgroundTab({ boardId, onThemeLivePatch }: BoardThem
               <Button
                 onClick={() => void handleSave()}
                 loading={saving}
-                disabled={!hasUnsavedChanges || themeEditorSaving}
+                disabled={!canChangeTheme || !hasUnsavedChanges || themeEditorSaving}
               >
                 Save Changes
               </Button>

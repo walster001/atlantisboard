@@ -24,6 +24,8 @@ describe('board settings permission gate', () => {
     );
     expect(gate.canOpenSettings).toBe(true);
     expect(gate.canManageBoardSettings).toBe(true);
+    expect(gate.canChangeTheme).toBe(false);
+    expect(gate.canManageCustomThemes).toBe(false);
   });
 
   it('shows settings for member managers and limits to users tab', () => {
@@ -33,5 +35,23 @@ describe('board settings permission gate', () => {
     expect(gate.canOpenSettings).toBe(true);
     expect(gate.canManageBoardSettings).toBe(false);
     expect(gate.canManageBoardMembers).toBe(true);
+  });
+
+  it('shows settings + theme capability for theme change permission', () => {
+    const gate = resolveBoardSettingsGate(
+      canFromKeys(['boards.view', 'boards.themes.changetheme']),
+    );
+    expect(gate.canOpenSettings).toBe(true);
+    expect(gate.canManageBoardSettings).toBe(true);
+    expect(gate.canChangeTheme).toBe(true);
+    expect(gate.canManageCustomThemes).toBe(false);
+  });
+
+  it('enables custom theme controls only with custom theme permission', () => {
+    const gate = resolveBoardSettingsGate(
+      canFromKeys(['boards.view', 'boards.themes.customtheme']),
+    );
+    expect(gate.canManageCustomThemes).toBe(true);
+    expect(gate.canChangeTheme).toBe(false);
   });
 });

@@ -47,6 +47,7 @@ interface BoardSettingsModalProps {
   onSettingsLivePatch?: (patch: BoardSettingsLivePatch) => void;
   onThemeLivePatch?: (patch: { themeSettings: BoardThemeSettings; background?: string }) => void;
   allowedTopTabs?: readonly TopTab[];
+  canManageCustomThemes?: boolean;
 }
 
 type TopTab = 'board' | 'users' | 'theme' | 'audit';
@@ -58,6 +59,7 @@ export function BoardSettingsModal({
   onSettingsLivePatch,
   onThemeLivePatch,
   allowedTopTabs,
+  canManageCustomThemes = false,
 }: BoardSettingsModalProps) {
   const [topTab, setTopTab] = useState<TopTab>('board');
   const [boardSideNav, setBoardSideNav] = useState<BoardSideNav>('labels');
@@ -169,7 +171,12 @@ export function BoardSettingsModal({
           </Tabs.Panel>
 
           <Tabs.Panel value="theme" pt="md" className="board-settings-modal__tab-panel">
-            <BoardThemeBackgroundTab boardId={boardId} {...(onThemeLivePatch !== undefined ? { onThemeLivePatch } : {})} />
+            <BoardThemeBackgroundTab
+              boardId={boardId}
+              canChangeTheme={allowed.includes('theme')}
+              canManageCustomThemes={canManageCustomThemes}
+              {...(onThemeLivePatch !== undefined ? { onThemeLivePatch } : {})}
+            />
           </Tabs.Panel>
 
           <Tabs.Panel

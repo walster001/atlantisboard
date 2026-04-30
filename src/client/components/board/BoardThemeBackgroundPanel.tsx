@@ -3,6 +3,7 @@ import { Box, Button, ColorInput, Group, Stack, Text } from '@mantine/core';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
 
 export interface BoardThemeBackgroundPanelProps {
+  canChangeTheme: boolean;
   draft: BoardThemeSettings;
   setDraft: Dispatch<SetStateAction<BoardThemeSettings>>;
   saving: boolean;
@@ -16,6 +17,7 @@ export interface BoardThemeBackgroundPanelProps {
 }
 
 export function BoardThemeBackgroundPanel({
+  canChangeTheme,
   draft,
   setDraft,
   saving,
@@ -40,12 +42,14 @@ export function BoardThemeBackgroundPanel({
         <Button
           variant={draft.backgroundMode === 'color' ? 'filled' : 'default'}
           onClick={() => onBackgroundModeChange('color')}
+          disabled={!canChangeTheme}
         >
           Color
         </Button>
         <Button
           variant={draft.backgroundMode === 'image' ? 'filled' : 'default'}
           onClick={() => onBackgroundModeChange('image')}
+          disabled={!canChangeTheme}
         >
           Image
         </Button>
@@ -57,10 +61,15 @@ export function BoardThemeBackgroundPanel({
             label="Custom Color"
             value={draft.backgroundColor ?? draft.selectedTheme.palette.canvasBg}
             onChange={(value) =>
-              setDraft((prev) => ({
-                ...prev,
-                backgroundColor: value,
-              }))
+              setDraft((prev) => {
+                if (!canChangeTheme) {
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  backgroundColor: value,
+                };
+              })
             }
             withPicker
             styles={{
@@ -73,11 +82,17 @@ export function BoardThemeBackgroundPanel({
             size="sm"
             style={{ width: 'fit-content', maxWidth: '100%' }}
             onClick={() =>
-              setDraft((prev) => ({
-                ...prev,
-                backgroundMode: 'color',
-              }))
+              setDraft((prev) => {
+                if (!canChangeTheme) {
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  backgroundMode: 'color',
+                };
+              })
             }
+            disabled={!canChangeTheme}
           >
             Apply Colour
           </Button>
@@ -93,7 +108,7 @@ export function BoardThemeBackgroundPanel({
                 variant="outline"
                 size="sm"
                 loading={uploadingImage}
-                disabled={saving}
+                disabled={saving || !canChangeTheme}
               >
                 Replace Background
                 <input
@@ -107,7 +122,7 @@ export function BoardThemeBackgroundPanel({
                 variant="outline"
                 color="red"
                 size="sm"
-                disabled={saving || uploadingImage}
+                disabled={saving || uploadingImage || !canChangeTheme}
                 onClick={onDeleteBackgroundImage}
               >
                 Delete Image
@@ -119,7 +134,7 @@ export function BoardThemeBackgroundPanel({
               variant="outline"
               size="sm"
               loading={uploadingImage}
-              disabled={saving}
+              disabled={saving || !canChangeTheme}
               style={{ alignSelf: 'flex-start' }}
             >
               Upload Image
@@ -142,11 +157,17 @@ export function BoardThemeBackgroundPanel({
               size="xs"
               variant={(draft.backgroundImageScale ?? 'fill') === 'fit-top-left' ? 'filled' : 'default'}
               onClick={() =>
-                setDraft((prev) => ({
-                  ...prev,
-                  backgroundImageScale: 'fit-top-left',
-                }))
+                setDraft((prev) => {
+                  if (!canChangeTheme) {
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    backgroundImageScale: 'fit-top-left',
+                  };
+                })
               }
+              disabled={!canChangeTheme}
             >
               Top-left Fill
             </Button>
@@ -154,11 +175,17 @@ export function BoardThemeBackgroundPanel({
               size="xs"
               variant={(draft.backgroundImageScale ?? 'fill') === 'fill' ? 'filled' : 'default'}
               onClick={() =>
-                setDraft((prev) => ({
-                  ...prev,
-                  backgroundImageScale: 'fill',
-                }))
+                setDraft((prev) => {
+                  if (!canChangeTheme) {
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    backgroundImageScale: 'fill',
+                  };
+                })
               }
+              disabled={!canChangeTheme}
             >
               Center Fill
             </Button>
@@ -166,11 +193,17 @@ export function BoardThemeBackgroundPanel({
               size="xs"
               variant={(draft.backgroundImageScale ?? 'fill') === 'smart-fill' ? 'filled' : 'default'}
               onClick={() =>
-                setDraft((prev) => ({
-                  ...prev,
-                  backgroundImageScale: 'smart-fill',
-                }))
+                setDraft((prev) => {
+                  if (!canChangeTheme) {
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    backgroundImageScale: 'smart-fill',
+                  };
+                })
               }
+              disabled={!canChangeTheme}
             >
               Smart Fill
             </Button>

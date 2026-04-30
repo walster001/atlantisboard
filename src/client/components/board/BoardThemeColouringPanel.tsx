@@ -18,6 +18,8 @@ import {
 } from './boardThemeTabHelpers.js';
 
 export interface BoardThemeColouringPanelProps {
+  canChangeTheme: boolean;
+  canManageCustomThemes: boolean;
   draft: BoardThemeSettings;
   themeCards: readonly BoardThemeDefinition[];
   saving: boolean;
@@ -31,6 +33,8 @@ export interface BoardThemeColouringPanelProps {
 }
 
 export function BoardThemeColouringPanel({
+  canChangeTheme,
+  canManageCustomThemes,
   draft,
   themeCards,
   saving,
@@ -51,7 +55,11 @@ export function BoardThemeColouringPanel({
           </Text>
           <Text c="dimmed">Select a theme to apply to this board.</Text>
         </Box>
-        <Button onClick={onSaveChanges} loading={saving} disabled={!hasUnsavedChanges || saving}>
+        <Button
+          onClick={onSaveChanges}
+          loading={saving}
+          disabled={!canChangeTheme || !hasUnsavedChanges || saving}
+        >
           Save Changes
         </Button>
       </Group>
@@ -68,10 +76,15 @@ export function BoardThemeColouringPanel({
                 isDefault ? '' : ' board-theme-card--custom'
               }`}
               withBorder
-              onClick={() => onSelectTheme(theme.id)}
+              onClick={() => {
+                if (!canChangeTheme) {
+                  return;
+                }
+                onSelectTheme(theme.id);
+              }}
             >
               <Box className="board-theme-card__preview-shell">
-                {isDefault ? null : (
+                {!canManageCustomThemes || isDefault ? null : (
                   <Box
                     className="board-theme-card__floating-actions"
                     onClick={(event) => event.stopPropagation()}
@@ -187,14 +200,16 @@ export function BoardThemeColouringPanel({
             </Card>
           );
         })}
-        <Card key="__add_theme__" className="board-theme-card board-theme-card--add" withBorder padding={0}>
-          <UnstyledButton type="button" className="board-theme-card__add-button" onClick={onAddTheme}>
-            <IconPlus size={36} stroke={1.25} />
-            <Text fw={600} size="sm">
-              Add theme
-            </Text>
-          </UnstyledButton>
-        </Card>
+        {canManageCustomThemes ? (
+          <Card key="__add_theme__" className="board-theme-card board-theme-card--add" withBorder padding={0}>
+            <UnstyledButton type="button" className="board-theme-card__add-button" onClick={onAddTheme}>
+              <IconPlus size={36} stroke={1.25} />
+              <Text fw={600} size="sm">
+                Add theme
+              </Text>
+            </UnstyledButton>
+          </Card>
+        ) : null}
       </SimpleGrid>
     </Stack>
   );

@@ -175,7 +175,10 @@ function SortableCardInner({
   onCardDeletedFromBoard: _onCardDeletedFromBoard,
 }: SortableCardProps) {
   const [deferRef, richReady] = useRichContentWhenNearViewport();
+  const [touchArmedForDrag, setTouchArmedForDrag] = useState(false);
   const cardRootRef = useRef<HTMLDivElement | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const setCardRootRef = (node: HTMLDivElement | null): void => {
     dragCleanupRef.current?.();
@@ -237,6 +240,15 @@ function SortableCardInner({
       return;
     }
     onOpenCard(card);
+  };
+
+  const clearLongPressState = (): void => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    touchStartRef.current = null;
+    setTouchArmedForDrag(false);
   };
 
   const hasDescription = typeof card.description === 'string' && card.description.trim() !== '';
@@ -364,6 +376,12 @@ function SortableCardInner({
     );
   }, [kanbanAssigneeVisualKey, assigneeDirectory]);
 
+  useLayoutEffect(() => {
+    return () => {
+      clearLongPressState();
+    };
+  }, []);
+
   return (
     <Card
       ref={setCardRootRef}
@@ -432,10 +450,38 @@ function SortableCardInner({
       <Box
         className={`board-card__kanban-body${
           kanbanCardBodyDraggable ? '' : ' board-card__kanban-body--no-drag'
-        }`}
+        }${touchArmedForDrag ? ' board-card__kanban-body--touch-armed' : ''}`}
+        onPointerDown={(event) => {
+          if (!kanbanCardBodyDraggable || event.pointerType !== 'touch') {
+            return;
+          }
+          touchStartRef.current = { x: event.clientX, y: event.clientY };
+          if (longPressTimerRef.current != null) {
+            window.clearTimeout(longPressTimerRef.current);
+          }
+          longPressTimerRef.current = window.setTimeout(() => {
+            setTouchArmedForDrag(true);
+          }, 280);
+        }}
+        onPointerMove={(event) => {
+          if (event.pointerType !== 'touch') {
+            return;
+          }
+          const start = touchStartRef.current;
+          if (start == null) {
+            return;
+          }
+          const dx = Math.abs(event.clientX - start.x);
+          const dy = Math.abs(event.clientY - start.y);
+          if (dx > 10 || dy > 10) {
+            clearLongPressState();
+          }
+        }}
+        onPointerUp={clearLongPressState}
+        onPointerCancel={clearLongPressState}
         style={
           kanbanCardBodyDraggable
-            ? { cursor: 'grab', touchAction: 'none' }
+            ? { cursor: 'grab', touchAction: touchArmedForDrag ? 'none' : 'pan-y' }
             : { cursor: 'pointer', touchAction: 'auto' }
         }
         onClick={handleCardAreaClick}

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { Loader, Box, Text, Title, Group, ActionIcon } from '@mantine/core';
 import { IconArrowLeft, IconLayoutKanbanFilled, IconLink, IconSettings } from '@tabler/icons-react';
@@ -27,6 +27,7 @@ import { getBoardPageThemeStyle } from '../utils/boardThemeStyle.js';
 import { resolveBoardSettingsGate } from '../utils/boardSettingsPermissions.js';
 import type { ScaleMode } from '../components/board/scaleModePolicy.js';
 import { env } from '../config/env.js';
+import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
 import '../components/board/boardView.css';
 
 const KANBAN_VIEW_SUSPENSE_FALLBACK = (
@@ -38,6 +39,9 @@ const KANBAN_VIEW_SUSPENSE_FALLBACK = (
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
+  const responsiveTier = useResponsiveTier();
+  const isMobile = responsiveTier === 'mobile';
+  const isTablet = responsiveTier === 'tablet';
   const [searchParams, setSearchParams] = useSearchParams();
   const forcedScaleMode = (
     searchParams.get('scaleMode')?.trim() ??
@@ -58,6 +62,12 @@ export default function BoardPage() {
   const boardHomeIconUrl = resolveBoardNavbarIconUrl(appBranding, loginBranding);
   const boardNavIconPx = appBranding.boardNavbarIconSizePx;
   const isMountedRef = useRef(true);
+  const swipeRef = useRef<{ active: boolean; startX: number; startY: number; fromTop: boolean }>({
+    active: false,
+    startX: 0,
+    startY: 0,
+    fromTop: false,
+  });
   useSocket(boardId);
   const { can, loaded: permissionsLoaded, permissions } = useBoardPermissions(
     boardId,
@@ -175,6 +185,48 @@ export default function BoardPage() {
       useBoardRuntimeStore.getState().clear();
     };
   }, [boardId, loadData]);
+
+  useLayoutEffect(() => {
+    const body = document.querySelector('.board-page__body');
+    if (!(body instanceof HTMLElement) || !isMobile) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.pointerType !== 'touch') {
+        return;
+      }
+      swipeRef.current = {
+        active: true,
+        startX: event.clientX,
+        startY: event.clientY,
+        fromTop: event.clientY <= 28,
+      };
+    };
+    const onPointerMove = (event: PointerEvent): void => {
+      if (!swipeRef.current.active || !swipeRef.current.fromTop || event.pointerType !== 'touch') {
+        return;
+      }
+      const dy = event.clientY - swipeRef.current.startY;
+      const dx = Math.abs(event.clientX - swipeRef.current.startX);
+      if (dy > 92 && dx < 48) {
+        swipeRef.current.active = false;
+        navigate('/');
+      }
+    };
+    const onPointerEnd = (): void => {
+      swipeRef.current.active = false;
+    };
+    body.addEventListener('pointerdown', onPointerDown, { passive: true });
+    body.addEventListener('pointermove', onPointerMove, { passive: true });
+    body.addEventListener('pointerup', onPointerEnd, { passive: true });
+    body.addEventListener('pointercancel', onPointerEnd, { passive: true });
+    return () => {
+      body.removeEventListener('pointerdown', onPointerDown);
+      body.removeEventListener('pointermove', onPointerMove);
+      body.removeEventListener('pointerup', onPointerEnd);
+      body.removeEventListener('pointercancel', onPointerEnd);
+    };
+  }, [isMobile, navigate]);
 
   const handleBack = useCallback(() => {
     navigate('/');
@@ -300,7 +352,10 @@ export default function BoardPage() {
   }
 
   return (
-    <Box className="board-page" {...(boardThemeStyle !== undefined ? { style: boardThemeStyle } : {})}>
+    <Box
+      className={`board-page${isMobile ? ' board-page--mobile' : isTablet ? ' board-page--tablet' : ''}`}
+      {...(boardThemeStyle !== undefined ? { style: boardThemeStyle } : {})}
+    >
       <Box className="board-page__header">
         <Group justify="space-between" align="center" wrap="nowrap" gap="md">
           <Group gap={6} wrap="nowrap" align="center" style={{ flex: 1, minWidth: 0 }}>
@@ -366,7 +421,8 @@ export default function BoardPage() {
             <UserMenu
               showDisplayName
               nameClassName="board-page__user-name"
-              nameVisibleFrom="xs"
+              {...(isMobile ? {} : { nameVisibleFrom: 'xs' })}
+              {...(isMobile ? { avatarSize: 38 } : {})}
               triggerVariant="board"
               triggerMl={4}
             />

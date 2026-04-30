@@ -10,6 +10,7 @@ import { AppBrandingProvider } from './contexts/AppBrandingContext.js';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { mantineTheme } from './config/mantineTheme.js';
+import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt.js';
 import '@mantine/core/styles.css';
 import '@mantine/charts/styles.css';
 import '@mantine/notifications/styles.css';
@@ -49,6 +50,7 @@ function App() {
       <ModalsProvider modalProps={MANTINE_MODALS_PROVIDER_PROPS}>
         <Notifications />
         <OfflinePersistenceNotice />
+        <PwaInstallPrompt />
         <BrowserRouter>
           <AppBrandingProvider>
             <ErrorBoundary>

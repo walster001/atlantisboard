@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Fully-functional, self-hosted Kanban board application" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Kanboard" />
+    <meta name="theme-color" content="#1a5b99" />
     <title>Kanboard</title>
     <!-- Blank default until `AppBrandingProvider` applies Admin → Login → Browser tab & favicon. Must match `FAVICON_LINK_ID` + `BLANK_TAB_FAVICON_HREF` in client. -->
     <link
@@ -16,13 +21,7 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/index.js"></script>
-    <script>
-      // Add manifest link
-      const link = document.createElement('link');
-      link.rel = 'manifest';
-      link.href = '/manifest.json';
-      document.head.appendChild(link);
-    </script>
+    <link rel="manifest" href="/manifest.json" />
   </body>
 </html>
 

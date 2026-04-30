@@ -22,6 +22,7 @@ import { AppBrandingSection } from '../components/admin/AppBrandingSection.js';
 import { CustomFontsSection } from '../components/admin/CustomFontsSection.js';
 import { RolesPermissionsTab } from '../components/admin/RolesPermissionsTab.js';
 import { useAuthContext } from '../contexts/AuthContext.js';
+import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
 
 const AdminUsersTab = lazy(async () => {
   const m = await import('../components/admin/AdminUsersTab.js');
@@ -64,6 +65,8 @@ type CustomisationSubtab = (typeof CUSTOMISATION_SUBTABS)[number]['value'];
 
 export default function AdminConfigurationPage() {
   const navigate = useNavigate();
+  const responsiveTier = useResponsiveTier();
+  const isMobile = responsiveTier === 'mobile';
   const { user, loading: authLoading } = useAuthContext();
 
   useEffect(() => {
@@ -77,6 +80,7 @@ export default function AdminConfigurationPage() {
 
   const [mainTab, setMainTab] = useState<'configuration' | 'customisation'>('configuration');
   const [configSubtab, setConfigSubtab] = useState<ConfigurationSubtab>('general');
+  const [mobileConfigOpen, setMobileConfigOpen] = useState<ConfigurationSubtab | null>(null);
   const [customisationSubtab, setCustomisationSubtab] =
     useState<CustomisationSubtab>('login-branding');
 
@@ -97,6 +101,118 @@ export default function AdminConfigurationPage() {
 
   if (authLoading || user == null || user.isAppAdmin !== true) {
     return null;
+  }
+
+  if (isMobile) {
+    const sectionLabel =
+      CONFIGURATION_SUBTABS.find((t) => t.value === mobileConfigOpen)?.label ?? mobileConfigOpen;
+    return (
+      <Box className="admin-configuration-page admin-configuration-page--mobile">
+        <Group className="admin-configuration-page__header" gap="sm" wrap="nowrap" align="center">
+          <ActionIcon
+            type="button"
+            variant="subtle"
+            color="gray"
+            size="lg"
+            radius="md"
+            onClick={() => {
+              if (mobileConfigOpen != null) {
+                setMobileConfigOpen(null);
+                return;
+              }
+              handleBack();
+            }}
+            aria-label="Go back"
+          >
+            <IconArrowLeft size={22} stroke={1.5} />
+          </ActionIcon>
+          <Title order={2} size="h4">
+            {mobileConfigOpen == null ? 'Admin Configuration' : sectionLabel}
+          </Title>
+        </Group>
+        <Tabs
+          value={mainTab}
+          color="blue"
+          variant="pills"
+          radius="sm"
+          onChange={(v) => {
+            if (v === 'configuration' || v === 'customisation') {
+              startTransition(() => setMainTab(v));
+              setMobileConfigOpen(null);
+            }
+          }}
+        >
+          <Tabs.List className="admin-configuration-page__main-tabs-list admin-configuration-page__main-tabs-list--mobile">
+            <Tabs.Tab value="configuration" aria-label="Configuration">
+              <IconTool size={18} stroke={1.5} />
+            </Tabs.Tab>
+            <Tabs.Tab value="customisation" aria-label="Customisation">
+              <IconSparkles size={18} stroke={1.5} />
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
+        {mainTab === 'configuration' ? (
+          mobileConfigOpen == null ? (
+            <Stack gap="xs">
+              {CONFIGURATION_SUBTABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  className="admin-configuration-page__mobile-row"
+                  onClick={() => setMobileConfigOpen(tab.value)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </Stack>
+          ) : (
+            <Box className="admin-configuration-page__mobile-content">
+              {mobileConfigOpen === 'login-options' ? (
+                <LoginOptionsSection />
+              ) : mobileConfigOpen === 'permissions' ? (
+                <RolesPermissionsTab />
+              ) : mobileConfigOpen === 'users' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminUsersTab currentUserId={user.id} />
+                </Suspense>
+              ) : mobileConfigOpen === 'backup' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminBackupPanel />
+                </Suspense>
+              ) : mobileConfigOpen === 'monitor' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminMonitorPanel />
+                </Suspense>
+              ) : (
+                <Stack gap="xs">
+                  <Title order={3}>{sectionLabel}</Title>
+                  <Text size="sm" c="dimmed">
+                    This section will be configured in a follow-up change.
+                  </Text>
+                </Stack>
+              )}
+            </Box>
+          )
+        ) : (
+          <Box className="admin-configuration-page__mobile-content">
+            {customisationSubtab === 'login-branding' ? (
+              <LoginBrandingSection />
+            ) : customisationSubtab === 'app-branding' ? (
+              <AppBrandingSection />
+            ) : customisationSubtab === 'custom-fonts' ? (
+              <CustomFontsSection />
+            ) : (
+              <Stack gap="xs">
+                <Title order={3}>{activeCustomisationSubLabel}</Title>
+                <Text size="sm" c="dimmed">
+                  This section will be configured in a follow-up change.
+                </Text>
+              </Stack>
+            )}
+          </Box>
+        )}
+      </Box>
+    );
   }
 
   return (

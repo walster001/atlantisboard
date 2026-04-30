@@ -467,6 +467,11 @@
   min-width: 0;
 }
 
+.board-card__kanban-body--touch-armed {
+  transform: translateY(-2px) scale(1.015);
+  transition: transform 0.12s ease;
+}
+
 .board-card.board-card--kanban .board-card__kanban-title {
   font-weight: 500;
   font-size: 0.875rem;
@@ -689,5 +694,72 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (max-width: 1199px) {
+  .board-page__header {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .board-page__body {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .board-column.board-column--width-auto,
+  .board-page__column-track--auto {
+    width: min(var(--board-list-column-prefer, 272px), max(228px, calc((100vw - 72px) / 3)));
+  }
+}
+
+@media (max-width: 767px) {
+  .board-page {
+    --board-viewport-gap: 0.75dvh;
+  }
+
+  .board-page__header {
+    padding-top: calc(4px + env(safe-area-inset-top));
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .board-page__title {
+    font-size: 0.95rem;
+  }
+
+  .board-page__body {
+    padding: 6px 6px max(6px, env(safe-area-inset-bottom));
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-y: contain;
+  }
+
+  .board-page__columns {
+    gap: 8px;
+    min-height: calc(100dvh - 92px);
+  }
+
+  .board-column.board-column--width-auto,
+  .board-page__column-track--auto {
+    width: calc(100vw - 12px);
+    min-width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+  }
+
+  .board-column,
+  .board-page__column-track {
+    scroll-snap-align: start;
+  }
+
+  .board-card,
+  .board-column__title-row {
+    touch-action: pan-y;
+  }
+
+  .board-card__kanban-menu-trigger {
+    width: 2rem;
+    height: 2rem;
+  }
 }
 

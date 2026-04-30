@@ -281,3 +281,74 @@
 .home-page__board-card--drag-source {
   opacity: 0.45;
 }
+
+@media (max-width: 1199px) {
+  .home-page {
+    --home-page-content-max-width: 100%;
+  }
+
+  .home-page__main {
+    padding: 0.875rem;
+  }
+
+  .home-page__board-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .home-page__nav {
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
+  }
+
+  .home-page__nav-inner {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .home-page__nav-brand-label {
+    font-size: 1.1rem;
+  }
+
+  .home-page__main {
+    min-height: calc(100dvh - 64px);
+    padding: 0.75rem;
+  }
+
+  .home-page__title {
+    font-size: 1.5rem;
+  }
+
+  .home-page__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .home-page__actions .mantine-Button-root {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .home-page__workspace-row {
+    display: block;
+  }
+
+  .home-page__workspace-title {
+    font-size: 1.1rem;
+  }
+
+  .home-page__board-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .home-page__board-card {
+    --home-board-card-min-h: 178px;
+  }
+
+  .home-page__workspace-drag-handle,
+  .home-page__workspace-add-board-icon {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}

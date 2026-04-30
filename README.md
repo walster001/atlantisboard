@@ -92,6 +92,26 @@ This script will:
 
 The application will be available at `http://localhost:3000`
 
+### Access From Mobile / LAN (WSL2 on Windows)
+
+If you run this app in WSL2 and want to open it from another device on your Wi-Fi:
+
+1. Ensure server bind is enabled for all interfaces (already default here):
+   - `.env` -> `HOST=0.0.0.0`
+2. Forward a Windows port to the WSL app port (PowerShell as Administrator):
+   ```powershell
+   # Replace 36521 with your Windows listen port, and 3000 with app port in WSL
+   netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=36521 connectaddress=<WSL_IP> connectport=3000
+   New-NetFirewallRule -DisplayName "Kanboard WSL LAN 36521" -Direction Inbound -Protocol TCP -LocalPort 36521 -Action Allow
+   ```
+3. From phone/tablet on same network, open:
+   - `http://<WINDOWS_LAN_IP>:36521`
+
+Notes:
+- Find `<WSL_IP>` from Ubuntu: `hostname -I`
+- Find `<WINDOWS_LAN_IP>` from PowerShell: `ipconfig`
+- For custom origins, set `.env` `CORS_ORIGIN` as comma-separated origins.
+
 ### Manual Setup
 
 1. **Clone the repository**
@@ -216,6 +236,7 @@ The `scripts/` directory contains several helper scripts:
 - `scripts/wait-for-services.sh` - Wait for Docker services to be healthy
 - `scripts/init-database.sh` - Initialize database
 - `scripts/health-check.sh` - Comprehensive health check utility
+- `scripts/print-wsl-lan-portproxy.sh` - Print PowerShell commands for WSL2 LAN access
 
 **Usage Examples:**
 

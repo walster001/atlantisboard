@@ -15,6 +15,7 @@ import { configureGoogleStrategy, passport } from './config/passport.js';
 import { setupSocketIO } from './sockets/index.js';
 import { initializeMinIOBuckets } from './config/minio.js';
 import { initializeRoleDefinitions } from './services/roleService.js';
+import { expressCorsOptions } from './config/cors.js';
 // Background jobs can run in separate worker process or in main process
 // Set ENABLE_CRON_JOBS_IN_MAIN=true to run in main process (default: false, use separate worker)
 import { scheduleCronJobs } from './workers/cronJobs.js';
@@ -74,10 +75,7 @@ app.use(
 
 // CORS configuration
 app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    credentials: true,
-  })
+  cors(expressCorsOptions)
 );
 
 // Cookie parser

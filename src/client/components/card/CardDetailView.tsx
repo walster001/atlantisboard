@@ -75,6 +75,7 @@ import {
   boardShowsRemindersOnCards,
   boardShowsStartDateOnCards,
 } from '../../../shared/utils/boardCardDateVisibility.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 
 const CARD_DETAIL_MODAL_STYLES = {
   body: {
@@ -167,6 +168,8 @@ export function CardDetailView({
   onCardDeleted,
   onCardUpdated,
 }: CardDetailViewProps) {
+  const responsiveTier = useResponsiveTier();
+  const isMobile = responsiveTier === 'mobile';
   const [card, setCard] = useState<CardDB>(initialCard);
   const [title, setTitle] = useState(card.title);
   const [isEditing, setIsEditing] = useState(false);
@@ -261,6 +264,26 @@ export function CardDetailView({
 
   const parsedDescription = useMemo(() => parseCardDescriptionJson(card.description), [card.description]);
   const isDescriptionEmpty = isCardDescriptionEmpty(parsedDescription);
+  const modalStyles = useMemo(
+    () =>
+      isMobile
+        ? {
+            ...CARD_DETAIL_MODAL_STYLES,
+            content: {
+              ...CARD_DETAIL_MODAL_STYLES.content,
+              width: '100dvw',
+              minWidth: '100dvw',
+              maxWidth: '100dvw',
+              height: '100dvh',
+              minHeight: '100dvh',
+              maxHeight: '100dvh',
+              marginTop: 0,
+              borderRadius: 0,
+            },
+          }
+        : CARD_DETAIL_MODAL_STYLES,
+    [isMobile],
+  );
 
   useEffect(() => {
     setDueLocalOverride(null);
@@ -762,6 +785,7 @@ export function CardDetailView({
         opened={true}
         onClose={onClose}
         size="54vw"
+        fullScreen={isMobile}
         withinPortal={false}
         transitionProps={{ duration: 0 }}
         overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
@@ -853,7 +877,7 @@ export function CardDetailView({
         }
         centered
         withCloseButton={false}
-        styles={CARD_DETAIL_MODAL_STYLES}
+        styles={modalStyles}
       >
         <>
           <FocusTrap.InitialFocus />

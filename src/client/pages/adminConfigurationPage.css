@@ -131,3 +131,40 @@
   min-width: 0;
   padding: var(--mantine-spacing-lg);
 }
+
+@media (max-width: 767px) {
+  .admin-configuration-page--mobile {
+    padding: calc(8px + env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .admin-configuration-page__main-tabs-list--mobile {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+  }
+
+  .admin-configuration-page__main-tabs-list--mobile .mantine-Tabs-tab {
+    justify-content: center;
+    min-height: 44px;
+    padding-inline: 0;
+  }
+
+  .admin-configuration-page__mobile-row {
+    width: 100%;
+    border: 1px solid var(--mantine-color-gray-3);
+    border-radius: var(--mantine-radius-md);
+    background: #fff;
+    min-height: 48px;
+    text-align: left;
+    padding: 0 12px;
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 600;
+  }
+
+  .admin-configuration-page__mobile-content {
+    margin-top: 8px;
+    max-height: calc(100dvh - 120px);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+}

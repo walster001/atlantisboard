@@ -6,6 +6,7 @@ import { User } from '../models/User.js';
 import { logger } from '../utils/logger.js';
 import { setupChangeStreams } from './changeStreams.js';
 import { setSocketIOInstance } from '../utils/socketIO.js';
+import { isAllowedCorsOrigin } from '../config/cors.js';
 
 export interface SocketAuthData {
   userId: string;
@@ -19,7 +20,9 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
 
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      origin(origin, callback) {
+        callback(null, isAllowedCorsOrigin(origin));
+      },
       credentials: true,
       methods: ['GET', 'POST'],
     },

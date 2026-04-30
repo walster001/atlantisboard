@@ -308,7 +308,63 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
   } = args;
 
   useLayoutEffect(() => {
-    return monitorForElements({
+    let autoScrollRafId: number | null = null;
+    let lastPointer: { x: number; y: number } | null = null;
+    const stopAutoScroll = (): void => {
+      lastPointer = null;
+      if (autoScrollRafId != null) {
+        cancelAnimationFrame(autoScrollRafId);
+        autoScrollRafId = null;
+      }
+    };
+    const runAutoScroll = (): void => {
+      autoScrollRafId = null;
+      if (lastPointer == null) {
+        return;
+      }
+      const boardFrame = document.querySelector('.board-page__body');
+      if (boardFrame instanceof HTMLElement) {
+        const boardRect = boardFrame.getBoundingClientRect();
+        const edgeSize = 56;
+        const leftDelta = lastPointer.x - boardRect.left;
+        const rightDelta = boardRect.right - lastPointer.x;
+        if (leftDelta >= 0 && leftDelta < edgeSize) {
+          boardFrame.scrollLeft -= Math.ceil((edgeSize - leftDelta) * 0.42);
+        } else if (rightDelta >= 0 && rightDelta < edgeSize) {
+          boardFrame.scrollLeft += Math.ceil((edgeSize - rightDelta) * 0.42);
+        }
+      }
+      const hoverEl = document.elementFromPoint(lastPointer.x, lastPointer.y);
+      const listBody = hoverEl?.closest?.('[data-kanban-list-body]');
+      if (listBody instanceof HTMLElement) {
+        const scrollTarget =
+          listBody.querySelector<HTMLElement>('.board-column__virtuoso-scroller') ?? listBody;
+        const rect = scrollTarget.getBoundingClientRect();
+        const edge = 42;
+        const topDelta = lastPointer.y - rect.top;
+        const bottomDelta = rect.bottom - lastPointer.y;
+        if (topDelta >= 0 && topDelta < edge) {
+          scrollTarget.scrollTop -= Math.ceil((edge - topDelta) * 0.46);
+        } else if (bottomDelta >= 0 && bottomDelta < edge) {
+          scrollTarget.scrollTop += Math.ceil((edge - bottomDelta) * 0.46);
+        }
+      }
+      autoScrollRafId = requestAnimationFrame(runAutoScroll);
+    };
+    const scheduleAutoScroll = (input: Record<string, unknown> | null): void => {
+      const clientX = typeof input?.clientX === 'number' ? input.clientX : null;
+      const clientY = typeof input?.clientY === 'number' ? input.clientY : null;
+      if (clientX == null || clientY == null) {
+        stopAutoScroll();
+        return;
+      }
+      lastPointer = { x: clientX, y: clientY };
+      if (autoScrollRafId == null) {
+        autoScrollRafId = requestAnimationFrame(runAutoScroll);
+      }
+    };
+
+    const cleanupMonitor = monitorForElements({
       onDragStart({ source }) {
         const data = source.data as Record<string, unknown>;
         const cardDrag = readKanbanCardDragData(data);
@@ -326,6 +382,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const ctx = kanbanDropCtxRef.current;
         const cardDrag = readKanbanCardDragData(data);
         if (cardDrag != null) {
+          scheduleAutoScroll(location.current.input as Record<string, unknown> | null);
           const resolved = resolveCardDropTarget(
             location.current.input as Record<string, unknown> | null,
             location.current.dropTargets,
@@ -349,6 +406,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
 
         const listDrag = readKanbanListDragData(data);
         if (listDrag != null) {
+          stopAutoScroll();
           ctx.queueCardDropIndicator(null);
           const over = resolveListDropListId(listDrag.listId, location.current.dropTargets);
           setListDropIndicatorIfChanged(over == null ? null : { overListId: over });
@@ -359,6 +417,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const ctx = kanbanDropCtxRef.current;
         const cardDrag = readKanbanCardDragData(data);
         if (cardDrag != null) {
+          stopAutoScroll();
           setDraggingCardId(null);
           setListDropIndicatorIfChanged(null);
           const indicatorSnapshot = resolveCardDropTarget(
@@ -425,6 +484,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
 
         const listDrag = readKanbanListDragData(data);
         if (listDrag != null) {
+          stopAutoScroll();
           setDraggingListId(null);
           const overListId = resolveListDropListId(listDrag.listId, location.current.dropTargets);
           setListDropIndicatorIfChanged(null);
@@ -463,5 +523,9 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         }
       },
     });
+    return () => {
+      stopAutoScroll();
+      cleanupMonitor();
+    };
   }, [kanbanDropCtxRef, setDraggingCardId, setDraggingListId, setListDropIndicatorIfChanged]);
 }

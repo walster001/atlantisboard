@@ -51,6 +51,7 @@ import {
   type HomePagePointerDragRefs,
 } from '../hooks/home/useHomePagePointerDrag.js';
 import { resolveHomeBoardTileCoverDisplay } from '../utils/boardCoverDisplay.js';
+import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
 import './HomePage.css';
 
 const HOME_BOARDS_PAGE_SIZE = 100;
@@ -213,6 +214,8 @@ export default function HomePage() {
   } | null>(null);
   const [workspaceSettingsId, setWorkspaceSettingsId] = useState<string | null>(null);
   const { authenticated, loading: authLoading, user, refreshUser } = useAuthContext();
+  const responsiveTier = useResponsiveTier();
+  const isMobile = responsiveTier === 'mobile';
   const { branding: loginBranding, appBranding: appChrome } = useAppBranding();
   useSocket();
   const navigate = useNavigate();
@@ -476,7 +479,12 @@ export default function HomePage() {
 
   return (
     <>
-      <Box className={`home-page${homePageDragging ? ' home-page--dragging' : ''}`} style={homePageRootStyle}>
+      <Box
+        className={`home-page${homePageDragging ? ' home-page--dragging' : ''}${
+          isMobile ? ' home-page--mobile' : responsiveTier === 'tablet' ? ' home-page--tablet' : ''
+        }`}
+        style={homePageRootStyle}
+      >
         <div
           ref={floatHostRef}
           data-home-drag-preview="1"
@@ -537,6 +545,7 @@ export default function HomePage() {
                 showDisplayName
                 nameClassName="home-page__user-name"
                 nameStyle={homeUserNameStyle}
+                {...(isMobile ? { avatarSize: 38 } : {})}
               />
             </Group>
           </Box>

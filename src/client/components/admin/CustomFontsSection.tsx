@@ -6,6 +6,7 @@ import {
   Group,
   Loader,
   Modal,
+  Select,
   Stack,
   Text,
   Title,
@@ -171,6 +172,15 @@ export function CustomFontsSection(): ReactElement {
     }
   }, [deleteTarget, load, scheduleSuccessClear]);
 
+  const defaultFontOptions = [
+    { value: '__poppins_default__', label: 'Poppins - Default' },
+    { value: SYSTEM_UI_FONT_FAMILY, label: 'System UI' },
+    ...fonts.map((f) => ({
+      value: f.fontFamilyValue,
+      label: f.displayName,
+    })),
+  ];
+
   if (loading) {
     return (
       <Box py="xl" style={{ display: 'flex', justifyContent: 'center' }}>
@@ -227,26 +237,23 @@ export function CustomFontsSection(): ReactElement {
         <Text size="sm" mb="sm">
           Current: <strong>{describeStoredDefaultUiFont(storedDefaultUiFont, fonts)}</strong>
         </Text>
-        <Group gap="sm" wrap="wrap">
-          <Button
-            variant="light"
-            size="sm"
-            loading={settingDefault}
-            disabled={settingDefault || storedDefaultUiFont === undefined}
-            onClick={() => void applyDefaultUiFont(null)}
-          >
-            Use built-in (Poppins)
-          </Button>
-          <Button
-            variant="light"
-            size="sm"
-            loading={settingDefault}
-            disabled={settingDefault || storedDefaultUiFont === SYSTEM_UI_FONT_FAMILY}
-            onClick={() => void applyDefaultUiFont(SYSTEM_UI_FONT_FAMILY)}
-          >
-            Use system UI
-          </Button>
-        </Group>
+        <Select
+          label="Default font"
+          data={defaultFontOptions}
+          value={storedDefaultUiFont ?? '__poppins_default__'}
+          onChange={(value) => {
+            if (!value || settingDefault) {
+              return;
+            }
+            if (value === '__poppins_default__') {
+              void applyDefaultUiFont(null);
+              return;
+            }
+            void applyDefaultUiFont(value);
+          }}
+          disabled={settingDefault}
+          maw={360}
+        />
       </Box>
 
       {error && (
@@ -294,7 +301,7 @@ export function CustomFontsSection(): ReactElement {
         ) : (
           <Stack gap="sm">
             {fonts.map((f) => (
-              <Group key={f.fileName} justify="space-between" wrap="nowrap" align="flex-start">
+              <Group key={f.fileName} justify="flex-start" wrap="nowrap" align="center" gap="xs">
                 <Box style={{ minWidth: 0 }}>
                   <Text fw={500} truncate>
                     {f.displayName}
@@ -303,20 +310,9 @@ export function CustomFontsSection(): ReactElement {
                     {f.fileName}
                   </Text>
                 </Box>
-                <Group gap="xs" wrap="nowrap">
-                  <Button
-                    variant={storedDefaultUiFont === f.fontFamilyValue ? 'filled' : 'light'}
-                    size="sm"
-                    loading={settingDefault}
-                    disabled={settingDefault || storedDefaultUiFont === f.fontFamilyValue}
-                    onClick={() => void applyDefaultUiFont(f.fontFamilyValue)}
-                  >
-                    {storedDefaultUiFont === f.fontFamilyValue ? 'Default' : 'Set as default'}
-                  </Button>
-                  <Button variant="subtle" color="red" size="sm" onClick={() => setDeleteTarget(f)}>
-                    Remove
-                  </Button>
-                </Group>
+                <Button variant="subtle" color="red" size="sm" onClick={() => setDeleteTarget(f)}>
+                  Remove
+                </Button>
               </Group>
             ))}
           </Stack>

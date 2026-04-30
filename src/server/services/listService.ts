@@ -237,6 +237,24 @@ export async function updateList(
     data: list.toObject(),
     serverTs: Date.now(),
   });
+  emitToBoard(list.boardId.toString(), 'list:patched', {
+    listId,
+    boardId: list.boardId.toString(),
+    changedFields: {
+      ...(input.name !== undefined ? { name: list.name } : {}),
+      ...(input.position !== undefined
+        ? {
+            position: list.position,
+            pos: typeof list.pos === 'number' ? list.pos : undefined,
+          }
+        : {}),
+      ...(input.color !== undefined ? { color: list.color } : {}),
+      updatedAt: list.updatedAt,
+    },
+    removedFields: [],
+    serverTs: Date.now(),
+    version: 2,
+  });
 
   return list;
 }
@@ -452,6 +470,18 @@ export async function moveList(
     boardId,
     data: list.toObject(),
     serverTs,
+  });
+  emitToBoard(boardId, 'list:patched', {
+    listId,
+    boardId,
+    changedFields: {
+      position: list.position,
+      pos: typeof list.pos === 'number' ? list.pos : undefined,
+      updatedAt: list.updatedAt,
+    },
+    removedFields: [],
+    serverTs,
+    version: 2,
   });
   if (normalized) {
     const rows = sortListRowsByPos(

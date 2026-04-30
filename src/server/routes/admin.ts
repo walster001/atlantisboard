@@ -33,7 +33,7 @@ import {
 } from '../services/fontService.js';
 import { RoleDefinition } from '../models/RoleDefinition.js';
 import { isBuiltInRoleKey, isValidCustomRoleKey } from '../services/roleService.js';
-import { emitToAll } from '../utils/socketIO.js';
+import { emitToAll, emitToUsers } from '../utils/socketIO.js';
 import { Workspace } from '../models/Workspace.js';
 import { Board } from '../models/Board.js';
 import { Card } from '../models/Card.js';
@@ -50,6 +50,26 @@ import { adminBackupRoutes } from './adminBackupRoutes.js';
 import { getAdminSystemMetricsSnapshot } from '../services/systemMetricsService.js';
 
 const router = Router();
+
+function emitPermissionsUpdated(input: {
+  affectedUserIds: readonly string[];
+  reason: string;
+  roleKey?: string;
+}): void {
+  const payload: Record<string, unknown> = {
+    affectedUserIds: [...input.affectedUserIds],
+    reason: input.reason,
+    serverTs: Date.now(),
+  };
+  if (input.roleKey != null && input.roleKey.trim() !== '') {
+    payload.roleKey = input.roleKey;
+  }
+  if (input.affectedUserIds.length > 0) {
+    emitToUsers(input.affectedUserIds, 'permissions.updated', payload);
+    return;
+  }
+  emitToAll('permissions.updated', payload);
+}
 
 const brandingUpload = multer({
   storage: multer.memoryStorage(),
@@ -901,11 +921,10 @@ router.put('/roles/:roleKey', async (req, res, next) => {
       role.hierarchyLevel = patch.hierarchyLevel;
     }
     await role.save();
-    emitToAll('permissions.updated', {
+    emitPermissionsUpdated({
       affectedUserIds: [],
       reason: 'role.definition.update',
       roleKey,
-      serverTs: Date.now(),
     });
     res.json({ role });
   } catch (error) {
@@ -934,11 +953,10 @@ router.delete('/roles/:roleKey', async (req, res, next) => {
       return;
     }
     await RoleDefinition.deleteOne({ _id: role._id });
-    emitToAll('permissions.updated', {
+    emitPermissionsUpdated({
       affectedUserIds: [],
       reason: 'role.definition.delete',
       roleKey,
-      serverTs: Date.now(),
     });
     res.status(204).end();
   } catch (error) {
@@ -1146,10 +1164,9 @@ router.delete('/users/:id', async (req, res, next) => {
       timestamp: new Date(),
     });
 
-    emitToAll('permissions.updated', {
+    emitPermissionsUpdated({
       affectedUserIds: [id],
       reason: 'user.deleted',
-      serverTs: Date.now(),
     });
 
     res.status(200).json({
@@ -1202,10 +1219,9 @@ router.post('/app-admins', async (req, res, next) => {
     if (!user.isAppAdmin) {
       user.isAppAdmin = true;
       await user.save();
-      emitToAll('permissions.updated', {
+      emitPermissionsUpdated({
         affectedUserIds: [userId],
         reason: 'app_admin.granted',
-        serverTs: Date.now(),
       });
     }
     res.status(200).json({ appAdmin: { _id: user._id, displayName: user.displayName, email: user.email } });
@@ -1253,10 +1269,9 @@ router.delete('/app-admins/:userId', async (req, res, next) => {
     if (user.isAppAdmin) {
       user.isAppAdmin = false;
       await user.save();
-      emitToAll('permissions.updated', {
+      emitPermissionsUpdated({
         affectedUserIds: [userId],
         reason: 'app_admin.revoked',
-        serverTs: Date.now(),
       });
     }
     res.status(204).end();

@@ -14,6 +14,9 @@ export interface SocketAuthData {
 }
 
 export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
+  const compressionThresholdRaw = Number(process.env.REALTIME_COMPRESSION_THRESHOLD_BYTES ?? '1024');
+  const compressionThreshold = Number.isFinite(compressionThresholdRaw) ? Math.max(256, compressionThresholdRaw) : 1024;
+
   const io = new SocketIOServer(httpServer, {
     cors: {
       origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
@@ -21,6 +24,10 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
       methods: ['GET', 'POST'],
     },
     transports: ['websocket', 'polling'],
+    httpCompression: true,
+    perMessageDeflate: {
+      threshold: compressionThreshold,
+    },
   });
 
   // Authentication middleware for Socket.io
@@ -61,6 +68,30 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
   });
 
   io.on('connection', (socket) => {
+    const typingThrottleByCard = new Map<string, number>();
+    const TYPING_THROTTLE_MS = Math.max(100, Number(process.env.REALTIME_TYPING_THROTTLE_MS ?? 300));
+
+    const emitTyping = (typing: boolean, data: { boardId: string; cardId?: string }): void => {
+      const boardId = typeof data.boardId === 'string' ? data.boardId.trim() : '';
+      if (boardId === '') {
+        return;
+      }
+      const cardId = typeof data.cardId === 'string' && data.cardId.trim() !== '' ? data.cardId.trim() : undefined;
+      const throttleKey = `${boardId}:${cardId ?? '*'}`;
+      const now = Date.now();
+      const lastSent = typingThrottleByCard.get(throttleKey) ?? 0;
+      if (typing && now - lastSent < TYPING_THROTTLE_MS) {
+        return;
+      }
+      typingThrottleByCard.set(throttleKey, now);
+      socket.to(`board:${boardId}`).emit('user:typing', {
+        userId: user.userId,
+        username: user.username,
+        ...(cardId != null ? { cardId } : {}),
+        typing,
+      });
+    };
+
     const user = socket.data.user as SocketAuthData;
     logger.info({ userId: user.userId, socketId: socket.id }, 'Socket.io client connected');
 
@@ -134,40 +165,20 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
 
     // Handle typing indicators (for comments)
     socket.on('comment:typing', (data: { boardId: string; cardId?: string }) => {
-      socket.to(`board:${data.boardId}`).emit('user:typing', {
-        userId: user.userId,
-        username: user.username,
-        cardId: data.cardId,
-        typing: true,
-      });
+      emitTyping(true, data);
     });
 
     socket.on('comment:typing:stop', (data: { boardId: string; cardId?: string }) => {
-      socket.to(`board:${data.boardId}`).emit('user:typing', {
-        userId: user.userId,
-        username: user.username,
-        cardId: data.cardId,
-        typing: false,
-      });
+      emitTyping(false, data);
     });
 
     // Legacy typing events (for backwards compatibility)
     socket.on('typing:start', (data: { boardId: string; cardId?: string }) => {
-      socket.to(`board:${data.boardId}`).emit('user:typing', {
-        userId: user.userId,
-        username: user.username,
-        cardId: data.cardId,
-        typing: true,
-      });
+      emitTyping(true, data);
     });
 
     socket.on('typing:stop', (data: { boardId: string; cardId?: string }) => {
-      socket.to(`board:${data.boardId}`).emit('user:typing', {
-        userId: user.userId,
-        username: user.username,
-        cardId: data.cardId,
-        typing: false,
-      });
+      emitTyping(false, data);
     });
 
     // Handle disconnection

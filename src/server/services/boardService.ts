@@ -82,26 +82,42 @@ function buildBoardSocketPayload(board: Document & IBoard): {
 export function emitBoardUpdatedRealtime(
   board: Document & IBoard,
   extraNotifyUserIds?: readonly string[],
+  patch?: { changedFields: Record<string, unknown>; removedFields?: readonly string[] },
 ): void {
   const payload = buildBoardSocketPayload(board);
   const boardId = payload.boardId;
   emitToBoard(boardId, 'board:updated', payload);
+  const patchPayload = {
+    boardId,
+    changedFields:
+      patch?.changedFields ?? {
+        updatedAt: board.updatedAt,
+      },
+    removedFields: patch?.removedFields ?? [],
+    serverTs: payload.serverTs,
+    version: 2,
+  };
+  emitToBoard(boardId, 'board:patched', patchPayload);
   const ws = board.workspaceId?.toString();
   if (ws) {
     emitToWorkspace(ws, 'board:updated', payload);
+    emitToWorkspace(ws, 'board:patched', patchPayload);
   }
   const ownerStr = board.ownerId.toString();
   emitToUser(ownerStr, 'board:updated', payload);
+  emitToUser(ownerStr, 'board:patched', patchPayload);
   for (const m of board.members) {
     const uid = m.userId.toString();
     if (uid !== ownerStr) {
       emitToUser(uid, 'board:updated', payload);
+      emitToUser(uid, 'board:patched', patchPayload);
     }
   }
   if (extraNotifyUserIds != null) {
     for (const uid of extraNotifyUserIds) {
       if (uid !== ownerStr) {
         emitToUser(uid, 'board:updated', payload);
+        emitToUser(uid, 'board:patched', patchPayload);
       }
     }
   }
@@ -1059,7 +1075,20 @@ export async function updateBoard(
     timestamp: new Date(),
   });
 
-  emitBoardUpdatedRealtime(board);
+  emitBoardUpdatedRealtime(board, undefined, {
+    changedFields: {
+      ...(input.workspaceId !== undefined
+        ? { workspaceId: board.workspaceId?.toString() ?? null, position: board.position }
+        : {}),
+      ...(input.name !== undefined ? { name: board.name } : {}),
+      ...(input.description !== undefined ? { description: board.description } : {}),
+      ...(input.background !== undefined ? { background: board.background } : {}),
+      ...(input.themeSettings !== undefined ? { themeSettings: board.themeSettings } : {}),
+      ...(input.visibility !== undefined ? { visibility: board.visibility } : {}),
+      ...(input.settings !== undefined ? { settings: board.settings } : {}),
+      updatedAt: board.updatedAt,
+    },
+  });
 
   return board;
 }

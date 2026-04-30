@@ -10,6 +10,7 @@ import { Activity } from '../models/Activity.js';
 import { BoardLabel } from '../models/BoardLabel.js';
 import { InviteLink } from '../models/InviteLink.js';
 import { emitWorkspaceUpdatedToBoardScopedUsersById } from '../services/workspaceService.js';
+import { emitToAudience, emitToBoard, emitToUser, emitToWorkspace, getRealtimeFlags } from '../utils/socketIO.js';
 
 type ChangeStreamChangeEvent<T = unknown> = {
   operationType?: 'insert' | 'update' | 'replace' | 'delete' | 'invalidate' | 'drop' | 'dropDatabase' | 'rename' | null;
@@ -110,8 +111,16 @@ export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
   }
 
   try {
+    const commonPipeline = [
+      {
+        $match: {
+          operationType: { $in: ['insert', 'update', 'replace', 'delete'] },
+        },
+      },
+    ];
+
     // Workspace Change Stream
-    const workspaceStream = Workspace.watch([], { fullDocument: 'updateLookup' });
+    const workspaceStream = Workspace.watch(commonPipeline, { fullDocument: 'updateLookup' });
     attachChangeStreamErrorHandler(workspaceStream, 'Workspace');
     workspaceStream.on('change', (change) => {
       handleWorkspaceChange(change, io);
@@ -119,7 +128,7 @@ export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
     changeStreams.push(workspaceStream);
 
     // Board Change Stream
-    const boardStream = Board.watch([], { fullDocument: 'updateLookup' });
+    const boardStream = Board.watch(commonPipeline, { fullDocument: 'updateLookup' });
     attachChangeStreamErrorHandler(boardStream, 'Board');
     boardStream.on('change', (change) => {
       handleBoardChange(change, io);
@@ -127,7 +136,7 @@ export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
     changeStreams.push(boardStream);
 
     // List Change Stream
-    const listStream = List.watch([], { fullDocument: 'updateLookup' });
+    const listStream = List.watch(commonPipeline, { fullDocument: 'updateLookup' });
     attachChangeStreamErrorHandler(listStream, 'List');
     listStream.on('change', (change) => {
       handleListChange(change, io);
@@ -135,7 +144,7 @@ export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
     changeStreams.push(listStream);
 
     // Card Change Stream
-    const cardStream = Card.watch();
+    const cardStream = Card.watch(commonPipeline, { fullDocument: 'updateLookup' });
     attachChangeStreamErrorHandler(cardStream, 'Card');
     cardStream.on('change', (change) => {
       handleCardChange(change, io);
@@ -143,7 +152,7 @@ export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
     changeStreams.push(cardStream);
 
     // Activity Change Stream
-    const activityStream = Activity.watch([], { fullDocument: 'updateLookup' });
+    const activityStream = Activity.watch([{ $match: { operationType: 'insert' } }], { fullDocument: 'updateLookup' });
     attachChangeStreamErrorHandler(activityStream, 'Activity');
     activityStream.on('change', (change) => {
       handleActivityChange(change, io);
@@ -151,7 +160,7 @@ export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
     changeStreams.push(activityStream);
 
     // BoardLabel Change Stream
-    const labelStream = BoardLabel.watch([], { fullDocument: 'updateLookup' });
+    const labelStream = BoardLabel.watch(commonPipeline, { fullDocument: 'updateLookup' });
     attachChangeStreamErrorHandler(labelStream, 'BoardLabel');
     labelStream.on('change', (change) => {
       handleLabelChange(change, io);
@@ -159,7 +168,7 @@ export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
     changeStreams.push(labelStream);
 
     // InviteLink Change Stream
-    const inviteStream = InviteLink.watch([], { fullDocument: 'updateLookup' });
+    const inviteStream = InviteLink.watch(commonPipeline, { fullDocument: 'updateLookup' });
     attachChangeStreamErrorHandler(inviteStream, 'InviteLink');
     inviteStream.on('change', (change) => {
       handleInviteChange(change, io);
@@ -195,6 +204,10 @@ export async function closeChangeStreams(): Promise<void> {
 
 function handleWorkspaceChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIOServer): void {
   try {
+    void io;
+    if (getRealtimeFlags().singleSourceMode) {
+      return;
+    }
     const workspaceId = change.documentKey?._id?.toString();
     if (!workspaceId) return;
 
@@ -202,16 +215,25 @@ function handleWorkspaceChange(change: ChangeStreamChangeEvent<unknown>, io: Soc
     const serverTs = Date.now();
 
     if (change.operationType === 'insert' || change.operationType === 'update' || change.operationType === 'replace') {
-      io.to(`workspace:${workspaceId}`).emit(`workspace:${eventName}`, {
+      emitToWorkspace(workspaceId, `workspace:${eventName}`, {
         workspaceId,
         data: change.fullDocument,
         serverTs,
       });
+      if (getRealtimeFlags().deltaMode && change.operationType === 'update' && change.updateDescription != null) {
+        emitToWorkspace(workspaceId, 'workspace:patched', {
+          workspaceId,
+          changedFields: change.updateDescription.updatedFields ?? {},
+          removedFields: change.updateDescription.removedFields ?? [],
+          serverTs,
+          version: 2,
+        });
+      }
       if (change.operationType === 'update' || change.operationType === 'replace') {
         void emitWorkspaceUpdatedToBoardScopedUsersById(workspaceId);
       }
     } else if (change.operationType === 'delete') {
-      io.to(`workspace:${workspaceId}`).emit(`workspace:${eventName}`, {
+      emitToWorkspace(workspaceId, `workspace:${eventName}`, {
         workspaceId,
         serverTs,
       });
@@ -223,6 +245,10 @@ function handleWorkspaceChange(change: ChangeStreamChangeEvent<unknown>, io: Soc
 
 function handleBoardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIOServer): void {
   try {
+    void io;
+    if (getRealtimeFlags().singleSourceMode) {
+      return;
+    }
     const boardId = change.documentKey?._id?.toString();
     if (!boardId) return;
 
@@ -231,7 +257,7 @@ function handleBoardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketI
 
     // Emit to board-specific room
     if (change.operationType === 'insert' || change.operationType === 'update' || change.operationType === 'replace') {
-      io.to(`board:${boardId}`).emit(`board:${eventName}`, {
+      emitToBoard(boardId, `board:${eventName}`, {
         boardId,
         data: change.fullDocument,
         serverTs,
@@ -243,7 +269,7 @@ function handleBoardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketI
         | undefined;
       const workspaceId = boardDoc?.workspaceId?.toString();
       if (workspaceId) {
-        io.to(`workspace:${workspaceId}`).emit(`board:${eventName}`, {
+        emitToWorkspace(workspaceId, `board:${eventName}`, {
           boardId,
           data: change.fullDocument,
           serverTs,
@@ -253,7 +279,7 @@ function handleBoardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketI
       // Also emit to affected user rooms (owner + members) for personal/home buckets
       const ownerId = boardDoc?.ownerId?.toString();
       if (ownerId) {
-        io.to(`user:${ownerId}`).emit(`board:${eventName}`, {
+        emitToUser(ownerId, `board:${eventName}`, {
           boardId,
           data: change.fullDocument,
           serverTs,
@@ -263,12 +289,32 @@ function handleBoardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketI
       for (const m of members) {
         const memberUserId = m?.userId?.toString();
         if (memberUserId && memberUserId !== ownerId) {
-          io.to(`user:${memberUserId}`).emit(`board:${eventName}`, {
+          emitToUser(memberUserId, `board:${eventName}`, {
             boardId,
             data: change.fullDocument,
             serverTs,
           });
         }
+      }
+      if (getRealtimeFlags().deltaMode && change.operationType === 'update' && change.updateDescription != null) {
+        emitToAudience(
+          {
+            boardId,
+            ...(workspaceId != null ? { workspaceId } : {}),
+            userIds: [
+              ...(ownerId != null ? [ownerId] : []),
+              ...members.map((member) => member?.userId?.toString() ?? '').filter((value) => value !== ownerId && value !== ''),
+            ],
+          },
+          'board:patched',
+          {
+            boardId,
+            changedFields: change.updateDescription.updatedFields ?? {},
+            removedFields: change.updateDescription.removedFields ?? [],
+            serverTs,
+            version: 2,
+          },
+        );
       }
     } else if (change.operationType === 'delete') {
       // board:deleted is emitted directly by services where workspace/user rooms are known.
@@ -281,29 +327,45 @@ function handleBoardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketI
 
 function handleListChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIOServer): void {
   try {
+    void io;
+    if (getRealtimeFlags().singleSourceMode) {
+      return;
+    }
     const listId = change.documentKey?._id?.toString();
-    if (!listId || !change.fullDocument) return;
-
-    const boardId = (change.fullDocument as { boardId?: unknown })?.boardId?.toString();
-    if (!boardId) return;
+    if (!listId) return;
+    const boardIdFromDocument = (change.fullDocument as { boardId?: unknown } | undefined)?.boardId?.toString();
 
     const eventName = getChangeEventName(change.operationType || '');
     const serverTs = Date.now();
 
     // Emit to board-specific room
     if (change.operationType === 'insert' || change.operationType === 'update' || change.operationType === 'replace') {
-      io.to(`board:${boardId}`).emit(`list:${eventName}`, {
+      if (!boardIdFromDocument) return;
+      emitToBoard(boardIdFromDocument, `list:${eventName}`, {
         listId,
-        boardId,
+        boardId: boardIdFromDocument,
         data: change.fullDocument,
         serverTs,
       });
+      if (getRealtimeFlags().deltaMode && change.operationType === 'update' && change.updateDescription != null) {
+        emitToBoard(boardIdFromDocument, 'list:patched', {
+          listId,
+          boardId: boardIdFromDocument,
+          changedFields: change.updateDescription.updatedFields ?? {},
+          removedFields: change.updateDescription.removedFields ?? [],
+          serverTs,
+          version: 2,
+        });
+      }
     } else if (change.operationType === 'delete') {
-      io.to(`board:${boardId}`).emit(`list:${eventName}`, {
-        listId,
-        boardId,
-        serverTs,
-      });
+      // list delete emits stay service-owned when boardId is not available in stream payload.
+      if (boardIdFromDocument) {
+        emitToBoard(boardIdFromDocument, `list:${eventName}`, {
+          listId,
+          boardId: boardIdFromDocument,
+          serverTs,
+        });
+      }
     }
   } catch (error) {
     logger.error({ error, change }, 'Error handling list change');
@@ -313,6 +375,10 @@ function handleListChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIO
 function handleCardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIOServer): void {
   void (async () => {
     try {
+    void io;
+    if (getRealtimeFlags().singleSourceMode) {
+      return;
+    }
     const cardId = change.documentKey?._id?.toString();
     if (!cardId) return;
     const serverTs = Date.now();
@@ -327,7 +393,7 @@ function handleCardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIO
         return;
       }
       const eventName = getChangeEventName(change.operationType || '');
-      io.to(`board:${boardId}`).emit(`card:${eventName}`, {
+      emitToBoard(boardId, `card:${eventName}`, {
         cardId,
         boardId,
         data: fullCard,
@@ -337,7 +403,9 @@ function handleCardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIO
     }
 
     if (change.operationType === 'update') {
-      const fullCard = await Card.findById(cardId).select('boardId').lean().exec();
+      const fullCard =
+        change.fullDocument ??
+        (await Card.findById(cardId).select('boardId').lean().exec());
       if (!fullCard) {
         return;
       }
@@ -354,12 +422,27 @@ function handleCardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIO
         }
         changedFields[topLevelKey] = updatedFields[key];
       }
-      io.to(`board:${boardId}`).emit('card:patched', {
+      if (!getRealtimeFlags().deltaMode) {
+        const fullCardWithFields =
+          change.fullDocument ??
+          (await Card.findById(cardId).lean().exec());
+        if (fullCardWithFields != null) {
+          emitToBoard(boardId, 'card:updated', {
+            cardId,
+            boardId,
+            data: fullCardWithFields,
+            serverTs,
+          });
+        }
+        return;
+      }
+      emitToBoard(boardId, 'card:patched', {
         cardId,
         boardId,
         changedFields,
         removedFields: change.updateDescription?.removedFields ?? [],
         serverTs,
+        version: 2,
       });
       return;
     }
@@ -376,6 +459,10 @@ function handleCardChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIO
 
 function handleActivityChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIOServer): void {
   try {
+    void io;
+    if (getRealtimeFlags().singleSourceMode) {
+      return;
+    }
     const activityId = change.documentKey?._id?.toString();
     if (!activityId || !change.fullDocument) return;
 
@@ -387,7 +474,7 @@ function handleActivityChange(change: ChangeStreamChangeEvent<unknown>, io: Sock
     if (change.operationType === 'insert') {
       // Emit to board room if boardId exists
       if (boardId) {
-        io.to(`board:${boardId}`).emit('activity:created', {
+        emitToBoard(boardId, 'activity:created', {
           activityId,
           boardId,
           cardId,
@@ -403,30 +490,45 @@ function handleActivityChange(change: ChangeStreamChangeEvent<unknown>, io: Sock
 
 function handleLabelChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIOServer): void {
   try {
+    void io;
+    if (getRealtimeFlags().singleSourceMode) {
+      return;
+    }
     const labelId = change.documentKey?._id?.toString();
-    if (!labelId || !change.fullDocument) return;
-
-    const label = change.fullDocument as { boardId?: unknown };
-    const boardId = label.boardId?.toString();
-    if (!boardId) return;
+    if (!labelId) return;
+    const label = change.fullDocument as { boardId?: unknown } | undefined;
+    const boardId = label?.boardId?.toString();
 
     const eventName = getChangeEventName(change.operationType || '');
     const serverTs = Date.now();
 
     // Emit to board-specific room
     if (change.operationType === 'insert' || change.operationType === 'update' || change.operationType === 'replace') {
-      io.to(`board:${boardId}`).emit(`label:${eventName}`, {
+      if (!boardId) return;
+      emitToBoard(boardId, `label:${eventName}`, {
         labelId,
         boardId,
         data: change.fullDocument,
         serverTs,
       });
+      if (getRealtimeFlags().deltaMode && change.operationType === 'update' && change.updateDescription != null) {
+        emitToBoard(boardId, 'label:patched', {
+          labelId,
+          boardId,
+          changedFields: change.updateDescription.updatedFields ?? {},
+          removedFields: change.updateDescription.removedFields ?? [],
+          serverTs,
+          version: 2,
+        });
+      }
     } else if (change.operationType === 'delete') {
-      io.to(`board:${boardId}`).emit(`label:${eventName}`, {
-        labelId,
-        boardId,
-        serverTs,
-      });
+      if (boardId) {
+        emitToBoard(boardId, `label:${eventName}`, {
+          labelId,
+          boardId,
+          serverTs,
+        });
+      }
     }
   } catch (error) {
     logger.error({ error, change }, 'Error handling label change');
@@ -435,13 +537,17 @@ function handleLabelChange(change: ChangeStreamChangeEvent<unknown>, io: SocketI
 
 function handleInviteChange(change: ChangeStreamChangeEvent<unknown>, io: SocketIOServer): void {
   try {
+    void io;
+    if (getRealtimeFlags().singleSourceMode) {
+      return;
+    }
     const inviteId = change.documentKey?._id?.toString();
-    if (!inviteId || !change.fullDocument) return;
+    if (!inviteId) return;
 
-    const invite = change.fullDocument as { workspaceId?: unknown; boardId?: unknown; createdBy?: unknown };
-    const workspaceId = invite.workspaceId?.toString();
-    const boardId = invite.boardId?.toString();
-    const createdBy = invite.createdBy?.toString();
+    const invite = change.fullDocument as { workspaceId?: unknown; boardId?: unknown; createdBy?: unknown } | undefined;
+    const workspaceId = invite?.workspaceId?.toString();
+    const boardId = invite?.boardId?.toString();
+    const createdBy = invite?.createdBy?.toString();
 
     const eventName = getChangeEventName(change.operationType || '');
     const serverTs = Date.now();
@@ -449,7 +555,7 @@ function handleInviteChange(change: ChangeStreamChangeEvent<unknown>, io: Socket
     // Emit to workspace or board room, and to creator
     if (change.operationType === 'insert' || change.operationType === 'update' || change.operationType === 'replace') {
       if (workspaceId) {
-        io.to(`workspace:${workspaceId}`).emit(`invite:${eventName}`, {
+        emitToWorkspace(workspaceId, `invite:${eventName}`, {
           inviteId,
           workspaceId,
           boardId,
@@ -458,7 +564,7 @@ function handleInviteChange(change: ChangeStreamChangeEvent<unknown>, io: Socket
         });
       }
       if (boardId) {
-        io.to(`board:${boardId}`).emit(`invite:${eventName}`, {
+        emitToBoard(boardId, `invite:${eventName}`, {
           inviteId,
           boardId,
           data: change.fullDocument,
@@ -466,15 +572,30 @@ function handleInviteChange(change: ChangeStreamChangeEvent<unknown>, io: Socket
         });
       }
       if (createdBy) {
-        io.to(`user:${createdBy}`).emit(`invite:${eventName}`, {
+        emitToUser(createdBy, `invite:${eventName}`, {
           inviteId,
           data: change.fullDocument,
           serverTs,
         });
       }
+      if (getRealtimeFlags().deltaMode && change.operationType === 'update' && change.updateDescription != null) {
+        emitToAudience(
+          { ...(workspaceId != null ? { workspaceId } : {}), ...(boardId != null ? { boardId } : {}), userIds: createdBy != null ? [createdBy] : [] },
+          'invite:patched',
+          {
+            inviteId,
+            ...(workspaceId != null ? { workspaceId } : {}),
+            ...(boardId != null ? { boardId } : {}),
+            changedFields: change.updateDescription.updatedFields ?? {},
+            removedFields: change.updateDescription.removedFields ?? [],
+            serverTs,
+            version: 2,
+          },
+        );
+      }
     } else if (change.operationType === 'delete') {
       if (workspaceId) {
-        io.to(`workspace:${workspaceId}`).emit(`invite:${eventName}`, {
+        emitToWorkspace(workspaceId, `invite:${eventName}`, {
           inviteId,
           workspaceId,
           boardId,
@@ -482,7 +603,7 @@ function handleInviteChange(change: ChangeStreamChangeEvent<unknown>, io: Socket
         });
       }
       if (boardId) {
-        io.to(`board:${boardId}`).emit(`invite:${eventName}`, {
+        emitToBoard(boardId, `invite:${eventName}`, {
           inviteId,
           boardId,
           serverTs,

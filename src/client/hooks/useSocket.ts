@@ -153,6 +153,21 @@ type PendingCardPatchEvent = {
 const pendingCardPatchedEvents = new Map<string, PendingCardPatchEvent>();
 let cardPatchFlushQueued = false;
 
+function applyFlatFieldPatch<T extends object>(
+  current: T,
+  changedFields: Readonly<Record<string, unknown>>,
+  removedFields: readonly string[],
+): T {
+  const patched: Record<string, unknown> = { ...(current as unknown as Record<string, unknown>) };
+  for (const [key, value] of Object.entries(changedFields)) {
+    patched[key] = value;
+  }
+  for (const key of removedFields) {
+    delete patched[key];
+  }
+  return patched as T;
+}
+
 function shouldApplyCardEvent(cardId: string, serverTs: unknown): boolean {
   if (typeof serverTs !== 'number' || !Number.isFinite(serverTs)) {
     return true;
@@ -392,6 +407,35 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     });
   });
 
+  socket.on(
+    'workspace:patched',
+    (data: {
+      workspaceId: string;
+      changedFields: Record<string, unknown>;
+      removedFields: string[];
+      serverTs?: number;
+      version?: number;
+    }) => {
+      deferSocketWork(() => {
+        void db.workspaces.get(data.workspaceId).then((existing) => {
+          if (existing == null) {
+            return;
+          }
+          const patched = applyFlatFieldPatch(existing, data.changedFields, data.removedFields);
+          void getLocalUserId().then((uid) => {
+            void db.workspaces.put(patched).then(() => {
+              applyWorkspaceRoomMembership(
+                patched.id,
+                canJoinWorkspaceRoomForLocalUser(patched, uid),
+              );
+              emitSocketWorkspaceUpdated({ workspaceId: data.workspaceId, workspace: patched });
+            });
+          });
+        });
+      });
+    },
+  );
+
   socket.on('workspace:deleted', (data: { workspaceId: string }) => {
     deferSocketWork(() => {
       applyWorkspaceRoomMembership(data.workspaceId, false);
@@ -429,6 +473,32 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
       }
     });
   });
+
+  socket.on(
+    'board:patched',
+    (data: {
+      boardId: string;
+      changedFields: Record<string, unknown>;
+      removedFields: string[];
+      serverTs?: number;
+      version?: number;
+    }) => {
+      deferSocketWork(() => {
+        void db.boards.get(data.boardId).then((existing) => {
+          if (existing == null) {
+            return;
+          }
+          const patched = applyFlatFieldPatch(existing, data.changedFields, data.removedFields);
+          if (runtimeActiveBoardId() === data.boardId) {
+            useBoardRuntimeStore.getState().commitBoard(patched);
+          }
+          void db.boards.put(patched).then(() => {
+            emitSocketBoardUpdated({ boardId: data.boardId, board: patched });
+          });
+        });
+      });
+    },
+  );
 
   socket.on('board:deleted', (data: { boardId: string }) => {
     deferSocketWork(() => {
@@ -536,6 +606,33 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
       }
     });
   });
+
+  socket.on(
+    'list:patched',
+    (data: {
+      listId: string;
+      boardId: string;
+      changedFields: Record<string, unknown>;
+      removedFields: string[];
+      serverTs?: number;
+      version?: number;
+    }) => {
+      deferSocketWork(() => {
+        void db.lists.get(data.listId).then((existing) => {
+          if (existing == null) {
+            return;
+          }
+          const patched = applyFlatFieldPatch(existing, data.changedFields, data.removedFields);
+          if (runtimeActiveBoardId() === data.boardId) {
+            useBoardRuntimeStore.getState().upsertList(patched);
+          }
+          void db.lists.put(patched).then(() => {
+            emitSocketListUpdated({ boardId: data.boardId, list: patched });
+          });
+        });
+      });
+    },
+  );
 
   socket.on('list:deleted', (data: { listId: string; boardId: string }) => {
     deferSocketWork(() => {
@@ -942,6 +1039,12 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     });
   });
 
+  socket.on('label:patched', (data: { boardId: string }) => {
+    deferSocketWork(() => {
+      emitSocketBoardLabelsChanged({ boardId: data.boardId });
+    });
+  });
+
   socket.on(
     'label:assigned',
     (data: {
@@ -1042,6 +1145,16 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     });
   });
 
+  socket.on('invite:patched', (data: { workspaceId?: string; boardId?: string }) => {
+    deferSocketWork(() => {
+      const payload: SocketInvitesChangedPayload = {
+        ...(data.workspaceId !== undefined ? { workspaceId: data.workspaceId } : {}),
+        ...(data.boardId !== undefined ? { boardId: data.boardId } : {}),
+      };
+      emitSocketInvitesChanged(payload);
+    });
+  });
+
   socket.on('lists:bulk-color-updated', (data: { boardId: string; color: string; serverTs?: number }) => {
     deferSocketWork(() => {
       const trimmed = typeof data.color === 'string' ? data.color.trim() : '';
@@ -1129,13 +1242,16 @@ function detachGlobalRealtimeHandlers(socket: Socket): void {
   socket.off('connect', onSocketConnectResyncWorkspaceRooms);
   socket.off('workspace:created');
   socket.off('workspace:updated');
+  socket.off('workspace:patched');
   socket.off('workspace:deleted');
   socket.off('board:created');
   socket.off('board:updated');
+  socket.off('board:patched');
   socket.off('board:deleted');
   socket.off('boards:positionsSynced');
   socket.off('list:created');
   socket.off('list:updated');
+  socket.off('list:patched');
   socket.off('list:deleted');
   socket.off('lists:reordered');
   socket.off('lists:positions-batch-updated');
@@ -1148,11 +1264,13 @@ function detachGlobalRealtimeHandlers(socket: Socket): void {
   socket.off('labels:removedBulk');
   socket.off('label:created');
   socket.off('label:updated');
+  socket.off('label:patched');
   socket.off('label:deleted');
   socket.off('label:assigned');
   socket.off('label:removed');
   socket.off('invite:created');
   socket.off('invite:updated');
+  socket.off('invite:patched');
   socket.off('invite:deleted');
   socket.off('lists:bulk-color-updated');
   socket.off('cards:bulk-color-updated');

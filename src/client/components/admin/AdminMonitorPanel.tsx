@@ -1,173 +1,107 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Box, Grid, Paper, Stack, Text, Title } from '@mantine/core';
-import { LineChart } from '@mantine/charts';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Badge, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import type { AdminSystemMetricsSnapshot } from '../../../shared/types/adminSystemMetrics.js';
 import { api } from '../../utils/api.js';
-
-const POLL_MS = 5000;
-const WINDOW_MS = 5 * 60 * 1000;
-const HISTORY_CAP = Math.ceil(WINDOW_MS / POLL_MS);
-
-interface MonitorPoint {
-  readonly t: string;
-  readonly cpuPercent: number;
-  readonly rssMb: number;
-}
-
-function formatShortTime(iso: string): string {
-  const d = new Date(iso);
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${mm}:${ss}`;
-}
-
-function pushPoint(prev: readonly MonitorPoint[], next: MonitorPoint): MonitorPoint[] {
-  const merged = [...prev, next];
-  return merged.length > HISTORY_CAP ? merged.slice(merged.length - HISTORY_CAP) : merged;
-}
+import { HostAndUsageSection } from './monitor/HostAndUsageSection.js';
+import { TrendsAndRuntimeSection } from './monitor/TrendsAndRuntimeSection.js';
+import type { MonitorPoint } from './monitor/types.js';
+import { POLL_MS, TREND_POINT_MS, appendTrendPoint, hostDiskUsedPercent, hostMemUsedPercent } from './monitor/utils.js';
 
 export const AdminMonitorPanel = memo(function AdminMonitorPanel() {
   const [latest, setLatest] = useState<AdminSystemMetricsSnapshot | null>(null);
   const [history, setHistory] = useState<MonitorPoint[]>([]);
+  const lastErrorNotifyAtRef = useRef(0);
+  const isPageVisibleRef = useRef(
+    typeof document === 'undefined' ? true : document.visibilityState === 'visible',
+  );
 
   const poll = useCallback(async () => {
     try {
       const m = await api.getAdminSystemMetrics();
       setLatest(m);
       setHistory((prev) =>
-        pushPoint(prev, {
-          t: formatShortTime(m.timestamp),
+        appendTrendPoint(prev, {
+          isoTime: m.timestamp,
+          ts: Date.parse(m.timestamp),
           cpuPercent: m.process.cpuPercentOfSystem,
-          rssMb: m.process.rssMb,
+          memoryUsedPercent: hostMemUsedPercent(m),
+          diskUsedPercent: hostDiskUsedPercent(m),
+          hostMemUsedPercent: hostMemUsedPercent(m),
         }),
       );
     } catch (e: unknown) {
-      notifications.show({
-        title: 'Metrics unavailable',
-        message: e instanceof Error ? e.message : 'Unknown error',
-        color: 'red',
-      });
+      const now = Date.now();
+      if (now - lastErrorNotifyAtRef.current > 30_000) {
+        lastErrorNotifyAtRef.current = now;
+        notifications.show({
+          title: 'Metrics unavailable',
+          message: e instanceof Error ? e.message : 'Unknown error',
+          color: 'red',
+        });
+      }
     }
   }, []);
 
   useEffect(() => {
-    void poll();
-    const id = window.setInterval(() => void poll(), POLL_MS);
-    return () => window.clearInterval(id);
+    const runPoll = (): void => {
+      if (!isPageVisibleRef.current) {
+        return;
+      }
+      void poll();
+    };
+    runPoll();
+    const intervalId = window.setInterval(runPoll, POLL_MS);
+    const onVisibilityChange = (): void => {
+      isPageVisibleRef.current = document.visibilityState === 'visible';
+      if (isPageVisibleRef.current) {
+        runPoll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [poll]);
 
-  const versionLines = useMemo(() => {
-    if (latest == null) return null;
-    const v = latest.versions;
-    return (
-      <Stack gap={4}>
-        <Text size="sm">
-          App <Text span fw={600}>{v.app}</Text>
-        </Text>
-        <Text size="sm">
-          Node <Text span ff="monospace">{v.node}</Text>
-          {v.bun != null && v.bun !== '' ? (
-            <>
-              {' '}
-              · Bun <Text span ff="monospace">{v.bun}</Text>
-            </>
-          ) : null}
-        </Text>
-        <Text size="sm">
-          MongoDB{' '}
-          <Text span ff="monospace">
-            {v.mongodb ?? '—'}
-          </Text>
-        </Text>
-        <Text size="sm">
-          MinIO{' '}
-          <Text span ff="monospace">
-            {v.minio ?? '—'}
-          </Text>
-        </Text>
-      </Stack>
-    );
+  const runtimeSummary = useMemo(() => {
+    if (latest == null) {
+      return {
+        cpu: 0,
+        memory: 0,
+        disk: 0,
+      };
+    }
+    const cpu = Math.max(0, Math.min(100, latest.process.cpuPercentOfSystem));
+    const memory = hostMemUsedPercent(latest);
+    const disk = hostDiskUsedPercent(latest);
+    return { cpu, memory, disk };
   }, [latest]);
+
+  const hostLabel = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return 'localhost';
+    }
+    return window.location.hostname === '' ? 'localhost' : window.location.hostname;
+  }, []);
 
   return (
     <Stack gap="md">
-      <Title order={3}>Monitor</Title>
-      <Text size="sm" c="dimmed">
-        CPU and RAM line charts show the last 5 minutes (sampled every {POLL_MS / 1000}s) while
-        this tab is open.
-      </Text>
+      <Group justify="space-between" align="center">
+        <Group gap="xs">
+          <Title order={3}>Dashboard</Title>
+          <Badge variant="light" color="green">
+            Live
+          </Badge>
+        </Group>
+        <Text size="xs" c="dimmed">
+          Metrics every {POLL_MS / 1000}s • trend points every {TREND_POINT_MS / 1000}s
+        </Text>
+      </Group>
 
-      <Grid gutter="md">
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Paper withBorder p="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-              Versions
-            </Text>
-            <Box mt="xs">{versionLines}</Box>
-          </Paper>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Stack gap="md">
-            <Paper withBorder p="md" radius="md">
-              <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-                CPU usage (% of all cores)
-              </Text>
-              <Text size="xl" fw={700} mb="xs">
-                {latest != null ? latest.process.cpuPercentOfSystem.toFixed(1) : '—'}%
-              </Text>
-              <Box h={180}>
-                <LineChart
-                  h={180}
-                  data={history}
-                  dataKey="t"
-                  withDots={false}
-                  withLegend={false}
-                  curveType="natural"
-                  yAxisProps={{ domain: [0, 'dataMax + 5'] }}
-                  valueFormatter={(v) => `${v.toFixed(1)}%`}
-                  series={[{ name: 'cpuPercent', label: 'CPU %', color: 'blue' }]}
-                />
-              </Box>
-            </Paper>
-            <Paper withBorder p="md" radius="md">
-              <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-                Process RAM usage (RSS MB)
-              </Text>
-              <Text size="xl" fw={700} mb="xs">
-                {latest != null ? latest.process.rssMb.toFixed(0) : '—'} MB
-              </Text>
-              <Text size="sm" c="dimmed" mb="xs">
-                Heap {latest != null ? latest.process.heapUsedMb.toFixed(0) : '—'} /{' '}
-                {latest != null ? latest.process.heapTotalMb.toFixed(0) : '—'} MB
-              </Text>
-              <Box h={180}>
-                <LineChart
-                  h={180}
-                  data={history}
-                  dataKey="t"
-                  withDots={false}
-                  withLegend={false}
-                  curveType="natural"
-                  valueFormatter={(v) => `${v.toFixed(0)} MB`}
-                  series={[{ name: 'rssMb', label: 'RSS MB', color: 'teal' }]}
-                />
-              </Box>
-            </Paper>
-            <Paper withBorder p="md" radius="md">
-              <Text size="sm" c="dimmed">
-                {latest?.system != null && typeof latest.system.memAvailableMb === 'number'
-                  ? `Host available memory: ${latest.system.memAvailableMb.toFixed(0)} MB` +
-                    (typeof latest.system.memTotalMb === 'number'
-                      ? ` / ${latest.system.memTotalMb.toFixed(0)} MB`
-                      : '') +
-                    ` · load ${latest.system.load1m.toFixed(2)} / ${latest.system.load5m.toFixed(2)}`
-                  : 'Host memory gauges need Linux /proc/meminfo.'}
-              </Text>
-            </Paper>
-          </Stack>
-        </Grid.Col>
-      </Grid>
+      <HostAndUsageSection latest={latest} hostLabel={hostLabel} runtimeSummary={runtimeSummary} />
+      <TrendsAndRuntimeSection latest={latest} history={history} />
     </Stack>
   );
 });

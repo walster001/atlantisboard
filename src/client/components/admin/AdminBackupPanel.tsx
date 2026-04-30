@@ -100,10 +100,10 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
       }
       if (typeof cfg.backupSettings?.scheduleFrequencyDays === 'number') {
         setScheduleDays(Math.min(3650, Math.max(1, Math.floor(cfg.backupSettings.scheduleFrequencyDays))));
+      } else {
+        setScheduleDays(14);
       }
-      if (cfg.backupSettings?.scheduleEnabled === true) {
-        setScheduleEnabled(true);
-      }
+      setScheduleEnabled(cfg.backupSettings?.scheduleEnabled === true);
     } catch (e: unknown) {
       notifications.show({
         title: 'Could not load backups',

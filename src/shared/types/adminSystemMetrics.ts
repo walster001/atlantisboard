@@ -1,6 +1,14 @@
 /** JSON returned by `GET /api/v1/admin/system/metrics` (app admin only). */
 export interface AdminSystemMetricsSnapshot {
   readonly timestamp: string;
+  readonly host: {
+    readonly hostname: string;
+    readonly os: string;
+    readonly kernel: string;
+    readonly processor: string;
+    readonly temperatureC?: number;
+    readonly processes?: number;
+  };
   readonly process: {
     readonly rssMb: number;
     readonly heapUsedMb: number;
@@ -15,8 +23,22 @@ export interface AdminSystemMetricsSnapshot {
   readonly system?: {
     readonly memTotalMb?: number;
     readonly memAvailableMb?: number;
+    readonly diskTotalMb?: number;
+    readonly diskUsedMb?: number;
+    readonly diskReadBytesPerSec?: number;
+    readonly diskWriteBytesPerSec?: number;
+    readonly networkRxBytesPerSec?: number;
+    readonly networkTxBytesPerSec?: number;
     readonly load1m: number;
     readonly load5m: number;
+  };
+  readonly runtime: {
+    readonly uptimeSec: number;
+    readonly databaseSizeMb?: number;
+    readonly dockerRunning?: number;
+    readonly dockerTotal?: number;
+    readonly dockerRunningContainers?: readonly string[];
+    readonly backupCount?: number;
   };
   readonly versions: {
     readonly app: string;

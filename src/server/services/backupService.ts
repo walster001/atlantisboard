@@ -439,13 +439,27 @@ export async function listBackups(): Promise<BackupListEntry[]> {
 }
 
 export async function deleteBackupFolder(folderId: string): Promise<void> {
-  const doc = await BackupJob.findOne({ 'result.folderId': folderId }).sort({ completedAt: -1 });
-  if (!doc || !doc.result?.filePath) {
+  const docs = await BackupJob.find({
+    'result.folderId': folderId,
+    $or: [{ jobKind: 'backup' }, { jobKind: { $exists: false } }],
+  })
+    .sort({ completedAt: -1 })
+    .lean();
+  if (docs.length === 0) {
     return;
   }
-  const filePath = doc.result.filePath;
-  await rm(filePath, { force: true });
-  await rm(dirname(filePath), { recursive: true, force: true });
+  for (const doc of docs) {
+    const filePath = doc.result?.filePath;
+    if (typeof filePath !== 'string' || filePath.trim() === '') {
+      continue;
+    }
+    await rm(filePath, { force: true });
+    await rm(dirname(filePath), { recursive: true, force: true });
+  }
+  await BackupJob.deleteMany({
+    'result.folderId': folderId,
+    $or: [{ jobKind: 'backup' }, { jobKind: { $exists: false } }],
+  });
 }
 
 async function pruneOldBackups(retentionDays: number): Promise<number> {

@@ -35,6 +35,7 @@ import {
 } from '../utils/cardSocketDedupe.js';
 import { useBoardRuntimeStore } from '../store/boardRuntimeStore.js';
 import { spreadPosForIndex } from '../../shared/utils/cardListPos.js';
+import { spreadListPosForIndex } from '../../shared/utils/listPos.js';
 import { env } from '../config/env.js';
 import { logBoardRealtimePatchFlush } from '../perf/boardPerf.js';
 
@@ -552,19 +553,32 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
     });
   });
 
-  socket.on('lists:reordered', (data: { boardId: string; orderedListIds: string[] }) => {
+  socket.on(
+    'lists:reordered',
+    (data: { boardId: string; orderedListIds: string[]; orderedPos?: number[]; serverTs?: number }) => {
     deferSocketWork(() => {
       if (runtimeActiveBoardId() === data.boardId) {
-        useBoardRuntimeStore.getState().applyListsPositionsFromOrder(data.orderedListIds);
+        useBoardRuntimeStore.getState().applyListsBulkPositionPatch(
+          data.orderedListIds,
+          data.orderedPos,
+        );
       }
       void db.lists
         .where('boardId')
         .equals(data.boardId)
         .toArray()
         .then(async (lists) => {
+          const hasServerPos =
+            Array.isArray(data.orderedPos) &&
+            data.orderedPos.length === data.orderedListIds.length &&
+            data.orderedPos.every((p) => typeof p === 'number' && Number.isFinite(p));
           const nextLists = lists.map((list) => {
             const idx = data.orderedListIds.indexOf(list.id);
-            return idx >= 0 ? { ...list, position: idx } : list;
+            if (idx < 0) {
+              return list;
+            }
+            const pos = hasServerPos ? data.orderedPos![idx]! : spreadListPosForIndex(idx);
+            return { ...list, position: idx, pos };
           });
           if (nextLists.length > 0) {
             await db.lists.bulkPut(nextLists);
@@ -574,7 +588,49 @@ function attachGlobalRealtimeHandlers(socket: Socket): void {
           /* Dexie list reorder failed */
         });
     });
-  });
+    },
+  );
+
+  socket.on(
+    'lists:positions-batch-updated',
+    (data: { boardId: string; orderedListIds: string[]; orderedPos?: number[]; serverTs?: number }) => {
+      deferSocketWork(() => {
+        if (!Array.isArray(data.orderedListIds) || data.orderedListIds.length === 0) {
+          return;
+        }
+        if (runtimeActiveBoardId() === data.boardId) {
+          useBoardRuntimeStore.getState().applyListsBulkPositionPatch(
+            data.orderedListIds,
+            data.orderedPos,
+          );
+        }
+        void db.lists
+          .where('boardId')
+          .equals(data.boardId)
+          .toArray()
+          .then(async (lists) => {
+            const hasServerPos =
+              Array.isArray(data.orderedPos) &&
+              data.orderedPos.length === data.orderedListIds.length &&
+              data.orderedPos.every((p) => typeof p === 'number' && Number.isFinite(p));
+            const nextLists = lists.map((list) => {
+              const idx = data.orderedListIds.indexOf(list.id);
+              if (idx < 0) {
+                return list;
+              }
+              const pos = hasServerPos ? data.orderedPos![idx]! : spreadListPosForIndex(idx);
+              return { ...list, position: idx, pos };
+            });
+            if (nextLists.length > 0) {
+              await db.lists.bulkPut(nextLists);
+            }
+          })
+          .catch(() => {
+            /* Dexie list position batch update failed */
+          });
+      });
+    },
+  );
 
   socket.on('card:created', (data: { cardId: string; boardId: string; data: unknown; serverTs?: number }) => {
     deferSocketWork(() => {
@@ -1082,6 +1138,7 @@ function detachGlobalRealtimeHandlers(socket: Socket): void {
   socket.off('list:updated');
   socket.off('list:deleted');
   socket.off('lists:reordered');
+  socket.off('lists:positions-batch-updated');
   socket.off('card:created');
   socket.off('card:updated');
   socket.off('card:patched');

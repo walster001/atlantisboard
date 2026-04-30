@@ -8,6 +8,14 @@ import { logAuditEvent } from '../utils/auditLogger.js';
 import { hasPermission } from '../utils/permissions.js';
 import type { Document } from 'mongoose';
 import mongoose from 'mongoose';
+import {
+  LIST_POS_STEP,
+  compareBoardListOrder,
+  insertListPosBetween,
+  listPosGapTooSmall,
+  listPosNeedsNormalize,
+  spreadListPosForIndex,
+} from '../../shared/utils/listPos.js';
 
 export interface CreateListInput {
   boardId: string;
@@ -19,6 +27,64 @@ export interface UpdateListInput {
   name?: string | undefined;
   position?: number | undefined;
   color?: string | undefined;
+}
+
+type ListPosLeanRow = { _id: mongoose.Types.ObjectId; pos?: number; position: number };
+
+function sortListRowsByPos(rows: readonly ListPosLeanRow[]): ListPosLeanRow[] {
+  return [...rows].sort((a, b) =>
+    compareBoardListOrder(
+      {
+        ...(typeof a.pos === 'number' && Number.isFinite(a.pos) ? { pos: a.pos } : {}),
+        position: a.position,
+        id: a._id.toString(),
+      },
+      {
+        ...(typeof b.pos === 'number' && Number.isFinite(b.pos) ? { pos: b.pos } : {}),
+        position: b.position,
+        id: b._id.toString(),
+      },
+    ),
+  );
+}
+
+async function ensureListsHavePosForBoard(boardId: string | mongoose.Types.ObjectId): Promise<void> {
+  const bid = typeof boardId === 'string' ? boardId : boardId.toString();
+  const anyMissing = await List.exists({
+    boardId: bid,
+    $or: [{ pos: { $exists: false } }, { pos: null }],
+  });
+  if (!anyMissing) {
+    return;
+  }
+  const lists = await List.find({ boardId: bid }).sort({ position: 1, _id: 1 }).lean();
+  await Promise.all(
+    lists.map((l, i) =>
+      List.findByIdAndUpdate(l._id, { pos: spreadListPosForIndex(i), position: i }),
+    ),
+  );
+}
+
+async function syncBoardListPositionsFromPosOrder(boardId: string | mongoose.Types.ObjectId): Promise<void> {
+  const bid = typeof boardId === 'string' ? boardId : boardId.toString();
+  const rows = sortListRowsByPos(
+    await List.find({ boardId: bid }).select('pos position').lean<ListPosLeanRow[]>(),
+  );
+  await Promise.all(rows.map((row, i) => List.findByIdAndUpdate(row._id, { position: i })));
+}
+
+async function normalizeBoardListPosSpread(boardId: string | mongoose.Types.ObjectId): Promise<{
+  orderedListIds: string[];
+  orderedPos: number[];
+}> {
+  const bid = typeof boardId === 'string' ? boardId : boardId.toString();
+  const rows = sortListRowsByPos(
+    await List.find({ boardId: bid }).select('pos position').lean<ListPosLeanRow[]>(),
+  );
+  const orderedListIds = rows.map((r) => r._id.toString());
+  const orderedPos = rows.map((_, i) => spreadListPosForIndex(i));
+  await Promise.all(rows.map((r, i) => List.findByIdAndUpdate(r._id, { pos: orderedPos[i], position: i })));
+  return { orderedListIds, orderedPos };
 }
 
 export async function createList(input: CreateListInput, userId: string): Promise<Document & IList> {
@@ -44,10 +110,23 @@ export async function createList(input: CreateListInput, userId: string): Promis
     position = maxList ? maxList.position + 1 : 0;
   }
 
+  await ensureListsHavePosForBoard(input.boardId);
+  const maxPosDoc = await List.findOne({ boardId: input.boardId }).sort({ pos: -1 }).limit(1).lean<{
+    pos?: number;
+    position: number;
+  } | null>();
+  const maxPos =
+    maxPosDoc != null && typeof maxPosDoc.pos === 'number' && Number.isFinite(maxPosDoc.pos)
+      ? maxPosDoc.pos
+      : null;
+  const nextPos =
+    maxPos != null ? maxPos + LIST_POS_STEP : spreadListPosForIndex(Math.max(0, Math.floor(position)));
+
   const list = new List({
     boardId: input.boardId,
     name: input.name,
     position,
+    pos: nextPos,
   });
 
   await list.save();
@@ -90,7 +169,22 @@ export async function getListsByBoard(boardId: string, userId: string): Promise<
   if (!allowed) {
     throw new Error('Insufficient permissions to view lists');
   }
-  return await List.find({ boardId }).sort({ position: 1 });
+  const rows = await List.find({ boardId });
+  rows.sort((a, b) =>
+    compareBoardListOrder(
+      {
+        ...(typeof a.pos === 'number' && Number.isFinite(a.pos) ? { pos: a.pos } : {}),
+        position: a.position,
+        id: a._id.toString(),
+      },
+      {
+        ...(typeof b.pos === 'number' && Number.isFinite(b.pos) ? { pos: b.pos } : {}),
+        position: b.position,
+        id: b._id.toString(),
+      },
+    ),
+  );
+  return rows;
 }
 
 export async function updateList(
@@ -117,7 +211,11 @@ export async function updateList(
   }
 
   if (input.name !== undefined) list.name = input.name;
-  if (input.position !== undefined) list.position = input.position;
+  if (input.position !== undefined) {
+    const normalizedPosition = Math.max(0, Math.floor(input.position));
+    list.position = normalizedPosition;
+    list.set('pos', spreadListPosForIndex(normalizedPosition));
+  }
   if (input.color !== undefined) {
     const color = input.color.trim();
     list.color = color;
@@ -241,14 +339,20 @@ export async function reorderLists(boardId: string, listIds: string[], userId: s
     }
   }
 
-  // Update positions
+  // Update positions (legacy bulk reflow path)
+  await ensureListsHavePosForBoard(boardId);
+  const orderedPos = listIds.map((_, index) => spreadListPosForIndex(index));
   await Promise.all(
-    listIds.map((listId, index) => List.findByIdAndUpdate(listId, { position: index }))
+    listIds.map((listId, index) =>
+      List.findByIdAndUpdate(listId, { position: index, pos: orderedPos[index] }),
+    )
   );
 
   emitToBoard(boardId, 'lists:reordered', {
     boardId,
     orderedListIds: listIds,
+    orderedPos,
+    serverTs: Date.now(),
   });
 
   logAuditEvent({
@@ -261,5 +365,117 @@ export async function reorderLists(boardId: string, listIds: string[], userId: s
   });
 
   return true;
+}
+
+export async function moveList(
+  listId: string,
+  targetPosition: number,
+  userId: string,
+): Promise<(Document & IList) | null> {
+  let list = await List.findById(listId);
+  if (!list) {
+    return null;
+  }
+  const board = await Board.findById(list.boardId);
+  if (!board) {
+    throw new Error('Board not found');
+  }
+  if (board.ownerId.toString() !== userId) {
+    const allowed = await hasPermission({ id: userId }, list.boardId.toString(), 'lists.reorder');
+    if (!allowed) {
+      throw new Error('Insufficient permissions to reorder lists');
+    }
+  }
+
+  const boardId = list.boardId.toString();
+  const desiredTargetPosition = Math.max(0, Math.floor(targetPosition));
+  let normalized = false;
+
+  await ensureListsHavePosForBoard(boardId);
+  const rowNumericPos = (r: ListPosLeanRow): number =>
+    typeof r.pos === 'number' && Number.isFinite(r.pos) ? r.pos : spreadListPosForIndex(r.position);
+
+  const loadNeighbors = async (): Promise<ListPosLeanRow[]> => {
+    const rows = await List.find({ boardId, _id: { $ne: listId } }).select('pos position').lean<ListPosLeanRow[]>();
+    return sortListRowsByPos(rows);
+  };
+
+  let neighbors = await loadNeighbors();
+  let neighborPos = neighbors.map(rowNumericPos);
+  if (listPosNeedsNormalize(neighborPos)) {
+    await normalizeBoardListPosSpread(boardId);
+    normalized = true;
+    neighbors = await loadNeighbors();
+    neighborPos = neighbors.map(rowNumericPos);
+  }
+
+  let insertIndex = Math.min(desiredTargetPosition, neighbors.length);
+  let before = insertIndex > 0 ? neighborPos[insertIndex - 1]! : null;
+  let after = insertIndex < neighborPos.length ? neighborPos[insertIndex]! : null;
+  let newPos = insertListPosBetween(before, after);
+  if (listPosGapTooSmall(before, after)) {
+    await normalizeBoardListPosSpread(boardId);
+    normalized = true;
+    neighbors = await loadNeighbors();
+    neighborPos = neighbors.map(rowNumericPos);
+    insertIndex = Math.min(desiredTargetPosition, neighbors.length);
+    before = insertIndex > 0 ? neighborPos[insertIndex - 1]! : null;
+    after = insertIndex < neighborPos.length ? neighborPos[insertIndex]! : null;
+    newPos = insertListPosBetween(before, after);
+  }
+
+  list.set('pos', newPos);
+  list.markModified('pos');
+  await list.save();
+  await syncBoardListPositionsFromPosOrder(boardId);
+
+  const maybeRenormalize = async (): Promise<void> => {
+    const rows = sortListRowsByPos(
+      await List.find({ boardId }).select('pos position').lean<ListPosLeanRow[]>(),
+    );
+    const pl = rows.map(rowNumericPos);
+    if (pl.length >= 2 && listPosNeedsNormalize(pl)) {
+      await normalizeBoardListPosSpread(boardId);
+      normalized = true;
+    }
+  };
+  await maybeRenormalize();
+
+  const refreshed = await List.findById(listId);
+  if (refreshed != null) {
+    list = refreshed;
+  }
+
+  const serverTs = Date.now();
+  emitToBoard(boardId, 'list:updated', {
+    listId,
+    boardId,
+    data: list.toObject(),
+    serverTs,
+  });
+  if (normalized) {
+    const rows = sortListRowsByPos(
+      await List.find({ boardId }).select('_id pos position').lean<ListPosLeanRow[]>(),
+    );
+    emitToBoard(boardId, 'lists:positions-batch-updated', {
+      boardId,
+      movedListId: listId,
+      position: desiredTargetPosition,
+      orderedListIds: rows.map((row) => row._id.toString()),
+      orderedPos: rows.map((row) => rowNumericPos(row)),
+      serverTs,
+    });
+  }
+
+  logAuditEvent({
+    userId,
+    action: 'list.move',
+    resourceType: 'list',
+    resourceId: listId,
+    metadata: { boardId, position: desiredTargetPosition },
+    timestamp: new Date(),
+  });
+
+  return list;
 }
 

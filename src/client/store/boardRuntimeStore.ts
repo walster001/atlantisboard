@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import type { BoardDB, BoardSettingsLivePatch, CardDB, ListDB } from './database.js';
 import { compareCardListOrder, spreadPosForIndex } from '../../shared/utils/cardListPos.js';
+import { compareBoardListOrder, spreadListPosForIndex } from '../../shared/utils/listPos.js';
 import { moveCardBetweenListsInMap, withRenumberedPositions } from './kanbanDragPure.js';
 
 function sortListIdsByPosition(listsById: Readonly<Record<string, ListDB>>): string[] {
   return Object.values(listsById)
     .filter((l) => l != null)
-    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+    .sort((a, b) => compareBoardListOrder(a, b))
     .map((l) => l.id);
 }
 
@@ -98,6 +99,10 @@ type BoardRuntimeActions = {
   removeList: (listId: string) => void;
   setListsFromArray: (lists: readonly ListDB[]) => void;
   applyListsPositionsFromOrder: (orderedListIds: readonly string[]) => void;
+  applyListsBulkPositionPatch: (
+    orderedListIds: readonly string[],
+    orderedPos?: readonly number[],
+  ) => void;
   upsertCard: (card: CardDB) => void;
   upsertCards: (cards: readonly CardDB[]) => void;
   removeCard: (cardId: string) => void;
@@ -256,11 +261,45 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
         return s;
       }
       const listsById = { ...s.listsById };
+      const hasServerPos =
+        Array.isArray(orderedListIds) &&
+        orderedListIds.length > 0;
       for (let i = 0; i < orderedListIds.length; i += 1) {
         const id = orderedListIds[i];
         const row = listsById[id];
         if (row != null) {
-          listsById[id] = { ...row, position: i };
+          const nextPos = hasServerPos ? spreadListPosForIndex(i) : row.pos;
+          listsById[id] = {
+            ...row,
+            position: i,
+            ...(nextPos !== undefined ? { pos: nextPos } : {}),
+          };
+        }
+      }
+      const nextOrder = sortListIdsByPosition(listsById);
+      return { listsById, orderedListIds: nextOrder, cardsVersion: s.cardsVersion + 1 };
+    });
+  },
+
+  applyListsBulkPositionPatch: (orderedListIds, orderedPos) => {
+    set((s) => {
+      if (s.activeBoardId == null) {
+        return s;
+      }
+      const listsById = { ...s.listsById };
+      const hasServerPos =
+        orderedPos != null &&
+        orderedPos.length === orderedListIds.length &&
+        orderedPos.every((p) => typeof p === 'number' && Number.isFinite(p));
+      for (let i = 0; i < orderedListIds.length; i += 1) {
+        const id = orderedListIds[i];
+        const row = listsById[id];
+        if (row == null) {
+          continue;
+        }
+        const pos = hasServerPos ? orderedPos[i]! : spreadListPosForIndex(i);
+        if (row.position !== i || row.pos !== pos) {
+          listsById[id] = { ...row, position: i, pos };
         }
       }
       const nextOrder = sortListIdsByPosition(listsById);

@@ -642,6 +642,11 @@ class ApiClient {
     return response.data;
   }
 
+  async moveList(listId: string, position: number): Promise<{ list: unknown }> {
+    const response = await this.client.put(`/lists/${listId}/move`, { position });
+    return response.data as { list: unknown };
+  }
+
   // Card endpoints
   async getCardsByList(
     listId: string,
@@ -1544,11 +1549,11 @@ class ApiClient {
   async restoreAdminBackup(
     folderId: string,
     confirmFolder: string
-  ): Promise<{ message: string }> {
-    const response = await this.client.post<{ message: string }>(
+  ): Promise<{ message: string; jobId: string; reusedExisting: boolean }> {
+    const response = await this.client.post<{ message: string; jobId: string; reusedExisting: boolean }>(
       `/admin/backup/${encodeURIComponent(folderId)}/restore`,
       { confirmFolder },
-      { timeout: 600_000 }
+      { timeout: 60_000 }
     );
     return response.data;
   }

@@ -2,7 +2,7 @@ import { useLayoutEffect, startTransition, type MutableRefObject } from 'react';
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { db, type CardDB, type ListDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
-import { normalizeCardFromApi } from '../../utils/transform.js';
+import { normalizeCardFromApi, transformList } from '../../utils/transform.js';
 import { persistDexieCardPut } from '../../store/boardDexieCache.js';
 import {
   readKanbanCardDragData,
@@ -11,6 +11,7 @@ import {
   readKanbanListDragData,
 } from '../../dnd/pragmatic/kanbanData.js';
 import type { CardDropIndicatorTarget } from './VirtualizedCardList.js';
+import { compareBoardListOrder, spreadListPosForIndex } from '../../../shared/utils/listPos.js';
 
 interface ListDropIndicatorTarget {
   readonly overListId: string;
@@ -431,7 +432,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
             return;
           }
           void (async () => {
-            const lists = [...ctx.lists].sort((a, b) => a.position - b.position);
+            const lists = [...ctx.lists].sort((a, b) => compareBoardListOrder(a, b));
             const from = lists.findIndex((l) => l.id === listDrag.listId);
             const to = lists.findIndex((l) => l.id === overListId);
             if (from < 0 || to < 0 || from === to) {
@@ -443,16 +444,18 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
               return;
             }
             next.splice(to, 0, moved);
-            const renumbered = next.map((row, i) => ({ ...row, position: i }));
+            const renumbered = next.map((row, i) => ({
+              ...row,
+              position: i,
+              pos: spreadListPosForIndex(i),
+            }));
             startTransition(() => {
               ctx.setLists(renumbered);
             });
             try {
-              await api.reorderLists({
-                boardId: ctx.board.id,
-                listIds: renumbered.map((l) => l.id),
-              });
-              await db.lists.bulkPut(renumbered);
+              const movePayload = await api.moveList(listDrag.listId, to);
+              const moved = transformList((movePayload as { list: unknown }).list);
+              await db.lists.put(moved);
             } catch {
               await ctx.reloadAllCardsFromDb();
             }

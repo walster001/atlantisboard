@@ -78,6 +78,8 @@ export interface ListDB {
   boardId: string;
   name: string;
   position: number;
+  /** Fractional order within board (server); optional on older IndexedDB rows. */
+  pos?: number;
   color?: string;
   createdAt: Date;
   updatedAt: Date;

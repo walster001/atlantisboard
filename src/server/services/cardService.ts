@@ -27,6 +27,7 @@ import {
   posNeedsNormalize,
   spreadPosForIndex,
 } from '../../shared/utils/cardListPos.js';
+import { compareBoardListOrder } from '../../shared/utils/listPos.js';
 
 function getBoardListCardLimits(board: Document & IBoard): { max: number; enforce: boolean } {
   const s = board.settings;
@@ -887,7 +888,21 @@ export async function getBoardKanbanSnapshot(
   boardId: string,
   options?: { listLimit?: number }
 ): Promise<{ lists: Array<Document & IList>; cardsByList: Record<string, CardSummaryDTO[]> }> {
-  const lists = await List.find({ boardId }).sort({ position: 1 });
+  const lists = await List.find({ boardId });
+  lists.sort((a, b) =>
+    compareBoardListOrder(
+      {
+        ...(typeof a.pos === 'number' && Number.isFinite(a.pos) ? { pos: a.pos } : {}),
+        position: a.position,
+        id: a._id.toString(),
+      },
+      {
+        ...(typeof b.pos === 'number' && Number.isFinite(b.pos) ? { pos: b.pos } : {}),
+        position: b.position,
+        id: b._id.toString(),
+      },
+    ),
+  );
   const cardsByList: Record<string, CardSummaryDTO[]> = {};
   for (const list of lists) {
     const query = Card.find({ listId: list._id }).sort({ pos: 1, position: 1, _id: 1 });

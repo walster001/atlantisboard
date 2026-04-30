@@ -8,8 +8,8 @@ import {
   cancelBackupJob,
   deleteBackupFolder,
   listBackups,
-  restoreFullBackup,
   startBackupJob,
+  startRestoreJob,
 } from '../services/backupService.js';
 
 const router = Router();
@@ -183,12 +183,16 @@ router.post('/:folderId/restore', async (req, res, next) => {
       });
       return;
     }
-    await restoreFullBackup({
+    const { jobId, reusedExisting } = await startRestoreJob({
       folderId,
-      adminUserId: authReq.user.id,
+      userId: authReq.user.id,
       ipAddress: req.ip || undefined,
     });
-    res.json({ message: 'Backup restored. Consider restarting the server processes.' });
+    res.status(202).json({
+      message: reusedExisting ? 'Restore already in progress for your account.' : 'Restore started',
+      jobId,
+      reusedExisting,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({

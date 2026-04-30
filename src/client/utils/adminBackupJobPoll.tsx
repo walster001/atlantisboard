@@ -83,6 +83,14 @@ export function backupPhaseDisplayLabel(phase: string | undefined): string {
       return 'Finishing…';
     case 'failed':
       return 'Failed';
+    case 'restore_extract':
+      return 'Preparing restore package…';
+    case 'restore_mongo':
+      return 'Restoring MongoDB collections…';
+    case 'restore_minio':
+      return 'Restoring object storage…';
+    case 'restore_done':
+      return 'Finalizing restore…';
     default:
       return `Backup (${phase})…`;
   }

@@ -269,6 +269,7 @@ export function transformList(list: unknown): ListDB {
     boardId?: string | { toString: () => string };
     name: string;
     position: number;
+    pos?: number;
     color?: string;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -282,6 +283,7 @@ export function transformList(list: unknown): ListDB {
     boardId,
     name: l.name,
     position: l.position || 0,
+    ...(typeof l.pos === 'number' && Number.isFinite(l.pos) ? { pos: l.pos } : {}),
     ...(l.color !== undefined && { color: l.color }),
     createdAt: l.createdAt ? (typeof l.createdAt === 'string' ? new Date(l.createdAt) : l.createdAt) : new Date(),
     updatedAt: l.updatedAt ? (typeof l.updatedAt === 'string' ? new Date(l.updatedAt) : l.updatedAt) : new Date(),

@@ -99,6 +99,8 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      BACKUP_MC_PATH: ${BACKUP_MC_PATH:-/usr/local/bin/mc}
+      BACKUP_MC_MIRROR_ALIAS: ${BACKUP_MC_MIRROR_ALIAS:-local}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       SESSION_SECRET: ${SESSION_SECRET}

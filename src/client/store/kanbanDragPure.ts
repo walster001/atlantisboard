@@ -1,5 +1,6 @@
 import type { CardDB, ListDB } from './database.js';
 import { spreadPosForIndex } from '../../shared/utils/cardListPos.js';
+import { compareBoardListOrder, spreadListPosForIndex } from '../../shared/utils/listPos.js';
 
 /** Align `position` and optimistic `pos` with array index (until server confirms). */
 export function withRenumberedPositions(list: CardDB[]): CardDB[] {
@@ -53,7 +54,7 @@ export function moveListToHoverSlot(
   if (activeListId === overListId) {
     return null;
   }
-  const ordered = [...listsOrdered].sort((a, b) => a.position - b.position);
+  const ordered = [...listsOrdered].sort((a, b) => compareBoardListOrder(a, b));
   const fromIdx = ordered.findIndex((l) => l.id === activeListId);
   const overIdx = ordered.findIndex((l) => l.id === overListId);
   if (fromIdx < 0 || overIdx < 0 || fromIdx === overIdx) {
@@ -65,7 +66,7 @@ export function moveListToHoverSlot(
     return null;
   }
   next.splice(overIdx, 0, removed);
-  return next.map((l, i) => ({ ...l, position: i }));
+  return next.map((l, i) => ({ ...l, position: i, pos: spreadListPosForIndex(i) }));
 }
 
 export function listOrderIdSignature(listsOrdered: readonly ListDB[]): string {

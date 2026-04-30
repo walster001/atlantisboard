@@ -19,7 +19,7 @@ import { IconDatabase, IconTrash } from '@tabler/icons-react';
 import type { AdminBackupListItem } from '../../../shared/types/adminBackup.js';
 import { BACKUP_LOCATION_SETUP_GUIDANCE } from '../../../shared/constants/backupLocationEnv.js';
 import { api } from '../../utils/api.js';
-import { formatBackupBytes } from '../../utils/adminBackupJobPoll.js';
+import { backupPhaseDisplayLabel, formatBackupBytes, parseBackupJob } from '../../utils/adminBackupJobPoll.js';
 
 function readApiErrorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'response' in err) {
@@ -53,6 +53,11 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
   const [restoreTarget, setRestoreTarget] = useState<AdminBackupListItem | null>(null);
   const [restoreConfirm, setRestoreConfirm] = useState('');
   const [restoring, setRestoring] = useState(false);
+  const [restoreJobId, setRestoreJobId] = useState<string | null>(null);
+  const [restoreProgress, setRestoreProgress] = useState(0);
+  const [restorePhase, setRestorePhase] = useState<string | undefined>(undefined);
+  const [restoreFailure, setRestoreFailure] = useState<string | null>(null);
+  const [restoreStatus, setRestoreStatus] = useState<'idle' | 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'>('idle');
 
   /** Refreshes only the backup table (no full-tab loading state). Used for polling and after mutations. */
   const refreshBackupList = useCallback(async (): Promise<void> => {
@@ -130,6 +135,54 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
       window.clearInterval(id);
     };
   }, [hasRunningJobs, refreshBackupList]);
+
+  useEffect(() => {
+    if (restoreJobId == null) {
+      return;
+    }
+    let cancelled = false;
+    const poll = async (): Promise<void> => {
+      try {
+        const response = await api.getAdminBackupJob(restoreJobId);
+        const job = parseBackupJob((response as { job: unknown }).job);
+        if (job == null || cancelled) {
+          return;
+        }
+        setRestoreStatus(job.status as 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled');
+        setRestoreProgress(Math.max(0, Math.min(100, Math.floor(job.progress))));
+        setRestorePhase(job.currentPhase);
+        if (job.status === 'completed') {
+          setRestoring(false);
+          setRestoreJobId(null);
+          notifications.show({
+            title: 'Restore complete',
+            message: 'Backup restored. Restart server processes to refresh long-lived caches.',
+          });
+          await refreshBackupList();
+          return;
+        }
+        if (job.status === 'failed' || job.status === 'cancelled') {
+          setRestoring(false);
+          setRestoreJobId(null);
+          setRestoreFailure(job.failureMessage ?? (job.status === 'cancelled' ? 'Restore cancelled.' : 'Restore failed.'));
+          return;
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setRestoring(false);
+          setRestoreFailure(readApiErrorMessage(e, 'Failed to poll restore progress.'));
+        }
+      }
+    };
+    void poll();
+    const id = window.setInterval(() => {
+      void poll();
+    }, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [restoreJobId, refreshBackupList]);
 
   const rows = useMemo(
     () =>
@@ -296,11 +349,14 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     if (restoreTarget == null) return;
     if (restoreConfirm !== restoreTarget.folderId) return;
     setRestoring(true);
+    setRestoreFailure(null);
+    setRestoreProgress(0);
+    setRestorePhase('queued');
+    setRestoreStatus('pending');
     try {
       const r = await api.restoreAdminBackup(restoreTarget.folderId, restoreConfirm);
-      notifications.show({ title: 'Restore complete', message: r.message });
-      setRestoreOpen(false);
-      setRestoreTarget(null);
+      setRestoreJobId(r.jobId);
+      notifications.show({ title: 'Restore started', message: 'Live progress is shown in this dialog.' });
     } catch (e: unknown) {
       notifications.show({
         title: 'Restore failed',
@@ -316,10 +372,8 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     <Stack gap="md">
       <Title order={3}>Backup</Title>
       <Text size="sm" c="dimmed">
-        Full snapshots include MongoDB data (BSON dumps per collection, cursor-based export) and MinIO
-        buckets (via <Text span ff="monospace">mc mirror</Text> when configured on the server). Backups
-        are written under the configured backup path. The worker continues if this page is refreshed; the
-        table polls job progress without reloading the whole tab.
+        Full snapshots include MongoDB data (Boards,Cards,Users,Settings,Workspaces) as well as MinIO data (Card Attachments, Inline Button Icons, Filestores). Backups
+        are written under the configured backup path.
       </Text>
 
       <Group align="flex-end" wrap="wrap">
@@ -494,13 +548,28 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         {scheduleEnabled ? `Every ${scheduleDays} day(s)` : 'Disabled'}
       </Text>
 
+      {(restoreStatus === 'pending' || restoreStatus === 'processing') && (
+        <Stack gap={6}>
+          <Group gap="xs">
+            <Badge color="orange" variant="light">
+              Restore in progress
+            </Badge>
+            <Text size="xs" c="dimmed">
+              {backupPhaseDisplayLabel(restorePhase)}
+            </Text>
+          </Group>
+          <Progress value={restoreProgress} size="sm" />
+          <Text size="xs" c="dimmed">
+            {restoreJobId != null ? `Job ${restoreJobId}` : 'Restore job running on server'}
+          </Text>
+        </Stack>
+      )}
+
       <Modal
         opened={restoreOpen}
         onClose={() => {
-          if (!restoring) {
-            setRestoreOpen(false);
-            setRestoreTarget(null);
-          }
+          setRestoreOpen(false);
+          setRestoreTarget(null);
         }}
         title="Restore backup"
       >
@@ -516,17 +585,43 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
             label="Confirm folder id"
             value={restoreConfirm}
             onChange={(e) => setRestoreConfirm(e.currentTarget.value)}
-            disabled={restoring}
+            disabled={restoring || restoreStatus === 'processing' || restoreStatus === 'completed'}
             autoComplete="off"
           />
+          {(restoring || restoreStatus === 'processing' || restoreStatus === 'completed' || restoreStatus === 'failed' || restoreStatus === 'cancelled') && (
+            <Stack gap={6}>
+              <Text size="sm">{backupPhaseDisplayLabel(restorePhase)}</Text>
+              <Progress value={restoreProgress} size="sm" />
+              <Text size="xs" c="dimmed">
+                Status: {restoreStatus}
+                {restoreJobId != null ? ` • Job ${restoreJobId}` : ''}
+              </Text>
+              {restoreFailure != null && (
+                <Text size="xs" c="red">
+                  {restoreFailure}
+                </Text>
+              )}
+            </Stack>
+          )}
           <Group justify="flex-end">
-            <Button variant="default" disabled={restoring} onClick={() => setRestoreOpen(false)}>
-              Cancel
+            <Button
+              variant="default"
+              onClick={() => {
+                setRestoreOpen(false);
+                setRestoreTarget(null);
+              }}
+            >
+              Close
             </Button>
             <Button
               color="red"
               loading={restoring}
-              disabled={restoreTarget == null || restoreConfirm !== restoreTarget.folderId}
+              disabled={
+                restoreTarget == null ||
+                restoreConfirm !== restoreTarget.folderId ||
+                restoreStatus === 'processing' ||
+                restoreStatus === 'completed'
+              }
               onClick={() => void doRestore()}
             >
               Restore

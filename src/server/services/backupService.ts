@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, normalize, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
+import { cpus, tmpdir } from 'node:os';
 import { finished, pipeline } from 'node:stream/promises';
 import archiver from 'archiver';
 import { BSON, EJSON } from 'bson';
@@ -17,9 +17,68 @@ import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { BackupJob } from '../models/BackupJob.js';
 
-/** Current archive manifest format (BSON mongo + mc mirror minio). */
+/** Current archive manifest format (BSON mongo + mc mirror/sdk minio). */
 const BACKUP_FORMAT = 'atlboard-backup-v2' as const;
 const BACKUP_FORMAT_V1 = 'atlboard-backup-v1' as const;
+type MinioArchiveMethod = 'sdk-stream-v1' | 'mc-mirror-v1';
+
+function parsePositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw == null || raw.trim() === '') {
+    return fallback;
+  }
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) {
+    return fallback;
+  }
+  return n;
+}
+
+function getMongoExportConcurrency(): number {
+  const cpuCount = Math.max(1, cpus().length);
+  const fallback = Math.min(4, cpuCount);
+  return Math.max(1, Math.min(16, parsePositiveIntEnv('BACKUP_MONGO_EXPORT_CONCURRENCY', fallback)));
+}
+
+function getMongoCursorBatchSize(): number {
+  return Math.max(200, Math.min(10_000, parsePositiveIntEnv('BACKUP_MONGO_CURSOR_BATCH_SIZE', 1000)));
+}
+
+function getMongoInsertBatchSize(): number {
+  return Math.max(200, Math.min(10_000, parsePositiveIntEnv('BACKUP_MONGO_INSERT_BATCH_SIZE', 1200)));
+}
+
+function getMinioBucketMirrorConcurrency(): number {
+  return Math.max(1, Math.min(8, parsePositiveIntEnv('BACKUP_MINIO_BUCKET_CONCURRENCY', 2)));
+}
+
+function getMinioObjectTransferConcurrency(): number {
+  return Math.max(1, Math.min(32, parsePositiveIntEnv('BACKUP_MINIO_OBJECT_CONCURRENCY', 8)));
+}
+
+async function runWithConcurrency<T>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+  if (items.length === 0) {
+    return;
+  }
+  const width = Math.max(1, Math.min(concurrency, items.length));
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: width }, async () => {
+      while (true) {
+        const index = cursor;
+        cursor += 1;
+        if (index >= items.length) {
+          return;
+        }
+        await worker(items[index]!, index);
+      }
+    }),
+  );
+}
 
 /**
  * MinIO mirror via MinIO Client (`mc mirror`). Set `BACKUP_MC_MIRROR_ALIAS` to an `mc` alias
@@ -58,18 +117,77 @@ function runMcCommand(
   });
 }
 
-async function mirrorMinioBucketsToWorkdir(minioRoot: string, signal: AbortSignal): Promise<void> {
+async function mirrorMinioBucketsToWorkdir(params: {
+  readonly minioRoot: string;
+  readonly signal: AbortSignal;
+  readonly onBucketMirrored?: (completed: number, total: number, bucket: string) => Promise<void> | void;
+}): Promise<void> {
+  const { minioRoot, signal, onBucketMirrored } = params;
   const { mcPath, mirrorAlias } = getMcMirrorConfig();
   const buckets = MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS);
-  let i = 0;
-  for (const bucket of buckets) {
+  if (buckets.length === 0) {
+    return;
+  }
+  const doneRef = { value: 0 };
+  const width = getMinioBucketMirrorConcurrency();
+  await runWithConcurrency(buckets, width, async (bucket) => {
     throwIfCancelled(signal);
     const dest = join(minioRoot, bucket);
     await mkdir(dest, { recursive: true });
     const src = `${mirrorAlias}/${bucket}`;
     await runMcCommand(mcPath, ['mirror', '--overwrite', '--preserve', src, dest], { signal });
-    i += 1;
-    logger.info({ bucket, index: i, total: buckets.length }, 'mc mirror bucket complete');
+    doneRef.value += 1;
+    logger.info({ bucket, index: doneRef.value, total: buckets.length }, 'mc mirror bucket complete');
+    if (onBucketMirrored != null) {
+      await onBucketMirrored(doneRef.value, buckets.length, bucket);
+    }
+  });
+}
+
+async function listBucketObjectKeys(bucket: string): Promise<string[]> {
+  const client = getMinIOClient();
+  const stream = client.listObjectsV2(bucket, '', true);
+  return await new Promise<string[]>((resolve, reject) => {
+    const keys: string[] = [];
+    stream.on('data', (obj: { name?: string }) => {
+      if (typeof obj.name === 'string' && obj.name.trim() !== '') {
+        keys.push(obj.name);
+      }
+    });
+    stream.on('error', reject);
+    stream.on('end', () => resolve(keys));
+  });
+}
+
+async function mirrorMinioBucketsToWorkdirWithSdk(params: {
+  readonly minioRoot: string;
+  readonly signal: AbortSignal;
+  readonly onBucketMirrored?: (completed: number, total: number, bucket: string) => Promise<void> | void;
+}): Promise<void> {
+  const { minioRoot, signal, onBucketMirrored } = params;
+  const client = getMinIOClient();
+  const buckets = MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS);
+  if (buckets.length === 0) {
+    return;
+  }
+  let completedBuckets = 0;
+  for (const bucket of buckets) {
+    throwIfCancelled(signal);
+    const bucketDir = join(minioRoot, bucket);
+    await mkdir(bucketDir, { recursive: true });
+    const keys = await listBucketObjectKeys(bucket);
+    const objectConcurrency = getMinioObjectTransferConcurrency();
+    await runWithConcurrency(keys, objectConcurrency, async (key) => {
+      throwIfCancelled(signal);
+      const outPath = join(bucketDir, key);
+      await mkdir(dirname(outPath), { recursive: true });
+      await client.fGetObject(bucket, key, outPath);
+    });
+    completedBuckets += 1;
+    logger.info({ bucket, index: completedBuckets, total: buckets.length }, 'sdk mirror bucket complete');
+    if (onBucketMirrored != null) {
+      await onBucketMirrored(completedBuckets, buckets.length, bucket);
+    }
   }
 }
 
@@ -181,7 +299,7 @@ function buildBackupFilePath(location: string, folderId: string, filename: strin
   return join(location, folderId, filename);
 }
 
-const activeBackupControllers = new Map<string, AbortController>();
+const activeJobControllers = new Map<string, AbortController>();
 
 function throwIfCancelled(signal: AbortSignal): void {
   if (signal.aborted) {
@@ -197,7 +315,15 @@ const MONGO_BACKUP_EXCLUDE = new Set<string>(['backupjobs']);
  * `[int32 little-endian total length including the 4 prefix bytes][bson payload]`.
  * Uses a single cursor per collection (natural order, no `$skip` pagination).
  */
-async function dumpMongoCollectionsToBsonDir(mongoDir: string): Promise<readonly string[]> {
+async function dumpMongoCollectionsToBsonDir(params: {
+  readonly mongoDir: string;
+  readonly onCollectionDumped?: (
+    completed: number,
+    total: number,
+    collectionName: string,
+  ) => Promise<void> | void;
+}): Promise<readonly string[]> {
+  const { mongoDir, onCollectionDumped } = params;
   const db = mongoose.connection.db;
   if (!db) {
     throw new Error('Database is not connected');
@@ -208,20 +334,35 @@ async function dumpMongoCollectionsToBsonDir(mongoDir: string): Promise<readonly
     .filter((n) => !n.startsWith('system.') && !MONGO_BACKUP_EXCLUDE.has(n))
     .sort((a, b) => a.localeCompare(b));
 
-  for (const collectionName of names) {
+  const cursorBatchSize = getMongoCursorBatchSize();
+  const writeCollectionToBson = async (collectionName: string): Promise<void> => {
     const outPath = join(mongoDir, `${collectionName}.bson`);
     const writeStream = createWriteStream(outPath);
-    const cursor = db.collection(collectionName).find<Document>({}, { batchSize: 500 });
+    const cursor = db.collection(collectionName).find<Document>({}, { batchSize: cursorBatchSize });
     for await (const doc of cursor) {
       const bsonBuffer = BSON.serialize(doc);
       const totalSize = 4 + bsonBuffer.length;
       const header = Buffer.allocUnsafe(4);
       header.writeInt32LE(totalSize, 0);
-      writeStream.write(header);
-      writeStream.write(bsonBuffer);
+      if (!writeStream.write(header)) {
+        await new Promise<void>((resolve) => writeStream.once('drain', resolve));
+      }
+      if (!writeStream.write(bsonBuffer)) {
+        await new Promise<void>((resolve) => writeStream.once('drain', resolve));
+      }
     }
+    writeStream.end();
     await finished(writeStream);
-  }
+  };
+  const width = getMongoExportConcurrency();
+  const doneRef = { value: 0 };
+  await runWithConcurrency(names, width, async (collectionName) => {
+    await writeCollectionToBson(collectionName);
+    doneRef.value += 1;
+    if (onCollectionDumped != null) {
+      await onCollectionDumped(doneRef.value, names.length, collectionName);
+    }
+  });
   return names;
 }
 
@@ -273,6 +414,7 @@ async function purgeMalformedActiveBackupJobs(): Promise<void> {
 export async function listBackups(): Promise<BackupListEntry[]> {
   await purgeMalformedActiveBackupJobs();
   const jobs = await BackupJob.find({
+    $or: [{ jobKind: 'backup' }, { jobKind: { $exists: false } }],
     status: { $in: ['completed', 'processing', 'pending', 'failed', 'cancelled'] },
   })
     .sort({ createdAt: -1 })
@@ -331,6 +473,42 @@ export interface BackupProgressReporter {
 
 const BACKUP_PHASE_TOTAL = 5;
 
+function progressRange(start: number, end: number, completed: number, total: number): number {
+  if (!Number.isFinite(total) || total <= 0) {
+    return Math.floor(start);
+  }
+  const ratio = Math.max(0, Math.min(1, completed / total));
+  return Math.floor(start + (end - start) * ratio);
+}
+
+async function copyFileWithProgress(params: {
+  readonly sourcePath: string;
+  readonly destinationPath: string;
+  readonly signal: AbortSignal;
+  readonly onProgress?: (copiedBytes: number, totalBytes: number) => Promise<void> | void;
+}): Promise<void> {
+  const { sourcePath, destinationPath, signal, onProgress } = params;
+  const st = await stat(sourcePath);
+  const totalBytes = Math.max(0, st.size);
+  let copiedBytes = 0;
+  const readStream = createReadStream(sourcePath);
+  const writeStream = createWriteStream(destinationPath);
+  signal.addEventListener('abort', () => {
+    readStream.destroy(new Error('BACKUP_CANCELLED'));
+    writeStream.destroy(new Error('BACKUP_CANCELLED'));
+  });
+  if (onProgress != null) {
+    await onProgress(copiedBytes, totalBytes);
+  }
+  readStream.on('data', (chunk: Buffer) => {
+    copiedBytes += chunk.length;
+    if (onProgress != null) {
+      void onProgress(copiedBytes, totalBytes);
+    }
+  });
+  await pipeline(readStream, writeStream);
+}
+
 /**
  * Runs the full backup on the server with progress callbacks (used by {@link startBackupJob}).
  */
@@ -346,24 +524,77 @@ export async function executeFullBackupWithProgress(params: {
   const mongoDir = await mkdtemp(join(tmpdir(), 'atlboard-mongo-'));
   const minioMirrorDir = await mkdtemp(join(tmpdir(), 'atlboard-minio-mirror-'));
   const zipPath = join(tmpdir(), `atlboard-backup-${Date.now()}.zip`);
+  let minioArchiveMethod: MinioArchiveMethod = 'mc-mirror-v1';
   try {
     throwIfCancelled(params.signal);
-    await reporter.report('mongo_export', 6, 0, BACKUP_PHASE_TOTAL);
-    const collectionNames = await dumpMongoCollectionsToBsonDir(mongoDir);
+    await reporter.report('minio_export', 6, 0, BACKUP_PHASE_TOTAL);
+    try {
+      await mirrorMinioBucketsToWorkdir({
+        minioRoot: minioMirrorDir,
+        signal: params.signal,
+        onBucketMirrored: async (completed, total) => {
+          await reporter.report(
+            'minio_export',
+            progressRange(6, 42, completed, total),
+            1,
+            BACKUP_PHASE_TOTAL,
+          );
+        },
+      });
+      minioArchiveMethod = 'mc-mirror-v1';
+    } catch (error) {
+      const isMcUnavailable =
+        error != null &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: unknown }).code === 'ENOENT';
+      if (!isMcUnavailable) {
+        throw error;
+      }
+      logger.warn({ error }, 'mc binary unavailable; falling back to MinIO SDK mirror');
+      await mirrorMinioBucketsToWorkdirWithSdk({
+        minioRoot: minioMirrorDir,
+        signal: params.signal,
+        onBucketMirrored: async (completed, total) => {
+          await reporter.report(
+            'minio_export',
+            progressRange(6, 42, completed, total),
+            1,
+            BACKUP_PHASE_TOTAL,
+          );
+        },
+      });
+      minioArchiveMethod = 'sdk-stream-v1';
+    }
     throwIfCancelled(params.signal);
-    await reporter.report('mongo_export', 24, 1, BACKUP_PHASE_TOTAL);
+    await reporter.report('minio_export', 42, 1, BACKUP_PHASE_TOTAL);
+
+    await reporter.report('mongo_export', 43, 1, BACKUP_PHASE_TOTAL);
+    const collectionNames = await dumpMongoCollectionsToBsonDir({
+      mongoDir,
+      onCollectionDumped: async (completed, total) => {
+        await reporter.report(
+          'mongo_export',
+          progressRange(43, 78, completed, total),
+          2,
+          BACKUP_PHASE_TOTAL,
+        );
+      },
+    });
+    throwIfCancelled(params.signal);
+    await reporter.report('mongo_export', 78, 2, BACKUP_PHASE_TOTAL);
 
     const manifest = {
       format: BACKUP_FORMAT,
       createdAt: new Date().toISOString(),
       mongoExportFormat: 'bson-v1',
-      minioArchiveMethod: 'mc-mirror-v1',
+      minioArchiveMethod,
       mongoCollections: collectionNames,
       minioBuckets: MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS),
     };
 
     const output = createWriteStream(zipPath);
-    const archive = archiver('zip', { zlib: { level: 6 } });
+    const archive = archiver('zip', { zlib: { level: 1 } });
     archive.on('error', (err: Error) => {
       output.destroy(err);
     });
@@ -371,17 +602,13 @@ export async function executeFullBackupWithProgress(params: {
 
     archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
     archive.directory(mongoDir, 'mongo');
-
-    await reporter.report('minio_archive', 30, 1, BACKUP_PHASE_TOTAL);
-    await mirrorMinioBucketsToWorkdir(minioMirrorDir, params.signal);
     archive.directory(minioMirrorDir, 'minio');
-    await reporter.report('minio_archive', 54, 2, BACKUP_PHASE_TOTAL);
 
-    await reporter.report('zip_finalize', 62, 2, BACKUP_PHASE_TOTAL);
+    await reporter.report('zip_finalize', 79, 2, BACKUP_PHASE_TOTAL);
     await archive.finalize();
     await finished(output);
     throwIfCancelled(params.signal);
-    await reporter.report('zip_finalize', 68, 3, BACKUP_PHASE_TOTAL);
+    await reporter.report('zip_finalize', 88, 3, BACKUP_PHASE_TOTAL);
 
     const st = await stat(zipPath);
     const folderId = newBackupFolderId();
@@ -389,16 +616,24 @@ export async function executeFullBackupWithProgress(params: {
     const location = normalizeLocationPath(params.location);
     const filePath = buildBackupFilePath(location, folderId, filename);
     await mkdir(dirname(filePath), { recursive: true });
-    await reporter.report('upload', 74, 3, BACKUP_PHASE_TOTAL);
-    await copyFile(zipPath, filePath);
+    await reporter.report('upload', 89, 3, BACKUP_PHASE_TOTAL);
+    await copyFileWithProgress({
+      sourcePath: zipPath,
+      destinationPath: filePath,
+      signal: params.signal,
+      onProgress: async (copiedBytes, totalBytes) => {
+        const p = progressRange(89, 96, copiedBytes, Math.max(1, totalBytes));
+        await reporter.report('upload', p, 4, BACKUP_PHASE_TOTAL);
+      },
+    });
     throwIfCancelled(params.signal);
-    await reporter.report('upload', 84, 4, BACKUP_PHASE_TOTAL);
+    await reporter.report('upload', 96, 4, BACKUP_PHASE_TOTAL);
 
     const cfg = await getAdminConfig();
     const retention = cfg.backupSettings?.retentionDays ?? 14;
-    await reporter.report('retention', 90, 4, BACKUP_PHASE_TOTAL);
+    await reporter.report('retention', 97, 4, BACKUP_PHASE_TOTAL);
     const prunedCount = await pruneOldBackups(retention);
-    await reporter.report('done', 97, 5, BACKUP_PHASE_TOTAL);
+    await reporter.report('done', 100, 5, BACKUP_PHASE_TOTAL);
 
     logAuditEvent({
       userId: params.adminUserId,
@@ -451,7 +686,7 @@ async function runBackupJobWorker(
       return;
     }
     const controller = new AbortController();
-    activeBackupControllers.set(jobId, controller);
+    activeJobControllers.set(jobId, controller);
     await report('queued', 2, 0, BACKUP_PHASE_TOTAL);
     const result = await executeFullBackupWithProgress({
       adminUserId,
@@ -489,7 +724,7 @@ async function runBackupJobWorker(
       progress: 0,
     });
   } finally {
-    activeBackupControllers.delete(jobId);
+    activeJobControllers.delete(jobId);
   }
 }
 
@@ -507,6 +742,7 @@ export async function startBackupJob(params: {
   const userOid = new mongoose.Types.ObjectId(params.userId);
   const existing = await BackupJob.findOne({
     userId: userOid,
+    $or: [{ jobKind: 'backup' }, { jobKind: { $exists: false } }],
     status: { $in: ['pending', 'processing'] },
   })
     .sort({ createdAt: -1 })
@@ -519,6 +755,7 @@ export async function startBackupJob(params: {
   const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
   const doc = await BackupJob.create({
     userId: userOid,
+    jobKind: 'backup',
     status: 'pending',
     progress: 0,
     totalItems: BACKUP_PHASE_TOTAL,
@@ -566,7 +803,7 @@ export async function cancelBackupJob(jobId: string, userId: string): Promise<bo
   if (updated == null) {
     return false;
   }
-  const controller = activeBackupControllers.get(jobId);
+  const controller = activeJobControllers.get(jobId);
   if (controller) {
     controller.abort();
   }
@@ -578,8 +815,6 @@ export async function ensureBackupPath(locationInput: string): Promise<string> {
   await mkdir(location, { recursive: true });
   return location;
 }
-
-type MinioArchiveMethod = 'sdk-stream-v1' | 'mc-mirror-v1';
 
 interface ParsedBackupManifest {
   readonly format: typeof BACKUP_FORMAT | typeof BACKUP_FORMAT_V1;
@@ -615,7 +850,11 @@ async function readManifest(extractRoot: string): Promise<ParsedBackupManifest> 
   };
 }
 
-async function restoreMongoFromDir(extractRoot: string, manifest: ParsedBackupManifest): Promise<void> {
+async function restoreMongoFromDir(
+  extractRoot: string,
+  manifest: ParsedBackupManifest,
+  onCollectionRestored?: (completed: number, total: number, collectionName: string) => Promise<void> | void,
+): Promise<void> {
   const db = mongoose.connection.db;
   if (!db) {
     throw new Error('Database is not connected');
@@ -632,6 +871,7 @@ async function restoreMongoFromDir(extractRoot: string, manifest: ParsedBackupMa
   }
   const merged = [...new Set([...manifest.mongoCollections, ...discovered])];
   const ordered = sortCollectionsForRestore(merged);
+  let restoredCollections = 0;
 
   for (const collectionName of ordered) {
     const coll = db.collection(collectionName);
@@ -647,7 +887,7 @@ async function restoreMongoFromDir(extractRoot: string, manifest: ParsedBackupMa
     if (hasBson) {
       await coll.deleteMany({});
       const batch: Record<string, unknown>[] = [];
-      const BATCH = 800;
+      const BATCH = getMongoInsertBatchSize();
       for await (const doc of iterateBsonDocumentsFromFile(bsonPath)) {
         batch.push(doc);
         if (batch.length >= BATCH) {
@@ -657,6 +897,10 @@ async function restoreMongoFromDir(extractRoot: string, manifest: ParsedBackupMa
       }
       if (batch.length > 0) {
         await coll.insertMany(batch, { ordered: false });
+      }
+      restoredCollections += 1;
+      if (onCollectionRestored != null) {
+        await onCollectionRestored(restoredCollections, ordered.length, collectionName);
       }
       continue;
     }
@@ -668,13 +912,17 @@ async function restoreMongoFromDir(extractRoot: string, manifest: ParsedBackupMa
     }
     await coll.deleteMany({});
     const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
-    const chunk = 800;
+    const chunk = getMongoInsertBatchSize();
     for (let i = 0; i < lines.length; i += chunk) {
       const slice = lines.slice(i, i + chunk);
       const docs = slice.map((line) => EJSON.parse(line) as Record<string, unknown>);
       if (docs.length > 0) {
         await coll.insertMany(docs, { ordered: false });
       }
+    }
+    restoredCollections += 1;
+    if (onCollectionRestored != null) {
+      await onCollectionRestored(restoredCollections, ordered.length, collectionName);
     }
   }
 }
@@ -699,36 +947,69 @@ async function walkRelativeFiles(dir: string, baseRel: string): Promise<string[]
   return out;
 }
 
-async function restoreMinioFromDir(extractRoot: string, manifest: ParsedBackupManifest): Promise<void> {
+async function restoreMinioFromDir(
+  extractRoot: string,
+  manifest: ParsedBackupManifest,
+  signal: AbortSignal,
+  onObjectRestored?: (completed: number, total: number) => Promise<void> | void,
+): Promise<void> {
   const root = join(extractRoot, 'minio');
   if (manifest.minioArchiveMethod === 'mc-mirror-v1') {
-    const ac = new AbortController();
-    await restoreMinioBucketsWithMcMirror(root, ac.signal);
-    return;
+    try {
+      const ac = new AbortController();
+      await restoreMinioBucketsWithMcMirror(root, ac.signal);
+      return;
+    } catch (error) {
+      const isMcUnavailable =
+        error != null &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: unknown }).code === 'ENOENT';
+      if (!isMcUnavailable) {
+        throw error;
+      }
+      logger.warn({ error }, 'mc binary unavailable during restore; falling back to MinIO SDK put');
+      // Continue to SDK restore path below.
+    }
   }
   const client = getMinIOClient();
   const rels = await walkRelativeFiles(root, '');
   const allowed = new Set<string>([...MINIO_BUCKET_NAMES]);
-  for (const rel of rels) {
-    const norm = rel.replace(/\\/g, '/');
+  const objects = rels
+    .map((rel) => rel.replace(/\\/g, '/'))
+    .filter((norm) => {
+      const slash = norm.indexOf('/');
+      if (slash < 1) {
+        return false;
+      }
+      const bucket = norm.slice(0, slash);
+      return allowed.has(bucket) && bucket !== MINIO_BUCKET_BACKUPS;
+    });
+  const totalObjects = objects.length;
+  let restoredObjects = 0;
+  const objectConcurrency = getMinioObjectTransferConcurrency();
+  await runWithConcurrency(objects, objectConcurrency, async (norm) => {
+    throwIfCancelled(signal);
     const slash = norm.indexOf('/');
-    if (slash < 1) {
-      continue;
-    }
     const bucket = norm.slice(0, slash);
     const objectKey = norm.slice(slash + 1);
-    if (!allowed.has(bucket) || bucket === MINIO_BUCKET_BACKUPS) {
-      continue;
-    }
     const filePath = join(root, norm);
     await client.fPutObject(bucket, objectKey, filePath);
-  }
+    restoredObjects += 1;
+    if (onObjectRestored != null) {
+      await onObjectRestored(restoredObjects, totalObjects);
+    }
+  });
 }
+
+const RESTORE_PHASE_TOTAL = 4;
 
 export async function restoreFullBackup(params: {
   readonly folderId: string;
   readonly adminUserId: string;
   readonly ipAddress?: string | undefined;
+  readonly signal?: AbortSignal;
+  readonly onProgress?: BackupProgressReporter;
 }): Promise<void> {
   const doc = await BackupJob.findOne({ 'result.folderId': params.folderId }).sort({ completedAt: -1 }).lean();
   if (!doc?.result?.filePath) {
@@ -738,11 +1019,37 @@ export async function restoreFullBackup(params: {
   const zipPath = join(tmpdir(), `restore-${Date.now()}.zip`);
   const extractDir = await mkdtemp(join(tmpdir(), 'atlboard-restore-'));
   try {
+    const signal = params.signal ?? new AbortController().signal;
+    await params.onProgress?.report('restore_extract', 2, 0, RESTORE_PHASE_TOTAL);
     await copyFile(filePath, zipPath);
+    throwIfCancelled(signal);
+    await params.onProgress?.report('restore_extract', 18, 1, RESTORE_PHASE_TOTAL);
     await pipeline(createReadStream(zipPath), unzipper.Extract({ path: extractDir }));
+    throwIfCancelled(signal);
+    await params.onProgress?.report('restore_extract', 24, 1, RESTORE_PHASE_TOTAL);
     const manifest = await readManifest(extractDir);
-    await restoreMongoFromDir(extractDir, manifest);
-    await restoreMinioFromDir(extractDir, manifest);
+    await params.onProgress?.report('restore_mongo', 25, 1, RESTORE_PHASE_TOTAL);
+    await restoreMongoFromDir(extractDir, manifest, async (completed, total) => {
+      await params.onProgress?.report(
+        'restore_mongo',
+        progressRange(25, 68, completed, Math.max(1, total)),
+        2,
+        RESTORE_PHASE_TOTAL,
+      );
+    });
+    throwIfCancelled(signal);
+    await params.onProgress?.report('restore_mongo', 68, 2, RESTORE_PHASE_TOTAL);
+    await params.onProgress?.report('restore_minio', 69, 2, RESTORE_PHASE_TOTAL);
+    await restoreMinioFromDir(extractDir, manifest, signal, async (completed, total) => {
+      await params.onProgress?.report(
+        'restore_minio',
+        progressRange(69, 96, completed, Math.max(1, total)),
+        3,
+        RESTORE_PHASE_TOTAL,
+      );
+    });
+    await params.onProgress?.report('restore_minio', 96, 3, RESTORE_PHASE_TOTAL);
+    await params.onProgress?.report('restore_done', 100, RESTORE_PHASE_TOTAL, RESTORE_PHASE_TOTAL);
     logAuditEvent({
       userId: params.adminUserId,
       action: 'admin_backup_restored',
@@ -755,6 +1062,125 @@ export async function restoreFullBackup(params: {
     await rm(zipPath, { force: true });
     await rm(extractDir, { recursive: true, force: true });
   }
+}
+
+async function runRestoreJobWorker(
+  jobId: string,
+  adminUserId: string,
+  ipAddress: string | undefined,
+  sourceFolderId: string,
+): Promise<void> {
+  const report = async (
+    phase: string,
+    progress: number,
+    processedItems: number,
+    totalItems: number,
+  ): Promise<void> => {
+    await BackupJob.findByIdAndUpdate(jobId, {
+      status: 'processing',
+      startedAt: new Date(),
+      currentPhase: phase,
+      progress,
+      processedItems,
+      totalItems,
+    });
+  };
+  try {
+    const controller = new AbortController();
+    activeJobControllers.set(jobId, controller);
+    await report('queued', 1, 0, RESTORE_PHASE_TOTAL);
+    await restoreFullBackup({
+      folderId: sourceFolderId,
+      adminUserId,
+      ipAddress,
+      signal: controller.signal,
+      onProgress: { report },
+    });
+    await BackupJob.findByIdAndUpdate(jobId, {
+      status: 'completed',
+      progress: 100,
+      processedItems: RESTORE_PHASE_TOTAL,
+      totalItems: RESTORE_PHASE_TOTAL,
+      currentPhase: 'restore_done',
+      completedAt: new Date(),
+    });
+  } catch (error) {
+    const failureMessage = error instanceof Error ? error.message : String(error);
+    if (failureMessage === 'BACKUP_CANCELLED') {
+      await BackupJob.findByIdAndUpdate(jobId, {
+        status: 'cancelled',
+        currentPhase: 'cancelled',
+        failureMessage: 'Restore was cancelled.',
+        completedAt: new Date(),
+      });
+      return;
+    }
+    logger.error({ error, jobId }, 'Restore job failed');
+    await BackupJob.findByIdAndUpdate(jobId, {
+      status: 'failed',
+      currentPhase: 'failed',
+      failureMessage,
+      progress: 0,
+      completedAt: new Date(),
+    });
+  } finally {
+    activeJobControllers.delete(jobId);
+  }
+}
+
+export async function startRestoreJob(params: {
+  readonly userId: string;
+  readonly ipAddress?: string | undefined;
+  readonly folderId: string;
+}): Promise<{ jobId: string; reusedExisting: boolean }> {
+  const userOid = new mongoose.Types.ObjectId(params.userId);
+  const existing = await BackupJob.findOne({
+    userId: userOid,
+    jobKind: 'restore',
+    status: { $in: ['pending', 'processing'] },
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  if (existing?._id != null) {
+    return { jobId: String(existing._id), reusedExisting: true };
+  }
+
+  const source = await BackupJob.findOne({
+    'result.folderId': params.folderId,
+    $or: [{ jobKind: 'backup' }, { jobKind: { $exists: false } }],
+  })
+    .sort({ completedAt: -1 })
+    .lean();
+  if (source?.result?.filePath == null || source.filename == null || source.location == null) {
+    throw new Error('Backup archive not found');
+  }
+
+  const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+  const doc = await BackupJob.create({
+    userId: userOid,
+    jobKind: 'restore',
+    sourceFolderId: params.folderId,
+    status: 'pending',
+    progress: 0,
+    totalItems: RESTORE_PHASE_TOTAL,
+    processedItems: 0,
+    currentPhase: 'queued',
+    filename: source.filename,
+    location: source.location,
+    expiresAt,
+  });
+  const jobId = doc._id.toString();
+  void runRestoreJobWorker(jobId, params.userId, params.ipAddress, params.folderId).catch((err: unknown) => {
+    logger.error({ err, jobId }, 'Restore job worker crashed');
+    void BackupJob.findByIdAndUpdate(jobId, {
+      status: 'failed',
+      currentPhase: 'failed',
+      failureMessage: err instanceof Error ? err.message : String(err),
+      progress: 0,
+      completedAt: new Date(),
+    });
+  });
+  return { jobId, reusedExisting: false };
 }
 
 export async function runScheduledBackupIfDue(): Promise<void> {

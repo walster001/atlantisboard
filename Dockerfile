@@ -22,6 +22,14 @@ FROM oven/bun:1.3.5-alpine
 
 WORKDIR /app
 
+# Install MinIO Client (mc) for backup mirroring.
+# Pinned version for reproducible production images.
+ARG MC_VERSION=RELEASE.2026-01-21T05-28-08Z
+RUN apk add --no-cache ca-certificates curl && \
+    curl -fsSL "https://dl.min.io/client/mc/release/linux-amd64/archive/mc-${MC_VERSION}" -o /usr/local/bin/mc && \
+    chmod +x /usr/local/bin/mc && \
+    /usr/local/bin/mc --version
+
 # Copy package files and install production dependencies only
 COPY package.json bun.lockb* ./
 RUN bun install --frozen-lockfile --production

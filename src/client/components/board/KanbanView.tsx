@@ -34,6 +34,7 @@ import { persistDexieListPut, persistDexieCardPut } from '../../store/boardDexie
 import { useBoardAssigneeDirectory } from '../../hooks/useBoardAssigneeDirectory.js';
 import type { KanbanBoardEditCaps } from '../../hooks/useBoardPermissions.js';
 import { routeBoardClick } from './boardInteractionBus.js';
+import { compareBoardListOrder } from '../../../shared/utils/listPos.js';
 import './boardView.css';
 
 const KANBAN_ADD_LIST_BUTTON_STYLES = {
@@ -408,7 +409,7 @@ export function KanbanView({
     const prev = st.orderedListIds
       .map((id) => st.listsById[id])
       .filter((l): l is ListDB => l != null)
-      .sort((a, b) => a.position - b.position);
+      .sort((a, b) => compareBoardListOrder(a, b));
     const next = typeof action === 'function' ? (action as (p: ListDB[]) => ListDB[])(prev) : action;
     useBoardRuntimeStore.getState().setListsFromArray(next);
   }, []);

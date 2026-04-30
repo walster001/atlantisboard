@@ -5,6 +5,7 @@ export interface IList extends Document {
   boardId: mongoose.Types.ObjectId;
   name: string;
   position: number;
+  pos?: number;
   createdAt: Date;
   updatedAt: Date;
   color?: string;
@@ -30,6 +31,11 @@ const ListSchema = new Schema<IList>(
       default: 0,
       index: true,
     },
+    pos: {
+      type: Number,
+      required: false,
+      index: true,
+    },
     color: String,
   },
   {
@@ -37,6 +43,6 @@ const ListSchema = new Schema<IList>(
   }
 );
 
-ListSchema.index({ boardId: 1, position: 1 });
+ListSchema.index({ boardId: 1, pos: 1, position: 1 });
 
 export const List: Model<IList> = mongoose.model<IList>('List', ListSchema);

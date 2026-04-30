@@ -1,6 +1,7 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
 export type BackupJobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+export type BackupJobKind = 'backup' | 'restore';
 
 export interface IBackupJobResult {
   folderId: string;
@@ -11,6 +12,8 @@ export interface IBackupJobResult {
 
 export interface IBackupJob extends Document {
   userId: mongoose.Types.ObjectId;
+  jobKind: BackupJobKind;
+  sourceFolderId?: string;
   status: BackupJobStatus;
   progress: number;
   totalItems: number;
@@ -46,6 +49,13 @@ const BackupJobSchema = new Schema<IBackupJob>(
       required: true,
       index: true,
     },
+    jobKind: {
+      type: String,
+      enum: ['backup', 'restore'],
+      default: 'backup',
+      index: true,
+    },
+    sourceFolderId: { type: String, trim: true, maxlength: 240 },
     status: {
       type: String,
       enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
@@ -73,6 +83,7 @@ const BackupJobSchema = new Schema<IBackupJob>(
 );
 
 BackupJobSchema.index({ userId: 1, status: 1 });
+BackupJobSchema.index({ userId: 1, jobKind: 1, status: 1 });
 
 BackupJobSchema.pre('save', async function () {
   if (this.isNew && !this.expiresAt) {

@@ -11,6 +11,7 @@ import {
   updateList,
   deleteList,
   reorderLists,
+  moveList,
 } from '../services/listService.js';
 
 const router = Router();
@@ -28,6 +29,10 @@ const updateListSchema = z.object({
   name: z.string().min(1).max(LIST_NAME_MAX_LENGTH).optional(),
   position: z.number().optional(),
   color: z.string().optional(),
+});
+
+const moveListSchema = z.object({
+  position: z.number().int().min(0),
 });
 
 // Create list
@@ -86,6 +91,49 @@ router.post('/reorder', async (req, res, next) => {
       orderedListIds: [...listIds].map((id: unknown) => String(id)),
     });
   } catch (error) {
+    if (error instanceof Error && error.message.includes('permissions')) {
+      res.status(403).json({
+        error: {
+          message: error.message,
+          code: 'FORBIDDEN',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Move list in board order using fractional `pos`.
+router.put('/:id/move', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { position } = moveListSchema.parse(req.body);
+    const list = await moveList(req.params.id, position, authReq.user.id);
+    if (!list) {
+      res.status(404).json({
+        error: {
+          message: 'List not found',
+          code: 'NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+    res.json({ list });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          details: error.issues,
+        },
+      });
+      return;
+    }
     if (error instanceof Error && error.message.includes('permissions')) {
       res.status(403).json({
         error: {

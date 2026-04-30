@@ -116,7 +116,7 @@ export interface FontCatalogEntry {
 export async function uploadCustomFont(
   buffer: Buffer,
   mimeType: string,
-  displayName: string,
+  displayName: string | undefined,
   originalName?: string
 ): Promise<FontCatalogEntry> {
   let ext = resolveFontExtension(mimeType, originalName);
@@ -132,6 +132,23 @@ export async function uploadCustomFont(
     throw new Error(`Font exceeds maximum size of ${MAX_FONT_BYTES} bytes`);
   }
 
+  const fromOriginal = (() => {
+    const base = (originalName ?? '').replace(/\\/g, '/').split('/').pop() ?? '';
+    const withoutExt = base.replace(/\.[^/.]+$/, '').trim();
+    if (withoutExt === '') {
+      return '';
+    }
+    return withoutExt
+      .replace(/[_\-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  })();
+  const effectiveDisplayName =
+    typeof displayName === 'string' && displayName.trim() !== '' ? displayName.trim() : fromOriginal;
+  if (effectiveDisplayName === '') {
+    throw new Error('Display name could not be derived from uploaded font file');
+  }
+
   const id = crypto.randomUUID();
   const objectName = `${id}${ext}`;
   const client = getMinIOClient();
@@ -141,7 +158,7 @@ export async function uploadCustomFont(
       ? (mimeType.split(';')[0]?.trim() ?? guessContentTypeFromName(objectName))
       : guessContentTypeFromName(objectName);
 
-  const encodedDisplay = Buffer.from(displayName, 'utf8').toString('base64url');
+  const encodedDisplay = Buffer.from(effectiveDisplayName, 'utf8').toString('base64url');
 
   await client.putObject(BUCKET, objectName, buffer, buffer.length, {
     'Content-Type': contentType,
@@ -151,8 +168,8 @@ export async function uploadCustomFont(
 
   return {
     fileName: objectName,
-    displayName,
-    fontFamilyValue: fontFamilyValueFromDisplayName(displayName),
+    displayName: effectiveDisplayName,
+    fontFamilyValue: fontFamilyValueFromDisplayName(effectiveDisplayName),
     url: `/api/v1/fonts/${objectName}`,
   };
 }

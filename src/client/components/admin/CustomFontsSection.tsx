@@ -8,7 +8,6 @@ import {
   Modal,
   Stack,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
 import { IconUpload } from '@tabler/icons-react';
@@ -44,7 +43,6 @@ export function CustomFontsSection(): ReactElement {
   const [settingDefault, setSettingDefault] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<PublicCustomFontEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -96,17 +94,15 @@ export function CustomFontsSection(): ReactElement {
 
   const handleUpload = useCallback(async () => {
     const file = fileRef.current?.files?.[0];
-    const name = displayName.trim();
-    if (!file || name.length === 0) {
-      setError('Choose a font file and enter a display name');
+    if (!file) {
+      setError('Choose a font file');
       return;
     }
     try {
       setUploading(true);
       setError(null);
       setSuccess(null);
-      await api.uploadCustomFont(file, name);
-      setDisplayName('');
+      await api.uploadCustomFont(file);
       if (fileRef.current) {
         fileRef.current.value = '';
       }
@@ -117,12 +113,12 @@ export function CustomFontsSection(): ReactElement {
     } catch (e) {
       console.error(e);
       setError(
-        'Upload failed — use .woff2, .woff, .ttf (including variable / TrueType), or .otf, and check the display name'
+        'Upload failed — use .woff2, .woff, .ttf (including variable / TrueType), or .otf'
       );
     } finally {
       setUploading(false);
     }
-  }, [displayName, load, scheduleSuccessClear]);
+  }, [load, scheduleSuccessClear]);
 
   const applyDefaultUiFont = useCallback(
     async (value: string | null): Promise<void> => {
@@ -265,13 +261,9 @@ export function CustomFontsSection(): ReactElement {
           Upload a font
         </Title>
         <Stack gap="sm" maw={400}>
-          <TextInput
-            label="Display name"
-            description="Shown in branding font lists and used as the CSS font-family name."
-            value={displayName}
-            onChange={(e) => setDisplayName(e.currentTarget.value)}
-            placeholder="e.g. Company Sans"
-          />
+          <Text size="sm" c="dimmed">
+            Display name is derived from the uploaded file name.
+          </Text>
           <input
             ref={fileRef}
             type="file"

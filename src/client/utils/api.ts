@@ -1489,11 +1489,13 @@ class ApiClient {
 
   async uploadCustomFont(
     file: File,
-    displayName: string
+    displayName?: string
   ): Promise<{ font: PublicCustomFontEntry }> {
     const form = new FormData();
     form.append('file', file);
-    form.append('displayName', displayName);
+    if (typeof displayName === 'string' && displayName.trim() !== '') {
+      form.append('displayName', displayName.trim());
+    }
     const response = await this.client.post<{ font: PublicCustomFontEntry }>(
       '/admin/fonts/upload',
       form,

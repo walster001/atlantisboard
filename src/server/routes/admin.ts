@@ -373,9 +373,11 @@ router.post(
   fontUpload.single('file'),
   async (req, res, next) => {
     try {
-      const displayName = fontDisplayNameSchema.parse(
-        typeof req.body.displayName === 'string' ? req.body.displayName : ''
-      );
+      const displayNameRaw =
+        typeof req.body.displayName === 'string' ? req.body.displayName : undefined;
+      const displayName = displayNameRaw != null && displayNameRaw.trim() !== ''
+        ? fontDisplayNameSchema.parse(displayNameRaw)
+        : undefined;
       if (!req.file) {
         res.status(400).json({
           error: {

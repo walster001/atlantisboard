@@ -21,6 +21,7 @@ import { BackupJob } from '../models/BackupJob.js';
 const BACKUP_FORMAT = 'atlboard-backup-v2' as const;
 const BACKUP_FORMAT_V1 = 'atlboard-backup-v1' as const;
 type MinioArchiveMethod = 'sdk-stream-v1' | 'mc-mirror-v1';
+type MinioObjectMetadataMap = Record<string, Record<string, Record<string, string>>>;
 
 function parsePositiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -157,6 +158,74 @@ async function listBucketObjectKeys(bucket: string): Promise<string[]> {
     stream.on('error', reject);
     stream.on('end', () => resolve(keys));
   });
+}
+
+function normalizeMinioStatMetadata(meta: Record<string, string> | undefined): Record<string, string> {
+  if (meta == null) {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(meta)) {
+    if (typeof v !== 'string') {
+      continue;
+    }
+    const key = k.trim().toLowerCase();
+    if (
+      key === 'content-type' ||
+      key === 'cache-control' ||
+      key.startsWith('x-amz-meta-')
+    ) {
+      out[key] = v;
+    }
+  }
+  return out;
+}
+
+async function collectMinioObjectMetadataByBucket(
+  buckets: readonly string[],
+): Promise<MinioObjectMetadataMap> {
+  const client = getMinIOClient();
+  const out: MinioObjectMetadataMap = {};
+  for (const bucket of buckets) {
+    const keys = await listBucketObjectKeys(bucket);
+    const bucketMeta: Record<string, Record<string, string>> = {};
+    const width = getMinioObjectTransferConcurrency();
+    await runWithConcurrency(keys, width, async (key) => {
+      try {
+        const st = await client.statObject(bucket, key);
+        const normalized = normalizeMinioStatMetadata(st.metaData as Record<string, string> | undefined);
+        if (Object.keys(normalized).length > 0) {
+          bucketMeta[key] = normalized;
+        }
+      } catch (error) {
+        logger.warn({ error, bucket, key }, 'Failed to read MinIO object metadata during backup');
+      }
+    });
+    if (Object.keys(bucketMeta).length > 0) {
+      out[bucket] = bucketMeta;
+    }
+  }
+  return out;
+}
+
+function buildPutObjectMetadata(
+  metadata: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (metadata == null) {
+    return undefined;
+  }
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(metadata)) {
+    const key = k.toLowerCase();
+    if (key === 'content-type') {
+      out['Content-Type'] = v;
+    } else if (key === 'cache-control') {
+      out['Cache-Control'] = v;
+    } else if (key.startsWith('x-amz-meta-')) {
+      out[key] = v;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 async function mirrorMinioBucketsToWorkdirWithSdk(params: {
@@ -605,7 +674,11 @@ export async function executeFullBackupWithProgress(params: {
       minioArchiveMethod,
       mongoCollections: collectionNames,
       minioBuckets: MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS),
+      minioMetadataFile: 'minio-metadata.json',
     };
+    const minioObjectMetadata = await collectMinioObjectMetadataByBucket(
+      MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS),
+    );
 
     const output = createWriteStream(zipPath);
     const archive = archiver('zip', { zlib: { level: 1 } });
@@ -615,6 +688,7 @@ export async function executeFullBackupWithProgress(params: {
     archive.pipe(output);
 
     archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
+    archive.append(JSON.stringify(minioObjectMetadata, null, 2), { name: 'minio-metadata.json' });
     archive.directory(mongoDir, 'mongo');
     archive.directory(minioMirrorDir, 'minio');
 
@@ -834,6 +908,7 @@ interface ParsedBackupManifest {
   readonly format: typeof BACKUP_FORMAT | typeof BACKUP_FORMAT_V1;
   readonly mongoCollections: readonly string[];
   readonly minioArchiveMethod: MinioArchiveMethod;
+  readonly minioMetadataFile?: string;
 }
 
 async function readManifest(extractRoot: string): Promise<ParsedBackupManifest> {
@@ -843,6 +918,7 @@ async function readManifest(extractRoot: string): Promise<ParsedBackupManifest> 
     mongoCollections?: string[];
     mongoExportFormat?: string;
     minioArchiveMethod?: string;
+    minioMetadataFile?: string;
   };
   if (parsed.format !== BACKUP_FORMAT && parsed.format !== BACKUP_FORMAT_V1) {
     throw new Error(`Unsupported backup format: ${String(parsed.format)}`);
@@ -861,7 +937,52 @@ async function readManifest(extractRoot: string): Promise<ParsedBackupManifest> 
     format: fmt,
     mongoCollections: parsed.mongoCollections,
     minioArchiveMethod,
+    ...(typeof parsed.minioMetadataFile === 'string' && parsed.minioMetadataFile.trim() !== ''
+      ? { minioMetadataFile: parsed.minioMetadataFile.trim() }
+      : {}),
   };
+}
+
+async function readMinioObjectMetadataMap(
+  extractRoot: string,
+  manifest: ParsedBackupManifest,
+): Promise<MinioObjectMetadataMap> {
+  const fileName = manifest.minioMetadataFile ?? 'minio-metadata.json';
+  const filePath = join(extractRoot, fileName);
+  try {
+    const raw = await readFile(filePath, 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed == null || typeof parsed !== 'object') {
+      return {};
+    }
+    const out: MinioObjectMetadataMap = {};
+    for (const [bucket, val] of Object.entries(parsed as Record<string, unknown>)) {
+      if (val == null || typeof val !== 'object') {
+        continue;
+      }
+      const objMetaByKey: Record<string, Record<string, string>> = {};
+      for (const [key, md] of Object.entries(val as Record<string, unknown>)) {
+        if (md == null || typeof md !== 'object') {
+          continue;
+        }
+        const mdOut: Record<string, string> = {};
+        for (const [mk, mv] of Object.entries(md as Record<string, unknown>)) {
+          if (typeof mv === 'string') {
+            mdOut[mk] = mv;
+          }
+        }
+        if (Object.keys(mdOut).length > 0) {
+          objMetaByKey[key] = mdOut;
+        }
+      }
+      if (Object.keys(objMetaByKey).length > 0) {
+        out[bucket] = objMetaByKey;
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 async function restoreMongoFromDir(
@@ -965,10 +1086,12 @@ async function restoreMinioFromDir(
   extractRoot: string,
   manifest: ParsedBackupManifest,
   signal: AbortSignal,
+  minioObjectMetadata: MinioObjectMetadataMap,
   onObjectRestored?: (completed: number, total: number) => Promise<void> | void,
 ): Promise<void> {
   const root = join(extractRoot, 'minio');
-  if (manifest.minioArchiveMethod === 'mc-mirror-v1') {
+  const hasMetadataMap = Object.keys(minioObjectMetadata).length > 0;
+  if (manifest.minioArchiveMethod === 'mc-mirror-v1' && !hasMetadataMap) {
     try {
       const ac = new AbortController();
       await restoreMinioBucketsWithMcMirror(root, ac.signal);
@@ -1008,7 +1131,8 @@ async function restoreMinioFromDir(
     const bucket = norm.slice(0, slash);
     const objectKey = norm.slice(slash + 1);
     const filePath = join(root, norm);
-    await client.fPutObject(bucket, objectKey, filePath);
+    const putMetadata = buildPutObjectMetadata(minioObjectMetadata[bucket]?.[objectKey]);
+    await client.fPutObject(bucket, objectKey, filePath, putMetadata);
     restoredObjects += 1;
     if (onObjectRestored != null) {
       await onObjectRestored(restoredObjects, totalObjects);
@@ -1042,6 +1166,7 @@ export async function restoreFullBackup(params: {
     throwIfCancelled(signal);
     await params.onProgress?.report('restore_extract', 24, 1, RESTORE_PHASE_TOTAL);
     const manifest = await readManifest(extractDir);
+    const minioObjectMetadata = await readMinioObjectMetadataMap(extractDir, manifest);
     await params.onProgress?.report('restore_mongo', 25, 1, RESTORE_PHASE_TOTAL);
     await restoreMongoFromDir(extractDir, manifest, async (completed, total) => {
       await params.onProgress?.report(
@@ -1054,7 +1179,7 @@ export async function restoreFullBackup(params: {
     throwIfCancelled(signal);
     await params.onProgress?.report('restore_mongo', 68, 2, RESTORE_PHASE_TOTAL);
     await params.onProgress?.report('restore_minio', 69, 2, RESTORE_PHASE_TOTAL);
-    await restoreMinioFromDir(extractDir, manifest, signal, async (completed, total) => {
+    await restoreMinioFromDir(extractDir, manifest, signal, minioObjectMetadata, async (completed, total) => {
       await params.onProgress?.report(
         'restore_minio',
         progressRange(69, 96, completed, Math.max(1, total)),

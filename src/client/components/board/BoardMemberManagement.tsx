@@ -117,6 +117,7 @@ const BUILTIN_ROLE_OPTIONS: { value: RoleKey; label: string }[] = [
 const BOARD_MEMBER_TABLE_ROW_PX = 96;
 /** Fixed columns keep role + action aligned while virtual rows mount/unmount. */
 const BOARD_MEMBER_ACTION_COL_PX = 118;
+const BOARD_MEMBER_ROLE_COL_PX = 148;
 /** Matches server `userDirectoryService` max page size (see MAX_LIMIT). */
 const DIRECTORY_PAGE_LIMIT = 100;
 /** Server `boardMembersQuerySchema` / `getBoardMembersPage` cap — use full page for fewer round-trips at ~1000 members. */
@@ -138,7 +139,7 @@ const BoardMemberDataTable = forwardRef<HTMLTableElement, ComponentPropsWithoutR
     >
       <colgroup>
         <col />
-        <col style={{ width: '1%' }} />
+        <col style={{ width: BOARD_MEMBER_ROLE_COL_PX }} />
         <col style={{ width: BOARD_MEMBER_ACTION_COL_PX }} />
       </colgroup>
       {children}
@@ -228,8 +229,7 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
         {canUpdateMemberRole ? (
           <Select
             size="xs"
-            w="fit-content"
-            miw={96}
+            w="100%"
             value={roleKey}
             onChange={(v) => {
               if (v) {
@@ -324,8 +324,7 @@ const MemberTableCells = memo(function MemberTableCells(props: {
         {canUpdateMemberRole ? (
           <Select
             size="xs"
-            w="fit-content"
-            miw={96}
+            w="100%"
             value={roleKey}
             onChange={(v) => {
               if (v) {

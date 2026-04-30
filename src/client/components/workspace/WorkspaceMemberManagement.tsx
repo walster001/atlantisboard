@@ -65,6 +65,7 @@ const BUILTIN_WORKSPACE_ROLE_OPTIONS: ReadonlyArray<{ value: WorkspaceRoleKey; l
 const DIRECTORY_PAGE_LIMIT = 100;
 const MEMBER_ROW_PX = 96;
 const ACTION_COL_PX = 118;
+const ROLE_COL_PX = 148;
 
 /** Stable for TableVirtuoso `components` — inline objects remount the table every render and glitch on data changes. */
 const WorkspaceMemberDataTable = forwardRef<HTMLTableElement, ComponentPropsWithoutRef<'table'>>(
@@ -82,7 +83,7 @@ const WorkspaceMemberDataTable = forwardRef<HTMLTableElement, ComponentPropsWith
     >
       <colgroup>
         <col />
-        <col style={{ width: '1%' }} />
+        <col style={{ width: ROLE_COL_PX }} />
         <col style={{ width: ACTION_COL_PX }} />
       </colgroup>
       {children}
@@ -275,8 +276,7 @@ const WorkspaceMemberPanelMemberCells = memo(function WorkspaceMemberPanelMember
         {canUpdateMemberRoles ? (
           <Select
             size="xs"
-            w="fit-content"
-            miw={96}
+            w="100%"
             value={member.roleKey}
             onChange={(v) => {
               if (!v) return;
@@ -774,8 +774,7 @@ export function WorkspaceMemberManagement({
                       {canUpdateMemberRoles ? (
                         <Select
                           size="xs"
-                          w="fit-content"
-                          miw={96}
+                          w="100%"
                           value={role}
                           onChange={(v) => {
                             if (!v) return;

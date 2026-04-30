@@ -371,6 +371,7 @@ export function ImportExportModal({
   const [preflight, setPreflight] = useState<ImportPreflightResult | null>(null);
   const [preflightBusy, setPreflightBusy] = useState(false);
   const [userDecisions, setUserDecisions] = useState<ImportUserDecision[]>([]);
+  const [finalUserMapping, setFinalUserMapping] = useState<ImportUserDecision[]>([]);
   const [unmappedUserPolicy, setUnmappedUserPolicy] = useState<UnmappedUserPolicy>('map_to_importer');
   const [inlineButtonReplacements, setInlineButtonReplacements] = useState<InlineButtonIconReplacement[]>([]);
   const [exportColumns, setExportColumns] = useState<string[]>([
@@ -389,9 +390,13 @@ export function ImportExportModal({
   const needsReplaceButtons = importType === 'wekan' && wekanButtons.length > 0;
 
   const unresolvedUsersCount = useMemo(() => preflightUsers.filter((u) => {
-    const d = userDecisions.find((x) => x.sourceUserId === u.sourceUserId);
+    const d = finalUserMapping.find((x) => x.sourceUserId === u.sourceUserId);
     return d == null || (d.mappedUserId == null && d.discard !== true);
-  }).length, [preflightUsers, userDecisions]);
+  }).length, [finalUserMapping, preflightUsers]);
+  const matchedUsersCount = useMemo(
+    () => finalUserMapping.filter((x) => typeof x.mappedUserId === 'string' && x.mappedUserId.trim() !== '').length,
+    [finalUserMapping],
+  );
   const unresolvedButtonsCount = useMemo(() => {
     if (!needsReplaceButtons) {
       return 0;
@@ -404,9 +409,41 @@ export function ImportExportModal({
   const resetPreflightState = useCallback((): void => {
     setPreflight(null);
     setUserDecisions([]);
+    setFinalUserMapping([]);
     setInlineButtonReplacements([]);
     setUnmappedUserPolicy('map_to_importer');
   }, []);
+
+  const areImportUserDecisionsEqual = useCallback(
+    (a: readonly ImportUserDecision[], b: readonly ImportUserDecision[]): boolean => {
+      if (a.length !== b.length) {
+        return false;
+      }
+      for (let i = 0; i < a.length; i += 1) {
+        const x = a[i];
+        const y = b[i];
+        if (x.sourceUserId !== y.sourceUserId) {
+          return false;
+        }
+        if ((x.mappedUserId ?? '') !== (y.mappedUserId ?? '')) {
+          return false;
+        }
+        if ((x.discard === true) !== (y.discard === true)) {
+          return false;
+        }
+      }
+      return true;
+    },
+    [],
+  );
+
+  const handleUserDecisionsChange = useCallback((next: readonly ImportUserDecision[]): void => {
+    setUserDecisions((prev) => (areImportUserDecisionsEqual(prev, next) ? prev : [...next]));
+  }, [areImportUserDecisionsEqual]);
+
+  const handleFinalUserMappingChange = useCallback((next: readonly ImportUserDecision[]): void => {
+    setFinalUserMapping((prev) => (areImportUserDecisionsEqual(prev, next) ? prev : [...next]));
+  }, [areImportUserDecisionsEqual]);
 
   const runPreflightForFile = useCallback(async (nextFile: File, nextImportType: ImportType): Promise<void> => {
     if (nextImportType !== 'trello' && nextImportType !== 'wekan') {
@@ -433,6 +470,11 @@ export function ImportExportModal({
           : buildWekanImportPreflight(parsed);
       setPreflight(result);
       setUserDecisions(
+        result.users.users.map((u) => ({
+          sourceUserId: u.sourceUserId,
+        })),
+      );
+      setFinalUserMapping(
         result.users.users.map((u) => ({
           sourceUserId: u.sourceUserId,
         })),
@@ -473,7 +515,7 @@ export function ImportExportModal({
     const nextPreflightPayload: ImportPreflightPayload | undefined =
       nextImportType === 'trello' || nextImportType === 'wekan'
         ? {
-            userDecisions,
+            userDecisions: finalUserMapping,
             unmappedUserPolicy,
             ...(nextImportType === 'wekan'
               ? { inlineButtonIconReplacements: inlineButtonReplacements }
@@ -910,8 +952,9 @@ export function ImportExportModal({
                 users={preflightUsers}
                 decisions={userDecisions}
                 policy={unmappedUserPolicy}
-                onChangeDecisions={(next) => setUserDecisions([...next])}
+                onChangeDecisions={handleUserDecisionsChange}
                 onChangePolicy={setUnmappedUserPolicy}
+                onFinalMappingChange={handleFinalUserMappingChange}
               />
             </Suspense>
             </Box>
@@ -932,7 +975,7 @@ export function ImportExportModal({
                   color="blue"
                   radius="md"
                   onClick={() => void handleImport()}
-                  disabled={!file || !importType || loading}
+                  disabled={!file || !importType || loading || (matchedUsersCount === 0 && unmappedUserPolicy !== 'map_to_importer')}
                   loading={loading}
                 >
                   Save users and import

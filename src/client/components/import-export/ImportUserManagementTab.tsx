@@ -35,6 +35,7 @@ interface ImportUserManagementTabProps {
   readonly policy: UnmappedUserPolicy;
   readonly onChangeDecisions: (next: readonly ImportUserDecision[]) => void;
   readonly onChangePolicy: (next: UnmappedUserPolicy) => void;
+  readonly onFinalMappingChange?: (next: readonly ImportUserDecision[]) => void;
 }
 
 function normalize(value: string | undefined): string {
@@ -81,12 +82,10 @@ const IMPORT_MAPPING_ROW_PX = 88;
 const ImportMappingCells = memo(function ImportMappingCells(props: {
   readonly user: ImportPreflightUser;
   readonly mappedUserId: string | undefined;
-  readonly discard: boolean;
   readonly options: readonly ExistingUserSelectOption[];
   readonly onChangeMappedUser: (sourceUserId: string, mappedUserId: string | undefined) => void;
-  readonly onDiscard: (sourceUserId: string) => void;
 }) {
-  const { user, mappedUserId, discard, options, onChangeMappedUser, onDiscard } = props;
+  const { user, mappedUserId, options, onChangeMappedUser } = props;
   return (
     <>
       <td style={{ verticalAlign: 'top', padding: '10px 12px' }}>
@@ -100,30 +99,20 @@ const ImportMappingCells = memo(function ImportMappingCells(props: {
         </Stack>
       </td>
       <td style={{ verticalAlign: 'top', padding: '10px 12px' }}>
-        <Group align="start" gap="xs" wrap="nowrap">
-          <Select
-            placeholder="Map to existing user"
-            value={mappedUserId ?? ''}
-            onChange={(v) => {
-              const nextMappedUserId = typeof v === 'string' && v.trim() !== '' ? v : undefined;
-              onChangeMappedUser(user.sourceUserId, nextMappedUserId);
-            }}
-            data={options}
-            searchable
-            clearable
-            nothingFoundMessage="No matching users"
-            style={{ flex: 1 }}
-            comboboxProps={{ withinPortal: false }}
-          />
-          <Button
-            size="xs"
-            variant={discard ? 'filled' : 'default'}
-            {...(discard ? { color: 'red' as const } : {})}
-            onClick={() => onDiscard(user.sourceUserId)}
-          >
-            Discard
-          </Button>
-        </Group>
+        <Select
+          placeholder="Map to application user"
+          value={mappedUserId ?? ''}
+          onChange={(v) => {
+            const nextMappedUserId = typeof v === 'string' && v.trim() !== '' ? v : undefined;
+            onChangeMappedUser(user.sourceUserId, nextMappedUserId);
+          }}
+          data={options}
+          searchable
+          clearable
+          nothingFoundMessage="No matching users"
+          style={{ width: '100%' }}
+          comboboxProps={{ withinPortal: false }}
+        />
       </td>
     </>
   );
@@ -177,6 +166,7 @@ export function ImportUserManagementTab({
   policy,
   onChangeDecisions,
   onChangePolicy,
+  onFinalMappingChange,
 }: ImportUserManagementTabProps) {
   const [directoryUsers, setDirectoryUsers] = useState<ExistingUserOption[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
@@ -300,10 +290,6 @@ export function ImportUserManagementTab({
     });
   }, [upsertDecision]);
 
-  const handleDiscard = useCallback((sourceUserId: string): void => {
-    upsertDecision({ sourceUserId, discard: true });
-  }, [upsertDecision]);
-
   const unresolvedCount = users.filter((u) => {
     return isUnresolvedUser(u, decisionBySourceId);
   }).length;
@@ -335,14 +321,54 @@ export function ImportUserManagementTab({
     });
   }, [decisionBySourceId, importedFilterQuery, users]);
 
-  const directorySelectOptions = useMemo(
-    () =>
-      directoryUsers.map((x) => ({
-        value: x._id,
-        label: `${x.displayName} (${x.email})`,
-      })),
-    [directoryUsers],
+  const usedMappedUserIds = useMemo(() => {
+    const bySource = buildDecisionMap(decisions);
+    const out = new Set<string>();
+    for (const u of users) {
+      const mapped = bySource.get(u.sourceUserId)?.mappedUserId;
+      if (typeof mapped === 'string' && mapped.trim() !== '') {
+        out.add(mapped);
+      }
+    }
+    return out;
+  }, [decisions, users]);
+
+  const getDirectoryOptionsForRow = useCallback(
+    (sourceUserId: string): ExistingUserSelectOption[] => {
+      const rowMapped = decisionBySourceId.get(sourceUserId)?.mappedUserId;
+      return directoryUsers
+        .filter((x) => rowMapped === x._id || !usedMappedUserIds.has(x._id))
+        .map((x) => ({
+          value: x._id,
+          label: `${x.displayName} (${x.email})`,
+        }));
+    },
+    [decisionBySourceId, directoryUsers, usedMappedUserIds],
   );
+
+  const finalMapping = useMemo<ImportUserDecision[]>(
+    () =>
+      users.map((u) => {
+        const d = decisionBySourceId.get(u.sourceUserId);
+        return {
+          sourceUserId: u.sourceUserId,
+          ...(typeof d?.mappedUserId === 'string' && d.mappedUserId.trim() !== ''
+            ? { mappedUserId: d.mappedUserId }
+            : {}),
+          ...(policy === 'discard_unmapped' &&
+          (d == null || (d.mappedUserId == null && d.discard !== true))
+            ? { discard: true }
+            : d?.discard === true
+              ? { discard: true }
+              : {}),
+        };
+      }),
+    [decisionBySourceId, policy, users],
+  );
+
+  useEffect(() => {
+    onFinalMappingChange?.(finalMapping);
+  }, [finalMapping, onFinalMappingChange]);
 
   if (users.length === 0) {
     return (
@@ -370,36 +396,9 @@ export function ImportUserManagementTab({
             data={[
               { value: 'map_to_importer', label: 'Map unresolved users to importer' },
               { value: 'discard_unmapped', label: 'Discard unresolved users' },
-              { value: 'create_placeholders', label: 'Create placeholder users (legacy fallback)' },
             ]}
           />
           <Group gap="xs">
-            <Button
-              size="xs"
-              variant="default"
-              onClick={() => {
-                const next = users.map<ImportUserDecision>((u) => ({
-                  sourceUserId: u.sourceUserId,
-                  discard: true,
-                }));
-                onChangeDecisions(next);
-              }}
-            >
-              Discard all
-            </Button>
-            <Button
-              size="xs"
-              variant="default"
-              onClick={() => {
-                const next = users.map<ImportUserDecision>((u) => ({
-                  sourceUserId: u.sourceUserId,
-                }));
-                onChangeDecisions(next);
-                onChangePolicy('map_to_importer');
-              }}
-            >
-              Map all unresolved to importer
-            </Button>
             <Button
               size="xs"
               variant="default"
@@ -408,7 +407,7 @@ export function ImportUserManagementTab({
               }}
               disabled={directoryLoading}
             >
-              Auto-match mapped users
+              Auto-Match Users
             </Button>
             <Button
               size="xs"
@@ -466,8 +465,8 @@ export function ImportUserManagementTab({
           <Table withTableBorder withColumnBorders>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Imported user</Table.Th>
-                <Table.Th>Mapped user</Table.Th>
+                <Table.Th>Imported Users (from file)</Table.Th>
+                <Table.Th>Application Users (search and map)</Table.Th>
               </Table.Tr>
             </Table.Thead>
           </Table>
@@ -485,10 +484,8 @@ export function ImportUserManagementTab({
                   <ImportMappingCells
                     user={u}
                     mappedUserId={rowDecision?.mappedUserId}
-                    discard={rowDecision?.discard === true}
-                    options={directorySelectOptions}
+                    options={getDirectoryOptionsForRow(u.sourceUserId)}
                     onChangeMappedUser={handleChangeMappedUser}
-                    onDiscard={handleDiscard}
                   />
                 );
               }}

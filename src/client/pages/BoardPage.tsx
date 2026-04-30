@@ -191,6 +191,13 @@ export default function BoardPage() {
     if (!(body instanceof HTMLElement) || !isMobile) {
       return;
     }
+    const touchState = {
+      active: false,
+      edgeGesture: false,
+      startX: 0,
+      startY: 0,
+      lastX: 0,
+    };
     const onPointerDown = (event: PointerEvent): void => {
       if (event.pointerType !== 'touch') {
         return;
@@ -216,15 +223,60 @@ export default function BoardPage() {
     const onPointerEnd = (): void => {
       swipeRef.current.active = false;
     };
+    const onTouchStart = (event: TouchEvent): void => {
+      const touch = event.touches[0];
+      if (touch == null) {
+        return;
+      }
+      const edgeThreshold = 28;
+      const vw = window.innerWidth;
+      touchState.active = true;
+      touchState.startX = touch.clientX;
+      touchState.startY = touch.clientY;
+      touchState.lastX = touch.clientX;
+      touchState.edgeGesture = touch.clientX <= edgeThreshold || touch.clientX >= vw - edgeThreshold;
+    };
+    const onTouchMove = (event: TouchEvent): void => {
+      if (!touchState.active || !touchState.edgeGesture) {
+        return;
+      }
+      const touch = event.touches[0];
+      if (touch == null) {
+        return;
+      }
+      const dx = touch.clientX - touchState.startX;
+      const dy = touch.clientY - touchState.startY;
+      if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 6) {
+        return;
+      }
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      const delta = touch.clientX - touchState.lastX;
+      body.scrollLeft -= delta;
+      touchState.lastX = touch.clientX;
+    };
+    const onTouchEnd = (): void => {
+      touchState.active = false;
+      touchState.edgeGesture = false;
+    };
     body.addEventListener('pointerdown', onPointerDown, { passive: true });
     body.addEventListener('pointermove', onPointerMove, { passive: true });
     body.addEventListener('pointerup', onPointerEnd, { passive: true });
     body.addEventListener('pointercancel', onPointerEnd, { passive: true });
+    body.addEventListener('touchstart', onTouchStart, { passive: true });
+    body.addEventListener('touchmove', onTouchMove, { passive: false });
+    body.addEventListener('touchend', onTouchEnd, { passive: true });
+    body.addEventListener('touchcancel', onTouchEnd, { passive: true });
     return () => {
       body.removeEventListener('pointerdown', onPointerDown);
       body.removeEventListener('pointermove', onPointerMove);
       body.removeEventListener('pointerup', onPointerEnd);
       body.removeEventListener('pointercancel', onPointerEnd);
+      body.removeEventListener('touchstart', onTouchStart);
+      body.removeEventListener('touchmove', onTouchMove);
+      body.removeEventListener('touchend', onTouchEnd);
+      body.removeEventListener('touchcancel', onTouchEnd);
     };
   }, [isMobile, navigate]);
 

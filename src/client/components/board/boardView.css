@@ -732,7 +732,9 @@
     padding: 6px 6px max(6px, env(safe-area-inset-bottom));
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    overscroll-behavior-y: contain;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
   }
 
   .board-page__columns {
@@ -754,7 +756,13 @@
 
   .board-card,
   .board-column__title-row {
-    touch-action: pan-y;
+    touch-action: pan-x pan-y;
+  }
+
+  .board-column__cards,
+  .board-column__cards--plain,
+  .board-column__virtuoso-scroller {
+    touch-action: pan-x pan-y;
   }
 
   .board-card__kanban-menu-trigger {

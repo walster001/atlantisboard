@@ -532,6 +532,14 @@ router.get('/verify-email', authRateLimiter, async (req, res, next) => {
  * otherwise use the incoming request so the host matches (e.g. 127.0.0.1 vs localhost).
  */
 function oauthRedirectBase(req?: Request): string {
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (!isProduction && req) {
+    const host = req.get('host');
+    if (host) {
+      const proto = (req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0]?.trim();
+      return `${proto}://${host}`;
+    }
+  }
   const fromEnv = (process.env.APP_URL || process.env.CORS_ORIGIN)?.trim();
   if (fromEnv) {
     return fromEnv.replace(/\/$/, '');

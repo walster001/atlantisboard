@@ -4,6 +4,11 @@
 
 // Bun Runtime Types
 declare global {
+  /** iOS Safari home-screen web app flag (non-standard; not on the default TS `Navigator`). */
+  interface Navigator {
+    readonly standalone?: boolean;
+  }
+
   interface BunGlobal {
     password: {
       hash(

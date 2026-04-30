@@ -27,8 +27,9 @@ function isIosSafari(): boolean {
 }
 
 function isStandalone(): boolean {
-  const nav = navigator as Navigator & { standalone?: boolean };
-  return window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true;
+  return (
+    window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+  );
 }
 
 export function PwaInstallPrompt() {

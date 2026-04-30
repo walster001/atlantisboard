@@ -67,6 +67,8 @@ app.use(
         objectSrc: ["'none'"],
         mediaSrc: ["'self'"],
         frameSrc: ["'none'"],
+        // Keep dev LAN access on plain HTTP in WSL/Windows setups.
+        upgradeInsecureRequests: null,
       },
     },
     crossOriginEmbedderPolicy: false,

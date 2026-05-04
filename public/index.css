@@ -9570,14 +9570,20 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
     font-size: 1.5rem;
   }
 
-  .home-page__actions {
-    justify-content: stretch;
-    width: 100%;
+  .home-page__actions--icon-only {
+    flex-shrink: 0;
+    justify-content: flex-end;
+    width: auto;
   }
 
-  .home-page__actions .mantine-Button-root {
-    flex: 1;
-    min-height: 44px;
+  .home-page__import-btn--icon-only.mantine-ActionIcon-root {
+    border: 1px solid var(--mantine-color-gray-4);
+    color: var(--mantine-color-dark-6);
+    background-color: #fff;
+  }
+
+  .home-page__import-btn--icon-only.mantine-ActionIcon-root:hover {
+    background-color: var(--mantine-color-gray-0);
   }
 
   .home-page__workspace-row {
@@ -9595,6 +9601,18 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
 
   .home-page__board-card {
     --home-board-card-min-h: 178px;
+  }
+
+  .home-page__board-card[data-home-board-draggable="1"], .home-page__board-card[data-home-board-draggable="1"] .home-page__board-card-header, .home-page__board-card[data-home-board-draggable="1"] .home-page__board-card-body, .home-page__board-card[data-home-board-draggable="1"] .home-page__board-card-title, .home-page__board-card[data-home-board-draggable="1"] .home-page__board-card-desc {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .home-page__board-card[data-home-board-draggable="1"] [data-home-board-no-drag="1"], .home-page__board-card[data-home-board-draggable="1"] [data-home-board-no-drag="1"] * {
+    -webkit-user-select: auto;
+    user-select: auto;
+    -webkit-touch-callout: default;
   }
 
   .home-page__workspace-drag-handle, .home-page__workspace-add-board-icon {
@@ -12499,7 +12517,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 
   .board-page__columns {
-    gap: 8px;
+    gap: 12px;
     min-height: calc(100dvh - 92px);
   }
 
@@ -12511,6 +12529,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
   .board-column, .board-page__column-track {
     scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 
   .board-card, .board-column__title-row, .board-column__cards, .board-column__cards--plain, .board-column__virtuoso-scroller {
@@ -12654,16 +12673,25 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 
   .admin-configuration-page__main-tabs-list--mobile {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items:  center;
+    gap: 10px;
     width: 100%;
   }
 
   .admin-configuration-page__main-tabs-list--mobile .mantine-Tabs-tab {
+    display: inline-flex;
+    flex: none;
     justify-content: center;
+    align-items:  center;
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    height: 44px;
     min-height: 44px;
-    padding-inline-start: 0;
-    padding-inline-end: 0;
+    padding: 0;
   }
 
   .admin-configuration-page__mobile-row {

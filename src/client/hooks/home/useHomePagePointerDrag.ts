@@ -23,6 +23,12 @@ import {
 
 const HOME_DRAG_DEADZONE_PX = 6;
 
+/** Homepage board tiles only: touch must hold before reorder drag arms (ms). */
+const HOME_MOBILE_BOARD_REORDER_LONG_PRESS_MS = 2000;
+
+/** If the finger moves farther than this before the long-press completes, cancel arming (scroll intent). */
+const HOME_MOBILE_BOARD_LONG_PRESS_CANCEL_PX = 24;
+
 type FloatState =
   | { readonly kind: 'board'; readonly name: string }
   | { readonly kind: 'workspace'; readonly name: string }
@@ -36,6 +42,9 @@ type PendingBoard = {
   readonly startX: number;
   readonly startY: number;
   readonly pointerId: number;
+  /** Touch on mobile: false until long-press timer fires; desktop/mouse starts true. */
+  readonly reorderArmed: boolean;
+  readonly armTimerId: number | null;
 };
 
 type ActiveBoard = {
@@ -117,6 +126,8 @@ export function useHomePagePointerDrag(
   actionsRef: MutableRefObject<HomePagePointerDragActions>,
   /** When false, listeners are not attached (e.g. home list not mounted yet). */
   layoutReady: boolean,
+  /** When true, touch drags on board cards require a long-press before reorder arms. */
+  isMobile: boolean,
 ): {
   readonly suppressBoardClickRef: MutableRefObject<boolean>;
   readonly floatPreview: FloatState;
@@ -131,6 +142,8 @@ export function useHomePagePointerDrag(
 
   const refsR = useRef(refs);
   refsR.current = refs;
+  const isMobileRef = useRef(isMobile);
+  isMobileRef.current = isMobile;
 
   useEffect(() => {
     if (!layoutReady) {
@@ -165,6 +178,9 @@ export function useHomePagePointerDrag(
     const disarm = (): void => {
       cancelRaf();
       const s = sessionRef.current;
+      if (s?.kind === 'pending_board' && s.armTimerId != null) {
+        window.clearTimeout(s.armTimerId);
+      }
       sessionRef.current = null;
       if (s != null && (s.kind === 'active_board' || s.kind === 'active_workspace')) {
         try {
@@ -187,6 +203,20 @@ export function useHomePagePointerDrag(
       }
 
       if (s.kind === 'pending_board') {
+        if (!s.reorderArmed) {
+          if (
+            dragDistanceExceedsDeadzone(
+              s.startX,
+              s.startY,
+              ev.clientX,
+              ev.clientY,
+              HOME_MOBILE_BOARD_LONG_PRESS_CANCEL_PX,
+            )
+          ) {
+            disarm();
+          }
+          return;
+        }
         if (!dragDistanceExceedsDeadzone(s.startX, s.startY, ev.clientX, ev.clientY)) {
           return;
         }
@@ -482,6 +512,31 @@ export function useHomePagePointerDrag(
         const wsId = boardTile.getAttribute('data-home-workspace-id');
         if (typeof boardId === 'string' && boardId !== '' && typeof wsId === 'string' && wsId !== '') {
           ev.preventDefault();
+          const touchLike = ev.pointerType === 'touch' || ev.pointerType === 'pen';
+          const needsLongPress = isMobileRef.current && touchLike;
+          const pointerIdCapture = ev.pointerId;
+          let armTimerId: number | null = null;
+          let reorderArmed = true;
+          if (needsLongPress) {
+            reorderArmed = false;
+            armTimerId = window.setTimeout(() => {
+              const cur = sessionRef.current;
+              if (cur == null || cur.kind !== 'pending_board') {
+                return;
+              }
+              if (cur.pointerId !== pointerIdCapture || cur.boardId !== boardId) {
+                return;
+              }
+              if (cur.reorderArmed) {
+                return;
+              }
+              sessionRef.current = {
+                ...cur,
+                reorderArmed: true,
+                armTimerId: null,
+              };
+            }, HOME_MOBILE_BOARD_REORDER_LONG_PRESS_MS);
+          }
           sessionRef.current = {
             kind: 'pending_board',
             boardId,
@@ -490,6 +545,8 @@ export function useHomePagePointerDrag(
             startX: ev.clientX,
             startY: ev.clientY,
             pointerId: ev.pointerId,
+            reorderArmed,
+            armTimerId,
           };
           window.addEventListener('pointermove', onWindowPointerMove);
           window.addEventListener('pointerup', onWindowPointerUp);
@@ -508,7 +565,7 @@ export function useHomePagePointerDrag(
       cancelRaf();
       sessionRef.current = null;
     };
-  }, [layoutReady, refs.listRootRef]);
+  }, [layoutReady, refs.listRootRef, isMobile]);
 
   return { suppressBoardClickRef, floatPreview, draggingBoardId };
 }

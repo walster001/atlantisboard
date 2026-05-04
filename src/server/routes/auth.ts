@@ -1,3 +1,4 @@
+import os from 'node:os';
 import { Router, type Request, type RequestHandler, type Response } from 'express';
 import { z } from 'zod';
 import passport from 'passport';
@@ -13,6 +14,11 @@ import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isGoogleOAuthStrategyRegistered } from '../config/passport.js';
+import { googleOAuthLanDeviceParamsForHostHeader } from '../../shared/utils/googleOAuthPrivateIp.js';
+import {
+  googleOAuthAuthorizeStartUrl,
+  googleOAuthRedirectToBrowserOriginIfNeeded,
+} from '../../shared/utils/googleOAuthCallbackUrl.js';
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
 
 const router = Router();
@@ -79,10 +85,17 @@ router.get('/login-options', apiRateLimiter, async (_req, res, next) => {
     const googleLogin =
       cfg.googleOAuth.enabled && cfg.authMethods.googleOAuth && googleConfigured;
 
+    const googleOAuthStartUrl = googleOAuthAuthorizeStartUrl(
+      process.env.GOOGLE_OAUTH_BROWSER_ORIGIN,
+    );
+
     res.json({
       defaultAuthMethod: cfg.defaultAuthMethod,
       emailPassword: cfg.authMethods.emailPassword,
       googleLogin,
+      ...(googleLogin && googleOAuthStartUrl !== null
+        ? { googleOAuthStartUrl }
+        : {}),
     });
   } catch (error) {
     next(error);
@@ -601,6 +614,16 @@ router.get('/google', authRateLimiter, async (req, res, next) => {
       return;
     }
 
+    const canonicalGoogle = googleOAuthRedirectToBrowserOriginIfNeeded(
+      process.env.GOOGLE_OAUTH_BROWSER_ORIGIN,
+      req.get('host'),
+      req.originalUrl,
+    );
+    if (canonicalGoogle !== null) {
+      res.redirect(302, canonicalGoogle);
+      return;
+    }
+
     const nextParam = req.query.next;
     if (typeof nextParam === 'string' && nextParam.length > 0 && isSafeOAuthNextPath(nextParam)) {
       req.session.oauthReturnTo = nextParam;
@@ -614,9 +637,15 @@ router.get('/google', authRateLimiter, async (req, res, next) => {
         next(saveErr);
         return;
       }
+      const lanDevice = googleOAuthLanDeviceParamsForHostHeader(
+        req.get('host'),
+        process.env,
+        () => os.hostname(),
+      );
       passport.authenticate('google', {
         scope: ['profile', 'email'],
         session: true,
+        ...(lanDevice !== null ? lanDevice : {}),
       })(req, res, next);
     });
   } catch (error) {

@@ -9,7 +9,12 @@ import {
   type MutableRefObject,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconGripVertical, IconLayoutKanbanFilled, IconPlus } from '@tabler/icons-react';
+import {
+  IconGripVertical,
+  IconLayoutKanbanFilled,
+  IconPlus,
+  IconFileImport,
+} from '@tabler/icons-react';
 import { Button, Card, Loader, Stack, Text, Title, Group, Box, Menu, ActionIcon } from '@mantine/core';
 import { useAuthContext } from '../contexts/AuthContext.js';
 import { useAppBranding } from '../contexts/AppBrandingContext.js';
@@ -42,6 +47,7 @@ import {
   mergeWorkspacesWithHomeOrder,
 } from '../hooks/homeBoard/homeBoardLayout.js';
 import { persistWorkspaceRowOrder } from '../hooks/homeBoard/homeBoardMove.js';
+import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
 import { useBoardRealtimeSync } from '../hooks/homeBoard/useBoardRealtimeSync.js';
 import { fullWorkspaceInsertBeforeIndex } from '../hooks/home/homePointerHitTest.js';
 import {
@@ -51,7 +57,6 @@ import {
   type HomePagePointerDragRefs,
 } from '../hooks/home/useHomePagePointerDrag.js';
 import { resolveHomeBoardTileCoverDisplay } from '../utils/boardCoverDisplay.js';
-import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
 import './HomePage.css';
 
 const HOME_BOARDS_PAGE_SIZE = 100;
@@ -321,6 +326,7 @@ export default function HomePage() {
     modelsRef,
     actionsRef,
     !loading && !authLoading && authenticated,
+    isMobile,
   );
 
   const refreshData = async () => {
@@ -556,35 +562,73 @@ export default function HomePage() {
           <Stack gap="lg">
             <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">
               <Title order={1} className="home-page__title">Your Workspaces</Title>
-              <Group gap="xs" wrap="nowrap" className="home-page__actions">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="home-page__import-btn"
-                  leftSection={
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path
-                        d="M8 2V10M8 2L5 5M8 2L11 5M2 10V13C2 13.5523 2.44772 14 3 14H13C13.5523 14 14 13.5523 14 13V10"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  }
-                  onClick={() => setShowImportModal(true)}
-                >
-                  Import
-                </Button>
-                <Button
-                  color="blue"
-                  size="sm"
-                  className="home-page__new-workspace-btn"
-                  leftSection={<span className="home-page__icon-plus">+</span>}
-                  onClick={() => setShowCreateWorkspace(true)}
-                >
-                  New Workspace
-                </Button>
+              <Group
+                gap="xs"
+                wrap="nowrap"
+                className={`home-page__actions${isMobile ? ' home-page__actions--icon-only' : ''}`}
+              >
+                {isMobile ? (
+                  <>
+                    <ActionIcon
+                      variant="default"
+                      size="lg"
+                      radius="md"
+                      className="home-page__import-btn home-page__import-btn--icon-only"
+                      onClick={() => setShowImportModal(true)}
+                      aria-label="Import boards or workspaces"
+                    >
+                      <IconFileImport size={22} stroke={1.65} />
+                    </ActionIcon>
+                    <ActionIcon
+                      color="blue"
+                      variant="filled"
+                      size="lg"
+                      radius="md"
+                      className="home-page__new-workspace-btn home-page__new-workspace-btn--icon-only"
+                      onClick={() => setShowCreateWorkspace(true)}
+                      aria-label="New workspace"
+                    >
+                      <IconPlus size={22} stroke={1.75} />
+                    </ActionIcon>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="home-page__import-btn"
+                      leftSection={
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M8 2V10M8 2L5 5M8 2L11 5M2 10V13C2 13.5523 2.44772 14 3 14H13C13.5523 14 14 13.5523 14 13V10"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      }
+                      onClick={() => setShowImportModal(true)}
+                    >
+                      Import
+                    </Button>
+                    <Button
+                      color="blue"
+                      size="sm"
+                      className="home-page__new-workspace-btn"
+                      leftSection={<span className="home-page__icon-plus">+</span>}
+                      onClick={() => setShowCreateWorkspace(true)}
+                    >
+                      New Workspace
+                    </Button>
+                  </>
+                )}
               </Group>
             </Group>
 

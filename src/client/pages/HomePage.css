@@ -319,14 +319,20 @@
     font-size: 1.5rem;
   }
 
-  .home-page__actions {
-    width: 100%;
-    justify-content: stretch;
+  .home-page__actions--icon-only {
+    width: auto;
+    flex-shrink: 0;
+    justify-content: flex-end;
   }
 
-  .home-page__actions .mantine-Button-root {
-    flex: 1;
-    min-height: 44px;
+  .home-page__import-btn--icon-only.mantine-ActionIcon-root {
+    background-color: #fff;
+    border: 1px solid var(--mantine-color-gray-4);
+    color: var(--mantine-color-dark-6);
+  }
+
+  .home-page__import-btn--icon-only.mantine-ActionIcon-root:hover {
+    background-color: var(--mantine-color-gray-0);
   }
 
   .home-page__workspace-row {
@@ -344,6 +350,27 @@
 
   .home-page__board-card {
     --home-board-card-min-h: 178px;
+  }
+
+  /*
+   * iOS long-press otherwise selects text / shows system callout while waiting for board reorder arm.
+   * Keep the overflow menu usable: restore selection inside [data-home-board-no-drag].
+   */
+  .home-page__board-card[data-home-board-draggable='1'],
+  .home-page__board-card[data-home-board-draggable='1'] .home-page__board-card-header,
+  .home-page__board-card[data-home-board-draggable='1'] .home-page__board-card-body,
+  .home-page__board-card[data-home-board-draggable='1'] .home-page__board-card-title,
+  .home-page__board-card[data-home-board-draggable='1'] .home-page__board-card-desc {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .home-page__board-card[data-home-board-draggable='1'] [data-home-board-no-drag='1'],
+  .home-page__board-card[data-home-board-draggable='1'] [data-home-board-no-drag='1'] * {
+    -webkit-user-select: auto;
+    user-select: auto;
+    -webkit-touch-callout: default;
   }
 
   .home-page__workspace-drag-handle,

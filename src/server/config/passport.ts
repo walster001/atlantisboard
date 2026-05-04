@@ -1,11 +1,14 @@
 import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { GoogleStrategyWithLanDeviceParams } from './GoogleStrategyWithLanDeviceParams.js';
 import { User } from '../models/User.js';
 import { AdminConfig } from '../models/AdminConfig.js';
 import { decrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
 import { verifyUserInMySQL } from '../services/mysqlService.js';
-import { normalizeGoogleOAuthCallbackUrl } from '../../shared/utils/googleOAuthCallbackUrl.js';
+import {
+  normalizeGoogleOAuthCallbackUrl,
+  resolveGoogleOAuthPassportCallbackUrl,
+} from '../../shared/utils/googleOAuthCallbackUrl.js';
 import { deriveUniqueUsernameForGoogleOAuth } from '../utils/googleOAuthUsername.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 
@@ -78,12 +81,17 @@ export async function configureGoogleStrategy(): Promise<void> {
     const storedCallbackUrl = config.googleOAuth.callbackUrl?.trim();
     const rawCallback =
       envCallbackUrl || storedCallbackUrl || '/api/v1/auth/google/callback';
-    const callbackURL =
+    const normalizedCallback =
       normalizeGoogleOAuthCallbackUrl(rawCallback) || '/api/v1/auth/google/callback';
+    const callbackURL = resolveGoogleOAuthPassportCallbackUrl({
+      normalizedCallback,
+      nodeEnv: process.env.NODE_ENV,
+      googleOAuthBrowserOrigin: process.env.GOOGLE_OAUTH_BROWSER_ORIGIN,
+    });
 
     passport.use(
       'google',
-      new GoogleStrategy(
+      new GoogleStrategyWithLanDeviceParams(
         {
           clientID: clientId,
           clientSecret: clientSecret,

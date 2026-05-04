@@ -28,6 +28,7 @@ import { resolveBoardSettingsGate } from '../utils/boardSettingsPermissions.js';
 import type { ScaleMode } from '../components/board/scaleModePolicy.js';
 import { env } from '../config/env.js';
 import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
+import { snapBoardBodyToNearestListColumn } from '../utils/snapMobileBoardColumnScroll.js';
 import '../components/board/boardView.css';
 
 const KANBAN_VIEW_SUSPENSE_FALLBACK = (
@@ -260,6 +261,54 @@ export default function BoardPage() {
       touchState.active = false;
       touchState.edgeGesture = false;
     };
+
+    let boardFingerDown = false;
+    let scrollIdleTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearScrollIdleTimer = (): void => {
+      if (scrollIdleTimer != null) {
+        clearTimeout(scrollIdleTimer);
+        scrollIdleTimer = null;
+      }
+    };
+    const scheduleSnapAfterScrollIdle = (): void => {
+      clearScrollIdleTimer();
+      scrollIdleTimer = setTimeout(() => {
+        scrollIdleTimer = null;
+        if (boardFingerDown) {
+          return;
+        }
+        snapBoardBodyToNearestListColumn(body);
+      }, 160);
+    };
+    const onBoardTouchStartCapture = (event: TouchEvent): void => {
+      boardFingerDown = event.touches.length > 0;
+      clearScrollIdleTimer();
+    };
+    const onBoardTouchEndCapture = (event: TouchEvent): void => {
+      boardFingerDown = event.touches.length > 0;
+      if (!boardFingerDown) {
+        scheduleSnapAfterScrollIdle();
+      }
+    };
+    const onBoardScroll = (): void => {
+      if (boardFingerDown) {
+        return;
+      }
+      scheduleSnapAfterScrollIdle();
+    };
+    const onBoardScrollEnd = (): void => {
+      clearScrollIdleTimer();
+      snapBoardBodyToNearestListColumn(body);
+    };
+
+    body.addEventListener('touchstart', onBoardTouchStartCapture, { passive: true, capture: true });
+    body.addEventListener('touchend', onBoardTouchEndCapture, { passive: true, capture: true });
+    body.addEventListener('touchcancel', onBoardTouchEndCapture, { passive: true, capture: true });
+    body.addEventListener('scroll', onBoardScroll, { passive: true });
+    if ('onscrollend' in window) {
+      body.addEventListener('scrollend', onBoardScrollEnd, { passive: true });
+    }
+
     body.addEventListener('pointerdown', onPointerDown, { passive: true });
     body.addEventListener('pointermove', onPointerMove, { passive: true });
     body.addEventListener('pointerup', onPointerEnd, { passive: true });
@@ -269,6 +318,14 @@ export default function BoardPage() {
     body.addEventListener('touchend', onTouchEnd, { passive: true });
     body.addEventListener('touchcancel', onTouchEnd, { passive: true });
     return () => {
+      clearScrollIdleTimer();
+      body.removeEventListener('touchstart', onBoardTouchStartCapture, { capture: true });
+      body.removeEventListener('touchend', onBoardTouchEndCapture, { capture: true });
+      body.removeEventListener('touchcancel', onBoardTouchEndCapture, { capture: true });
+      body.removeEventListener('scroll', onBoardScroll);
+      if ('onscrollend' in window) {
+        body.removeEventListener('scrollend', onBoardScrollEnd);
+      }
       body.removeEventListener('pointerdown', onPointerDown);
       body.removeEventListener('pointermove', onPointerMove);
       body.removeEventListener('pointerup', onPointerEnd);

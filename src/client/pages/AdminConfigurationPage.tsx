@@ -144,10 +144,10 @@ export default function AdminConfigurationPage() {
         >
           <Tabs.List className="admin-configuration-page__main-tabs-list admin-configuration-page__main-tabs-list--mobile">
             <Tabs.Tab value="configuration" aria-label="Configuration">
-              <IconTool size={18} stroke={1.5} />
+              <IconTool size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
             </Tabs.Tab>
             <Tabs.Tab value="customisation" aria-label="Customisation">
-              <IconSparkles size={18} stroke={1.5} />
+              <IconSparkles size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
             </Tabs.Tab>
           </Tabs.List>
         </Tabs>

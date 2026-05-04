@@ -30,6 +30,7 @@ export default function LoginPage() {
   const [loginOptionsLoading, setLoginOptionsLoading] = useState(true);
   const [emailPasswordAllowed, setEmailPasswordAllowed] = useState(true);
   const [googleLoginAllowed, setGoogleLoginAllowed] = useState(false);
+  const [googleOAuthStartUrl, setGoogleOAuthStartUrl] = useState<string | null>(null);
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const strippedNextFromUrlRef = useRef(false);
@@ -67,6 +68,11 @@ export default function LoginPage() {
         if (!cancelled) {
           setEmailPasswordAllowed(opts.emailPassword);
           setGoogleLoginAllowed(opts.googleLogin);
+          setGoogleOAuthStartUrl(
+            typeof opts.googleOAuthStartUrl === 'string' && opts.googleOAuthStartUrl.length > 0
+              ? opts.googleOAuthStartUrl
+              : null,
+          );
         }
       } catch {
         if (!cancelled) {
@@ -155,8 +161,8 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    /* `next` is already in sessionStorage from ProtectedRoute or migrated ?next=; server reads session only */
-    window.location.href = '/api/v1/auth/google';
+    /* With GOOGLE_OAUTH_BROWSER_ORIGIN, server returns an absolute URL so redirect_uri uses a registrable host (not a private IP). */
+    window.location.href = googleOAuthStartUrl ?? '/api/v1/auth/google';
   };
 
   if (!loginBrandingReady || loginOptionsLoading) {

@@ -738,7 +738,8 @@
   }
 
   .board-page__columns {
-    gap: 8px;
+    /* Must match KanbanView LIST_HORIZONTAL_GAP_PX + Group gap so scroll metrics match layout. */
+    gap: 12px;
     min-height: calc(100dvh - 92px);
   }
 
@@ -752,6 +753,7 @@
   .board-column,
   .board-page__column-track {
     scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 
   .board-card,

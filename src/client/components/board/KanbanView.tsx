@@ -610,7 +610,7 @@ export function KanbanView({
   return (
     <Group
       ref={setColumnsGroupRef}
-      gap="md"
+      gap={LIST_HORIZONTAL_GAP_PX}
       className="board-page__columns"
       wrap="nowrap"
       align="flex-start"

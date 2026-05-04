@@ -138,15 +138,25 @@
   }
 
   .admin-configuration-page__main-tabs-list--mobile {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
     width: 100%;
+    justify-content: flex-start;
   }
 
   .admin-configuration-page__main-tabs-list--mobile .mantine-Tabs-tab {
-    justify-content: center;
+    flex: 0 0 auto;
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    height: 44px;
     min-height: 44px;
-    padding-inline: 0;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .admin-configuration-page__mobile-row {

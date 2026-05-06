@@ -66,6 +66,11 @@ export interface BoardThemeSettings {
   backgroundImageScale?: BoardBackgroundImageScale | undefined;
   backgroundFocalX?: number | undefined;
   backgroundFocalY?: number | undefined;
+  /**
+   * Opacity for board chrome surfaces (navbar + lists/cards) when an image background is active.
+   * Stored as 0..1. When unset, defaults to 0.8 for image backgrounds.
+   */
+  boardOpacity?: number | undefined;
 }
 
 export const BOARD_DEFAULT_THEME_ID = 'ocean-blue';
@@ -351,6 +356,7 @@ export function createDefaultBoardThemeSettings(themeId?: string): BoardThemeSet
     backgroundImageScale: 'fill',
     backgroundFocalX: 0.5,
     backgroundFocalY: 0.5,
+    boardOpacity: 0.8,
   };
 }
 
@@ -422,6 +428,7 @@ export function normalizeBoardThemeSettings(
     backgroundImageScale?: unknown;
     backgroundFocalX?: unknown;
     backgroundFocalY?: unknown;
+    boardOpacity?: unknown;
   };
   const customThemesRaw = Array.isArray(value.customThemes) ? value.customThemes : base.customThemes;
   let customThemes = customThemesRaw
@@ -471,6 +478,11 @@ export function normalizeBoardThemeSettings(
   const backgroundFocalY = Number.isFinite(backgroundFocalYRaw)
     ? Math.max(0, Math.min(1, backgroundFocalYRaw))
     : 0.5;
+  const boardOpacityRaw =
+    typeof value.boardOpacity === 'number' ? value.boardOpacity : base.boardOpacity ?? 0.8;
+  const boardOpacity = Number.isFinite(boardOpacityRaw)
+    ? Math.max(0.1, Math.min(1, boardOpacityRaw))
+    : 0.8;
   return {
     selectedThemeId: selectedTheme.id,
     selectedTheme,
@@ -480,6 +492,7 @@ export function normalizeBoardThemeSettings(
     backgroundImageScale,
     backgroundFocalX,
     backgroundFocalY,
+    boardOpacity,
     ...(typeof value.backgroundColor === 'string' && value.backgroundColor.trim() !== ''
       ? { backgroundColor: value.backgroundColor.trim() }
       : base.backgroundColor != null

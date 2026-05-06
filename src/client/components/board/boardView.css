@@ -6,6 +6,7 @@
   --board-nav-bg: #1a5b99;
   --board-nav-fg: #fff;
   --board-nav-border: rgba(255, 255, 255, 0.12);
+  --board-surface-opacity-pct: 100%;
   --board-canvas-bg: #2b82c9;
   --board-list-bg: #ffffff;
   /* Trello-like list chrome: slate title + muted count */
@@ -43,12 +44,72 @@
   display: flex;
   flex-direction: column;
   background: var(--board-canvas-bg);
+  background-image: var(--board-canvas-bg-image);
+  background-size: var(--board-canvas-bg-image-size);
+  background-repeat: var(--board-canvas-bg-image-repeat);
+  background-position: var(--board-canvas-bg-image-position);
 }
 
 .board-page__header {
   flex-shrink: 0;
-  background: var(--board-nav-bg);
+  background: transparent;
   padding: 6px 16px;
+  position: relative;
+}
+
+.board-page__header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--board-nav-bg);
+  opacity: var(--board-nav-bg-opacity, 1);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.board-page__header-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.board-column {
+  flex-shrink: 0;
+  background: transparent;
+  /* Card drop shadow uses this for color-mix (10% darker than list surface). */
+  --board-card-drop-surface: var(--board-list-bg);
+  /* Shared with scroll region pull-out so the list scrollbar can sit flush with the chrome edge. */
+  --board-column-pad: 12px;
+  border-radius: 10px;
+  padding: var(--board-column-pad);
+  box-shadow: var(--board-list-shadow);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  /*
+   * Constrain columns to the board body's padded content box so top/bottom canvas gaps stay symmetric.
+   */
+  max-height: 100%;
+  content-visibility: visible;
+  contain-intrinsic-size: 280px 160px;
+}
+
+/* List surface layer: fades background only (not text/cards). */
+.board-column::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--board-list-bg);
+  opacity: var(--board-list-bg-opacity, 1);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.board-column > * {
+  position: relative;
+  z-index: 1;
 }
 
 .board-page__header-icon {
@@ -111,11 +172,7 @@
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-color: var(--board-body-scrollbar-color) var(--board-body-scrollbar-track-color);
-  background: var(--board-canvas-bg);
-  background-image: var(--board-canvas-bg-image);
-  background-size: var(--board-canvas-bg-image-size);
-  background-repeat: var(--board-canvas-bg-image-repeat);
-  background-position: var(--board-canvas-bg-image-position);
+  background: transparent;
 }
 
 .board-page__columns {
@@ -125,28 +182,6 @@
   width: max-content;
   min-height: 100%;
   height: 100%;
-}
-
-.board-column {
-  flex-shrink: 0;
-  background: var(--board-list-bg);
-  /* Card drop shadow uses this for color-mix (10% darker than list surface). */
-  --board-card-drop-surface: var(--board-list-bg);
-  /* Shared with scroll region pull-out so the list scrollbar can sit flush with the chrome edge. */
-  --board-column-pad: 12px;
-  border-radius: 10px;
-  padding: var(--board-column-pad);
-  box-shadow: var(--board-list-shadow);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  /*
-   * Constrain columns to the board body's padded content box so top/bottom canvas gaps stay symmetric.
-   */
-  max-height: 100%;
-  content-visibility: visible;
-  contain-intrinsic-size: 280px 160px;
 }
 
 .board-page--kanban-dragging .board-column {
@@ -407,10 +442,27 @@
 
 /* Shared inline composer shell (add list on canvas, add card in column) */
 .board-inline-composer {
-  background: var(--board-list-bg);
+  background: transparent;
   border-radius: 10px;
   padding: 8px;
   box-shadow: var(--board-list-shadow);
+  position: relative;
+}
+
+.board-inline-composer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--board-list-bg);
+  opacity: var(--board-list-bg-opacity, 1);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.board-inline-composer > * {
+  position: relative;
+  z-index: 1;
 }
 
 .board-inline-composer--kanban {

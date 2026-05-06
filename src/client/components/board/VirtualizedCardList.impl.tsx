@@ -1,201 +1,31 @@
 import {
-  forwardRef,
   memo,
   useCallback,
   useMemo,
   useState,
   useLayoutEffect,
   useRef,
-  type MutableRefObject,
 } from 'react';
-import { Virtuoso, type ListProps, type ScrollerProps } from 'react-virtuoso';
+import { Virtuoso } from 'react-virtuoso';
 import { Box } from '@mantine/core';
 import type { CardDB } from '../../store/database.js';
-import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
 import { SortableCard } from './SortableCard.js';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { PDND_KANBAN_LIST_BODY } from '../../dnd/pragmatic/kanbanData.js';
+import {
+  estimateKanbanVirtuosoItemHeightPx,
+  KANBAN_CARD_COUNT_VIRTUALIZE_THRESHOLD,
+  KanbanVirtuosoList,
+  KanbanVirtuosoScroller,
+  VIRTUOSO_OVERSCAN,
+} from './virtualizedCardListHelpers.js';
+import {
+  CardDropShadowIndicator,
+  type VirtualizedCardListProps,
+  virtualizedCardListPropsEqual,
+} from './VirtualizedCardList/helpers.js';
 
-/** Mantine `pb="xs"` between Virtuoso rows (~10px). */
-const KANBAN_VIRTUOSO_ROW_GAP_PX = 10;
-
-const VIRTUOSO_OVERSCAN = { main: 2, reverse: 2 } as const;
-
-/**
- * At or below this count, render cards in a normal column with `overflow-y: auto` (no Virtuoso).
- * ~20 minimal cards fit one viewport; keeps real DOM for short lists while virtualizing deeper columns.
- */
-const KANBAN_CARD_COUNT_VIRTUALIZE_THRESHOLD = 20;
-
-/**
- * Matches SortableCard kanban layout closely so Virtuoso's initial height ≈ measured height
- * (avoids expand-then-shrink on load from `totalListHeightChanged`).
- */
-function estimateKanbanVirtuosoItemHeightPx(
-  card: CardDB,
-  showDescriptionPreview: boolean,
-  showStartDateOnCards: boolean,
-  showDueDateOnCards: boolean,
-  showEndDateOnCards: boolean,
-): number {
-  let inner = 32;
-  inner += 26;
-
-  const hasCover = typeof card.cover === 'string' && card.cover.trim() !== '';
-  if (hasCover) {
-    inner += 160;
-    inner += 10;
-  }
-
-  if (card.labels.length > 0) {
-    inner += 8;
-    inner += 22;
-  }
-
-  const hasDescription = typeof card.description === 'string' && card.description.trim() !== '';
-  const descPreview =
-    typeof card.descriptionPreview === 'string' && card.descriptionPreview.trim() !== '';
-
-  if (showDescriptionPreview && hasDescription) {
-    inner += 6;
-    inner += 36;
-  } else if (showDescriptionPreview && descPreview) {
-    inner += 6;
-    inner += 36;
-  } else if (!showDescriptionPreview && (hasDescription || descPreview)) {
-    inner += 6;
-    inner += 20;
-  }
-
-  if (card.assignees.length > 0) {
-    inner += 10;
-    inner += 42;
-  }
-
-  let dateSlots = 0;
-  if (showStartDateOnCards && card.startDate != null) {
-    dateSlots += 1;
-  }
-  if (showDueDateOnCards && card.dueDate != null) {
-    dateSlots += 1;
-  }
-  if (showEndDateOnCards && card.endDate != null) {
-    dateSlots += 1;
-  }
-  if (dateSlots > 0) {
-    inner += 10;
-    inner += dateSlots === 1 ? 22 : dateSlots === 2 ? 36 : 50;
-  }
-
-  return inner + KANBAN_VIRTUOSO_ROW_GAP_PX;
-}
-
-export type CardDropColumnIntent = 'empty-column' | 'append-end' | 'above' | 'below';
-
-export interface CardDropIndicatorTarget {
-  readonly listId: string;
-  readonly sourceListId: string;
-  readonly anchorCardId: string | null;
-  readonly columnIntent: CardDropColumnIntent;
-  readonly boxWidth: number;
-  readonly boxHeight: number;
-}
-
-interface VirtualizedCardListProps {
-  cards: CardDB[];
-  listId: string;
-  /** Max pixel height of the card viewport; list stays content-sized until this cap (overflow scroll). */
-  cardListMaxBodyPx: number;
-  showDescriptionPreview: boolean;
-  showStartDateOnCards: boolean;
-  showDueDateOnCards: boolean;
-  showEndDateOnCards: boolean;
-  assigneeDirectory?: ReadonlyMap<string, BoardMemberUserDisplay>;
-  draggingCardId: string | null;
-  dropIndicator: CardDropIndicatorTarget | null;
-  suppressCardOpenClickRef?: MutableRefObject<boolean>;
-  onOpenCard: (card: CardDB) => void;
-  onCardUpdatedOnBoard: (card: CardDB) => void;
-  onCardDeletedFromBoard: (cardId: string) => void;
-  showKanbanCardMenu: boolean;
-  kanbanCardBodyDraggable: boolean;
-}
-
-function virtualizedCardListPropsEqual(
-  prev: Readonly<VirtualizedCardListProps>,
-  next: Readonly<VirtualizedCardListProps>,
-): boolean {
-  return (
-    prev.cards === next.cards &&
-    prev.listId === next.listId &&
-    prev.cardListMaxBodyPx === next.cardListMaxBodyPx &&
-    prev.showDescriptionPreview === next.showDescriptionPreview &&
-    prev.showStartDateOnCards === next.showStartDateOnCards &&
-    prev.showDueDateOnCards === next.showDueDateOnCards &&
-    prev.showEndDateOnCards === next.showEndDateOnCards &&
-    prev.assigneeDirectory === next.assigneeDirectory &&
-    prev.draggingCardId === next.draggingCardId &&
-    prev.dropIndicator === next.dropIndicator &&
-    prev.suppressCardOpenClickRef === next.suppressCardOpenClickRef &&
-    prev.onOpenCard === next.onOpenCard &&
-    prev.onCardUpdatedOnBoard === next.onCardUpdatedOnBoard &&
-    prev.onCardDeletedFromBoard === next.onCardDeletedFromBoard &&
-    prev.showKanbanCardMenu === next.showKanbanCardMenu &&
-    prev.kanbanCardBodyDraggable === next.kanbanCardBodyDraggable
-  );
-}
-
-/** Native scroller only — Virtuoso depends on this `div` for scroll metrics; wrapping it breaks virtualization. */
-const KanbanVirtuosoScroller = forwardRef<HTMLDivElement, ScrollerProps>(
-  function KanbanVirtuosoScroller({ style, ...props }, ref) {
-    const domProps = { ...props } as Record<string, unknown>;
-    delete domProps.containerStyle;
-    delete domProps.wrapperStyle;
-    return (
-      <div
-        ref={ref}
-        {...domProps}
-        style={style}
-        className="board-column__virtuoso-scroller"
-      />
-    );
-  },
-);
-KanbanVirtuosoScroller.displayName = 'KanbanVirtuosoScroller';
-
-/** Insets card rows from the list edge; Virtuoso’s List uses inline `style` so padding must merge here (scroller-only CSS padding did not shrink item layout). */
-const KanbanVirtuosoList = forwardRef<HTMLDivElement, ListProps>(
-  function KanbanVirtuosoList({ style, ...props }, ref) {
-    const domProps = { ...props } as Record<string, unknown>;
-    delete domProps.containerStyle;
-    delete domProps.wrapperStyle;
-    return (
-      <div
-        ref={ref}
-        {...domProps}
-        style={
-          style == null
-            ? { paddingInlineEnd: 'var(--board-column-pad)' }
-            : { ...style, paddingInlineEnd: 'var(--board-column-pad)' }
-        }
-      />
-    );
-  },
-);
-KanbanVirtuosoList.displayName = 'KanbanVirtuosoList';
-
-function CardDropShadowIndicator({ target }: { target: CardDropIndicatorTarget }) {
-  const h = Math.max(84, Math.min(Math.max(target.boxHeight, 96), 240));
-  return (
-    <div className="board-card-drop-indicator-wrap">
-      <div
-        className="board-card-drop-indicator"
-        style={{ width: '100%', minHeight: h, maxHeight: h }}
-        aria-hidden
-      />
-    </div>
-  );
-}
+export type { CardDropColumnIntent, CardDropIndicatorTarget } from './VirtualizedCardList/helpers.js';
 
 function VirtualizedCardListInner({
   cards,

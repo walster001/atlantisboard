@@ -1,36 +1,24 @@
 import {
   memo,
-  useState,
-  useLayoutEffect,
   useMemo,
   useRef,
   type MutableRefObject,
-  type RefObject,
 } from 'react';
-import {
-  Box,
-  Text,
-  Badge,
-  Avatar,
-  Group,
-  Card,
-  Tooltip,
-} from '@mantine/core';
-import { format } from 'date-fns';
-import { IconAlignLeft, IconCalendarEvent, IconClock, IconDots, IconFlag } from '@tabler/icons-react';
+import { Box, Text, Group, Card } from '@mantine/core';
+import { IconAlignLeft, IconDots } from '@tabler/icons-react';
 import type { CardDB } from '../../store/database.js';
-import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
-import { api } from '../../utils/api.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
-import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
 import {
-  cardDescriptionFirstLogicalLinePlain,
-  isCardDescriptionEmpty,
-  parseCardDescriptionJson,
-} from '../card/cardDescriptionTiptap.js';
+  createCardLiftedDragPreview,
+  resolveCardCoverRenderUrl,
+  useRichContentWhenNearViewport,
+} from './sortableCardHelpers.js';
 import { TwemojiPlainText } from '../common/TwemojiPlainText.js';
 import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { PDND_KANBAN_CARD } from '../../dnd/pragmatic/kanbanData.js';
+import { KanbanAssigneeRow, KanbanDateBadgesRow, KanbanLabelRow } from './SortableCardMetaRows.js';
+import { useKanbanTouchDragArm } from './useKanbanTouchDragArm.js';
+import { useSortableCardDescriptionPreview } from './sortableCardDescriptionPreview.js';
 import './boardView.css';
 
 interface SortableCardProps {
@@ -75,89 +63,6 @@ function sortableCardPropsEqual(
   );
 }
 
-/** Same as IntersectionObserver `rootMargin` below (px on each side). */
-const RICH_CONTENT_NEAR_VIEWPORT_MARGIN_PX = 240;
-
-function createCardLiftedDragPreview(cardRoot: HTMLElement): {
-  readonly preview: HTMLElement;
-  readonly offsetX: number;
-  readonly offsetY: number;
-} {
-  const rect = cardRoot.getBoundingClientRect();
-  const preview = cardRoot.cloneNode(true) as HTMLElement;
-  preview.classList.add('board-page__dnd-card-lift-preview');
-  preview.querySelectorAll('[data-kanban-delegated-drag-ignore="1"]').forEach((el) => el.remove());
-  preview.style.width = `${Math.max(1, Math.round(rect.width))}px`;
-  preview.style.height = `${Math.max(1, Math.round(rect.height))}px`;
-  preview.style.minHeight = '0';
-  // Keep only non-intrusive inline guardrails; let class CSS handle visual polish.
-  preview.style.setProperty('opacity', '1', 'important');
-  preview.setAttribute('aria-hidden', 'true');
-  return {
-    preview,
-    offsetX: Math.round(rect.width / 2),
-    offsetY: Math.round(rect.height / 2),
-  };
-}
-
-function isElementNearViewport(el: HTMLElement, marginPx: number): boolean {
-  const r = el.getBoundingClientRect();
-  const vw = globalThis.window.innerWidth;
-  const vh = globalThis.window.innerHeight;
-  const m = marginPx;
-  return r.bottom > -m && r.top < vh + m && r.right > -m && r.left < vw + m;
-}
-
-function useRichContentWhenNearViewport(): readonly [RefObject<HTMLDivElement | null>, boolean] {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [ready, setReady] = useState(false);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (el == null) {
-      return undefined;
-    }
-
-    let cancelled = false;
-    let fallbackId: number | undefined;
-
-    const markReady = (): void => {
-      if (cancelled) {
-        return;
-      }
-      if (fallbackId !== undefined) {
-        window.clearTimeout(fallbackId);
-        fallbackId = undefined;
-      }
-      setReady(true);
-    };
-
-    fallbackId = globalThis.window.setTimeout(markReady, 100);
-
-    if (isElementNearViewport(el, RICH_CONTENT_NEAR_VIEWPORT_MARGIN_PX)) {
-      markReady();
-    }
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          markReady();
-        }
-      },
-      { root: null, rootMargin: `${RICH_CONTENT_NEAR_VIEWPORT_MARGIN_PX}px`, threshold: 0 },
-    );
-    io.observe(el);
-
-    return () => {
-      cancelled = true;
-      if (fallbackId !== undefined) {
-        window.clearTimeout(fallbackId);
-      }
-      io.disconnect();
-    };
-  }, []);
-  return [ref, ready] as const;
-}
-
 function SortableCardInner({
   card,
   listId,
@@ -175,11 +80,17 @@ function SortableCardInner({
   onCardDeletedFromBoard: _onCardDeletedFromBoard,
 }: SortableCardProps) {
   const [deferRef, richReady] = useRichContentWhenNearViewport();
-  const [touchArmedForDrag, setTouchArmedForDrag] = useState(false);
   const cardRootRef = useRef<HTMLDivElement | null>(null);
-  const longPressTimerRef = useRef<number | null>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const touchArm = useKanbanTouchDragArm(kanbanCardBodyDraggable);
+  const {
+    hasDescription,
+    showRichDescPreview,
+    descriptionPreviewFirstLine,
+    deferredDescriptionFallbackText,
+  } = useSortableCardDescriptionPreview(card, showDescriptionPreview);
+  const hasCardColour = card.color != null && card.color.trim().length > 0;
+  const descColor = hasCardColour ? 'white' : 'dimmed';
   const setCardRootRef = (node: HTMLDivElement | null): void => {
     dragCleanupRef.current?.();
     dragCleanupRef.current = null;
@@ -210,29 +121,10 @@ function SortableCardInner({
     });
   };
 
-  const coverRenderUrl = useMemo(() => {
-    const cover = typeof card.cover === 'string' ? card.cover.trim() : '';
-    if (cover === '') {
-      return '';
-    }
-
-    const normalizeObjectPath = (raw: string): string => {
-      try {
-        const parsed = new URL(raw);
-        return decodeURIComponent(parsed.pathname).replace(/^\/+/, '').split('/').slice(-2).join('/');
-      } catch {
-        return decodeURIComponent(raw.split('?')[0] ?? raw).replace(/^\/+/, '').split('/').slice(-2).join('/');
-      }
-    };
-
-    const coverPath = normalizeObjectPath(cover);
-    const coverAttachment = card.attachments.find((att) => normalizeObjectPath(att.url) === coverPath);
-    if (coverAttachment) {
-      return api.getAttachmentFileUrl(coverAttachment.id);
-    }
-
-    return api.resolveAttachmentUrl(cover);
-  }, [card.attachments, card.cover]);
+  const coverRenderUrl = useMemo(
+    () => resolveCardCoverRenderUrl(card),
+    [card.attachments, card.cover],
+  );
 
   const handleCardAreaClick = () => {
     if (suppressCardOpenClickRef?.current === true) {
@@ -241,146 +133,6 @@ function SortableCardInner({
     }
     onOpenCard(card);
   };
-
-  const clearLongPressState = (): void => {
-    if (longPressTimerRef.current != null) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    touchStartRef.current = null;
-    setTouchArmedForDrag(false);
-  };
-
-  const hasDescription = typeof card.description === 'string' && card.description.trim() !== '';
-  const descDocForPreview = useMemo(
-    () => (hasDescription ? parseCardDescriptionJson(card.description) : null),
-    [card.description, hasDescription],
-  );
-  const showRichDescPreview =
-    showDescriptionPreview &&
-    hasDescription &&
-    descDocForPreview != null &&
-    !isCardDescriptionEmpty(descDocForPreview);
-
-  const descriptionFirstLinePlain = useMemo((): string => {
-    if (!showRichDescPreview) {
-      return '';
-    }
-    return cardDescriptionFirstLogicalLinePlain(card.description);
-  }, [showRichDescPreview, card.description]);
-
-  const descriptionPreviewFirstLine = useMemo((): string => {
-    const raw = card.descriptionPreview;
-    if (typeof raw !== 'string' || raw.trim() === '') {
-      return '';
-    }
-    return (raw.split(/\r?\n/)[0] ?? '').trim();
-  }, [card.descriptionPreview]);
-  const deferredDescriptionFallbackText = useMemo((): string => {
-    if (descriptionFirstLinePlain !== '') {
-      return descriptionFirstLinePlain;
-    }
-    if (descriptionPreviewFirstLine !== '') {
-      return descriptionPreviewFirstLine;
-    }
-    return '\u00a0';
-  }, [descriptionFirstLinePlain, descriptionPreviewFirstLine]);
-
-  const kanbanLabelVisualKey = useMemo(
-    () => card.labels.map((l) => `${l.id}:${l.color}:${l.name}`).join('|'),
-    [card.labels],
-  );
-
-  const kanbanAssigneeVisualKey = useMemo(
-    () => card.assignees.map(String).join('\0'),
-    [card.assignees],
-  );
-
-  const kanbanLabelRow = useMemo(() => {
-    if (card.labels.length === 0) {
-      return null;
-    }
-    return (
-      <Group gap={6} wrap="wrap" mb="xs" className="board-card__kanban-labels">
-        {card.labels.map((label) => (
-          <Badge
-            key={label.id}
-            size="sm"
-            radius="xl"
-            variant="filled"
-            className="board-card__kanban-label-pill"
-            styles={{
-              root: {
-                backgroundColor: label.color,
-                textTransform: 'uppercase',
-                fontWeight: 500,
-              },
-              label: { color: 'var(--mantine-color-white)' },
-            }}
-          >
-            {label.name.toUpperCase()}
-          </Badge>
-        ))}
-      </Group>
-    );
-  }, [kanbanLabelVisualKey]);
-
-  const kanbanAssigneeRow = useMemo(() => {
-    if (card.assignees.length === 0) {
-      return null;
-    }
-    const totalAssignees = card.assignees.length;
-    const useOverflowAvatar = totalAssignees > 4;
-    const visibleAssignees = useOverflowAvatar ? card.assignees.slice(0, 3) : card.assignees;
-    const overflowCount = totalAssignees - visibleAssignees.length;
-    return (
-      <Group gap={6} mt="xs" wrap="nowrap">
-        {visibleAssignees.map((userId) => {
-          const uid = String(userId);
-          const u = assigneeDirectory?.get(uid);
-          const displayName = u?.displayName?.trim() !== '' ? u?.displayName : uid;
-          const email = u?.email?.trim() !== '' ? u?.email : 'No email';
-          const src =
-            u?.profilePicture != null && u.profilePicture !== '' ? u.profilePicture : null;
-          return (
-            <Tooltip
-              key={uid}
-              withArrow
-              openDelay={120}
-              position="top"
-              withinPortal
-              label={
-                <Box>
-                  <Text size="xs" fw={600} lh={1.2}>
-                    {displayName}
-                  </Text>
-                  <Text size="xs" c="dimmed" lh={1.2}>
-                    {email}
-                  </Text>
-                </Box>
-              }
-            >
-              <Avatar
-                size={APP_USER_AVATAR_SIZE}
-                {...(src != null ? { src } : {})}
-              >
-                {userMenuStyleAvatarInitials(u?.displayName ?? '', u?.email ?? uid)}
-              </Avatar>
-            </Tooltip>
-          );
-        })}
-        {useOverflowAvatar ? (
-          <Avatar size={APP_USER_AVATAR_SIZE}>{`+${overflowCount}`}</Avatar>
-        ) : null}
-      </Group>
-    );
-  }, [kanbanAssigneeVisualKey, assigneeDirectory]);
-
-  useLayoutEffect(() => {
-    return () => {
-      clearLongPressState();
-    };
-  }, []);
 
   return (
     <Card
@@ -398,7 +150,7 @@ function SortableCardInner({
         transition: 'opacity 0.12s ease',
         position: 'relative',
         overflow: 'hidden',
-        ...(card.color && card.color.trim().length > 0
+        ...(hasCardColour
           ? ({
               ['--board-card-bg' as string]: card.color,
               ['--board-card-title-color' as string]: '#ffffff',
@@ -450,43 +202,19 @@ function SortableCardInner({
       <Box
         className={`board-card__kanban-body${
           kanbanCardBodyDraggable ? '' : ' board-card__kanban-body--no-drag'
-        }${touchArmedForDrag ? ' board-card__kanban-body--touch-armed' : ''}`}
-        onPointerDown={(event) => {
-          if (!kanbanCardBodyDraggable || event.pointerType !== 'touch') {
-            return;
-          }
-          touchStartRef.current = { x: event.clientX, y: event.clientY };
-          if (longPressTimerRef.current != null) {
-            window.clearTimeout(longPressTimerRef.current);
-          }
-          longPressTimerRef.current = window.setTimeout(() => {
-            setTouchArmedForDrag(true);
-          }, 280);
-        }}
-        onPointerMove={(event) => {
-          if (event.pointerType !== 'touch') {
-            return;
-          }
-          const start = touchStartRef.current;
-          if (start == null) {
-            return;
-          }
-          const dx = Math.abs(event.clientX - start.x);
-          const dy = Math.abs(event.clientY - start.y);
-          if (dx > 10 || dy > 10) {
-            clearLongPressState();
-          }
-        }}
-        onPointerUp={clearLongPressState}
-        onPointerCancel={clearLongPressState}
+        }${touchArm.touchArmedForDrag ? ' board-card__kanban-body--touch-armed' : ''}`}
+        onPointerDown={touchArm.onPointerDown}
+        onPointerMove={touchArm.onPointerMove}
+        onPointerUp={touchArm.onPointerUp}
+        onPointerCancel={touchArm.onPointerCancel}
         style={
           kanbanCardBodyDraggable
-            ? { cursor: 'grab', touchAction: touchArmedForDrag ? 'none' : 'pan-y' }
+            ? { cursor: 'grab', touchAction: touchArm.touchArmedForDrag ? 'none' : 'pan-y' }
             : { cursor: 'pointer', touchAction: 'auto' }
         }
         onClick={handleCardAreaClick}
       >
-        {kanbanLabelRow}
+        <KanbanLabelRow labels={card.labels} />
 
         <Text component="div" className="board-card__kanban-title">
           {richReady ? (
@@ -502,12 +230,12 @@ function SortableCardInner({
               component="div"
               fw={200}
               mt={6}
-              c={card.color && card.color.trim().length > 0 ? 'white' : 'dimmed'}
+              c={descColor}
               lineClamp={2}
               className="board-card__desc board-card__kanban-desc"
               style={{
                 wordBreak: 'break-word',
-                ...(card.color && card.color.trim().length > 0 ? { opacity: 0.92 } : {}),
+                ...(hasCardColour ? { opacity: 0.92 } : {}),
               }}
             >
               <TwemojiPlainText text={deferredDescriptionFallbackText} />
@@ -517,12 +245,12 @@ function SortableCardInner({
               component="div"
               fw={200}
               mt={6}
-              c={card.color && card.color.trim().length > 0 ? 'white' : 'dimmed'}
+              c={descColor}
               lineClamp={2}
               className="board-card__desc board-card__kanban-desc"
               style={{
                 wordBreak: 'break-word',
-                ...(card.color && card.color.trim().length > 0 ? { opacity: 0.92 } : {}),
+                ...(hasCardColour ? { opacity: 0.92 } : {}),
               }}
             >
               <span>{deferredDescriptionFallbackText}</span>
@@ -533,13 +261,13 @@ function SortableCardInner({
           <Text
             component="div"
             fw={200}
-            c={card.color && card.color.trim().length > 0 ? 'white' : 'dimmed'}
+            c={descColor}
             mt={6}
             lineClamp={2}
             className="board-card__desc board-card__kanban-desc"
             style={{
               wordBreak: 'break-word',
-              ...(card.color && card.color.trim().length > 0 ? { opacity: 0.92 } : {}),
+              ...(hasCardColour ? { opacity: 0.92 } : {}),
             }}
           >
             {richReady ? (
@@ -559,7 +287,7 @@ function SortableCardInner({
             align="center"
             style={{
               color:
-                card.color && card.color.trim().length > 0
+                hasCardColour
                   ? 'rgba(255, 255, 255, 0.92)'
                   : 'var(--mantine-color-gray-6)',
             }}
@@ -568,143 +296,16 @@ function SortableCardInner({
           </Group>
         ) : null}
 
-        {kanbanAssigneeRow}
-
-        {(showStartDateOnCards && card.startDate != null) ||
-        (showDueDateOnCards && card.dueDate != null) ||
-        (showEndDateOnCards && card.endDate != null) ? (
-          <Group gap={6} mt={6} wrap="wrap" className="board-card__kanban-due-wrap">
-            {showStartDateOnCards && card.startDate != null ? (
-              <Badge
-                size="xs"
-                radius={4}
-                variant={card.color && card.color.trim().length > 0 ? 'filled' : 'light'}
-                color={card.color && card.color.trim().length > 0 ? 'gray' : 'gray'}
-                leftSection={<IconCalendarEvent size={11} stroke={1.5} aria-hidden />}
-                className="board-card__kanban-due"
-                styles={
-                  card.color && card.color.trim().length > 0
-                    ? {
-                        root: {
-                          fontSize: '0.6875rem',
-                          fontWeight: 400,
-                          lineHeight: 1.3,
-                          minHeight: '1.125rem',
-                          paddingInline: 6,
-                          backgroundColor: 'rgba(0, 0, 0, 0.32)',
-                          color: '#ffffff',
-                          border: 'none',
-                        },
-                        section: { color: '#ffffff' },
-                        label: {
-                          color: '#ffffff',
-                          fontSize: 'inherit',
-                          fontWeight: 'inherit',
-                        },
-                      }
-                    : {
-                        root: {
-                          fontSize: '0.6875rem',
-                          fontWeight: 400,
-                          lineHeight: 1.3,
-                          minHeight: '1.125rem',
-                          paddingInline: 6,
-                        },
-                        label: { fontSize: 'inherit', fontWeight: 'inherit' },
-                      }
-                }
-              >
-                {format(new Date(card.startDate), 'MMM d')}
-              </Badge>
-            ) : null}
-            {showDueDateOnCards && card.dueDate != null ? (
-              <Badge
-                size="xs"
-                radius={4}
-                variant={card.color && card.color.trim().length > 0 ? 'filled' : 'light'}
-                color={card.color && card.color.trim().length > 0 ? 'gray' : 'gray'}
-                leftSection={<IconClock size={11} stroke={1.5} aria-hidden />}
-                className="board-card__kanban-due"
-                styles={
-                  card.color && card.color.trim().length > 0
-                    ? {
-                        root: {
-                          fontSize: '0.6875rem',
-                          fontWeight: 400,
-                          lineHeight: 1.3,
-                          minHeight: '1.125rem',
-                          paddingInline: 6,
-                          backgroundColor: 'rgba(0, 0, 0, 0.32)',
-                          color: '#ffffff',
-                          border: 'none',
-                        },
-                        section: { color: '#ffffff' },
-                        label: {
-                          color: '#ffffff',
-                          fontSize: 'inherit',
-                          fontWeight: 'inherit',
-                        },
-                      }
-                    : {
-                        root: {
-                          fontSize: '0.6875rem',
-                          fontWeight: 400,
-                          lineHeight: 1.3,
-                          minHeight: '1.125rem',
-                          paddingInline: 6,
-                        },
-                        label: { fontSize: 'inherit', fontWeight: 'inherit' },
-                      }
-                }
-              >
-                {format(new Date(card.dueDate), 'MMM d')}
-              </Badge>
-            ) : null}
-            {showEndDateOnCards && card.endDate != null ? (
-              <Badge
-                size="xs"
-                radius={4}
-                variant={card.color && card.color.trim().length > 0 ? 'filled' : 'light'}
-                color={card.color && card.color.trim().length > 0 ? 'gray' : 'gray'}
-                leftSection={<IconFlag size={11} stroke={1.5} aria-hidden />}
-                className="board-card__kanban-due"
-                styles={
-                  card.color && card.color.trim().length > 0
-                    ? {
-                        root: {
-                          fontSize: '0.6875rem',
-                          fontWeight: 400,
-                          lineHeight: 1.3,
-                          minHeight: '1.125rem',
-                          paddingInline: 6,
-                          backgroundColor: 'rgba(0, 0, 0, 0.32)',
-                          color: '#ffffff',
-                          border: 'none',
-                        },
-                        section: { color: '#ffffff' },
-                        label: {
-                          color: '#ffffff',
-                          fontSize: 'inherit',
-                          fontWeight: 'inherit',
-                        },
-                      }
-                    : {
-                        root: {
-                          fontSize: '0.6875rem',
-                          fontWeight: 400,
-                          lineHeight: 1.3,
-                          minHeight: '1.125rem',
-                          paddingInline: 6,
-                        },
-                        label: { fontSize: 'inherit', fontWeight: 'inherit' },
-                      }
-                }
-              >
-                {format(new Date(card.endDate), 'MMM d')}
-              </Badge>
-            ) : null}
-          </Group>
-        ) : null}
+        <KanbanAssigneeRow
+          assignees={card.assignees}
+          {...(assigneeDirectory !== undefined ? { assigneeDirectory } : {})}
+        />
+        <KanbanDateBadgesRow
+          card={card}
+          showStartDateOnCards={showStartDateOnCards}
+          showDueDateOnCards={showDueDateOnCards}
+          showEndDateOnCards={showEndDateOnCards}
+        />
       </Box>
     </Card>
   );

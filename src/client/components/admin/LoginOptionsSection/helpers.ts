@@ -1,0 +1,101 @@
+import type { ChangeEvent } from 'react';
+
+export type DefaultAuthMethod = 'email' | 'google' | 'google-external';
+
+export interface AdminConfigShape {
+  authMethods: {
+    emailPassword: boolean;
+    googleOAuth: boolean;
+    googleOAuthExternalMySQL: boolean;
+  };
+  googleOAuth: {
+    enabled: boolean;
+    clientIdSet?: boolean;
+    clientSecretSet?: boolean;
+    callbackUrlSet?: boolean;
+    clientId?: string;
+    clientSecret?: string;
+    callbackUrl?: string;
+  };
+  externalMySQL: {
+    enabled: boolean;
+    credentialsConfigured?: boolean;
+    passwordSet?: boolean;
+    verificationQuerySet?: boolean;
+    host?: string;
+    port?: number;
+    database?: string;
+    username?: string;
+    password?: string;
+    verificationQuery?: string;
+  };
+  defaultAuthMethod: DefaultAuthMethod;
+}
+
+export interface MysqlDraft {
+  host: string;
+  database: string;
+  username: string;
+  password: string;
+  verificationQuery: string;
+}
+
+export interface GoogleDraft {
+  clientId: string;
+  clientSecret: string;
+  callbackUrl: string;
+}
+
+export const DEFAULT_VERIFICATION_SQL = 'SELECT 1 FROM users WHERE email = ? LIMIT 1';
+
+export function readInputValue(event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): string {
+  return event.currentTarget?.value ?? '';
+}
+
+export function splitMysqlHostInput(raw: string, defaultPort: number): { host: string; port: number } {
+  const trimmed = raw.trim();
+  const lastColon = trimmed.lastIndexOf(':');
+  if (lastColon > 0) {
+    const maybePort = trimmed.slice(lastColon + 1);
+    if (/^\d{1,5}$/.test(maybePort)) {
+      return { host: trimmed.slice(0, lastColon), port: Number(maybePort) };
+    }
+  }
+  return { host: trimmed, port: defaultPort };
+}
+
+export function formatMysqlHostForDisplay(host: string | undefined, port: number | undefined): string {
+  if (!host) return '';
+  if (port !== undefined && port !== 3306) return `${host}:${port}`;
+  return host;
+}
+
+export function applyAuthMode(prev: AdminConfigShape, mode: DefaultAuthMethod): AdminConfigShape {
+  const google = prev.googleOAuth ?? { enabled: false };
+  const external = prev.externalMySQL ?? { enabled: false };
+  if (mode === 'email') {
+    return {
+      ...prev,
+      defaultAuthMethod: 'email',
+      authMethods: { emailPassword: true, googleOAuth: false, googleOAuthExternalMySQL: false },
+      googleOAuth: { ...google, enabled: false },
+      externalMySQL: { ...external, enabled: false },
+    };
+  }
+  if (mode === 'google') {
+    return {
+      ...prev,
+      defaultAuthMethod: 'google',
+      authMethods: { emailPassword: false, googleOAuth: true, googleOAuthExternalMySQL: false },
+      googleOAuth: { ...google, enabled: true },
+      externalMySQL: { ...external, enabled: false },
+    };
+  }
+  return {
+    ...prev,
+    defaultAuthMethod: 'google-external',
+    authMethods: { emailPassword: false, googleOAuth: true, googleOAuthExternalMySQL: true },
+    googleOAuth: { ...google, enabled: true },
+    externalMySQL: { ...external, enabled: true },
+  };
+}

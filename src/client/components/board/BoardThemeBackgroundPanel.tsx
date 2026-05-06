@@ -1,5 +1,5 @@
-import type { ChangeEvent, Dispatch, SetStateAction } from 'react';
-import { Box, Button, ColorInput, Group, Stack, Text } from '@mantine/core';
+import { useEffect, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
+import { Box, Button, ColorInput, Group, NumberInput, Stack, Text } from '@mantine/core';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
 
 export interface BoardThemeBackgroundPanelProps {
@@ -29,6 +29,28 @@ export function BoardThemeBackgroundPanel({
   onBackgroundImageFile,
   onDeleteBackgroundImage,
 }: BoardThemeBackgroundPanelProps) {
+  const boardOpacityPercent =
+    typeof draft.boardOpacity === 'number' && Number.isFinite(draft.boardOpacity)
+      ? Math.round(Math.max(0.1, Math.min(1, draft.boardOpacity)) * 100)
+      : 80;
+  const [opacityInput, setOpacityInput] = useState<number | ''>(boardOpacityPercent);
+  const [opacityEditing, setOpacityEditing] = useState(false);
+
+  useEffect(() => {
+    if (!opacityEditing) {
+      setOpacityInput(boardOpacityPercent);
+    }
+  }, [boardOpacityPercent, opacityEditing]);
+
+  const surfacePct = `${draft.backgroundMode === 'image' ? boardOpacityPercent : 100}%`;
+  const navBgSurface =
+    draft.backgroundMode === 'image'
+      ? `color-mix(in srgb, ${draft.selectedTheme.palette.navbarBg} ${surfacePct}, transparent)`
+      : draft.selectedTheme.palette.navbarBg;
+  const listBgSurface =
+    draft.backgroundMode === 'image'
+      ? `color-mix(in srgb, ${draft.selectedTheme.palette.listBg} ${surfacePct}, transparent)`
+      : draft.selectedTheme.palette.listBg;
   return (
     <Stack gap="md">
       <Box>
@@ -38,7 +60,7 @@ export function BoardThemeBackgroundPanel({
         <Text c="dimmed">Customize the background of your board. Choose a color or upload an image.</Text>
       </Box>
 
-      <Group>
+      <Group align="flex-end" gap="sm" wrap="wrap">
         <Button
           variant={draft.backgroundMode === 'color' ? 'filled' : 'default'}
           onClick={() => onBackgroundModeChange('color')}
@@ -46,13 +68,87 @@ export function BoardThemeBackgroundPanel({
         >
           Color
         </Button>
-        <Button
-          variant={draft.backgroundMode === 'image' ? 'filled' : 'default'}
-          onClick={() => onBackgroundModeChange('image')}
-          disabled={!canChangeTheme}
-        >
-          Image
-        </Button>
+        <Group gap="sm" wrap="nowrap" align="flex-end">
+          <Button
+            variant={draft.backgroundMode === 'image' ? 'filled' : 'default'}
+            onClick={() => onBackgroundModeChange('image')}
+            disabled={!canChangeTheme}
+          >
+            Image
+          </Button>
+          {draft.backgroundMode === 'image' ? (
+            <Group gap={8} wrap="nowrap" align="center">
+              <NumberInput
+                value={opacityInput}
+                min={10}
+                max={100}
+                step={5}
+                allowDecimal={false}
+                allowNegative={false}
+                decimalScale={0}
+                disabled={!canChangeTheme}
+                rightSection="%"
+                styles={{
+                  root: { width: 'fit-content', maxWidth: '100%' },
+                  input: { width: '8.5rem' },
+                  section: { width: '2.25rem' },
+                }}
+                onFocus={() => setOpacityEditing(true)}
+                onBlur={() => {
+                  setOpacityEditing(false);
+                  if (opacityInput === '') {
+                    setOpacityInput(boardOpacityPercent);
+                    return;
+                  }
+                  const raw = typeof opacityInput === 'number' ? opacityInput : Number.parseFloat(String(opacityInput));
+                  if (!Number.isFinite(raw)) {
+                    setOpacityInput(boardOpacityPercent);
+                    return;
+                  }
+                  const clamped = Math.max(10, Math.min(100, Math.round(raw)));
+                  setOpacityInput(clamped);
+                  setDraft((prev) => {
+                    if (!canChangeTheme) {
+                      return prev;
+                    }
+                    return {
+                      ...prev,
+                      boardOpacity: Math.max(0.1, Math.min(1, clamped / 100)),
+                    };
+                  });
+                }}
+                onChange={(value) => {
+                  const nextPercentRaw =
+                    typeof value === 'number'
+                      ? value
+                      : typeof value === 'string'
+                        ? Number.parseFloat(value)
+                        : value === ''
+                          ? NaN
+                          : NaN;
+                  if (!Number.isFinite(nextPercentRaw)) {
+                    setOpacityInput('');
+                    return;
+                  }
+                  const nextPercent = nextPercentRaw;
+                  setOpacityInput(nextPercent);
+                  setDraft((prev) => {
+                    if (!canChangeTheme) {
+                      return prev;
+                    }
+                    return {
+                      ...prev,
+                      boardOpacity: Math.max(0.1, Math.min(1, nextPercent / 100)),
+                    };
+                  });
+                }}
+              />
+              <Text size="sm" fw={600}>
+                Board Opacity
+              </Text>
+            </Group>
+          ) : null}
+        </Group>
       </Group>
 
       {draft.backgroundMode === 'color' ? (
@@ -237,12 +333,17 @@ export function BoardThemeBackgroundPanel({
             : {}),
         }}
       >
-        <Box className="board-theme-tab__preview-nav" style={{ backgroundColor: draft.selectedTheme.palette.navbarBg }} />
+        <Box
+          className="board-theme-tab__preview-nav"
+          style={{
+            backgroundColor: navBgSurface,
+          }}
+        />
         <Group gap="xs" wrap="nowrap" className="board-theme-tab__preview-columns">
           <Box
             className="board-theme-tab__preview-list"
             style={{
-              backgroundColor: draft.selectedTheme.palette.listBg,
+              backgroundColor: listBgSurface,
               color: draft.selectedTheme.palette.listHeaderText,
             }}
           >
@@ -253,7 +354,7 @@ export function BoardThemeBackgroundPanel({
           <Box
             className="board-theme-tab__preview-list"
             style={{
-              backgroundColor: draft.selectedTheme.palette.listBg,
+              backgroundColor: listBgSurface,
               color: draft.selectedTheme.palette.listHeaderText,
             }}
           >

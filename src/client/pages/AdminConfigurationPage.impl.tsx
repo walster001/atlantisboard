@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, startTransition, useEffect } from 'react';
+import { Suspense, useState, startTransition, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ActionIcon,
@@ -23,45 +23,20 @@ import { CustomFontsSection } from '../components/admin/CustomFontsSection.js';
 import { RolesPermissionsTab } from '../components/admin/RolesPermissionsTab.js';
 import { useAuthContext } from '../contexts/AuthContext.js';
 import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
-
-const AdminUsersTab = lazy(async () => {
-  const m = await import('../components/admin/AdminUsersTab.js');
-  return { default: m.AdminUsersTab };
-});
-
-const AdminBackupPanel = lazy(async () => {
-  const m = await import('../components/admin/AdminBackupPanel.js');
-  return { default: m.AdminBackupPanel };
-});
-
-const AdminMonitorPanel = lazy(async () => {
-  const m = await import('../components/admin/AdminMonitorPanel.js');
-  return { default: m.AdminMonitorPanel };
-});
-
-/** Main Configuration / Customisation pill tabs */
-const MAIN_TAB_ICON_SIZE = 22;
-const MAIN_TAB_ICON_STROKE = 1.5;
-
-const CONFIGURATION_SUBTABS = [
-  { value: 'general', label: 'General' },
-  { value: 'login-options', label: 'Login options' },
-  { value: 'permissions', label: 'Permissions' },
-  { value: 'users', label: 'Users' },
-  { value: 'integrations', label: 'Integrations' },
-  { value: 'backup', label: 'Backup' },
-  { value: 'monitor', label: 'Monitor' },
-] as const;
-
-const CUSTOMISATION_SUBTABS = [
-  { value: 'login-branding', label: 'Login branding' },
-  { value: 'app-branding', label: 'App branding' },
-  { value: 'custom-fonts', label: 'Custom fonts' },
-  { value: 'templates', label: 'Templates' },
-] as const;
-
-type ConfigurationSubtab = (typeof CONFIGURATION_SUBTABS)[number]['value'];
-type CustomisationSubtab = (typeof CUSTOMISATION_SUBTABS)[number]['value'];
+import {
+  AdminBackupPanel,
+  AdminMonitorPanel,
+  AdminUsersTab,
+  LoaderCentered,
+} from './AdminConfigurationPage/lazyPanels.js';
+import {
+  CONFIGURATION_SUBTABS,
+  CUSTOMISATION_SUBTABS,
+  MAIN_TAB_ICON_SIZE,
+  MAIN_TAB_ICON_STROKE,
+  type ConfigurationSubtab,
+  type CustomisationSubtab,
+} from './AdminConfigurationPage/tabsConfig.js';
 
 export default function AdminConfigurationPage() {
   const navigate = useNavigate();
@@ -364,12 +339,3 @@ export default function AdminConfigurationPage() {
   );
 }
 
-function LoaderCentered() {
-  return (
-    <Group justify="center" py="md">
-      <Text size="sm" c="dimmed">
-        Loading…
-      </Text>
-    </Group>
-  );
-}

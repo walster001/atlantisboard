@@ -317,6 +317,14 @@ export function BoardThemeBackgroundTab({
     setDraft((prev) => ({
       ...prev,
       backgroundMode: mode === 'color' || mode === 'image' ? mode : prev.backgroundMode,
+      ...(mode === 'image'
+        ? {
+            boardOpacity:
+              typeof prev.boardOpacity === 'number' && Number.isFinite(prev.boardOpacity)
+                ? prev.boardOpacity
+                : 0.8,
+          }
+        : {}),
     }));
   }, [canChangeTheme]);
 
@@ -421,6 +429,10 @@ export function BoardThemeBackgroundTab({
         themeSettings: { ...normalized, customThemes: [] },
         ...(background !== undefined ? { background } : {}),
       });
+      onThemeLivePatch?.({
+        themeSettings: normalized,
+        ...(background !== undefined ? { background } : {}),
+      });
       setSavedSettings(normalized);
       setDraft(normalized);
     } catch (err) {
@@ -428,7 +440,7 @@ export function BoardThemeBackgroundTab({
     } finally {
       setSaving(false);
     }
-  }, [boardId, canChangeTheme, draft, savedSettings]);
+  }, [boardId, canChangeTheme, draft, onThemeLivePatch, savedSettings]);
 
   const hasBackgroundImage = (draft.backgroundImageUrl?.trim() ?? '') !== '';
 

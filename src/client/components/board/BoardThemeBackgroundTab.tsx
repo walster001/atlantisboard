@@ -420,22 +420,30 @@ export function BoardThemeBackgroundTab({
     if (!canChangeTheme) {
       return;
     }
+    const previousDraft = draft;
+    const previousBackground = resolveBoardBackgroundFromThemeSettings(previousDraft);
     try {
       setSaving(true);
       setError(null);
       const normalized = normalizeBoardThemeSettings(draft, savedSettings);
       const background = resolveBoardBackgroundFromThemeSettings(normalized);
-      await api.updateBoard(boardId, {
-        themeSettings: { ...normalized, customThemes: [] },
-        ...(background !== undefined ? { background } : {}),
-      });
+      // Apply immediately so UI updates without waiting for API.
       onThemeLivePatch?.({
         themeSettings: normalized,
+        ...(background !== undefined ? { background } : {}),
+      });
+      await api.updateBoard(boardId, {
+        themeSettings: { ...normalized, customThemes: [] },
         ...(background !== undefined ? { background } : {}),
       });
       setSavedSettings(normalized);
       setDraft(normalized);
     } catch (err) {
+      // Roll back optimistic theme patch.
+      onThemeLivePatch?.({
+        themeSettings: previousDraft,
+        ...(previousBackground !== undefined ? { background: previousBackground } : {}),
+      });
       setError(err instanceof Error ? err.message : 'Failed to save theme settings');
     } finally {
       setSaving(false);

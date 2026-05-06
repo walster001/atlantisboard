@@ -176,6 +176,7 @@ function boardThemeStyleSignature(
     themeSettings.backgroundImageScale ?? 'fill',
     (themeSettings.backgroundFocalX ?? 0.5).toFixed(3),
     (themeSettings.backgroundFocalY ?? 0.5).toFixed(3),
+    (themeSettings.boardOpacity ?? 0.8).toFixed(3),
     palettePart,
   ].join('||');
 }

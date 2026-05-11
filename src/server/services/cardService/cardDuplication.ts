@@ -17,6 +17,8 @@ import { duplicateCardAttachmentsForNewCard } from '../attachmentService.js';
 import {
   cardCoverReferencesAttachment,
   extractAttachmentIdFromMediaSrc,
+  remapAttachmentRefsInDescriptionHtmlString,
+  remapAttachmentRefsInDescriptionJsonString,
 } from '../../../shared/cardDescriptionAttachmentRefs.js';
 import { CARD_TITLE_MAX_LENGTH } from '../../../shared/constants/entityTextLimits.js';
 import {
@@ -211,6 +213,22 @@ export async function duplicateCard(
     sourceAttachments,
     newCardId,
   });
+  const nextDescription = remapAttachmentRefsInDescriptionJsonString(
+    sourceCard.description,
+    sourceAttachments,
+    duplicate.attachments,
+  );
+  if (nextDescription !== undefined) {
+    duplicate.description = nextDescription;
+  }
+  const nextDescriptionHtml = remapAttachmentRefsInDescriptionHtmlString(
+    sourceCard.descriptionHtml,
+    sourceAttachments,
+    duplicate.attachments,
+  );
+  if (nextDescriptionHtml !== undefined) {
+    duplicate.descriptionHtml = nextDescriptionHtml;
+  }
   duplicate.reminders = cloneRemindersForDuplicate(sourceCard.reminders);
   const remappedCover = remapCoverForDuplicate(sourceCard.cover, sourceAttachments, duplicate.attachments);
   const nextCover = remappedCover !== undefined ? remappedCover : sourceCard.cover;

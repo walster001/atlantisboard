@@ -57,7 +57,7 @@ export function cardCoverReferencesAttachment(
   return mediaRefMatchesAttachment(cover, attachmentId, attachmentUrl);
 }
 
-function mediaRefMatchesAttachment(
+export function mediaRefMatchesAttachment(
   src: string,
   attachmentId: string,
   attachmentUrl?: string,
@@ -232,4 +232,114 @@ export function stripAttachmentFromDescriptionJsonString(
     return JSON.stringify(emptyDoc());
   }
   return str;
+}
+
+function remapMediaSrcForDuplicate(
+  src: string,
+  sourceAttachments: ReadonlyArray<AttachmentLike>,
+  newAttachments: ReadonlyArray<AttachmentLike>,
+): string {
+  for (let i = 0; i < sourceAttachments.length; i += 1) {
+    const oldA = sourceAttachments[i];
+    const newA = newAttachments[i];
+    if (oldA == null || newA == null) {
+      continue;
+    }
+    if (!mediaRefMatchesAttachment(src, oldA.id, oldA.url)) {
+      continue;
+    }
+    const idFrom = extractAttachmentIdFromMediaSrc(src);
+    if (idFrom != null && idFrom === oldA.id) {
+      let next = src.split(encodeURIComponent(oldA.id)).join(encodeURIComponent(newA.id));
+      if (next === src) {
+        next = src.split(oldA.id).join(newA.id);
+      }
+      return next;
+    }
+    return newA.url;
+  }
+  return src;
+}
+
+/**
+ * Rewrites `image` / `imageResize` / `video` node `attrs.src` values after card attachments were
+ * duplicated (parallel `sourceAttachments` / `newAttachments` rows, same order as `duplicateCardAttachmentsForNewCard`).
+ */
+export function remapAttachmentRefsInDescriptionJsonString(
+  rawJson: string | undefined | null,
+  sourceAttachments: ReadonlyArray<AttachmentLike>,
+  newAttachments: ReadonlyArray<AttachmentLike>,
+): string | undefined {
+  if (rawJson == null) {
+    return undefined;
+  }
+  if (rawJson.trim() === '' || sourceAttachments.length === 0 || newAttachments.length === 0) {
+    return rawJson;
+  }
+  if (sourceAttachments.length !== newAttachments.length) {
+    return rawJson;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson) as unknown;
+  } catch {
+    return rawJson;
+  }
+  const remapNode = (node: unknown): unknown => {
+    if (!isRecord(node) || typeof node.type !== 'string') {
+      return node;
+    }
+    const type = node.type;
+    if ((type === 'image' || type === 'imageResize' || type === 'video') && isRecord(node.attrs)) {
+      const attrs = { ...node.attrs } as Record<string, unknown>;
+      if (typeof attrs.src === 'string' && attrs.src.trim() !== '') {
+        attrs.src = remapMediaSrcForDuplicate(attrs.src, sourceAttachments, newAttachments);
+      }
+      return { ...node, attrs };
+    }
+    if (Array.isArray(node.content)) {
+      return { ...node, content: node.content.map((child) => remapNode(child)) };
+    }
+    return node;
+  };
+  const remapped = remapNode(parsed);
+  const str = JSON.stringify(remapped);
+  if (!isValidCardDescriptionJsonString(str)) {
+    return rawJson;
+  }
+  return str;
+}
+
+/** Best-effort URL/id substitution in rendered HTML (e.g. imports) after attachment duplication. */
+export function remapAttachmentRefsInDescriptionHtmlString(
+  html: string | undefined | null,
+  sourceAttachments: ReadonlyArray<AttachmentLike>,
+  newAttachments: ReadonlyArray<AttachmentLike>,
+): string | undefined {
+  if (html == null) {
+    return undefined;
+  }
+  if (html.trim() === '' || sourceAttachments.length === 0 || newAttachments.length === 0) {
+    return html;
+  }
+  if (sourceAttachments.length !== newAttachments.length) {
+    return html;
+  }
+  let out = html;
+  for (let i = 0; i < sourceAttachments.length; i += 1) {
+    const oldA = sourceAttachments[i];
+    const newA = newAttachments[i];
+    if (oldA == null || newA == null) {
+      continue;
+    }
+    if (typeof oldA.url === 'string' && oldA.url.trim() !== '') {
+      out = out.split(oldA.url).join(newA.url);
+    }
+    let next = out.split(encodeURIComponent(oldA.id)).join(encodeURIComponent(newA.id));
+    if (next === out) {
+      next = out.split(oldA.id).join(newA.id);
+    }
+    out = next;
+  }
+  return out;
 }

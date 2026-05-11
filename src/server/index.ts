@@ -192,9 +192,12 @@ process.on('SIGINT', () => {
 });
 
 async function shutdown(): Promise<void> {
-  const { disconnectSessionRedis } = await import('./config/redis.js');
+  const { disconnectSessionRedis, disconnectIoredis } = await import('./config/redis.js');
   await disconnectSessionRedis().catch((error) => {
     logger.error({ error }, 'Error closing Redis session client');
+  });
+  await disconnectIoredis().catch((error) => {
+    logger.error({ error }, 'Error closing Redis ioredis client');
   });
 
   // Close change streams

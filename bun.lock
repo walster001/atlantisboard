@@ -9,6 +9,7 @@
         "@atlaskit/pragmatic-drag-and-drop-hitbox": "1.1.0",
         "@emoji-mart/data": "1.2.1",
         "@emoji-mart/react": "1.1.1",
+        "@mantine/carousel": "8.3.0",
         "@mantine/charts": "8.3.0",
         "@mantine/core": "8.3.0",
         "@mantine/dates": "8.3.0",
@@ -43,7 +44,8 @@
         "date-fns": "^4.1.0",
         "dayjs": "^1.11.20",
         "dexie": "4.2.1",
-        "dragscroll": "^0.0.8",
+        "embla-carousel": "8.6.0",
+        "embla-carousel-react": "8.6.0",
         "emoji-datasource-twitter": "15.0.1",
         "express": "5.2.1",
         "express-rate-limit": "^8.2.1",
@@ -200,6 +202,8 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
+
+    "@mantine/carousel": ["@mantine/carousel@8.3.0", "", { "peerDependencies": { "@mantine/core": "8.3.0", "@mantine/hooks": "8.3.0", "embla-carousel": ">=8.0.0", "embla-carousel-react": ">=8.0.0", "react": "^18.x || ^19.x", "react-dom": "^18.x || ^19.x" } }, "sha512-IHtLTCtWzkZXmgGM5ZemPPoJFPrhxOKIaAwNGyqjmgqz3ehVP9vOhIm4PzorsaPDi1g0BUAbC3EJXBVVraotFg=="],
 
     "@mantine/charts": ["@mantine/charts@8.3.0", "", { "peerDependencies": { "@mantine/core": "8.3.0", "@mantine/hooks": "8.3.0", "react": "^18.x || ^19.x", "react-dom": "^18.x || ^19.x", "recharts": ">=2.13.3" } }, "sha512-k34w0/DZKCr5lW/uEea+PX+1UYRIf2MkvhxdwYKoYtMH9BZ8GNM8p5BHljmXXHh3hOFHiiaoSlJW5eJxDfxhiA=="],
 
@@ -693,8 +697,6 @@
 
     "dom-helpers": ["dom-helpers@5.2.1", "", { "dependencies": { "@babel/runtime": "^7.8.7", "csstype": "^3.0.2" } }, "sha512-nRCa7CK3VTrM2NmGkIy4cbK7IZlgBE/PYMn55rrXefr5xXDP0LdtfPnblFDoVdcAfslJ7or6iqAUnx0CCGIWQA=="],
 
-    "dragscroll": ["dragscroll@0.0.8", "", {}, "sha512-nMrx/KErHpEkiKZlrghcT/nLWCj8vEJgv6s6TF84gmgn6uROPx2wRvClkcnjSEyvppYY9okOI1DIv573Toql1w=="],
-
     "dunder-proto": ["dunder-proto@1.0.1", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.1", "es-errors": "^1.3.0", "gopd": "^1.2.0" } }, "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A=="],
 
     "duplexer2": ["duplexer2@0.1.4", "", { "dependencies": { "readable-stream": "^2.0.2" } }, "sha512-asLFVfWWtJ90ZyOUHMqk7/S2w2guQKxUI2itj3d92ADHhxUSbCMGi1f1cBcJ7xM1To+pE/Khbwo1yuNbMEPKeA=="],
@@ -706,6 +708,12 @@
     "ee-first": ["ee-first@1.1.1", "", {}, "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.267", "", {}, "sha512-0Drusm6MVRXSOJpGbaSVgcQsuB4hEkMpHXaVstcPmhu5LIedxs1xNK/nIxmQIU/RPC0+1/o0AVZfBTkTNJOdUw=="],
+
+    "embla-carousel": ["embla-carousel@8.6.0", "", {}, "sha512-SjWyZBHJPbqxHOzckOfo8lHisEaJWmwd23XppYFYVh10bU66/Pn5tkVkbkCMZVdbUE5eTCI2nD8OyIP4Z+uwkA=="],
+
+    "embla-carousel-react": ["embla-carousel-react@8.6.0", "", { "dependencies": { "embla-carousel": "8.6.0", "embla-carousel-reactive-utils": "8.6.0" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.1 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc" } }, "sha512-0/PjqU7geVmo6F734pmPqpyHqiM99olvyecY7zdweCw+6tKEXnrE90pBiBbMMU8s5tICemzpQ3hi5EpxzGW+JA=="],
+
+    "embla-carousel-reactive-utils": ["embla-carousel-reactive-utils@8.6.0", "", { "peerDependencies": { "embla-carousel": "8.6.0" } }, "sha512-fMVUDUEx0/uIEDM0Mz3dHznDhfX+znCCDCeIophYb1QGVM7YThSWX+wz11zlYwWFOr74b4QLGg0hrGPJeG2s4A=="],
 
     "emoji-datasource-twitter": ["emoji-datasource-twitter@15.0.1", "", {}, "sha512-5VwGM5Zq8exe+2NP9gjUH0ur/tlv9raA2CE3LCVyWnEb+C0TV9wX7nWiYmH9lFyvddrq+RaEb4hYQfIMD2Q4Bw=="],
 

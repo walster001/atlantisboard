@@ -4,7 +4,7 @@
   "description": "Fully-functional, self-hosted Kanban board application",
   "start_url": "/",
   "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone", "minimal-ui", "browser"],
+  "display_override": ["fullscreen"],
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
   "orientation": "any",

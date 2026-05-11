@@ -1,4 +1,4 @@
-import { Suspense, useState, startTransition, useEffect } from 'react';
+import { Suspense, useLayoutEffect, useState, startTransition } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ActionIcon,
@@ -23,6 +23,7 @@ import { CustomFontsSection } from '../components/admin/CustomFontsSection.js';
 import { RolesPermissionsTab } from '../components/admin/RolesPermissionsTab.js';
 import { useAuthContext } from '../contexts/AuthContext.js';
 import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
+import { useIsPwa } from '../hooks/usePwaDisplayMode.js';
 import {
   AdminBackupPanel,
   AdminMonitorPanel,
@@ -42,9 +43,10 @@ export default function AdminConfigurationPage() {
   const navigate = useNavigate();
   const responsiveTier = useResponsiveTier();
   const isMobile = responsiveTier === 'mobile';
+  const isPwa = useIsPwa();
   const { user, loading: authLoading } = useAuthContext();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (authLoading) {
       return;
     }
@@ -82,7 +84,11 @@ export default function AdminConfigurationPage() {
     const sectionLabel =
       CONFIGURATION_SUBTABS.find((t) => t.value === mobileConfigOpen)?.label ?? mobileConfigOpen;
     return (
-      <Box className="admin-configuration-page admin-configuration-page--mobile">
+      <Box
+        className={`admin-configuration-page admin-configuration-page--mobile${
+          isPwa ? ' admin-configuration-page--pwa' : ''
+        }`}
+      >
         <Group className="admin-configuration-page__header" gap="sm" wrap="nowrap" align="center">
           <ActionIcon
             type="button"
@@ -105,27 +111,40 @@ export default function AdminConfigurationPage() {
             {mobileConfigOpen == null ? 'Admin Configuration' : sectionLabel}
           </Title>
         </Group>
-        <Tabs
-          value={mainTab}
-          color="blue"
-          variant="pills"
-          radius="sm"
-          onChange={(v) => {
-            if (v === 'configuration' || v === 'customisation') {
-              startTransition(() => setMainTab(v));
+        <Group className="admin-configuration-page__mobile-top-icons" gap={10} wrap="nowrap">
+          <ActionIcon
+            type="button"
+            size={44}
+            radius="sm"
+            variant={mainTab === 'configuration' ? 'filled' : 'light'}
+            color={mainTab === 'configuration' ? 'blue' : 'gray'}
+            aria-label="Configuration"
+            onClick={() => {
+              if (mainTab !== 'configuration') {
+                startTransition(() => setMainTab('configuration'));
+              }
               setMobileConfigOpen(null);
-            }
-          }}
-        >
-          <Tabs.List className="admin-configuration-page__main-tabs-list admin-configuration-page__main-tabs-list--mobile">
-            <Tabs.Tab value="configuration" aria-label="Configuration">
-              <IconTool size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
-            </Tabs.Tab>
-            <Tabs.Tab value="customisation" aria-label="Customisation">
-              <IconSparkles size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs>
+            }}
+          >
+            <IconTool size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
+          </ActionIcon>
+          <ActionIcon
+            type="button"
+            size={44}
+            radius="sm"
+            variant={mainTab === 'customisation' ? 'filled' : 'light'}
+            color={mainTab === 'customisation' ? 'blue' : 'gray'}
+            aria-label="Customisation"
+            onClick={() => {
+              if (mainTab !== 'customisation') {
+                startTransition(() => setMainTab('customisation'));
+              }
+              setMobileConfigOpen(null);
+            }}
+          >
+            <IconSparkles size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
+          </ActionIcon>
+        </Group>
         {mainTab === 'configuration' ? (
           mobileConfigOpen == null ? (
             <Stack gap="xs">
@@ -217,7 +236,7 @@ export default function AdminConfigurationPage() {
         color="blue"
         variant="pills"
         radius="sm"
-        onChange={(v) => {
+        onChange={(v: string | null) => {
           if (v === 'configuration' || v === 'customisation') {
             startTransition(() => setMainTab(v));
           }

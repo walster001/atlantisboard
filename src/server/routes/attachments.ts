@@ -1,9 +1,10 @@
 import { Router, type RequestHandler } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../middleware/auth.js';
-import { fileUploadRateLimiter } from '../middleware/rateLimit.js';
+import { attachmentStreamRateLimiter, fileUploadRateLimiter } from '../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
 import {
+  MAX_CARD_ATTACHMENT_BYTES,
   uploadCardAttachment,
   deleteCardAttachment,
   getAttachmentUrl,
@@ -17,7 +18,7 @@ const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 1000 * 1024 * 1024, // 1000 MB
+    fileSize: MAX_CARD_ATTACHMENT_BYTES,
   },
 });
 
@@ -237,7 +238,7 @@ router.get('/attachments/:attachmentId/url', async (req, res, next) => {
  * Stream attachment content through API (authenticated)
  * GET /api/v1/attachments/:attachmentId/file
  */
-router.get('/attachments/:attachmentId/file', async (req, res, next) => {
+router.get('/attachments/:attachmentId/file', attachmentStreamRateLimiter, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const { attachmentId } = req.params;

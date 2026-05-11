@@ -9,6 +9,7 @@ import { logAuditEvent } from '../utils/auditLogger.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
 import crypto from 'crypto';
 import type { Readable } from 'node:stream';
+import { getCardAttachmentMaxBytes } from '../constants/uploads.js';
 // Malware scanning - TODO: Install and configure Pompelmi library
 // For now, we'll do basic file type validation
 
@@ -38,7 +39,8 @@ initializeMinIOBuckets().catch((error) => {
   logger.error({ error }, 'Failed to initialize MinIO buckets');
 });
 
-const MAX_FILE_SIZE = 1000 * 1024 * 1024; // 1000 MB
+/** Aligned with multipart `limits.fileSize` on the attachment route — see `getCardAttachmentMaxBytes`. */
+export const MAX_CARD_ATTACHMENT_BYTES = getCardAttachmentMaxBytes();
 const BUCKET_NAME = MINIO_BUCKET_CARD_ATTACHMENTS;
 
 function extractObjectNameFromAttachmentUrl(rawUrl: string): string {
@@ -112,8 +114,8 @@ export async function uploadCardAttachment(
   const client = getMinIOClient();
 
   // Validate file size
-  if (file.length > MAX_FILE_SIZE) {
-    throw new Error(`File size exceeds maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)} MB`);
+  if (file.length > MAX_CARD_ATTACHMENT_BYTES) {
+    throw new Error(`File size exceeds maximum limit of ${MAX_CARD_ATTACHMENT_BYTES / (1024 * 1024)} MB`);
   }
 
   // Basic file type validation (malware scanning with Pompelmi to be implemented)

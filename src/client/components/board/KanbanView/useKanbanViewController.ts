@@ -41,6 +41,8 @@ interface KanbanViewControllerArgs {
   readonly board: BoardDB;
   readonly boardCardPatchRef?: MutableRefObject<((card: CardDB) => void) | null>;
   readonly kanbanCaps: KanbanBoardEditCaps;
+  /** When true, lists are rendered inside a carousel (no scrollLeft virtualization). */
+  readonly isMobile: boolean;
 }
 
 interface KanbanViewController {
@@ -76,6 +78,7 @@ export function useKanbanViewController({
   board,
   boardCardPatchRef,
   kanbanCaps,
+  isMobile,
 }: KanbanViewControllerArgs): KanbanViewController {
   const { orderedListIds, listsById } = useBoardRuntimeStore(
     useShallow((state) => ({
@@ -266,6 +269,7 @@ export function useKanbanViewController({
     board,
     lists,
     suppressCardOpenClickRef,
+    enabled: !isMobile,
   });
 
   useKanbanPragmaticDnd({

@@ -16,6 +16,7 @@ import { IconExternalLink, IconTrash, IconUpload } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import { DEFAULT_INLINE_BUTTON_ATTRS } from './tiptapInlineButtonExtension.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 
 const RADIUS_OPTIONS = ['0', '4', '8', '12', '16', '20'] as const;
 
@@ -89,6 +90,8 @@ export function CardDescriptionInlineButtonEditModal({
   nodePos,
   cardId,
 }: CardDescriptionInlineButtonEditModalProps): ReactElement {
+  const responsiveTier = useResponsiveTier();
+  const isMobile = responsiveTier === 'mobile';
   const draft = nodePos != null ? readInlineButtonDraft(editor, nodePos) : null;
 
   const [href, setHref] = useState(() => draft?.href ?? '');
@@ -218,6 +221,10 @@ export function CardDescriptionInlineButtonEditModal({
     <Modal
       opened={opened}
       onClose={onClose}
+      fullScreen={isMobile}
+      withinPortal={false}
+      transitionProps={{ duration: 0 }}
+      overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
       title={
         <Group gap="xs" wrap="nowrap">
           <IconExternalLink size={20} aria-hidden />

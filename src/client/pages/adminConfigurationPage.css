@@ -137,26 +137,22 @@
     padding: calc(8px + env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
   }
 
-  .admin-configuration-page__main-tabs-list--mobile {
+  /* PWA fullscreen: avoid browser UI reappearing from overscroll/bounce. */
+  .admin-configuration-page--pwa {
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: contain;
+    background-color: var(--mantine-color-body);
+  }
+
+  .admin-configuration-page__mobile-top-icons {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
     gap: 10px;
     width: 100%;
     justify-content: flex-start;
-  }
-
-  .admin-configuration-page__main-tabs-list--mobile .mantine-Tabs-tab {
-    flex: 0 0 auto;
-    width: 44px;
-    min-width: 44px;
-    max-width: 44px;
-    height: 44px;
-    min-height: 44px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    margin-top: 2px;
   }
 
   .admin-configuration-page__mobile-row {

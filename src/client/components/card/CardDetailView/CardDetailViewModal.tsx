@@ -52,6 +52,7 @@ export function CardDetailViewModal({
         onClose={onClose}
         size="54vw"
         fullScreen={controller.isMobile}
+        className="card-detail-modal"
         withinPortal={false}
         transitionProps={{ duration: 0 }}
         overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}

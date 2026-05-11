@@ -1,5 +1,5 @@
 import {
-  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MutableRefObject,
@@ -145,7 +145,7 @@ export function useHomePagePointerDrag(
   const isMobileRef = useRef(isMobile);
   isMobileRef.current = isMobile;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!layoutReady) {
       return undefined;
     }

@@ -8,6 +8,7 @@ import { importWekan } from '../services/import/wekanImportService.js';
 import { importCSV } from '../services/import/csvImportService.js';
 import { ImportJob } from '../models/ImportJob.js';
 import multer from 'multer';
+import { getBoardImportUploadMaxBytes } from '../constants/uploads.js';
 import { Workspace } from '../models/Workspace.js';
 import { hasPermission } from '../utils/permissions.js';
 import { importPreflightPayloadSchema } from '../../shared/import/importPreflightSchema.js';
@@ -17,7 +18,11 @@ import {
 } from '../../shared/import/detectImportJsonSource.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const importUploadMaxBytes = getBoardImportUploadMaxBytes();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: importUploadMaxBytes },
+});
 
 router.use(requireAuth as RequestHandler);
 router.use(apiRateLimiter);

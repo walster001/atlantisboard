@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useLayoutEffect, useMemo, useCallback, useRef, memo } from 'react';
 import { isAxiosError } from 'axios';
 import { Stack, Text, Textarea, Button, Group, Box, Avatar } from '@mantine/core';
 import { IconMessageCircle } from '@tabler/icons-react';
@@ -128,12 +128,15 @@ interface CommentDraftComposerProps {
 
 function CommentDraftComposer({ loading, onSubmit }: CommentDraftComposerProps) {
   const [draft, setDraft] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleSave = async (): Promise<void> => {
     const trimmed = draft.trim();
     if (trimmed === '') {
       return;
     }
+    // iOS Safari zooms in on textareas; blur on save to restore viewport scale.
+    textareaRef.current?.blur();
     const ok = await onSubmit(trimmed);
     if (ok) {
       setDraft('');
@@ -143,6 +146,7 @@ function CommentDraftComposer({ loading, onSubmit }: CommentDraftComposerProps) 
   return (
     <Stack gap="xs">
       <Textarea
+        ref={textareaRef}
         placeholder="Write a comment..."
         value={draft}
         onChange={(e) => setDraft(e.currentTarget.value)}
@@ -185,7 +189,7 @@ export function CommentSection({
   const [loading, setLoading] = useState(false);
   const [boardMembers, setBoardMembers] = useState<BoardMemberUserDisplay[]>([]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const ac = new AbortController();
 
     const loadBoardMembers = async (): Promise<void> => {

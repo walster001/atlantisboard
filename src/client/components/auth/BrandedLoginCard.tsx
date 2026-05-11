@@ -15,6 +15,8 @@ import {
   Title,
 } from '@mantine/core';
 import { type PublicLoginBranding } from '../../../shared/types/loginBranding.js';
+import { useIsPwa } from '../../hooks/usePwaDisplayMode.js';
+import './brandedLoginCard.css';
 
 export function GoogleMark(): ReactElement {
   return (
@@ -76,6 +78,7 @@ export function BrandedLoginCard({
   onSignUpClick,
   onForgotPasswordClick,
 }: BrandedLoginCardProps): ReactElement {
+  const isPwa = useIsPwa();
   const pageBgStyle: CSSProperties = branding.backgroundEnabled
     ? branding.backgroundType === 'gradient'
       ? {
@@ -424,7 +427,9 @@ export function BrandedLoginCard({
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center ${isFullscreen ? 'p-4 md:p-8' : 'p-4'}`}
+      className={`kb-login-host${isPwa ? ' kb-login-host--pwa' : ''} min-h-screen flex items-center justify-center ${
+        isFullscreen ? 'p-4 md:p-8' : 'p-4'
+      }`}
       style={pageBgStyle}
     >
       {inner}

@@ -6,12 +6,14 @@ import { UserMenu } from '../../components/UserMenu.js';
 import { HomeBoardCardTile } from './HomeBoardCardTile.js';
 import { type HomePageController } from './useHomePageController.js';
 import { HomePageDragPreview, HomePageModals } from './HomePageAuxiliary.js';
+import { useIsPwa } from '../../hooks/usePwaDisplayMode.js';
 
 interface HomePageLayoutProps {
   readonly controller: HomePageController;
 }
 
 export function HomePageLayout({ controller }: HomePageLayoutProps) {
+  const isPwa = useIsPwa();
   if (controller.loading) {
     return (
       <Box className="home-page__loading">
@@ -24,7 +26,7 @@ export function HomePageLayout({ controller }: HomePageLayoutProps) {
     <Box
       className={`home-page${controller.homePageDragging ? ' home-page--dragging' : ''}${
         controller.isMobile ? ' home-page--mobile' : controller.responsiveTier === 'tablet' ? ' home-page--tablet' : ''
-      }`}
+      }${isPwa ? ' home-page--pwa' : ''}`}
       style={controller.homePageRootStyle}
     >
       <HomePageDragPreview controller={controller} />
@@ -56,7 +58,7 @@ export function HomePageLayout({ controller }: HomePageLayoutProps) {
           <Group gap="md">
             <OfflineIndicator />
             <UserMenu
-              showDisplayName
+              showDisplayName={!controller.isMobile}
               nameClassName="home-page__user-name"
               nameStyle={controller.homeUserNameStyle}
               {...(controller.isMobile ? { avatarSize: 38 } : {})}

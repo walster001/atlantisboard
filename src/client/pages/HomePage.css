@@ -297,6 +297,18 @@
 }
 
 @media (max-width: 767px) {
+  .home-page--mobile {
+    height: 100svh;
+    height: 100dvh;
+    min-height: 100svh;
+    min-height: 100dvh;
+    width: 100%;
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+
   .home-page__nav {
     padding-top: calc(0.5rem + env(safe-area-inset-top));
   }
@@ -313,6 +325,8 @@
   .home-page__main {
     min-height: calc(100dvh - 64px);
     padding: 0.75rem;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .home-page__title {
@@ -378,4 +392,17 @@
     min-width: 40px;
     min-height: 40px;
   }
+}
+
+/* Installed PWA: keep a pinned fullscreen shell even on larger iOS viewports. */
+.home-page--pwa {
+  height: 100svh;
+  height: 100dvh;
+  min-height: 100svh;
+  min-height: 100dvh;
+  width: 100%;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
 }

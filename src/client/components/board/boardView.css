@@ -39,8 +39,10 @@
   /* Header bar footprint (approx. nav bar height) used for column max-height calc. */
   --board-header-height: 56px;
 
-  min-height: 100dvh;
+  height: 100svh;
   height: 100dvh;
+  min-height: 100svh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--board-canvas-bg);
@@ -48,6 +50,37 @@
   background-size: var(--board-canvas-bg-image-size);
   background-repeat: var(--board-canvas-bg-image-repeat);
   background-position: var(--board-canvas-bg-image-position);
+}
+
+@media (max-width: 767px) {
+  .board-page {
+    width: 100%;
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+
+  .board-page__body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Installed PWA: keep a pinned fullscreen shell even on larger iOS viewports. */
+.board-page--pwa {
+  width: 100%;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.board-page--pwa .board-page__body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .board-page__header {
@@ -186,6 +219,17 @@
 
 .board-page--kanban-dragging .board-column {
   content-visibility: visible;
+}
+
+/*
+ * Canvas drag-scroll (pointer): toggled by `useBoardCanvasDragScroll` while a drag is active.
+ * Suppress text selection on the body subtree so dragging across columns/cards does not paint a
+ * selection. The class is removed on pointerup/cancel so normal selection in composers works.
+ */
+.board-page--canvas-dragging .board-page__body {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .board-column__cards,
@@ -782,8 +826,7 @@
 
   .board-page__body {
     padding: 6px 6px max(6px, env(safe-area-inset-bottom));
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
+    overflow-x: hidden;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
@@ -806,6 +849,40 @@
   .board-page__column-track {
     scroll-snap-align: start;
     scroll-snap-stop: always;
+  }
+
+  .board-page__mobile-carousel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .board-page__mobile-carousel-indicators {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 2px 0 8px;
+  }
+
+  .board-page__mobile-carousel-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    border: 0;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.38);
+  }
+
+  .board-page__mobile-carousel-dot--active {
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .board-page__mobile-carousel-inner {
+    height: 100%;
+  }
+
+  .board-page__mobile-carousel-slide {
+    height: 100%;
+    min-height: 0;
   }
 
   .board-card,

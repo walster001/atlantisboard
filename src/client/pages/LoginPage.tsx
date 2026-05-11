@@ -167,7 +167,7 @@ export default function LoginPage() {
 
   if (!loginBrandingReady || loginOptionsLoading) {
     return (
-      <Box className="min-h-screen flex items-center justify-center">
+      <Box className="kb-login-host min-h-screen flex items-center justify-center">
         <Loader />
       </Box>
     );

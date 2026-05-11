@@ -80,10 +80,20 @@ function getClientIp(req: Request): string {
 // Rate limit configuration helper (can be enhanced to read from AdminConfig)
 
 export function createRateLimiter(
-  type: 'auth' | 'file' | 'api',
+  type: 'auth' | 'file' | 'api' | 'attachment_stream' | 'board_background',
   options?: { windowMs?: number; max?: number }
 ) {
-  const maxRequests = options?.max ?? (type === 'auth' ? 900 : type === 'file' ? 10 : 1000);
+  const maxRequests =
+    options?.max ??
+    (type === 'auth'
+      ? 900
+      : type === 'file'
+        ? 10
+        : type === 'attachment_stream'
+          ? 600
+          : type === 'board_background'
+            ? 300
+            : 1000);
   const windowMs = options?.windowMs ?? 60000;
   
   // Create unique store instance for each limiter type
@@ -127,4 +137,8 @@ export function createRateLimiter(
 export const authRateLimiter = createRateLimiter('auth');
 export const fileUploadRateLimiter = createRateLimiter('file');
 export const apiRateLimiter = createRateLimiter('api');
+/** Throttles authenticated attachment/media GETs (video playback can fan out many requests per client). */
+export const attachmentStreamRateLimiter = createRateLimiter('attachment_stream');
+/** Board background CDN-style GET is public; limit by caller IP + optional user key. */
+export const boardBackgroundDownloadRateLimiter = createRateLimiter('board_background');
 

@@ -33,6 +33,7 @@ interface BoardThemeBackgroundTabProps {
   canChangeTheme: boolean;
   canManageCustomThemes: boolean;
   onThemeLivePatch?: (patch: { themeSettings: BoardThemeSettings; background?: string }) => void;
+  initialNav?: ThemeNav;
 }
 
 type ThemeNav = 'theme' | 'background';
@@ -42,6 +43,7 @@ export function BoardThemeBackgroundTab({
   canChangeTheme,
   canManageCustomThemes,
   onThemeLivePatch,
+  initialNav,
 }: BoardThemeBackgroundTabProps) {
   const { refreshUser } = useAuthContext();
   const [loading, setLoading] = useState(true);
@@ -50,7 +52,7 @@ export function BoardThemeBackgroundTab({
   const [error, setError] = useState<string | null>(null);
   const [savedSettings, setSavedSettings] = useState<BoardThemeSettings>(createDefaultBoardThemeSettings());
   const [draft, setDraft] = useState<BoardThemeSettings>(createDefaultBoardThemeSettings());
-  const [nav, setNav] = useState<ThemeNav>('theme');
+  const [nav, setNav] = useState<ThemeNav>(() => initialNav ?? 'theme');
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
   const [themeEditorVariant, setThemeEditorVariant] = useState<'add' | 'edit'>('edit');
   const [themeEditorInitial, setThemeEditorInitial] = useState<BoardThemeSettings>(createDefaultBoardThemeSettings());

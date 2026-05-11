@@ -1,4 +1,4 @@
-import { Suspense, useCallback } from 'react';
+import { Suspense, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { Loader, Box, Text, Title, Group, ActionIcon } from '@mantine/core';
 import { IconArrowLeft, IconLayoutKanbanFilled, IconLink, IconSettings } from '@tabler/icons-react';
@@ -12,8 +12,10 @@ import { resolveBoardNavbarIconUrl } from '../../shared/types/appBranding.js';
 import type { ScaleMode } from '../components/board/scaleModePolicy.js';
 import { env } from '../config/env.js';
 import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
+import { useIsPwa } from '../hooks/usePwaDisplayMode.js';
 import { KanbanView, KANBAN_VIEW_SUSPENSE_FALLBACK } from './BoardPage/kanbanViewLoader.js';
 import { useBoardBodyMobileGestures } from './BoardPage/useBoardBodyMobileGestures.js';
+import { useBoardCanvasDragScroll } from './BoardPage/useBoardCanvasDragScroll.js';
 import { useBoardPageController } from './BoardPage/useBoardPageController.js';
 import '../components/board/boardView.css';
 
@@ -23,6 +25,7 @@ export default function BoardPage() {
   const responsiveTier = useResponsiveTier();
   const isMobile = responsiveTier === 'mobile';
   const isTablet = responsiveTier === 'tablet';
+  const isPwa = useIsPwa();
   const [searchParams, setSearchParams] = useSearchParams();
   const forcedScaleMode = (
     searchParams.get('scaleMode')?.trim() ??
@@ -60,16 +63,29 @@ export default function BoardPage() {
     handleCardOverlayUpdated,
   } = useBoardPageController({ boardId, forcedScaleMode, overlayCardId, setSearchParams });
 
+  const boardBodyRef = useRef<HTMLDivElement | null>(null);
+
   useBoardBodyMobileGestures(isMobile, () => navigate('/'));
+  useBoardCanvasDragScroll({
+    disabled: isMobile,
+    boardId: board?.id ?? null,
+    bodyRef: boardBodyRef,
+  });
 
   const handleBack = useCallback(() => {
     navigate('/');
   }, [navigate]);
 
+  const boardRootClassName = `board-page${isMobile ? ' board-page--mobile' : isTablet ? ' board-page--tablet' : ''}${
+    isPwa ? ' board-page--pwa' : ''
+  }`;
+
   if (loading) {
     return (
-      <Box className="min-h-screen flex items-center justify-center">
-        <Loader size="lg" />
+      <Box className={boardRootClassName}>
+        <Box className="min-h-screen flex items-center justify-center">
+          <Loader size="lg" />
+        </Box>
       </Box>
     );
   }
@@ -80,18 +96,26 @@ export default function BoardPage() {
 
   if (!board && !loadFailed) {
     return (
-      <Box className="min-h-screen flex items-center justify-center">
-        <Loader size="lg" />
+      <Box className={boardRootClassName}>
+        <Box className="min-h-screen flex items-center justify-center">
+          <Loader size="lg" />
+        </Box>
       </Box>
     );
   }
 
   if (!board) {
     return (
-      <Box className="min-h-screen flex items-center justify-center">
-        <Box ta="center">
-          <Title order={1} mb="md">Board not found</Title>
-          <Text c="dimmed">The board you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.</Text>
+      <Box className={boardRootClassName}>
+        <Box className="min-h-screen flex items-center justify-center">
+          <Box ta="center">
+            <Title order={1} mb="md">
+              Board not found
+            </Title>
+            <Text c="dimmed">
+              The board you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
+            </Text>
+          </Box>
         </Box>
       </Box>
     );
@@ -99,7 +123,7 @@ export default function BoardPage() {
 
   return (
     <Box
-      className={`board-page${isMobile ? ' board-page--mobile' : isTablet ? ' board-page--tablet' : ''}`}
+      className={boardRootClassName}
       {...(boardThemeStyle !== undefined ? { style: boardThemeStyle } : {})}
     >
       <Box className="board-page__header">
@@ -166,7 +190,7 @@ export default function BoardPage() {
                 </ActionIcon>
               ) : null}
               <UserMenu
-                showDisplayName
+                showDisplayName={!isMobile}
                 nameClassName="board-page__user-name"
                 {...(isMobile ? {} : { nameVisibleFrom: 'xs' })}
                 {...(isMobile ? { avatarSize: 38 } : {})}
@@ -178,13 +202,14 @@ export default function BoardPage() {
         </Box>
       </Box>
 
-      <Box className="board-page__body">
+      <Box ref={boardBodyRef} className="board-page__body">
         <Suspense fallback={KANBAN_VIEW_SUSPENSE_FALLBACK}>
           <KanbanView
             board={board}
             boardCardPatchRef={boardCardPatchRef}
             kanbanCaps={kanbanCaps}
             onOpenCard={handleOpenCard}
+            isMobile={isMobile}
           />
         </Suspense>
       </Box>

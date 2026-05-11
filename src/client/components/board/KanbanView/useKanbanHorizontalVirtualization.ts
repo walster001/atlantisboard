@@ -15,6 +15,8 @@ interface UseKanbanHorizontalVirtualizationArgs {
   readonly board: BoardDB;
   readonly lists: ListDB[];
   readonly suppressCardOpenClickRef: MutableRefObject<boolean>;
+  /** When false, disables scroll-based virtualization (e.g. mobile carousel). */
+  readonly enabled: boolean;
 }
 
 interface KanbanHorizontalVirtualizationResult {
@@ -32,6 +34,7 @@ export function useKanbanHorizontalVirtualization({
   board,
   lists,
   suppressCardOpenClickRef,
+  enabled,
 }: UseKanbanHorizontalVirtualizationArgs): KanbanHorizontalVirtualizationResult {
   const columnsGroupRef = useRef<HTMLDivElement | null>(null);
   const boardScrollFrameRef = useRef<HTMLDivElement | null>(null);
@@ -98,6 +101,17 @@ export function useKanbanHorizontalVirtualization({
     routeBoardClick(event.nativeEvent, { root, suppressCardOpenClickRef });
   }, [suppressCardOpenClickRef]);
 
+  const setColumnsGroupRefDisabled = useCallback((node: HTMLDivElement | null): void => {
+    boardScrollCleanupRef.current?.();
+    boardScrollCleanupRef.current = null;
+    columnsGroupRef.current = node;
+    boardScrollFrameRef.current = null;
+    if (boardScrollRafRef.current != null) {
+      cancelAnimationFrame(boardScrollRafRef.current);
+      boardScrollRafRef.current = null;
+    }
+  }, []);
+
   const setColumnsGroupRef = useCallback(
     (node: HTMLDivElement | null): void => {
       boardScrollCleanupRef.current?.();
@@ -134,6 +148,19 @@ export function useKanbanHorizontalVirtualization({
     },
     [commitBoardScrollMetrics, scheduleBoardScrollMetricsRead],
   );
+
+  if (!enabled) {
+    return {
+      mountedLists: lists,
+      leftSpacerPx: 0,
+      rightSpacerPx: 0,
+      visibleEnd: lists.length,
+      totalListCount: lists.length,
+      columnsGroupRef,
+      handleColumnsClickCapture,
+      setColumnsGroupRef: setColumnsGroupRefDisabled,
+    };
+  }
 
   return {
     mountedLists,

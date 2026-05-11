@@ -1,10 +1,11 @@
 import { Router, type RequestHandler } from 'express';
 import { getBoardBackgroundObjectStream } from '../services/boardBackgroundService.js';
+import { boardBackgroundDownloadRateLimiter } from '../middleware/rateLimit.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-router.get('/:fileId', ((req, res, next) => {
+router.get('/:fileId', boardBackgroundDownloadRateLimiter, ((req, res, next) => {
   void (async () => {
     try {
       const result = await getBoardBackgroundObjectStream(req.params.fileId);

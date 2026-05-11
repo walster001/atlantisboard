@@ -339,6 +339,17 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 }
 
 @media (max-width: 767px) {
+  /*
+   * iOS Safari zooms the viewport when focusing inputs < 16px font-size.
+   * This breaks fullscreen card detail modals, so enforce 16px+ for form controls
+   * inside the card detail modal on mobile.
+   */
+  .card-detail-modal input,
+  .card-detail-modal textarea,
+  .card-detail-modal select {
+    font-size: 16px;
+  }
+
   .card-desc-tiptap-toolbar {
     position: sticky;
     top: 0;

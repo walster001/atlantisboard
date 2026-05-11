@@ -30,7 +30,7 @@ import {
 const FALLBACK_BRANDING = mergePublicLoginBranding({}) as unknown as PublicLoginBranding;
 const FALLBACK_APP_BRANDING = mergePublicAppBranding({}) as unknown as PublicAppBranding;
 
-const FAVICON_LINK_ID = 'kanboard-app-branding-favicon';
+const FAVICON_LINK_ID = 'atlantisboard-app-branding-favicon';
 function resolveBrandingFontStack(preferredFamily: string | undefined, fallback: string): string {
   const trimmed = typeof preferredFamily === 'string' ? preferredFamily.trim() : '';
   if (trimmed === '') {

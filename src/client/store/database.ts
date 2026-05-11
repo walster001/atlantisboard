@@ -187,7 +187,7 @@ export interface OfflineAction {
   status: 'pending' | 'processing' | 'failed' | 'completed';
 }
 
-class KanboardDatabase extends Dexie {
+class AtlantisboardDatabase extends Dexie {
   workspaces!: Table<WorkspaceDB, string>;
   boards!: Table<BoardDB, string>;
   lists!: Table<ListDB, string>;
@@ -196,7 +196,7 @@ class KanboardDatabase extends Dexie {
   offlineActions!: Table<OfflineAction, string>;
 
   constructor() {
-    super('KanboardDB');
+    super('AtlantisboardDB');
     this.version(1).stores({
       workspaces: 'id, ownerId, visibility, archived',
       boards: 'id, workspaceId, ownerId, visibility, archived',
@@ -275,5 +275,5 @@ class KanboardDatabase extends Dexie {
   }
 }
 
-export const db = new KanboardDatabase();
+export const db = new AtlantisboardDatabase();
 

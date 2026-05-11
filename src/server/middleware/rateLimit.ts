@@ -13,10 +13,13 @@ interface ClientRateLimitInfo {
 class RedisStore implements RateLimitStore {
   private redis: typeof redis;
   prefix: string;
+  /** Window length for new keys / missing TTL (matches express-rate-limit `windowMs`). */
+  private readonly windowMs: number;
 
-  constructor(redisClient: typeof redis, prefix: string) {
+  constructor(redisClient: typeof redis, prefix: string, windowMs: number) {
     this.redis = redisClient;
     this.prefix = prefix;
+    this.windowMs = Math.max(1, windowMs);
   }
 
   private getKey(key: string): string {
@@ -25,12 +28,34 @@ class RedisStore implements RateLimitStore {
 
   async increment(key: string): Promise<ClientRateLimitInfo> {
     const prefixedKey = this.getKey(key);
-    const count = await this.redis.incr(prefixedKey);
-    if (count === 1) {
-      await this.redis.expire(prefixedKey, 60); // 1 minute default
+    const pipeline = this.redis.pipeline();
+    pipeline.incr(prefixedKey);
+    pipeline.pttl(prefixedKey);
+    const results = await pipeline.exec();
+    const first = results?.[0];
+    const second = results?.[1];
+    if (first == null) {
+      throw new Error('Redis rate limit INCR failed');
     }
-    const ttl = await this.redis.ttl(prefixedKey);
-    const resetTime = new Date(Date.now() + (ttl > 0 ? ttl * 1000 : 60000));
+    if (first[0] != null) {
+      const err = first[0];
+      throw err instanceof Error ? err : new Error('Redis rate limit INCR failed');
+    }
+    if (second == null) {
+      throw new Error('Redis rate limit PTTL failed');
+    }
+    if (second[0] != null) {
+      const err = second[0];
+      throw err instanceof Error ? err : new Error('Redis rate limit PTTL failed');
+    }
+    const count = first[1] as number;
+    const pttlAfterIncr = second[1] as number;
+    // Fixed window: only keys without TTL get PEXPIRE (first hit after expiry, or repaired orphans with TTL -1).
+    if (pttlAfterIncr === -1) {
+      await this.redis.pexpire(prefixedKey, this.windowMs);
+    }
+    const ttlMs = pttlAfterIncr === -1 ? this.windowMs : pttlAfterIncr > 0 ? pttlAfterIncr : this.windowMs;
+    const resetTime = new Date(Date.now() + ttlMs);
     return { totalHits: count, resetTime };
   }
 
@@ -95,9 +120,9 @@ export function createRateLimiter(
             ? 300
             : 1000);
   const windowMs = options?.windowMs ?? 60000;
-  
-  // Create unique store instance for each limiter type
-  const store = new RedisStore(redis, `ratelimit:${type}`);
+
+  // Create unique store instance for each limiter type (TTL aligned with windowMs — no unbounded keys)
+  const store = new RedisStore(redis, `ratelimit:${type}`, windowMs);
   
   return rateLimit({
     store,

@@ -60,7 +60,7 @@ export function resolvePassportGoogleOAuthCallbackUrl(
 }
 
 /**
- * Parses `GOOGLE_OAUTH_BROWSER_ORIGIN` (e.g. `http://kanboard.local:3000`). Scheme must be `http:` or `https:`.
+ * Parses `GOOGLE_OAUTH_BROWSER_ORIGIN` (e.g. `http://atlantisboard.local:3000`). Scheme must be `http:` or `https:`.
  * Returns the URL origin only so a mistaken path in env does not change the authorize path.
  */
 export function parseGoogleOAuthBrowserOrigin(raw: string | undefined): URL | null {

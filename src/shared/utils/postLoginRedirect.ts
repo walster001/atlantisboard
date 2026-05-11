@@ -3,7 +3,7 @@
  * Rules mirror server `isSafeOAuthNextPath` for open-redirect safety.
  */
 
-export const POST_LOGIN_REDIRECT_STORAGE_KEY = 'kanboard:post-login-redirect-v1';
+export const POST_LOGIN_REDIRECT_STORAGE_KEY = 'atlantisboard:post-login-redirect-v1';
 
 export function isSafeAppInternalPath(path: string): boolean {
   if (!path.startsWith('/') || path.startsWith('//')) {

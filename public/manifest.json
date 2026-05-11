@@ -1,6 +1,6 @@
 {
-  "name": "Kanboard",
-  "short_name": "Kanboard",
+  "name": "Atlantisboard",
+  "short_name": "Atlantisboard",
   "description": "Fully-functional, self-hosted Kanban board application",
   "start_url": "/",
   "display": "fullscreen",

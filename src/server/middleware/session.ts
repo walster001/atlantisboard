@@ -11,10 +11,15 @@ if (SESSION_SECRET === 'change-this-session-secret-in-production') {
   logger.warn('Using default session secret. Change SESSION_SECRET in production!');
 }
 
+/** Must match cookie `maxAge` so Redis session keys always get a bounded TTL (connect-redis fallback). */
+const SESSION_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const SESSION_REDIS_TTL_SECONDS = Math.max(1, Math.ceil(SESSION_COOKIE_MAX_AGE_MS / 1000));
+
 export const sessionMiddleware = session({
   store: new RedisStore({
     client: sessionRedisClient,
     prefix: 'session:',
+    ttl: SESSION_REDIS_TTL_SECONDS,
   }),
   secret: SESSION_SECRET,
   resave: false,
@@ -27,7 +32,7 @@ export const sessionMiddleware = session({
     // (Google → /api/v1/auth/google/callback). Strict would omit the cookie on that
     // cross-site redirect and break Passport OAuth state / oauthReturnTo.
     sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: SESSION_COOKIE_MAX_AGE_MS,
   },
   genid: () => {
     // Generate unique session ID

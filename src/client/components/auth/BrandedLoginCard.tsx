@@ -157,7 +157,7 @@ export function BrandedLoginCard({
           {...(isPreview ? {} : { mb: 'xs' })}
           style={isPreview ? { marginBottom: 6 } : undefined}
         >
-          Kanboard
+          Atlantisboard
         </Title>
       )}
       {branding.taglineEnabled && branding.tagline ? (

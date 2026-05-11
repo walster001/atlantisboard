@@ -1,8 +1,11 @@
 import { isPlaceholderCardAttachment } from '../../shared/cardAttachmentPlaceholder.js';
-import { stripAttachmentFromDescriptionJsonString } from '../../shared/cardDescriptionAttachmentRefs.js';
+import {
+  cardCoverReferencesAttachment,
+  stripAttachmentFromDescriptionJsonString,
+} from '../../shared/cardDescriptionAttachmentRefs.js';
 import { MINIO_BUCKET_CARD_ATTACHMENTS } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
-import { Card } from '../models/Card.js';
+import { Card, type ICardAttachment } from '../models/Card.js';
 import type { Types } from 'mongoose';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
@@ -259,6 +262,10 @@ export async function deleteCardAttachment(
 
     // Remove from card
     card.attachments = card.attachments.filter((att) => att.id !== attachmentId);
+    const coverRaw = typeof card.cover === 'string' ? card.cover : '';
+    if (cardCoverReferencesAttachment(coverRaw, attachmentId, attachment.url)) {
+      card.cover = '';
+    }
     await card.save();
 
     emitCardUpdatedRealtime(card);
@@ -309,5 +316,81 @@ export async function getAttachmentObject(attachmentUrl: string): Promise<Attach
     stream,
     contentType,
   };
+}
+
+async function readStreamIntoBuffer(stream: Readable, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of stream) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+    total += buf.length;
+    if (total > maxBytes) {
+      throw new Error(`Attachment exceeds maximum size of ${maxBytes} bytes while duplicating card`);
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Deep-copies each attachment into MinIO under `newCardId/<newAttachmentId>.<ext>` and returns
+ * new embedded attachment rows (presigned URLs). Placeholders are copied with new ids only.
+ */
+export async function duplicateCardAttachmentsForNewCard(args: {
+  readonly sourceAttachments: readonly ICardAttachment[];
+  readonly newCardId: string;
+}): Promise<ICardAttachment[]> {
+  const { sourceAttachments, newCardId } = args;
+  const client = getMinIOClient();
+  const maxBytes = getCardAttachmentMaxBytes();
+  const out: ICardAttachment[] = [];
+
+  for (const att of sourceAttachments) {
+    const newId = crypto.randomUUID();
+    if (isPlaceholderCardAttachment(att)) {
+      out.push({
+        id: newId,
+        name: att.name,
+        url: typeof att.url === 'string' ? att.url : '',
+        isPlaceholder: true,
+        ...(typeof att.originalFileName === 'string' && att.originalFileName.trim() !== ''
+          ? { originalFileName: att.originalFileName }
+          : {}),
+        type: att.type,
+        size: att.size,
+        uploadedAt: new Date(),
+        uploadedBy: att.uploadedBy,
+      });
+      continue;
+    }
+
+    const srcObject = extractObjectNameFromAttachmentUrl(att.url);
+    const extMatch = /\.([^.]+)$/.exec(att.name.trim());
+    const ext = extMatch?.[1] ?? 'bin';
+    const destObjectName = `${newCardId}/${newId}.${ext}`;
+    const stream = await client.getObject(BUCKET_NAME, srcObject);
+    const buf = await readStreamIntoBuffer(stream as Readable, maxBytes);
+    await client.putObject(BUCKET_NAME, destObjectName, buf, buf.length, {
+      'Content-Type': att.type,
+      'X-Card-Id': newCardId,
+      'X-Uploaded-By': String(att.uploadedBy),
+      'X-File-Name': encodeURIComponent(att.name),
+    });
+    const url = await client.presignedGetObject(BUCKET_NAME, destObjectName, 7 * 24 * 60 * 60);
+    out.push({
+      id: newId,
+      name: att.name,
+      url,
+      ...(typeof att.originalFileName === 'string' && att.originalFileName.trim() !== ''
+        ? { originalFileName: att.originalFileName }
+        : {}),
+      type: att.type,
+      size: att.size,
+      uploadedAt: new Date(),
+      uploadedBy: att.uploadedBy,
+    });
+  }
+
+  return out;
 }
 

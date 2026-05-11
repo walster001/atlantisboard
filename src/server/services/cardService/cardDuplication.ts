@@ -1,15 +1,144 @@
 import { type Document } from 'mongoose';
-import { Card, type ICard } from '../../models/Card.js';
+import {
+  Card,
+  type ICard,
+  type ICardAttachment,
+  type ICardComment,
+  type ICardReminder,
+  type IChecklist,
+} from '../../models/Card.js';
 import { List } from '../../models/List.js';
 import { Board } from '../../models/Board.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { createActivity } from '../activityService.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { emitToBoard } from '../../utils/socketIO.js';
+import { duplicateCardAttachmentsForNewCard } from '../attachmentService.js';
+import {
+  cardCoverReferencesAttachment,
+  extractAttachmentIdFromMediaSrc,
+} from '../../../shared/cardDescriptionAttachmentRefs.js';
 import { CARD_TITLE_MAX_LENGTH } from '../../../shared/constants/entityTextLimits.js';
-import { CARD_POS_STEP, spreadPosForIndex } from '../../../shared/utils/cardListPos.js';
-import { ensureCardsHavePosForList } from './positioning.js';
+import {
+  CARD_POS_STEP,
+  insertPosBetween,
+  posGapTooSmall,
+  posNeedsNormalize,
+} from '../../../shared/utils/cardListPos.js';
+import {
+  ensureCardsHavePosForList,
+  normalizeListPosSpread,
+  sortCardRowsByPos,
+  syncListPositionsFromPosOrder,
+  type CardPosLeanRow,
+} from './positioning.js';
 import { getBoardListCardLimits } from './types.js';
+
+function cloneCardComments(comments: readonly ICardComment[] | undefined): ICardComment[] {
+  if (comments == null || comments.length === 0) {
+    return [];
+  }
+  return comments.map((c) => ({
+    id: crypto.randomUUID(),
+    userId: c.userId,
+    text: c.text,
+    createdAt: new Date(c.createdAt),
+    updatedAt: new Date(c.updatedAt),
+  }));
+}
+
+function cloneChecklistsForDuplicate(checklists: readonly IChecklist[] | undefined): IChecklist[] {
+  if (checklists == null || checklists.length === 0) {
+    return [];
+  }
+  return checklists.map((checklist) => ({
+    id: crypto.randomUUID(),
+    title: checklist.title,
+    items: checklist.items.map((item) => ({
+      id: crypto.randomUUID(),
+      text: item.text,
+      completed: false,
+      ...(item.sortOrder != null ? { sortOrder: item.sortOrder } : {}),
+    })),
+  }));
+}
+
+function cloneRemindersForDuplicate(reminders: readonly ICardReminder[] | undefined): ICardReminder[] {
+  if (reminders == null || reminders.length === 0) {
+    return [];
+  }
+  return reminders.map((r) => ({
+    id: crypto.randomUUID(),
+    triggerAt: new Date(r.triggerAt),
+    ...(r.repeatFrequency != null && String(r.repeatFrequency).trim() !== ''
+      ? { repeatFrequency: r.repeatFrequency }
+      : {}),
+    sent: false,
+    dismissed: false,
+  }));
+}
+
+/** When cover referenced a copied attachment, point it at the new row (URL or `/attachments/:id/file`). */
+function remapCoverForDuplicate(
+  sourceCover: string | undefined | null,
+  sourceAttachments: readonly ICardAttachment[],
+  newAttachments: readonly ICardAttachment[],
+): string | undefined {
+  if (sourceCover == null || typeof sourceCover !== 'string' || sourceCover.trim() === '') {
+    return undefined;
+  }
+  const raw = sourceCover.trim();
+  const extracted = extractAttachmentIdFromMediaSrc(raw);
+  if (extracted != null) {
+    const idx = sourceAttachments.findIndex((a) => a.id === extracted);
+    if (idx >= 0 && newAttachments[idx] != null && sourceAttachments[idx]?.id === extracted) {
+      const newId = newAttachments[idx]!.id;
+      let next = raw.split(encodeURIComponent(extracted)).join(encodeURIComponent(newId));
+      if (next === raw) {
+        next = raw.split(extracted).join(newId);
+      }
+      return next;
+    }
+  }
+  for (let i = 0; i < sourceAttachments.length; i += 1) {
+    const oldA = sourceAttachments[i];
+    const newA = newAttachments[i];
+    if (oldA != null && newA != null && cardCoverReferencesAttachment(raw, oldA.id, oldA.url)) {
+      return newA.url;
+    }
+  }
+  return raw;
+}
+
+async function computeInsertPosAtTopOfList(listId: string): Promise<number> {
+  await ensureCardsHavePosForList(listId);
+  const rowNumericPos = (r: CardPosLeanRow): number =>
+    typeof r.pos === 'number' && Number.isFinite(r.pos) ? r.pos : (r.position + 1) * CARD_POS_STEP;
+
+  const loadNeighbors = async (): Promise<CardPosLeanRow[]> =>
+    sortCardRowsByPos(
+      await Card.find({ listId }).select('pos position').lean<CardPosLeanRow[]>(),
+    );
+
+  let neighbors = await loadNeighbors();
+  let neighborPos = neighbors.map(rowNumericPos);
+  if (neighborPos.length >= 2 && posNeedsNormalize(neighborPos)) {
+    await normalizeListPosSpread(listId);
+    neighbors = await loadNeighbors();
+    neighborPos = neighbors.map(rowNumericPos);
+  }
+
+  const before: number | null = null;
+  const after = neighborPos.length > 0 ? neighborPos[0]! : null;
+  let newPos = insertPosBetween(before, after);
+  if (posGapTooSmall(before, after)) {
+    await normalizeListPosSpread(listId);
+    neighbors = await loadNeighbors();
+    neighborPos = neighbors.map(rowNumericPos);
+    newPos = insertPosBetween(null, neighborPos.length > 0 ? neighborPos[0]! : null);
+  }
+  return newPos;
+}
 
 export async function duplicateCard(
   cardId: string,
@@ -48,20 +177,11 @@ export async function duplicateCard(
     }
   }
 
-  await ensureCardsHavePosForList(targetListId);
-  const count = await Card.countDocuments({ listId: targetListId });
-  const position = count;
-  const maxPosDoc = await Card.findOne({ listId: targetListId }).sort({ pos: -1 }).limit(1).lean<{
-    pos?: number;
-    position: number;
-  } | null>();
-  const maxPos =
-    maxPosDoc != null && typeof maxPosDoc.pos === 'number' && Number.isFinite(maxPosDoc.pos)
-      ? maxPosDoc.pos
-      : null;
-  const nextPos = maxPos != null ? maxPos + CARD_POS_STEP : spreadPosForIndex(Math.max(0, position));
+  const nextPos = await computeInsertPosAtTopOfList(targetListId);
 
-  // Create duplicate
+  const sourceAttachments: readonly ICardAttachment[] = sourceCard.attachments ?? [];
+
+  // Create duplicate (top of target list; attachments copied in MinIO after `_id` exists)
   const duplicate = new Card({
     listId: targetListId,
     boardId: sourceCard.boardId,
@@ -70,10 +190,9 @@ export async function duplicateCard(
     descriptionHtml: sourceCard.descriptionHtml,
     descriptionPreview: sourceCard.descriptionPreview,
     descriptionCharCount: sourceCard.descriptionCharCount,
-    position,
+    position: 0,
     pos: nextPos,
     color: sourceCard.color,
-    cover: sourceCard.cover,
     labels: sourceCard.labels,
     dueDate: sourceCard.dueDate,
     startDate: sourceCard.startDate,
@@ -81,28 +200,76 @@ export async function duplicateCard(
     completed: false,
     createdBy: userId,
     assignees: sourceCard.assignees,
-    reminders: [], // Don't duplicate reminders
-    attachments: [], // Don't duplicate attachments
-    comments: [], // Don't duplicate comments
-    checklists: sourceCard.checklists.map((checklist) => ({
-      ...checklist,
-      items: checklist.items.map((item) => ({
-        ...item,
-        completed: false, // Reset completion status
-      })),
-    })),
+    reminders: [],
+    attachments: [],
+    comments: cloneCardComments(sourceCard.comments),
+    checklists: cloneChecklistsForDuplicate(sourceCard.checklists),
   });
 
-  await duplicate.save();
+  const newCardId = duplicate._id.toString();
+  duplicate.attachments = await duplicateCardAttachmentsForNewCard({
+    sourceAttachments,
+    newCardId,
+  });
+  duplicate.reminders = cloneRemindersForDuplicate(sourceCard.reminders);
+  const remappedCover = remapCoverForDuplicate(sourceCard.cover, sourceAttachments, duplicate.attachments);
+  const nextCover = remappedCover !== undefined ? remappedCover : sourceCard.cover;
+  if (typeof nextCover === 'string') {
+    duplicate.cover = nextCover;
+  }
 
-  // Emit Socket.io event for card duplication
-  emitToBoard(sourceCard.boardId.toString(), 'card:duplicated', {
+  await duplicate.save();
+  await syncListPositionsFromPosOrder(targetListId);
+
+  const rowNumericPos = (r: CardPosLeanRow): number =>
+    typeof r.pos === 'number' && Number.isFinite(r.pos) ? r.pos : (r.position + 1) * CARD_POS_STEP;
+
+  const maybeRenormalize = async (lid: string): Promise<void> => {
+    const rows = sortCardRowsByPos(
+      await Card.find({ listId: lid }).select('pos position').lean<CardPosLeanRow[]>(),
+    );
+    const pl = rows.map(rowNumericPos);
+    if (pl.length >= 2 && posNeedsNormalize(pl)) {
+      await normalizeListPosSpread(lid);
+    }
+  };
+  await maybeRenormalize(targetListId);
+
+  const refreshed = await Card.findById(duplicate._id);
+  if (refreshed == null) {
+    return null;
+  }
+
+  const boardId = sourceCard.boardId.toString();
+  const serverTs = Date.now();
+
+  emitToBoard(boardId, 'card:duplicated', {
     originalCardId: cardId,
-    duplicatedCardId: duplicate._id.toString(),
+    duplicatedCardId: refreshed._id.toString(),
     targetListId,
-    boardId: sourceCard.boardId.toString(),
-    data: duplicate.toObject(),
-    serverTs: Date.now(),
+    boardId,
+    data: refreshed.toObject(),
+    serverTs,
+  });
+
+  const buildListPayload = async (lid: string) => {
+    const rows = sortCardRowsByPos(
+      await Card.find({ listId: lid }).select('pos position').lean<CardPosLeanRow[]>(),
+    );
+    return {
+      listId: lid,
+      orderedCardIds: rows.map((r) => r._id.toString()),
+      orderedPos: rows.map((r) => rowNumericPos(r)),
+    };
+  };
+  emitToBoard(boardId, 'cards:positions-batch-updated', {
+    boardId,
+    fromListId: sourceCard.listId.toString(),
+    toListId: targetListId,
+    movedCardId: refreshed._id.toString(),
+    position: 0,
+    lists: [await buildListPayload(targetListId)],
+    serverTs,
   });
 
   logAuditEvent({
@@ -110,17 +277,17 @@ export async function duplicateCard(
     action: 'card.duplicate',
     resourceType: 'card',
     resourceId: cardId,
-    metadata: { duplicatedCardId: duplicate._id.toString(), targetListId },
+    metadata: { duplicatedCardId: refreshed._id.toString(), targetListId },
     timestamp: new Date(),
   });
 
   createActivity({
-    boardId: sourceCard.boardId.toString(),
-    cardId: duplicate._id.toString(),
+    boardId,
+    cardId: refreshed._id.toString(),
     userId,
     type: 'card.created',
     description: `Card duplicated from "${sourceCard.title}"`,
   });
 
-  return duplicate;
+  return refreshed;
 }

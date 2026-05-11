@@ -70,7 +70,13 @@ async function syncBoardListPositionsFromPosOrder(boardId: string | mongoose.Typ
   const rows = sortListRowsByPos(
     await List.find({ boardId: bid }).select('pos position').lean<ListPosLeanRow[]>(),
   );
-  await Promise.all(rows.map((row, i) => List.findByIdAndUpdate(row._id, { position: i })));
+  const updates = rows
+    .map((row, i) => ({ row, i }))
+    .filter(({ row, i }) => row.position !== i);
+  if (updates.length === 0) {
+    return;
+  }
+  await Promise.all(updates.map(({ row, i }) => List.findByIdAndUpdate(row._id, { position: i })));
 }
 
 async function normalizeBoardListPosSpread(boardId: string | mongoose.Types.ObjectId): Promise<{
@@ -83,7 +89,16 @@ async function normalizeBoardListPosSpread(boardId: string | mongoose.Types.Obje
   );
   const orderedListIds = rows.map((r) => r._id.toString());
   const orderedPos = rows.map((_, i) => spreadListPosForIndex(i));
-  await Promise.all(rows.map((r, i) => List.findByIdAndUpdate(r._id, { pos: orderedPos[i], position: i })));
+  const rowNumericPos = (r: ListPosLeanRow): number =>
+    typeof r.pos === 'number' && Number.isFinite(r.pos) ? r.pos : spreadListPosForIndex(r.position);
+  const updates = rows
+    .map((r, i) => ({ r, i, nextPos: orderedPos[i]! }))
+    .filter(({ r, i: idx, nextPos }) => r.position !== idx || rowNumericPos(r) !== nextPos);
+  if (updates.length > 0) {
+    await Promise.all(
+      updates.map(({ r, i, nextPos }) => List.findByIdAndUpdate(r._id, { pos: nextPos, position: i })),
+    );
+  }
   return { orderedListIds, orderedPos };
 }
 
@@ -407,7 +422,6 @@ export async function moveList(
 
   const boardId = list.boardId.toString();
   const desiredTargetPosition = Math.max(0, Math.floor(targetPosition));
-  let normalized = false;
 
   await ensureListsHavePosForBoard(boardId);
   const rowNumericPos = (r: ListPosLeanRow): number =>
@@ -422,7 +436,6 @@ export async function moveList(
   let neighborPos = neighbors.map(rowNumericPos);
   if (listPosNeedsNormalize(neighborPos)) {
     await normalizeBoardListPosSpread(boardId);
-    normalized = true;
     neighbors = await loadNeighbors();
     neighborPos = neighbors.map(rowNumericPos);
   }
@@ -433,7 +446,6 @@ export async function moveList(
   let newPos = insertListPosBetween(before, after);
   if (listPosGapTooSmall(before, after)) {
     await normalizeBoardListPosSpread(boardId);
-    normalized = true;
     neighbors = await loadNeighbors();
     neighborPos = neighbors.map(rowNumericPos);
     insertIndex = Math.min(desiredTargetPosition, neighbors.length);
@@ -454,7 +466,6 @@ export async function moveList(
     const pl = rows.map(rowNumericPos);
     if (pl.length >= 2 && listPosNeedsNormalize(pl)) {
       await normalizeBoardListPosSpread(boardId);
-      normalized = true;
     }
   };
   await maybeRenormalize();
@@ -464,38 +475,17 @@ export async function moveList(
     list = refreshed;
   }
 
-  const serverTs = Date.now();
-  emitToBoard(boardId, 'list:updated', {
-    listId,
+  const finalRows = sortListRowsByPos(
+    await List.find({ boardId }).select('_id pos position').lean<ListPosLeanRow[]>(),
+  );
+  emitToBoard(boardId, 'lists:positions-batch-updated', {
     boardId,
-    data: list.toObject(),
-    serverTs,
+    movedListId: listId,
+    position: desiredTargetPosition,
+    orderedListIds: finalRows.map((row) => row._id.toString()),
+    orderedPos: finalRows.map((row) => rowNumericPos(row)),
+    serverTs: Date.now(),
   });
-  emitToBoard(boardId, 'list:patched', {
-    listId,
-    boardId,
-    changedFields: {
-      position: list.position,
-      pos: typeof list.pos === 'number' ? list.pos : undefined,
-      updatedAt: list.updatedAt,
-    },
-    removedFields: [],
-    serverTs,
-    version: 2,
-  });
-  if (normalized) {
-    const rows = sortListRowsByPos(
-      await List.find({ boardId }).select('_id pos position').lean<ListPosLeanRow[]>(),
-    );
-    emitToBoard(boardId, 'lists:positions-batch-updated', {
-      boardId,
-      movedListId: listId,
-      position: desiredTargetPosition,
-      orderedListIds: rows.map((row) => row._id.toString()),
-      orderedPos: rows.map((row) => rowNumericPos(row)),
-      serverTs,
-    });
-  }
 
   logAuditEvent({
     userId,

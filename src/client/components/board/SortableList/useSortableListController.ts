@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from 'react';
 import type { CardDB } from '../../../store/database.js';
+import { useBoardRuntimeStore } from '../../../store/boardRuntimeStore.js';
 import { useBoardInteractionStore } from '../boardInteractionStore.js';
 import {
   getBoardListColumnWidthChrome,
@@ -131,12 +132,9 @@ export function useSortableListController(props: SortableListProps): SortableLis
   const renameTargetCard =
     renameModalCardId != null ? (sortedCards.find((card) => card.id === renameModalCardId) ?? null) : null;
 
+  /** Do not require `sortedCards.some(…)` — brief store vs. list-array skew can hide the id and block the menu. */
   const openCardMenuCardId =
-    cardMenuTarget != null &&
-    cardMenuTarget.listId === list.id &&
-    sortedCards.some((card) => card.id === cardMenuTarget.cardId)
-      ? cardMenuTarget.cardId
-      : null;
+    cardMenuTarget != null && cardMenuTarget.listId === list.id ? cardMenuTarget.cardId : null;
 
   useLayoutEffect(() => {
     const floater = cardMenuFloatingTargetRef.current;
@@ -273,8 +271,17 @@ export function useSortableListController(props: SortableListProps): SortableLis
     listSourceDrag ? ' board-column--list-dragging-source' : ''
   }${props.listReorderTarget ? ' board-column--list-reorder-target' : ''}`;
 
-  const cardMenuTargetCard =
-    openCardMenuCardId != null ? sortedCards.find((card) => card.id === openCardMenuCardId) ?? null : null;
+  const cardMenuTargetCard = useMemo((): CardDB | null => {
+    if (openCardMenuCardId == null) {
+      return null;
+    }
+    const fromSorted = sortedCards.find((card) => card.id === openCardMenuCardId);
+    if (fromSorted != null) {
+      return fromSorted;
+    }
+    const fromStore = useBoardRuntimeStore.getState().cardsById[openCardMenuCardId];
+    return fromStore != null && fromStore.listId === list.id ? fromStore : null;
+  }, [openCardMenuCardId, sortedCards, list.id]);
 
   const showListCardCount = board.settings.showListCardCount !== false;
   const showHeaderActions = showListCardCount || kanbanCaps.canListMenu;

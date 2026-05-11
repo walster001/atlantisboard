@@ -7,10 +7,15 @@ interface InteractionRouteContext {
 }
 
 function findCardMenuTrigger(target: EventTarget | null): HTMLElement | null {
-  if (!(target instanceof HTMLElement)) {
+  if (!(target instanceof Node)) {
     return null;
   }
-  return target.closest<HTMLElement>('[data-kanban-card-menu-trigger="1"]');
+  /** Icon dots are SVG; `click` target is often a path, not an `HTMLElement`. */
+  const start = target instanceof Element ? target : target.parentElement;
+  if (start == null) {
+    return null;
+  }
+  return start.closest<HTMLElement>('[data-kanban-card-menu-trigger="1"]');
 }
 
 export function routeBoardClick(event: MouseEvent, context: InteractionRouteContext): void {
@@ -32,7 +37,9 @@ export function routeBoardClick(event: MouseEvent, context: InteractionRouteCont
   if (listId === '') {
     return;
   }
-  context.suppressCardOpenClickRef?.current && (context.suppressCardOpenClickRef.current = true);
+  if (context.suppressCardOpenClickRef != null) {
+    context.suppressCardOpenClickRef.current = true;
+  }
   const rect = trigger.getBoundingClientRect();
   useBoardInteractionStore.getState().openCardMenu({ cardId, listId, anchorRect: rect });
   event.stopPropagation();

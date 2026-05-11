@@ -8,7 +8,7 @@ import {
   readKanbanCardDragData,
   readKanbanListDragData,
 } from '../../dnd/pragmatic/kanbanData.js';
-import { compareBoardListOrder, spreadListPosForIndex } from '../../../shared/utils/listPos.js';
+import { moveListToHoverSlot } from '../../store/kanbanDragPure.js';
 import {
   fallbackDropForDraggedCard,
   moveCardBetweenListsInMap,
@@ -239,23 +239,14 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
             return;
           }
           void (async () => {
-            const lists = [...ctx.lists].sort((a, b) => compareBoardListOrder(a, b));
-            const from = lists.findIndex((l) => l.id === listDrag.listId);
-            const to = lists.findIndex((l) => l.id === overListId);
-            if (from < 0 || to < 0 || from === to) {
+            const renumbered = moveListToHoverSlot(ctx.lists, listDrag.listId, overListId);
+            if (renumbered == null) {
               return;
             }
-            const next = [...lists];
-            const [moved] = next.splice(from, 1);
-            if (moved == null) {
+            const to = renumbered.findIndex((l) => l.id === listDrag.listId);
+            if (to < 0) {
               return;
             }
-            next.splice(to, 0, moved);
-            const renumbered = next.map((row, i) => ({
-              ...row,
-              position: i,
-              pos: spreadListPosForIndex(i),
-            }));
             startTransition(() => {
               ctx.setLists(renumbered);
             });

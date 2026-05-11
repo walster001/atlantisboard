@@ -1,6 +1,7 @@
 import type { Socket } from 'socket.io-client';
-import { db } from '../../store/database.js';
+import { db, type CardDB } from '../../store/database.js';
 import {
+  isCardDetailPayload,
   mergeDexieCardIfSnapshot,
   normalizeCardFromApi,
 } from '../../utils/transform.js';
@@ -18,12 +19,33 @@ import { spreadPosForIndex } from '../../../shared/utils/cardListPos.js';
 import { env } from '../../config/env.js';
 import {
   deferSocketWork,
+  enqueueCardSocketApply,
   markCardEventTs,
   queueCardPatchedEvent,
   runtimeActiveBoardId,
   shouldApplyCardEvent,
   shouldApplyListOrderEvent,
 } from './state.js';
+
+function cardUpdatedAtMs(card: Pick<CardDB, 'updatedAt'>): number {
+  const u = card.updatedAt;
+  if (u instanceof Date && !Number.isNaN(u.getTime())) {
+    return u.getTime();
+  }
+  return 0;
+}
+
+/** Drop out-of-order full-card payloads (same-ms `serverTs` races) before overwriting Dexie. */
+function shouldSkipStaleDetailSocketCard(
+  raw: unknown,
+  existing: CardDB | undefined,
+  incoming: CardDB,
+): boolean {
+  if (existing == null || !isCardDetailPayload(raw)) {
+    return false;
+  }
+  return cardUpdatedAtMs(incoming) < cardUpdatedAtMs(existing);
+}
 
 export const CARD_SOCKET_EVENTS = [
   'card:created',
@@ -42,28 +64,28 @@ export function registerCardHandlers(socket: Socket): void {
       if (!shouldApplyCardEvent(data.cardId, data.serverTs)) {
         return;
       }
-      try {
-        const card = normalizeCardFromApi(data.data, data.cardId);
-        void db.cards.get(data.cardId).then((existingDexie) => {
+      enqueueCardSocketApply(data.cardId, async () => {
+        try {
+          const incoming = normalizeCardFromApi(data.data, data.cardId);
+          const existingDexie = await db.cards.get(data.cardId);
           const existingRuntime =
             runtimeActiveBoardId() === data.boardId
               ? useBoardRuntimeStore.getState().cardsById[data.cardId]
               : undefined;
           const existing = existingRuntime ?? existingDexie ?? undefined;
-          const merged = mergeDexieCardIfSnapshot(data.data, existing, card);
+          const merged = mergeDexieCardIfSnapshot(data.data, existing, incoming);
           if (isRedundantCardSocketPayload(data.cardId, merged)) {
             return;
           }
           if (runtimeActiveBoardId() === data.boardId) {
             useBoardRuntimeStore.getState().upsertCard(merged);
           }
-          return db.cards.put(merged).then(() => {
-            emitSocketCardUpdated({ boardId: data.boardId, card: merged });
-          });
-        });
-      } catch {
-        /* invalid payload */
-      }
+          await db.cards.put(merged);
+          emitSocketCardUpdated({ boardId: data.boardId, card: merged });
+        } catch {
+          /* invalid payload */
+        }
+      });
     });
   });
 
@@ -72,33 +94,31 @@ export function registerCardHandlers(socket: Socket): void {
       if (!shouldApplyCardEvent(data.cardId, data.serverTs)) {
         return;
       }
-      try {
-        const card = normalizeCardFromApi(data.data, data.cardId);
-        void db.cards
-          .get(data.cardId)
-          .then((existingDexie) => {
-            const existingRuntime =
-              runtimeActiveBoardId() === data.boardId
-                ? useBoardRuntimeStore.getState().cardsById[data.cardId]
-                : undefined;
-            const existing = existingRuntime ?? existingDexie ?? undefined;
-            const merged = mergeDexieCardIfSnapshot(data.data, existing, card);
-            if (isRedundantCardSocketPayload(data.cardId, merged)) {
-              return;
-            }
-            if (runtimeActiveBoardId() === data.boardId) {
-              useBoardRuntimeStore.getState().upsertCard(merged);
-            }
-            return db.cards.put(merged).then(() => {
-              emitSocketCardUpdated({ boardId: data.boardId, card: merged });
-            });
-          })
-          .catch(() => {
-            /* Dexie put failed */
-          });
-      } catch {
-        /* invalid payload */
-      }
+      enqueueCardSocketApply(data.cardId, async () => {
+        try {
+          const incoming = normalizeCardFromApi(data.data, data.cardId);
+          const existingDexie = await db.cards.get(data.cardId);
+          const existingRuntime =
+            runtimeActiveBoardId() === data.boardId
+              ? useBoardRuntimeStore.getState().cardsById[data.cardId]
+              : undefined;
+          const existing = existingRuntime ?? existingDexie ?? undefined;
+          if (shouldSkipStaleDetailSocketCard(data.data, existing, incoming)) {
+            return;
+          }
+          const merged = mergeDexieCardIfSnapshot(data.data, existing, incoming);
+          if (isRedundantCardSocketPayload(data.cardId, merged)) {
+            return;
+          }
+          if (runtimeActiveBoardId() === data.boardId) {
+            useBoardRuntimeStore.getState().upsertCard(merged);
+          }
+          await db.cards.put(merged);
+          emitSocketCardUpdated({ boardId: data.boardId, card: merged });
+        } catch {
+          /* invalid payload */
+        }
+      });
     });
   });
 
@@ -125,9 +145,9 @@ export function registerCardHandlers(socket: Socket): void {
           });
           return;
         }
-        void db.cards
-          .get(data.cardId)
-          .then((existingDexie) => {
+        enqueueCardSocketApply(data.cardId, async () => {
+          try {
+            const existingDexie = await db.cards.get(data.cardId);
             const existingRuntime =
               runtimeActiveBoardId() === data.boardId
                 ? useBoardRuntimeStore.getState().cardsById[data.cardId]
@@ -150,13 +170,12 @@ export function registerCardHandlers(socket: Socket): void {
             if (runtimeActiveBoardId() === data.boardId) {
               useBoardRuntimeStore.getState().upsertCard(normalized);
             }
-            return db.cards.put(normalized).then(() => {
-              emitSocketCardUpdated({ boardId: data.boardId, card: normalized });
-            });
-          })
-          .catch(() => {
+            await db.cards.put(normalized);
+            emitSocketCardUpdated({ boardId: data.boardId, card: normalized });
+          } catch {
             /* Dexie get/put failed */
-          });
+          }
+        });
       });
     },
   );

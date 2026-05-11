@@ -74,7 +74,7 @@ export async function runBeforeDeleteAttachment({
     );
   })();
   const isCover = cardCoverReferencesAttachment(currentCard.cover, attachmentId, attachment.url);
-  if ((!referencedInSavedDescription && !referencedInLiveEditor) || !isCover) {
+  if (!referencedInSavedDescription && !referencedInLiveEditor && !isCover) {
     return;
   }
 
@@ -95,7 +95,7 @@ export async function runBeforeDeleteAttachment({
 
   const response = await api.updateCard(currentCard.id, {
     description: descriptionPayload,
-    cover: '',
+    ...(isCover ? { cover: '' } : {}),
   });
   try {
     const normalized = normalizeCardFromApi((response as { card: unknown }).card, currentCard.id);

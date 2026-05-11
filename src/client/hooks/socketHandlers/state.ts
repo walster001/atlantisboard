@@ -21,6 +21,30 @@ export function deferSocketWork(fn: () => void): void {
   queueMicrotask(fn);
 }
 
+const cardSocketApplyChains = new Map<string, Promise<unknown>>();
+
+/**
+ * Serialize async Dexie/runtime updates per card so overlapping `card:updated` handlers
+ * do not all read the same stale row before prior `put`s complete (lost checklist toggles, etc.).
+ */
+export function enqueueCardSocketApply<T = void>(cardId: string, task: () => Promise<T>): Promise<T> {
+  const id = String(cardId).trim();
+  if (id === '') {
+    return task().catch(() => undefined as T);
+  }
+  const prev = cardSocketApplyChains.get(id) ?? Promise.resolve();
+  const next: Promise<T> = prev.catch(() => undefined).then(() =>
+    task().catch(() => undefined as T),
+  ) as Promise<T>;
+  cardSocketApplyChains.set(id, next);
+  void next.finally(() => {
+    if (cardSocketApplyChains.get(id) === next) {
+      cardSocketApplyChains.delete(id);
+    }
+  });
+  return next;
+}
+
 export function applyFlatFieldPatch<T extends object>(
   current: T,
   changedFields: Readonly<Record<string, unknown>>,
@@ -275,38 +299,41 @@ async function flushPendingCardPatchedEvents(): Promise<void> {
     }
   }
   for (const [boardId, events] of byBoardId) {
-    const ids = events.map((event) => event.cardId);
-    let rows: Array<Awaited<ReturnType<typeof db.cards.get>> | undefined>;
+    const runtimeActive = runtimeActiveBoardId() === boardId;
+    let resolved: Array<ReturnType<typeof normalizeCardFromApi> | null | undefined>;
     try {
-      rows = await db.cards.bulkGet(ids);
+      resolved = await Promise.all(
+        events.map((event) =>
+          enqueueCardSocketApply(event.cardId, async () => {
+            const existingDexie = await db.cards.get(event.cardId);
+            const existingRuntime =
+              runtimeActive ? useBoardRuntimeStore.getState().cardsById[event.cardId] : undefined;
+            const existing = existingRuntime ?? existingDexie;
+            if (existing == null) {
+              return null;
+            }
+            const patched: Record<string, unknown> = { ...existing };
+            for (const [key, value] of Object.entries(event.changedFields)) {
+              patched[key] = value;
+            }
+            for (const key of event.removedFields) {
+              delete patched[key];
+            }
+            const normalized = normalizeCardFromApi(patched, event.cardId);
+            if (isRedundantCardSocketPayload(event.cardId, normalized)) {
+              return null;
+            }
+            return normalized;
+          }),
+        ),
+      );
     } catch {
       continue;
     }
-    const runtimeActive = runtimeActiveBoardId() === boardId;
-    const runtimeCards = runtimeActive ? useBoardRuntimeStore.getState().cardsById : undefined;
-    const nextCards: Array<ReturnType<typeof normalizeCardFromApi>> = [];
-    const appliedCardIds: string[] = [];
-    for (let i = 0; i < events.length; i += 1) {
-      const event = events[i]!;
-      const existingRuntime = runtimeCards != null ? runtimeCards[event.cardId] : undefined;
-      const existing = existingRuntime ?? rows[i];
-      if (existing == null) {
-        continue;
-      }
-      const patched: Record<string, unknown> = { ...existing };
-      for (const [key, value] of Object.entries(event.changedFields)) {
-        patched[key] = value;
-      }
-      for (const key of event.removedFields) {
-        delete patched[key];
-      }
-      const normalized = normalizeCardFromApi(patched, event.cardId);
-      if (isRedundantCardSocketPayload(event.cardId, normalized)) {
-        continue;
-      }
-      nextCards.push(normalized);
-      appliedCardIds.push(event.cardId);
-    }
+    const nextCards = resolved.filter(
+      (c): c is ReturnType<typeof normalizeCardFromApi> => c != null,
+    );
+    const appliedCardIds = nextCards.map((c) => c.id);
     if (nextCards.length === 0) {
       continue;
     }

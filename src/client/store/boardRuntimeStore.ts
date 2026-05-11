@@ -11,6 +11,46 @@ function sortListIdsByPosition(listsById: Readonly<Record<string, ListDB>>): str
     .map((l) => l.id);
 }
 
+/** Prefer server column order; append lists missing from the payload (e.g. race) sorted by position. */
+function mergeServerListOrderWithLocalLists(
+  orderedListIds: readonly string[],
+  listsById: Readonly<Record<string, ListDB>>,
+): string[] {
+  if (orderedListIds.length === 0) {
+    return sortListIdsByPosition(listsById);
+  }
+  const idSet = new Set(orderedListIds);
+  const orphanIds = Object.keys(listsById)
+    .filter((id) => !idSet.has(id))
+    .sort((a, b) => compareBoardListOrder(listsById[a]!, listsById[b]!));
+  return [...orderedListIds.filter((id) => listsById[id] != null), ...orphanIds];
+}
+
+/** When change-stream payloads lag behind `lists:*-batch`, keep runtime `position`/`pos` from `prev`. */
+function mergeListPreservingOrderWhenStale(
+  prev: ListDB | undefined,
+  incoming: ListDB,
+  staleCutoffMs: number | null,
+): ListDB {
+  if (
+    staleCutoffMs == null ||
+    prev == null ||
+    incoming.updatedAt.getTime() >= staleCutoffMs
+  ) {
+    return incoming;
+  }
+  const { pos: _incomingPos, position: _incomingPosition, ...incomingRest } = incoming;
+  const next: ListDB = {
+    ...incomingRest,
+    position: prev.position,
+    updatedAt: incoming.updatedAt,
+  };
+  if (typeof prev.pos === 'number' && Number.isFinite(prev.pos)) {
+    return { ...next, pos: prev.pos };
+  }
+  return next;
+}
+
 function rebuildCardIdsForList(
   listId: string,
   cardsById: Readonly<Record<string, CardDB>>,
@@ -83,6 +123,8 @@ export type BoardRuntimeSlice = {
   readonly cardsById: Readonly<Record<string, CardDB>>;
   readonly cardIdsByListId: Readonly<Record<string, readonly string[]>>;
   readonly cardsVersion: number;
+  /** Monotonic-ish marker from last bulk list reorder socket; used to ignore stale `position`/`pos` on `list:updated`. */
+  readonly lastListsPositionServerTs: number | null;
 };
 
 type BoardRuntimeActions = {
@@ -96,12 +138,15 @@ type BoardRuntimeActions = {
   }) => void;
   commitBoard: (board: BoardDB) => void;
   upsertList: (list: ListDB) => void;
+  /** One store commit for many list rows (e.g. coalesced socket `list:updated` burst after reorder). */
+  upsertListsBatch: (lists: readonly ListDB[]) => void;
   removeList: (listId: string) => void;
   setListsFromArray: (lists: readonly ListDB[]) => void;
   applyListsPositionsFromOrder: (orderedListIds: readonly string[]) => void;
   applyListsBulkPositionPatch: (
     orderedListIds: readonly string[],
     orderedPos?: readonly number[],
+    serverTs?: number,
   ) => void;
   upsertCard: (card: CardDB) => void;
   upsertCards: (cards: readonly CardDB[]) => void;
@@ -142,6 +187,7 @@ const empty: BoardRuntimeSlice = {
   cardsById: {},
   cardIdsByListId: {},
   cardsVersion: 0,
+  lastListsPositionServerTs: null,
 };
 
 export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
@@ -160,6 +206,7 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
       cardsById: {},
       cardIdsByListId: {},
       cardsVersion: s.cardsVersion + 1,
+      lastListsPositionServerTs: null,
     }));
   },
 
@@ -185,6 +232,7 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
       cardsById,
       cardIdsByListId,
       cardsVersion: get().cardsVersion + 1,
+      lastListsPositionServerTs: null,
     });
   },
 
@@ -208,7 +256,33 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
       return;
     }
     set((s) => {
-      const listsById = { ...s.listsById, [list.id]: list };
+      const prev = s.listsById[list.id];
+      const merged = mergeListPreservingOrderWhenStale(prev, list, s.lastListsPositionServerTs);
+      const listsById = { ...s.listsById, [list.id]: merged };
+      const orderedListIds = sortListIdsByPosition(listsById);
+      return { listsById, orderedListIds, cardsVersion: s.cardsVersion + 1 };
+    });
+  },
+
+  upsertListsBatch: (lists) => {
+    if (lists.length === 0) {
+      return;
+    }
+    const activeId = get().activeBoardId;
+    if (activeId == null) {
+      return;
+    }
+    set((s) => {
+      const staleCutoff = s.lastListsPositionServerTs;
+      let listsById = { ...s.listsById };
+      for (const list of lists) {
+        if (list.boardId !== activeId) {
+          continue;
+        }
+        const prev = listsById[list.id];
+        const merged = mergeListPreservingOrderWhenStale(prev, list, staleCutoff);
+        listsById = { ...listsById, [list.id]: merged };
+      }
       const orderedListIds = sortListIdsByPosition(listsById);
       return { listsById, orderedListIds, cardsVersion: s.cardsVersion + 1 };
     });
@@ -252,7 +326,12 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
       listsById[l.id] = l;
     }
     const orderedListIds = sortListIdsByPosition(listsById);
-    set((s) => ({ listsById, orderedListIds, cardsVersion: s.cardsVersion + 1 }));
+    set((s) => ({
+      listsById,
+      orderedListIds,
+      cardsVersion: s.cardsVersion + 1,
+      lastListsPositionServerTs: null,
+    }));
   },
 
   applyListsPositionsFromOrder: (orderedListIds) => {
@@ -276,12 +355,14 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
           };
         }
       }
-      const nextOrder = sortListIdsByPosition(listsById);
+      const nextOrder = mergeServerListOrderWithLocalLists(orderedListIds, listsById);
       return { listsById, orderedListIds: nextOrder, cardsVersion: s.cardsVersion + 1 };
     });
   },
 
-  applyListsBulkPositionPatch: (orderedListIds, orderedPos) => {
+  applyListsBulkPositionPatch: (orderedListIds, orderedPos, serverTs) => {
+    const marker =
+      typeof serverTs === 'number' && Number.isFinite(serverTs) ? serverTs : Date.now();
     set((s) => {
       if (s.activeBoardId == null) {
         return s;
@@ -302,8 +383,17 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
           listsById[id] = { ...row, position: i, pos };
         }
       }
-      const nextOrder = sortListIdsByPosition(listsById);
-      return { listsById, orderedListIds: nextOrder, cardsVersion: s.cardsVersion + 1 };
+      const nextOrder = mergeServerListOrderWithLocalLists(orderedListIds, listsById);
+      const lastListsPositionServerTs =
+        s.lastListsPositionServerTs == null
+          ? marker
+          : Math.max(s.lastListsPositionServerTs, marker);
+      return {
+        listsById,
+        orderedListIds: nextOrder,
+        cardsVersion: s.cardsVersion + 1,
+        lastListsPositionServerTs,
+      };
     });
   },
 

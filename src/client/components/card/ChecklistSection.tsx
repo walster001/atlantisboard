@@ -93,12 +93,43 @@ export function ChecklistSection({ card, canEdit = true, onCardUpdate }: Checkli
   } | null>(null);
   const [itemRenameSaving, setItemRenameSaving] = useState(false);
 
+  /** "Add an item" field per checklist — focus after checklist creation or after adding an item. */
+  const addItemInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const [pendingFocusAddItemChecklistId, setPendingFocusAddItemChecklistId] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const id = pendingFocusAddItemChecklistId;
+    if (id == null) {
+      return;
+    }
+    if (!card.checklists.some((c) => c.id === id)) {
+      return;
+    }
+    setPendingFocusAddItemChecklistId(null);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        addItemInputRefs.current.get(id)?.focus();
+      });
+    });
+  }, [card.checklists, pendingFocusAddItemChecklistId]);
+
+  const focusAddItemInput = (checklistId: string): void => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        addItemInputRefs.current.get(checklistId)?.focus();
+      });
+    });
+  };
+
   const handleCreateChecklist = async () => {
     if (!canEdit) {
       return;
     }
     if (!newChecklistTitle.trim()) return;
 
+    const prevChecklistIds = new Set(card.checklists.map((c) => c.id));
     setIsCreatingChecklist(true);
     try {
       const response = await api.createChecklist({
@@ -109,6 +140,10 @@ export function ChecklistSection({ card, canEdit = true, onCardUpdate }: Checkli
       onCardUpdate(updatedCard);
       setNewChecklistTitle('');
       setShowNewChecklist(false);
+      const created = updatedCard.checklists.find((c) => !prevChecklistIds.has(c.id));
+      if (created != null) {
+        setPendingFocusAddItemChecklistId(created.id);
+      }
     } catch (error) {
       console.error('Error creating checklist:', error);
     } finally {
@@ -131,6 +166,7 @@ export function ChecklistSection({ card, canEdit = true, onCardUpdate }: Checkli
       });
       const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
       onCardUpdate(updatedCard);
+      focusAddItemInput(checklistId);
     } catch (error) {
       console.error('Error creating checklist item:', error);
     } finally {
@@ -598,13 +634,22 @@ export function ChecklistSection({ card, canEdit = true, onCardUpdate }: Checkli
             {canEdit ? (
             <Group gap="xs" mt="xs">
               <TextInput
+                ref={(node) => {
+                  if (node != null) {
+                    addItemInputRefs.current.set(checklist.id, node);
+                  } else {
+                    addItemInputRefs.current.delete(checklist.id);
+                  }
+                }}
                 size="sm"
                 placeholder="Add an item"
                 style={{ flex: 1 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    handleCreateItem(checklist.id, e.currentTarget.value);
+                    e.preventDefault();
+                    const value = e.currentTarget.value;
                     e.currentTarget.value = '';
+                    void handleCreateItem(checklist.id, value);
                   }
                 }}
                 disabled={creatingItemChecklistId === checklist.id}

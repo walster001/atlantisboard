@@ -45,6 +45,12 @@ export function useKanbanDropIndicators(): KanbanDropIndicatorsController {
 
   const queueCardDropIndicator = useCallback(
     (next: CardDropIndicatorTarget | null) => {
+      if (
+        cardDropIndicatorRafRef.current == null &&
+        cardDropIndicatorsEqual(cardDropIndicatorRef.current, next)
+      ) {
+        return;
+      }
       pendingCardDropIndicatorRef.current = next;
       if (cardDropIndicatorRafRef.current != null) {
         return;

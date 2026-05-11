@@ -185,7 +185,7 @@ function SortableListInner({
         ) : null}
       </Group>
 
-      <Box style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box style={{ flex: '0 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <VirtualizedCardList
           cards={cards}
           listId={list.id}

@@ -12396,17 +12396,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   min-height: 100%;
 }
 
-.board-page--kanban-dragging .board-column {
-  content-visibility: visible;
-}
-
-.board-page--canvas-dragging .board-page__body {
-  cursor: grabbing;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.board-column__cards, .board-column__cards--virtual {
+.board-page--kanban-dragging .board-column, .board-column__cards, .board-column__cards--virtual {
   content-visibility: visible;
 }
 

@@ -15,7 +15,46 @@ import {
   resolveCardDropTarget,
   resolveListDropListId,
 } from './kanbanPragmaticDndHelpers.js';
-import type { UseKanbanPragmaticDndArgs } from './useKanbanPragmaticDnd/types.js';
+import type { KanbanPragmaticCtx, UseKanbanPragmaticDndArgs } from './useKanbanPragmaticDnd/types.js';
+
+type ElementDragSourcePayload = {
+  readonly element: HTMLElement;
+  readonly dragHandle: Element | null;
+  readonly data: Record<string, unknown>;
+};
+
+function updateCardDropIndicatorForPointer(
+  source: ElementDragSourcePayload,
+  location: { readonly current: { readonly input: unknown; readonly dropTargets: readonly { readonly data: Record<string | symbol, unknown> }[] } },
+  ctx: KanbanPragmaticCtx,
+  cardDrag: { readonly cardId: string; readonly listId: string },
+  scheduleAutoScroll: (input: Record<string, unknown> | null) => void,
+): void {
+  scheduleAutoScroll(location.current.input as Record<string, unknown> | null);
+  const resolved = resolveCardDropTarget(
+    location.current.input as Record<string, unknown> | null,
+    location.current.dropTargets,
+    ctx.cards,
+    source.element,
+    cardDrag.cardId,
+  );
+  // Do not use `fallbackDropForDraggedCard` for hover UI: when the pointer is not over a valid
+  // drop surface it would paint a slot on the source list (looks like a "ghost" card gap).
+  // `onDrop` still applies fallback for the actual commit when needed.
+  if (resolved == null) {
+    ctx.queueCardDropIndicator(null);
+    return;
+  }
+  const metrics = { width: 248, height: 88 };
+  ctx.queueCardDropIndicator({
+    listId: resolved.listId,
+    sourceListId: cardDrag.listId,
+    anchorCardId: resolved.anchorCardId,
+    columnIntent: resolved.columnIntent,
+    boxWidth: metrics.width,
+    boxHeight: metrics.height,
+  });
+}
 
 export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
   const {
@@ -95,30 +134,20 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
           setDraggingListId(listDrag.listId);
         }
       },
+      /** Throttled pointer updates — `onDropTargetChange` alone misses moves within the same drop-target stack. */
+      onDrag({ source, location }) {
+        const ctx = kanbanDropCtxRef.current;
+        const cardDrag = readKanbanCardDragData(source.data as Record<string, unknown>);
+        if (cardDrag != null) {
+          updateCardDropIndicatorForPointer(source, location, ctx, cardDrag, scheduleAutoScroll);
+        }
+      },
       onDropTargetChange({ source, location }) {
         const data = source.data as Record<string, unknown>;
         const ctx = kanbanDropCtxRef.current;
         const cardDrag = readKanbanCardDragData(data);
         if (cardDrag != null) {
-          scheduleAutoScroll(location.current.input as Record<string, unknown> | null);
-          const resolved = resolveCardDropTarget(
-            location.current.input as Record<string, unknown> | null,
-            location.current.dropTargets,
-            ctx.cards,
-            source.element,
-            cardDrag.cardId,
-          );
-          const nextTarget =
-            resolved ?? fallbackDropForDraggedCard(ctx.cards, cardDrag.listId, cardDrag.cardId);
-          const metrics = { width: 248, height: 88 };
-          ctx.queueCardDropIndicator({
-            listId: nextTarget.listId,
-            sourceListId: cardDrag.listId,
-            anchorCardId: nextTarget.anchorCardId,
-            columnIntent: nextTarget.columnIntent,
-            boxWidth: metrics.width,
-            boxHeight: metrics.height,
-          });
+          updateCardDropIndicatorForPointer(source, location, ctx, cardDrag, scheduleAutoScroll);
           return;
         }
 

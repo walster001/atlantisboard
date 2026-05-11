@@ -221,17 +221,6 @@
   content-visibility: visible;
 }
 
-/*
- * Canvas drag-scroll (pointer): toggled by `useBoardCanvasDragScroll` while a drag is active.
- * Suppress text selection on the body subtree so dragging across columns/cards does not paint a
- * selection. The class is removed on pointerup/cancel so normal selection in composers works.
- */
-.board-page--canvas-dragging .board-page__body {
-  cursor: grabbing;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
 .board-column__cards,
 .board-column__cards--virtual {
   content-visibility: visible;

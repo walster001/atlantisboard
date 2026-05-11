@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -11,6 +12,8 @@ import { Carousel } from '@mantine/carousel';
 import '@mantine/carousel/styles.css';
 import type { EmblaCarouselType } from 'embla-carousel';
 import type { CardDB, BoardDB, ListDB } from '../../store/database.js';
+import { useShallow } from 'zustand/react/shallow';
+import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
 import { BoardInlineListComposer } from './BoardInlineListComposer.js';
 import type { KanbanBoardEditCaps } from '../../hooks/useBoardPermissions.js';
 import type { CardDropIndicatorTarget } from './VirtualizedCardList.js';
@@ -300,6 +303,46 @@ export function KanbanView({
     ] as const;
   }, [mountedLists, totalMobileLists, activeIndex]);
 
+  const cardIdsByListId = useBoardRuntimeStore(useShallow((s) => s.cardIdsByListId));
+
+  /**
+   * Only the list that currently *contains* the dragged card should receive a non-null
+   * `draggingCardId` prop — others keep `null` so memoized columns do not re-render on every
+   * drag start/move/drop (global state alone would change every column's props).
+   */
+  const draggingCardIdScopedByListId = useMemo((): ReadonlyMap<string, string | null> | null => {
+    if (draggingCardId == null) {
+      return null;
+    }
+    const m = new Map<string, string | null>();
+    const add = (listId: string | undefined): void => {
+      if (listId == null || listId === '' || m.has(listId)) {
+        return;
+      }
+      const ids = cardIdsByListId[listId] ?? [];
+      m.set(listId, ids.includes(draggingCardId) ? draggingCardId : null);
+    };
+    for (const list of mountedLists) {
+      add(list.id);
+    }
+    if (isMobile) {
+      for (const slot of virtualSlides) {
+        add(slot.list?.id);
+      }
+    }
+    return m;
+  }, [draggingCardId, mountedLists, cardIdsByListId, isMobile, virtualSlides]);
+
+  const draggingCardIdPropForListId = useCallback(
+    (listId: string | undefined): string | null => {
+      if (listId == null || listId === '' || draggingCardIdScopedByListId == null) {
+        return null;
+      }
+      return draggingCardIdScopedByListId.get(listId) ?? null;
+    },
+    [draggingCardIdScopedByListId],
+  );
+
   const mobileIndicators = useMemo(() => {
     if (!isMobile || totalMobileLists <= 1) {
       return null;
@@ -344,7 +387,7 @@ export function KanbanView({
                   list={s.list}
                   board={board}
                   assigneeDirectory={assigneeDirectory}
-                  draggingCardId={draggingCardId}
+                  draggingCardId={draggingCardIdPropForListId(s.list?.id)}
                   draggingListId={draggingListId}
                   cardListMaxBodyPx={cardListMaxBodyPx}
                   suppressCardOpenClickRef={suppressCardOpenClickRef}
@@ -384,7 +427,7 @@ export function KanbanView({
             list={list}
             board={board}
             assigneeDirectory={assigneeDirectory}
-            draggingCardId={draggingCardId}
+            draggingCardId={draggingCardIdPropForListId(list.id)}
             draggingListId={draggingListId}
             boardId={board.id}
             cardListMaxBodyPx={cardListMaxBodyPx}

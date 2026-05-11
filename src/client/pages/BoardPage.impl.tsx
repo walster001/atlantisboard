@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useRef } from 'react';
+import { Suspense, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { Loader, Box, Text, Title, Group, ActionIcon } from '@mantine/core';
 import { IconArrowLeft, IconLayoutKanbanFilled, IconLink, IconSettings } from '@tabler/icons-react';
@@ -15,7 +15,6 @@ import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
 import { useIsPwa } from '../hooks/usePwaDisplayMode.js';
 import { KanbanView, KANBAN_VIEW_SUSPENSE_FALLBACK } from './BoardPage/kanbanViewLoader.js';
 import { useBoardBodyMobileGestures } from './BoardPage/useBoardBodyMobileGestures.js';
-import { useBoardCanvasDragScroll } from './BoardPage/useBoardCanvasDragScroll.js';
 import { useBoardPageController } from './BoardPage/useBoardPageController.js';
 import '../components/board/boardView.css';
 
@@ -63,14 +62,7 @@ export default function BoardPage() {
     handleCardOverlayUpdated,
   } = useBoardPageController({ boardId, forcedScaleMode, overlayCardId, setSearchParams });
 
-  const boardBodyRef = useRef<HTMLDivElement | null>(null);
-
   useBoardBodyMobileGestures(isMobile, () => navigate('/'));
-  useBoardCanvasDragScroll({
-    disabled: isMobile,
-    boardId: board?.id ?? null,
-    bodyRef: boardBodyRef,
-  });
 
   const handleBack = useCallback(() => {
     navigate('/');
@@ -202,7 +194,7 @@ export default function BoardPage() {
         </Box>
       </Box>
 
-      <Box ref={boardBodyRef} className="board-page__body">
+      <Box className="board-page__body">
         <Suspense fallback={KANBAN_VIEW_SUSPENSE_FALLBACK}>
           <KanbanView
             board={board}

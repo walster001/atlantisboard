@@ -14,11 +14,11 @@ function parseGapPx(row: HTMLElement): number {
 
 /** Distance from `scrollLeft` 0 to the next column start (two `.board-column` roots). */
 export function measureBoardListStridePx(boardBody: HTMLElement): number | null {
-  const row = boardBody.querySelector('.board-page__columns');
-  if (!(row instanceof HTMLElement)) {
+  if (boardBody.querySelector('.board-page__columns') == null) {
     return null;
   }
-  const gapPx = parseGapPx(row);
+  /* Row gap is on `.board-page__body` when columns use `display: contents` (no box on the row node). */
+  const gapPx = parseGapPx(boardBody);
   const columns = boardBody.querySelectorAll('.board-column');
   if (columns.length >= 2) {
     const a = columns[0] as HTMLElement;

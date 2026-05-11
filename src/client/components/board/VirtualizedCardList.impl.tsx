@@ -273,7 +273,7 @@ function VirtualizedCardListInner({
         ref={setListBodyDropRef}
         className="board-column__cards board-column__cards--plain"
         style={{
-          flex: '1 1 auto',
+          flex: '0 1 auto',
           minHeight: 0,
           maxHeight: maxBodyPx,
           display: 'flex',
@@ -300,7 +300,7 @@ function VirtualizedCardListInner({
         ref={setListBodyDropRef}
         className="board-column__cards board-column__cards--virtual"
         style={{
-          flex: '1 1 auto',
+          flex: '0 1 auto',
           minHeight: '30px',
           display: 'flex',
           flexDirection: 'column',
@@ -321,7 +321,7 @@ function VirtualizedCardListInner({
       ref={setListBodyDropRef}
       className="board-column__cards board-column__cards--virtual"
       style={{
-        flex: '1 1 auto',
+        flex: '0 1 auto',
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',

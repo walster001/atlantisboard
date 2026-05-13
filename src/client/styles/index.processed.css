@@ -506,6 +506,9 @@
     --tw-ease: var(--ease-out);
     transition-timing-function: var(--ease-out);
   }
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
   .hover\:bg-blue-100 {
     &:hover {
       @media (hover: hover) {

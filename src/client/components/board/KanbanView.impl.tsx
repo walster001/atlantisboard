@@ -8,9 +8,11 @@ import {
   type MutableRefObject,
 } from 'react';
 import { Box, Button, Group } from '@mantine/core';
-import { Carousel } from '@mantine/carousel';
-import '@mantine/carousel/styles.css';
-import type { EmblaCarouselType, EmblaOptionsType } from 'embla-carousel';
+import type { Swiper as SwiperClass } from 'swiper';
+import { EffectCreative } from 'swiper/modules';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import 'swiper/css';
+import 'swiper/css/effect-creative';
 import type { CardDB, BoardDB, ListDB } from '../../store/database.js';
 import { useShallow } from 'zustand/react/shallow';
 import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
@@ -28,16 +30,6 @@ import './boardView.css';
 
 const MOBILE_CAROUSEL_EDGE_PX = 44;
 const MOBILE_CAROUSEL_EDGE_HOVER_MS = 420;
-const MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX = 1;
-
-/** Stable reference for `embla-carousel-react` — avoids unnecessary `reInit` on parent re-renders. */
-const MOBILE_CAROUSEL_EMBLA_OPTIONS: EmblaOptionsType = {
-  align: 'start',
-  /** Virtual 3-slide strip: do not trim snaps (can fight edge swipes). */
-  containScroll: false,
-  dragThreshold: 10,
-  duration: 22,
-};
 
 interface KanbanViewProps {
   /** Supplied by `BoardPage` so this view does not subscribe separately to `s.board`. */
@@ -50,7 +42,7 @@ interface KanbanViewProps {
   boardCardPatchRef?: MutableRefObject<((card: CardDB) => void) | null>;
   /** List/card menus and add-list/add-card — hidden until loaded, then from granular board keys. */
   kanbanCaps: KanbanBoardEditCaps;
-  /** Mobile uses Mantine Carousel (active list + neighbors). */
+  /** Mobile uses Swiper (one list per slide). */
   isMobile: boolean;
 }
 
@@ -169,16 +161,18 @@ export function KanbanView({
     ...(boardCardPatchRef != null ? { boardCardPatchRef } : {}),
   });
 
-  const [embla, setEmbla] = useState<EmblaCarouselType | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const carouselHostRef = useRef<HTMLDivElement | null>(null);
+  const bindMobileCarouselHostRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      carouselHostRef.current = node;
+      setColumnsGroupRef(node);
+    },
+    [setColumnsGroupRef],
+  );
+  const swiperRef = useRef<SwiperClass | null>(null);
   const hoverDirRef = useRef<'prev' | 'next' | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
-  const pendingRecenterRef = useRef(false);
-
-  const onEmblaApi = useCallback((api: EmblaCarouselType) => {
-    setEmbla(api);
-  }, []);
 
   const totalMobileLists = mountedLists.length;
 
@@ -194,48 +188,23 @@ export function KanbanView({
       return;
     }
     if (activeIndex > total - 1) {
-      pendingRecenterRef.current = true;
       setActiveIndex(total - 1);
     }
   }, [isMobile, totalMobileLists, activeIndex]);
 
   useLayoutEffect(() => {
-    if (!isMobile || embla == null) {
+    if (!isMobile) {
       return;
     }
-    const onSettle = (): void => {
-      const selected = embla.selectedScrollSnap();
-      if (selected === MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX) {
-        return;
-      }
-      const delta = selected === 0 ? -1 : selected === 2 ? 1 : 0;
-      if (delta === 0) {
-        embla.scrollTo(MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX, true);
-        return;
-      }
-      pendingRecenterRef.current = true;
-      setActiveIndex((prev) => Math.min(Math.max(0, prev + delta), totalMobileLists - 1));
-    };
-    embla.on('settle', onSettle);
-    // Ensure we start centered.
-    embla.scrollTo(MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX, true);
-    return () => {
-      embla.off('settle', onSettle);
-    };
-  }, [isMobile, embla, totalMobileLists]);
-
-  useLayoutEffect(() => {
-    if (!isMobile || embla == null) {
+    const sw = swiperRef.current;
+    if (sw == null || totalMobileLists === 0) {
       return;
     }
-    if (!pendingRecenterRef.current) {
-      return;
+    const clamped = Math.min(activeIndex, totalMobileLists - 1);
+    if (sw.activeIndex !== clamped) {
+      sw.slideTo(clamped, 0);
     }
-    pendingRecenterRef.current = false;
-    // Re-measure after virtual slide content swaps, then snap back to the middle slot before paint.
-    embla.reInit();
-    embla.scrollTo(MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX, true);
-  }, [isMobile, embla, activeIndex]);
+  }, [isMobile, activeIndex, totalMobileLists]);
 
   const clearHoverTimer = (): void => {
     if (hoverTimerRef.current != null) {
@@ -245,7 +214,7 @@ export function KanbanView({
   };
 
   useLayoutEffect(() => {
-    if (!isMobile || embla == null || draggingCardId == null) {
+    if (!isMobile || draggingCardId == null) {
       clearHoverTimer();
       hoverDirRef.current = null;
       return;
@@ -275,12 +244,14 @@ export function KanbanView({
       hoverDirRef.current = dir;
       hoverTimerRef.current = window.setTimeout(() => {
         hoverTimerRef.current = null;
+        const sw = swiperRef.current;
+        if (sw == null) {
+          return;
+        }
         if (hoverDirRef.current === 'prev') {
-          setActiveIndex((prev) => Math.max(0, prev - 1));
-          pendingRecenterRef.current = true;
+          sw.slidePrev();
         } else if (hoverDirRef.current === 'next') {
-          setActiveIndex((prev) => Math.min(Math.max(0, totalMobileLists - 1), prev + 1));
-          pendingRecenterRef.current = true;
+          sw.slideNext();
         }
       }, MOBILE_CAROUSEL_EDGE_HOVER_MS);
     };
@@ -291,25 +262,7 @@ export function KanbanView({
       clearHoverTimer();
       hoverDirRef.current = null;
     };
-  }, [isMobile, embla, draggingCardId, totalMobileLists]);
-
-  const virtualSlides = useMemo(() => {
-    const total = totalMobileLists;
-    if (total === 0) {
-      return [
-        { key: 'prev', list: null as ListDB | null },
-        { key: 'cur', list: null as ListDB | null },
-        { key: 'next', list: null as ListDB | null },
-      ] as const;
-    }
-    const prevIdx = activeIndex > 0 ? activeIndex - 1 : null;
-    const nextIdx = activeIndex < total - 1 ? activeIndex + 1 : null;
-    return [
-      { key: 'prev', list: prevIdx != null ? mountedLists[prevIdx] ?? null : null },
-      { key: 'cur', list: mountedLists[activeIndex] ?? null },
-      { key: 'next', list: nextIdx != null ? mountedLists[nextIdx] ?? null : null },
-    ] as const;
-  }, [mountedLists, totalMobileLists, activeIndex]);
+  }, [isMobile, draggingCardId, totalMobileLists]);
 
   const cardIdsByListId = useBoardRuntimeStore(useShallow((s) => s.cardIdsByListId));
 
@@ -333,13 +286,8 @@ export function KanbanView({
     for (const list of mountedLists) {
       add(list.id);
     }
-    if (isMobile) {
-      for (const slot of virtualSlides) {
-        add(slot.list?.id);
-      }
-    }
     return m;
-  }, [draggingCardId, mountedLists, cardIdsByListId, isMobile, virtualSlides]);
+  }, [draggingCardId, mountedLists, cardIdsByListId]);
 
   const draggingCardIdPropForListId = useCallback(
     (listId: string | undefined): string | null => {
@@ -368,8 +316,7 @@ export function KanbanView({
             }
             aria-label={`Go to list ${idx + 1}`}
             onClick={() => {
-              pendingRecenterRef.current = true;
-              setActiveIndex(idx);
+              swiperRef.current?.slideTo(idx);
             }}
           />
         ))}
@@ -378,30 +325,59 @@ export function KanbanView({
   }, [isMobile, totalMobileLists, activeIndex]);
 
   if (isMobile) {
+    const mobileListIdsKey = mountedLists.map((l) => l.id).join(',');
     return (
-      <Box ref={carouselHostRef} className="board-page__mobile-carousel">
+      <Box
+        ref={bindMobileCarouselHostRef}
+        className="board-page__mobile-carousel"
+        onClickCapture={handleColumnsClickCapture}
+      >
         {mobileIndicators}
-        <Carousel
-          getEmblaApi={onEmblaApi}
-          withControls={false}
-          slideSize="100%"
-          slideGap={LIST_HORIZONTAL_GAP_PX}
-          initialSlide={MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX}
-          emblaOptions={MOBILE_CAROUSEL_EMBLA_OPTIONS}
-          classNames={{
-            viewport: 'board-page__mobile-carousel-viewport',
-          }}
-          className="board-page__mobile-carousel-inner"
-        >
-          {virtualSlides.map((s) => {
-            return (
-              <Carousel.Slide key={s.key}>
+        {totalMobileLists === 0 ? (
+          <Box aria-hidden style={{ minHeight: 280 }} />
+        ) : (
+          <Swiper
+            key={mobileListIdsKey}
+            modules={[EffectCreative]}
+            effect="creative"
+            grabCursor
+            centeredSlides
+            slidesPerView={1}
+            creativeEffect={{
+              limitProgress: 1,
+              prev: {
+                shadow: true,
+                translate: ['-108%', 0, -220],
+                rotate: [0, 0, -6],
+                scale: 0.92,
+              },
+              next: {
+                shadow: true,
+                translate: ['108%', 0, -220],
+                rotate: [0, 0, 6],
+                scale: 0.92,
+              },
+            }}
+            className="board-page__mobile-carousel-inner board-page__mobile-carousel-swiper"
+            touchRatio={1}
+            threshold={10}
+            speed={280}
+            initialSlide={Math.min(activeIndex, totalMobileLists - 1)}
+            onSwiper={(swiper) => {
+              swiperRef.current = swiper;
+            }}
+            onSlideChange={(swiper) => {
+              setActiveIndex(swiper.activeIndex);
+            }}
+          >
+            {mountedLists.map((list) => (
+              <SwiperSlide key={list.id} className="board-page__mobile-carousel-slide-outer">
                 <MobileKanbanSlide
-                  shouldMount={s.list != null}
-                  list={s.list}
+                  shouldMount
+                  list={list}
                   board={board}
                   assigneeDirectory={assigneeDirectory}
-                  draggingCardId={draggingCardIdPropForListId(s.list?.id)}
+                  draggingCardId={draggingCardIdPropForListId(list.id)}
                   draggingListId={draggingListId}
                   cardListMaxBodyPx={cardListMaxBodyPx}
                   suppressCardOpenClickRef={suppressCardOpenClickRef}
@@ -415,10 +391,10 @@ export function KanbanView({
                   onCardDeletedFromBoard={removeCardFromBoardState}
                   onKanbanCardsReload={handleKanbanCardsReload}
                 />
-              </Carousel.Slide>
-            );
-          })}
-        </Carousel>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+        )}
       </Box>
     );
   }

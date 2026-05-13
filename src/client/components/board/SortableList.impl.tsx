@@ -27,6 +27,7 @@ function SortableListInner({
   onCardDeletedFromBoard,
   onKanbanCardsReload,
   kanbanCaps,
+  kanbanCardTouchDragRequiresLongPress = false,
 }: SortableListProps) {
   const {
     cardDateVisibility,
@@ -203,6 +204,7 @@ function SortableListInner({
           onCardDeletedFromBoard={onCardDeletedFromBoard}
           showKanbanCardMenu={kanbanCaps.canCardKanbanMenu}
           kanbanCardBodyDraggable={kanbanCaps.canDragKanbanCards}
+          {...(kanbanCardTouchDragRequiresLongPress ? { kanbanCardTouchDragRequiresLongPress: true } : {})}
         />
       </Box>
 

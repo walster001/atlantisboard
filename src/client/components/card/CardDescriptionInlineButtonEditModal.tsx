@@ -17,6 +17,7 @@ import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import { DEFAULT_INLINE_BUTTON_ATTRS } from './tiptapInlineButtonExtension.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
+import './cardInlineButtonEditModal.css';
 
 const RADIUS_OPTIONS = ['0', '4', '8', '12', '16', '20'] as const;
 
@@ -217,12 +218,145 @@ export function CardDescriptionInlineButtonEditModal({
   const previewRadius = Number.isFinite(brNum) ? brNum : DEFAULT_INLINE_BUTTON_ATTRS.borderRadiusPx;
   const previewIconSize = Number.isFinite(ispNum) ? ispNum : DEFAULT_INLINE_BUTTON_ATTRS.iconSizePx;
 
+  const formFields = (
+    <>
+      <div>
+        <Text size="sm" fw={500} mb={6}>
+          Preview
+        </Text>
+        <Box
+          p="md"
+          style={{
+            borderRadius: 8,
+            border: '1px solid var(--mantine-color-gray-3)',
+            backgroundColor: 'var(--mantine-color-gray-0)',
+          }}
+        >
+          <Box
+            component="span"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              boxSizing: 'border-box',
+              padding: '8px 14px',
+              textDecoration: 'none',
+              color: textColor,
+              backgroundColor: bgColor,
+              borderRadius: previewRadius,
+              fontSize: 'var(--mantine-font-size-sm)',
+              fontWeight: 500,
+              maxWidth: '100%',
+            }}
+          >
+            {iconSrc != null && iconSrc.trim() !== '' ? (
+              <img
+                src={iconSrc}
+                alt=""
+                width={previewIconSize}
+                height={previewIconSize}
+                style={{ objectFit: 'contain', flexShrink: 0 }}
+              />
+            ) : null}
+            <span>{buttonText.trim() !== '' ? buttonText : 'Button'}</span>
+          </Box>
+        </Box>
+      </div>
+
+      <Group align="flex-end" wrap="wrap">
+        <Text size="sm" fw={500} style={{ width: '100%' }}>
+          Icon
+        </Text>
+        <Button
+          size="xs"
+          variant="default"
+          leftSection={<IconUpload size={14} />}
+          onClick={uploadIcon}
+          loading={iconUploadBusy}
+        >
+          Change
+        </Button>
+        {iconSrc != null && iconSrc.trim() !== '' ? (
+          <>
+            <Box
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 6,
+                border: '1px solid var(--mantine-color-gray-4)',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--mantine-color-body)',
+              }}
+            >
+              <img src={iconSrc} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            </Box>
+            <ActionIcon
+              color="red"
+              variant="subtle"
+              aria-label="Remove icon"
+              onClick={() => setIconSrc(null)}
+            >
+              <IconTrash size={18} />
+            </ActionIcon>
+          </>
+        ) : null}
+      </Group>
+
+      <TextInput
+        label="Icon size"
+        value={iconSizePx}
+        onChange={(e) => setIconSizePx(e.currentTarget.value)}
+        inputMode="numeric"
+        placeholder={String(DEFAULT_INLINE_BUTTON_ATTRS.iconSizePx)}
+        rightSection={
+          <Text size="xs" c="dimmed" mr={4}>
+            px
+          </Text>
+        }
+      />
+
+      <TextInput label="Link URL" value={href} onChange={(e) => setHref(e.currentTarget.value)} />
+
+      <TextInput label="Button text" value={buttonText} onChange={(e) => setButtonText(e.currentTarget.value)} />
+
+      <Group grow align="flex-start">
+        <ColorInput label="Text color" value={textColor} onChange={setTextColor} format="hex" />
+        <ColorInput label="Background color" value={bgColor} onChange={setBgColor} format="hex" />
+      </Group>
+
+      <Select
+        label="Roundness"
+        data={RADIUS_OPTIONS.map((r) => ({ value: r, label: `${r}px` }))}
+        value={borderRadiusPx}
+        onChange={(v) => setBorderRadiusPx(v ?? '4')}
+        allowDeselect={false}
+      />
+    </>
+  );
+
+  const actionBar = (
+    <Group justify="flex-end" gap="sm" mt={isMobile ? 0 : 'md'} wrap="wrap" {...(isMobile ? { className: 'card-inline-button-edit-modal__mobile-footer' } : {})}>
+      <Button color="red" variant="light" leftSection={<IconTrash size={16} />} onClick={handleDelete}>
+        Delete
+      </Button>
+      <Button variant="default" onClick={onClose}>
+        Cancel
+      </Button>
+      <Button onClick={handleSave}>Save</Button>
+    </Group>
+  );
+
   return (
     <Modal
       opened={opened}
       onClose={onClose}
       fullScreen={isMobile}
       centered
+      withinPortal={!isMobile}
       transitionProps={{ duration: 0 }}
       overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
       title={
@@ -236,134 +370,31 @@ export function CardDescriptionInlineButtonEditModal({
       size="md"
       padding="lg"
       zIndex={530}
+      classNames={
+        isMobile
+          ? {
+              inner: 'card-inline-button-edit-modal__mantine-inner--mobile',
+              content: 'card-inline-button-edit-modal__mantine-content--mobile',
+              body: 'card-inline-button-edit-modal__mantine-body--mobile',
+            }
+          : {}
+      }
     >
-      <Stack gap="md" pt="xs">
-        <div>
-          <Text size="sm" fw={500} mb={6}>
-            Preview
-          </Text>
-          <Box
-            p="md"
-            style={{
-              borderRadius: 8,
-              border: '1px solid var(--mantine-color-gray-3)',
-              backgroundColor: 'var(--mantine-color-gray-0)',
-            }}
-          >
-            <Box
-              component="span"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                boxSizing: 'border-box',
-                padding: '8px 14px',
-                textDecoration: 'none',
-                color: textColor,
-                backgroundColor: bgColor,
-                borderRadius: previewRadius,
-                fontSize: 'var(--mantine-font-size-sm)',
-                fontWeight: 500,
-                maxWidth: '100%',
-              }}
-            >
-              {iconSrc != null && iconSrc.trim() !== '' ? (
-                <img
-                  src={iconSrc}
-                  alt=""
-                  width={previewIconSize}
-                  height={previewIconSize}
-                  style={{ objectFit: 'contain', flexShrink: 0 }}
-                />
-              ) : null}
-              <span>{buttonText.trim() !== '' ? buttonText : 'Button'}</span>
-            </Box>
+      {isMobile ? (
+        <Box className="card-inline-button-edit-modal__mobile-root">
+          <Box className="card-inline-button-edit-modal__mobile-scroll">
+            <Stack gap="md" pt="xs">
+              {formFields}
+            </Stack>
           </Box>
-        </div>
-
-        <Group align="flex-end" wrap="wrap">
-          <Text size="sm" fw={500} style={{ width: '100%' }}>
-            Icon
-          </Text>
-          <Button
-            size="xs"
-            variant="default"
-            leftSection={<IconUpload size={14} />}
-            onClick={uploadIcon}
-            loading={iconUploadBusy}
-          >
-            Change
-          </Button>
-          {iconSrc != null && iconSrc.trim() !== '' ? (
-            <>
-              <Box
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 6,
-                  border: '1px solid var(--mantine-color-gray-4)',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'var(--mantine-color-body)',
-                }}
-              >
-                <img src={iconSrc} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-              </Box>
-              <ActionIcon
-                color="red"
-                variant="subtle"
-                aria-label="Remove icon"
-                onClick={() => setIconSrc(null)}
-              >
-                <IconTrash size={18} />
-              </ActionIcon>
-            </>
-          ) : null}
-        </Group>
-
-        <TextInput
-          label="Icon size"
-          value={iconSizePx}
-          onChange={(e) => setIconSizePx(e.currentTarget.value)}
-          inputMode="numeric"
-          placeholder={String(DEFAULT_INLINE_BUTTON_ATTRS.iconSizePx)}
-          rightSection={
-            <Text size="xs" c="dimmed" mr={4}>
-              px
-            </Text>
-          }
-        />
-
-        <TextInput label="Link URL" value={href} onChange={(e) => setHref(e.currentTarget.value)} />
-
-        <TextInput label="Button text" value={buttonText} onChange={(e) => setButtonText(e.currentTarget.value)} />
-
-        <Group grow align="flex-start">
-          <ColorInput label="Text color" value={textColor} onChange={setTextColor} format="hex" />
-          <ColorInput label="Background color" value={bgColor} onChange={setBgColor} format="hex" />
-        </Group>
-
-        <Select
-          label="Roundness"
-          data={RADIUS_OPTIONS.map((r) => ({ value: r, label: `${r}px` }))}
-          value={borderRadiusPx}
-          onChange={(v) => setBorderRadiusPx(v ?? '4')}
-          allowDeselect={false}
-        />
-
-        <Group justify="flex-end" gap="sm" mt="md">
-          <Button color="red" variant="light" leftSection={<IconTrash size={16} />} onClick={handleDelete}>
-            Delete
-          </Button>
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave}>Save</Button>
-        </Group>
-      </Stack>
+          {actionBar}
+        </Box>
+      ) : (
+        <Stack gap="md" pt="xs">
+          {formFields}
+          {actionBar}
+        </Stack>
+      )}
     </Modal>
   );
 }

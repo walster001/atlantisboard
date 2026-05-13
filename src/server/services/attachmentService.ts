@@ -11,6 +11,7 @@ import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
 import crypto from 'crypto';
+import { createReadStream } from 'node:fs';
 import type { Readable } from 'node:stream';
 import { getCardAttachmentMaxBytes } from '../constants/uploads.js';
 // Malware scanning - TODO: Install and configure Pompelmi library
@@ -35,6 +36,15 @@ export interface UploadProgress {
 export interface AttachmentObjectResult {
   stream: Readable;
   contentType: string;
+}
+
+/** Small uploads: buffer in memory. Large uploads: temp path written by multer disk storage. */
+export type CardAttachmentUploadPayload =
+  | { readonly kind: 'memory'; readonly buffer: Buffer }
+  | { readonly kind: 'disk'; readonly path: string; readonly size: number };
+
+function cardAttachmentPayloadBytes(file: CardAttachmentUploadPayload): number {
+  return file.kind === 'memory' ? file.buffer.length : file.size;
 }
 
 // Ensure buckets exist on module load
@@ -108,16 +118,17 @@ export async function removeStoredAttachmentObjectsForBoardIds(boardIds: Types.O
  */
 export async function uploadCardAttachment(
   cardId: string,
-  file: Buffer,
+  file: CardAttachmentUploadPayload,
   fileName: string,
   mimeType: string,
   userId: string,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<FileUploadResult> {
   const client = getMinIOClient();
+  const byteLength = cardAttachmentPayloadBytes(file);
 
   // Validate file size
-  if (file.length > MAX_CARD_ATTACHMENT_BYTES) {
+  if (byteLength > MAX_CARD_ATTACHMENT_BYTES) {
     throw new Error(`File size exceeds maximum limit of ${MAX_CARD_ATTACHMENT_BYTES / (1024 * 1024)} MB`);
   }
 
@@ -126,6 +137,7 @@ export async function uploadCardAttachment(
   // For now, we validate file extensions and MIME types
   const allowedMimeTypes = [
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'video/mp4', 'video/webm', 'video/quicktime', 'video/ogg',
     'application/pdf',
     'text/plain', 'text/csv', 'text/markdown',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -143,34 +155,39 @@ export async function uploadCardAttachment(
   const fileExtension = fileName.split('.').pop() || '';
   const objectName = `${cardId}/${fileId}.${fileExtension}`;
 
-    // Upload to MinIO
-    try {
-      // Note: MinIO SDK doesn't have built-in progress tracking
-      // For production with resumable.js or TUS protocol, implement proper progress tracking
-      if (onProgress) {
-        // Simulate initial progress
-        onProgress({
-          loaded: 0,
-          total: file.length,
-          percentage: 0,
-        });
-      }
+  const metaData = {
+    'Content-Type': mimeType,
+    'X-Card-Id': cardId,
+    'X-Uploaded-By': userId,
+    'X-File-Name': encodeURIComponent(fileName),
+  };
 
-      await client.putObject(BUCKET_NAME, objectName, Buffer.from(file), file.length, {
-        'Content-Type': mimeType,
-        'X-Card-Id': cardId,
-        'X-Uploaded-By': userId,
-        'X-File-Name': encodeURIComponent(fileName),
+  // Upload to MinIO
+  try {
+    // Note: MinIO SDK doesn't have built-in progress tracking
+    // For production with resumable.js or TUS protocol, implement proper progress tracking
+    if (onProgress) {
+      onProgress({
+        loaded: 0,
+        total: byteLength,
+        percentage: 0,
       });
+    }
 
-      // Simulate completion progress
-      if (onProgress) {
-        onProgress({
-          loaded: file.length,
-          total: file.length,
-          percentage: 100,
-        });
-      }
+    if (file.kind === 'memory') {
+      await client.putObject(BUCKET_NAME, objectName, file.buffer, file.buffer.length, metaData);
+    } else {
+      const stream = createReadStream(file.path);
+      await client.putObject(BUCKET_NAME, objectName, stream, file.size, metaData);
+    }
+
+    if (onProgress) {
+      onProgress({
+        loaded: byteLength,
+        total: byteLength,
+        percentage: 100,
+      });
+    }
 
     // Get presigned URL for accessing the file
     const url = await client.presignedGetObject(BUCKET_NAME, objectName, 7 * 24 * 60 * 60); // 7 days expiry
@@ -180,7 +197,7 @@ export async function uploadCardAttachment(
       name: fileName,
       url,
       type: mimeType,
-      size: file.length,
+      size: byteLength,
       uploadedAt: new Date(),
       uploadedBy: userId,
     };
@@ -197,7 +214,7 @@ export async function uploadCardAttachment(
       url,
       isPlaceholder: false,
       type: mimeType,
-      size: file.length,
+      size: byteLength,
       uploadedAt: new Date(),
       uploadedBy: userId as unknown as typeof card.createdBy,
     });
@@ -211,7 +228,7 @@ export async function uploadCardAttachment(
       action: 'card.attachment.upload',
       resourceType: 'card',
       resourceId: cardId,
-      metadata: { fileName, fileSize: file.length, fileType: mimeType },
+      metadata: { fileName, fileSize: byteLength, fileType: mimeType },
       timestamp: new Date(),
     });
 

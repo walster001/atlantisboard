@@ -9983,6 +9983,59 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 }
 
+/* src/client/components/card/cardInlineButtonEditModal.css */
+.card-inline-button-edit-modal__mantine-inner--mobile {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.card-inline-button-edit-modal__mantine-content--mobile {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+  max-height: 100dvh;
+}
+
+.card-inline-button-edit-modal__mantine-body--mobile {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.card-inline-button-edit-modal__mobile-root {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  flex: auto;
+  width: 100%;
+  min-height: 0;
+}
+
+.card-inline-button-edit-modal__mobile-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  flex: auto;
+  min-height: 0;
+}
+
+.card-inline-button-edit-modal__mobile-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--mantine-spacing-sm);
+  padding-top: var(--mantine-spacing-md);
+  padding-bottom: max(var(--mantine-spacing-md), env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-body);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
 /* src/client/components/card/attachmentSection.css */
 .attachment-preview-close {
   position: absolute;
@@ -12993,6 +13046,11 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
   .board-page__mobile-carousel-inner {
     height: 100%;
+  }
+
+  .board-page__mobile-carousel-viewport {
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
   }
 
   .board-page__mobile-carousel-slide {

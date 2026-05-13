@@ -10,7 +10,7 @@ import {
 import { Box, Button, Group } from '@mantine/core';
 import { Carousel } from '@mantine/carousel';
 import '@mantine/carousel/styles.css';
-import type { EmblaCarouselType } from 'embla-carousel';
+import type { EmblaCarouselType, EmblaOptionsType } from 'embla-carousel';
 import type { CardDB, BoardDB, ListDB } from '../../store/database.js';
 import { useShallow } from 'zustand/react/shallow';
 import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
@@ -29,6 +29,15 @@ import './boardView.css';
 const MOBILE_CAROUSEL_EDGE_PX = 44;
 const MOBILE_CAROUSEL_EDGE_HOVER_MS = 420;
 const MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX = 1;
+
+/** Stable reference for `embla-carousel-react` — avoids unnecessary `reInit` on parent re-renders. */
+const MOBILE_CAROUSEL_EMBLA_OPTIONS: EmblaOptionsType = {
+  align: 'start',
+  /** Virtual 3-slide strip: do not trim snaps (can fight edge swipes). */
+  containScroll: false,
+  dragThreshold: 10,
+  duration: 22,
+};
 
 interface KanbanViewProps {
   /** Supplied by `BoardPage` so this view does not subscribe separately to `s.board`. */
@@ -111,6 +120,7 @@ const MobileKanbanSlide = memo(function MobileKanbanSlide({
           onCardDeletedFromBoard={onCardDeletedFromBoard}
           onKanbanCardsReload={onKanbanCardsReload}
           kanbanCaps={kanbanCaps}
+          kanbanCardTouchDragRequiresLongPress
         />
       ) : (
         <Box aria-hidden style={{ minHeight: 280 }} />
@@ -166,6 +176,10 @@ export function KanbanView({
   const hoverTimerRef = useRef<number | null>(null);
   const pendingRecenterRef = useRef(false);
 
+  const onEmblaApi = useCallback((api: EmblaCarouselType) => {
+    setEmbla(api);
+  }, []);
+
   const totalMobileLists = mountedLists.length;
 
   useLayoutEffect(() => {
@@ -180,6 +194,7 @@ export function KanbanView({
       return;
     }
     if (activeIndex > total - 1) {
+      pendingRecenterRef.current = true;
       setActiveIndex(total - 1);
     }
   }, [isMobile, totalMobileLists, activeIndex]);
@@ -195,13 +210,7 @@ export function KanbanView({
       }
       const delta = selected === 0 ? -1 : selected === 2 ? 1 : 0;
       if (delta === 0) {
-        pendingRecenterRef.current = true;
-        requestAnimationFrame(() => {
-          if (pendingRecenterRef.current) {
-            embla.scrollTo(MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX, false);
-            pendingRecenterRef.current = false;
-          }
-        });
+        embla.scrollTo(MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX, true);
         return;
       }
       pendingRecenterRef.current = true;
@@ -209,7 +218,7 @@ export function KanbanView({
     };
     embla.on('settle', onSettle);
     // Ensure we start centered.
-    embla.scrollTo(MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX, false);
+    embla.scrollTo(MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX, true);
     return () => {
       embla.off('settle', onSettle);
     };
@@ -222,11 +231,10 @@ export function KanbanView({
     if (!pendingRecenterRef.current) {
       return;
     }
-    // After activeIndex swap (which changes slide content), re-center the 3-slide carousel.
-    requestAnimationFrame(() => {
-      embla.scrollTo(MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX, false);
-      pendingRecenterRef.current = false;
-    });
+    pendingRecenterRef.current = false;
+    // Re-measure after virtual slide content swaps, then snap back to the middle slot before paint.
+    embla.reInit();
+    embla.scrollTo(MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX, true);
   }, [isMobile, embla, activeIndex]);
 
   const clearHoverTimer = (): void => {
@@ -359,7 +367,10 @@ export function KanbanView({
                 : 'board-page__mobile-carousel-dot'
             }
             aria-label={`Go to list ${idx + 1}`}
-            onClick={() => setActiveIndex(idx)}
+            onClick={() => {
+              pendingRecenterRef.current = true;
+              setActiveIndex(idx);
+            }}
           />
         ))}
       </Box>
@@ -371,12 +382,15 @@ export function KanbanView({
       <Box ref={carouselHostRef} className="board-page__mobile-carousel">
         {mobileIndicators}
         <Carousel
-          getEmblaApi={(api) => setEmbla(api)}
+          getEmblaApi={onEmblaApi}
           withControls={false}
           slideSize="100%"
           slideGap={LIST_HORIZONTAL_GAP_PX}
           initialSlide={MOBILE_CAROUSEL_VIRTUAL_CENTER_INDEX}
-          emblaOptions={{ align: 'start' }}
+          emblaOptions={MOBILE_CAROUSEL_EMBLA_OPTIONS}
+          classNames={{
+            viewport: 'board-page__mobile-carousel-viewport',
+          }}
           className="board-page__mobile-carousel-inner"
         >
           {virtualSlides.map((s) => {

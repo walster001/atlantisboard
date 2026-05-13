@@ -1,3 +1,5 @@
+import http from 'node:http';
+import https from 'node:https';
 import { Client as MinIOClient } from 'minio';
 import {
   MINIO_BUCKET_BRANDING,
@@ -6,6 +8,14 @@ import {
 import { logger } from '../utils/logger.js';
 
 let minioClient: MinIOClient | null = null;
+
+/** MinIO multipart part size (SDK default 64 MiB). Larger parts mean fewer sequential PUTs for big objects. Clamped 16–256 MiB. */
+function getMinioUploadPartSizeBytes(): number {
+  const parsed = Number.parseInt(process.env.MINIO_UPLOAD_PART_SIZE_MB ?? '128', 10);
+  const mb = Number.isFinite(parsed) ? parsed : 128;
+  const clamped = Math.min(256, Math.max(16, mb));
+  return clamped * 1024 * 1024;
+}
 
 export function getMinIOClient(): MinIOClient {
   if (minioClient) {
@@ -17,6 +27,10 @@ export function getMinIOClient(): MinIOClient {
   const endPoint = process.env.MINIO_ENDPOINT || 'localhost';
   const port = Number(process.env.MINIO_PORT) || 9000;
   const useSSL = process.env.MINIO_USE_SSL === 'true';
+  const partSize = getMinioUploadPartSizeBytes();
+  const transportAgent = useSSL
+    ? new https.Agent({ keepAlive: true, maxSockets: 32 })
+    : new http.Agent({ keepAlive: true, maxSockets: 32 });
 
   minioClient = new MinIOClient({
     endPoint,
@@ -24,6 +38,8 @@ export function getMinIOClient(): MinIOClient {
     useSSL,
     accessKey,
     secretKey,
+    partSize,
+    transportAgent,
   });
 
   logger.info('MinIO client initialized');

@@ -116,6 +116,11 @@ export function AttachmentSection({
     if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') {
       return file;
     }
+    // Decoding huge bitmaps in the main thread is very slow and can freeze the tab; upload as-is.
+    const skipCompressBytes = 12 * 1024 * 1024;
+    if (file.size > skipCompressBytes) {
+      return file;
+    }
     const maxDimension = 1920;
     const quality = 0.82;
     try {

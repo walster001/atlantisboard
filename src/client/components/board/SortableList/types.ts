@@ -24,6 +24,8 @@ export interface SortableListProps {
   readonly onCardDeletedFromBoard: (cardId: string) => void;
   /** After bulk card colour API + Dexie patch, reload Kanban card state from IndexedDB. */
   readonly onKanbanCardsReload?: () => void;
+  /** Mobile board carousel: require touch long-press before native card drag. */
+  readonly kanbanCardTouchDragRequiresLongPress?: boolean;
 }
 
 export function sortableListPropsEqual(
@@ -53,6 +55,7 @@ export function sortableListPropsEqual(
     prev.kanbanCaps.canAddCard === next.kanbanCaps.canAddCard &&
     prev.kanbanCaps.canCardKanbanMenu === next.kanbanCaps.canCardKanbanMenu &&
     prev.kanbanCaps.canDragKanbanCards === next.kanbanCaps.canDragKanbanCards &&
-    prev.kanbanCaps.canReorderLists === next.kanbanCaps.canReorderLists
+    prev.kanbanCaps.canReorderLists === next.kanbanCaps.canReorderLists &&
+    (prev.kanbanCardTouchDragRequiresLongPress ?? false) === (next.kanbanCardTouchDragRequiresLongPress ?? false)
   );
 }

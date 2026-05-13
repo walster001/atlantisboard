@@ -3,11 +3,21 @@
  * so oversized bodies cannot bypass one layer.
  */
 
-/** Default 50 MB; clamp 1–500 MB via env to reduce abuse of memory-buffered uploads. */
+/** Upper bound for `CARD_ATTACHMENT_MAX_MB` (1 GiB). */
+const CARD_ATTACHMENT_MAX_MB_CEILING = 1024;
+
+/**
+ * Multipart requests with `Content-Length` above this use multer disk storage so the file is
+ * streamed to the OS temp directory instead of buffering the whole body in RAM. When length is
+ * unknown, disk storage is used.
+ */
+export const CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES = 20 * 1024 * 1024;
+
+/** Default 1024 MB (1 GiB); clamp 1–1024 MB via env. */
 export function getCardAttachmentMaxBytes(): number {
-  const parsed = Number.parseInt(process.env.CARD_ATTACHMENT_MAX_MB ?? '50', 10);
-  const mb = Number.isFinite(parsed) ? parsed : 50;
-  const clamped = Math.min(500, Math.max(1, mb));
+  const parsed = Number.parseInt(process.env.CARD_ATTACHMENT_MAX_MB ?? String(CARD_ATTACHMENT_MAX_MB_CEILING), 10);
+  const mb = Number.isFinite(parsed) ? parsed : CARD_ATTACHMENT_MAX_MB_CEILING;
+  const clamped = Math.min(CARD_ATTACHMENT_MAX_MB_CEILING, Math.max(1, mb));
   return clamped * 1024 * 1024;
 }
 

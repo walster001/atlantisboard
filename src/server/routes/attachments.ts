@@ -1,26 +1,84 @@
-import { Router, type RequestHandler } from 'express';
+import { Router, type Request, type RequestHandler } from 'express';
 import multer from 'multer';
+import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { unlink } from 'node:fs/promises';
 import { requireAuth } from '../middleware/auth.js';
 import { attachmentStreamRateLimiter, fileUploadRateLimiter } from '../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import { CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES } from '../constants/uploads.js';
 import {
   MAX_CARD_ATTACHMENT_BYTES,
   uploadCardAttachment,
   deleteCardAttachment,
   getAttachmentUrl,
   getAttachmentObject,
+  type CardAttachmentUploadPayload,
 } from '../services/attachmentService.js';
 import { isPlaceholderCardAttachment } from '../../shared/cardAttachmentPlaceholder.js';
 import { Card } from '../models/Card.js';
 import { hasPermission } from '../utils/permissions.js';
 
 const router = Router();
-const upload = multer({
+
+function tempAttachmentBasename(originalname: string): string {
+  const ext = (originalname.split('.').pop() ?? '').trim();
+  const safe =
+    ext.length > 0 && ext.length <= 16 && /^[a-zA-Z0-9]+$/.test(ext) ? `.${ext.toLowerCase()}` : '';
+  return `kanboard-card-att-${randomUUID()}${safe}`;
+}
+
+const uploadMemory = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: MAX_CARD_ATTACHMENT_BYTES,
   },
 });
+
+const uploadDisk = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      cb(null, tmpdir());
+    },
+    filename: (_req, file, cb) => {
+      cb(null, tempAttachmentBasename(file.originalname));
+    },
+  }),
+  limits: {
+    fileSize: MAX_CARD_ATTACHMENT_BYTES,
+  },
+});
+
+/** Prefer RAM for small multipart bodies; stream to disk when likely over ~20 MiB or length unknown. */
+function shouldUseInMemoryMultipartBuffer(req: Request): boolean {
+  const raw = req.headers['content-length'];
+  if (raw === undefined) {
+    return false;
+  }
+  const header = Array.isArray(raw) ? raw[0] : raw;
+  const contentLength = Number.parseInt(header, 10);
+  if (!Number.isFinite(contentLength)) {
+    return false;
+  }
+  return contentLength <= CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES;
+}
+
+const cardAttachmentMulterUpload: RequestHandler = (req, res, next) => {
+  const handler = shouldUseInMemoryMultipartBuffer(req)
+    ? uploadMemory.single('file')
+    : uploadDisk.single('file');
+  handler(req, res, next);
+};
+
+function payloadFromMulterFile(file: Express.Multer.File): CardAttachmentUploadPayload {
+  if (typeof file.path === 'string' && file.path.length > 0) {
+    return { kind: 'disk', path: file.path, size: file.size };
+  }
+  if (file.buffer != null) {
+    return { kind: 'memory', buffer: file.buffer };
+  }
+  throw new Error('Invalid uploaded file');
+}
 
 // All routes require authentication
 router.use(requireAuth as RequestHandler);
@@ -29,12 +87,17 @@ router.use(requireAuth as RequestHandler);
  * Upload attachment to card
  * POST /api/v1/cards/:cardId/attachments
  */
-router.post('/cards/:cardId/attachments', fileUploadRateLimiter, upload.single('file'), async (req, res, next) => {
+router.post('/cards/:cardId/attachments', fileUploadRateLimiter, cardAttachmentMulterUpload, async (req, res, next) => {
+  const uploaded = req.file;
+  const tempPath =
+    uploaded !== undefined && typeof uploaded.path === 'string' && uploaded.path.length > 0
+      ? uploaded.path
+      : undefined;
   try {
     const authReq = req as AuthenticatedRequest;
     const { cardId } = req.params;
 
-    if (!req.file) {
+    if (!uploaded) {
       res.status(400).json({
         error: {
           message: 'File is required',
@@ -72,9 +135,9 @@ router.post('/cards/:cardId/attachments', fileUploadRateLimiter, upload.single('
 
     const result = await uploadCardAttachment(
       cardId,
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype,
+      payloadFromMulterFile(uploaded),
+      uploaded.originalname,
+      uploaded.mimetype,
       authReq.user.id
     );
 
@@ -103,6 +166,10 @@ router.post('/cards/:cardId/attachments', fileUploadRateLimiter, upload.single('
       }
     }
     next(error);
+  } finally {
+    if (tempPath !== undefined) {
+      await unlink(tempPath).catch(() => {});
+    }
   }
 });
 

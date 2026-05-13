@@ -32,6 +32,8 @@ export interface VirtualizedCardListProps {
   readonly onCardDeletedFromBoard: (cardId: string) => void;
   readonly showKanbanCardMenu: boolean;
   readonly kanbanCardBodyDraggable: boolean;
+  /** When true, touch long-press must arm before native card drag (mobile Embla carousel). */
+  readonly kanbanCardTouchDragRequiresLongPress?: boolean;
 }
 
 export function virtualizedCardListPropsEqual(
@@ -54,7 +56,8 @@ export function virtualizedCardListPropsEqual(
     prev.onCardUpdatedOnBoard === next.onCardUpdatedOnBoard &&
     prev.onCardDeletedFromBoard === next.onCardDeletedFromBoard &&
     prev.showKanbanCardMenu === next.showKanbanCardMenu &&
-    prev.kanbanCardBodyDraggable === next.kanbanCardBodyDraggable
+    prev.kanbanCardBodyDraggable === next.kanbanCardBodyDraggable &&
+    (prev.kanbanCardTouchDragRequiresLongPress ?? false) === (next.kanbanCardTouchDragRequiresLongPress ?? false)
   );
 }
 

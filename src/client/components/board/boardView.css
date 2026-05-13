@@ -869,6 +869,12 @@
     height: 100%;
   }
 
+  /* Embla viewport: prioritize horizontal swipe; avoid nested touch fighting the carousel. */
+  .board-page__mobile-carousel-viewport {
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+  }
+
   .board-page__mobile-carousel-slide {
     height: 100%;
     min-height: 0;

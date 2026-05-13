@@ -44,6 +44,7 @@ function VirtualizedCardListInner({
   onCardDeletedFromBoard,
   showKanbanCardMenu,
   kanbanCardBodyDraggable,
+  kanbanCardTouchDragRequiresLongPress = false,
 }: VirtualizedCardListProps) {
   const listBodyDropCleanupRef = useRef<(() => void) | null>(null);
   const setListBodyDropRef = useCallback(
@@ -204,6 +205,7 @@ function VirtualizedCardListInner({
             showEndDateOnCards={showEndDateOnCards}
             showKanbanCardMenu={showKanbanCardMenu}
             kanbanCardBodyDraggable={kanbanCardBodyDraggable}
+            {...(kanbanCardTouchDragRequiresLongPress ? { kanbanCardTouchDragRequiresLongPress: true } : {})}
             {...(assigneeDirectory != null ? { assigneeDirectory } : {})}
             isDragSource={draggingCardId === card.id}
             {...(suppressCardOpenClickRef != null ? { suppressCardOpenClickRef } : {})}
@@ -227,6 +229,7 @@ function VirtualizedCardListInner({
       showEndDateOnCards,
       showKanbanCardMenu,
       kanbanCardBodyDraggable,
+      kanbanCardTouchDragRequiresLongPress,
       assigneeDirectory,
       suppressCardOpenClickRef,
       onOpenCard,

@@ -30,8 +30,9 @@ interface SortableCardProps {
   showEndDateOnCards: boolean;
   /** Kanban ⋮ menu (colour / rename / delete) — off for viewers without `cards.update`/`cards.delete`. */
   showKanbanCardMenu: boolean;
-  /** Card-body pointer drag for reorder/move; off when user lacks `cards.move`/`cards.reorder`. */
-  kanbanCardBodyDraggable: boolean;
+  readonly kanbanCardBodyDraggable: boolean;
+  /** Mobile carousel: long-press must arm before native drag so Embla does not steal the gesture. */
+  readonly kanbanCardTouchDragRequiresLongPress?: boolean;
   /** Board + workspace member directory for assignee faces on the card tile. */
   assigneeDirectory?: ReadonlyMap<string, BoardMemberUserDisplay>;
   isDragSource?: boolean;
@@ -54,6 +55,7 @@ function sortableCardPropsEqual(
     prev.showEndDateOnCards === next.showEndDateOnCards &&
     prev.showKanbanCardMenu === next.showKanbanCardMenu &&
     prev.kanbanCardBodyDraggable === next.kanbanCardBodyDraggable &&
+    (prev.kanbanCardTouchDragRequiresLongPress ?? false) === (next.kanbanCardTouchDragRequiresLongPress ?? false) &&
     prev.assigneeDirectory === next.assigneeDirectory &&
     prev.isDragSource === next.isDragSource &&
     prev.suppressCardOpenClickRef === next.suppressCardOpenClickRef &&
@@ -72,6 +74,7 @@ function SortableCardInner({
   showEndDateOnCards,
   showKanbanCardMenu,
   kanbanCardBodyDraggable,
+  kanbanCardTouchDragRequiresLongPress = false,
   assigneeDirectory,
   isDragSource = false,
   suppressCardOpenClickRef,
@@ -82,7 +85,18 @@ function SortableCardInner({
   const [deferRef, richReady] = useRichContentWhenNearViewport();
   const cardRootRef = useRef<HTMLDivElement | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
-  const touchArm = useKanbanTouchDragArm(kanbanCardBodyDraggable);
+  const touchArmOptions = useMemo(
+    () =>
+      kanbanCardTouchDragRequiresLongPress
+        ? ({
+            requireTouchArmForNativeDrag: true,
+            longPressMs: 400,
+            cancelMoveSlopPx: 18,
+          } as const)
+        : undefined,
+    [kanbanCardTouchDragRequiresLongPress],
+  );
+  const touchArm = useKanbanTouchDragArm(kanbanCardBodyDraggable, touchArmOptions);
   const {
     hasDescription,
     showRichDescPreview,
@@ -101,6 +115,7 @@ function SortableCardInner({
     }
     dragCleanupRef.current = draggable({
       element: node,
+      canDrag: touchArm.canDragForNative,
       getInitialData: () =>
         ({
           pdnd: PDND_KANBAN_CARD,

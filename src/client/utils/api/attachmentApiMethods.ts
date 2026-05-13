@@ -13,8 +13,9 @@ export const attachmentApiMethods: AttachmentApiMethods = {
   async uploadCardAttachment(this: ApiClient, cardId, file, onProgress) {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await this.client.post(`/cards/${cardId}/attachments`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    // postForm avoids default `application/json` on the ApiClient (which would stringify FormData).
+    // Browser adapter clears Content-Type so the boundary is set correctly for efficient streaming.
+    const response = await this.client.postForm(`/cards/${cardId}/attachments`, formData, {
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);

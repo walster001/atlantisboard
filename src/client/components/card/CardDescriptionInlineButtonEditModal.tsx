@@ -222,7 +222,7 @@ export function CardDescriptionInlineButtonEditModal({
       opened={opened}
       onClose={onClose}
       fullScreen={isMobile}
-      withinPortal={false}
+      centered
       transitionProps={{ duration: 0 }}
       overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
       title={

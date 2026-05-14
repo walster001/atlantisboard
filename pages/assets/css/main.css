@@ -25,6 +25,9 @@
   --measure: 65ch;
   --gutter: clamp(1.25rem, 4vw, 3rem);
   --content-max: 72rem;
+  /* Initial page reveal (agency-style staggered fade-up) */
+  --ease-reveal: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-reveal: 0.92s;
 }
 
 *,
@@ -157,16 +160,6 @@ body.site--home {
   width: 48px;
   height: 48px;
   object-fit: contain;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  transition:
-    transform var(--duration-slow) var(--ease-editorial),
-    box-shadow var(--duration) var(--ease-editorial);
-}
-
-.brand:hover .brand__mark {
-  transform: scale(1.03);
-  box-shadow: 0 4px 20px rgba(0, 86, 164, 0.12);
 }
 
 .brand__wordmark {
@@ -708,4 +701,155 @@ body.site--home .site-footer__copy {
 .site-footer__nav a:hover {
   color: var(--color-primary);
   border-bottom-color: var(--color-primary-faint);
+}
+
+/* ——— Initial page load: staggered reveal (Agile Digital–style fade-up) ——— */
+@keyframes site-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1.125rem, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+body.site .site-header__inner > .brand,
+body.site .site-header__inner > .nav-toggle,
+body.site .site-nav__list > li,
+body.site--home .hero .hero__content > *,
+body.site--home .panel-grid > .panel,
+body.site:not(.site--home) .page-title,
+body.site:not(.site--home) .prose > p,
+body.site:not(.site--home) .cta-card,
+body.site .site-footer {
+  animation: site-reveal var(--duration-reveal) var(--ease-reveal) both;
+}
+
+body.site .site-header__inner > .brand {
+  animation-delay: 0.06s;
+}
+
+body.site .site-header__inner > .nav-toggle {
+  animation-delay: 0.08s;
+}
+
+body.site .site-nav__list > li:nth-child(1) {
+  animation-delay: 0.11s;
+}
+
+body.site .site-nav__list > li:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+body.site .site-nav__list > li:nth-child(3) {
+  animation-delay: 0.19s;
+}
+
+body.site .site-nav__list > li:nth-child(4) {
+  animation-delay: 0.23s;
+}
+
+body.site .site-nav__list > li:nth-child(5) {
+  animation-delay: 0.27s;
+}
+
+body.site .site-nav__list > li:nth-child(6) {
+  animation-delay: 0.31s;
+}
+
+body.site--home .hero .hero__content > *:nth-child(1) {
+  animation-delay: 0.26s;
+}
+
+body.site--home .hero .hero__content > *:nth-child(2) {
+  animation-delay: 0.32s;
+}
+
+body.site--home .hero .hero__content > *:nth-child(3) {
+  animation-delay: 0.38s;
+}
+
+body.site--home .hero .hero__content > *:nth-child(4) {
+  animation-delay: 0.44s;
+}
+
+body.site--home .panel-grid > .panel:nth-child(1) {
+  animation-delay: 0.42s;
+}
+
+body.site--home .panel-grid > .panel:nth-child(2) {
+  animation-delay: 0.48s;
+}
+
+body.site--home .panel-grid > .panel:nth-child(3) {
+  animation-delay: 0.54s;
+}
+
+body.site--home .panel-grid > .panel:nth-child(4) {
+  animation-delay: 0.6s;
+}
+
+body.site--home .panel-grid > .panel:nth-child(5) {
+  animation-delay: 0.66s;
+}
+
+body.site--home .site-footer {
+  animation-delay: 0.58s;
+}
+
+body.site:not(.site--home) .page-title {
+  animation-delay: 0.26s;
+}
+
+body.site:not(.site--home) .prose > p:nth-child(1) {
+  animation-delay: 0.32s;
+}
+
+body.site:not(.site--home) .prose > p:nth-child(2) {
+  animation-delay: 0.38s;
+}
+
+body.site:not(.site--home) .prose > p:nth-child(3) {
+  animation-delay: 0.44s;
+}
+
+body.site:not(.site--home) .prose > p:nth-child(4) {
+  animation-delay: 0.5s;
+}
+
+body.site:not(.site--home) .prose > p:nth-child(5) {
+  animation-delay: 0.56s;
+}
+
+body.site:not(.site--home) .prose > p:nth-child(6) {
+  animation-delay: 0.62s;
+}
+
+body.site:not(.site--home) .cta-card {
+  animation-delay: 0.48s;
+}
+
+body.site:not(.site--home):not(:has(.cta-card)) .site-footer {
+  animation-delay: 0.56s;
+}
+
+body.site:not(.site--home):has(.cta-card) .site-footer {
+  animation-delay: 0.64s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.site .site-header__inner > .brand,
+  body.site .site-header__inner > .nav-toggle,
+  body.site .site-nav__list > li,
+  body.site--home .hero .hero__content > *,
+  body.site--home .panel-grid > .panel,
+  body.site:not(.site--home) .page-title,
+  body.site:not(.site--home) .prose > p,
+  body.site:not(.site--home) .cta-card,
+  body.site .site-footer {
+    animation: none !important;
+  }
 }

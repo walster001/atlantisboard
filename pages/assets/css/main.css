@@ -25,7 +25,7 @@
   --measure: 65ch;
   --gutter: clamp(1.25rem, 4vw, 3rem);
   --content-max: 72rem;
-  /* Initial page reveal (agency-style staggered fade-up) */
+  /* Initial page load (opacity-only reveal; no transform) */
   --ease-reveal: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-reveal: 0.92s;
 }
@@ -36,12 +36,12 @@
   box-sizing: border-box;
 }
 
-html {
+html.site-root {
   scroll-behavior: smooth;
-}
-
-.site-root {
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+  /* Reserve scrollbar space so width does not jump when overflow toggles during paint */
+  scrollbar-gutter: stable;
 }
 
 body.site {
@@ -58,7 +58,7 @@ body.site {
   background-image: linear-gradient(180deg, var(--color-bg-elevated) 0%, var(--color-bg) 18rem, transparent 18rem);
 }
 
-/* Homepage: one-screen layout; wallpaper at bottom (100vw); footer over same canvas */
+/* Homepage: one-screen layout; wallpaper full width of body (not 100vw — avoids scrollbar gutter shift) */
 body.site--home {
   min-height: 100vh;
   min-height: 100dvh;
@@ -69,7 +69,7 @@ body.site--home {
   background-image: url("../images/home-wallpaper.png");
   background-repeat: no-repeat;
   background-position: bottom center;
-  background-size: 100vw auto;
+  background-size: 100% auto;
 }
 
 .visually-hidden {
@@ -345,13 +345,17 @@ body.site--home .site-main {
   min-height: 0;
 }
 
-/* Home: fill space between header and footer so wallpaper meets hero without extra scroll */
+/* Home: vertical centre of hero between header and wallpaper mark; bottom padding reserves logo band */
 .site-main.site-main--home .site-main__inner {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   min-height: 0;
-  padding: clamp(0.75rem, 2.5vw, 1.75rem) var(--gutter) 0;
+  padding-top: clamp(0.25rem, 1.25vw, 0.75rem);
+  padding-bottom: clamp(8.5rem, 22vh, 15rem);
+  padding-left: max(0.5rem, calc(var(--gutter) - 1rem));
+  padding-right: calc(var(--gutter) + 0.75rem);
 }
 
 .site-main:focus {
@@ -374,6 +378,9 @@ body.site--home .site-main {
   margin-bottom: 0;
   padding-bottom: 0;
   gap: clamp(0.75rem, 2vw, 1.25rem);
+  align-self: flex-start;
+  width: min(100%, 42rem);
+  margin-left: clamp(-0.75rem, -1.25vw, -0.25rem);
 }
 
 .site-main--home .hero__content h1 {
@@ -671,16 +678,14 @@ body.site--home .site-footer__inner {
   border-bottom-color: var(--color-primary-faint);
 }
 
-/* ——— Initial page load: staggered reveal (fade-up) ——— */
+/* Initial page load: staggered fade-in (opacity only — avoids transform overflow / scrollbar flash) */
 @keyframes site-reveal {
   from {
     opacity: 0;
-    transform: translate3d(0, 1.125rem, 0);
   }
 
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 

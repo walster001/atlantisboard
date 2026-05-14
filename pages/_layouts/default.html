@@ -74,7 +74,9 @@
 
     <footer class="site-footer">
       <div class="site-footer__inner">
-        <p class="site-footer__copy">&copy; {{ 'now' | date: '%Y' }} Atlantis Leadership Inc.</p>
+        {% unless page.url == '/' or page.url == '/index.html' %}
+          <p class="site-footer__copy">&copy; {{ 'now' | date: '%Y' }} Atlantis Leadership Inc.</p>
+        {% endunless %}
       </div>
     </footer>
 

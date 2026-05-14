@@ -1,9 +1,12 @@
 # Documentation
 
-This folder holds material for people using or running the app.
+Material in this folder is split by audience:
 
-The **user-facing wiki** (what the product does, how to use it, how to install it on a server, and how sign-in works for the programming interface) lives here:
+| Audience | Start here |
+|----------|------------|
+| **People using the app** (boards, cards, admin screens, high-level hosting) | [User wiki](wiki/Home.md) |
+| **Developers and operators** (install, env vars, scripts, API overview) | [Developer setup](developer/setup.md) |
 
-- [Wiki home](wiki/Home.md)
+Optional wiki screenshots live under [wiki/images/](wiki/images/) — see the README there for naming.
 
-If you edit the wiki, keep screenshots under `wiki/images/` and link them with paths like `images/your-file.png` from pages inside `wiki/`.
+Technical depth beyond setup lives in the repository root [specifications.md](../specifications.md).

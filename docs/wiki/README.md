@@ -1,8 +1,9 @@
 # Atlantisboard wiki
 
-This folder holds long-form documentation for Atlantisboard (guides, screenshots, and notes).
+This folder holds **user-facing** guides (no programming-interface documentation).
 
-- Browse on GitHub: use the repository file tree for `docs/wiki/`.
-- The marketing site in the `pages/` directory links here from the **Wiki** navigation item.
+**Start here:** [Home.md](Home.md) — full table of contents and links to every article.
 
-Add new topics as Markdown files in this directory and link them from this index as the wiki grows.
+Optional screenshots: [images/README.md](images/README.md).
+
+The static site under `pages/` can link this tree (see `pages/_config.yml` `wiki_path`).

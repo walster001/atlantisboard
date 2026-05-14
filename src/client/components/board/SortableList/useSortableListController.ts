@@ -138,6 +138,7 @@ export function useSortableListController(props: SortableListProps): SortableLis
 
   useLayoutEffect(() => {
     const floater = cardMenuFloatingTargetRef.current;
+    const column = listColumnDropRef.current;
     if (floater == null) {
       return;
     }
@@ -146,7 +147,7 @@ export function useSortableListController(props: SortableListProps): SortableLis
     };
     if (openCardMenuCardId == null) {
       applyFloaterStyles({
-        position: 'fixed',
+        position: 'absolute',
         left: '-9999px',
         top: '0',
         width: '1px',
@@ -157,15 +158,22 @@ export function useSortableListController(props: SortableListProps): SortableLis
       return;
     }
     const rect = cardMenuTarget?.anchorRect ?? null;
-    if (rect == null) {
+    if (rect == null || column == null) {
       return;
     }
+    /*
+     * Swiper slides use `transform`, so `position: fixed` + viewport `getBoundingClientRect`
+     * coords misalign the floater on iOS. Anchor inside the list column (`position: relative`)
+     * with offsets from the column rect. Match the ⋮ hit target size so `bottom-end` menus
+     * line up like a real `Menu.Target` on the button.
+     */
+    const colRect = column.getBoundingClientRect();
     applyFloaterStyles({
-      position: 'fixed',
-      left: `${rect.right - 1}px`,
-      top: `${rect.bottom}px`,
-      width: '1px',
-      height: '1px',
+      position: 'absolute',
+      left: `${rect.left - colRect.left}px`,
+      top: `${rect.top - colRect.top}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
       opacity: '0',
       pointerEvents: 'none',
       zIndex: '500',

@@ -31,7 +31,7 @@ export function HomePageLayout({ controller }: HomePageLayoutProps) {
     >
       <HomePageDragPreview controller={controller} />
 
-      <Box p="md" className="home-page__nav" style={{ backgroundColor: controller.homeNavbarColor }}>
+      <Box className="home-page__nav" style={{ backgroundColor: controller.homeNavbarColor }}>
         <Box className="home-page__nav-inner">
           <Box className="home-page__nav-brand">
             <Group gap="xs" wrap="nowrap" align="center">

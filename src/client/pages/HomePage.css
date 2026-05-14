@@ -13,6 +13,11 @@
   background-color: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border-bottom: 1px solid var(--mantine-color-gray-2);
+  padding-left: var(--mantine-spacing-md);
+  padding-right: var(--mantine-spacing-md);
+  padding-bottom: var(--mantine-spacing-md);
+  padding-top: calc(var(--mantine-spacing-md) + constant(safe-area-inset-top));
+  padding-top: calc(var(--mantine-spacing-md) + env(safe-area-inset-top, 0px));
 }
 
 .home-page__nav-inner {
@@ -310,7 +315,8 @@
   }
 
   .home-page__nav {
-    padding-top: calc(0.5rem + env(safe-area-inset-top));
+    padding-top: calc(0.5rem + constant(safe-area-inset-top));
+    padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
   }
 
   .home-page__nav-inner {

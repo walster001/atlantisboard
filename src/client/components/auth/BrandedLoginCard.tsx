@@ -16,6 +16,7 @@ import {
 } from '@mantine/core';
 import { type PublicLoginBranding } from '../../../shared/types/loginBranding.js';
 import { useIsPwa } from '../../hooks/usePwaDisplayMode.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import './brandedLoginCard.css';
 
 export function GoogleMark(): ReactElement {
@@ -79,6 +80,8 @@ export function BrandedLoginCard({
   onForgotPasswordClick,
 }: BrandedLoginCardProps): ReactElement {
   const isPwa = useIsPwa();
+  const responsiveTier = useResponsiveTier();
+  const actionButtonSize = responsiveTier === 'mobile' ? 'md' : 'sm';
   const pageBgStyle: CSSProperties = branding.backgroundEnabled
     ? branding.backgroundType === 'gradient'
       ? {
@@ -240,6 +243,7 @@ export function BrandedLoginCard({
         <Button
           type="submit"
           fullWidth
+          size={actionButtonSize}
           loading={submitLoading}
           mt="md"
           styles={signInButtonStyles}
@@ -292,7 +296,7 @@ export function BrandedLoginCard({
             Forgot password?
           </Text>
         </Group>
-        <Button type="button" fullWidth mt="md" styles={signInButtonStyles}>
+        <Button type="button" fullWidth size={actionButtonSize} mt="md" styles={signInButtonStyles}>
           Sign in
         </Button>
       </Stack>
@@ -304,6 +308,7 @@ export function BrandedLoginCard({
       type="button"
       variant="filled"
       fullWidth
+      size={actionButtonSize}
       onClick={variant === 'live' ? onGoogleClick : undefined}
       leftSection={<GoogleMark />}
       styles={{

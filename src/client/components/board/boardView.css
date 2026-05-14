@@ -86,7 +86,12 @@
 .board-page__header {
   flex-shrink: 0;
   background: transparent;
-  padding: 6px 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-bottom: 6px;
+  /* iOS PWA + `viewport-fit=cover`: keep controls below status bar / Dynamic Island. */
+  padding-top: calc(6px + constant(safe-area-inset-top));
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
   position: relative;
 }
 
@@ -871,20 +876,28 @@
    * `none` only while long-press armed — see SortableCard inline styles).
    */
 
+  /*
+   * `pan-y` alone on cards/list traps vertical scroll for iOS and blocks horizontal pans from
+   * reaching the Swiper parent. `pan-x pan-y` lets list scroll + column swipe both register.
+   */
   .board-page__mobile-carousel .board-column__title-row {
-    touch-action: pan-y;
+    touch-action: pan-x pan-y;
   }
 
   .board-page__mobile-carousel .board-column__cards,
   .board-page__mobile-carousel .board-column__cards--plain,
   .board-page__mobile-carousel .board-column__cards--virtual {
-    touch-action: pan-y;
+    touch-action: pan-x pan-y;
   }
 
   .board-page__mobile-carousel .board-column__virtuoso-scroller {
-    touch-action: pan-y;
+    touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+  }
+
+  .board-page__mobile-carousel .board-card__kanban-cover {
+    touch-action: pan-x pan-y;
   }
 
   .board-page__mobile-carousel .board-card.board-card--kanban .board-card__kanban-title {
@@ -925,7 +938,8 @@
   }
 
   .board-page__header {
-    padding-top: calc(4px + env(safe-area-inset-top));
+    padding-top: calc(4px + constant(safe-area-inset-top));
+    padding-top: calc(4px + env(safe-area-inset-top, 0px));
     padding-left: 8px;
     padding-right: 8px;
   }

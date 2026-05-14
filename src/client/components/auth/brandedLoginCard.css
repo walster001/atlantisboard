@@ -13,6 +13,10 @@
   overflow: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: auto;
+  /* iOS standalone: content must clear status bar when using translucent / edge-to-edge. */
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top, 0px);
+  box-sizing: border-box;
 }
 
 @media (max-width: 767px) {
@@ -28,6 +32,9 @@
     overflow: hidden;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: auto;
+    padding-top: constant(safe-area-inset-top);
+    padding-top: env(safe-area-inset-top, 0px);
+    box-sizing: border-box;
   }
 }
 

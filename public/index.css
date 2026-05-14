@@ -9058,6 +9058,11 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
 
 .home-page__nav {
   border-bottom: 1px solid var(--mantine-color-gray-2);
+  padding-left: var(--mantine-spacing-md);
+  padding-right: var(--mantine-spacing-md);
+  padding-bottom: var(--mantine-spacing-md);
+  padding-top: calc(var(--mantine-spacing-md)  + constant(safe-area-inset-top));
+  padding-top: calc(var(--mantine-spacing-md)  + env(safe-area-inset-top, 0px));
   background-color: #fff;
   box-shadow: 0 1px 3px #00000014;
 }
@@ -9343,7 +9348,8 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   }
 
   .home-page__nav {
-    padding-top: calc(.5rem + env(safe-area-inset-top));
+    padding-top: calc(.5rem + constant(safe-area-inset-top));
+    padding-top: calc(.5rem + env(safe-area-inset-top, 0px));
   }
 
   .home-page__nav-inner {
@@ -9660,6 +9666,9 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   overflow: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: auto;
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top, 0px);
+  box-sizing: border-box;
   width: 100%;
   min-height: 100dvh;
   inset: 0;
@@ -12444,10 +12453,14 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 }
 
 .board-page__header {
+  padding-bottom: 6px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: calc(6px + constant(safe-area-inset-top));
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
   position: relative;
   background: none;
   flex-shrink: 0;
-  padding: 6px 16px;
 }
 
 .board-page__header:before {
@@ -13158,13 +13171,17 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 
   .board-page__mobile-carousel .board-column__title-row, .board-page__mobile-carousel .board-column__cards, .board-page__mobile-carousel .board-column__cards--plain, .board-page__mobile-carousel .board-column__cards--virtual {
-    touch-action: pan-y;
+    touch-action: pan-x pan-y;
   }
 
   .board-page__mobile-carousel .board-column__virtuoso-scroller {
-    touch-action: pan-y;
+    touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+  }
+
+  .board-page__mobile-carousel .board-card__kanban-cover {
+    touch-action: pan-x pan-y;
   }
 
   .board-page__mobile-carousel .board-card.board-card--kanban .board-card__kanban-title {
@@ -13204,7 +13221,8 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 
   .board-page__header {
-    padding-top: calc(4px + env(safe-area-inset-top));
+    padding-top: calc(4px + constant(safe-area-inset-top));
+    padding-top: calc(4px + env(safe-area-inset-top, 0px));
     padding-left: 8px;
     padding-right: 8px;
   }

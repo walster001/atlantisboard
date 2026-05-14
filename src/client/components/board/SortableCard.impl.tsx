@@ -179,6 +179,7 @@ function SortableCardInner({
     >
       {coverRenderUrl ? (
         <Card.Section
+          className="board-card__kanban-cover"
           mb="xs"
           style={{
             borderTopLeftRadius: '12px',
@@ -228,7 +229,11 @@ function SortableCardInner({
             ? {
                 cursor: 'grab',
                 touchAction:
-                  kanbanCardTouchDragRequiresLongPress && touchArm.touchArmedForDrag ? 'none' : 'pan-y',
+                  kanbanCardTouchDragRequiresLongPress && touchArm.touchArmedForDrag
+                    ? 'none'
+                    : kanbanCardTouchDragRequiresLongPress
+                      ? 'pan-x pan-y'
+                      : 'pan-y',
               }
             : { cursor: 'pointer', touchAction: 'auto' }
         }

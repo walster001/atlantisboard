@@ -31,6 +31,11 @@ import './boardView.css';
 const MOBILE_CAROUSEL_EDGE_PX = 44;
 const MOBILE_CAROUSEL_EDGE_HOVER_MS = 420;
 
+/** Swiper: lower threshold / longSwipesRatio = less horizontal travel to change columns. */
+const MOBILE_CAROUSEL_SWIPER_THRESHOLD_PX = 4;
+const MOBILE_CAROUSEL_SWIPER_TOUCH_RATIO = 1.2;
+const MOBILE_CAROUSEL_SWIPER_LONG_SWIPES_RATIO = 0.34;
+
 interface KanbanViewProps {
   /** Supplied by `BoardPage` so this view does not subscribe separately to `s.board`. */
   board: BoardDB;
@@ -378,8 +383,9 @@ export function KanbanView({
             slidesPerView={carouselLayout.slidesPerView}
             spaceBetween={LIST_HORIZONTAL_GAP_PX}
             grabCursor
-            touchRatio={1}
-            threshold={10}
+            touchRatio={MOBILE_CAROUSEL_SWIPER_TOUCH_RATIO}
+            threshold={MOBILE_CAROUSEL_SWIPER_THRESHOLD_PX}
+            longSwipesRatio={MOBILE_CAROUSEL_SWIPER_LONG_SWIPES_RATIO}
             speed={220}
             touchAngle={30}
             touchStartPreventDefault={false}

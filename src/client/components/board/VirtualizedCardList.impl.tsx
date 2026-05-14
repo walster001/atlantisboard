@@ -274,7 +274,7 @@ function VirtualizedCardListInner({
     return (
       <Box
         ref={setListBodyDropRef}
-        className="board-column__cards board-column__cards--plain"
+        className="board-column__cards board-column__cards--plain swiper-no-swiping"
         style={{
           flex: '0 1 auto',
           minHeight: 0,
@@ -301,7 +301,7 @@ function VirtualizedCardListInner({
     return (
       <Box
         ref={setListBodyDropRef}
-        className="board-column__cards board-column__cards--virtual"
+        className="board-column__cards board-column__cards--virtual swiper-no-swiping"
         style={{
           flex: '0 1 auto',
           minHeight: '30px',
@@ -322,7 +322,7 @@ function VirtualizedCardListInner({
   return (
     <Box
       ref={setListBodyDropRef}
-      className="board-column__cards board-column__cards--virtual"
+      className="board-column__cards board-column__cards--virtual swiper-no-swiping"
       style={{
         flex: '0 1 auto',
         minHeight: 0,

@@ -91,7 +91,8 @@ function SortableCardInner({
         ? ({
             requireTouchArmForNativeDrag: true,
             longPressMs: 400,
-            cancelMoveSlopPx: 18,
+            /** Wider slop: Swiper / Android touch jitter cancels arming too easily with 18px. */
+            cancelMoveSlopPx: 28,
           } as const)
         : undefined,
     [kanbanCardTouchDragRequiresLongPress],
@@ -224,7 +225,11 @@ function SortableCardInner({
         onPointerCancel={touchArm.onPointerCancel}
         style={
           kanbanCardBodyDraggable
-            ? { cursor: 'grab', touchAction: touchArm.touchArmedForDrag ? 'none' : 'pan-y' }
+            ? {
+                cursor: 'grab',
+                touchAction:
+                  kanbanCardTouchDragRequiresLongPress && touchArm.touchArmedForDrag ? 'none' : 'pan-y',
+              }
             : { cursor: 'pointer', touchAction: 'auto' }
         }
         onClick={handleCardAreaClick}

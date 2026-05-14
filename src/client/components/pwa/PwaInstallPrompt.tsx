@@ -28,7 +28,10 @@ function isIosSafari(): boolean {
 
 function isStandalone(): boolean {
   return (
-    window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches ||
+    (typeof navigator !== 'undefined' && (navigator as Navigator & { standalone?: boolean }).standalone === true)
   );
 }
 

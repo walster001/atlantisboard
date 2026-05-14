@@ -15,6 +15,7 @@ import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { IconTrash, IconEdit } from '@tabler/icons-react';
 import { api } from '../../utils/api.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { BOARD_PRESET_COLOURS, normalizePresetHex } from '../../constants/boardPresetColors.js';
 import { BoardColourPickerPanel } from './BoardColourPickerPanel.js';
 import { subscribeSocketBoardLabelsChanged } from '../../utils/socketRealtimeBridge.js';
@@ -226,6 +227,9 @@ interface LabelEditModalProps {
 }
 
 function LabelEditModal({ boardId, label, onClose, onSave }: LabelEditModalProps) {
+  const responsiveTier = useResponsiveTier();
+  const labelColourModalFullScreen = responsiveTier === 'mobile';
+
   const defaultColor = BOARD_PRESET_COLOURS[0] ?? '#0079BF';
   const [name, setName] = useState(label?.name ?? '');
   const [selectedColor, setSelectedColor] = useState(() =>
@@ -278,8 +282,9 @@ function LabelEditModal({ boardId, label, onClose, onSave }: LabelEditModalProps
       opened={true}
       onClose={onClose}
       title={label ? 'Edit Label' : 'Create Label'}
-      centered
+      centered={!labelColourModalFullScreen}
       size="lg"
+      fullScreen={labelColourModalFullScreen}
     >
       {error && (
         <Alert color="red" mb="md">

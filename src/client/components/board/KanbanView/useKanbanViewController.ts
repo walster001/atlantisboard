@@ -36,13 +36,14 @@ import {
 import { useKanbanDropIndicators } from './useKanbanDropIndicators.js';
 import { useKanbanDropContext } from './useKanbanDropContext.js';
 import { useKanbanHorizontalVirtualization } from './useKanbanHorizontalVirtualization.js';
+import type { ResponsiveTier } from '../../../hooks/useResponsiveTier.js';
 
 interface KanbanViewControllerArgs {
   readonly board: BoardDB;
   readonly boardCardPatchRef?: MutableRefObject<((card: CardDB) => void) | null>;
   readonly kanbanCaps: KanbanBoardEditCaps;
-  /** When true, lists are rendered inside a carousel (no scrollLeft virtualization). */
-  readonly isMobile: boolean;
+  /** When not `desktop`, lists render in the Swiper carousel (no scrollLeft virtualization). */
+  readonly responsiveTier: ResponsiveTier;
 }
 
 interface KanbanViewController {
@@ -78,7 +79,7 @@ export function useKanbanViewController({
   board,
   boardCardPatchRef,
   kanbanCaps,
-  isMobile,
+  responsiveTier,
 }: KanbanViewControllerArgs): KanbanViewController {
   const { orderedListIds, listsById } = useBoardRuntimeStore(
     useShallow((state) => ({
@@ -269,7 +270,7 @@ export function useKanbanViewController({
     board,
     lists,
     suppressCardOpenClickRef,
-    enabled: !isMobile,
+    enabled: responsiveTier === 'desktop',
   });
 
   useKanbanPragmaticDnd({

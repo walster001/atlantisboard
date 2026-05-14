@@ -33,6 +33,7 @@ import {
   type InlineButtonIconReplacement,
 } from '../../../shared/import/importPreflight.js';
 import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { BoardColourPickerPanel } from '../board/BoardColourPickerPanel.js';
 import {
   BOARD_PRESET_COLOURS,
@@ -371,6 +372,9 @@ export function ImportExportModal({
     'dueDate',
   ]);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
+
+  const responsiveTier = useResponsiveTier();
+  const defaultCardColourModalFullScreen = responsiveTier === 'mobile';
 
   const wekanButtons = useMemo(() => (importType === 'wekan' ? preflight?.wekanButtons?.buttons ?? [] : []), [importType, preflight]);
   const needsReplaceButtons = importType === 'wekan' && wekanButtons.length > 0;
@@ -902,8 +906,9 @@ export function ImportExportModal({
         opened={defaultCardColourModalOpen}
         onClose={() => setDefaultCardColourModalOpen(false)}
         title="Default colour for uncoloured cards"
-        centered
+        centered={!defaultCardColourModalFullScreen}
         size="lg"
+        fullScreen={defaultCardColourModalFullScreen}
         radius="md"
         zIndex={520}
         overlayProps={{ backgroundOpacity: 0.45 }}

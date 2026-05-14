@@ -20,6 +20,7 @@ import {
   IconPalette,
 } from '@tabler/icons-react';
 import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_NAME_MAX_LENGTH } from '../../constants/boardFieldLimits.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { BoardColourPickerPanel } from './BoardColourPickerPanel.js';
 import {
   BOARD_PRESET_COLOURS,
@@ -59,6 +60,9 @@ export function BoardCardMenu({
     normalizePresetHex('#3b82f6', BOARD_PRESET_COLOURS),
   );
   const [coverUseThemeDefault, setCoverUseThemeDefault] = useState(true);
+
+  const responsiveTier = useResponsiveTier();
+  const coverColourModalFullScreen = responsiveTier === 'mobile';
 
   const renameOverLimit = renameDraft.length > BOARD_NAME_MAX_LENGTH;
   const descOverLimit = descDraft.length > BOARD_DESCRIPTION_MAX_LENGTH;
@@ -378,8 +382,9 @@ export function BoardCardMenu({
         opened={coverColourOpen}
         onClose={() => setCoverColourOpen(false)}
         title="Cover colour"
-        centered
+        centered={!coverColourModalFullScreen}
         size="lg"
+        fullScreen={coverColourModalFullScreen}
       >
         <div
           onPointerDown={(e) => e.stopPropagation()}

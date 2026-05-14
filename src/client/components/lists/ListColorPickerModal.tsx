@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal, Stack, Group, Button } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { BoardColourPickerPanel } from '../board/BoardColourPickerPanel.js';
 import {
   BOARD_PRESET_COLOURS,
@@ -34,6 +35,9 @@ export function ListColorPickerModal({
   applyAllLabel = 'Apply to all',
   removeAllLabel = 'Remove from all',
 }: ListColorPickerModalProps) {
+  const responsiveTier = useResponsiveTier();
+  const colourPickerModalFullScreen = responsiveTier === 'mobile';
+
   const [selectedColor, setSelectedColor] = useState(() =>
     normalizePresetHex(initialColor || '#3b82f6', BOARD_PRESET_COLOURS),
   );
@@ -93,7 +97,14 @@ export function ListColorPickerModal({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title={modalTitle} centered size="lg">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={modalTitle}
+      centered={!colourPickerModalFullScreen}
+      size="lg"
+      fullScreen={colourPickerModalFullScreen}
+    >
       <Stack gap="md">
         <BoardColourPickerPanel
           value={selectedColor}

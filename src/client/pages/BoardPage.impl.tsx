@@ -201,7 +201,7 @@ export default function BoardPage() {
             boardCardPatchRef={boardCardPatchRef}
             kanbanCaps={kanbanCaps}
             onOpenCard={handleOpenCard}
-            isMobile={isMobile}
+            responsiveTier={responsiveTier}
           />
         </Suspense>
       </Box>

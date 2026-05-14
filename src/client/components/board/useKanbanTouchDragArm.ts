@@ -62,6 +62,9 @@ export function useKanbanTouchDragArm(
       if (!kanbanCardBodyDraggable || !isTouchLikePointer(event)) {
         return;
       }
+      if (!requireArmRef.current) {
+        return;
+      }
       touchStartRef.current = { x: event.clientX, y: event.clientY };
       if (longPressTimerRef.current != null) {
         window.clearTimeout(longPressTimerRef.current);
@@ -69,6 +72,7 @@ export function useKanbanTouchDragArm(
       longPressTimerRef.current = window.setTimeout(() => {
         longPressTimerRef.current = null;
         touchArmedRef.current = true;
+        touchStartRef.current = null;
         setTouchArmedForDrag(true);
       }, longPressMs);
     },

@@ -1,0 +1,23 @@
+---
+title: About
+permalink: /about/
+---
+
+<h1 class="page-title">About Atlantisboard</h1>
+
+<div class="prose">
+  <p>
+    Atlantisboard is a self-hosted Kanban application aimed at teams that want
+    Trello-style boards with stronger ownership of data, deployment, and access control.
+  </p>
+  <p>
+    The product pairs a React client with a Bun and Express API, MongoDB for persistence,
+    Redis for sessions, Socket.io for collaboration, and MinIO-compatible storage for attachments.
+  </p>
+  <p>
+    Documentation and deep dives live in the repository
+    <a href="https://github.com/{{ site.repository }}/tree/{{ site.wiki_branch }}/{{ site.wiki_path }}" rel="noopener noreferrer">wiki folder on GitHub</a>.
+    Ready-to-run builds are published on the
+    <a href="https://github.com/{{ site.repository }}/releases" rel="noopener noreferrer">releases</a> page.
+  </p>
+</div>

@@ -1,0 +1,30 @@
+# Atlantisboard — GitHub Pages (Jekyll)
+# Docs: https://docs.github.com/en/pages/setting-up-a-github-pages-site-with-jekyll
+title: Atlantisboard
+description: >-
+  Self-hosted Kanban with real-time collaboration — workspaces, boards, and
+  permissions you control.
+
+# Set to "owner/repo" so local builds and metadata resolve GitHub links.
+# On github.io this is often inferred; keeping it explicit avoids broken Wiki/Download URLs.
+repository: YOUR_GITHUB_USER/YOUR_REPO_NAME
+
+# Wiki content in the main repository (Markdown, images, etc.)
+wiki_branch: main
+wiki_path: docs/wiki
+
+url: ""
+baseurl: ""
+
+markdown: kramdown
+permalink: pretty
+
+plugins:
+  - jekyll-github-metadata
+  - jekyll-seo-tag
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default

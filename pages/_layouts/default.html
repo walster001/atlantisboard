@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {% seo %}
+    <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}" />
+    <link rel="icon" href="{{ '/assets/images/atlantisboard-gem.png' | relative_url }}" type="image/png" />
+  </head>
+  <body>
+    {% assign gh_repo = site.github.repository_url %}
+    {% if gh_repo == nil or gh_repo == '' %}
+      {% capture gh_repo %}https://github.com/{{ site.repository }}{% endcapture %}
+    {% endif %}
+    {% assign wiki_branch = site.wiki_branch | default: 'main' %}
+    {% assign wiki_path = site.wiki_path | default: 'docs/wiki' %}
+    {% capture wiki_url %}{{ gh_repo }}/tree/{{ wiki_branch }}/{{ wiki_path }}{% endcapture %}
+    {% capture releases_url %}{{ gh_repo }}/releases{% endcapture %}
+
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header" role="banner">
+      <div class="site-header__inner">
+        <a class="brand" href="{{ '/' | relative_url }}">
+          <img
+            class="brand__gem"
+            src="{{ '/assets/images/atlantisboard-gem.png' | relative_url }}"
+            width="44"
+            height="44"
+            alt=""
+            decoding="async"
+          />
+          <span class="brand__text">{{ site.title }}</span>
+        </a>
+
+        <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" data-nav-toggle>
+          <span class="nav-toggle__bar" aria-hidden="true"></span>
+          <span class="nav-toggle__bar" aria-hidden="true"></span>
+          <span class="nav-toggle__bar" aria-hidden="true"></span>
+          <span class="visually-hidden">Menu</span>
+        </button>
+
+        <nav id="site-nav" class="site-nav" aria-label="Primary">
+          <ul class="site-nav__list">
+            <li>
+              <a class="site-nav__link{% if page.url == '/' or page.url == '/index.html' %} site-nav__link--active{% endif %}" href="{{ '/' | relative_url }}">Home</a>
+            </li>
+            <li>
+              <a class="site-nav__link{% if page.url contains 'about' %} site-nav__link--active{% endif %}" href="{{ '/about/' | relative_url }}">About</a>
+            </li>
+            <li>
+              <a class="site-nav__link site-nav__link--external" href="{{ wiki_url }}" rel="noopener noreferrer">Wiki</a>
+            </li>
+            <li>
+              <a class="site-nav__link site-nav__link--external" href="{{ releases_url }}" rel="noopener noreferrer">Download</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="site-main" tabindex="-1">
+      {{ content }}
+    </main>
+
+    <footer class="site-footer">
+      <p class="site-footer__copy">&copy; {{ 'now' | date: '%Y' }} {{ site.title }}</p>
+      <p class="site-footer__links">
+        <a href="{{ wiki_url }}" rel="noopener noreferrer">Repository wiki</a>
+        <span aria-hidden="true"> · </span>
+        <a href="{{ releases_url }}" rel="noopener noreferrer">Releases</a>
+      </p>
+    </footer>
+
+    <script>
+      (function () {
+        var btn = document.querySelector("[data-nav-toggle]");
+        var nav = document.getElementById("site-nav");
+        if (!btn || !nav) return;
+        btn.addEventListener("click", function () {
+          var open = nav.classList.toggle("site-nav--open");
+          btn.setAttribute("aria-expanded", open ? "true" : "false");
+        });
+      })();
+    </script>
+  </body>
+</html>

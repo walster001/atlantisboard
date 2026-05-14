@@ -190,11 +190,25 @@
     margin-top: 8px;
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     overscroll-behavior: contain;
     background: #fff;
     border: 1px solid var(--mantine-color-gray-3);
     border-radius: var(--mantine-radius-md);
     padding: var(--mantine-spacing-sm);
+  }
+
+  /* Users & permissions: bleed panels to shell horizontal edges; no inner chrome padding. */
+  .board-settings-modal__mobile-content--users {
+    padding: 0;
+    margin-left: -10px;
+    margin-right: -10px;
+    width: calc(100% + 20px);
+    max-width: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
   }
 }

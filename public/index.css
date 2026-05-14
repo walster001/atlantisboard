@@ -9049,6 +9049,14 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   margin-top: var(--mantine-spacing-md);
 }
 
+/* src/client/styles/notificationsMobileSafeArea.css */
+@media (max-width: 767px) {
+  .kb-app-notifications-root[data-position="top-center"] {
+    top: calc(var(--mantine-spacing-md)  + constant(safe-area-inset-top)) !important;
+    top: calc(var(--mantine-spacing-md)  + env(safe-area-inset-top, 0px)) !important;
+  }
+}
+
 /* src/client/pages/HomePage.css */
 .home-page {
   --home-page-content-max-width: 85rem;
@@ -9482,6 +9490,62 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   flex: 1;
   min-height: 0;
+}
+
+.board-member-management__grid--mobile-stacked {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__panel-paper {
+  min-width: 0;
+  box-shadow: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: 1px solid var(--mantine-color-gray-3) !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__panel-paper:last-child {
+  border-bottom: none !important;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__panel-head {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-xs) 0;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__table-scroll {
+  margin-top: var(--mantine-spacing-xs);
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__td {
+  padding: 6px 8px;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__td--role {
+  min-width: 0;
+  max-width: none;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__data-table col:first-child {
+  width: auto !important;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__members-body {
+  margin-top: var(--mantine-spacing-xs);
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__data-table col:nth-child(2) {
+  width: 100px !important;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__data-table col:nth-child(3) {
+  width: 56px !important;
 }
 
 @media (min-width: 48em) {
@@ -11557,6 +11621,25 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   font-weight: 700;
 }
 
+.board-theme-editor-modal__inner--mobile {
+  --board-theme-editor-modal-gutter-x: 0;
+  justify-content: flex-start;
+  align-items: stretch;
+  min-height: 100dvh;
+  padding: 0;
+}
+
+.board-theme-editor-modal__content--mobile {
+  border-radius: 0 !important;
+  width: 100dvw !important;
+  min-width: 100dvw !important;
+  max-width: 100dvw !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+}
+
 /* src/client/components/board/boardThemeBackgroundTab.css */
 .board-theme-tab {
   display: flex;
@@ -11780,6 +11863,25 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   box-shadow: 0 1px 3px #0000001f;
 }
 
+.board-theme-tab--mobile-embedded {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.board-theme-tab--mobile-embedded .board-theme-tab__layout {
+  flex: 1;
+  min-height: 0;
+}
+
+.board-theme-tab__main--mobile-full {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding-left: 0;
+}
+
 /* src/client/components/board/boardSettingsModal.css */
 .board-settings-modal__inner {
   --board-settings-modal-gutter: clamp(12px, 3vmin, 28px);
@@ -11962,15 +12064,28 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 
   .board-settings-modal__mobile-content {
-    overflow: auto;
+    display: flex;
+    overflow: hidden;
     overscroll-behavior: contain;
     border: 1px solid var(--mantine-color-gray-3);
     border-radius: var(--mantine-radius-md);
     padding: var(--mantine-spacing-sm);
     background: #fff;
+    flex-direction: column;
     flex: auto;
     min-height: 0;
     margin-top: 8px;
+  }
+
+  .board-settings-modal__mobile-content--users {
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    width: calc(100% + 20px);
+    max-width: none;
+    margin-left: -10px;
+    margin-right: -10px;
+    padding: 0;
   }
 }
 

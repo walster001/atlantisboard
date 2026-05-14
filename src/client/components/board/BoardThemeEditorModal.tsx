@@ -9,6 +9,11 @@ import {
 } from '../../../shared/boardTheme.js';
 import { applySmartContrastToThemePalette, getBoardPaletteScrollbarColors, getDerivedBoardTextColors } from '../../utils/boardThemeStyle.js';
 import { BoardThemeEditorModalPreview } from './BoardThemeEditorModalPreview.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
+import {
+  KB_IOS_MODAL_HEADER_SAFE_CLASS,
+  modalStylesFullscreenSafeBody,
+} from '../../constants/iosModalSafeArea.js';
 import './boardThemeEditorModal.css';
 
 /** Mantine `ColorInput` types `swatches` as mutable `string[]`; copy once at load. */
@@ -82,6 +87,9 @@ export function BoardThemeEditorModal({
   onClose,
   onSave,
 }: BoardThemeEditorModalProps) {
+  const responsiveTier = useResponsiveTier();
+  const isMobileEditor = responsiveTier === 'mobile';
+
   const base = useMemo(
     () => normalizeBoardThemeSettings(initialSettings, createDefaultBoardThemeSettings()),
     [initialSettings],
@@ -157,17 +165,26 @@ export function BoardThemeEditorModal({
       opened={opened}
       onClose={onClose}
       title={modalTitle}
+      fullScreen={isMobileEditor}
       centered={false}
       yOffset={0}
       size="100%"
+      {...(isMobileEditor ? { zIndex: 650 } : {})}
       onEnterTransitionEnd={handleModalEnterTransitionEnd}
       classNames={{
-        inner: 'board-theme-editor-modal__inner',
-        content: 'board-theme-editor-modal__content',
-        header: 'board-theme-editor-modal__header',
+        inner: isMobileEditor
+          ? 'board-theme-editor-modal__inner board-theme-editor-modal__inner--mobile'
+          : 'board-theme-editor-modal__inner',
+        content: isMobileEditor
+          ? 'board-theme-editor-modal__content board-theme-editor-modal__content--mobile'
+          : 'board-theme-editor-modal__content',
+        header: isMobileEditor
+          ? `board-theme-editor-modal__header ${KB_IOS_MODAL_HEADER_SAFE_CLASS}`
+          : 'board-theme-editor-modal__header',
         title: 'board-theme-editor-modal__title',
         body: 'board-theme-editor-modal__body',
       }}
+      styles={modalStylesFullscreenSafeBody(isMobileEditor)}
     >
       <Stack gap="md" className="board-theme-editor-modal__body-stack">
         {error != null ? <Alert color="red">{error}</Alert> : null}

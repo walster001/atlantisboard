@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, type ReactElement } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { MantineProvider } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
@@ -11,11 +11,30 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { mantineTheme } from './config/mantineTheme.js';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt.js';
+import { useResponsiveTier } from './hooks/useResponsiveTier.js';
 import '@mantine/core/styles.css';
 import '@mantine/charts/styles.css';
 import '@mantine/notifications/styles.css';
+import './styles/notificationsMobileSafeArea.css';
 
 const MANTINE_MODALS_PROVIDER_PROPS = { centered: true } as const;
+
+/** Mantine default for `<Notifications />` without `position`; keep in sync when changing desktop placement. */
+const APP_NOTIFICATIONS_DESKTOP_POSITION = 'bottom-right' as const;
+
+/** Stable hook for CSS in `notificationsMobileSafeArea.css` (Mantine merges onto each position root). */
+const KB_APP_NOTIFICATIONS_ROOT_CLASS = 'kb-app-notifications-root';
+
+function AppNotifications(): ReactElement {
+  const tier = useResponsiveTier();
+  const isMobile = tier === 'mobile';
+  return (
+    <Notifications
+      position={isMobile ? 'top-center' : APP_NOTIFICATIONS_DESKTOP_POSITION}
+      {...(isMobile ? { classNames: { root: KB_APP_NOTIFICATIONS_ROOT_CLASS } } : {})}
+    />
+  );
+}
 
 // Lazy load routes for code splitting
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -48,7 +67,7 @@ function App() {
   return (
     <MantineProvider theme={mantineTheme} defaultColorScheme="light">
       <ModalsProvider modalProps={MANTINE_MODALS_PROVIDER_PROPS}>
-        <Notifications />
+        <AppNotifications />
         <OfflinePersistenceNotice />
         <PwaInstallPrompt />
         <BrowserRouter>

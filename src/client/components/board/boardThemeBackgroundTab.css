@@ -221,3 +221,23 @@
   padding: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
+
+/* Board settings mobile / PWA: parent picks Theme vs Background; main pane fills the sheet. */
+.board-theme-tab--mobile-embedded {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.board-theme-tab--mobile-embedded .board-theme-tab__layout {
+  flex: 1;
+  min-height: 0;
+}
+
+.board-theme-tab__main--mobile-full {
+  padding-left: 0;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}

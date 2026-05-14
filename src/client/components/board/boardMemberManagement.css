@@ -17,6 +17,64 @@
   grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
 }
 
+/* Board settings phone: stack All users / Current members (~50% height each). */
+.board-member-management__grid--mobile-stacked {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__panel-paper {
+  min-width: 0;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid var(--mantine-color-gray-3) !important;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__panel-paper:last-child {
+  border-bottom: none !important;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__panel-head {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-xs) 0;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__table-scroll {
+  margin-top: var(--mantine-spacing-xs);
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__td {
+  padding: 6px 8px;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__td--role {
+  min-width: 0;
+  max-width: none;
+}
+
+/* Favour identity column: fixed narrow role/action cols (inline col widths overridden). */
+.board-member-management__grid--mobile-stacked .board-member-management__data-table col:nth-child(1) {
+  width: auto !important;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__members-body {
+  margin-top: var(--mantine-spacing-xs);
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__data-table col:nth-child(2) {
+  width: 100px !important;
+}
+
+.board-member-management__grid--mobile-stacked .board-member-management__data-table col:nth-child(3) {
+  width: 56px !important;
+}
+
 @media (min-width: 48em) {
   .board-member-management__grid {
     grid-template-columns: 1fr 1fr;

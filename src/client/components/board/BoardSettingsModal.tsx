@@ -268,7 +268,13 @@ export function BoardSettingsModal({
               ) : null}
             </Stack>
           ) : (
-            <Box className="board-settings-modal__mobile-content">
+            <Box
+              className={
+                mobileDetail.kind === 'users'
+                  ? 'board-settings-modal__mobile-content board-settings-modal__mobile-content--users'
+                  : 'board-settings-modal__mobile-content'
+              }
+            >
               {mobileDetail.kind === 'board' && mobileDetail.section === 'card-settings' ? (
                 <BoardSettingsCardSettingsPanel
                   boardId={boardId}
@@ -299,6 +305,7 @@ export function BoardSettingsModal({
                   canManageCustomThemes={canManageCustomThemes}
                   {...(onThemeLivePatch !== undefined ? { onThemeLivePatch } : {})}
                   initialNav={mobileDetail.section === 'background' ? 'background' : 'theme'}
+                  mobileLayout
                 />
               ) : null}
               {mobileDetail.kind === 'audit' ? (

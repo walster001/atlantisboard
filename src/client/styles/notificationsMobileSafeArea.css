@@ -1,0 +1,11 @@
+/*
+ * Mantine `@mantine/notifications/styles.css` sets `top: var(--mantine-spacing-md)` for
+ * `[data-position='top-center']`, which ignores the iOS notch. Load this file after that
+ * stylesheet and pair with `classNames.root` on `<Notifications />` (mobile only).
+ */
+@media (max-width: 767px) {
+  .kb-app-notifications-root[data-position='top-center'] {
+    top: calc(var(--mantine-spacing-md) + constant(safe-area-inset-top)) !important;
+    top: calc(var(--mantine-spacing-md) + env(safe-area-inset-top, 0px)) !important;
+  }
+}

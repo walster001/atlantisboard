@@ -210,3 +210,22 @@
   font-weight: 700;
 }
 
+.board-theme-editor-modal__inner--mobile {
+  --board-theme-editor-modal-gutter-x: 0;
+  padding: 0;
+  min-height: 100dvh;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.board-theme-editor-modal__content--mobile {
+  width: 100dvw !important;
+  min-width: 100dvw !important;
+  max-width: 100dvw !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+

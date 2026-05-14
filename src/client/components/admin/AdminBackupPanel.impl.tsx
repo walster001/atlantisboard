@@ -5,8 +5,11 @@ import { backupPhaseDisplayLabel } from '../../utils/adminBackupJobPoll.js';
 import { BackupsTableBody } from './AdminBackupPanel/BackupsTableBody.js';
 import { BackupDialogs } from './AdminBackupPanel/BackupDialogs.js';
 import { useAdminBackupPanelState } from './AdminBackupPanel/useAdminBackupPanelState.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 
 export const AdminBackupPanel = memo(function AdminBackupPanel() {
+  const responsiveTier = useResponsiveTier();
+  const hideBackupMetaColumns = responsiveTier === 'mobile';
   const {
     backups,
     loading,
@@ -92,12 +95,16 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
           </Text>
         </Group>
       ) : (
-        <Table striped highlightOnHover withTableBorder>
+        <Table striped highlightOnHover withTableBorder layout="fixed">
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Folder</Table.Th>
-              <Table.Th>Created</Table.Th>
-              <Table.Th>Size</Table.Th>
+              <Table.Th>{hideBackupMetaColumns ? 'Filename' : 'Folder'}</Table.Th>
+              {!hideBackupMetaColumns ? (
+                <>
+                  <Table.Th>Created</Table.Th>
+                  <Table.Th>Size</Table.Th>
+                </>
+              ) : null}
               <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -105,6 +112,7 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
             <BackupsTableBody
               backups={backups}
               refreshBackupList={refreshBackupList}
+              hideMetaColumns={hideBackupMetaColumns}
               onOpenRestoreModal={(target) => {
                 setRestoreTarget(target);
                 setRestoreConfirm('');

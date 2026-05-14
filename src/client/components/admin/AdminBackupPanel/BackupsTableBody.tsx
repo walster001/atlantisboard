@@ -11,12 +11,15 @@ interface BackupsTableBodyProps {
   readonly backups: readonly AdminBackupListItem[];
   readonly refreshBackupList: () => Promise<void>;
   readonly onOpenRestoreModal: (target: AdminBackupListItem) => void;
+  /** Admin configuration on narrow viewports: omit created/size cells. */
+  readonly hideMetaColumns?: boolean;
 }
 
 export const BackupsTableBody = memo(function BackupsTableBody({
   backups,
   refreshBackupList,
   onOpenRestoreModal,
+  hideMetaColumns = false,
 }: BackupsTableBodyProps) {
   return (
     <>
@@ -27,8 +30,12 @@ export const BackupsTableBody = memo(function BackupsTableBody({
               {backup.folderId}
             </Text>
           </Table.Td>
-          <Table.Td>{new Date(backup.lastModified).toLocaleString()}</Table.Td>
-          <Table.Td>{formatBackupBytes(backup.sizeBytes)}</Table.Td>
+          {!hideMetaColumns ? (
+            <>
+              <Table.Td>{new Date(backup.lastModified).toLocaleString()}</Table.Td>
+              <Table.Td>{formatBackupBytes(backup.sizeBytes)}</Table.Td>
+            </>
+          ) : null}
           <Table.Td>
             {backup.status === 'processing' || backup.status === 'pending' ? (
               <Stack gap={6}>
@@ -68,7 +75,7 @@ export const BackupsTableBody = memo(function BackupsTableBody({
             ) : backup.status === 'completed' || backup.status == null ? (
               <Group gap="xs" wrap="nowrap">
                 <Button size="xs" variant="light" onClick={() => onOpenRestoreModal(backup)}>
-                  Restore backup
+                  {hideMetaColumns ? 'Restore' : 'Restore backup'}
                 </Button>
                 <Button
                   size="xs"
@@ -102,7 +109,7 @@ export const BackupsTableBody = memo(function BackupsTableBody({
                     });
                   }}
                 >
-                  Delete backup
+                  {hideMetaColumns ? 'Delete' : 'Delete backup'}
                 </Button>
               </Group>
             ) : (

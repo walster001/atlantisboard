@@ -10,6 +10,7 @@ import {
 } from 'react';
 import {
   Avatar,
+  ActionIcon,
   Box,
   Button,
   Group,
@@ -29,6 +30,7 @@ import { api } from '../../utils/api.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
 import { BoardMemberEnterToSearchField } from './BoardMemberEnterToSearchField.js';
 import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import './boardMemberManagement.css';
 
 function isSearchRequestCancelled(error: unknown): boolean {
@@ -118,10 +120,6 @@ const BOARD_MEMBER_TABLE_ROW_PX = 96;
 /** Fixed columns keep role + action aligned while virtual rows mount/unmount. */
 const BOARD_MEMBER_ACTION_COL_PX = 118;
 const BOARD_MEMBER_ROLE_COL_PX = 148;
-/** Matches server `userDirectoryService` max page size (see MAX_LIMIT). */
-const DIRECTORY_PAGE_LIMIT = 100;
-/** Server `boardMembersQuerySchema` / `getBoardMembersPage` cap — use full page for fewer round-trips at ~1000 members. */
-const BOARD_MEMBERS_LIST_PAGE_LIMIT = 200;
 
 /** Stable for TableVirtuoso `components` (avoid remount on parent render). */
 const BoardMemberDataTable = forwardRef<HTMLTableElement, ComponentPropsWithoutRef<'table'>>(
@@ -147,6 +145,9 @@ const BoardMemberDataTable = forwardRef<HTMLTableElement, ComponentPropsWithoutR
   ),
 );
 BoardMemberDataTable.displayName = 'BoardMemberDataTable';
+const DIRECTORY_PAGE_LIMIT = 100;
+/** Server `boardMembersQuerySchema` / `getBoardMembersPage` cap — use full page for fewer round-trips at ~1000 members. */
+const BOARD_MEMBERS_LIST_PAGE_LIMIT = 200;
 
 /** Fixed height matches `fixedItemHeight`; avoids Virtuoso scroll drift from border/padding. */
 const BoardMemberTableRow = forwardRef<HTMLTableRowElement, ComponentPropsWithoutRef<'tr'>>(
@@ -169,14 +170,18 @@ const boardMemberTableVirtuosoComponents = {
   TableRow: BoardMemberTableRow,
 };
 
+/** Tighter avatar in board settings mobile stacked layout (frees width for name/email). */
+const BOARD_MEMBER_MOBILE_AVATAR_PX = 32;
+
 const BoardMemberUserIdentityStack = memo(function BoardMemberUserIdentityStack(props: {
   readonly user: UserRow;
+  readonly compact?: boolean;
 }) {
-  const { user } = props;
+  const { user, compact = false } = props;
   const email = user.email.trim();
   return (
     <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-      <Text fw={600} size="sm" lineClamp={1}>
+      <Text fw={600} size={compact ? 'xs' : 'sm'} lineClamp={compact ? 2 : 1}>
         {user.displayName}
       </Text>
       <Tooltip label={email} disabled={email === ''} openDelay={350} position="top-start" multiline maw={420}>
@@ -184,7 +189,7 @@ const BoardMemberUserIdentityStack = memo(function BoardMemberUserIdentityStack(
           component="span"
           size="xs"
           c="dimmed"
-          lineClamp={2}
+          lineClamp={compact ? 3 : 2}
           className="board-member-management__email-text"
         >
           {user.email}
@@ -208,21 +213,32 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
   readonly canUpdateMemberRole: boolean;
   readonly onRoleChange: (userId: string, next: RoleKey) => void;
   readonly onAddUser: (userId: string) => void;
+  readonly compactLayout?: boolean;
 }) {
-  const { user, roleKey, roleOptions, canAddMember, canUpdateMemberRole, onRoleChange, onAddUser } = props;
+  const {
+    user,
+    roleKey,
+    roleOptions,
+    canAddMember,
+    canUpdateMemberRole,
+    onRoleChange,
+    onAddUser,
+    compactLayout = false,
+  } = props;
+  const avatarSize = compactLayout ? BOARD_MEMBER_MOBILE_AVATAR_PX : APP_USER_AVATAR_SIZE;
   return (
     <>
       <td className="board-member-management__td board-member-management__td--user">
-        <Group gap="sm" wrap="nowrap" align="flex-start">
+        <Group gap={compactLayout ? 6 : 'sm'} wrap="nowrap" align="flex-start">
           <Avatar
-            size={APP_USER_AVATAR_SIZE}
+            size={avatarSize}
             color="gray"
             mt={2}
             {...(user.profilePicture != null && user.profilePicture !== '' ? { src: user.profilePicture } : {})}
           >
             {userMenuStyleAvatarInitials(user.displayName, user.email)}
           </Avatar>
-          <BoardMemberUserIdentityStack user={user} />
+          <BoardMemberUserIdentityStack user={user} compact={compactLayout} />
         </Group>
       </td>
       <td className="board-member-management__td board-member-management__td--role">
@@ -247,16 +263,33 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
       </td>
       <td className="board-member-management__td board-member-management__td--action">
         {canAddMember ? (
-          <Button
-            size="xs"
-            color="blue"
-            leftSection={<IconPlus size={14} stroke={2} />}
-            onClick={() => {
-              onAddUser(user._id);
-            }}
-          >
-            Add
-          </Button>
+          compactLayout ? (
+            <Tooltip label="Add to board">
+              <ActionIcon
+                size="lg"
+                radius="md"
+                color="blue"
+                variant="light"
+                aria-label="Add user to board"
+                onClick={() => {
+                  onAddUser(user._id);
+                }}
+              >
+                <IconPlus size={18} stroke={2} />
+              </ActionIcon>
+            </Tooltip>
+          ) : (
+            <Button
+              size="xs"
+              color="blue"
+              leftSection={<IconPlus size={14} stroke={2} />}
+              onClick={() => {
+                onAddUser(user._id);
+              }}
+            >
+              Add
+            </Button>
+          )
         ) : (
           <Text size="sm" c="dimmed" ta="center">
             -
@@ -267,20 +300,24 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
   );
 });
 
-const OwnerTableCells = memo(function OwnerTableCells(props: { readonly user: UserRow }) {
-  const { user } = props;
+const OwnerTableCells = memo(function OwnerTableCells(props: {
+  readonly user: UserRow;
+  readonly compactLayout?: boolean;
+}) {
+  const { user, compactLayout = false } = props;
+  const avatarSize = compactLayout ? BOARD_MEMBER_MOBILE_AVATAR_PX : APP_USER_AVATAR_SIZE;
   return (
     <>
       <td className="board-member-management__td board-member-management__td--user board-member-management__td--user-row-owner">
-        <Group gap="sm" wrap="nowrap" align="center">
+        <Group gap={compactLayout ? 6 : 'sm'} wrap="nowrap" align="center">
           <Avatar
-            size={APP_USER_AVATAR_SIZE}
+            size={avatarSize}
             color="blue"
             {...(user.profilePicture != null && user.profilePicture !== '' ? { src: user.profilePicture } : {})}
           >
             {userMenuStyleAvatarInitials(user.displayName, user.email)}
           </Avatar>
-          <BoardMemberUserIdentityStack user={user} />
+          <BoardMemberUserIdentityStack user={user} compact={compactLayout} />
         </Group>
       </td>
       <td
@@ -303,21 +340,32 @@ const MemberTableCells = memo(function MemberTableCells(props: {
   readonly canUpdateMemberRole: boolean;
   readonly onRoleChange: (userId: string, next: RoleKey) => void;
   readonly onRemoveMember: (userId: string) => void;
+  readonly compactLayout?: boolean;
 }) {
-  const { user, roleKey, roleOptions, canRemoveMember, canUpdateMemberRole, onRoleChange, onRemoveMember } = props;
+  const {
+    user,
+    roleKey,
+    roleOptions,
+    canRemoveMember,
+    canUpdateMemberRole,
+    onRoleChange,
+    onRemoveMember,
+    compactLayout = false,
+  } = props;
+  const avatarSize = compactLayout ? BOARD_MEMBER_MOBILE_AVATAR_PX : APP_USER_AVATAR_SIZE;
   return (
     <>
       <td className="board-member-management__td board-member-management__td--user">
-        <Group gap="sm" wrap="nowrap" align="flex-start">
+        <Group gap={compactLayout ? 6 : 'sm'} wrap="nowrap" align="flex-start">
           <Avatar
-            size={APP_USER_AVATAR_SIZE}
+            size={avatarSize}
             color="gray"
             mt={2}
             {...(user.profilePicture != null && user.profilePicture !== '' ? { src: user.profilePicture } : {})}
           >
             {userMenuStyleAvatarInitials(user.displayName, user.email)}
           </Avatar>
-          <BoardMemberUserIdentityStack user={user} />
+          <BoardMemberUserIdentityStack user={user} compact={compactLayout} />
         </Group>
       </td>
       <td className="board-member-management__td board-member-management__td--role">
@@ -342,17 +390,34 @@ const MemberTableCells = memo(function MemberTableCells(props: {
       </td>
       <td className="board-member-management__td board-member-management__td--action">
         {canRemoveMember ? (
-          <Button
-            size="xs"
-            variant="subtle"
-            color="red"
-            leftSection={<IconUserMinus size={16} stroke={1.5} />}
-            onClick={() => {
-              onRemoveMember(user._id);
-            }}
-          >
-            Remove
-          </Button>
+          compactLayout ? (
+            <Tooltip label="Remove from board">
+              <ActionIcon
+                size="lg"
+                radius="md"
+                color="red"
+                variant="light"
+                aria-label="Remove member from board"
+                onClick={() => {
+                  onRemoveMember(user._id);
+                }}
+              >
+                <IconUserMinus size={18} stroke={1.5} />
+              </ActionIcon>
+            </Tooltip>
+          ) : (
+            <Button
+              size="xs"
+              variant="subtle"
+              color="red"
+              leftSection={<IconUserMinus size={16} stroke={1.5} />}
+              onClick={() => {
+                onRemoveMember(user._id);
+              }}
+            >
+              Remove
+            </Button>
+          )
         ) : (
           <Text size="sm" c="dimmed" ta="center">
             -
@@ -368,6 +433,8 @@ interface BoardMemberManagementProps {
 }
 
 export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
+  const responsiveTier = useResponsiveTier();
+  const isMobileStackedLayout = responsiveTier === 'mobile';
   const { can, loaded: permissionsLoaded } = useBoardPermissions(boardId);
   const canAddMember = permissionsLoaded && can('boards.members.add');
   const canRemoveMember = permissionsLoaded && can('boards.members.remove');
@@ -869,9 +936,25 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
 
   return (
     <Box className="board-member-management__root">
-      <div className="board-member-management__grid">
-        <Paper withBorder radius="md" p="md" className="board-member-management__panel-paper" h="100%">
-          <Stack gap="md" style={{ flexShrink: 0 }}>
+      <div
+        className={
+          isMobileStackedLayout
+            ? 'board-member-management__grid board-member-management__grid--mobile-stacked'
+            : 'board-member-management__grid'
+        }
+      >
+        <Paper
+          withBorder={!isMobileStackedLayout}
+          radius={isMobileStackedLayout ? 0 : 'md'}
+          p={isMobileStackedLayout ? 0 : 'md'}
+          className="board-member-management__panel-paper"
+          h="100%"
+        >
+          <Stack
+            gap={isMobileStackedLayout ? 'xs' : 'md'}
+            className="board-member-management__panel-head"
+            style={{ flexShrink: 0 }}
+          >
             <Text fw={700} size="md">
               All Users
             </Text>
@@ -929,6 +1012,7 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
                     canUpdateMemberRole={canUpdateMemberRole}
                     onRoleChange={handleDirectoryRoleChange}
                     onAddUser={handleAddUser}
+                    compactLayout={isMobileStackedLayout}
                   />
                 )}
               />
@@ -936,8 +1020,18 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
           </Box>
         </Paper>
 
-        <Paper withBorder radius="md" p="md" className="board-member-management__panel-paper" h="100%">
-          <Stack gap="md" style={{ flexShrink: 0 }}>
+        <Paper
+          withBorder={!isMobileStackedLayout}
+          radius={isMobileStackedLayout ? 0 : 'md'}
+          p={isMobileStackedLayout ? 0 : 'md'}
+          className="board-member-management__panel-paper"
+          h="100%"
+        >
+          <Stack
+            gap={isMobileStackedLayout ? 'xs' : 'md'}
+            className="board-member-management__panel-head"
+            style={{ flexShrink: 0 }}
+          >
             <Text fw={700} size="md">
               Current Members ({memberCount})
             </Text>
@@ -950,10 +1044,11 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
           </Stack>
 
           <Box
+            className="board-member-management__members-body"
             style={{
               flex: 1,
               minHeight: 0,
-              marginTop: 'var(--mantine-spacing-md)',
+              ...(isMobileStackedLayout ? {} : { marginTop: 'var(--mantine-spacing-md)' }),
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
@@ -991,7 +1086,7 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
                   endReached={handleMemberListEndReached}
                   itemContent={(_index, row) => {
                     if (row.kind === 'owner') {
-                      return <OwnerTableCells user={row.user} />;
+                      return <OwnerTableCells user={row.user} compactLayout={isMobileStackedLayout} />;
                     }
                     const user = extractUser(row.member.userId);
                     return (
@@ -1003,6 +1098,7 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
                         canUpdateMemberRole={canUpdateMemberRole}
                         onRoleChange={onMemberRoleChange}
                         onRemoveMember={handleRemoveMember}
+                        compactLayout={isMobileStackedLayout}
                       />
                     );
                   }}

@@ -34,6 +34,8 @@ interface BoardThemeBackgroundTabProps {
   canManageCustomThemes: boolean;
   onThemeLivePatch?: (patch: { themeSettings: BoardThemeSettings; background?: string }) => void;
   initialNav?: ThemeNav;
+  /** Board settings phone / PWA shell: hide inner Theme/Background nav; section comes from parent rows. */
+  mobileLayout?: boolean;
 }
 
 type ThemeNav = 'theme' | 'background';
@@ -44,6 +46,7 @@ export function BoardThemeBackgroundTab({
   canManageCustomThemes,
   onThemeLivePatch,
   initialNav,
+  mobileLayout = false,
 }: BoardThemeBackgroundTabProps) {
   const { refreshUser } = useAuthContext();
   const [loading, setLoading] = useState(true);
@@ -463,26 +466,40 @@ export function BoardThemeBackgroundTab({
   }
 
   return (
-    <Box className="board-theme-tab">
-      <Flex align="stretch" wrap="nowrap" gap="md" className="board-theme-tab__layout">
-        <Stack gap={4} className="board-theme-tab__sidenav board-theme-tab__sidenav--sticky">
-          <NavLink
-            label="Theme / Colouring"
-            leftSection={<IconPalette size={18} stroke={1.5} />}
-            active={nav === 'theme'}
-            onClick={() => setNav('theme')}
-            variant="subtle"
-          />
-          <NavLink
-            label="Background"
-            leftSection={<IconPhoto size={18} stroke={1.5} />}
-            active={nav === 'background'}
-            onClick={() => setNav('background')}
-            variant="subtle"
-          />
-        </Stack>
+    <Box className={mobileLayout ? 'board-theme-tab board-theme-tab--mobile-embedded' : 'board-theme-tab'}>
+      <Flex
+        align="stretch"
+        wrap="nowrap"
+        gap="md"
+        direction={mobileLayout ? 'column' : 'row'}
+        className="board-theme-tab__layout"
+      >
+        {!mobileLayout ? (
+          <Stack gap={4} className="board-theme-tab__sidenav board-theme-tab__sidenav--sticky">
+            <NavLink
+              label="Theme / Colouring"
+              leftSection={<IconPalette size={18} stroke={1.5} />}
+              active={nav === 'theme'}
+              onClick={() => setNav('theme')}
+              variant="subtle"
+            />
+            <NavLink
+              label="Background"
+              leftSection={<IconPhoto size={18} stroke={1.5} />}
+              active={nav === 'background'}
+              onClick={() => setNav('background')}
+              variant="subtle"
+            />
+          </Stack>
+        ) : null}
 
-        <Box className="board-theme-tab__main board-theme-tab__main--scrollable">
+        <Box
+          className={
+            mobileLayout
+              ? 'board-theme-tab__main board-theme-tab__main--scrollable board-theme-tab__main--mobile-full'
+              : 'board-theme-tab__main board-theme-tab__main--scrollable'
+          }
+        >
           {error != null ? <Alert color="red">{error}</Alert> : null}
 
           {nav === 'theme' ? (

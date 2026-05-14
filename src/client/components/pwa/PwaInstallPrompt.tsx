@@ -7,16 +7,86 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
-const DISMISS_KEY = 'kb.pwa.install.dismissedAt';
-const DISMISS_TTL_MS = 1000 * 60 * 60 * 24 * 3;
+/** Legacy: time-based dismiss (replaced by permanent skip). */
+const LEGACY_DISMISS_KEY = 'kb.pwa.install.dismissedAt';
+/** Permanent: do not show install UI again after dismiss, install, or `appinstalled`. */
+const SKIP_KEY = 'kb.pwa.install.skip';
 
-function shouldSuppressPrompt(): boolean {
-  const raw = globalThis.localStorage.getItem(DISMISS_KEY);
-  if (raw == null) {
+const DISPLAY_MODES_INSTALLED: readonly string[] = [
+  'standalone',
+  'fullscreen',
+  'minimal-ui',
+  'window-controls-overlay',
+];
+
+function readSkipFlag(): boolean {
+  try {
+    if (globalThis.localStorage.getItem(SKIP_KEY) === '1') {
+      return true;
+    }
+    if (globalThis.localStorage.getItem(LEGACY_DISMISS_KEY) != null) {
+      globalThis.localStorage.setItem(SKIP_KEY, '1');
+      globalThis.localStorage.removeItem(LEGACY_DISMISS_KEY);
+      return true;
+    }
+  } catch {
+    /* private mode / blocked storage */
+  }
+  return false;
+}
+
+function setSkipFlag(): void {
+  try {
+    globalThis.localStorage.setItem(SKIP_KEY, '1');
+    globalThis.localStorage.removeItem(LEGACY_DISMISS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function isRunningAsInstalledPwa(): boolean {
+  if (typeof window === 'undefined') {
     return false;
   }
-  const ts = Number(raw);
-  return Number.isFinite(ts) && Date.now() - ts < DISMISS_TTL_MS;
+  for (const mode of DISPLAY_MODES_INSTALLED) {
+    try {
+      if (window.matchMedia(`(display-mode: ${mode})`).matches) {
+        return true;
+      }
+    } catch {
+      /* invalid media query in some environments */
+    }
+  }
+  const nav = navigator as Navigator & { standalone?: boolean };
+  return nav.standalone === true;
+}
+
+/**
+ * `beforeinstallprompt` fires on desktop Chromium too. Only show our custom install UI on
+ * surfaces where a home-screen style install is expected (mobile / tablet).
+ */
+function isMobileOrTabletInstallSurface(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+  const uaData = navigator as Navigator & {
+    userAgentData?: { mobile?: boolean; platform?: string };
+  };
+  if (uaData.userAgentData != null && typeof uaData.userAgentData.mobile === 'boolean') {
+    return uaData.userAgentData.mobile;
+  }
+  const ua = navigator.userAgent;
+  if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) {
+    return true;
+  }
+  try {
+    const narrow = window.matchMedia('(max-width: 1024px)').matches;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const touch = navigator.maxTouchPoints > 0;
+    return narrow && (coarse || touch);
+  } catch {
+    return false;
+  }
 }
 
 function isIosSafari(): boolean {
@@ -26,40 +96,52 @@ function isIosSafari(): boolean {
   return isIos && isSafari;
 }
 
-function isStandalone(): boolean {
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.matchMedia('(display-mode: fullscreen)').matches ||
-    window.matchMedia('(display-mode: minimal-ui)').matches ||
-    (typeof navigator !== 'undefined' && (navigator as Navigator & { standalone?: boolean }).standalone === true)
-  );
-}
-
 export function PwaInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosHint, setShowIosHint] = useState(false);
 
   useLayoutEffect(() => {
-    if (isStandalone() || shouldSuppressPrompt()) {
+    if (typeof window === 'undefined') {
       return;
     }
+    if (isRunningAsInstalledPwa() || readSkipFlag()) {
+      return;
+    }
+
+    const handleAppInstalled = (): void => {
+      setSkipFlag();
+      setDeferredPrompt(null);
+      setShowIosHint(false);
+    };
+    window.addEventListener('appinstalled', handleAppInstalled);
+
     const handleBeforeInstallPrompt = (event: Event): void => {
+      if (isRunningAsInstalledPwa() || readSkipFlag()) {
+        event.preventDefault();
+        return;
+      }
+      if (!isMobileOrTabletInstallSurface()) {
+        return;
+      }
       event.preventDefault();
       setDeferredPrompt(event as BeforeInstallPromptEvent);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    if (isIosSafari()) {
+
+    if (isIosSafari() && !isRunningAsInstalledPwa() && !readSkipFlag()) {
       setShowIosHint(true);
     }
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
   const dismiss = (): void => {
+    setSkipFlag();
     setDeferredPrompt(null);
     setShowIosHint(false);
-    globalThis.localStorage.setItem(DISMISS_KEY, String(Date.now()));
   };
 
   const install = async (): Promise<void> => {
@@ -68,11 +150,12 @@ export function PwaInstallPrompt() {
     }
     await deferredPrompt.prompt();
     const choice = await deferredPrompt.userChoice;
-    if (choice.outcome !== 'accepted') {
-      dismiss();
+    setDeferredPrompt(null);
+    if (choice.outcome === 'accepted') {
+      setSkipFlag();
       return;
     }
-    setDeferredPrompt(null);
+    dismiss();
   };
 
   if (deferredPrompt == null && !showIosHint) {

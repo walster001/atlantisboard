@@ -95,30 +95,32 @@ export function ToolbarContent({
       gap={4}
       p="xs"
       wrap="wrap"
-      style={{ borderBottom: '1px solid var(--mantine-color-gray-3)', position: 'relative' }}
+      style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}
     >
-      <Box
-        aria-hidden
-        style={{
-          position: 'absolute',
-          width: 1,
-          height: 1,
-          opacity: 0,
-          pointerEvents: 'none',
-          overflow: 'hidden',
-          zIndex: -1,
-        }}
-      >
-        <span
-          ref={emojiRgbProbeBgRef}
-          style={{ display: 'block', backgroundColor: 'var(--board-card-detail-bg, #f8f9fb)' }}
-        />
-        <span
-          ref={emojiRgbProbeFgRef}
-          style={{ display: 'block', color: 'var(--board-card-detail-text, #868e96)' }}
+      {/* Own positioning context so the toolbar row can use `position: sticky` on mobile without `position: relative` defeating it. */}
+      <Box aria-hidden pos="relative" w={0} h={0} flex="0 0 0" style={{ overflow: 'hidden' }}>
+        <Box
+          style={{
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            opacity: 0,
+            pointerEvents: 'none',
+            overflow: 'hidden',
+            zIndex: -1,
+          }}
         >
-          &nbsp;
-        </span>
+          <span
+            ref={emojiRgbProbeBgRef}
+            style={{ display: 'block', backgroundColor: 'var(--board-card-detail-bg, #f8f9fb)' }}
+          />
+          <span
+            ref={emojiRgbProbeFgRef}
+            style={{ display: 'block', color: 'var(--board-card-detail-text, #868e96)' }}
+          >
+            &nbsp;
+          </span>
+        </Box>
       </Box>
       <Tooltip label="Bold">
         <ActionIcon

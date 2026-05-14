@@ -17,6 +17,10 @@ import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import { DEFAULT_INLINE_BUTTON_ATTRS } from './tiptapInlineButtonExtension.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
+import {
+  KB_IOS_MODAL_HEADER_SAFE_CLASS,
+  modalStylesFullscreenSafeBody,
+} from '../../constants/iosModalSafeArea.js';
 import './cardInlineButtonEditModal.css';
 
 const RADIUS_OPTIONS = ['0', '4', '8', '12', '16', '20'] as const;
@@ -339,14 +343,23 @@ export function CardDescriptionInlineButtonEditModal({
   );
 
   const actionBar = (
-    <Group justify="flex-end" gap="sm" mt={isMobile ? 0 : 'md'} wrap="wrap" {...(isMobile ? { className: 'card-inline-button-edit-modal__mobile-footer' } : {})}>
+    <Group
+      justify={isMobile ? 'space-between' : 'flex-end'}
+      align="center"
+      gap="sm"
+      mt={isMobile ? 0 : 'md'}
+      wrap="wrap"
+      {...(isMobile ? { className: 'card-inline-button-edit-modal__mobile-footer' } : {})}
+    >
       <Button color="red" variant="light" leftSection={<IconTrash size={16} />} onClick={handleDelete}>
         Delete
       </Button>
-      <Button variant="default" onClick={onClose}>
-        Cancel
-      </Button>
-      <Button onClick={handleSave}>Save</Button>
+      <Group gap="sm" wrap="nowrap">
+        <Button variant="default" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={handleSave}>Save</Button>
+      </Group>
     </Group>
   );
 
@@ -355,8 +368,7 @@ export function CardDescriptionInlineButtonEditModal({
       opened={opened}
       onClose={onClose}
       fullScreen={isMobile}
-      centered
-      withinPortal={!isMobile}
+      centered={!isMobile}
       transitionProps={{ duration: 0 }}
       overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
       title={
@@ -369,16 +381,18 @@ export function CardDescriptionInlineButtonEditModal({
       }
       size="md"
       padding="lg"
-      zIndex={530}
-      classNames={
-        isMobile
+      zIndex={600}
+      classNames={{
+        header: KB_IOS_MODAL_HEADER_SAFE_CLASS,
+        ...(isMobile
           ? {
               inner: 'card-inline-button-edit-modal__mantine-inner--mobile',
               content: 'card-inline-button-edit-modal__mantine-content--mobile',
               body: 'card-inline-button-edit-modal__mantine-body--mobile',
             }
-          : {}
-      }
+          : {}),
+      }}
+      styles={modalStylesFullscreenSafeBody(isMobile)}
     >
       {isMobile ? (
         <Box className="card-inline-button-edit-modal__mobile-root">

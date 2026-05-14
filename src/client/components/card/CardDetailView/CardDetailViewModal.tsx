@@ -71,7 +71,7 @@ export function CardDetailViewModal({
               minWidth: 0,
               ...(controller.isMobile
                 ? {
-                    paddingTop: 'max(6px, env(safe-area-inset-top, 0px))',
+                    /* Safe top inset is on the Modal header (`KB_IOS_MODAL_HEADER_SAFE_CLASS`). */
                     paddingBottom: 12,
                     touchAction: 'pan-y',
                   }
@@ -177,7 +177,8 @@ export function CardDetailViewModal({
                         style={{
                           border: '1px solid var(--mantine-color-gray-3)',
                           borderRadius: 'var(--mantine-radius-md)',
-                          overflow: 'hidden',
+                          /* `overflow: hidden` breaks `position: sticky` for the Tiptap toolbar inside the modal ScrollArea on mobile. */
+                          overflow: controller.isMobile ? 'visible' : 'hidden',
                         }}
                       >
                         <Suspense

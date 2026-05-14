@@ -28,6 +28,7 @@ import {
   cardDetailSectionTitleProps,
   cardDetailSoftButtonStyles,
 } from '../cardDetailSectionUi.js';
+import { KB_IOS_MODAL_HEADER_SAFE_CLASS } from '../../../constants/iosModalSafeArea.js';
 import { type CardDetailViewController } from './useCardDetailViewController.js';
 
 interface CardDetailViewModalProps {
@@ -53,6 +54,7 @@ export function CardDetailViewModal({
         size="54vw"
         fullScreen={controller.isMobile}
         className="card-detail-modal"
+        classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
         withinPortal={false}
         transitionProps={{ duration: 0 }}
         overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
@@ -288,6 +290,11 @@ export function CardDetailViewModal({
                   flexShrink: 0,
                   backgroundColor: CARD_DETAIL_MODAL_BACKGROUND_HEX,
                   borderTop: '1px solid var(--mantine-color-gray-3)',
+                  ...(controller.isMobile
+                    ? {
+                        paddingBottom: 'max(var(--mantine-spacing-sm), env(safe-area-inset-bottom, 0px))',
+                      }
+                    : {}),
                 }}
               >
                 {controller.canDeleteCard ? (

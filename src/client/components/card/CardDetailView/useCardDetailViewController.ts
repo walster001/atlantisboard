@@ -150,6 +150,10 @@ export function useCardDetailViewController({
               marginTop: 0,
               borderRadius: 0,
             },
+            body: {
+              ...CARD_DETAIL_MODAL_STYLES.body,
+              paddingBottom: 'max(0px, env(safe-area-inset-bottom, 0px))',
+            },
           }
         : CARD_DETAIL_MODAL_STYLES,
     [isMobile],

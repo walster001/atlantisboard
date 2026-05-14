@@ -17,5 +17,5 @@ permalink: /wiki/
   <p style="margin:0;color:var(--color-muted);">
     Open the wiki folder in GitHub to browse or edit Markdown and images.
   </p>
-  <a class="btn btn--primary" href="https://github.com/{{ site.repository }}/tree/{{ site.wiki_branch }}/{{ site.wiki_path }}" rel="noopener noreferrer">Open wiki on GitHub</a>
+  <a class="btn btn--primary" href="{{ site.github.repository_url }}/tree/{{ site.wiki_branch }}/{{ site.wiki_path }}" rel="noopener noreferrer">Open wiki on GitHub</a>
 </div>

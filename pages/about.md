@@ -16,8 +16,8 @@ permalink: /about/
   </p>
   <p>
     Documentation and deep dives live in the repository
-    <a href="https://github.com/{{ site.repository }}/tree/{{ site.wiki_branch }}/{{ site.wiki_path }}" rel="noopener noreferrer">wiki folder on GitHub</a>.
+    <a href="{{ site.github.repository_url }}/tree/{{ site.wiki_branch }}/{{ site.wiki_path }}" rel="noopener noreferrer">wiki folder on GitHub</a>.
     Ready-to-run builds are published on the
-    <a href="https://github.com/{{ site.repository }}/releases" rel="noopener noreferrer">releases</a> page.
+    <a href="{{ site.github.repository_url }}/releases" rel="noopener noreferrer">releases</a> page.
   </p>
 </div>

@@ -10,7 +10,7 @@ title: Home
       so you stay in control of your data and your workflow.
     </p>
     <div class="hero__actions">
-      <a class="btn btn--primary" href="https://github.com/{{ site.repository }}/releases" rel="noopener noreferrer">Download latest release</a>
+      <a class="btn btn--primary" href="{{ site.github.repository_url }}/releases" rel="noopener noreferrer">Download latest release</a>
       <a class="btn btn--ghost" href="{{ '/about/' | relative_url }}">About the project</a>
     </div>
   </div>

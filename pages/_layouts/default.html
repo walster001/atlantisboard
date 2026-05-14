@@ -9,9 +9,6 @@
   </head>
   <body>
     {% assign gh_repo = site.github.repository_url %}
-    {% if gh_repo == nil or gh_repo == '' %}
-      {% capture gh_repo %}https://github.com/{{ site.repository }}{% endcapture %}
-    {% endif %}
     {% assign wiki_branch = site.wiki_branch | default: 'main' %}
     {% assign wiki_path = site.wiki_path | default: 'docs/wiki' %}
     {% capture wiki_url %}{{ gh_repo }}/tree/{{ wiki_branch }}/{{ wiki_path }}{% endcapture %}

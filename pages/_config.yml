@@ -16,12 +16,14 @@ wiki_path: docs/wiki
 url: ""
 baseurl: ""
 
+# Project site (https://USER.github.io/REPO/) — uncomment and set when needed:
+# url: "https://USER.github.io"
+# baseurl: "/REPO"
+
 markdown: kramdown
 permalink: pretty
 
-plugins:
-  - jekyll-github-metadata
-  - jekyll-seo-tag
+# Plugins (e.g. jekyll-seo-tag, jekyll-github-metadata) are provided by the `github-pages` gem.
 
 defaults:
   - scope:

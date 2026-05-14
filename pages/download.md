@@ -16,6 +16,6 @@ permalink: /download/
   <p style="margin:0;color:var(--color-muted);">
     Always verify checksums and release notes before deploying to production.
   </p>
-  <a class="btn btn--primary" href="https://github.com/{{ site.repository }}/releases/latest" rel="noopener noreferrer">Latest release</a>
-  <a class="btn btn--ghost" href="https://github.com/{{ site.repository }}/releases" rel="noopener noreferrer">All releases</a>
+  <a class="btn btn--primary" href="{{ site.github.repository_url }}/releases/latest" rel="noopener noreferrer">Latest release</a>
+  <a class="btn btn--ghost" href="{{ site.github.repository_url }}/releases" rel="noopener noreferrer">All releases</a>
 </div>

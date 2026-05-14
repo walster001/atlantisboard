@@ -14825,7 +14825,7 @@ body {
 }
 
 /* src/client/styles/iosSafeAreaModal.css */
-.kb-ios-modal-header-safe {
+.kb-ios-modal-header-safe, .kb-ios-modal-inner-safe {
   padding-top: calc(6px + constant(safe-area-inset-top)) !important;
   padding-top: calc(6px + env(safe-area-inset-top, 0px)) !important;
 }

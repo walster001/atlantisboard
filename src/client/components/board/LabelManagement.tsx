@@ -16,6 +16,10 @@ import { notifications } from '@mantine/notifications';
 import { IconTrash, IconEdit } from '@tabler/icons-react';
 import { api } from '../../utils/api.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
+import {
+  KB_IOS_MODAL_HEADER_SAFE_CLASS,
+  modalStylesFullscreenSafeBody,
+} from '../../constants/iosModalSafeArea.js';
 import { BOARD_PRESET_COLOURS, normalizePresetHex } from '../../constants/boardPresetColors.js';
 import { BoardColourPickerPanel } from './BoardColourPickerPanel.js';
 import { subscribeSocketBoardLabelsChanged } from '../../utils/socketRealtimeBridge.js';
@@ -285,6 +289,8 @@ function LabelEditModal({ boardId, label, onClose, onSave }: LabelEditModalProps
       centered={!labelColourModalFullScreen}
       size="lg"
       fullScreen={labelColourModalFullScreen}
+      classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
+      styles={modalStylesFullscreenSafeBody(labelColourModalFullScreen)}
     >
       {error && (
         <Alert color="red" mb="md">

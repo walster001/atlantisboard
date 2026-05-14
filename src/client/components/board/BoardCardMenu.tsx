@@ -21,6 +21,10 @@ import {
 } from '@tabler/icons-react';
 import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_NAME_MAX_LENGTH } from '../../constants/boardFieldLimits.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
+import {
+  KB_IOS_MODAL_HEADER_SAFE_CLASS,
+  modalStylesFullscreenSafeBody,
+} from '../../constants/iosModalSafeArea.js';
 import { BoardColourPickerPanel } from './BoardColourPickerPanel.js';
 import {
   BOARD_PRESET_COLOURS,
@@ -385,6 +389,8 @@ export function BoardCardMenu({
         centered={!coverColourModalFullScreen}
         size="lg"
         fullScreen={coverColourModalFullScreen}
+        classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
+        styles={modalStylesFullscreenSafeBody(coverColourModalFullScreen)}
       >
         <div
           onPointerDown={(e) => e.stopPropagation()}

@@ -6,3 +6,9 @@
   padding-top: calc(6px + constant(safe-area-inset-top)) !important;
   padding-top: calc(6px + env(safe-area-inset-top, 0px)) !important;
 }
+
+/* Shell modals without a Mantine title/header (loading / error). */
+.kb-ios-modal-inner-safe {
+  padding-top: calc(6px + constant(safe-area-inset-top)) !important;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px)) !important;
+}

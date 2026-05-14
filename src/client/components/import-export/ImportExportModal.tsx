@@ -34,6 +34,10 @@ import {
 } from '../../../shared/import/importPreflight.js';
 import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
+import {
+  KB_IOS_MODAL_HEADER_SAFE_CLASS,
+  modalStylesFullscreenSafeBody,
+} from '../../constants/iosModalSafeArea.js';
 import { BoardColourPickerPanel } from '../board/BoardColourPickerPanel.js';
 import {
   BOARD_PRESET_COLOURS,
@@ -909,6 +913,8 @@ export function ImportExportModal({
         centered={!defaultCardColourModalFullScreen}
         size="lg"
         fullScreen={defaultCardColourModalFullScreen}
+        classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
+        styles={modalStylesFullscreenSafeBody(defaultCardColourModalFullScreen)}
         radius="md"
         zIndex={520}
         overlayProps={{ backgroundOpacity: 0.45 }}

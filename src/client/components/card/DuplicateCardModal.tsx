@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Modal, Select, Button, Stack, Group, Loader } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { KB_IOS_MODAL_HEADER_SAFE_CLASS } from '../../constants/iosModalSafeArea.js';
 import { api } from '../../utils/api.js';
 
 interface List {
@@ -74,7 +75,13 @@ export function DuplicateCardModal({
   };
 
   return (
-    <Modal opened={true} onClose={onClose} title="Duplicate Card" centered>
+    <Modal
+      opened={true}
+      onClose={onClose}
+      title="Duplicate Card"
+      centered
+      classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
+    >
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
           {fetchingLists ? (

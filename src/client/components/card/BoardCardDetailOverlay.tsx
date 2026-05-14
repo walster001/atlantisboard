@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Modal, Loader, Box, Text, Button, Stack } from '@mantine/core';
+import { KB_IOS_MODAL_INNER_SAFE_CLASS } from '../../constants/iosModalSafeArea.js';
 import { prefetchCardDetail, useCardDetailLoader } from '../../hooks/useCardDetailLoader.js';
 import type { BoardDB, CardDB } from '../../store/database.js';
 
@@ -70,6 +71,7 @@ export function BoardCardDetailOverlay({
   onCardUpdated,
 }: BoardCardDetailOverlayProps) {
   const { card, loading } = useCardDetailLoader(cardId, initialCard);
+  const shellModalClassNames = { inner: KB_IOS_MODAL_INNER_SAFE_CLASS } as const;
 
   if (loading) {
     return (
@@ -82,6 +84,7 @@ export function BoardCardDetailOverlay({
         size="sm"
         transitionProps={{ duration: 0 }}
         closeButtonProps={{ 'aria-label': 'Close' }}
+        classNames={shellModalClassNames}
       >
         <Box py="xl" style={{ display: 'flex', justifyContent: 'center' }}>
           <Loader size="lg" />
@@ -100,6 +103,7 @@ export function BoardCardDetailOverlay({
         title="Card"
         transitionProps={{ duration: 0 }}
         closeButtonProps={{ 'aria-label': 'Close' }}
+        classNames={shellModalClassNames}
       >
         <Stack gap="md" align="center">
           <Text c="dimmed">This card could not be loaded.</Text>
@@ -119,6 +123,7 @@ export function BoardCardDetailOverlay({
         title="Card"
         transitionProps={{ duration: 0 }}
         closeButtonProps={{ 'aria-label': 'Close' }}
+        classNames={shellModalClassNames}
       >
         <Stack gap="md" align="center">
           <Text c="dimmed">This card does not belong to this board.</Text>
@@ -140,6 +145,7 @@ export function BoardCardDetailOverlay({
           size="xl"
           transitionProps={{ duration: 0 }}
           closeButtonProps={{ 'aria-label': 'Close' }}
+          classNames={shellModalClassNames}
         >
           <Box py="xl" style={{ display: 'flex', justifyContent: 'center' }}>
             <Loader size="lg" />

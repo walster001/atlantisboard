@@ -105,18 +105,17 @@ export function mergePublicLoginBranding(
   };
 }
 
-/** Empty SVG data URL — used when Admin → Login branding has no custom favicon (avoids `/favicon.ico`). */
-export const BLANK_TAB_FAVICON_HREF =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" as const;
+/** Default tab favicon (static asset under `public/icons/`). Must match `public/index.html` primary `rel="icon"`. */
+export const DEFAULT_TAB_FAVICON_HREF = '/icons/favicon-32x32.png' as const;
 
-/** Admin “Browser tab & favicon” (login screen branding): custom asset or blank. */
+/** Admin “Browser tab & favicon” (login screen branding): custom asset or packaged default. */
 export function resolveBrowserTabFaviconHref(
   login: Pick<PublicLoginBranding, 'faviconEnabled' | 'faviconUrl'>,
 ): string {
   if (login.faviconEnabled && login.faviconUrl?.trim()) {
     return login.faviconUrl.trim();
   }
-  return BLANK_TAB_FAVICON_HREF;
+  return DEFAULT_TAB_FAVICON_HREF;
 }
 
 /**

@@ -14021,6 +14021,10 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     }
   }
 
+  .m-1887 {
+    margin: calc(var(--spacing) * 1887);
+  }
+
   .block {
     display: block;
   }

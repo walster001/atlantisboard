@@ -12,7 +12,8 @@ import {
   uploadCardAttachment,
   deleteCardAttachment,
   getAttachmentUrl,
-  getAttachmentObject,
+  getAttachmentObjectMeta,
+  openAttachmentReadStream,
   type CardAttachmentUploadPayload,
 } from '../services/attachmentService.js';
 import { isPlaceholderCardAttachment } from '../../shared/cardAttachmentPlaceholder.js';
@@ -20,6 +21,74 @@ import { Card } from '../models/Card.js';
 import { hasPermission } from '../utils/permissions.js';
 
 const router = Router();
+
+type ParsedAttachmentRange =
+  | { readonly kind: 'full' }
+  | { readonly kind: 'partial'; readonly start: number; readonly endInclusive: number }
+  | { readonly kind: 'unsatisfiable' };
+
+/**
+ * Parse a single `Range: bytes=…` header (RFC 9110). Multipart ranges are rejected.
+ * Mobile `<video>` playback often depends on the server honouring range requests.
+ */
+function parseSingleHttpBytesRange(rangeHeader: string | undefined, size: number): ParsedAttachmentRange {
+  if (rangeHeader === undefined || rangeHeader.trim() === '') {
+    return { kind: 'full' };
+  }
+  const raw = rangeHeader.trim();
+  if (!/^bytes=/i.test(raw)) {
+    return { kind: 'full' };
+  }
+  if (size === 0) {
+    return { kind: 'unsatisfiable' };
+  }
+  const spec = raw.slice(6).trim();
+  if (spec.includes(',')) {
+    return { kind: 'unsatisfiable' };
+  }
+  const dashIndex = spec.indexOf('-');
+  if (dashIndex < 0) {
+    return { kind: 'unsatisfiable' };
+  }
+  const left = spec.slice(0, dashIndex).trim();
+  const right = spec.slice(dashIndex + 1).trim();
+
+  if (left === '' && right !== '') {
+    const suffixLen = Number.parseInt(right, 10);
+    if (!Number.isFinite(suffixLen) || suffixLen <= 0) {
+      return { kind: 'unsatisfiable' };
+    }
+    const span = Math.min(suffixLen, size);
+    const start = size - span;
+    return { kind: 'partial', start, endInclusive: size - 1 };
+  }
+
+  if (left !== '' && right === '') {
+    const start = Number.parseInt(left, 10);
+    if (!Number.isFinite(start) || start < 0 || start >= size) {
+      return { kind: 'unsatisfiable' };
+    }
+    return { kind: 'partial', start, endInclusive: size - 1 };
+  }
+
+  if (left !== '' && right !== '') {
+    const start = Number.parseInt(left, 10);
+    const end = Number.parseInt(right, 10);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start) {
+      return { kind: 'unsatisfiable' };
+    }
+    if (start >= size) {
+      return { kind: 'unsatisfiable' };
+    }
+    const endInclusive = Math.min(end, size - 1);
+    if (endInclusive < start) {
+      return { kind: 'unsatisfiable' };
+    }
+    return { kind: 'partial', start, endInclusive };
+  }
+
+  return { kind: 'unsatisfiable' };
+}
 
 function tempAttachmentBasename(originalname: string): string {
   const ext = (originalname.split('.').pop() ?? '').trim();
@@ -358,11 +427,48 @@ router.get('/attachments/:attachmentId/file', attachmentStreamRateLimiter, async
       return;
     }
 
-    const object = await getAttachmentObject(attachment.url);
-    res.setHeader('Content-Type', object.contentType);
+    const meta = await getAttachmentObjectMeta(attachment.url);
+    const rangeHeader = req.headers.range;
+    const rangeRaw = Array.isArray(rangeHeader) ? rangeHeader[0] : rangeHeader;
+    const parsed = parseSingleHttpBytesRange(
+      typeof rangeRaw === 'string' ? rangeRaw : undefined,
+      meta.size,
+    );
+
+    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'private, max-age=300');
-    object.stream.on('error', next);
-    object.stream.pipe(res);
+    res.setHeader('Content-Type', meta.contentType);
+
+    if (parsed.kind === 'unsatisfiable') {
+      res.status(416);
+      res.setHeader('Content-Range', `bytes */${meta.size}`);
+      res.end();
+      return;
+    }
+
+    if (parsed.kind === 'full') {
+      res.status(200);
+      res.setHeader('Content-Length', String(meta.size));
+      if (meta.size === 0) {
+        res.end();
+        return;
+      }
+      const stream = await openAttachmentReadStream(meta.objectName, null);
+      stream.on('error', next);
+      stream.pipe(res);
+      return;
+    }
+
+    const byteLen = parsed.endInclusive - parsed.start + 1;
+    res.status(206);
+    res.setHeader('Content-Length', String(byteLen));
+    res.setHeader('Content-Range', `bytes ${parsed.start}-${parsed.endInclusive}/${meta.size}`);
+    const stream = await openAttachmentReadStream(meta.objectName, {
+      start: parsed.start,
+      endInclusive: parsed.endInclusive,
+    });
+    stream.on('error', next);
+    stream.pipe(res);
   } catch (error) {
     next(error);
   }

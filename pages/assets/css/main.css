@@ -55,10 +55,13 @@ body.site {
   background-image: linear-gradient(180deg, var(--color-bg-elevated) 0%, var(--color-bg) 18rem, transparent 18rem);
 }
 
-/* Homepage: wallpaper has large white field + “ab” mark at bottom — keep UI in upper area */
+/* Homepage: full-bleed wallpaper at bottom (100vw); footer sits over same canvas */
 body.site--home {
   background-color: #ffffff;
-  background-image: none;
+  background-image: url("../images/home-wallpaper.png");
+  background-repeat: no-repeat;
+  background-position: bottom center;
+  background-size: 100vw auto;
 }
 
 .visually-hidden {
@@ -337,15 +340,10 @@ body.site--home {
   padding: clamp(2.5rem, 6vw, 5rem) var(--gutter) clamp(4rem, 10vw, 7rem);
 }
 
-/* Wallpaper on home only: pin artwork to bottom; padding reserves band for logo + deco */
+/* Home main: reserve bottom band for wallpaper graphic (painted on body, full viewport width) */
 .site-main.site-main--home .site-main__inner {
   min-height: 100vh;
   padding-bottom: clamp(15rem, 34vw, 26rem);
-  background-color: #ffffff;
-  background-image: url("../images/home-wallpaper.png");
-  background-repeat: no-repeat;
-  background-position: bottom center;
-  background-size: cover;
 }
 
 @media (max-width: 768px) {
@@ -659,8 +657,15 @@ body.site--home {
 /* ——— Footer ——— */
 .site-footer {
   margin-top: auto;
-  border-top: 1px solid var(--color-border);
   background: var(--color-bg-elevated);
+}
+
+body.site--home .site-footer {
+  background: transparent;
+}
+
+body.site--home .site-footer__copy {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85), 0 0 12px rgba(255, 255, 255, 0.6);
 }
 
 .site-footer__inner {

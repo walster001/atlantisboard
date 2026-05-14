@@ -1,7 +1,7 @@
 // Service Worker for PWA functionality
 // Bump version when fetch/caching strategy changes so old caches are purged on activate.
-const STATIC_CACHE_NAME = 'atlantisboard-static-v7';
-const DYNAMIC_CACHE_NAME = 'atlantisboard-dynamic-v7';
+const STATIC_CACHE_NAME = 'atlantisboard-static-v8';
+const DYNAMIC_CACHE_NAME = 'atlantisboard-dynamic-v8';
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -10,6 +10,14 @@ const STATIC_ASSETS = [
   '/index.js',
   '/index.css',
   '/manifest.json',
+  '/icons/browserconfig.xml',
+  '/icons/favicon.ico',
+  '/icons/favicon-16x16.png',
+  '/icons/favicon-32x32.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/android-chrome-192x192.png',
+  '/icons/android-chrome-512x512.png',
+  '/icons/safari-pinned-tab.svg',
 ];
 
 // Install event - cache static assets
@@ -93,6 +101,9 @@ self.addEventListener('fetch', (event) => {
       url.pathname.endsWith('.png') ||
       url.pathname.endsWith('.jpg') ||
       url.pathname.endsWith('.svg') ||
+      url.pathname.endsWith('.ico') ||
+      url.pathname.endsWith('.xml') ||
+      url.pathname.endsWith('.webmanifest') ||
       url.pathname.endsWith('.woff') ||
       url.pathname.endsWith('.woff2'))
   ) {

@@ -87,6 +87,13 @@ function VirtualizedCardListInner({
   const usePlainScroll =
     sortedCards.length > 0 && sortedCards.length <= KANBAN_CARD_COUNT_VIRTUALIZE_THRESHOLD;
 
+  /**
+   * Swiper’s `swiper-no-swiping` blocks *all* carousel gestures starting on the list — including
+   * horizontal column changes. On mobile/tablet carousel we rely on `touch-action: pan-x pan-y`
+   * (boardView.css) + long-press card drag instead, so horizontal swipes can reach Swiper.
+   */
+  const listBodySwiperNoSwipingClass = kanbanCardTouchDragRequiresLongPress ? '' : ' swiper-no-swiping';
+
   useLayoutEffect(() => {
     if (usePlainScroll) {
       return undefined;
@@ -274,7 +281,7 @@ function VirtualizedCardListInner({
     return (
       <Box
         ref={setListBodyDropRef}
-        className="board-column__cards board-column__cards--plain swiper-no-swiping"
+        className={`board-column__cards board-column__cards--plain${listBodySwiperNoSwipingClass}`}
         style={{
           flex: '0 1 auto',
           minHeight: 0,
@@ -301,7 +308,7 @@ function VirtualizedCardListInner({
     return (
       <Box
         ref={setListBodyDropRef}
-        className="board-column__cards board-column__cards--virtual swiper-no-swiping"
+        className={`board-column__cards board-column__cards--virtual${listBodySwiperNoSwipingClass}`}
         style={{
           flex: '0 1 auto',
           minHeight: '30px',
@@ -322,7 +329,7 @@ function VirtualizedCardListInner({
   return (
     <Box
       ref={setListBodyDropRef}
-      className="board-column__cards board-column__cards--virtual swiper-no-swiping"
+      className={`board-column__cards board-column__cards--virtual${listBodySwiperNoSwipingClass}`}
       style={{
         flex: '0 1 auto',
         minHeight: 0,

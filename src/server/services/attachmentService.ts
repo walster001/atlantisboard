@@ -33,9 +33,43 @@ export interface UploadProgress {
   percentage: number;
 }
 
-export interface AttachmentObjectResult {
-  stream: Readable;
-  contentType: string;
+export interface AttachmentObjectMeta {
+  readonly objectName: string;
+  readonly contentType: string;
+  readonly size: number;
+}
+
+/** Stat + metadata only (no stream). Use with `openAttachmentReadStream` for ranged responses. */
+export async function getAttachmentObjectMeta(attachmentUrl: string): Promise<AttachmentObjectMeta> {
+  const client = getMinIOClient();
+  const objectName = extractObjectNameFromAttachmentUrl(attachmentUrl);
+  const stat = await client.statObject(BUCKET_NAME, objectName);
+  const metadata = stat.metaData as Record<string, string> | undefined;
+  const contentType =
+    metadata?.['content-type'] ??
+    metadata?.['Content-Type'] ??
+    'application/octet-stream';
+  return {
+    objectName,
+    contentType,
+    size: stat.size,
+  };
+}
+
+/**
+ * Open a read stream for the stored object. Pass `range` for HTTP 206 partial content (required
+ * for many mobile browsers when playing video from `<video src>`).
+ */
+export async function openAttachmentReadStream(
+  objectName: string,
+  range: { readonly start: number; readonly endInclusive: number } | null,
+): Promise<Readable> {
+  const client = getMinIOClient();
+  if (range == null) {
+    return client.getObject(BUCKET_NAME, objectName);
+  }
+  const byteLength = range.endInclusive - range.start + 1;
+  return client.getPartialObject(BUCKET_NAME, objectName, range.start, byteLength);
 }
 
 /** Small uploads: buffer in memory. Large uploads: temp path written by multer disk storage. */
@@ -317,22 +351,6 @@ export async function getAttachmentUrl(attachmentUrl: string): Promise<string> {
     logger.error({ error, attachmentUrl }, 'Error generating presigned URL');
     throw error;
   }
-}
-
-export async function getAttachmentObject(attachmentUrl: string): Promise<AttachmentObjectResult> {
-  const client = getMinIOClient();
-  const objectName = extractObjectNameFromAttachmentUrl(attachmentUrl);
-  const stat = await client.statObject(BUCKET_NAME, objectName);
-  const stream = await client.getObject(BUCKET_NAME, objectName);
-  const metadata = stat.metaData as Record<string, string> | undefined;
-  const contentType =
-    metadata?.['content-type'] ??
-    metadata?.['Content-Type'] ??
-    'application/octet-stream';
-  return {
-    stream,
-    contentType,
-  };
 }
 
 async function readStreamIntoBuffer(stream: Readable, maxBytes: number): Promise<Buffer> {

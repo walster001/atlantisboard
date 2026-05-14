@@ -11,7 +11,7 @@ import {
 import { api } from '../utils/api.js';
 import { useBrandingWebFonts } from '../hooks/useBrandingWebFonts.js';
 import {
-  BLANK_TAB_FAVICON_HREF,
+  DEFAULT_TAB_FAVICON_HREF,
   mergePublicLoginBranding,
   resolveBrowserTabFaviconHref,
   type PublicLoginBranding,
@@ -140,7 +140,7 @@ export function AppBrandingProvider({ children }: { readonly children: ReactNode
       document.head.appendChild(link);
     }
     if (!loginBrandingReady) {
-      link.href = BLANK_TAB_FAVICON_HREF;
+      link.href = DEFAULT_TAB_FAVICON_HREF;
       return;
     }
     link.href = resolveBrowserTabFaviconHref(branding);

@@ -30,6 +30,7 @@ import {
 } from '../cardDetailSectionUi.js';
 import { KB_IOS_MODAL_HEADER_SAFE_CLASS } from '../../../constants/iosModalSafeArea.js';
 import { type CardDetailViewController } from './useCardDetailViewController.js';
+import { useMobileSwipeDownToClose } from './useMobileSwipeDownToClose.js';
 
 interface CardDetailViewModalProps {
   readonly controller: CardDetailViewController;
@@ -46,6 +47,11 @@ export function CardDetailViewModal({
   onClose,
   onCardDuplicated,
 }: CardDetailViewModalProps) {
+  const { touchHandlers } = useMobileSwipeDownToClose(
+    onClose,
+    controller.isMobile && !controller.isEditing,
+  );
+
   return (
     <>
       <Modal
@@ -59,6 +65,20 @@ export function CardDetailViewModal({
         transitionProps={{ duration: 0 }}
         overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
         title={
+          <Box
+            style={{
+              width: '100%',
+              minWidth: 0,
+              ...(controller.isMobile
+                ? {
+                    paddingTop: 'max(6px, env(safe-area-inset-top, 0px))',
+                    paddingBottom: 12,
+                    touchAction: 'pan-y',
+                  }
+                : {}),
+            }}
+            {...(controller.isMobile && !controller.isEditing ? touchHandlers : {})}
+          >
           <Group justify="space-between" align="center" wrap="nowrap" gap="md" style={{ width: '100%', minWidth: 0 }}>
             <Box style={{ flex: 1, minWidth: 0 }}>
               {controller.isEditing ? (
@@ -121,6 +141,7 @@ export function CardDetailViewModal({
               <Modal.CloseButton aria-label="Close" style={{ color: 'var(--board-card-detail-text, #868e96)' }} />
             </Group>
           </Group>
+          </Box>
         }
         centered
         withCloseButton={false}

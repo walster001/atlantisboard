@@ -14,18 +14,3 @@ title: Home
     </div>
   </div>
 </section>
-
-<div class="panel-grid">
-  <article class="panel">
-    <h2>Real-time</h2>
-    <p>Live updates across lists, cards, and collaborators as work changes.</p>
-  </article>
-  <article class="panel">
-    <h2>Self-hosted</h2>
-    <p>Run on your infrastructure with MongoDB, Redis, and object storage you trust.</p>
-  </article>
-  <article class="panel">
-    <h2>Permissions</h2>
-    <p>Workspaces and boards with roles that match how your organization works.</p>
-  </article>
-</div>

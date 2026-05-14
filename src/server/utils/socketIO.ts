@@ -33,6 +33,9 @@ const telemetryLimit = 1000;
 const dedupeCache = new Map<string, number>();
 const batchStates = new Map<string, BatchState>();
 const DEFAULT_BATCH_WINDOW_MS = 80;
+/** Lower bound so batching still flushes; upper bound caps env-driven delay (avoids unbounded setTimeout). */
+const MIN_REALTIME_BATCH_WINDOW_MS = 10;
+const MAX_REALTIME_BATCH_WINDOW_MS = 60_000;
 const dedupeTtlMs = 1500;
 
 function readEnvBoolean(key: string, fallback: boolean): boolean {
@@ -69,7 +72,13 @@ const realtimeFlags: RealtimeFlags = {
   deltaMode: readEnvBoolean('REALTIME_DELTA_MODE', true),
 };
 
-const batchWindowMs = Math.max(10, readEnvNumber('REALTIME_BATCH_WINDOW_MS', DEFAULT_BATCH_WINDOW_MS));
+const batchWindowMs = Math.min(
+  MAX_REALTIME_BATCH_WINDOW_MS,
+  Math.max(
+    MIN_REALTIME_BATCH_WINDOW_MS,
+    readEnvNumber('REALTIME_BATCH_WINDOW_MS', DEFAULT_BATCH_WINDOW_MS),
+  ),
+);
 const batchableEvents = new Set(
   (process.env.REALTIME_BATCHABLE_EVENTS ?? 'import:progress,cards:positions-batch-updated,lists:positions-batch-updated')
     .split(',')

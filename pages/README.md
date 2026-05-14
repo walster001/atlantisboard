@@ -9,13 +9,15 @@ This directory is a small marketing and documentation landing site built with [J
 
 ## Local preview
 
+`baseurl` is set for **Project Pages** (`https://USER.github.io/REPO/`). Preview with the same path prefix:
+
 ```bash
 cd pages
 bundle install
-bundle exec jekyll serve
+bundle exec jekyll serve --livereload --baseurl "/atlantisboard"
 ```
 
-Open <http://localhost:4000> (or the URL Jekyll prints).
+Open <http://127.0.0.1:4000/atlantisboard/> (Jekyll prints the exact URL). If you change `baseurl` in `_config.yml`, use that value after `--baseurl`.
 
 ## Deploy from the `pages/` folder
 

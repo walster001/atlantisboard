@@ -13,12 +13,11 @@ repository: walster001/atlantisboard
 wiki_branch: main
 wiki_path: docs/wiki
 
-url: ""
-baseurl: ""
-
-# Project site (https://USER.github.io/REPO/) — uncomment and set when needed:
-# url: "https://USER.github.io"
-# baseurl: "/REPO"
+# GitHub Project Pages: required so /assets/* and images resolve under /REPO/ not site root.
+# If you use a user/org site (repo named USERNAME.github.io) or a custom domain, set baseurl: ""
+# and set url to your canonical origin.
+url: "https://walster001.github.io"
+baseurl: "/atlantisboard"
 
 markdown: kramdown
 permalink: pretty

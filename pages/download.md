@@ -13,7 +13,7 @@ permalink: /download/
 </div>
 
 <div class="cta-card">
-  <p style="margin:0;color:var(--color-muted);">
+  <p class="cta-card__lead">
     Always verify checksums and release notes before deploying to production.
   </p>
   <a class="btn btn--primary" href="{{ site.github.repository_url }}/releases/latest" rel="noopener noreferrer">Latest release</a>

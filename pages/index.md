@@ -15,10 +15,8 @@ title: Home
     </div>
   </div>
   <div class="hero__visual">
-    <div class="hero__gem-wrap" aria-hidden="true">
-      <span class="hero__orbit"></span>
-      <span class="hero__orbit hero__orbit--2"></span>
-      <img class="hero__gem" src="{{ '/assets/images/atlantisboard-gem.png' | relative_url }}" width="260" height="260" alt="" decoding="async" />
+    <div class="hero__gem-wrap">
+      <img class="hero__gem" src="{{ '/assets/images/atlantisboard-gem.png' | relative_url }}" width="260" height="260" alt="Atlantisboard logo" decoding="async" />
     </div>
   </div>
 </section>

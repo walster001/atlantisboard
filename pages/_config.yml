@@ -7,7 +7,7 @@ description: >-
 
 # Set to "owner/repo" so local builds and metadata resolve GitHub links.
 # On github.io this is often inferred; keeping it explicit avoids broken Wiki/Download URLs.
-repository: YOUR_GITHUB_USER/YOUR_REPO_NAME
+repository: walster001/atlantisboard
 
 # Wiki content in the main repository (Markdown, images, etc.)
 wiki_branch: main

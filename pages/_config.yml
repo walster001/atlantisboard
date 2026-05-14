@@ -13,14 +13,17 @@ repository: walster001/atlantisboard
 wiki_branch: main
 wiki_path: docs/wiki
 
-# GitHub Project Pages: required so /assets/* and images resolve under /REPO/ not site root.
-# If you use a user/org site (repo named USERNAME.github.io) or a custom domain, set baseurl: ""
-# and set url to your canonical origin.
+# Canonical URL for the live site (custom apex domain on GitHub Pages).
+# Keep baseurl "" for apex / root host (no /path prefix).
 url: "https://atlantis.social"
 baseurl: ""
 
 markdown: kramdown
 permalink: pretty
+
+# Ensure the custom domain file is copied into the built site root for GitHub Pages.
+include:
+  - CNAME
 
 # Plugins (e.g. jekyll-seo-tag, jekyll-github-metadata) are provided by the `github-pages` gem.
 

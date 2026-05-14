@@ -9,15 +9,23 @@ This directory is a small marketing and documentation landing site built with [J
 
 ## Local preview
 
-`baseurl` is set for **Project Pages** (`https://USER.github.io/REPO/`). Preview with the same path prefix:
+With `baseurl: ""` (site at the domain root), run:
 
 ```bash
 cd pages
 bundle install
-bundle exec jekyll serve --livereload --baseurl "/atlantisboard"
+bundle exec jekyll serve --livereload
 ```
 
-Open <http://127.0.0.1:4000/atlantisboard/> (Jekyll prints the exact URL). If you change `baseurl` in `_config.yml`, use that value after `--baseurl`.
+Open <http://127.0.0.1:4000/> (or the URL Jekyll prints). If you ever publish under a subpath again, set `baseurl` in `_config.yml` (e.g. `/repo-name`) and run `jekyll serve --baseurl "/repo-name"` to match.
+
+## Custom apex domain (`atlantis.social`)
+
+1. In the GitHub repo: **Settings → Pages → Custom domain** → enter `atlantis.social`, save, and enable **Enforce HTTPS** once DNS is valid.
+2. At your DNS host for `atlantis.social`, add the **apex** records GitHub lists for your site (IPv4 **A** and optional IPv6 **AAAA**). Follow the current values in GitHub’s guide: [Managing a custom domain for your GitHub Pages site](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
+3. This Jekyll source includes a root **`CNAME`** file (one line: `atlantis.social`) so each build keeps the domain configured for Pages.
+
+`url` in `_config.yml` is set to `https://atlantis.social` so `relative_url`, `absolute_url`, and `{% seo %}` match the live host.
 
 ## Deploy from the `pages/` folder
 

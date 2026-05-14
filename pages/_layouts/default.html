@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}" />
     <link rel="icon" href="{{ '/assets/images/atlantisboard-gem.png' | relative_url }}" type="image/png" />
   </head>
-  <body class="site">
+  <body class="site{% if page.url == '/' or page.url == '/index.html' %} site--home{% endif %}">
     {% assign gh_repo = site.github.repository_url %}
     {% assign wiki_branch = site.wiki_branch | default: 'main' %}
     {% assign wiki_path = site.wiki_path | default: 'docs/wiki' %}
@@ -68,7 +68,7 @@
       </div>
     </header>
 
-    <main id="main" class="site-main" tabindex="-1">
+    <main id="main" class="site-main{% if page.url == '/' or page.url == '/index.html' %} site-main--home{% endif %}" tabindex="-1">
       <div class="site-main__inner">{{ content }}</div>
     </main>
 

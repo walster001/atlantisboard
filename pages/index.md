@@ -14,11 +14,6 @@ title: Home
       <a class="btn btn--ghost" href="{{ '/about/' | relative_url }}">About the project</a>
     </div>
   </div>
-  <div class="hero__visual">
-    <div class="hero__gem-wrap">
-      <img class="hero__gem" src="{{ '/assets/images/atlantisboard-gem.png' | relative_url }}" width="260" height="260" alt="Atlantisboard logo" decoding="async" />
-    </div>
-  </div>
 </section>
 
 <div class="panel-grid">

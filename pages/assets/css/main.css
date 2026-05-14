@@ -55,6 +55,12 @@ body.site {
   background-image: linear-gradient(180deg, var(--color-bg-elevated) 0%, var(--color-bg) 18rem, transparent 18rem);
 }
 
+/* Homepage: wallpaper has large white field + “ab” mark at bottom — keep UI in upper area */
+body.site--home {
+  background-color: #ffffff;
+  background-image: none;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -331,11 +337,28 @@ body.site {
   padding: clamp(2.5rem, 6vw, 5rem) var(--gutter) clamp(4rem, 10vw, 7rem);
 }
 
+/* Wallpaper on home only: pin artwork to bottom; padding reserves band for logo + deco */
+.site-main.site-main--home .site-main__inner {
+  min-height: 100vh;
+  padding-bottom: clamp(15rem, 34vw, 26rem);
+  background-color: #ffffff;
+  background-image: url("../images/home-wallpaper.png");
+  background-repeat: no-repeat;
+  background-position: bottom center;
+  background-size: cover;
+}
+
+@media (max-width: 768px) {
+  .site-main.site-main--home .site-main__inner {
+    padding-bottom: clamp(13rem, 46vw, 22rem);
+  }
+}
+
 .site-main:focus {
   outline: none;
 }
 
-/* ——— Home hero (editorial + mark) ——— */
+/* ——— Home hero (editorial; optional second column on non-home pages) ——— */
 .hero {
   display: grid;
   gap: clamp(2rem, 5vw, 3.5rem);
@@ -345,10 +368,24 @@ body.site {
   margin-bottom: clamp(2.5rem, 6vw, 4rem);
 }
 
+.site-main--home .hero {
+  grid-template-columns: 1fr;
+  border-bottom-color: rgba(228, 225, 218, 0.9);
+}
+
+.site-main--home .hero__content h1 {
+  max-width: 18ch;
+}
+
 @media (min-width: 900px) {
   .hero {
     grid-template-columns: minmax(0, 1fr) minmax(200px, 280px);
     align-items: center;
+  }
+
+  .site-main--home .hero {
+    grid-template-columns: 1fr;
+    align-items: start;
   }
 }
 

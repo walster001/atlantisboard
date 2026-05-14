@@ -5,6 +5,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles/index.processed.css';
+import './styles/iosSafeAreaModal.css';
 import { initializeOfflineSync } from './services/offlineSync.js';
 
 // Register service worker for PWA with update detection

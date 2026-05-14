@@ -9683,6 +9683,9 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
     overflow: hidden;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: auto;
+    padding-top: constant(safe-area-inset-top);
+    padding-top: env(safe-area-inset-top, 0px);
+    box-sizing: border-box;
     width: 100%;
     min-height: 100dvh;
     inset: 0;
@@ -14819,4 +14822,10 @@ body {
       --tw-ease: initial;
     }
   }
+}
+
+/* src/client/styles/iosSafeAreaModal.css */
+.kb-ios-modal-header-safe {
+  padding-top: calc(6px + constant(safe-area-inset-top)) !important;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px)) !important;
 }

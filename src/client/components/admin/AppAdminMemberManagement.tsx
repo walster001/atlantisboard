@@ -25,6 +25,7 @@ import { IconPlus, IconUserMinus } from '@tabler/icons-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import axios from 'axios';
 import { MEMBER_MANAGEMENT_ROLE_COL_PX } from '../../constants/memberManagementLayout.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
@@ -294,6 +295,8 @@ export function AppAdminMemberManagement({
     [onAppAdminsChange],
   );
 
+  const isMobileStackedLayout = useResponsiveTier() === 'mobile';
+
   const handleRemove = useCallback(
     async (user: AppAdminUserRow) => {
       try {
@@ -318,9 +321,21 @@ export function AppAdminMemberManagement({
 
   return (
     <Box className="board-member-management__root">
-      <div className="board-member-management__grid">
-        <Paper withBorder radius="md" p="md" className="board-member-management__panel-paper" h="100%">
-          <Stack gap="md" style={{ flexShrink: 0 }}>
+      <div
+        className={
+          isMobileStackedLayout
+            ? 'board-member-management__grid board-member-management__grid--mobile-stacked'
+            : 'board-member-management__grid'
+        }
+      >
+        <Paper
+          withBorder={!isMobileStackedLayout}
+          radius={isMobileStackedLayout ? 0 : 'md'}
+          p={isMobileStackedLayout ? 0 : 'md'}
+          className="board-member-management__panel-paper"
+          h="100%"
+        >
+          <Stack gap={isMobileStackedLayout ? 'xs' : 'md'} style={{ flexShrink: 0 }}>
             <Text fw={700} size="md">
               All Users
             </Text>
@@ -411,8 +426,14 @@ export function AppAdminMemberManagement({
           </Box>
         </Paper>
 
-        <Paper withBorder radius="md" p="md" className="board-member-management__panel-paper" h="100%">
-          <Stack gap="md" style={{ flexShrink: 0 }}>
+        <Paper
+          withBorder={!isMobileStackedLayout}
+          radius={isMobileStackedLayout ? 0 : 'md'}
+          p={isMobileStackedLayout ? 0 : 'md'}
+          className="board-member-management__panel-paper"
+          h="100%"
+        >
+          <Stack gap={isMobileStackedLayout ? 'xs' : 'md'} style={{ flexShrink: 0 }}>
             <Text fw={700} size="md">
               App Admins ({appAdmins.length})
             </Text>
@@ -426,7 +447,7 @@ export function AppAdminMemberManagement({
             style={{
               flex: 1,
               minHeight: 0,
-              marginTop: 'var(--mantine-spacing-md)',
+              marginTop: isMobileStackedLayout ? undefined : 'var(--mantine-spacing-md)',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',

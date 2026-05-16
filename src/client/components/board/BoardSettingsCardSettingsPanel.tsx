@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Group, Paper, Stack, Switch, Text } from '@mantine/core';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import { db, type BoardDB, type BoardSettingsLivePatch } from '../../store/database.js';
@@ -14,6 +15,8 @@ import {
 interface BoardSettingsCardSettingsPanelProps {
   boardId: string;
   onSettingsLivePatch?: (patch: BoardSettingsLivePatch) => void;
+  /** Board settings mobile sheet: larger switches and internal scroll. */
+  mobileLayout?: boolean;
 }
 
 interface CardSettingsState {
@@ -46,10 +49,28 @@ function readCardSettings(board: BoardDB): CardSettingsState {
   };
 }
 
+const SWITCH_PROPS_MOBILE = {
+  size: 'md' as const,
+  styles: {
+    track: { minWidth: 52, minHeight: 30, cursor: 'pointer' },
+    thumb: { width: 24, height: 24 },
+    label: { fontSize: 'var(--mantine-font-size-md)' },
+    description: { fontSize: 'var(--mantine-font-size-sm)' },
+  },
+};
+
+const SWITCH_PROPS_DESKTOP = {
+  size: 'sm' as const,
+};
+
 export function BoardSettingsCardSettingsPanel({
   boardId,
   onSettingsLivePatch,
+  mobileLayout: mobileLayoutProp,
 }: BoardSettingsCardSettingsPanelProps) {
+  const isMobileTier = useResponsiveTier() === 'mobile';
+  const mobileLayout = mobileLayoutProp ?? isMobileTier;
+  const switchSizeProps = mobileLayout ? SWITCH_PROPS_MOBILE : SWITCH_PROPS_DESKTOP;
   const [board, setBoard] = useState<BoardDB | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,15 +158,20 @@ export function BoardSettingsCardSettingsPanel({
   }
 
   return (
-    <Stack gap="lg">
-      <Text fw={700} size="lg">
+    <Stack
+      gap="lg"
+      {...(mobileLayout
+        ? { className: 'board-settings-card-settings-panel board-settings-card-settings-panel--mobile' }
+        : {})}
+    >
+      <Text fw={700} size="lg" style={{ flexShrink: 0 }}>
         Card settings
       </Text>
 
-      <Paper withBorder p="md" radius="md" maw={700}>
-        <Stack gap="md">
+      <Paper withBorder p="md" radius="md" maw={mobileLayout ? undefined : 700} style={{ flexShrink: 0 }}>
+        <Stack gap={mobileLayout ? 'lg' : 'md'}>
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -162,7 +188,7 @@ export function BoardSettingsCardSettingsPanel({
             description="Show or hide start dates on list cards and in the card detail panel."
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -179,7 +205,7 @@ export function BoardSettingsCardSettingsPanel({
             description="Show or hide due dates on list cards and the due date section in card detail."
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -196,7 +222,7 @@ export function BoardSettingsCardSettingsPanel({
             description="Show or hide end dates on list cards and in the card detail panel."
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -213,7 +239,7 @@ export function BoardSettingsCardSettingsPanel({
             description="Show or hide reminder controls on cards (reminders are tied to due dates)."
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -226,7 +252,7 @@ export function BoardSettingsCardSettingsPanel({
             label="Labels"
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -239,7 +265,7 @@ export function BoardSettingsCardSettingsPanel({
             label="Assignees"
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -252,7 +278,7 @@ export function BoardSettingsCardSettingsPanel({
             label="Checklist"
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -265,7 +291,7 @@ export function BoardSettingsCardSettingsPanel({
             label="Attachments"
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -278,7 +304,7 @@ export function BoardSettingsCardSettingsPanel({
             label="Comments"
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}
@@ -292,7 +318,7 @@ export function BoardSettingsCardSettingsPanel({
             description="Show or hide the number of cards next to each list name on this board."
           />
           <Switch
-            size="sm"
+            {...switchSizeProps}
             color="gray"
             labelPosition="right"
             thumbIcon={null}

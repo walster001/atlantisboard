@@ -44,6 +44,7 @@ interface KanbanViewControllerArgs {
   readonly kanbanCaps: KanbanBoardEditCaps;
   /** When not `desktop`, lists render in the Swiper carousel (no scrollLeft virtualization). */
   readonly responsiveTier: ResponsiveTier;
+  readonly carouselEdgeBumpRef?: MutableRefObject<((clientX: number) => void) | null>;
 }
 
 interface KanbanViewController {
@@ -80,6 +81,7 @@ export function useKanbanViewController({
   boardCardPatchRef,
   kanbanCaps,
   responsiveTier,
+  carouselEdgeBumpRef,
 }: KanbanViewControllerArgs): KanbanViewController {
   const { orderedListIds, listsById } = useBoardRuntimeStore(
     useShallow((state) => ({
@@ -278,6 +280,7 @@ export function useKanbanViewController({
     setDraggingCardId,
     setDraggingListId,
     setListDropIndicatorIfChanged,
+    ...(carouselEdgeBumpRef != null ? { carouselEdgeBumpRef } : {}),
   });
 
   useLayoutEffect(() => {

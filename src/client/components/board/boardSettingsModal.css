@@ -211,4 +211,20 @@
     border-right: none;
     border-radius: 0;
   }
+
+  .board-settings-modal__mobile-content--settings-scroll {
+    overflow: hidden;
+    padding: var(--mantine-spacing-xs);
+  }
+
+  .board-settings-card-settings-panel--mobile {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-right: 2px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  }
 }

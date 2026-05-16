@@ -28,8 +28,9 @@ import type { ResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { getBoardListColumnWidthPx } from '../../utils/boardListColumnWidth.js';
 import './boardView.css';
 
-const MOBILE_CAROUSEL_EDGE_PX = 44;
-const MOBILE_CAROUSEL_EDGE_HOVER_MS = 420;
+const MOBILE_CAROUSEL_EDGE_PX = 52;
+const MOBILE_CAROUSEL_EDGE_HOVER_MS = 320;
+const MOBILE_CAROUSEL_EDGE_REPEAT_MS = 520;
 
 /** Swiper: lower threshold / longSwipesRatio = less horizontal travel to change columns. */
 const MOBILE_CAROUSEL_SWIPER_THRESHOLD_PX = 4;
@@ -134,6 +135,7 @@ export function KanbanView({
   responsiveTier,
 }: KanbanViewProps) {
   const isSwipeKanban = responsiveTier === 'mobile' || responsiveTier === 'tablet';
+  const carouselEdgeBumpRef = useRef<((clientX: number) => void) | null>(null);
   const {
     assigneeDirectory,
     draggingCardId,
@@ -164,6 +166,7 @@ export function KanbanView({
     board,
     kanbanCaps,
     responsiveTier,
+    carouselEdgeBumpRef,
     ...(boardCardPatchRef != null ? { boardCardPatchRef } : {}),
   });
 
@@ -195,6 +198,7 @@ export function KanbanView({
   const swiperRef = useRef<SwiperClass | null>(null);
   const hoverDirRef = useRef<'prev' | 'next' | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
+  const edgeRepeatTimerRef = useRef<number | null>(null);
 
   const totalMobileLists = mountedLists.length;
 
@@ -253,14 +257,30 @@ export function KanbanView({
     }
   };
 
-  useLayoutEffect(() => {
-    if (!isSwipeKanban || draggingCardId == null) {
-      clearHoverTimer();
-      hoverDirRef.current = null;
+  const clearEdgeRepeatTimer = (): void => {
+    if (edgeRepeatTimerRef.current != null) {
+      window.clearInterval(edgeRepeatTimerRef.current);
+      edgeRepeatTimerRef.current = null;
+    }
+  };
+
+  const slideCarousel = useCallback((dir: 'prev' | 'next'): void => {
+    const sw = swiperRef.current;
+    if (sw == null) {
       return;
     }
+    if (dir === 'prev') {
+      sw.slidePrev();
+    } else {
+      sw.slideNext();
+    }
+  }, []);
 
-    const onMove = (ev: PointerEvent): void => {
+  const bumpCarouselAtPointer = useCallback(
+    (clientX: number): void => {
+      if (!isSwipeKanban || draggingCardId == null || totalMobileLists <= 1) {
+        return;
+      }
       const host = carouselHostRef.current;
       if (host == null) {
         return;
@@ -268,41 +288,70 @@ export function KanbanView({
       const r = host.getBoundingClientRect();
       const leftEdge = r.left + MOBILE_CAROUSEL_EDGE_PX;
       const rightEdge = r.right - MOBILE_CAROUSEL_EDGE_PX;
-      const dir =
-        ev.clientX <= leftEdge ? 'prev' : ev.clientX >= rightEdge ? 'next' : null;
+      const dir = clientX <= leftEdge ? 'prev' : clientX >= rightEdge ? 'next' : null;
 
       if (dir == null) {
         clearHoverTimer();
+        clearEdgeRepeatTimer();
         hoverDirRef.current = null;
         return;
       }
-      if (hoverDirRef.current === dir && hoverTimerRef.current != null) {
+      if (
+        hoverDirRef.current === dir &&
+        (hoverTimerRef.current != null || edgeRepeatTimerRef.current != null)
+      ) {
         return;
       }
 
       clearHoverTimer();
+      clearEdgeRepeatTimer();
       hoverDirRef.current = dir;
       hoverTimerRef.current = window.setTimeout(() => {
         hoverTimerRef.current = null;
-        const sw = swiperRef.current;
-        if (sw == null) {
-          return;
-        }
-        if (hoverDirRef.current === 'prev') {
-          sw.slidePrev();
-        } else if (hoverDirRef.current === 'next') {
-          sw.slideNext();
-        }
+        slideCarousel(dir);
+        edgeRepeatTimerRef.current = window.setInterval(() => {
+          slideCarousel(dir);
+        }, MOBILE_CAROUSEL_EDGE_REPEAT_MS);
       }, MOBILE_CAROUSEL_EDGE_HOVER_MS);
+    },
+    [isSwipeKanban, draggingCardId, totalMobileLists, slideCarousel],
+  );
+
+  useLayoutEffect(() => {
+    carouselEdgeBumpRef.current = bumpCarouselAtPointer;
+    return () => {
+      carouselEdgeBumpRef.current = null;
+    };
+  }, [bumpCarouselAtPointer]);
+
+  useLayoutEffect(() => {
+    if (!isSwipeKanban || draggingCardId == null) {
+      clearHoverTimer();
+      clearEdgeRepeatTimer();
+      hoverDirRef.current = null;
+      return;
+    }
+
+    const onPointerMove = (ev: PointerEvent): void => {
+      bumpCarouselAtPointer(ev.clientX);
+    };
+    const onTouchMove = (ev: TouchEvent): void => {
+      const touch = ev.touches[0];
+      if (touch != null) {
+        bumpCarouselAtPointer(touch.clientX);
+      }
     };
 
-    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
     return () => {
-      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('touchmove', onTouchMove);
       clearHoverTimer();
+      clearEdgeRepeatTimer();
       hoverDirRef.current = null;
     };
-  }, [isSwipeKanban, draggingCardId, totalMobileLists]);
+  }, [isSwipeKanban, draggingCardId, bumpCarouselAtPointer]);
 
   const cardIdsByListId = useBoardRuntimeStore(useShallow((s) => s.cardIdsByListId));
 
@@ -382,7 +431,8 @@ export function KanbanView({
             className="board-page__mobile-carousel-inner board-page__mobile-carousel-swiper"
             slidesPerView={carouselLayout.slidesPerView}
             spaceBetween={LIST_HORIZONTAL_GAP_PX}
-            grabCursor
+            grabCursor={draggingCardId == null}
+            allowTouchMove={draggingCardId == null}
             touchRatio={MOBILE_CAROUSEL_SWIPER_TOUCH_RATIO}
             threshold={MOBILE_CAROUSEL_SWIPER_THRESHOLD_PX}
             longSwipesRatio={MOBILE_CAROUSEL_SWIPER_LONG_SWIPES_RATIO}

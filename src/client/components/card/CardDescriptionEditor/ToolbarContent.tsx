@@ -1,4 +1,4 @@
-import { Suspense, type MutableRefObject } from 'react';
+import type { MutableRefObject } from 'react';
 import type { Editor } from '@tiptap/core';
 import {
   ActionIcon,
@@ -26,7 +26,6 @@ import {
   IconItalic,
   IconList,
   IconListNumbers,
-  IconMoodSmile,
   IconPalette,
   IconPhoto,
   IconRowInsertTop,
@@ -37,10 +36,7 @@ import {
   IconVideo,
 } from '@tabler/icons-react';
 import { BoardColourPickerPanel } from '../../board/BoardColourPickerPanel.js';
-import {
-  emojiPickerPopoverDropdownStyles,
-  LazyEmojiMartPicker,
-} from './emojiMartPicker.js';
+import { CardDescriptionEmojiPicker } from './CardDescriptionEmojiPicker.js';
 import {
   applyBlockLineHeight,
   FONT_SIZE_PX_PRESETS,
@@ -53,6 +49,7 @@ import type { ToolbarUiState } from './Toolbar.tsx';
 interface ToolbarContentProps {
   readonly editor: Editor;
   readonly ui: ToolbarUiState;
+  readonly isMobile: boolean;
   readonly colorPopoverOpen: boolean;
   readonly emojiPopoverOpen: boolean;
   readonly textColorPickerValue: string;
@@ -73,6 +70,7 @@ interface ToolbarContentProps {
 export function ToolbarContent({
   editor,
   ui,
+  isMobile,
   colorPopoverOpen,
   emojiPopoverOpen,
   textColorPickerValue,
@@ -234,37 +232,14 @@ export function ToolbarContent({
           </Stack>
         </Popover.Dropdown>
       </Popover>
-      <Popover
+      <CardDescriptionEmojiPicker
+        isMobile={isMobile}
         opened={emojiPopoverOpen}
-        onChange={onEmojiPopoverChange}
-        position="bottom-start"
-        width={360}
-        zIndex={520}
-        middlewares={{ flip: true, shift: { padding: 8 } }}
-      >
-        <Popover.Target>
-          <Tooltip label="Insert emoji (Twemoji)">
-            <ActionIcon
-              size={TOOLBAR_BUTTON_SIZE}
-              color="gray"
-              variant="subtle"
-              onClick={() => onEmojiPopoverChange(!emojiPopoverOpen)}
-              aria-label="Insert emoji"
-            >
-              <IconMoodSmile size={TOOLBAR_ICON_SIZE} />
-            </ActionIcon>
-          </Tooltip>
-        </Popover.Target>
-        <Popover.Dropdown p={4} styles={emojiPickerPopoverDropdownStyles}>
-          <Suspense fallback={<div style={{ padding: 12, fontSize: 13 }}>Loading emoji picker...</div>}>
-            <LazyEmojiMartPicker
-              onEmojiSelect={onEmojiPick}
-              rgbBackground={emojiMartRgbBackground}
-              rgbColor={emojiMartRgbColor}
-            />
-          </Suspense>
-        </Popover.Dropdown>
-      </Popover>
+        onOpenChange={onEmojiPopoverChange}
+        onEmojiPick={onEmojiPick}
+        rgbBackground={emojiMartRgbBackground}
+        rgbColor={emojiMartRgbColor}
+      />
       <Divider orientation="vertical" />
       <Menu shadow="md" width={200} closeOnItemClick>
         <Menu.Target>

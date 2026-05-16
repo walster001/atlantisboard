@@ -1,5 +1,6 @@
 // Import env config first to define process for browser compatibility
 import './config/env.js';
+import './config/patchMantineConfirmModals.js';
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';

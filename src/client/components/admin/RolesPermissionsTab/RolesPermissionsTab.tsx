@@ -14,9 +14,11 @@ import { BUILTIN_ROLE_ORDER } from './roleDefinitions.js';
 import { CreateRoleModal } from './CreateRoleModal.js';
 import type { AppAdminRow, CategoryStatus, PermissionCategoryKey, RoleRow } from './types.js';
 import { RolesPermissionsTabContent } from './RolesPermissionsTabContent.js';
+import { useResponsiveTier } from '../../../hooks/useResponsiveTier.js';
 import '../rolesPermissionsTab.css';
 
 export function RolesPermissionsTab() {
+  const isMobile = useResponsiveTier() === 'mobile';
   const { user: authUser } = useAuthContext();
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [appAdmins, setAppAdmins] = useState<AppAdminRow[]>([]);
@@ -273,9 +275,11 @@ export function RolesPermissionsTab() {
 
   return (
     <Box className="roles-permissions-tab">
-      <Title order={3} mb="sm">
-        Permissions
-      </Title>
+      {!isMobile ? (
+        <Title order={3} mb="sm">
+          Permissions
+        </Title>
+      ) : null}
       {error ? <Alert color="red" mb="sm">{error}</Alert> : null}
       {loading ? (
         <Box style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem' }}>

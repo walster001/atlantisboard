@@ -62,6 +62,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
     setDraggingCardId,
     setDraggingListId,
     setListDropIndicatorIfChanged,
+    carouselEdgeBumpRef,
   } = args;
 
   useLayoutEffect(() => {
@@ -140,6 +141,11 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const cardDrag = readKanbanCardDragData(source.data as Record<string, unknown>);
         if (cardDrag != null) {
           updateCardDropIndicatorForPointer(source, location, ctx, cardDrag, scheduleAutoScroll);
+          const input = location.current.input as Record<string, unknown> | null;
+          const clientX = typeof input?.clientX === 'number' ? input.clientX : null;
+          if (clientX != null) {
+            carouselEdgeBumpRef?.current?.(clientX);
+          }
         }
       },
       onDropTargetChange({ source, location }) {

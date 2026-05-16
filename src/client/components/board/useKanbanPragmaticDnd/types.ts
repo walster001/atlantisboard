@@ -24,4 +24,6 @@ export interface UseKanbanPragmaticDndArgs {
   readonly setDraggingCardId: (id: string | null) => void;
   readonly setDraggingListId: (id: string | null) => void;
   readonly setListDropIndicatorIfChanged: (next: ListDropIndicatorTarget | null) => void;
+  /** Mobile carousel: advance columns when dragging a card against the viewport edge. */
+  readonly carouselEdgeBumpRef?: MutableRefObject<((clientX: number) => void) | null>;
 }

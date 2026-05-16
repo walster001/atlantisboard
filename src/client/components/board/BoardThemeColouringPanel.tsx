@@ -30,6 +30,8 @@ export interface BoardThemeColouringPanelProps {
   onDuplicateTheme: (theme: BoardThemeDefinition) => void;
   onDeleteTheme: (theme: BoardThemeDefinition) => void;
   onSaveChanges: () => void;
+  /** Board settings mobile sheet: stack header + full-width save control. */
+  mobileLayout?: boolean;
 }
 
 export function BoardThemeColouringPanel({
@@ -45,24 +47,43 @@ export function BoardThemeColouringPanel({
   onDuplicateTheme,
   onDeleteTheme,
   onSaveChanges,
+  mobileLayout = false,
 }: BoardThemeColouringPanelProps) {
+  const saveButton = (
+    <Button
+      onClick={onSaveChanges}
+      loading={saving}
+      disabled={!canChangeTheme || !hasUnsavedChanges || saving}
+      fullWidth={mobileLayout}
+      {...(mobileLayout ? { className: 'board-theme-colouring-panel__save' } : {})}
+    >
+      Save Changes
+    </Button>
+  );
+
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
-        <Box>
-          <Text fw={700} size="xl">
-            Board Themes
-          </Text>
-          <Text c="dimmed">Select a theme to apply to this board.</Text>
-        </Box>
-        <Button
-          onClick={onSaveChanges}
-          loading={saving}
-          disabled={!canChangeTheme || !hasUnsavedChanges || saving}
-        >
-          Save Changes
-        </Button>
-      </Group>
+      {mobileLayout ? (
+        <Stack gap="sm">
+          <Box>
+            <Text fw={700} size="xl">
+              Board Themes
+            </Text>
+            <Text c="dimmed">Select a theme to apply to this board.</Text>
+          </Box>
+          {saveButton}
+        </Stack>
+      ) : (
+        <Group justify="space-between" align="flex-start" wrap="nowrap">
+          <Box style={{ minWidth: 0 }}>
+            <Text fw={700} size="xl">
+              Board Themes
+            </Text>
+            <Text c="dimmed">Select a theme to apply to this board.</Text>
+          </Box>
+          {saveButton}
+        </Group>
+      )}
 
       <SimpleGrid cols={{ base: 1, sm: 2, md: 2, lg: 3 }} spacing="md">
         {themeCards.map((theme) => {

@@ -13,6 +13,7 @@ import { prefetchEmojiMartModules } from './emojiMartPicker.js';
 import {
   EDITOR_TEXT_COLOR_FALLBACK,
 } from './toolbarConfig.js';
+import { useResponsiveTier } from '../../../hooks/useResponsiveTier.js';
 import { ToolbarContent } from './ToolbarContent.js';
 
 interface CardDescriptionEditorToolbarProps {
@@ -47,6 +48,7 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
   editor,
   cardId,
 }: CardDescriptionEditorToolbarProps) {
+  const isMobile = useResponsiveTier() === 'mobile';
   const [colorPopoverOpen, setColorPopoverOpen] = useState(false);
   const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
   const [textColorPickerValue, setTextColorPickerValue] = useState(EDITOR_TEXT_COLOR_FALLBACK);
@@ -226,6 +228,7 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
     <ToolbarContent
       editor={editor}
       ui={ui}
+      isMobile={isMobile}
       colorPopoverOpen={colorPopoverOpen}
       emojiPopoverOpen={emojiPopoverOpen}
       textColorPickerValue={textColorPickerValue}

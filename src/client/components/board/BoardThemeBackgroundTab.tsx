@@ -516,6 +516,7 @@ export function BoardThemeBackgroundTab({
               onDuplicateTheme={handleDuplicateCustomTheme}
               onDeleteTheme={handleDeleteCustomTheme}
               onSaveChanges={() => void handleSave()}
+              mobileLayout={mobileLayout}
             />
           ) : (
             <BoardThemeBackgroundPanel

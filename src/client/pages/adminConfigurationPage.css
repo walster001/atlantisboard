@@ -173,4 +173,18 @@
     overflow: auto;
     overscroll-behavior: contain;
   }
+
+  .admin-configuration-page__mobile-content:has(.roles-permissions-tab--mobile-nav) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+  }
+
+  .admin-configuration-page__mobile-content:has(.roles-permissions-tab--mobile-nav) .roles-permissions-tab {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
 }

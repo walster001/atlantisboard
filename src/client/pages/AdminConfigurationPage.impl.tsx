@@ -101,6 +101,10 @@ export default function AdminConfigurationPage() {
                 setMobileConfigOpen(null);
                 return;
               }
+              if (mainTab === 'customisation') {
+                startTransition(() => setMainTab('configuration'));
+                return;
+              }
               handleBack();
             }}
             aria-label="Go back"
@@ -111,40 +115,42 @@ export default function AdminConfigurationPage() {
             {mobileConfigOpen == null ? 'Admin Configuration' : sectionLabel}
           </Title>
         </Group>
-        <Group className="admin-configuration-page__mobile-top-icons" gap={10} wrap="nowrap">
-          <ActionIcon
-            type="button"
-            size={44}
-            radius="sm"
-            variant={mainTab === 'configuration' ? 'filled' : 'light'}
-            color={mainTab === 'configuration' ? 'blue' : 'gray'}
-            aria-label="Configuration"
-            onClick={() => {
-              if (mainTab !== 'configuration') {
-                startTransition(() => setMainTab('configuration'));
-              }
-              setMobileConfigOpen(null);
-            }}
-          >
-            <IconTool size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
-          </ActionIcon>
-          <ActionIcon
-            type="button"
-            size={44}
-            radius="sm"
-            variant={mainTab === 'customisation' ? 'filled' : 'light'}
-            color={mainTab === 'customisation' ? 'blue' : 'gray'}
-            aria-label="Customisation"
-            onClick={() => {
-              if (mainTab !== 'customisation') {
-                startTransition(() => setMainTab('customisation'));
-              }
-              setMobileConfigOpen(null);
-            }}
-          >
-            <IconSparkles size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
-          </ActionIcon>
-        </Group>
+        {mobileConfigOpen == null && mainTab === 'configuration' ? (
+          <Group className="admin-configuration-page__mobile-top-icons" gap={10} wrap="nowrap">
+            <ActionIcon
+              type="button"
+              size={44}
+              radius="sm"
+              variant={mainTab === 'configuration' ? 'filled' : 'light'}
+              color={mainTab === 'configuration' ? 'blue' : 'gray'}
+              aria-label="Configuration"
+              onClick={() => {
+                if (mainTab !== 'configuration') {
+                  startTransition(() => setMainTab('configuration'));
+                }
+                setMobileConfigOpen(null);
+              }}
+            >
+              <IconTool size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
+            </ActionIcon>
+            <ActionIcon
+              type="button"
+              size={44}
+              radius="sm"
+              variant={mainTab === 'customisation' ? 'filled' : 'light'}
+              color={mainTab === 'customisation' ? 'blue' : 'gray'}
+              aria-label="Customisation"
+              onClick={() => {
+                if (mainTab !== 'customisation') {
+                  startTransition(() => setMainTab('customisation'));
+                }
+                setMobileConfigOpen(null);
+              }}
+            >
+              <IconSparkles size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
+            </ActionIcon>
+          </Group>
+        ) : null}
         {mainTab === 'configuration' ? (
           mobileConfigOpen == null ? (
             <Stack gap="xs">

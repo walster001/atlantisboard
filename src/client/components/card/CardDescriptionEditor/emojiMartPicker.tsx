@@ -9,6 +9,7 @@ export interface EmojiMartLazyProps {
   readonly onEmojiSelect: (payload: unknown) => void;
   readonly rgbBackground: string;
   readonly rgbColor: string;
+  readonly layout?: 'popover' | 'fullscreen';
 }
 
 /**
@@ -174,7 +175,7 @@ export const LazyEmojiMartPicker = lazy(async () => {
     import('@emoji-mart/data/sets/15/twitter.json'),
   ]);
 
-  function EmojiMartPicker({ onEmojiSelect, rgbBackground, rgbColor }: EmojiMartLazyProps) {
+  function EmojiMartPicker({ onEmojiSelect, rgbBackground, rgbColor, layout = 'popover' }: EmojiMartLazyProps) {
     const wrapRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
       const el = wrapRef.current;
@@ -215,7 +216,11 @@ export const LazyEmojiMartPicker = lazy(async () => {
     return (
       <div
         ref={wrapRef}
-        className="card-desc-emoji-mart-root"
+        className={
+          layout === 'fullscreen'
+            ? 'card-desc-emoji-mart-root card-desc-emoji-mart-root--fullscreen'
+            : 'card-desc-emoji-mart-root'
+        }
         style={
           {
             '--rgb-background': rgbBackground,

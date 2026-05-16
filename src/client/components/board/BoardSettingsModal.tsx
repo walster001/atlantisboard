@@ -272,12 +272,17 @@ export function BoardSettingsModal({
               className={
                 mobileDetail.kind === 'users'
                   ? 'board-settings-modal__mobile-content board-settings-modal__mobile-content--users'
-                  : 'board-settings-modal__mobile-content'
+                  : mobileDetail.kind === 'board' &&
+                      (mobileDetail.section === 'card-settings' ||
+                        mobileDetail.section === 'list-settings')
+                    ? 'board-settings-modal__mobile-content board-settings-modal__mobile-content--settings-scroll'
+                    : 'board-settings-modal__mobile-content'
               }
             >
               {mobileDetail.kind === 'board' && mobileDetail.section === 'card-settings' ? (
                 <BoardSettingsCardSettingsPanel
                   boardId={boardId}
+                  mobileLayout
                   {...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {})}
                 />
               ) : null}

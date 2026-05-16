@@ -331,6 +331,42 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   height: min(435px, calc(100dvh - 80px)) !important;
 }
 
+/* Mobile fullscreen emoji picker (card description editor). */
+.card-desc-emoji-mart-modal {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  background: var(--board-card-detail-bg, #f8f9fb);
+}
+
+.card-desc-emoji-mart-modal__header {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 10px 8px;
+}
+
+.card-desc-emoji-mart-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px max(8px, env(safe-area-inset-bottom, 0px));
+}
+
+.card-desc-emoji-mart-root--fullscreen {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.card-desc-emoji-mart-root--fullscreen em-emoji-picker {
+  max-height: 100% !important;
+  height: 100% !important;
+}
+
 @media (max-width: 1199px) {
   .card-desc-tiptap-editor .ProseMirror {
     font-size: 0.92rem;

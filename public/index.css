@@ -12129,12 +12129,23 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 
   .board-settings-card-settings-panel--mobile {
+    overflow: hidden;
+    flex: auto;
+    min-height: 0;
+  }
+
+  .board-settings-card-settings-panel__header {
+    flex-shrink: 0;
+    padding-bottom: 2px;
+  }
+
+  .board-settings-card-settings-panel__scroll {
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding-right: 2px;
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
     flex: auto;
     min-height: 0;
   }

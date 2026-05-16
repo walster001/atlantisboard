@@ -157,17 +157,7 @@ export function BoardSettingsCardSettingsPanel({
     );
   }
 
-  return (
-    <Stack
-      gap="lg"
-      {...(mobileLayout
-        ? { className: 'board-settings-card-settings-panel board-settings-card-settings-panel--mobile' }
-        : {})}
-    >
-      <Text fw={700} size="lg" style={{ flexShrink: 0 }}>
-        Card settings
-      </Text>
-
+  const switchesPanel = (
       <Paper withBorder p="md" radius="md" maw={mobileLayout ? undefined : 700} style={{ flexShrink: 0 }}>
         <Stack gap={mobileLayout ? 'lg' : 'md'}>
           <Switch
@@ -336,18 +326,55 @@ export function BoardSettingsCardSettingsPanel({
           />
         </Stack>
       </Paper>
+  );
 
-      {error != null ? (
-        <Alert color="red" title="Error">
-          {error}
-        </Alert>
-      ) : null}
+  const errorAlert =
+    error != null ? (
+      <Alert color="red" title="Error">
+        {error}
+      </Alert>
+    ) : null;
 
-      <Group justify="flex-start">
-        <Button onClick={() => void handleSave()} loading={loading}>
-          Save
-        </Button>
-      </Group>
+  const saveButton = (
+    <Button onClick={() => void handleSave()} loading={loading} size={mobileLayout ? 'sm' : 'md'}>
+      Save
+    </Button>
+  );
+
+  if (mobileLayout) {
+    return (
+      <Stack
+        gap="sm"
+        className="board-settings-card-settings-panel board-settings-card-settings-panel--mobile"
+      >
+        <Group
+          justify="space-between"
+          align="center"
+          wrap="nowrap"
+          gap="sm"
+          className="board-settings-card-settings-panel__header"
+        >
+          <Text fw={700} size="lg" style={{ minWidth: 0 }}>
+            Card settings
+          </Text>
+          {saveButton}
+        </Group>
+        <Stack gap="md" className="board-settings-card-settings-panel__scroll">
+          {switchesPanel}
+          {errorAlert}
+        </Stack>
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack gap="lg">
+      <Text fw={700} size="lg">
+        Card settings
+      </Text>
+      {switchesPanel}
+      {errorAlert}
+      <Group justify="flex-start">{saveButton}</Group>
     </Stack>
   );
 }

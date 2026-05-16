@@ -115,7 +115,7 @@ export default function AdminConfigurationPage() {
             {mobileConfigOpen == null ? 'Admin Configuration' : sectionLabel}
           </Title>
         </Group>
-        {mobileConfigOpen == null && mainTab === 'configuration' ? (
+        {mobileConfigOpen == null ? (
           <Group className="admin-configuration-page__mobile-top-icons" gap={10} wrap="nowrap">
             <ActionIcon
               type="button"

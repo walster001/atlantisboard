@@ -141,6 +141,7 @@ function SortableCardInner({
     () => resolveCardCoverRenderUrl(card),
     [card.attachments, card.cover],
   );
+  const hasCover = coverRenderUrl != null && coverRenderUrl !== '';
 
   const handleCardAreaClick = () => {
     if (suppressCardOpenClickRef?.current === true) {
@@ -155,12 +156,14 @@ function SortableCardInner({
       ref={setCardRootRef}
       className={`board-card board-card--kanban${
         card.color && card.color.trim().length > 0 ? ' board-card--kanban-colored' : ''
-      }${showKanbanCardMenu ? '' : ' board-card--kanban--no-card-menu'}`}
+      }${hasCover ? ' board-card--has-cover' : ''}${
+        showKanbanCardMenu ? '' : ' board-card--kanban--no-card-menu'
+      }`}
       data-kanban-list-id={listId}
       data-kanban-card-id={card.id}
       padding={0}
       radius={12}
-      styles={{ root: { padding: '14px' } }}
+      styles={{ root: { padding: hasCover ? 0 : '14px' } }}
       style={{
         opacity: isDragSource ? 0 : 1,
         transition: 'opacity 0.12s ease',
@@ -177,28 +180,6 @@ function SortableCardInner({
           : {}),
       }}
     >
-      {coverRenderUrl ? (
-        <Card.Section
-          className="board-card__kanban-cover"
-          mb="xs"
-          style={{
-            borderTopLeftRadius: '12px',
-            borderTopRightRadius: '12px',
-            overflow: 'hidden',
-          }}
-        >
-          <Box
-            w="100%"
-            h="10rem"
-            style={{
-              backgroundImage: `url(${coverRenderUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          />
-        </Card.Section>
-      ) : null}
-
       {showKanbanCardMenu ? (
         <Box className="board-card__kanban-menu" data-kanban-delegated-drag-ignore="1">
           <button
@@ -224,10 +205,10 @@ function SortableCardInner({
         onPointerMove={touchArm.onPointerMove}
         onPointerUp={touchArm.onPointerUp}
         onPointerCancel={touchArm.onPointerCancel}
-        style={
-          kanbanCardBodyDraggable
+        style={{
+          cursor: 'pointer',
+          ...(kanbanCardBodyDraggable
             ? {
-                cursor: 'grab',
                 touchAction:
                   kanbanCardTouchDragRequiresLongPress && touchArm.touchArmedForDrag
                     ? 'none'
@@ -235,10 +216,25 @@ function SortableCardInner({
                       ? 'pan-x pan-y'
                       : 'pan-y',
               }
-            : { cursor: 'pointer', touchAction: 'auto' }
-        }
+            : { touchAction: 'auto' }),
+        }}
         onClick={handleCardAreaClick}
       >
+        {hasCover ? (
+          <Box className="board-card__kanban-cover" aria-hidden>
+            <Box
+              className="board-card__kanban-cover-image"
+              h="10rem"
+              style={{
+                backgroundImage: `url(${coverRenderUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            />
+          </Box>
+        ) : null}
+
+        <Box className="board-card__kanban-body-content">
         <KanbanLabelRow labels={card.labels} />
 
         <Text component="div" className="board-card__kanban-title">
@@ -331,6 +327,7 @@ function SortableCardInner({
           showDueDateOnCards={showDueDateOnCards}
           showEndDateOnCards={showEndDateOnCards}
         />
+        </Box>
       </Box>
     </Card>
   );

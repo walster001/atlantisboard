@@ -12980,6 +12980,26 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   max-width: 100%;
 }
 
+.board-card--kanban.board-card--has-cover .board-card__kanban-body {
+  padding: 0;
+}
+
+.board-card--kanban.board-card--has-cover .board-card__kanban-cover {
+  display: block;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.board-card--kanban.board-card--has-cover .board-card__kanban-cover-image {
+  display: block;
+  width: 100%;
+  height: 10rem;
+}
+
+.board-card--kanban.board-card--has-cover .board-card__kanban-body-content {
+  padding: 14px;
+}
+
 .board-card__kanban-menu {
   position: absolute;
   top: var(--mantine-spacing-sm);

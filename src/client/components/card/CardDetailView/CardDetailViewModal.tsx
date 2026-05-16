@@ -123,11 +123,11 @@ export function CardDetailViewModal({
                 </Text>
               )}
             </Box>
-            <Group gap={4} wrap="nowrap" align="center">
+            <Group gap={controller.isMobile ? 'xs' : 4} wrap="nowrap" align="center">
               <ActionIcon
                 variant="subtle"
                 color="gray"
-                size="lg"
+                size={controller.isMobile ? 'xl' : 'lg'}
                 radius="md"
                 aria-label="Copy link to this card"
                 title="Copy link to this card"
@@ -135,10 +135,14 @@ export function CardDetailViewModal({
                 styles={{ root: { color: 'var(--board-card-detail-text, #868e96)' } }}
               >
                 <span style={{ display: 'inline-flex', lineHeight: 0, transform: 'rotate(45deg)' }} aria-hidden>
-                  <IconLink size={19} stroke={1.5} />
+                  <IconLink size={controller.isMobile ? 22 : 19} stroke={1.5} />
                 </span>
               </ActionIcon>
-              <Modal.CloseButton aria-label="Close" style={{ color: 'var(--board-card-detail-text, #868e96)' }} />
+              <Modal.CloseButton
+                aria-label="Close"
+                size={controller.isMobile ? 'xl' : 'md'}
+                style={{ color: 'var(--board-card-detail-text, #868e96)' }}
+              />
             </Group>
           </Group>
           </Box>
@@ -323,7 +327,8 @@ export function CardDetailViewModal({
                   <Button
                     color="red"
                     variant="filled"
-                    leftSection={<IconTrash size={16} />}
+                    size={controller.isMobile ? 'lg' : 'sm'}
+                    leftSection={<IconTrash size={controller.isMobile ? 20 : 16} />}
                     onClick={controller.handleDeleteCard}
                     disabled={controller.loading}
                   >
@@ -332,7 +337,7 @@ export function CardDetailViewModal({
                 ) : null}
                 {controller.canDuplicateCard ? (
                   <Button
-                    size="sm"
+                    size={controller.isMobile ? 'lg' : 'sm'}
                     variant="default"
                     styles={cardDetailSoftButtonStyles}
                     onClick={() => controller.setShowDuplicateModal(true)}

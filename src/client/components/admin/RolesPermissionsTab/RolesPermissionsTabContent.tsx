@@ -159,13 +159,15 @@ export function RolesPermissionsTabContent({
 
   const renderAppAdminsPanel = (): ReactElement => (
     <Box className="roles-permissions-tab__app-admins-panel">
-      <Stack gap="xs" style={{ flexShrink: 0 }} mb="sm">
-        <Title order={4}>App Admins</Title>
-        <Text size="sm" c="dimmed">
-          Grant or revoke global App Admin access. App admins can access this admin configuration/modify
-          all aspects of the app.
-        </Text>
-      </Stack>
+      {!isMobile ? (
+        <Stack gap="xs" style={{ flexShrink: 0 }} mb="sm">
+          <Title order={4}>App Admins</Title>
+          <Text size="sm" c="dimmed">
+            Grant or revoke global App Admin access. App admins can access this admin configuration/modify
+            all aspects of the app.
+          </Text>
+        </Stack>
+      ) : null}
       <Box style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <AppAdminMemberManagement
           appAdmins={appAdmins}

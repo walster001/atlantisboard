@@ -9,6 +9,7 @@ import {
   memo,
 } from 'react';
 import {
+  ActionIcon,
   Avatar,
   Badge,
   Box,
@@ -24,7 +25,6 @@ import { notifications } from '@mantine/notifications';
 import { IconPlus, IconUserMinus } from '@tabler/icons-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import axios from 'axios';
-import { MEMBER_MANAGEMENT_ROLE_COL_PX } from '../../constants/memberManagementLayout.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
@@ -43,55 +43,69 @@ export interface AppAdminUserRow {
   readonly profilePicture?: string | undefined;
 }
 
-const ROW_PX = 96;
-const ACTION_COL_PX = 118;
+const TABLE_ROW_PX_DESKTOP = 96;
+const TABLE_ROW_PX_MOBILE = 80;
+const DESKTOP_ACTION_COL_PX = 108;
+const DESKTOP_ROLE_COL_PX = 108;
+const MOBILE_ACTION_COL_PX = 48;
+const MOBILE_AVATAR_PX = 32;
 const DIRECTORY_PAGE_LIMIT = 100;
 const VIRTUOSO_VIEWPORT_PAD = { top: 80, bottom: 120 } as const;
 const VIRTUOSO_OVERSCAN = 6;
 
-const AdminDirectoryTable = forwardRef<HTMLTableElement, ComponentPropsWithoutRef<'table'>>(
-  ({ style, className, children, ...props }, ref) => (
-    <table
-      ref={ref}
-      {...props}
-      className={['board-member-management__data-table', className].filter(Boolean).join(' ')}
-      style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        tableLayout: 'fixed',
-        ...style,
-      }}
-    >
-      <colgroup>
-        <col />
-        <col style={{ width: MEMBER_MANAGEMENT_ROLE_COL_PX }} />
-        <col style={{ width: ACTION_COL_PX }} />
-      </colgroup>
-      {children}
-    </table>
-  ),
-);
-AdminDirectoryTable.displayName = 'AdminDirectoryTable';
+function createAppAdminTableComponents(options: {
+  readonly compactLayout: boolean;
+  readonly includeRoleColumn: boolean;
+}): {
+  Table: ReturnType<typeof forwardRef<HTMLTableElement, ComponentPropsWithoutRef<'table'>>>;
+  TableRow: ReturnType<typeof forwardRef<HTMLTableRowElement, ComponentPropsWithoutRef<'tr'>>>;
+} {
+  const { compactLayout, includeRoleColumn } = options;
+  const rowPx = compactLayout ? TABLE_ROW_PX_MOBILE : TABLE_ROW_PX_DESKTOP;
+  const actionColPx = compactLayout ? MOBILE_ACTION_COL_PX : DESKTOP_ACTION_COL_PX;
 
-const AdminDirectoryTableRow = forwardRef<HTMLTableRowElement, ComponentPropsWithoutRef<'tr'>>(
-  ({ style, ...rest }, ref) => (
-    <tr
-      {...rest}
-      ref={ref}
-      style={{
-        ...style,
-        height: ROW_PX,
-        boxSizing: 'border-box',
-      }}
-    />
-  ),
-);
-AdminDirectoryTableRow.displayName = 'AdminDirectoryTableRow';
+  const Table = forwardRef<HTMLTableElement, ComponentPropsWithoutRef<'table'>>(
+    ({ style, className, children, ...props }, ref) => (
+      <table
+        ref={ref}
+        {...props}
+        className={['board-member-management__data-table', className].filter(Boolean).join(' ')}
+        style={{
+          width: '100%',
+          maxWidth: '100%',
+          borderCollapse: 'collapse',
+          tableLayout: 'fixed',
+          ...style,
+        }}
+      >
+        <colgroup>
+          <col />
+          {includeRoleColumn ? <col style={{ width: DESKTOP_ROLE_COL_PX }} /> : null}
+          <col style={{ width: actionColPx }} />
+        </colgroup>
+        {children}
+      </table>
+    ),
+  );
+  Table.displayName = 'AppAdminDataTable';
 
-const directoryTableComponents = {
-  Table: AdminDirectoryTable,
-  TableRow: AdminDirectoryTableRow,
-};
+  const TableRow = forwardRef<HTMLTableRowElement, ComponentPropsWithoutRef<'tr'>>(
+    ({ style, ...rest }, ref) => (
+      <tr
+        {...rest}
+        ref={ref}
+        style={{
+          ...style,
+          height: rowPx,
+          boxSizing: 'border-box',
+        }}
+      />
+    ),
+  );
+  TableRow.displayName = 'AppAdminDataTableRow';
+
+  return { Table, TableRow };
+}
 
 function compareUserRowsByDisplayName(a: AppAdminUserRow, b: AppAdminUserRow): number {
   const byName = a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' });
@@ -115,26 +129,177 @@ function adminMatchesQuery(admin: AppAdminUserRow, query: string): boolean {
   );
 }
 
-const UserIdentityStack = memo(function UserIdentityStack(props: { readonly user: AppAdminUserRow }) {
-  const { user } = props;
+const UserIdentityStack = memo(function UserIdentityStack(props: {
+  readonly user: AppAdminUserRow;
+  readonly compact?: boolean;
+  readonly showAdminBadge?: boolean;
+}) {
+  const { user, compact = false, showAdminBadge = false } = props;
   const email = user.email.trim();
   return (
-    <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-      <Text fw={600} size="sm" lineClamp={1}>
-        {user.displayName}
-      </Text>
+    <Stack gap={compact ? 2 : 0} style={{ flex: 1, minWidth: 0 }}>
+      <Group gap={6} wrap="nowrap" align="center" style={{ minWidth: 0 }}>
+        <Text fw={600} size={compact ? 'xs' : 'sm'} lineClamp={compact ? 2 : 1} style={{ flex: 1, minWidth: 0 }}>
+          {user.displayName}
+        </Text>
+        {showAdminBadge ? (
+          <Badge size="xs" variant="light" color="blue" style={{ flexShrink: 0 }}>
+            Admin
+          </Badge>
+        ) : null}
+      </Group>
       <Tooltip label={email} disabled={email === ''} openDelay={350} position="top-start" multiline maw={420}>
         <Text
           component="span"
           size="xs"
           c="dimmed"
-          lineClamp={2}
+          lineClamp={compact ? 2 : 2}
           className="board-member-management__email-text"
         >
           {user.email}
         </Text>
       </Tooltip>
     </Stack>
+  );
+});
+
+const DirectoryUserTableCells = memo(function DirectoryUserTableCells(props: {
+  readonly user: AppAdminUserRow;
+  readonly compactLayout: boolean;
+  readonly onAdd: (user: AppAdminUserRow) => void;
+}) {
+  const { user, compactLayout, onAdd } = props;
+  const avatarSize = compactLayout ? MOBILE_AVATAR_PX : APP_USER_AVATAR_SIZE;
+  return (
+    <>
+      <td className="board-member-management__td board-member-management__td--user">
+        <Group gap={compactLayout ? 6 : 'sm'} wrap="nowrap" align="flex-start">
+          <Avatar
+            size={avatarSize}
+            color="gray"
+            mt={compactLayout ? 0 : 2}
+            {...(user.profilePicture != null && user.profilePicture !== ''
+              ? { src: user.profilePicture }
+              : {})}
+          >
+            {userMenuStyleAvatarInitials(user.displayName, user.email)}
+          </Avatar>
+          <UserIdentityStack user={user} compact={compactLayout} />
+        </Group>
+      </td>
+      <td className="board-member-management__td board-member-management__td--action">
+        {compactLayout ? (
+          <Tooltip label="Add as App Admin">
+            <ActionIcon
+              size="lg"
+              radius="md"
+              color="blue"
+              variant="light"
+              aria-label="Add as App Admin"
+              onClick={() => {
+                onAdd(user);
+              }}
+            >
+              <IconPlus size={18} stroke={2} />
+            </ActionIcon>
+          </Tooltip>
+        ) : (
+          <Button
+            size="xs"
+            color="blue"
+            leftSection={<IconPlus size={14} stroke={2} />}
+            onClick={() => {
+              onAdd(user);
+            }}
+          >
+            Add
+          </Button>
+        )}
+      </td>
+    </>
+  );
+});
+
+const AppAdminUserTableCells = memo(function AppAdminUserTableCells(props: {
+  readonly user: AppAdminUserRow;
+  readonly compactLayout: boolean;
+  readonly canRemove: boolean;
+  readonly blockSelfBootstrap: boolean;
+  readonly onRemove: (user: AppAdminUserRow) => void;
+}) {
+  const { user, compactLayout, canRemove, blockSelfBootstrap, onRemove } = props;
+  const avatarSize = compactLayout ? MOBILE_AVATAR_PX : APP_USER_AVATAR_SIZE;
+  const blockedTooltip = blockSelfBootstrap
+    ? 'The bootstrap App Admin cannot remove their own access. Add another App Admin first, then they can remove you if needed.'
+    : 'At least one App Admin must remain.';
+
+  return (
+    <>
+      <td className="board-member-management__td board-member-management__td--user">
+        <Group gap={compactLayout ? 6 : 'sm'} wrap="nowrap" align="flex-start">
+          <Avatar size={avatarSize} color="gray" mt={compactLayout ? 0 : 2}>
+            {userMenuStyleAvatarInitials(user.displayName, user.email)}
+          </Avatar>
+          <UserIdentityStack user={user} compact={compactLayout} showAdminBadge={compactLayout} />
+        </Group>
+      </td>
+      {compactLayout ? null : (
+        <td className="board-member-management__td board-member-management__td--role">
+          <Badge size="sm" variant="light" color="blue">
+            App Admin
+          </Badge>
+        </td>
+      )}
+      <td className="board-member-management__td board-member-management__td--action">
+        {canRemove ? (
+          compactLayout ? (
+            <Tooltip label="Remove App Admin">
+              <ActionIcon
+                size="lg"
+                radius="md"
+                color="red"
+                variant="light"
+                aria-label="Remove App Admin"
+                onClick={() => {
+                  onRemove(user);
+                }}
+              >
+                <IconUserMinus size={18} stroke={1.5} />
+              </ActionIcon>
+            </Tooltip>
+          ) : (
+            <Button
+              size="xs"
+              color="red"
+              variant="light"
+              leftSection={<IconUserMinus size={14} stroke={2} />}
+              onClick={() => {
+                onRemove(user);
+              }}
+            >
+              Remove
+            </Button>
+          )
+        ) : compactLayout ? (
+          <Tooltip label={blockedTooltip} position="left" maw={280} multiline>
+            <ActionIcon
+              size="lg"
+              radius="md"
+              color="gray"
+              variant="subtle"
+              aria-label={blockedTooltip}
+              disabled
+            >
+              <IconUserMinus size={18} stroke={1.5} />
+            </ActionIcon>
+          </Tooltip>
+        ) : (
+          <Tooltip label={blockedTooltip} position="left" maw={280} multiline>
+            <span />
+          </Tooltip>
+        )}
+      </td>
+    </>
   );
 });
 
@@ -171,6 +336,27 @@ export function AppAdminMemberManagement({
   const directoryPagingLockRef = useRef(false);
   const directoryQueryRef = useRef(directoryQuery);
   directoryQueryRef.current = directoryQuery;
+
+  const isMobileStackedLayout = useResponsiveTier() === 'mobile';
+  const tableRowPx = isMobileStackedLayout ? TABLE_ROW_PX_MOBILE : TABLE_ROW_PX_DESKTOP;
+
+  const directoryTableComponents = useMemo(
+    () =>
+      createAppAdminTableComponents({
+        compactLayout: isMobileStackedLayout,
+        includeRoleColumn: false,
+      }),
+    [isMobileStackedLayout],
+  );
+
+  const adminsTableComponents = useMemo(
+    () =>
+      createAppAdminTableComponents({
+        compactLayout: isMobileStackedLayout,
+        includeRoleColumn: !isMobileStackedLayout,
+      }),
+    [isMobileStackedLayout],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -295,8 +481,6 @@ export function AppAdminMemberManagement({
     [onAppAdminsChange],
   );
 
-  const isMobileStackedLayout = useResponsiveTier() === 'mobile';
-
   const handleRemove = useCallback(
     async (user: AppAdminUserRow) => {
       try {
@@ -320,11 +504,18 @@ export function AppAdminMemberManagement({
   );
 
   return (
-    <Box className="board-member-management__root">
+    <Box
+      className={[
+        'board-member-management__root',
+        isMobileStackedLayout ? 'board-member-management__root--app-admin-mobile' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <div
         className={
           isMobileStackedLayout
-            ? 'board-member-management__grid board-member-management__grid--mobile-stacked'
+            ? 'board-member-management__grid board-member-management__grid--mobile-stacked board-member-management__grid--app-admin-mobile'
             : 'board-member-management__grid'
         }
       >
@@ -336,7 +527,7 @@ export function AppAdminMemberManagement({
           h="100%"
         >
           <Stack gap={isMobileStackedLayout ? 'xs' : 'md'} style={{ flexShrink: 0 }}>
-            <Text fw={700} size="md">
+            <Text fw={700} size={isMobileStackedLayout ? 'sm' : 'md'}>
               All Users
             </Text>
             <BoardMemberEnterToSearchField
@@ -344,9 +535,11 @@ export function AppAdminMemberManagement({
               placeholder="Search users to add..."
               onCommit={setDirectoryQuery}
             />
-            <Text size="sm" c="dimmed">
-              Non–App Admins only. Search filters the directory; press Enter to apply.
-            </Text>
+            {!isMobileStackedLayout ? (
+              <Text size="sm" c="dimmed">
+                Non–App Admins only. Search filters the directory; press Enter to apply.
+              </Text>
+            ) : null}
           </Stack>
           <Box
             className="board-member-management__table-scroll"
@@ -376,45 +569,18 @@ export function AppAdminMemberManagement({
                 data={directoryUsers}
                 components={directoryTableComponents}
                 computeItemKey={(_index, user) => user._id}
-                fixedItemHeight={ROW_PX}
+                fixedItemHeight={tableRowPx}
                 increaseViewportBy={VIRTUOSO_VIEWPORT_PAD}
                 overscan={VIRTUOSO_OVERSCAN}
                 endReached={handleDirectoryEndReached}
                 itemContent={(_index, user) => (
-                  <>
-                    <td className="board-member-management__td board-member-management__td--user">
-                      <Group gap="sm" wrap="nowrap" align="flex-start">
-                        <Avatar
-                          size={APP_USER_AVATAR_SIZE}
-                          color="gray"
-                          mt={2}
-                          {...(user.profilePicture != null && user.profilePicture !== ''
-                            ? { src: user.profilePicture }
-                            : {})}
-                        >
-                          {userMenuStyleAvatarInitials(user.displayName, user.email)}
-                        </Avatar>
-                        <UserIdentityStack user={user} />
-                      </Group>
-                    </td>
-                    <td className="board-member-management__td board-member-management__td--role">
-                      <Text size="xs" c="dimmed" ta="end">
-                        —
-                      </Text>
-                    </td>
-                    <td className="board-member-management__td board-member-management__td--action">
-                      <Button
-                        size="xs"
-                        color="blue"
-                        leftSection={<IconPlus size={14} stroke={2} />}
-                        onClick={() => {
-                          void handleAdd(user);
-                        }}
-                      >
-                        Add
-                      </Button>
-                    </td>
-                  </>
+                  <DirectoryUserTableCells
+                    user={user}
+                    compactLayout={isMobileStackedLayout}
+                    onAdd={(row) => {
+                      void handleAdd(row);
+                    }}
+                  />
                 )}
               />
             )}
@@ -434,7 +600,7 @@ export function AppAdminMemberManagement({
           h="100%"
         >
           <Stack gap={isMobileStackedLayout ? 'xs' : 'md'} style={{ flexShrink: 0 }}>
-            <Text fw={700} size="md">
+            <Text fw={700} size={isMobileStackedLayout ? 'sm' : 'md'}>
               App Admins ({appAdmins.length})
             </Text>
             <BoardMemberEnterToSearchField
@@ -475,9 +641,9 @@ export function AppAdminMemberManagement({
                   className="board-member-management__virtuoso-root"
                   style={{ height: '100%', minHeight: 0, width: '100%', flex: 1 }}
                   data={filteredAdmins}
-                  components={directoryTableComponents}
+                  components={adminsTableComponents}
                   computeItemKey={(_index, u) => u._id}
-                  fixedItemHeight={ROW_PX}
+                  fixedItemHeight={tableRowPx}
                   increaseViewportBy={VIRTUOSO_VIEWPORT_PAD}
                   overscan={VIRTUOSO_OVERSCAN}
                   itemContent={(_index, user) => {
@@ -488,51 +654,15 @@ export function AppAdminMemberManagement({
                     );
                     const canRemove = appAdmins.length > 1 && !blockSelfBootstrap;
                     return (
-                      <>
-                        <td className="board-member-management__td board-member-management__td--user">
-                          <Group gap="sm" wrap="nowrap" align="flex-start">
-                            <Avatar size={APP_USER_AVATAR_SIZE} color="gray" mt={2}>
-                              {userMenuStyleAvatarInitials(user.displayName, user.email)}
-                            </Avatar>
-                            <UserIdentityStack user={user} />
-                          </Group>
-                        </td>
-                        <td className="board-member-management__td board-member-management__td--role">
-                          <Badge size="sm" variant="light" color="blue">
-                            App Admin
-                          </Badge>
-                        </td>
-                        <td className="board-member-management__td board-member-management__td--action">
-                          {canRemove ? (
-                            <Button
-                              size="xs"
-                              color="red"
-                              variant="light"
-                              leftSection={<IconUserMinus size={14} stroke={2} />}
-                              onClick={() => {
-                                void handleRemove(user);
-                              }}
-                            >
-                              Remove
-                            </Button>
-                          ) : (
-                            <Tooltip
-                              label={
-                                blockSelfBootstrap
-                                  ? 'The bootstrap App Admin cannot remove their own access. Add another App Admin first, then they can remove you if needed.'
-                                  : 'At least one App Admin must remain.'
-                              }
-                              position="left"
-                              maw={280}
-                              multiline
-                            >
-                              <Text size="xs" c="dimmed" ta="end">
-                                —
-                              </Text>
-                            </Tooltip>
-                          )}
-                        </td>
-                      </>
+                      <AppAdminUserTableCells
+                        user={user}
+                        compactLayout={isMobileStackedLayout}
+                        canRemove={canRemove}
+                        blockSelfBootstrap={blockSelfBootstrap}
+                        onRemove={(row) => {
+                          void handleRemove(row);
+                        }}
+                      />
                     );
                   }}
                 />

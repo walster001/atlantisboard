@@ -75,6 +75,32 @@
   width: 56px !important;
 }
 
+/* App Admin mobile: user + action only (no placeholder role column). */
+.board-member-management__grid--app-admin-mobile.board-member-management__grid--mobile-stacked
+  .board-member-management__data-table
+  col:nth-child(2) {
+  width: 48px !important;
+}
+
+.board-member-management__grid--app-admin-mobile.board-member-management__grid--mobile-stacked
+  .board-member-management__data-table
+  col:nth-child(3) {
+  width: auto !important;
+}
+
+.board-member-management__grid--app-admin-mobile .board-member-management__table-scroll,
+.board-member-management__root--app-admin-mobile .board-member-management__virtuoso-root {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.board-member-management__grid--app-admin-mobile.board-member-management__grid--mobile-stacked
+  .board-member-management__td--action
+  .mantine-Button-root {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
 @media (min-width: 48em) {
   .board-member-management__grid {
     grid-template-columns: 1fr 1fr;

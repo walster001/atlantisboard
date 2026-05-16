@@ -9548,6 +9548,24 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   width: 56px !important;
 }
 
+.board-member-management__grid--app-admin-mobile.board-member-management__grid--mobile-stacked .board-member-management__data-table col:nth-child(2) {
+  width: 48px !important;
+}
+
+.board-member-management__grid--app-admin-mobile.board-member-management__grid--mobile-stacked .board-member-management__data-table col:nth-child(3) {
+  width: auto !important;
+}
+
+.board-member-management__grid--app-admin-mobile .board-member-management__table-scroll, .board-member-management__root--app-admin-mobile .board-member-management__virtuoso-root {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.board-member-management__grid--app-admin-mobile.board-member-management__grid--mobile-stacked .board-member-management__td--action .mantine-Button-root {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
 @media (min-width: 48em) {
   .board-member-management__grid {
     grid-template-columns: 1fr 1fr;
@@ -13859,9 +13877,20 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     min-height: 0;
   }
 
-  .roles-permissions-tab__mobile-app-admins-body .roles-permissions-tab__app-admins-panel, .roles-permissions-tab__mobile-app-admins-body .board-member-management__root {
+  .roles-permissions-tab__mobile-app-admins-body .roles-permissions-tab__app-admins-panel {
     flex: auto;
     min-height: 0;
+  }
+
+  .roles-permissions-tab__mobile-app-admins-body .board-member-management__root {
+    overflow: hidden;
+    flex: auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .roles-permissions-tab__mobile-app-admins-body .board-member-management__grid--app-admin-mobile, .roles-permissions-tab__mobile-app-admins-body .board-member-management__panel-paper {
+    min-width: 0;
   }
 
   .roles-permissions-tab__mobile-roles-scroll .mantine-ScrollArea-viewport, .roles-permissions-tab__mobile-categories-scroll .mantine-ScrollArea-viewport, .roles-permissions-tab__mobile-permissions-scroll .mantine-ScrollArea-viewport {

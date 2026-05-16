@@ -121,6 +121,16 @@
   .roles-permissions-tab__mobile-app-admins-body .board-member-management__root {
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .roles-permissions-tab__mobile-app-admins-body .board-member-management__grid--app-admin-mobile {
+    min-width: 0;
+  }
+
+  .roles-permissions-tab__mobile-app-admins-body .board-member-management__panel-paper {
+    min-width: 0;
   }
 
   .roles-permissions-tab__mobile-roles-scroll .mantine-ScrollArea-viewport,

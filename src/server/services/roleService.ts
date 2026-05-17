@@ -91,8 +91,10 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'checklists.items.delete',
       'comments.create',
       'comments.delete',
+      'import.display',
       'import.trello',
       'import.wekan',
+      'workspaces.create',
     ],
   },
   {
@@ -122,7 +124,6 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'cards.update',
       'cards.move',
       'cards.reorder',
-      'cards.duplicate',
       'attachments.upload',
       'attachments.delete',
       'checklists.create',
@@ -186,11 +187,21 @@ export async function initializeRoleDefinitions(): Promise<void> {
   ).catch(() => undefined);
 
   await RoleDefinition.updateMany(
-    { key: { $in: ['admin', 'manager'] }, isBuiltIn: true },
+    { key: 'admin', isBuiltIn: true },
     {
       $addToSet: {
         permissions: {
           $each: ['comments.delete', 'cards.duplicate', 'boards.reorder_in_home'],
+        },
+      },
+    },
+  ).catch(() => undefined);
+  await RoleDefinition.updateMany(
+    { key: 'manager', isBuiltIn: true },
+    {
+      $addToSet: {
+        permissions: {
+          $each: ['comments.delete', 'boards.reorder_in_home'],
         },
       },
     },
@@ -278,7 +289,18 @@ export async function initializeRoleDefinitions(): Promise<void> {
     { key: 'admin', isBuiltIn: true },
     {
       $addToSet: {
-        permissions: { $each: ['boards.create'] },
+        permissions: { $each: ['boards.create', 'import.display', 'workspaces.create'] },
+      },
+    },
+  ).catch(() => undefined);
+
+  await RoleDefinition.updateMany(
+    { key: 'manager', isBuiltIn: true },
+    {
+      $pull: {
+        permissions: {
+          $each: ['import.display', 'cards.duplicate', 'invites.view'],
+        },
       },
     },
   ).catch(() => undefined);

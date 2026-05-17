@@ -74,74 +74,84 @@ export function HomePageLayout({ controller }: HomePageLayoutProps) {
               <Title order={1} className="home-page__title">
                 Your Workspaces
               </Title>
-              <Group
-                gap="xs"
-                wrap="nowrap"
-                className={`home-page__actions${controller.isMobile ? ' home-page__actions--icon-only' : ''}`}
-              >
-                {controller.isMobile ? (
-                  <>
-                    <ActionIcon
-                      variant="default"
-                      size="lg"
-                      radius="md"
-                      className="home-page__import-btn home-page__import-btn--icon-only"
-                      onClick={controller.openImportModal}
-                      aria-label="Import boards or workspaces"
-                    >
-                      <IconFileImport size={22} stroke={1.65} />
-                    </ActionIcon>
-                    <ActionIcon
-                      color="blue"
-                      variant="filled"
-                      size="lg"
-                      radius="md"
-                      className="home-page__new-workspace-btn home-page__new-workspace-btn--icon-only"
-                      onClick={controller.openCreateWorkspace}
-                      aria-label="New workspace"
-                    >
-                      <IconPlus size={22} stroke={1.75} />
-                    </ActionIcon>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="home-page__import-btn"
-                      leftSection={
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
+              {controller.canUseImport || controller.canCreateWorkspace ? (
+                <Group
+                  gap="xs"
+                  wrap="nowrap"
+                  className={`home-page__actions${controller.isMobile ? ' home-page__actions--icon-only' : ''}`}
+                >
+                  {controller.isMobile ? (
+                    <>
+                      {controller.canUseImport ? (
+                        <ActionIcon
+                          variant="default"
+                          size="lg"
+                          radius="md"
+                          className="home-page__import-btn home-page__import-btn--icon-only"
+                          onClick={controller.openImportModal}
+                          aria-label="Import boards or workspaces"
                         >
-                          <path
-                            d="M8 2V10M8 2L5 5M8 2L11 5M2 10V13C2 13.5523 2.44772 14 3 14H13C13.5523 14 14 13.5523 14 13V10"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      }
-                      onClick={controller.openImportModal}
-                    >
-                      Import
-                    </Button>
-                    <Button
-                      color="blue"
-                      size="sm"
-                      className="home-page__new-workspace-btn"
-                      leftSection={<span className="home-page__icon-plus">+</span>}
-                      onClick={controller.openCreateWorkspace}
-                    >
-                      New Workspace
-                    </Button>
-                  </>
-                )}
-              </Group>
+                          <IconFileImport size={22} stroke={1.65} />
+                        </ActionIcon>
+                      ) : null}
+                      {controller.canCreateWorkspace ? (
+                        <ActionIcon
+                          color="blue"
+                          variant="filled"
+                          size="lg"
+                          radius="md"
+                          className="home-page__new-workspace-btn home-page__new-workspace-btn--icon-only"
+                          onClick={controller.openCreateWorkspace}
+                          aria-label="New workspace"
+                        >
+                          <IconPlus size={22} stroke={1.75} />
+                        </ActionIcon>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      {controller.canUseImport ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="home-page__import-btn"
+                          leftSection={
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M8 2V10M8 2L5 5M8 2L11 5M2 10V13C2 13.5523 2.44772 14 3 14H13C13.5523 14 14 13.5523 14 13V10"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          }
+                          onClick={controller.openImportModal}
+                        >
+                          Import
+                        </Button>
+                      ) : null}
+                      {controller.canCreateWorkspace ? (
+                        <Button
+                          color="blue"
+                          size="sm"
+                          className="home-page__new-workspace-btn"
+                          leftSection={<span className="home-page__icon-plus">+</span>}
+                          onClick={controller.openCreateWorkspace}
+                        >
+                          New Workspace
+                        </Button>
+                      ) : null}
+                    </>
+                  )}
+                </Group>
+              ) : null}
             </Group>
 
             {controller.orderedWorkspaces.map((workspace, fullIndex) => {
@@ -287,9 +297,11 @@ export function HomePageLayout({ controller }: HomePageLayoutProps) {
                 <Text c="dimmed" mb="md">
                   No workspaces yet.
                 </Text>
-                <Text c="dimmed" size="sm">
-                  Create a private workspace to hold your boards, then add boards there.
-                </Text>
+                {controller.canCreateWorkspace ? (
+                  <Text c="dimmed" size="sm">
+                    Create a private workspace to hold your boards, then add boards there.
+                  </Text>
+                ) : null}
               </Box>
             ) : null}
           </Stack>

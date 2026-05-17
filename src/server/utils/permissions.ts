@@ -106,7 +106,6 @@ const BUILTIN_ROLE_PERMISSION_FALLBACKS: Readonly<Record<UserRole, readonly stri
     'checklists.items.delete',
     'comments.create',
     'comments.delete',
-    'cards.duplicate',
     'import.trello',
     'import.wekan',
   ],
@@ -165,10 +164,55 @@ const BUILTIN_ROLE_PERMISSION_FALLBACKS: Readonly<Record<UserRole, readonly stri
     'checklists.items.delete',
     'comments.create',
     'comments.delete',
+    'import.display',
     'import.trello',
     'import.wekan',
+    'workspaces.create',
   ],
 } as const;
+
+/**
+ * True when the user's role in at least one workspace they belong to grants `permissionKey`
+ * (workspace owners are treated as having all workspace-scoped keys via hasPermission).
+ */
+export async function userHasPermissionInAnyWorkspace(
+  userId: string,
+  permissionKey: string,
+): Promise<boolean> {
+  const workspaces = await Workspace.find({
+    $or: [{ ownerId: userId }, { 'members.userId': userId }],
+  })
+    .select('_id')
+    .lean();
+
+  for (const workspace of workspaces) {
+    const workspaceId = String(workspace._id);
+    if (await hasPermission(userId, workspaceId, permissionKey, 'workspace')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function userCanUseImportDisplay(
+  userId: string,
+  isAppAdmin?: boolean,
+): Promise<boolean> {
+  if (isAppAdmin === true) {
+    return true;
+  }
+  return userHasPermissionInAnyWorkspace(userId, 'import.display');
+}
+
+export async function userCanCreateWorkspace(
+  userId: string,
+  isAppAdmin?: boolean,
+): Promise<boolean> {
+  if (isAppAdmin === true) {
+    return true;
+  }
+  return userHasPermissionInAnyWorkspace(userId, 'workspaces.create');
+}
 
 function normalizeListPermissionKey(permissionKey: string): string {
   if (!permissionKey.endsWith('.list')) {

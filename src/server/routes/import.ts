@@ -10,7 +10,7 @@ import { ImportJob } from '../models/ImportJob.js';
 import multer from 'multer';
 import { getBoardImportUploadMaxBytes } from '../constants/uploads.js';
 import { Workspace } from '../models/Workspace.js';
-import { hasPermission } from '../utils/permissions.js';
+import { hasPermission, userCanUseImportDisplay } from '../utils/permissions.js';
 import { importPreflightPayloadSchema } from '../../shared/import/importPreflightSchema.js';
 import {
   assertImportJsonMatchesSource,
@@ -86,6 +86,25 @@ function respondIfImportJsonShapeError(res: Response, error: unknown): boolean {
   return false;
 }
 
+async function assertImportDisplayAllowed(
+  res: Response,
+  userId: string,
+  isAppAdmin: boolean | undefined,
+): Promise<boolean> {
+  const allowed = await userCanUseImportDisplay(userId, isAppAdmin);
+  if (!allowed) {
+    res.status(403).json({
+      error: {
+        message: 'Insufficient permissions to use import',
+        code: 'FORBIDDEN',
+        statusCode: 403,
+      },
+    });
+    return false;
+  }
+  return true;
+}
+
 async function userHasWorkspaceImportPermission(
   userId: string,
   permissionKey: 'import.trello' | 'import.wekan',
@@ -120,6 +139,9 @@ async function userCanStartBoardJsonImport(
 router.post('/trello', upload.single('file'), async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
+    if (!(await assertImportDisplayAllowed(res, authReq.user.id, authReq.user.isAppAdmin))) {
+      return;
+    }
     const validated = importTrelloSchema.parse(req.body);
     if (typeof validated.workspaceId === 'string' && validated.workspaceId.trim() !== '') {
       const allowed =
@@ -221,6 +243,9 @@ router.post('/trello', upload.single('file'), async (req, res, next) => {
 router.post('/wekan', upload.single('file'), async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
+    if (!(await assertImportDisplayAllowed(res, authReq.user.id, authReq.user.isAppAdmin))) {
+      return;
+    }
     const validated = importWekanSchema.parse(req.body);
     {
       const allowed = await userCanStartBoardJsonImport(
@@ -311,6 +336,9 @@ router.post('/wekan', upload.single('file'), async (req, res, next) => {
 router.post('/csv', upload.single('file'), async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
+    if (!(await assertImportDisplayAllowed(res, authReq.user.id, authReq.user.isAppAdmin))) {
+      return;
+    }
     const validated = importCSVSchema.parse(req.body);
     {
       let allowed = authReq.user.isAppAdmin === true;

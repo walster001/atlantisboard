@@ -32,6 +32,13 @@ export interface UserApiMethods {
   getVapidPublicKey(): Promise<{ publicKey: string }>;
   subscribeToPush(subscription: PushSubscriptionJSON): Promise<{ message: string }>;
   unsubscribeFromPush(): Promise<{ message: string }>;
+  getMyHomeCapabilities(): Promise<{
+    capabilities: {
+      'workspaces.create': boolean;
+      'import.display': boolean;
+    };
+    serverTs: number;
+  }>;
 }
 
 export const userApiMethods: UserApiMethods = {
@@ -101,5 +108,16 @@ export const userApiMethods: UserApiMethods = {
   async unsubscribeFromPush(this: ApiClient) {
     const response = await this.client.delete('/users/me/push-subscription');
     return response.data as { message: string };
+  },
+
+  async getMyHomeCapabilities(this: ApiClient) {
+    const response = await this.client.get('/users/me/home-capabilities');
+    return response.data as {
+      capabilities: {
+        'workspaces.create': boolean;
+        'import.display': boolean;
+      };
+      serverTs: number;
+    };
   },
 };

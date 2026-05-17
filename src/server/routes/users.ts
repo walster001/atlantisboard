@@ -8,7 +8,7 @@ import { apiRateLimiter, fileUploadRateLimiter } from '../middleware/rateLimit.j
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
 import { getBoardById } from '../services/boardService.js';
 import { searchRegisteredUsers } from '../services/userDirectoryService.js';
-import { hasPermission } from '../utils/permissions.js';
+import { hasPermission, userCanCreateWorkspace, userCanUseImportDisplay } from '../utils/permissions.js';
 import { Workspace } from '../models/Workspace.js';
 import {
   deleteUserAvatar,
@@ -428,6 +428,25 @@ router.put('/me', apiRateLimiter, requireAuth as RequestHandler, async (req, res
       return;
     }
 
+    next(error);
+  }
+});
+
+router.get('/me/home-capabilities', apiRateLimiter, requireAuth as RequestHandler, async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const [canCreateWorkspace, canUseImport] = await Promise.all([
+      userCanCreateWorkspace(authReq.user.id, authReq.user.isAppAdmin),
+      userCanUseImportDisplay(authReq.user.id, authReq.user.isAppAdmin),
+    ]);
+    res.json({
+      capabilities: {
+        'workspaces.create': canCreateWorkspace,
+        'import.display': canUseImport,
+      },
+      serverTs: Date.now(),
+    });
+  } catch (error) {
     next(error);
   }
 });

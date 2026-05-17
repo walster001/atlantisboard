@@ -104,6 +104,7 @@ export const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'invites.view': 'View invite links.',
   'invites.delete': 'Delete/revoke an invite link.',
   'invites.accept': 'Accept an invite link.',
+  'import.display': 'Display import button on boards homepage/Allow user to import',
   'import.trello': 'Start a Trello import.',
   'import.wekan': 'Start a Wekan import.',
   'export.board.json': 'Export a board as JSON.',

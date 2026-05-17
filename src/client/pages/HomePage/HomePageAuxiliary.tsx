@@ -50,7 +50,7 @@ interface HomePageModalsProps {
 export function HomePageModals({ controller }: HomePageModalsProps) {
   return (
     <>
-      {controller.showCreateWorkspace ? (
+      {controller.showCreateWorkspace && controller.canCreateWorkspace ? (
         <CreateWorkspaceModal onClose={controller.closeCreateWorkspace} onSuccess={controller.refreshData} />
       ) : null}
       {controller.showCreateBoard && controller.selectedWorkspaceIdForBoard != null ? (
@@ -60,7 +60,7 @@ export function HomePageModals({ controller }: HomePageModalsProps) {
           onSuccess={controller.refreshData}
         />
       ) : null}
-      {controller.showImportModal ? (
+      {controller.showImportModal && controller.canUseImport ? (
         <ImportExportModal onClose={controller.closeImportModal} onImportComplete={controller.refreshData} />
       ) : null}
       {controller.workspaceSettingsId !== null ? (

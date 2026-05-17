@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../../contexts/AuthContext.js';
 import { useAppBranding } from '../../contexts/AppBrandingContext.js';
 import { useHomeBoardPermissionsBatch } from '../../hooks/useHomeBoardPermissionsBatch.js';
+import { useHomePageCapabilities } from '../../hooks/useHomePageCapabilities.js';
 import { useHomeWorkspacePermissionsBatch } from '../../hooks/useHomeWorkspacePermissionsBatch.js';
 import {
   buildBoardsByWorkspaceSortedMap,
@@ -81,6 +82,8 @@ export interface HomePageController {
   readonly openBoard: (boardId: string) => void;
   readonly refreshData: () => Promise<void>;
   readonly setHoveredBoardId: (boardId: string | null) => void;
+  readonly canCreateWorkspace: boolean;
+  readonly canUseImport: boolean;
   readonly openCreateWorkspace: () => void;
   readonly closeCreateWorkspace: () => void;
   readonly openCreateBoard: (workspaceId: string) => void;
@@ -134,6 +137,7 @@ export function useHomePageController(): HomePageController {
   const { allBoards, setAllBoards, workspaces, setWorkspaces } = useBoardRealtimeSync({ isMountedRef });
   const homePerms = useHomeBoardPermissionsBatch(user?.id, allBoards);
   const wsPerms = useHomeWorkspacePermissionsBatch(user?.id, workspaces);
+  const { capabilities: homeCapabilities } = useHomePageCapabilities(user?.id, user?.isAppAdmin);
 
   const orderedWorkspaces = useMemo(
     () => mergeWorkspacesWithHomeOrder(workspaces, user?.preferences?.homeWorkspaceOrder),
@@ -322,10 +326,17 @@ export function useHomePageController(): HomePageController {
     canUpdateWorkspace,
     canDeleteWorkspace,
     canCreateBoardInWorkspace,
+    canCreateWorkspace: homeCapabilities.canCreateWorkspace,
+    canUseImport: homeCapabilities.canUseImport,
     openBoard: (boardId) => navigate(`/boards/${boardId}`),
     refreshData,
     setHoveredBoardId,
-    openCreateWorkspace: () => setShowCreateWorkspace(true),
+    openCreateWorkspace: () => {
+      if (!homeCapabilities.canCreateWorkspace) {
+        return;
+      }
+      setShowCreateWorkspace(true);
+    },
     closeCreateWorkspace: () => setShowCreateWorkspace(false),
     openCreateBoard: (workspaceId) => {
       setSelectedWorkspaceIdForBoard(workspaceId);
@@ -335,7 +346,12 @@ export function useHomePageController(): HomePageController {
       setShowCreateBoard(false);
       setSelectedWorkspaceIdForBoard(null);
     },
-    openImportModal: () => setShowImportModal(true),
+    openImportModal: () => {
+      if (!homeCapabilities.canUseImport) {
+        return;
+      }
+      setShowImportModal(true);
+    },
     closeImportModal: () => setShowImportModal(false),
     openRenameWorkspace: (workspace) =>
       setRenameWorkspaceTarget({ id: workspace.id, initialName: workspace.name ?? '' }),

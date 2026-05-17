@@ -8,8 +8,8 @@ import { Box, Text, Group, Card } from '@mantine/core';
 import { IconAlignLeft, IconDots } from '@tabler/icons-react';
 import type { CardDB } from '../../store/database.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
+import { bindKanbanCardDragPreview } from './sortableCardDragPreview.js';
 import {
-  createCardLiftedDragPreview,
   resolveCardCoverRenderUrl,
   useRichContentWhenNearViewport,
 } from './sortableCardHelpers.js';
@@ -124,14 +124,13 @@ function SortableCardInner({
           cardId: card.id,
           listId,
         }) as const,
-      onGenerateDragPreview: ({ nativeSetDragImage }) => {
-        const { preview, offsetX, offsetY } = createCardLiftedDragPreview(node);
-        document.body.appendChild(preview);
-        if (nativeSetDragImage != null) {
-          nativeSetDragImage(preview, offsetX, offsetY);
-        }
-        requestAnimationFrame(() => {
-          preview.remove();
+      onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
+        touchArm.clearLongPressState();
+        bindKanbanCardDragPreview({
+          nativeSetDragImage,
+          cardRoot: node,
+          card,
+          location,
         });
       },
     });

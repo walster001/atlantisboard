@@ -13,7 +13,7 @@ import {
   updateWorkspaceMemberRole,
   deleteWorkspace,
 } from '../services/workspaceService.js';
-import { hasPermission } from '../utils/permissions.js';
+import { hasPermission, userCanCreateWorkspace } from '../utils/permissions.js';
 import { RoleDefinition } from '../models/RoleDefinition.js';
 import { getRoleHierarchyLevel, isBuiltInRoleKey, isValidCustomRoleKey } from '../services/roleService.js';
 import { Workspace } from '../models/Workspace.js';
@@ -80,6 +80,17 @@ function selectFields(items: unknown[], fieldsCsv: string | undefined): unknown[
 router.post('/', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
+    const canCreate = await userCanCreateWorkspace(authReq.user.id, authReq.user.isAppAdmin);
+    if (!canCreate) {
+      res.status(403).json({
+        error: {
+          message: 'Insufficient permissions to create a workspace',
+          code: 'FORBIDDEN',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
     const validated = createWorkspaceSchema.parse(req.body);
     const workspace = await createWorkspace({
       ...validated,

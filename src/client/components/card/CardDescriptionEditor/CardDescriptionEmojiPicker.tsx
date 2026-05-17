@@ -1,10 +1,11 @@
-import { Suspense } from 'react';
+import { Suspense, useCallback, useEffect } from 'react';
 import { ActionIcon, Box, Modal, Popover, Tooltip } from '@mantine/core';
 import { IconMoodSmile, IconX } from '@tabler/icons-react';
 import {
   emojiPickerPopoverDropdownStyles,
   LazyEmojiMartPicker,
 } from './emojiMartPicker.js';
+import { useEmojiPickerScrollShard } from './emojiPickerScrollShardContext.js';
 import { TOOLBAR_BUTTON_SIZE, TOOLBAR_ICON_SIZE } from './toolbarConfig.js';
 
 interface CardDescriptionEmojiPickerProps {
@@ -24,6 +25,21 @@ export function CardDescriptionEmojiPicker({
   rgbBackground,
   rgbColor,
 }: CardDescriptionEmojiPickerProps) {
+  const scrollShardCtx = useEmojiPickerScrollShard();
+
+  useEffect(() => {
+    if (!opened) {
+      scrollShardCtx?.setScrollShards([]);
+    }
+  }, [opened, scrollShardCtx]);
+
+  const handleScrollTargetsChange = useCallback(
+    (targets: readonly HTMLElement[]) => {
+      scrollShardCtx?.setScrollShards(targets);
+    },
+    [scrollShardCtx],
+  );
+
   const toggle = (): void => {
     onOpenChange(!opened);
   };
@@ -50,7 +66,11 @@ export function CardDescriptionEmojiPicker({
           withCloseButton={false}
           padding={0}
           zIndex={600}
-          classNames={{ content: 'card-desc-emoji-mart-modal' }}
+          lockScroll={false}
+          classNames={{
+            content: 'card-desc-emoji-mart-modal',
+            body: 'card-desc-emoji-mart-modal__mantine-body',
+          }}
           transitionProps={{ duration: 0 }}
         >
           <Box className="card-desc-emoji-mart-modal__header">
@@ -71,6 +91,7 @@ export function CardDescriptionEmojiPicker({
                 rgbBackground={rgbBackground}
                 rgbColor={rgbColor}
                 layout="fullscreen"
+                onScrollTargetsChange={handleScrollTargetsChange}
               />
             </Suspense>
           </Box>

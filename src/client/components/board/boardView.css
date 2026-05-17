@@ -585,6 +585,11 @@
 .board-card__kanban-body--touch-armed {
   transform: translateY(-2px) scale(1.015);
   transition: transform 0.12s ease;
+  outline: none;
+}
+
+.board-card:has(.board-card__kanban-body--touch-armed) {
+  outline: none;
 }
 
 .board-card.board-card--kanban .board-card__kanban-title {
@@ -735,10 +740,57 @@
   cursor: grabbing;
   transform: rotate(-1.5deg) translate3d(0, -2px, 0);
   transform-origin: center center;
+  border: none !important;
+  outline: none !important;
+  overflow: hidden;
+  background: var(--board-card-bg, #fff);
+  -webkit-tap-highlight-color: transparent;
   box-shadow:
     0 10px 20px rgba(0, 0, 0, 0.18),
-    0 2px 8px rgba(0, 0, 0, 0.14);
+    0 2px 8px rgba(0, 0, 0, 0.14) !important;
   border-radius: 12px;
+}
+
+.board-page__dnd-card-lift-preview *,
+.board-page__dnd-card-lift-preview *::before,
+.board-page__dnd-card-lift-preview *::after {
+  outline: none !important;
+}
+
+.board-page__dnd-card-lift-preview .board-card__kanban-body--touch-armed {
+  transform: none !important;
+  transition: none !important;
+}
+
+/* Atlaskit passes this container to setDragImage — must stay square, opaque, no shadow. */
+.board-page__dnd-drag-preview-container {
+  box-sizing: border-box;
+  overflow: hidden;
+  border: none;
+  outline: none;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-backface-visibility: hidden;
+}
+
+/* iOS WebKit: square shell fills drag bitmap corners; face supplies rounded clip. */
+.board-page__dnd-ios-drag-shell {
+  display: block;
+  box-sizing: border-box;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: none !important;
+}
+
+.board-page__dnd-ios-drag-face {
+  box-sizing: border-box;
+  padding: 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: none !important;
+  border: none;
+  outline: none;
 }
 
 .board-page__dnd-native-card-preview {
@@ -748,8 +800,29 @@
   cursor: grabbing;
   box-sizing: border-box;
   background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  border: none;
+  outline: none;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.board-page__dnd-native-card-preview--inner {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none !important;
+  background: transparent;
+  cursor: grabbing;
+}
+
+.board-page__dnd-native-card-preview *,
+.board-page__dnd-native-card-preview *::before,
+.board-page__dnd-native-card-preview *::after {
+  outline: none !important;
 }
 
 .board-page__dnd-native-card-preview-title {

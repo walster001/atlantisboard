@@ -5,6 +5,17 @@ import { api } from '../../utils/api.js';
 /** Same as IntersectionObserver `rootMargin` below (px on each side). */
 const RICH_CONTENT_NEAR_VIEWPORT_MARGIN_PX = 240;
 
+function normalizeCardDragPreviewElement(preview: HTMLElement): void {
+  preview.querySelectorAll('.board-card__kanban-body--touch-armed').forEach((el) => {
+    el.classList.remove('board-card__kanban-body--touch-armed');
+  });
+  preview.querySelectorAll('[data-kanban-delegated-drag-ignore="1"]').forEach((el) => el.remove());
+  preview.style.setProperty('border', 'none', 'important');
+  preview.style.setProperty('outline', 'none', 'important');
+  preview.style.setProperty('overflow', 'hidden', 'important');
+  preview.style.setProperty('-webkit-tap-highlight-color', 'transparent');
+}
+
 export function createCardLiftedDragPreview(cardRoot: HTMLElement): {
   readonly preview: HTMLElement;
   readonly offsetX: number;
@@ -13,7 +24,7 @@ export function createCardLiftedDragPreview(cardRoot: HTMLElement): {
   const rect = cardRoot.getBoundingClientRect();
   const preview = cardRoot.cloneNode(true) as HTMLElement;
   preview.classList.add('board-page__dnd-card-lift-preview');
-  preview.querySelectorAll('[data-kanban-delegated-drag-ignore="1"]').forEach((el) => el.remove());
+  normalizeCardDragPreviewElement(preview);
   preview.style.width = `${Math.max(1, Math.round(rect.width))}px`;
   preview.style.height = `${Math.max(1, Math.round(rect.height))}px`;
   preview.style.minHeight = '0';

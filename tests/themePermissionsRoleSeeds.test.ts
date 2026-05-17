@@ -26,4 +26,28 @@ describe('theme permission role seeds', () => {
     const admin = permissionsFor('admin');
     expect(admin).toContain('boards.settings.update');
   });
+
+  it('assigns home-page capabilities to built-in roles', () => {
+    const admin = permissionsFor('admin');
+    const manager = permissionsFor('manager');
+    const viewer = permissionsFor('viewer');
+
+    expect(admin).toContain('import.display');
+    expect(admin).toContain('workspaces.create');
+    expect(manager).not.toContain('import.display');
+    expect(manager).not.toContain('workspaces.create');
+    expect(viewer).not.toContain('import.display');
+    expect(viewer).not.toContain('workspaces.create');
+  });
+
+  it('withholds duplicate, invite list, and home import from built-in manager', () => {
+    const manager = permissionsFor('manager');
+    const admin = permissionsFor('admin');
+
+    expect(manager).not.toContain('import.display');
+    expect(manager).not.toContain('cards.duplicate');
+    expect(manager).not.toContain('invites.view');
+    expect(admin).toContain('cards.duplicate');
+    expect(admin).toContain('invites.view');
+  });
 });

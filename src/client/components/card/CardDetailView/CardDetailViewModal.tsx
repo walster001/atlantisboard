@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Box,
@@ -31,6 +31,10 @@ import {
 import { KB_IOS_MODAL_HEADER_SAFE_CLASS } from '../../../constants/iosModalSafeArea.js';
 import { type CardDetailViewController } from './useCardDetailViewController.js';
 import { useMobileSwipeDownToClose } from './useMobileSwipeDownToClose.js';
+import {
+  EmojiPickerScrollShardContext,
+  type EmojiPickerScrollShardContextValue,
+} from '../CardDescriptionEditor/emojiPickerScrollShardContext.js';
 
 interface CardDetailViewModalProps {
   readonly controller: CardDetailViewController;
@@ -52,8 +56,23 @@ export function CardDetailViewModal({
     controller.isMobile && !controller.isEditing,
   );
 
+  const [emojiScrollShards, setEmojiScrollShards] = useState<readonly HTMLElement[]>([]);
+
+  const emojiScrollShardContextValue = useMemo<EmojiPickerScrollShardContextValue>(
+    () => ({ setScrollShards: setEmojiScrollShards }),
+    [],
+  );
+
+  const cardDetailRemoveScrollProps = useMemo(() => {
+    if (emojiScrollShards.length === 0) {
+      return undefined;
+    }
+    return { shards: [...emojiScrollShards] };
+  }, [emojiScrollShards]);
+
   return (
     <>
+      <EmojiPickerScrollShardContext.Provider value={emojiScrollShardContextValue}>
       <Modal
         opened
         onClose={onClose}
@@ -64,6 +83,9 @@ export function CardDetailViewModal({
         withinPortal={false}
         transitionProps={{ duration: 0 }}
         overlayProps={{ backgroundOpacity: 0.55, blur: 0 }}
+        {...(cardDetailRemoveScrollProps != null
+          ? { removeScrollProps: cardDetailRemoveScrollProps }
+          : {})}
         title={
           <Box
             style={{
@@ -327,8 +349,8 @@ export function CardDetailViewModal({
                   <Button
                     color="red"
                     variant="filled"
-                    size={controller.isMobile ? 'lg' : 'sm'}
-                    leftSection={<IconTrash size={controller.isMobile ? 20 : 16} />}
+                    size={controller.isMobile ? 'md' : 'sm'}
+                    leftSection={<IconTrash size={controller.isMobile ? 18 : 16} />}
                     onClick={controller.handleDeleteCard}
                     disabled={controller.loading}
                   >
@@ -337,7 +359,7 @@ export function CardDetailViewModal({
                 ) : null}
                 {controller.canDuplicateCard ? (
                   <Button
-                    size={controller.isMobile ? 'lg' : 'sm'}
+                    size={controller.isMobile ? 'md' : 'sm'}
                     variant="default"
                     styles={cardDetailSoftButtonStyles}
                     onClick={() => controller.setShowDuplicateModal(true)}
@@ -360,6 +382,7 @@ export function CardDetailViewModal({
           onSuccess={() => onCardDuplicated?.()}
         />
       ) : null}
+      </EmojiPickerScrollShardContext.Provider>
     </>
   );
 }

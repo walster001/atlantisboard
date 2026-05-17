@@ -91,10 +91,8 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'checklists.items.delete',
       'comments.create',
       'comments.delete',
-      'import.display',
       'import.trello',
       'import.wekan',
-      'workspaces.create',
     ],
   },
   {
@@ -289,7 +287,7 @@ export async function initializeRoleDefinitions(): Promise<void> {
     { key: 'admin', isBuiltIn: true },
     {
       $addToSet: {
-        permissions: { $each: ['boards.create', 'import.display', 'workspaces.create'] },
+        permissions: { $each: ['boards.create'] },
       },
     },
   ).catch(() => undefined);
@@ -299,11 +297,18 @@ export async function initializeRoleDefinitions(): Promise<void> {
     {
       $pull: {
         permissions: {
-          $each: ['import.display', 'cards.duplicate', 'invites.view'],
+          $each: ['import.display', 'cards.duplicate', 'invites.view', 'workspaces.create'],
         },
       },
     },
   ).catch(() => undefined);
+
+  const {
+    migrateAccountCapabilitiesFromWorkspaceRoles,
+    pullAccountCapabilitiesFromAllRoles,
+  } = await import('./accountCapabilitiesService.js');
+  await migrateAccountCapabilitiesFromWorkspaceRoles();
+  await pullAccountCapabilitiesFromAllRoles();
 
   // Theme permissions: admin defaults + compatibility backfill for existing role docs.
   await RoleDefinition.updateMany(

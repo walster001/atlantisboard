@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Group,
   Loader,
   Modal,
@@ -26,8 +27,14 @@ interface AdminUserRow {
   readonly createdAt: string;
   readonly lastLogin?: string;
   readonly emailVerified: boolean;
-  readonly failedLoginAttempts: number;
   readonly authProvider: 'password' | 'google' | 'google+password' | 'none';
+  readonly canImportBoards: boolean;
+  readonly canCreateWorkspace: boolean;
+}
+
+interface UserCapabilityDraft {
+  readonly canImportBoards: boolean;
+  readonly canCreateWorkspace: boolean;
 }
 
 interface AdminUsersTabProps {
@@ -70,12 +77,52 @@ function formatAuthProvider(value: AdminUserRow['authProvider']): string {
   }
 }
 
+function draftFromUsers(users: readonly AdminUserRow[]): Record<string, UserCapabilityDraft> {
+  const draft: Record<string, UserCapabilityDraft> = {};
+  for (const user of users) {
+    draft[user._id] = {
+      canImportBoards: user.canImportBoards,
+      canCreateWorkspace: user.canCreateWorkspace,
+    };
+  }
+  return draft;
+}
+
+function masterCheckboxState(
+  users: readonly AdminUserRow[],
+  draft: Record<string, UserCapabilityDraft>,
+  field: keyof UserCapabilityDraft,
+): { readonly checked: boolean; readonly indeterminate: boolean } {
+  const editable = users.filter((u) => !u.isAppAdmin);
+  if (editable.length === 0) {
+    return { checked: false, indeterminate: false };
+  }
+  let enabledCount = 0;
+  for (const user of editable) {
+    const row = draft[user._id];
+    if (row?.[field] === true) {
+      enabledCount += 1;
+    }
+  }
+  if (enabledCount === 0) {
+    return { checked: false, indeterminate: false };
+  }
+  if (enabledCount === editable.length) {
+    return { checked: true, indeterminate: false };
+  }
+  return { checked: false, indeterminate: true };
+}
+
 const UserRow = memo(function UserRow(props: {
   readonly user: AdminUserRow;
+  readonly draft: UserCapabilityDraft;
   readonly isCurrentUser: boolean;
+  readonly onImportChange: (userId: string, checked: boolean) => void;
+  readonly onCreateWorkspaceChange: (userId: string, checked: boolean) => void;
   readonly onDeleteClick: (user: AdminUserRow) => void;
 }) {
-  const { user, isCurrentUser, onDeleteClick } = props;
+  const { user, draft, isCurrentUser, onImportChange, onCreateWorkspaceChange, onDeleteClick } = props;
+  const capsDisabled = user.isAppAdmin;
   const deleteButton = (
     <Button
       size="xs"
@@ -88,21 +135,34 @@ const UserRow = memo(function UserRow(props: {
     </Button>
   );
 
+  const capabilityCheckbox = (checked: boolean, onChange: (next: boolean) => void): ReactElement => {
+    if (capsDisabled) {
+      return (
+        <Tooltip label="App admins always have this capability." position="top">
+          <span>
+            <Checkbox checked={true} disabled readOnly aria-label="Always enabled for app admin" />
+          </span>
+        </Tooltip>
+      );
+    }
+    return <Checkbox checked={checked} onChange={(event) => onChange(event.currentTarget.checked)} />;
+  };
+
   return (
     <Table.Tr>
+      <Table.Td style={{ textAlign: 'center' }}>
+        {capabilityCheckbox(draft.canImportBoards, (next) => onImportChange(user._id, next))}
+      </Table.Td>
+      <Table.Td style={{ textAlign: 'center' }}>
+        {capabilityCheckbox(draft.canCreateWorkspace, (next) => onCreateWorkspaceChange(user._id, next))}
+      </Table.Td>
       <Table.Td>{user.displayName}</Table.Td>
       <Table.Td>{user.email}</Table.Td>
       <Table.Td>{user.username}</Table.Td>
-      <Table.Td>
-        <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>
-          {user._id}
-        </Text>
-      </Table.Td>
       <Table.Td>{user.isAppAdmin ? 'Yes' : 'No'}</Table.Td>
       <Table.Td>{formatDateTime(user.createdAt)}</Table.Td>
       <Table.Td>{formatDateTime(user.lastLogin)}</Table.Td>
       <Table.Td>{user.emailVerified ? 'Yes' : 'No'}</Table.Td>
-      <Table.Td>{user.failedLoginAttempts}</Table.Td>
       <Table.Td>{formatAuthProvider(user.authProvider)}</Table.Td>
       <Table.Td style={{ textAlign: 'right' }}>
         {isCurrentUser ? (
@@ -120,8 +180,10 @@ const UserRow = memo(function UserRow(props: {
 export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabProps) {
   const { currentUserId } = props;
   const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [draftCaps, setDraftCaps] = useState<Record<string, UserCapabilityDraft>>({});
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [savingCaps, setSavingCaps] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -154,8 +216,21 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
           }
           return merged;
         });
+        setDraftCaps((prev) => {
+          const merged = { ...prev };
+          for (const row of incoming) {
+            if (merged[row._id] === undefined) {
+              merged[row._id] = {
+                canImportBoards: row.canImportBoards,
+                canCreateWorkspace: row.canCreateWorkspace,
+              };
+            }
+          }
+          return merged;
+        });
       } else {
         setUsers(incoming);
+        setDraftCaps(draftFromUsers(incoming));
       }
       setNextCursor(response.nextCursor);
     } catch (e) {
@@ -183,6 +258,107 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
     [users],
   );
 
+  const savedCaps = useMemo(() => draftFromUsers(users), [users]);
+
+  const capabilityUpdates = useMemo(() => {
+    const updates: Array<{
+      userId: string;
+      canImportBoards: boolean;
+      canCreateWorkspace: boolean;
+    }> = [];
+    for (const user of users) {
+      if (user.isAppAdmin) {
+        continue;
+      }
+      const draft = draftCaps[user._id];
+      const saved = savedCaps[user._id];
+      if (draft === undefined || saved === undefined) {
+        continue;
+      }
+      if (
+        draft.canImportBoards !== saved.canImportBoards ||
+        draft.canCreateWorkspace !== saved.canCreateWorkspace
+      ) {
+        updates.push({
+          userId: user._id,
+          canImportBoards: draft.canImportBoards,
+          canCreateWorkspace: draft.canCreateWorkspace,
+        });
+      }
+    }
+    return updates;
+  }, [users, draftCaps, savedCaps]);
+
+  const hasUnsavedCapabilityChanges = capabilityUpdates.length > 0;
+
+  const importMaster = useMemo(
+    () => masterCheckboxState(sortedUsers, draftCaps, 'canImportBoards'),
+    [sortedUsers, draftCaps],
+  );
+  const createWorkspaceMaster = useMemo(
+    () => masterCheckboxState(sortedUsers, draftCaps, 'canCreateWorkspace'),
+    [sortedUsers, draftCaps],
+  );
+
+  const setMasterCapability = useCallback(
+    (field: keyof UserCapabilityDraft, checked: boolean): void => {
+      setDraftCaps((prev) => {
+        const next = { ...prev };
+        for (const user of sortedUsers) {
+          if (user.isAppAdmin) {
+            continue;
+          }
+          const existing = next[user._id] ?? {
+            canImportBoards: user.canImportBoards,
+            canCreateWorkspace: user.canCreateWorkspace,
+          };
+          next[user._id] = { ...existing, [field]: checked };
+        }
+        return next;
+      });
+    },
+    [sortedUsers],
+  );
+
+  const handleSaveCapabilities = useCallback(async (): Promise<void> => {
+    if (capabilityUpdates.length === 0) {
+      return;
+    }
+    setSavingCaps(true);
+    setError(null);
+    try {
+      await api.updateAdminUserAccountCapabilities({ updates: capabilityUpdates });
+      setUsers((prev) =>
+        prev.map((user) => {
+          const update = capabilityUpdates.find((entry) => entry.userId === user._id);
+          if (update === undefined) {
+            return user;
+          }
+          return {
+            ...user,
+            canImportBoards: update.canImportBoards,
+            canCreateWorkspace: update.canCreateWorkspace,
+          };
+        }),
+      );
+      notifications.show({
+        color: 'green',
+        title: 'Saved',
+        message: `Updated account capabilities for ${capabilityUpdates.length} user(s).`,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to save account capabilities';
+      setError(message);
+      notifications.show({
+        color: 'red',
+        title: 'Save failed',
+        message,
+      });
+    } finally {
+      setSavingCaps(false);
+    }
+  }, [capabilityUpdates]);
+
   const handleDeleteConfirmed = useCallback(async (): Promise<void> => {
     if (!confirmDeleteUser) {
       return;
@@ -201,6 +377,11 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
     try {
       const result = await api.deleteAdminUser(confirmDeleteUser._id);
       setUsers((prev) => prev.filter((u) => u._id !== confirmDeleteUser._id));
+      setDraftCaps((prev) => {
+        const next = { ...prev };
+        delete next[confirmDeleteUser._id];
+        return next;
+      });
       const stats = result.stats;
       const successMessage = [
         `${confirmDeleteUser.displayName} removed successfully.`,
@@ -238,7 +419,7 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="end">
+      <Group justify="space-between" align="end" wrap="wrap">
         <Box>
           <Text fw={700} size="lg">
             Users
@@ -247,11 +428,23 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
             View and manage all application users.
           </Text>
         </Box>
-        <BoardMemberEnterToSearchField
-          ariaLabel="Search users"
-          placeholder="Search users..."
-          onCommit={setQuery}
-        />
+        <Group align="end" wrap="nowrap">
+          <Button
+            variant="filled"
+            disabled={!hasUnsavedCapabilityChanges}
+            loading={savingCaps}
+            onClick={() => {
+              void handleSaveCapabilities();
+            }}
+          >
+            Save changes
+          </Button>
+          <BoardMemberEnterToSearchField
+            ariaLabel="Search users"
+            placeholder="Search users..."
+            onCommit={setQuery}
+          />
+        </Group>
       </Group>
 
       {error ? <Alert color="red">{error}</Alert> : null}
@@ -270,28 +463,87 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
             <Table withTableBorder withColumnBorders striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
+                  <Table.Th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    <Stack gap={4} align="center">
+                      <Text size="sm" fw={600}>
+                        Import Boards
+                      </Text>
+                      <Checkbox
+                        checked={importMaster.checked}
+                        indeterminate={importMaster.indeterminate}
+                        onChange={(event) => {
+                          setMasterCapability('canImportBoards', event.currentTarget.checked);
+                        }}
+                        aria-label="Select all import boards"
+                      />
+                    </Stack>
+                  </Table.Th>
+                  <Table.Th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    <Stack gap={4} align="center">
+                      <Text size="sm" fw={600}>
+                        Create workspace
+                      </Text>
+                      <Checkbox
+                        checked={createWorkspaceMaster.checked}
+                        indeterminate={createWorkspaceMaster.indeterminate}
+                        onChange={(event) => {
+                          setMasterCapability('canCreateWorkspace', event.currentTarget.checked);
+                        }}
+                        aria-label="Select all create workspace"
+                      />
+                    </Stack>
+                  </Table.Th>
                   <Table.Th>Full name</Table.Th>
                   <Table.Th>Email</Table.Th>
                   <Table.Th>Username</Table.Th>
-                  <Table.Th>User ID</Table.Th>
                   <Table.Th>App Admin</Table.Th>
                   <Table.Th>Created At</Table.Th>
                   <Table.Th>Last Login</Table.Th>
                   <Table.Th>Email Verified</Table.Th>
-                  <Table.Th>Failed Login Attempts</Table.Th>
                   <Table.Th>Auth Provider</Table.Th>
                   <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {sortedUsers.map((user) => (
-                  <UserRow
-                    key={user._id}
-                    user={user}
-                    isCurrentUser={currentUserId != null && user._id === currentUserId}
-                    onDeleteClick={setConfirmDeleteUser}
-                  />
-                ))}
+                {sortedUsers.map((user) => {
+                  const draft = draftCaps[user._id] ?? {
+                    canImportBoards: user.canImportBoards,
+                    canCreateWorkspace: user.canCreateWorkspace,
+                  };
+                  return (
+                    <UserRow
+                      key={user._id}
+                      user={user}
+                      draft={draft}
+                      isCurrentUser={currentUserId != null && user._id === currentUserId}
+                      onImportChange={(userId, checked) => {
+                        setDraftCaps((prev) => ({
+                          ...prev,
+                          [userId]: {
+                            ...(prev[userId] ?? {
+                              canImportBoards: false,
+                              canCreateWorkspace: false,
+                            }),
+                            canImportBoards: checked,
+                          },
+                        }));
+                      }}
+                      onCreateWorkspaceChange={(userId, checked) => {
+                        setDraftCaps((prev) => ({
+                          ...prev,
+                          [userId]: {
+                            ...(prev[userId] ?? {
+                              canImportBoards: false,
+                              canCreateWorkspace: false,
+                            }),
+                            canCreateWorkspace: checked,
+                          },
+                        }));
+                      }}
+                      onDeleteClick={setConfirmDeleteUser}
+                    />
+                  );
+                })}
               </Table.Tbody>
             </Table>
           </Box>

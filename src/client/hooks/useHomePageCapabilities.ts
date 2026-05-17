@@ -13,7 +13,7 @@ const DEFAULT_CAPABILITIES: HomePageCapabilities = {
 };
 
 /**
- * Global home-page affordances from workspace role unions (`workspaces.create`, `import.display`).
+ * Global home-page affordances from per-user account capabilities (`workspaces.create`, `import.display`).
  */
 export function useHomePageCapabilities(userId: string | undefined, isAppAdmin?: boolean): {
   readonly loaded: boolean;

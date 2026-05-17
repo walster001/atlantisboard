@@ -30,7 +30,7 @@ function AppNotifications(): ReactElement {
   const isMobile = tier === 'mobile';
   return (
     <Notifications
-      position={isMobile ? 'top-center' : APP_NOTIFICATIONS_DESKTOP_POSITION}
+      position={isMobile ? 'bottom-center' : APP_NOTIFICATIONS_DESKTOP_POSITION}
       {...(isMobile ? { classNames: { root: KB_APP_NOTIFICATIONS_ROOT_CLASS } } : {})}
     />
   );

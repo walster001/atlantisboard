@@ -19,11 +19,19 @@ export interface AdminUserApiMethods {
       createdAt: string;
       lastLogin?: string;
       emailVerified: boolean;
-      failedLoginAttempts: number;
       authProvider: 'password' | 'google' | 'google+password' | 'none';
+      canImportBoards: boolean;
+      canCreateWorkspace: boolean;
     }>;
     nextCursor?: string;
   }>;
+  updateAdminUserAccountCapabilities(body: {
+    readonly updates: ReadonlyArray<{
+      readonly userId: string;
+      readonly canImportBoards: boolean;
+      readonly canCreateWorkspace: boolean;
+    }>;
+  }): Promise<{ updatedCount: number; affectedUserIds: string[] }>;
   deleteAdminUser(userId: string): Promise<{
     deletedUserId: string;
     stats: {
@@ -88,11 +96,17 @@ export const adminUserApiMethods: AdminUserApiMethods = {
         createdAt: string;
         lastLogin?: string;
         emailVerified: boolean;
-        failedLoginAttempts: number;
         authProvider: 'password' | 'google' | 'google+password' | 'none';
+        canImportBoards: boolean;
+        canCreateWorkspace: boolean;
       }>;
       nextCursor?: string;
     };
+  },
+
+  async updateAdminUserAccountCapabilities(this: ApiClient, body) {
+    const response = await this.client.patch('/admin/users/account-capabilities', body);
+    return response.data as { updatedCount: number; affectedUserIds: string[] };
   },
 
   async deleteAdminUser(this: ApiClient, userId) {

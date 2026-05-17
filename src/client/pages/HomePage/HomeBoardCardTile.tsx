@@ -12,6 +12,7 @@ interface HomeBoardCardTileProps {
   /** Whole tile is draggable when true (Kanban-style deadzone distinguishes drag vs click). */
   readonly boardDraggable: boolean;
   readonly isDraggingSource: boolean;
+  readonly reorderLongPressPhase?: 'arming' | 'armed';
   readonly suppressNavigateRef: MutableRefObject<boolean>;
   readonly hoveredBoardId: string | null;
   readonly onHover: (id: string | null) => void;
@@ -25,6 +26,7 @@ export function HomeBoardCardTile({
   showBoardCardMenu,
   boardDraggable,
   isDraggingSource,
+  reorderLongPressPhase,
   suppressNavigateRef,
   hoveredBoardId,
   onHover,
@@ -32,6 +34,7 @@ export function HomeBoardCardTile({
   onRefresh,
 }: HomeBoardCardTileProps) {
   const cover = resolveHomeBoardTileCoverDisplay(board.background);
+  const touchReorderActive = reorderLongPressPhase === 'arming' || reorderLongPressPhase === 'armed';
 
   return (
     <Card
@@ -42,7 +45,29 @@ export function HomeBoardCardTile({
       padding={0}
       radius="md"
       styles={HOME_BOARD_CARD_ROOT_STYLES}
-      className={`home-page__board-card${isDraggingSource ? ' home-page__board-card--drag-source' : ''}`}
+      className={`home-page__board-card${isDraggingSource ? ' home-page__board-card--drag-source' : ''}${
+        reorderLongPressPhase === 'arming' ? ' home-page__board-card--reorder-arming' : ''
+      }${reorderLongPressPhase === 'armed' ? ' home-page__board-card--reorder-armed' : ''}`}
+      style={
+        boardDraggable
+          ? {
+              WebkitUserSelect: 'none',
+              userSelect: 'none',
+              WebkitTouchCallout: 'none',
+              touchAction: touchReorderActive ? 'none' : 'pan-y',
+            }
+          : undefined
+      }
+      onSelectStart={(event) => {
+        if (boardDraggable) {
+          event.preventDefault();
+        }
+      }}
+      onContextMenu={(event) => {
+        if (boardDraggable) {
+          event.preventDefault();
+        }
+      }}
       onClick={() => {
         if (suppressNavigateRef.current) {
           return;
@@ -63,7 +88,18 @@ export function HomeBoardCardTile({
             fz="xl"
             c={cover.headerTextColor}
             className="home-page__board-card-title"
-            style={{ flex: 1, minWidth: 0 }}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              ...(boardDraggable
+                ? { WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }
+                : {}),
+            }}
+            onSelectStart={(event) => {
+              if (boardDraggable) {
+                event.preventDefault();
+              }
+            }}
           >
             {board.name}
           </Text>
@@ -92,7 +128,22 @@ export function HomeBoardCardTile({
       </Box>
       <Box p="md" className="home-page__board-card-body">
         {board.description?.trim() ? (
-          <Text size="md" fw={400} c="dimmed" className="home-page__board-card-desc">
+          <Text
+            size="md"
+            fw={400}
+            c="dimmed"
+            className="home-page__board-card-desc"
+            style={
+              boardDraggable
+                ? { WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }
+                : undefined
+            }
+            onSelectStart={(event) => {
+              if (boardDraggable) {
+                event.preventDefault();
+              }
+            }}
+          >
             {board.description.trim()}
           </Text>
         ) : null}

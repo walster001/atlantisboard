@@ -1,5 +1,9 @@
 import type { Router } from 'express';
 import { z } from 'zod';
+import {
+  accountCapabilitiesFromFlags,
+  isAccountCapabilityKey,
+} from '../../../shared/accountCapabilities.js';
 import type { AuthenticatedRequest } from '../../../shared/types/express.js';
 import { Activity } from '../../models/Activity.js';
 import { BackupJob } from '../../models/BackupJob.js';
@@ -13,6 +17,7 @@ import { PermissionSet } from '../../models/PermissionSet.js';
 import { Session } from '../../models/Session.js';
 import { User } from '../../models/User.js';
 import { Workspace } from '../../models/Workspace.js';
+import { mapUserAccountCapabilityFlags } from '../../services/accountCapabilitiesService.js';
 import { deleteUserAvatar } from '../../services/userAvatarService.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import {
@@ -35,9 +40,23 @@ interface AdminUserListRow {
   readonly createdAt: string;
   readonly lastLogin?: string;
   readonly emailVerified: boolean;
-  readonly failedLoginAttempts: number;
   readonly authProvider: AdminUserAuthProvider;
+  readonly canImportBoards: boolean;
+  readonly canCreateWorkspace: boolean;
 }
+
+const accountCapabilitiesUpdateSchema = z.object({
+  updates: z
+    .array(
+      z.object({
+        userId: objectIdParamSchema,
+        canImportBoards: z.boolean(),
+        canCreateWorkspace: z.boolean(),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
 
 function resolveAuthProvider(row: {
   readonly googleId: string | undefined;
@@ -97,28 +116,107 @@ export function registerUsersRoutes(router: Router): void {
 
       const rows = await User.find(filter)
         .select(
-          '_id displayName email username isAppAdmin createdAt lastLogin emailVerified failedLoginAttempts googleId +passwordHash',
+          '_id displayName email username isAppAdmin createdAt lastLogin emailVerified accountCapabilities googleId +passwordHash',
         )
         .sort({ displayName: 1, email: 1, _id: 1 })
         .skip(offset)
         .limit(limit)
         .lean();
 
-      const users: AdminUserListRow[] = rows.map((u) => ({
-        _id: String(u._id),
-        displayName: u.displayName,
-        email: u.email,
-        username: u.username,
-        isAppAdmin: u.isAppAdmin === true,
-        createdAt: u.createdAt.toISOString(),
-        ...(u.lastLogin instanceof Date ? { lastLogin: u.lastLogin.toISOString() } : {}),
-        emailVerified: u.emailVerified === true,
-        failedLoginAttempts: typeof u.failedLoginAttempts === 'number' ? u.failedLoginAttempts : 0,
-        authProvider: resolveAuthProvider({ googleId: u.googleId, passwordHash: u.passwordHash }),
-      }));
+      const users: AdminUserListRow[] = rows.map((u) => {
+        const capabilityFlags = mapUserAccountCapabilityFlags(
+          Array.isArray(u.accountCapabilities) ? u.accountCapabilities : [],
+          u.isAppAdmin === true,
+        );
+        return {
+          _id: String(u._id),
+          displayName: u.displayName,
+          email: u.email,
+          username: u.username,
+          isAppAdmin: u.isAppAdmin === true,
+          createdAt: u.createdAt.toISOString(),
+          ...(u.lastLogin instanceof Date ? { lastLogin: u.lastLogin.toISOString() } : {}),
+          emailVerified: u.emailVerified === true,
+          authProvider: resolveAuthProvider({ googleId: u.googleId, passwordHash: u.passwordHash }),
+          canImportBoards: capabilityFlags.canImportBoards,
+          canCreateWorkspace: capabilityFlags.canCreateWorkspace,
+        };
+      });
       const nextCursor = users.length === limit ? encodeSkipCursor(offset + limit) : undefined;
       res.json({ users, ...(nextCursor !== undefined ? { nextCursor } : {}) });
     } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch('/users/account-capabilities', async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const { updates } = accountCapabilitiesUpdateSchema.parse(req.body);
+      const affectedUserIds: string[] = [];
+
+      for (const update of updates) {
+        const target = await User.findById(update.userId)
+          .select('_id displayName isAppAdmin accountCapabilities')
+          .lean();
+        if (!target) {
+          res.status(404).json({
+            error: {
+              message: `User not found: ${update.userId}`,
+              code: 'NOT_FOUND',
+              statusCode: 404,
+            },
+          });
+          return;
+        }
+        if (target.isAppAdmin === true) {
+          continue;
+        }
+
+        const nextCapabilities = accountCapabilitiesFromFlags({
+          canImportBoards: update.canImportBoards,
+          canCreateWorkspace: update.canCreateWorkspace,
+        });
+        const sanitized = nextCapabilities.filter((key) => isAccountCapabilityKey(key));
+
+        await User.updateOne({ _id: target._id }, { $set: { accountCapabilities: sanitized } });
+        affectedUserIds.push(String(target._id));
+
+        logAuditEvent({
+          userId: authReq.user.id,
+          action: 'admin_user.account_capabilities.update',
+          resourceType: 'user',
+          resourceId: String(target._id),
+          metadata: {
+            targetDisplayName: target.displayName,
+            canImportBoards: update.canImportBoards,
+            canCreateWorkspace: update.canCreateWorkspace,
+          },
+          ipAddress: req.ip || undefined,
+          timestamp: new Date(),
+        });
+      }
+
+      if (affectedUserIds.length > 0) {
+        emitPermissionsUpdated({
+          affectedUserIds,
+          reason: 'account_capabilities.updated',
+        });
+      }
+
+      res.json({ updatedCount: affectedUserIds.length, affectedUserIds });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({
+          error: {
+            message: 'Validation failed',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+            errors: error.issues,
+          },
+        });
+        return;
+      }
       next(error);
     }
   });

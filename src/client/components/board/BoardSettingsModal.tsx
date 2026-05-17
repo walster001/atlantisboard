@@ -272,11 +272,13 @@ export function BoardSettingsModal({
               className={
                 mobileDetail.kind === 'users'
                   ? 'board-settings-modal__mobile-content board-settings-modal__mobile-content--users'
-                  : mobileDetail.kind === 'board' &&
-                      (mobileDetail.section === 'card-settings' ||
-                        mobileDetail.section === 'list-settings')
-                    ? 'board-settings-modal__mobile-content board-settings-modal__mobile-content--settings-scroll'
-                    : 'board-settings-modal__mobile-content'
+                  : mobileDetail.kind === 'audit'
+                    ? 'board-settings-modal__mobile-content board-settings-modal__mobile-content--audit'
+                    : mobileDetail.kind === 'board' &&
+                        (mobileDetail.section === 'card-settings' ||
+                          mobileDetail.section === 'list-settings')
+                      ? 'board-settings-modal__mobile-content board-settings-modal__mobile-content--settings-scroll'
+                      : 'board-settings-modal__mobile-content'
               }
             >
               {mobileDetail.kind === 'board' && mobileDetail.section === 'card-settings' ? (
@@ -317,6 +319,7 @@ export function BoardSettingsModal({
                 <Suspense fallback={<TabPanelFallback />}>
                   <ActivityLog
                     boardId={boardId}
+                    mobileLayout
                     {...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {})}
                   />
                 </Suspense>

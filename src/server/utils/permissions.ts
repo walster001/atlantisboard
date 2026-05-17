@@ -4,8 +4,9 @@
 
 import { Workspace } from '../models/Workspace.js';
 import { Board } from '../models/Board.js';
-import { logger } from './logger.js';
+import { userHasAccountCapability } from '../services/accountCapabilitiesService.js';
 import { RoleDefinition } from '../models/index.js';
+import { logger } from './logger.js';
 
 export type UserRole = 'admin' | 'manager' | 'viewer';
 export type RoleKey = UserRole | `custom:${string}`;
@@ -164,10 +165,8 @@ const BUILTIN_ROLE_PERMISSION_FALLBACKS: Readonly<Record<UserRole, readonly stri
     'checklists.items.delete',
     'comments.create',
     'comments.delete',
-    'import.display',
     'import.trello',
     'import.wekan',
-    'workspaces.create',
   ],
 } as const;
 
@@ -201,7 +200,7 @@ export async function userCanUseImportDisplay(
   if (isAppAdmin === true) {
     return true;
   }
-  return userHasPermissionInAnyWorkspace(userId, 'import.display');
+  return userHasAccountCapability(userId, 'import.display');
 }
 
 export async function userCanCreateWorkspace(
@@ -211,7 +210,7 @@ export async function userCanCreateWorkspace(
   if (isAppAdmin === true) {
     return true;
   }
-  return userHasPermissionInAnyWorkspace(userId, 'workspaces.create');
+  return userHasAccountCapability(userId, 'workspaces.create');
 }
 
 function normalizeListPermissionKey(permissionKey: string): string {

@@ -107,6 +107,7 @@ export function RolesPermissionsTab() {
     const by = new Map<PermissionCategoryKey, string[]>();
     for (const category of CATEGORY_ORDER) by.set(category, []);
     for (const key of allPermissionStrings) {
+      if (key === 'import.display' || key === 'workspaces.create') continue;
       if (key.startsWith('app.') || key.startsWith('users.') || key.startsWith('ui.')) continue;
       if (key.endsWith('.list')) continue;
       if (key.endsWith('.view') && key !== 'invites.view') continue;

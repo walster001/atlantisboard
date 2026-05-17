@@ -24,6 +24,7 @@ import { useBoardRealtimeSync } from '../../hooks/homeBoard/useBoardRealtimeSync
 import { fullWorkspaceInsertBeforeIndex } from '../../hooks/home/homePointerHitTest.js';
 import {
   useHomePagePointerDrag,
+  type HomeBoardLongPressUi,
   type HomePagePointerDragActions,
   type HomePagePointerDragModels,
   type HomePagePointerDragRefs,
@@ -57,6 +58,7 @@ export interface HomePageController {
   readonly boardsByWorkspaceMap: ReadonlyMap<string, readonly BoardDB[]>;
   readonly boardGridDropTargetWsId: string | null;
   readonly draggingBoardId: string | null;
+  readonly boardLongPressUi: HomeBoardLongPressUi | null;
   readonly workspaceInsertLineBeforeFullIndex: number;
   readonly isMobile: boolean;
   readonly responsiveTier: 'mobile' | 'tablet' | 'desktop';
@@ -202,7 +204,7 @@ export function useHomePageController(): HomePageController {
     previewPositionRef,
     previewMetricsRef,
   };
-  const { suppressBoardClickRef, floatPreview, draggingBoardId } = useHomePagePointerDrag(
+  const { suppressBoardClickRef, floatPreview, draggingBoardId, boardLongPressUi } = useHomePagePointerDrag(
     pointerDragRefs,
     modelsRef,
     actionsRef,
@@ -304,6 +306,7 @@ export function useHomePageController(): HomePageController {
     boardsByWorkspaceMap,
     boardGridDropTargetWsId,
     draggingBoardId,
+    boardLongPressUi,
     workspaceInsertLineBeforeFullIndex,
     isMobile,
     responsiveTier,

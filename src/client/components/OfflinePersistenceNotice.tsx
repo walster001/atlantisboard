@@ -45,7 +45,6 @@ export function OfflinePersistenceNotice() {
         autoClose: false,
         withCloseButton: false,
         loading: true,
-        position: 'top-center',
       });
     };
 

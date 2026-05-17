@@ -212,6 +212,20 @@
     border-radius: 0;
   }
 
+  .board-settings-modal__mobile-content--audit {
+    padding: 0;
+    margin-left: -10px;
+    margin-right: -10px;
+    width: calc(100% + 20px);
+    max-width: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    background: transparent;
+    border-top: none;
+    border-bottom: none;
+  }
+
   .board-settings-modal__mobile-content--settings-scroll {
     overflow: hidden;
     padding: var(--mantine-spacing-xs);

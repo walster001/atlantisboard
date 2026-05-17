@@ -72,3 +72,42 @@
   padding-top: var(--mantine-spacing-sm);
   border-top: 1px solid var(--mantine-color-gray-3);
 }
+
+/* Board settings mobile audit tab: bleed log list to screen edges. */
+.board-member-activity-log--mobile {
+  gap: var(--mantine-spacing-sm);
+  min-height: 0;
+}
+
+.board-member-activity-log--mobile .board-member-activity-log__header {
+  padding: 0 var(--mantine-spacing-sm);
+}
+
+.board-member-activity-log--mobile .board-member-activity-log__surface {
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
+  gap: var(--mantine-spacing-sm);
+}
+
+.board-member-activity-log--mobile .board-member-activity-log__retention {
+  margin-left: var(--mantine-spacing-sm);
+  margin-right: var(--mantine-spacing-sm);
+}
+
+.board-member-activity-log--mobile .board-member-activity-log__scroll {
+  gap: 0;
+}
+
+.board-member-activity-log--mobile .board-member-activity-log__entry {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  padding-block: var(--mantine-spacing-sm);
+  padding-inline: 0;
+}
+
+.board-member-activity-log--mobile .board-member-activity-log__footer {
+  padding-left: var(--mantine-spacing-sm);
+  padding-right: var(--mantine-spacing-sm);
+}

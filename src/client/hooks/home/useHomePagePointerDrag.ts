@@ -23,11 +23,18 @@ import {
 
 const HOME_DRAG_DEADZONE_PX = 6;
 
-/** Homepage board tiles only: touch must hold before reorder drag arms (ms). */
-const HOME_MOBILE_BOARD_REORDER_LONG_PRESS_MS = 2000;
+/** Homepage board tiles only: touch must hold before reorder drag arms (ms). Matches Kanban card long-press. */
+const HOME_MOBILE_BOARD_REORDER_LONG_PRESS_MS = 400;
 
 /** If the finger moves farther than this before the long-press completes, cancel arming (scroll intent). */
-const HOME_MOBILE_BOARD_LONG_PRESS_CANCEL_PX = 24;
+const HOME_MOBILE_BOARD_LONG_PRESS_CANCEL_PX = 28;
+
+export type HomeBoardLongPressPhase = 'arming' | 'armed';
+
+export interface HomeBoardLongPressUi {
+  readonly boardId: string;
+  readonly phase: HomeBoardLongPressPhase;
+}
 
 type FloatState =
   | { readonly kind: 'board'; readonly name: string }
@@ -127,23 +134,25 @@ export function useHomePagePointerDrag(
   /** When false, listeners are not attached (e.g. home list not mounted yet). */
   layoutReady: boolean,
   /** When true, touch drags on board cards require a long-press before reorder arms. */
-  isMobile: boolean,
+  touchReorderRequiresLongPress: boolean,
 ): {
   readonly suppressBoardClickRef: MutableRefObject<boolean>;
   readonly floatPreview: FloatState;
   readonly draggingBoardId: string | null;
+  readonly boardLongPressUi: HomeBoardLongPressUi | null;
 } {
   const sessionRef = useRef<Session>(null);
   const rafRef = useRef<number | null>(null);
   const commitRafRef = useRef<number | null>(null);
   const [floatPreview, setFloatPreview] = useState<FloatState>(null);
   const [draggingBoardId, setDraggingBoardId] = useState<string | null>(null);
+  const [boardLongPressUi, setBoardLongPressUi] = useState<HomeBoardLongPressUi | null>(null);
   const suppressBoardClickRef = useRef(false);
 
   const refsR = useRef(refs);
   refsR.current = refs;
-  const isMobileRef = useRef(isMobile);
-  isMobileRef.current = isMobile;
+  const touchReorderRequiresLongPressRef = useRef(touchReorderRequiresLongPress);
+  touchReorderRequiresLongPressRef.current = touchReorderRequiresLongPress;
 
   useLayoutEffect(() => {
     if (!layoutReady) {
@@ -175,6 +184,13 @@ export function useHomePagePointerDrag(
       }
     };
 
+    const clearDocumentSelection = (): void => {
+      const sel = window.getSelection();
+      if (sel != null && !sel.isCollapsed) {
+        sel.removeAllRanges();
+      }
+    };
+
     const disarm = (): void => {
       cancelRaf();
       const s = sessionRef.current;
@@ -193,6 +209,7 @@ export function useHomePagePointerDrag(
       actionsRef.current.setWorkspaceRowDrag({ workspaceId: null, insertIndex: null });
       actionsRef.current.setBoardGridDropTarget(null);
       setDraggingBoardId(null);
+      setBoardLongPressUi(null);
       actionsRef.current.setHomeDraggingClass(false);
     };
 
@@ -204,6 +221,7 @@ export function useHomePagePointerDrag(
 
       if (s.kind === 'pending_board') {
         if (!s.reorderArmed) {
+          clearDocumentSelection();
           if (
             dragDistanceExceedsDeadzone(
               s.startX,
@@ -511,9 +529,12 @@ export function useHomePagePointerDrag(
         const boardId = boardTile.getAttribute('data-home-board-id');
         const wsId = boardTile.getAttribute('data-home-workspace-id');
         if (typeof boardId === 'string' && boardId !== '' && typeof wsId === 'string' && wsId !== '') {
-          ev.preventDefault();
           const touchLike = ev.pointerType === 'touch' || ev.pointerType === 'pen';
-          const needsLongPress = isMobileRef.current && touchLike;
+          const needsLongPress = touchReorderRequiresLongPressRef.current && touchLike;
+          /* iOS: avoid preventDefault on touch pointerdown so long-press + scroll still work. */
+          if (!needsLongPress) {
+            ev.preventDefault();
+          }
           const pointerIdCapture = ev.pointerId;
           let armTimerId: number | null = null;
           let reorderArmed = true;
@@ -535,7 +556,16 @@ export function useHomePagePointerDrag(
                 reorderArmed: true,
                 armTimerId: null,
               };
+              clearDocumentSelection();
+              setBoardLongPressUi({ boardId, phase: 'armed' });
+              if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+                navigator.vibrate(12);
+              }
             }, HOME_MOBILE_BOARD_REORDER_LONG_PRESS_MS);
+          }
+          if (needsLongPress) {
+            clearDocumentSelection();
+            setBoardLongPressUi({ boardId, phase: 'arming' });
           }
           sessionRef.current = {
             kind: 'pending_board',
@@ -555,17 +585,60 @@ export function useHomePagePointerDrag(
       }
     };
 
+    const isBoardDragSurface = (target: EventTarget | null): boolean => {
+      if (!(target instanceof Element)) {
+        return false;
+      }
+      if (target.closest('[data-home-board-no-drag="1"]') != null) {
+        return false;
+      }
+      return target.closest('[data-home-board-draggable="1"]') != null;
+    };
+
+    /** iOS Safari: CSS user-select alone does not block long-press text selection. */
+    const onSelectStartCapture = (ev: Event): void => {
+      if (isBoardDragSurface(ev.target)) {
+        ev.preventDefault();
+        clearDocumentSelection();
+      }
+    };
+
+    const onContextMenuCapture = (ev: Event): void => {
+      if (isBoardDragSurface(ev.target)) {
+        ev.preventDefault();
+      }
+    };
+
+    /** While dragging, stop the page from scrolling under the finger (iOS). */
+    const onTouchMoveCapture = (ev: TouchEvent): void => {
+      const s = sessionRef.current;
+      if (s == null) {
+        return;
+      }
+      if (s.kind === 'active_board' || (s.kind === 'pending_board' && s.reorderArmed)) {
+        if (ev.cancelable) {
+          ev.preventDefault();
+        }
+      }
+    };
+
     root.addEventListener('pointerdown', onPointerDownCapture, true);
+    root.addEventListener('selectstart', onSelectStartCapture, true);
+    root.addEventListener('contextmenu', onContextMenuCapture, true);
+    root.addEventListener('touchmove', onTouchMoveCapture, { capture: true, passive: false });
 
     return () => {
       root.removeEventListener('pointerdown', onPointerDownCapture, true);
+      root.removeEventListener('selectstart', onSelectStartCapture, true);
+      root.removeEventListener('contextmenu', onContextMenuCapture, true);
+      root.removeEventListener('touchmove', onTouchMoveCapture, true);
       window.removeEventListener('pointermove', onWindowPointerMove);
       window.removeEventListener('pointerup', onWindowPointerUp);
       window.removeEventListener('pointercancel', onWindowPointerUp);
       cancelRaf();
       sessionRef.current = null;
     };
-  }, [layoutReady, refs.listRootRef, isMobile]);
+  }, [layoutReady, refs.listRootRef, touchReorderRequiresLongPress]);
 
-  return { suppressBoardClickRef, floatPreview, draggingBoardId };
+  return { suppressBoardClickRef, floatPreview, draggingBoardId, boardLongPressUi };
 }

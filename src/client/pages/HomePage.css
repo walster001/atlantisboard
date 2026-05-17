@@ -276,7 +276,7 @@
 
 .home-page__board-card[data-home-board-draggable='1'] {
   cursor: grab;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .home-page--dragging .home-page__board-card[data-home-board-draggable='1'] {
@@ -374,23 +374,47 @@
 
   /*
    * iOS long-press otherwise selects text / shows system callout while waiting for board reorder arm.
+   * Mantine Text roots need the universal selector; selectstart is also blocked in JS.
    * Keep the overflow menu usable: restore selection inside [data-home-board-no-drag].
    */
   .home-page__board-card[data-home-board-draggable='1'],
-  .home-page__board-card[data-home-board-draggable='1'] .home-page__board-card-header,
-  .home-page__board-card[data-home-board-draggable='1'] .home-page__board-card-body,
-  .home-page__board-card[data-home-board-draggable='1'] .home-page__board-card-title,
-  .home-page__board-card[data-home-board-draggable='1'] .home-page__board-card-desc {
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
+  .home-page__board-card[data-home-board-draggable='1'] * {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .home-page__board-card[data-home-board-draggable='1'] [data-home-board-no-drag='1'],
   .home-page__board-card[data-home-board-draggable='1'] [data-home-board-no-drag='1'] * {
-    -webkit-user-select: auto;
-    user-select: auto;
-    -webkit-touch-callout: default;
+    -webkit-user-select: auto !important;
+    user-select: auto !important;
+    -webkit-touch-callout: default !important;
+  }
+
+  .home-page__board-card[data-home-board-draggable='1'] {
+    touch-action: pan-y;
+  }
+
+  .home-page__board-card--reorder-arming,
+  .home-page__board-card--reorder-armed {
+    touch-action: none !important;
+  }
+
+  .home-page__board-card--reorder-arming {
+    opacity: 0.92;
+    transition: opacity 0.12s ease;
+  }
+
+  .home-page__board-card--reorder-armed {
+    transform: translateY(-2px) scale(1.015);
+    transition: transform 0.12s ease;
+    box-shadow: var(--mantine-shadow-md);
+  }
+
+  .home-page--board-reorder-touch .home-page__main {
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   .home-page__workspace-drag-handle,

@@ -55,6 +55,8 @@ export interface IUser extends Document {
   isAppAdmin: boolean;
   /** True only for the first account promoted to App Admin at install (cannot revoke own App Admin). */
   foundingAppAdmin: boolean;
+  /** Account-wide capabilities (e.g. homepage import, create workspace) managed in Admin → Users. */
+  accountCapabilities?: string[];
   pushSubscription?: {
     endpoint: string;
     keys: {
@@ -213,6 +215,10 @@ const UserSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
       index: true,
+    },
+    accountCapabilities: {
+      type: [String],
+      default: () => [],
     },
     pushSubscription: {
       endpoint: String,

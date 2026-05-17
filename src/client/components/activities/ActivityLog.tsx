@@ -44,6 +44,8 @@ const RETENTION_OPTIONS = [
 interface ActivityLogProps {
   boardId: string;
   onSettingsLivePatch?: (patch: BoardSettingsLivePatch) => void;
+  /** Board settings mobile shell: tighter retention row and edge-to-edge log list. */
+  mobileLayout?: boolean;
 }
 
 type MemberAuditActivityType =
@@ -248,7 +250,7 @@ function memberAuditRetentionSpanDays(retentionValue: string): number {
   return Number.isFinite(n) && n > 0 ? n : BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS;
 }
 
-export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) {
+export function ActivityLog({ boardId, onSettingsLivePatch, mobileLayout = false }: ActivityLogProps) {
   const [calendarAnchor, setCalendarAnchor] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
@@ -438,7 +440,13 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
   }
 
   return (
-    <Box className="board-member-activity-log">
+    <Box
+      className={
+        mobileLayout
+          ? 'board-member-activity-log board-member-activity-log--mobile'
+          : 'board-member-activity-log'
+      }
+    >
       <Group className="board-member-activity-log__header" gap="sm" align="flex-start" wrap="nowrap">
         <ThemeIcon size="lg" radius="md" variant="light" color="blue" aria-hidden>
           <IconHistory size={22} stroke={1.5} />
@@ -468,9 +476,11 @@ export function ActivityLog({ boardId, onSettingsLivePatch }: ActivityLogProps) 
                 <Text fw={600} size="sm">
                   Log Retention
                 </Text>
-                <Text size="xs" c="dimmed">
-                  Automatically delete old entries to manage database size
-                </Text>
+                {!mobileLayout ? (
+                  <Text size="xs" c="dimmed">
+                    Automatically delete old entries to manage database size
+                  </Text>
+                ) : null}
               </Stack>
             </Group>
             <Select

@@ -1,6 +1,11 @@
 import type { WekanExport } from '../types.js';
 import { readWekanId } from './primitives.js';
-import { normalizeWekanBoardRecord, normalizeWekanCardRecord, normalizeWekanListRecord } from './records.js';
+import {
+  normalizeWekanBoardRecord,
+  normalizeWekanCardRecord,
+  normalizeWekanListRecord,
+  normalizeWekanUserRecord,
+} from './records.js';
 
 export function normalizeWekanExportData(raw: WekanExport, options?: { singleBoardIdHint?: string }): WekanExport {
   const singleBoardIdHint = options?.singleBoardIdHint;
@@ -25,8 +30,11 @@ export function normalizeWekanExportData(raw: WekanExport, options?: { singleBoa
     ...(Array.isArray(raw.users)
       ? {
           users: raw.users.flatMap((u) => {
-            const id = readWekanId((u as unknown as Record<string, unknown>)._id);
-            return id != null ? [{ ...u, _id: id }] : [];
+            if (typeof u !== 'object' || u === null) {
+              return [];
+            }
+            const normalized = normalizeWekanUserRecord(u as unknown as Record<string, unknown>);
+            return normalized != null ? [normalized] : [];
           }),
         }
       : {}),

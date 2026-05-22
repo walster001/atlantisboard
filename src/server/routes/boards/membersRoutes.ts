@@ -9,6 +9,7 @@ import {
   removeBoardMember,
   updateBoardMemberRole,
 } from '../../services/boardService.js';
+import { discardAllUnmappedPlaceholdersOnBoard } from '../../services/importPlaceholderUserService.js';
 import { isBuiltInRoleKey, isValidCustomRoleKey } from '../../services/roleService.js';
 import { boardMembersQuerySchema } from './schemas.js';
 
@@ -255,6 +256,30 @@ export function registerMemberManagementRoutes(router: Router): void {
           },
         });
         return;
+      }
+      next(error);
+    }
+  });
+
+  router.post('/:id/placeholders/discard', async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const result = await discardAllUnmappedPlaceholdersOnBoard(req.params.id, authReq.user.id);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'Board not found') {
+          res.status(404).json({
+            error: { message: error.message, code: 'NOT_FOUND', statusCode: 404 },
+          });
+          return;
+        }
+        if (error.message.includes('permissions')) {
+          res.status(403).json({
+            error: { message: error.message, code: 'FORBIDDEN', statusCode: 403 },
+          });
+          return;
+        }
       }
       next(error);
     }

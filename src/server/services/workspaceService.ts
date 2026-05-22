@@ -702,10 +702,14 @@ export async function deleteWorkspace(
   }
 
   const boardObjectIds = boards.map((b) => b._id);
+  const { collectImportPlaceholderUserIdsOnBoards, cleanupImportPlaceholderUsersAfterBoardRemoval } =
+    await import('./importPlaceholderUserService.js');
+  const placeholderUserIds = await collectImportPlaceholderUserIdsOnBoards(boardObjectIds);
   await deleteAllMongoAndStorageForBoardIds(boardObjectIds);
   await deleteWorkspaceScopedMongoRecords(workspace._id, boardObjectIds);
 
   await Board.deleteMany({ workspaceId: workspace._id });
+  await cleanupImportPlaceholderUsersAfterBoardRemoval(placeholderUserIds);
   await User.updateMany({}, { $pull: { 'preferences.homeWorkspaceOrder': workspaceId } });
 
   await Workspace.findByIdAndDelete(workspaceId);

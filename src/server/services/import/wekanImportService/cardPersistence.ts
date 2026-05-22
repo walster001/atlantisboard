@@ -46,9 +46,10 @@ export function buildWekanCardInsertPlainObject(
     .filter((meta): meta is { id: string; name: string; color: string } => meta !== undefined)
     .map((meta) => ({ id: meta.id, name: meta.name, color: meta.color }));
 
+  const actorMap = ctx.boardActorMaps.get(wekanCard.boardId);
   const assigneeIds = (wekanCard.members || [])
     .map((memberId) => {
-      const mappedId = ctx.userMap.get(memberId);
+      const mappedId = actorMap?.get(memberId);
       return mappedId ? new mongoose.Types.ObjectId(mappedId) : null;
     })
     .filter((id): id is mongoose.Types.ObjectId => id !== null);
@@ -66,7 +67,7 @@ export function buildWekanCardInsertPlainObject(
   }));
 
   const cardComments = (ctx.commentsByCardId.get(wekanCard._id) ?? []).map((comment) => {
-    const commentUserId = ctx.userMap.get(comment.userId);
+    const commentUserId = actorMap?.get(comment.userId);
     return {
       id: crypto.randomUUID(),
       userId: new mongoose.Types.ObjectId(commentUserId || ctx.userId),
@@ -88,7 +89,7 @@ export function buildWekanCardInsertPlainObject(
       type: attachment.type || 'unknown',
       size: attachment.size || 0,
       uploadedAt: new Date(attachment.uploadedAt),
-      uploadedBy: new mongoose.Types.ObjectId(ctx.userMap.get(attachment.userId) || ctx.userId),
+      uploadedBy: new mongoose.Types.ObjectId(actorMap?.get(attachment.userId) || ctx.userId),
     };
   });
 

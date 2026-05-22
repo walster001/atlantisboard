@@ -1,5 +1,21 @@
-import type { WekanBoard, WekanCard, WekanList } from '../types.js';
+import { importPreflightUserFromWekanRecord } from '../../../../../shared/import/importSourceUserContact.js';
+import type { WekanBoard, WekanCard, WekanList, WekanUser } from '../types.js';
 import { normalizeSortValue, readWekanId } from './primitives.js';
+
+export function normalizeWekanUserRecord(record: Record<string, unknown>): WekanUser | null {
+  const preflight = importPreflightUserFromWekanRecord(record);
+  if (preflight == null) {
+    return null;
+  }
+  return {
+    _id: preflight.sourceUserId,
+    ...(preflight.username != null ? { username: preflight.username } : {}),
+    ...(preflight.fullName != null ? { profile: { fullname: preflight.fullName } } : {}),
+    ...(preflight.email != null
+      ? { emails: [{ address: preflight.email, verified: false }] }
+      : {}),
+  };
+}
 
 export function normalizeWekanBoardRecord(record: Record<string, unknown>): WekanBoard | null {
   const _id = readWekanId(record._id);

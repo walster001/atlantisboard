@@ -19,8 +19,9 @@ export const ImportUserManagementTab = memo(function ImportUserManagementTab(
       <Text size="sm" c="dimmed">
         Choose whether to create placeholder accounts for people in the import file who are not already registered
         on this server. Placeholders appear on the imported board&apos;s settings → Users tab with{' '}
-        <strong>Imported</strong> and <strong>Not Mapped</strong> labels until someone signs in with a matching email
-        or username.
+        <strong>Imported</strong> and <strong>Not Mapped</strong> labels until someone signs in with Google or a local
+        account using the same email as in the Wekan file (Wekan often stores that address in the{' '}
+        <code>username</code> field).
       </Text>
 
       <Radio.Group
@@ -41,8 +42,8 @@ export const ImportUserManagementTab = memo(function ImportUserManagementTab(
           {userCount > 0 ? (
             <>
               Up to <strong>{userCount}</strong> identities from the file can become placeholders when they do not
-              match an existing account. Wekan/Trello roles are mapped to Atlantis board roles (admin → manager,
-              read-only/comment-only → viewer).
+              match an existing account.               Wekan/Trello roles are mapped to Atlantis board roles (Wekan admin → manager; no-comments,
+              comment-only, and normal → viewer).
             </>
           ) : (
             <>No user records were found in this file. Board members may still be inferred from card assignees.</>

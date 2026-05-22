@@ -1,4 +1,5 @@
 import { User } from '../../models/User.js';
+import { displayEmailForImportPlaceholderUser } from '../../../shared/import/importPlaceholderDisplay.js';
 import { getBoardById } from './queries.js';
 import { decodeCursor, encodeCursor, extractRefUserIdString } from './helpers.js';
 import type { BoardMemberListItem, BoardMemberListResult } from './types.js';
@@ -29,32 +30,47 @@ export async function getBoardMembersPage(
   let rows: BoardMemberListItem[] = [
     (() => {
       const owner = byId.get(ownerUserId);
-      const ownerPlaceholder = owner?.isPlaceholder === true;
       return {
         userId: ownerUserId,
         displayName: owner?.displayName ?? 'Unknown user',
-        email: owner?.placeholderEmail ?? owner?.email ?? '',
+        email:
+          owner != null
+            ? displayEmailForImportPlaceholderUser({
+                placeholderEmail: owner.placeholderEmail,
+                accountEmail: owner.email,
+              })
+            : '',
         ...(owner?.profilePicture !== undefined ? { profilePicture: owner.profilePicture } : {}),
         role: 'owner' as const,
         roleKey: 'admin',
-        ...(ownerPlaceholder ? { importPlaceholder: true, importNotMapped: true } : {}),
       };
     })(),
     ...board.members
-      .filter((member) => extractRefUserIdString(member.userId) !== ownerUserId)
+      .filter((member) => {
+        const id = extractRefUserIdString(member.userId);
+        if (id === ownerUserId || id === '') {
+          return false;
+        }
+        const user = byId.get(id);
+        return user?.isPlaceholder !== true;
+      })
       .map((member) => {
         const id = extractRefUserIdString(member.userId);
         const user = id !== '' ? byId.get(id) : undefined;
-        const memberPlaceholder = user?.isPlaceholder === true;
         return {
           userId: id,
           displayName: user?.displayName ?? 'Unknown user',
-          email: user?.placeholderEmail ?? user?.email ?? '',
+          email:
+            user != null
+              ? displayEmailForImportPlaceholderUser({
+                  placeholderEmail: user.placeholderEmail,
+                  accountEmail: user.email,
+                })
+              : '',
           ...(user?.profilePicture !== undefined ? { profilePicture: user.profilePicture } : {}),
           role: 'member' as const,
           roleKey: member.roleKey,
           addedAt: member.addedAt,
-          ...(memberPlaceholder ? { importPlaceholder: true, importNotMapped: true } : {}),
         };
       }),
   ];

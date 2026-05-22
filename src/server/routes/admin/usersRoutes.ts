@@ -108,7 +108,7 @@ export function registerUsersRoutes(router: Router): void {
       const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : '';
       const offset = decodeSkipCursor(cursor);
 
-      const filter: Record<string, unknown> = {};
+      const filter: Record<string, unknown> = { isPlaceholder: { $ne: true } };
       if (q !== '') {
         const re = new RegExp(escapeRegex(q), 'i');
         filter.$or = [{ displayName: re }, { email: re }, { username: re }];

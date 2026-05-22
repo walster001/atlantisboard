@@ -17,6 +17,7 @@ import {
   Button,
   Group,
   Loader,
+  Modal,
   Paper,
   Select,
   Stack,
@@ -206,6 +207,8 @@ const BoardMemberUserIdentityStack = memo(function BoardMemberUserIdentityStack(
 }) {
   const { user, compact = false } = props;
   const email = user.email.trim();
+  const emailLine =
+    email !== '' ? email : user.importPlaceholder === true ? 'No email in import file' : '';
   return (
     <Stack gap={compact ? 2 : 4} style={{ flex: 1, minWidth: 0 }}>
       <Group gap={6} wrap="wrap" align="center">
@@ -217,7 +220,7 @@ const BoardMemberUserIdentityStack = memo(function BoardMemberUserIdentityStack(
           importNotMapped={user.importNotMapped}
         />
       </Group>
-      <Tooltip label={email} disabled={email === ''} openDelay={350} position="top-start" multiline maw={420}>
+      <Tooltip label={emailLine} disabled={emailLine === ''} openDelay={350} position="top-start" multiline maw={420}>
         <Text
           component="span"
           size="xs"
@@ -225,7 +228,7 @@ const BoardMemberUserIdentityStack = memo(function BoardMemberUserIdentityStack(
           lineClamp={compact ? 3 : 2}
           className="board-member-management__email-text"
         >
-          {user.email}
+          {emailLine}
         </Text>
       </Tooltip>
     </Stack>
@@ -487,6 +490,8 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
   const [directoryUsers, setDirectoryUsers] = useState<UserRow[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryLoadingMore, setDirectoryLoadingMore] = useState(false);
+  const [discardPlaceholdersOpen, setDiscardPlaceholdersOpen] = useState(false);
+  const [discardingPlaceholders, setDiscardingPlaceholders] = useState(false);
   const [directoryNextCursor, setDirectoryNextCursor] = useState<string | undefined>(undefined);
   const [addRoles, setAddRoles] = useState<Record<string, RoleKey>>({});
   const [roleOptions, setRoleOptions] = useState<Array<{ value: RoleKey; label: string }>>(
@@ -769,10 +774,14 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
 
   const sortedMemberPanelRows = useMemo((): MemberPanelRow[] => {
     const rows: MemberPanelRow[] = [];
-    if (owner !== null) {
+    if (owner !== null && owner.importPlaceholder !== true) {
       rows.push({ kind: 'owner', user: owner });
     }
     for (const m of members) {
+      const memberUser = extractUser(m.userId);
+      if (memberUser.importPlaceholder === true) {
+        continue;
+      }
       rows.push({ kind: 'member', member: m });
     }
     rows.sort((a, b) => {
@@ -784,6 +793,52 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
   }, [owner, members]);
 
   const memberCount = (owner ? 1 : 0) + members.length;
+
+  const hasUnmappedDirectoryPlaceholders = useMemo(
+    () => directoryUsers.some((u) => u.importPlaceholder === true && u.importNotMapped === true),
+    [directoryUsers],
+  );
+
+  const handleDiscardAllPlaceholders = useCallback(async (): Promise<void> => {
+    if (!canRemoveMember) {
+      return;
+    }
+    setDiscardingPlaceholders(true);
+    try {
+      const result = await api.discardBoardImportPlaceholders(boardId);
+      setDiscardPlaceholdersOpen(false);
+      setDirectoryUsers((prev) => prev.filter((u) => u.importPlaceholder !== true));
+      setBoard((prev) => {
+        if (prev === null) {
+          return prev;
+        }
+        return {
+          ...prev,
+          members: (prev.members ?? []).filter((m) => {
+            const u = extractUser(m.userId);
+            return u.importPlaceholder !== true;
+          }),
+        };
+      });
+      void loadBoard();
+      notifications.show({
+        color: 'green',
+        title: 'Placeholders discarded',
+        message:
+          result.removedCount > 0
+            ? `Removed ${result.removedCount} placeholder user${result.removedCount === 1 ? '' : 's'} from this board.`
+            : 'No placeholder users were removed.',
+      });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'Could not discard placeholders',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setDiscardingPlaceholders(false);
+    }
+  }, [boardId, canRemoveMember, loadBoard]);
 
   const handleDirectoryRoleChange = useCallback((userId: string, roleKey: RoleKey) => {
     if (!canUpdateMemberRole) {
@@ -1013,6 +1068,16 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
                 ? 'Select a role and add users to this board.'
                 : 'You do not have permission to add members to this board.'}
             </Text>
+            {hasUnmappedDirectoryPlaceholders && canRemoveMember ? (
+              <Button
+                variant="light"
+                color="orange"
+                size="xs"
+                onClick={() => setDiscardPlaceholdersOpen(true)}
+              >
+                Discard all placeholder users
+              </Button>
+            ) : null}
           </Stack>
 
           <Box
@@ -1169,6 +1234,41 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
           </Box>
         </Paper>
       </div>
+      <Modal
+        opened={discardPlaceholdersOpen}
+        onClose={() => {
+          if (!discardingPlaceholders) {
+            setDiscardPlaceholdersOpen(false);
+          }
+        }}
+        title="Discard all placeholder users?"
+        centered
+      >
+        <Stack gap="sm">
+          <Text size="sm">
+            This removes every import placeholder from this board and deletes those placeholder accounts. People
+            who already signed in and were mapped to real accounts are not affected.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button
+              variant="default"
+              disabled={discardingPlaceholders}
+              onClick={() => setDiscardPlaceholdersOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="orange"
+              loading={discardingPlaceholders}
+              onClick={() => {
+                void handleDiscardAllPlaceholders();
+              }}
+            >
+              Yes, discard placeholders
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Box>
   );
 }

@@ -8,7 +8,16 @@ import { Workspace } from '../../../models/Workspace.js';
 import { ImportJob } from '../../../models/ImportJob.js';
 import type { ImportPreflightPayloadParsed } from '../../../../shared/import/importPreflightSchema.js';
 import type { ImportPreflightUser } from '../../../../shared/import/importPreflight.js';
-import { buildImportSourceUserMap } from '../importUserMapService.js';
+import { importPreflightUserFromTrelloMemberRecord } from '../../../../shared/import/importSourceUserContact.js';
+import {
+  ensureBoardImportPlaceholdersSeeded,
+  extendSourceUsersById,
+} from '../importSourceUserCatalog.js';
+import {
+  buildImportRealUserMap,
+  isImportPlaceholderActorId,
+  resolveImportActorId,
+} from '../importUserMapService.js';
 import {
   collectTrelloMemberIdsForBoard,
   mapTrelloBoardMemberToBoardRoleKey,
@@ -92,30 +101,19 @@ export async function executeTrelloImportJob(params: {
     workspaceId = defaultWorkspace._id.toString();
   }
 
-  const sourceUsers: ImportPreflightUser[] = (data.members ?? []).map((member) => {
-    const fullName = typeof member.fullName === 'string' && member.fullName.trim().length > 0 ? member.fullName.trim() : undefined;
-    const email = typeof member.email === 'string' && member.email.trim().length > 0 ? member.email.trim() : undefined;
-    const username = typeof member.username === 'string' && member.username.trim().length > 0 ? member.username.trim() : undefined;
-    return {
-      sourceUserId: member.id,
-      ...(fullName !== undefined ? { fullName } : {}),
-      ...(email !== undefined ? { email } : {}),
-      ...(username !== undefined ? { username } : {}),
-    };
+  const sourceUsers: ImportPreflightUser[] = (data.members ?? []).flatMap((member) => {
+    const mapped = importPreflightUserFromTrelloMemberRecord(member as unknown as Record<string, unknown>);
+    return mapped != null ? [mapped] : [];
   });
-  const memberMap = await buildImportSourceUserMap({
-    sourceUsers,
-    source: 'trello',
-    importerUserId: userId,
-    preflight,
-  });
+  const realUserMap = await buildImportRealUserMap(sourceUsers);
+  const unmappedPolicy = preflight?.unmappedUserPolicy ?? 'discard_unmapped';
+  const boardActorMaps = new Map<string, Map<string, string>>();
   const memberIdByEmail = new Map<string, string>();
   for (const member of data.members ?? []) {
-    if (member.email != null && member.email.trim() !== '' && memberMap.has(member.id)) {
+    if (member.email != null && member.email.trim() !== '' && realUserMap.has(member.id)) {
       memberIdByEmail.set(member.email.trim(), member.id);
     }
   }
-  const importBoardMembers = preflight?.unmappedUserPolicy === 'create_placeholders';
 
   const boardMap = new Map<string, string>();
   const boardLabelMaps = new Map<string, Map<string, { id: string; name: string; color: string }>>();
@@ -140,25 +138,6 @@ export async function executeTrelloImportJob(params: {
       const boardWorkspaceId = orgId && workspaceMap.has(orgId) ? workspaceMap.get(orgId) : workspaceId;
       const rawBoardDesc =
         typeof trelloBoard.desc === 'string' && trelloBoard.desc.length > 0 ? trelloBoard.desc : undefined;
-      const boardMembers: Array<{ userId: mongoose.Types.ObjectId; roleKey: string; addedAt: Date }> = [
-        { userId: new mongoose.Types.ObjectId(userId), roleKey: 'admin', addedAt: new Date() },
-      ];
-      if (importBoardMembers) {
-        const seen = new Set<string>([userId]);
-        const trelloMemberIds = collectTrelloMemberIdsForBoard(trelloBoard.id, cardsOrdered);
-        for (const trelloMemberId of trelloMemberIds) {
-          const mapped = memberMap.get(trelloMemberId);
-          if (mapped == null || seen.has(mapped)) {
-            continue;
-          }
-          seen.add(mapped);
-          boardMembers.push({
-            userId: new mongoose.Types.ObjectId(mapped),
-            roleKey: mapTrelloBoardMemberToBoardRoleKey(),
-            addedAt: new Date(),
-          });
-        }
-      }
       const board = new Board({
         workspaceId: boardWorkspaceId,
         name: trelloBoard.name.slice(0, BOARD_NAME_MAX_LENGTH),
@@ -166,11 +145,53 @@ export async function executeTrelloImportJob(params: {
         background: resolveTrelloBoardBackgroundForImport(trelloBoard.prefs),
         visibility: 'workspace',
         ownerId: userId,
-        members: boardMembers,
+        members: [{ userId: new mongoose.Types.ObjectId(userId), roleKey: 'admin', addedAt: new Date() }],
         settings: { allowComments: true, allowAttachments: true, cardCoverImages: true },
       });
       await board.save();
-      boardMap.set(trelloBoard.id, board._id.toString());
+      const atlBoardId = board._id.toString();
+      boardMap.set(trelloBoard.id, atlBoardId);
+
+      const trelloMemberIds = collectTrelloMemberIdsForBoard(trelloBoard.id, cardsOrdered);
+      const boardSourceUsersById = extendSourceUsersById(sourceUsers, trelloMemberIds);
+      const boardActorMap = new Map(realUserMap);
+      const seenMemberIds = new Set<string>([userId]);
+      for (const trelloMemberId of trelloMemberIds) {
+        const actorId = await resolveImportActorId({
+          boardId: atlBoardId,
+          sourceUserId: trelloMemberId,
+          sourceUsersById: boardSourceUsersById,
+          actorMap: boardActorMap,
+          source: 'trello',
+          roleKey: mapTrelloBoardMemberToBoardRoleKey(),
+          policy: unmappedPolicy,
+          importerUserId: userId,
+          preflight,
+        });
+        if (actorId == null || seenMemberIds.has(actorId) || (await isImportPlaceholderActorId(actorId))) {
+          continue;
+        }
+        seenMemberIds.add(actorId);
+        board.members.push({
+          userId: new mongoose.Types.ObjectId(actorId),
+          roleKey: mapTrelloBoardMemberToBoardRoleKey(),
+          addedAt: new Date(),
+        });
+      }
+      await ensureBoardImportPlaceholdersSeeded({
+        boardId: atlBoardId,
+        sourceUsersById: boardSourceUsersById,
+        referencedSourceUserIds: trelloMemberIds,
+        actorMap: boardActorMap,
+        source: 'trello',
+        policy: unmappedPolicy,
+        importerUserId: userId,
+        preflight,
+      });
+      if (board.members.length > 1) {
+        await board.save();
+      }
+      boardActorMaps.set(trelloBoard.id, boardActorMap);
 
       const labelMap = new Map<string, { id: string; name: string; color: string }>();
       let labelsOnBoard = 0;
@@ -245,7 +266,7 @@ export async function executeTrelloImportJob(params: {
 
   const commentUserByEmail = await resolveCommentUsersByEmail({
     cardsToImport,
-    memberMap,
+    memberMap: realUserMap,
     memberIdByEmail,
   });
 
@@ -259,7 +280,10 @@ export async function executeTrelloImportJob(params: {
         continue;
       }
 
-      const assigneeIds = resolveCardAssigneeIds(trelloCard, memberMap);
+      const assigneeIds = resolveCardAssigneeIds(
+        trelloCard,
+        boardActorMaps.get(trelloCard.idBoard) ?? new Map<string, string>(),
+      );
       const cardLabels = resolveCardLabels(trelloCard, boardLabelMaps.get(trelloCard.idBoard));
 
       const descStr = typeof trelloCard.desc === 'string' ? trelloCard.desc : undefined;

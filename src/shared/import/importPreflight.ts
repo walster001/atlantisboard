@@ -1,3 +1,7 @@
+import {
+  importPreflightUserFromTrelloMemberRecord,
+  importPreflightUserFromWekanRecord,
+} from './importSourceUserContact.js';
 import { normalizeTrelloExport } from './trelloNormalize.js';
 
 export type ImportSourceType = 'trello' | 'wekan';
@@ -239,16 +243,9 @@ export function detectWekanLegacyInlineButtons(
 
 export function buildWekanImportPreflight(raw: unknown): ImportPreflightResult {
   const normalized = normalizeWekanPreflightExport(raw);
-  const users: ImportPreflightUser[] = normalized.users.map((u) => {
-    const fullName = str(u.profile?.fullname);
-    const email = str(u.emails?.[0]?.address);
-    const username = str(u.username);
-    return {
-      sourceUserId: u._id,
-      ...(fullName != null ? { fullName } : {}),
-      ...(email != null ? { email } : {}),
-      ...(username != null ? { username } : {}),
-    };
+  const users: ImportPreflightUser[] = normalized.users.flatMap((u) => {
+    const mapped = importPreflightUserFromWekanRecord(u as unknown as Record<string, unknown>);
+    return mapped != null ? [mapped] : [];
   });
   const buttons = detectWekanLegacyInlineButtons(normalized.cards);
   return {
@@ -260,16 +257,9 @@ export function buildWekanImportPreflight(raw: unknown): ImportPreflightResult {
 
 export function buildTrelloImportPreflight(raw: unknown): ImportPreflightResult {
   const normalized = normalizeTrelloExport(raw);
-  const users: ImportPreflightUser[] = (normalized.members ?? []).map((m) => {
-    const fullName = str(m.fullName);
-    const email = str(m.email);
-    const username = str(m.username);
-    return {
-      sourceUserId: m.id,
-      ...(fullName != null ? { fullName } : {}),
-      ...(email != null ? { email } : {}),
-      ...(username != null ? { username } : {}),
-    };
+  const users: ImportPreflightUser[] = (normalized.members ?? []).flatMap((m) => {
+    const mapped = importPreflightUserFromTrelloMemberRecord(m as unknown as Record<string, unknown>);
+    return mapped != null ? [mapped] : [];
   });
   return {
     source: 'trello',

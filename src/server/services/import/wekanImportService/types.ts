@@ -116,7 +116,7 @@ export interface WekanExport {
 export interface WekanCardInsertContext {
   readonly listMap: ReadonlyMap<string, string>;
   readonly boardMap: ReadonlyMap<string, string>;
-  readonly userMap: ReadonlyMap<string, string>;
+  readonly boardActorMaps: ReadonlyMap<string, ReadonlyMap<string, string>>;
   readonly labelMap: ReadonlyMap<string, { id: string; name: string; color: string }>;
   readonly checklistsByCardId: ReadonlyMap<string, WekanChecklist[]>;
   readonly commentsByCardId: ReadonlyMap<string, WekanComment[]>;

@@ -6,7 +6,17 @@ import { BoardLabel } from '../../../models/BoardLabel.js';
 import { Workspace } from '../../../models/Workspace.js';
 import { ImportJob } from '../../../models/ImportJob.js';
 import type { ImportPreflightUser } from '../../../../shared/import/importPreflight.js';
-import { buildImportSourceUserMap } from '../importUserMapService.js';
+import { importPreflightUserFromWekanRecord } from '../../../../shared/import/importSourceUserContact.js';
+import {
+  collectWekanReferencedUserIdsForBoard,
+  ensureBoardImportPlaceholdersSeeded,
+  extendSourceUsersById,
+} from '../importSourceUserCatalog.js';
+import {
+  buildImportRealUserMap,
+  isImportPlaceholderActorId,
+  resolveImportActorId,
+} from '../importUserMapService.js';
 import { logger } from '../../../utils/logger.js';
 import { createActivity } from '../../activityService.js';
 import { emitToUser } from '../../../utils/socketIO.js';
@@ -37,32 +47,13 @@ export async function executeWekanImportJob(params: {
     throw new Error('Wekan import: no boards found in file.');
   }
 
-  const sourceUsers: ImportPreflightUser[] = (data.users ?? []).map((wekanUser) => {
-    const fullName =
-      typeof wekanUser.profile?.fullname === 'string' && wekanUser.profile.fullname.trim().length > 0
-        ? wekanUser.profile.fullname.trim()
-        : undefined;
-    const email =
-      typeof wekanUser.emails?.[0]?.address === 'string' && wekanUser.emails[0].address.trim().length > 0
-        ? wekanUser.emails[0].address.trim()
-        : undefined;
-    const username =
-      typeof wekanUser.username === 'string' && wekanUser.username.trim().length > 0
-        ? wekanUser.username.trim()
-        : undefined;
-    return {
-      sourceUserId: wekanUser._id,
-      ...(fullName !== undefined ? { fullName } : {}),
-      ...(email !== undefined ? { email } : {}),
-      ...(username !== undefined ? { username } : {}),
-    };
+  const sourceUsers: ImportPreflightUser[] = (data.users ?? []).flatMap((wekanUser) => {
+    const mapped = importPreflightUserFromWekanRecord(wekanUser as unknown as Record<string, unknown>);
+    return mapped != null ? [mapped] : [];
   });
-  const userMap = await buildImportSourceUserMap({
-    sourceUsers,
-    source: 'wekan',
-    importerUserId: userId,
-    preflight,
-  });
+  const realUserMap = await buildImportRealUserMap(sourceUsers);
+  const unmappedPolicy = preflight?.unmappedUserPolicy ?? 'discard_unmapped';
+  const boardActorMaps = new Map<string, Map<string, string>>();
 
   const workspaceMap = new Map<string, string>();
   const boardMap = new Map<string, string>();
@@ -109,26 +100,7 @@ export async function executeWekanImportJob(params: {
         background: wekanBoard.background,
         visibility: wekanBoard.permission === 'public' ? 'public' : 'workspace',
         ownerId: userId,
-        members: (() => {
-          const seen = new Set<string>();
-          const out: Array<{ userId: mongoose.Types.ObjectId; roleKey: string; addedAt: Date }> = [
-            { userId: new mongoose.Types.ObjectId(userId), roleKey: 'admin', addedAt: new Date() },
-          ];
-          seen.add(userId);
-          for (const member of wekanBoard.members || []) {
-            const mapped = userMap.get(member.userId);
-            if (mapped == null || seen.has(mapped)) {
-              continue;
-            }
-            seen.add(mapped);
-            out.push({
-              userId: new mongoose.Types.ObjectId(mapped),
-              roleKey: mapWekanBoardMemberToBoardRoleKey(member),
-              addedAt: new Date(),
-            });
-          }
-          return out;
-        })(),
+        members: [{ userId: new mongoose.Types.ObjectId(userId), roleKey: 'admin', addedAt: new Date() }],
         settings: {
           allowComments: true,
           allowAttachments: true,
@@ -139,8 +111,51 @@ export async function executeWekanImportJob(params: {
         },
       });
       await board.save();
-      boardMap.set(wekanBoard._id, board._id.toString());
+      const atlBoardId = board._id.toString();
+      boardMap.set(wekanBoard._id, atlBoardId);
       importedBoardCount++;
+
+      const referencedUserIds = collectWekanReferencedUserIdsForBoard(data, wekanBoard._id);
+      const boardSourceUsersById = extendSourceUsersById(sourceUsers, referencedUserIds);
+      const boardActorMap = new Map(realUserMap);
+      const seenMemberIds = new Set<string>([userId]);
+      for (const member of wekanBoard.members || []) {
+        const roleKey = mapWekanBoardMemberToBoardRoleKey(member);
+        const actorId = await resolveImportActorId({
+          boardId: atlBoardId,
+          sourceUserId: member.userId,
+          sourceUsersById: boardSourceUsersById,
+          actorMap: boardActorMap,
+          source: 'wekan',
+          roleKey,
+          policy: unmappedPolicy,
+          importerUserId: userId,
+          preflight,
+        });
+        if (actorId == null || seenMemberIds.has(actorId) || (await isImportPlaceholderActorId(actorId))) {
+          continue;
+        }
+        seenMemberIds.add(actorId);
+        board.members.push({
+          userId: new mongoose.Types.ObjectId(actorId),
+          roleKey,
+          addedAt: new Date(),
+        });
+      }
+      await ensureBoardImportPlaceholdersSeeded({
+        boardId: atlBoardId,
+        sourceUsersById: boardSourceUsersById,
+        referencedSourceUserIds: referencedUserIds,
+        actorMap: boardActorMap,
+        source: 'wekan',
+        policy: unmappedPolicy,
+        importerUserId: userId,
+        preflight,
+      });
+      if (board.members.length > 1) {
+        await board.save();
+      }
+      boardActorMaps.set(wekanBoard._id, boardActorMap);
 
       processed++;
       const progress = totalItems > 0 ? Math.round((processed / totalItems) * 100) : 0;
@@ -211,7 +226,7 @@ export async function executeWekanImportJob(params: {
   const cardInsertCtx: WekanCardInsertContext = {
     listMap,
     boardMap,
-    userMap,
+    boardActorMaps,
     labelMap,
     checklistsByCardId,
     commentsByCardId,

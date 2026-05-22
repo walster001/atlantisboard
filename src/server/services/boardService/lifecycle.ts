@@ -6,6 +6,10 @@ import { logAuditEvent } from '../../utils/auditLogger.js';
 import { logger } from '../../utils/logger.js';
 import { emitToBoard, emitToUser, emitToWorkspace } from '../../utils/socketIO.js';
 import { deleteAllMongoAndStorageForBoardIds } from '../boardScopedDeletion.js';
+import {
+  cleanupImportPlaceholderUsersAfterBoardRemoval,
+  collectImportPlaceholderUserIdsOnBoards,
+} from '../importPlaceholderUserService.js';
 import { emitWorkspaceHomeAccessRefreshForUser } from '../workspaceService.js';
 import {
   createDefaultBoardThemeSettings,
@@ -99,6 +103,8 @@ export async function deleteBoard(boardId: string, userId: string): Promise<bool
     throw new Error('Only board owner can delete board');
   }
 
+  const placeholderUserIds = await collectImportPlaceholderUserIdsOnBoards([board._id]);
+
   await deleteAllMongoAndStorageForBoardIds([board._id]);
 
   const workspaceId = board.workspaceId?.toString();
@@ -106,6 +112,7 @@ export async function deleteBoard(boardId: string, userId: string): Promise<bool
   const memberUserIds = board.members.map((m) => m.userId.toString());
 
   await Board.findByIdAndDelete(boardId);
+  await cleanupImportPlaceholderUsersAfterBoardRemoval(placeholderUserIds);
 
   const serverTs = Date.now();
   emitToBoard(boardId, 'board:deleted', { boardId, serverTs });

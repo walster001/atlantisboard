@@ -150,8 +150,46 @@ export async function loadBoardMemberUsersForDisplay(
     }
   }
 
-  const allMembers = [...membersById.values()];
   const prioritized = options?.prioritizedUserIds ?? [];
+  const missingPrioritized = prioritized
+    .map((id) => String(id).trim())
+    .filter((id) => id !== '' && MONGO_OBJECT_ID_HEX.test(id) && !membersById.has(id));
+  if (missingPrioritized.length > 0) {
+    try {
+      const placeholderResponse = await api.searchUsers('', {
+        boardId,
+        limit: 120,
+        signal,
+      });
+      const placeholderUsers = placeholderResponse.users as Array<{
+        _id?: string;
+        displayName?: string;
+        email?: string;
+        importPlaceholder?: boolean;
+      }>;
+      const missingSet = new Set(missingPrioritized);
+      for (const user of placeholderUsers) {
+        if (user.importPlaceholder !== true) {
+          continue;
+        }
+        const id = user._id != null ? String(user._id).trim() : '';
+        if (id === '' || !missingSet.has(id)) {
+          continue;
+        }
+        pushUnique({
+          _id: id,
+          displayName: user.displayName ?? '',
+          email: user.email ?? '',
+        });
+      }
+    } catch (error) {
+      if (!isAbortOrCancelError(error)) {
+        console.error('Error loading board import placeholders for assignees:', error);
+      }
+    }
+  }
+
+  const allMembers = [...membersById.values()];
   const prioritizedIds = new Set<string>();
   const ordered: BoardMemberUserDisplay[] = [];
   for (const id of prioritized) {

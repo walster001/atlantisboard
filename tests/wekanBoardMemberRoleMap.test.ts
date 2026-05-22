@@ -22,8 +22,8 @@ describe('mapWekanBoardMemberToBoardRoleKey', () => {
     expect(mapWekanBoardMemberToBoardRoleKey(base({ isAdmin: true }))).toBe('manager');
   });
 
-  test('implicit normal member → manager', () => {
-    expect(mapWekanBoardMemberToBoardRoleKey(base())).toBe('manager');
+  test('implicit normal member → viewer', () => {
+    expect(mapWekanBoardMemberToBoardRoleKey(base())).toBe('viewer');
   });
 
   test('comment-only → viewer', () => {
@@ -43,7 +43,7 @@ describe('mapWekanBoardMemberToBoardRoleKey', () => {
     expect(mapWekanBoardMemberToBoardRoleKey(base({ permission: 'comment-only' }))).toBe('viewer');
     expect(mapWekanBoardMemberToBoardRoleKey(base({ permission: 'NoComments' }))).toBe('viewer');
     expect(mapWekanBoardMemberToBoardRoleKey(base({ permission: 'worker' }))).toBe('viewer');
-    expect(mapWekanBoardMemberToBoardRoleKey(base({ permission: 'normal' }))).toBe('manager');
+    expect(mapWekanBoardMemberToBoardRoleKey(base({ permission: 'normal' }))).toBe('viewer');
     expect(mapWekanBoardMemberToBoardRoleKey(base({ permission: 'admin' }))).toBe('manager');
   });
 

@@ -1,195 +1,192 @@
-import crypto from 'node:crypto';
-import mongoose from 'mongoose';
+/**
+ * Legacy import path: board import placeholders now live in {@link BoardImportPlaceholder}.
+ * This module keeps migration + stable import names for callers.
+ */
+import mongoose, { type Types } from 'mongoose';
 import { Board } from '../models/Board.js';
+import { BoardImportPlaceholder } from '../models/BoardImportPlaceholder.js';
 import { Card } from '../models/Card.js';
-import { User, type IUser } from '../models/User.js';
+import { User } from '../models/User.js';
 import { logger } from '../utils/logger.js';
 import { extractRefUserIdString } from './boardService/helpers.js';
+import {
+  claimBoardImportPlaceholdersForUser,
+  discardAllBoardImportPlaceholdersOnBoard,
+  getOrCreateBoardImportPlaceholder,
+  isBoardImportPlaceholderId,
+} from './boardImportPlaceholderService.js';
+import {
+  isSyntheticImportPlaceholderEmail,
+} from '../../shared/import/importPlaceholderDisplay.js';
+import { normalizeImportSourceEmail } from '../../shared/import/importSourceUserContact.js';
 import type { ImportPreflightUser } from '../../shared/import/importPreflight.js';
 
-const PLACEHOLDER_EMAIL_DOMAIN = 'placeholder.import.local';
+export {
+  claimBoardImportPlaceholdersForUser as claimImportPlaceholderMembershipsForUser,
+  discardAllBoardImportPlaceholdersOnBoard as discardAllUnmappedPlaceholdersOnBoard,
+  getOrCreateBoardImportPlaceholder,
+  isBoardImportPlaceholderId,
+};
 
-function normalizeEmail(value: string | undefined): string | undefined {
-  if (value == null || value.trim() === '') {
-    return undefined;
-  }
-  const trimmed = value.trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : undefined;
-}
-
-function sanitizeUsernameBase(value: string): string {
-  const base = value.replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-  return base.length >= 3 ? base.slice(0, 40) : '';
-}
-
-async function reserveUniqueUsername(base: string): Promise<string> {
-  const root = base.length >= 3 ? base : `imp_${crypto.randomBytes(4).toString('hex')}`;
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    const candidate = attempt === 0 ? root.slice(0, 50) : `${root.slice(0, 42)}_${attempt}`;
-    const exists = await User.exists({ username: candidate });
-    if (!exists) {
-      return candidate;
-    }
-  }
-  return `imp_${crypto.randomBytes(8).toString('hex')}`;
-}
-
-async function reserveUniqueEmail(preferred: string | undefined, source: string, sourceUserId: string): Promise<string> {
-  if (preferred != null) {
-    const taken = await User.exists({ email: preferred });
-    if (!taken) {
-      return preferred;
-    }
-  }
-  const slug = sourceUserId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 48) || crypto.randomBytes(6).toString('hex');
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    const candidate =
-      attempt === 0
-        ? `import+${source}+${slug}@${PLACEHOLDER_EMAIL_DOMAIN}`
-        : `import+${source}+${slug}+${attempt}@${PLACEHOLDER_EMAIL_DOMAIN}`;
-    const taken = await User.exists({ email: candidate });
-    if (!taken) {
-      return candidate;
-    }
-  }
-  return `import+${source}+${crypto.randomBytes(10).toString('hex')}@${PLACEHOLDER_EMAIL_DOMAIN}`;
-}
-
-/**
- * Creates a board-import placeholder user for an unmapped Wekan/Trello identity.
- */
-export async function createImportPlaceholderUser(params: {
+/** @deprecated Use getOrCreateBoardImportPlaceholder with boardId instead. */
+export async function createImportPlaceholderUser(_params: {
   readonly source: 'trello' | 'wekan';
   readonly sourceUser: ImportPreflightUser;
 }): Promise<string> {
-  const { source, sourceUser } = params;
-  const placeholderEmail = normalizeEmail(sourceUser.email);
-  const importUsername = sourceUser.username?.trim();
-  const displayName =
-    sourceUser.fullName?.trim() ||
-    importUsername ||
-    placeholderEmail?.split('@')[0] ||
-    `Imported user ${sourceUser.sourceUserId.slice(0, 8)}`;
+  throw new Error('createImportPlaceholderUser requires boardId; use getOrCreateBoardImportPlaceholder');
+}
 
-  const email = await reserveUniqueEmail(placeholderEmail, source, sourceUser.sourceUserId);
-  const usernameBase =
-    sanitizeUsernameBase(importUsername ?? '') ||
-    sanitizeUsernameBase(sourceUser.sourceUserId) ||
-    `imp_${source}`;
-  const username = await reserveUniqueUsername(usernameBase);
+export async function collectImportPlaceholderUserIdsOnBoards(
+  boardIds: readonly Types.ObjectId[],
+): Promise<string[]> {
+  if (boardIds.length === 0) {
+    return [];
+  }
+  const rows = await BoardImportPlaceholder.find({ boardId: { $in: boardIds } })
+    .select('_id')
+    .lean();
+  return rows.map((r) => r._id.toString());
+}
 
-  const user = new User({
-    email,
-    username,
-    displayName: displayName.slice(0, 100),
-    isPlaceholder: true,
-    placeholderSource: source,
-    ...(placeholderEmail != null ? { placeholderEmail } : {}),
-    placeholderName: displayName.slice(0, 100),
-    ...(importUsername != null && importUsername.length >= 3
-      ? { placeholderImportUsername: importUsername.toLowerCase() }
-      : {}),
-    emailVerified: false,
-    failedLoginAttempts: 0,
+export async function cleanupImportPlaceholderUsersAfterBoardRemoval(
+  candidateIds: readonly string[],
+): Promise<number> {
+  if (candidateIds.length === 0) {
+    return 0;
+  }
+  const result = await BoardImportPlaceholder.deleteMany({
+    _id: { $in: candidateIds.map((id) => new mongoose.Types.ObjectId(id)) },
   });
-  await user.save();
-  return user._id.toString();
-}
-
-function buildPlaceholderMatchFilter(email: string, username: string): Record<string, unknown> {
-  const emailNorm = email.trim().toLowerCase();
-  const usernameNorm = username.trim().toLowerCase();
-  const or: Record<string, unknown>[] = [];
-  if (emailNorm.length > 0) {
-    or.push({ placeholderEmail: emailNorm }, { email: emailNorm });
-  }
-  if (usernameNorm.length >= 3) {
-    or.push({ placeholderImportUsername: usernameNorm });
-  }
-  return {
-    isPlaceholder: true,
-    ...(or.length > 0 ? { $or: or } : {}),
-  };
-}
-
-async function reassignPlaceholderBoardMembership(
-  boardId: string,
-  placeholderUserId: string,
-  realUserId: string,
-  roleKey: string,
-): Promise<void> {
-  const board = await Board.findById(boardId);
-  if (!board) {
-    return;
-  }
-  const placeholderOid = new mongoose.Types.ObjectId(placeholderUserId);
-  const realOid = new mongoose.Types.ObjectId(realUserId);
-  const ownerId = extractRefUserIdString(board.ownerId);
-
-  const members = board.members.filter((m) => extractRefUserIdString(m.userId) !== placeholderUserId);
-  const realAlreadyMember = members.some((m) => extractRefUserIdString(m.userId) === realUserId);
-  if (realUserId !== ownerId && !realAlreadyMember) {
-    members.push({
-      userId: realOid,
-      roleKey,
-      addedAt: new Date(),
-    });
-  }
-  board.members = members;
-  await board.save();
-
-  const cards = await Card.find({ boardId, assignees: placeholderOid }).select('assignees').lean();
-  for (const card of cards) {
-    const assignees = (card.assignees ?? []).map((id) => id.toString());
-    const withoutPlaceholder = assignees.filter((id) => id !== placeholderUserId);
-    const next = withoutPlaceholder.includes(realUserId)
-      ? withoutPlaceholder
-      : [...withoutPlaceholder, realUserId];
-    await Card.updateOne({ _id: card._id }, { $set: { assignees: next.map((id) => new mongoose.Types.ObjectId(id)) } });
-  }
+  return result.deletedCount ?? 0;
 }
 
 /**
- * When a real user signs in, attach them to boards that had import placeholders matching their email/username,
- * then remove those placeholder accounts.
+ * Moves legacy `User` documents with `isPlaceholder: true` into `BoardImportPlaceholder` and deletes them.
  */
-export async function claimImportPlaceholderMembershipsForUser(user: Pick<IUser, '_id' | 'email' | 'username'>): Promise<number> {
-  const realUserId = user._id.toString();
-  const filter = buildPlaceholderMatchFilter(user.email, user.username);
-  if (!('$or' in filter)) {
+export async function migrateLegacyUserPlaceholdersToBoardCollection(): Promise<number> {
+  const legacyUsers = await User.find({ isPlaceholder: true }).lean();
+  if (legacyUsers.length === 0) {
     return 0;
   }
 
-  const placeholders = await User.find(filter).select('_id').lean();
-  if (placeholders.length === 0) {
-    return 0;
-  }
-
-  let claimed = 0;
-  for (const placeholder of placeholders) {
-    const placeholderUserId = placeholder._id.toString();
-    if (placeholderUserId === realUserId) {
-      continue;
-    }
-
-    const boards = await Board.find({ 'members.userId': new mongoose.Types.ObjectId(placeholderUserId) })
-      .select('_id members')
-      .lean();
+  let migrated = 0;
+  for (const legacy of legacyUsers) {
+    const legacyId = legacy._id.toString();
+    const boards = await Board.find({ 'members.userId': legacy._id }).select('_id members').lean();
 
     for (const board of boards) {
-      const boardId = board._id.toString();
-      const entry = board.members.find((m) => extractRefUserIdString(m.userId) === placeholderUserId);
-      const roleKey = entry?.roleKey ?? 'viewer';
-      await reassignPlaceholderBoardMembership(boardId, placeholderUserId, realUserId, roleKey);
+      const member = board.members.find((m) => extractRefUserIdString(m.userId) === legacyId);
+      const roleKey = member?.roleKey ?? 'viewer';
+      const email =
+        normalizeImportSourceEmail(legacy.placeholderEmail) ??
+        normalizeImportSourceEmail(
+          typeof legacy.email === 'string' && !isSyntheticImportPlaceholderEmail(legacy.email)
+            ? legacy.email
+            : undefined,
+        );
+
+      const existing = await BoardImportPlaceholder.findOne({
+        boardId: board._id,
+        sourceUserId: `legacy:${legacyId}`,
+      })
+        .select('_id')
+        .lean();
+
+      const placeholderId =
+        existing?._id.toString() ??
+        (
+          await BoardImportPlaceholder.create({
+            boardId: board._id,
+            source: legacy.placeholderSource === 'trello' ? 'trello' : 'wekan',
+            sourceUserId: `legacy:${legacyId}`,
+            displayName: legacy.displayName,
+            roleKey,
+            ...(email != null ? { email } : {}),
+            ...(typeof legacy.placeholderImportUsername === 'string' &&
+            legacy.placeholderImportUsername.trim() !== ''
+              ? { importUsername: legacy.placeholderImportUsername.trim().toLowerCase() }
+              : {}),
+          })
+        )._id.toString();
+
+      await Board.updateOne(
+        { _id: board._id },
+        { $pull: { members: { userId: legacy._id } } },
+      );
+      const cardsWithLegacy = await Card.find({ boardId: board._id, assignees: legacy._id })
+        .select('_id assignees')
+        .lean();
+      for (const card of cardsWithLegacy) {
+        const nextAssignees = (card.assignees ?? []).map((assigneeId) =>
+          assigneeId.toString() === legacyId
+            ? new mongoose.Types.ObjectId(placeholderId)
+            : assigneeId,
+        );
+        await Card.updateOne({ _id: card._id }, { $set: { assignees: nextAssignees } });
+      }
     }
 
-    await User.findByIdAndDelete(placeholderUserId);
-    claimed += 1;
-    logger.info(
-      { placeholderUserId, realUserId, boardCount: boards.length },
-      'Import placeholder claimed on login',
-    );
+    await User.findByIdAndDelete(legacyId);
+    migrated += 1;
   }
 
-  return claimed;
+  if (migrated > 0) {
+    logger.info({ migrated }, 'Migrated legacy User import placeholders to BoardImportPlaceholder');
+  }
+  return migrated;
+}
+
+/**
+ * Moves Wekan-style email-as-username values from `importUsername` into `email` for reliable Google login claim.
+ */
+export async function repairWekanEmailStoredInImportUsername(): Promise<number> {
+  const rows = await BoardImportPlaceholder.find({
+    importUsername: { $exists: true, $nin: [null, ''] },
+  })
+    .select('_id email importUsername')
+    .lean();
+
+  let repaired = 0;
+  for (const row of rows) {
+    const fromUsername = normalizeImportSourceEmail(row.importUsername);
+    if (fromUsername == null) {
+      continue;
+    }
+    const existingEmail =
+      typeof row.email === 'string' && row.email.trim() !== '' ? row.email.trim().toLowerCase() : '';
+    if (existingEmail === fromUsername) {
+      await BoardImportPlaceholder.updateOne({ _id: row._id }, { $unset: { importUsername: '' } });
+      repaired += 1;
+      continue;
+    }
+    if (existingEmail !== '' && !isSyntheticImportPlaceholderEmail(existingEmail)) {
+      continue;
+    }
+    await BoardImportPlaceholder.updateOne(
+      { _id: row._id },
+      { $set: { email: fromUsername }, $unset: { importUsername: '' } },
+    );
+    repaired += 1;
+  }
+  if (repaired > 0) {
+    logger.info({ repaired }, 'Repaired Wekan email-as-username on board import placeholders');
+  }
+  return repaired;
+}
+
+/** Clears synthetic login emails mistakenly stored on board import placeholders. */
+export async function sanitizeBoardImportPlaceholderStoredEmails(): Promise<number> {
+  const rows = await BoardImportPlaceholder.find({
+    email: { $regex: /@placeholder\.import\.local$/i },
+  })
+    .select('_id')
+    .lean();
+  if (rows.length === 0) {
+    return 0;
+  }
+  await BoardImportPlaceholder.updateMany(
+    { _id: { $in: rows.map((r) => r._id) } },
+    { $unset: { email: '' } },
+  );
+  return rows.length;
 }

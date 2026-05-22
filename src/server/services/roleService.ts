@@ -111,13 +111,11 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'boards.members.view',
       'boards.members.add',
       'boards.members.remove',
-      'boards.members.role.update',
-      'boards.members.role.update.samelower',
+      'boards.members.role.update.lower',
       'boards.settings.open',
       'lists.create',
       'lists.update',
       'lists.reorder',
-      'boards.reorder_in_home',
       'cards.create',
       'cards.update',
       'cards.move',
@@ -131,7 +129,6 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'checklists.items.update',
       'checklists.items.delete',
       'comments.create',
-      'comments.delete',
       'import.trello',
       'import.wekan',
     ],
@@ -197,9 +194,20 @@ export async function initializeRoleDefinitions(): Promise<void> {
   await RoleDefinition.updateMany(
     { key: 'manager', isBuiltIn: true },
     {
-      $addToSet: {
+      $pull: {
         permissions: {
-          $each: ['comments.delete', 'boards.reorder_in_home'],
+          $each: [
+            'boards.reorder_in_home',
+            'comments.delete',
+            'invites.view',
+            'cards.duplicate',
+            'boards.members.role.update',
+            'boards.members.role.update.samelower',
+            'boards.members.role.update.same',
+            'boards.members.role.update.higher',
+            'boards.members.role.update.samehigher',
+            'boards.members.role.update.any',
+          ],
         },
       },
     },
@@ -369,7 +377,7 @@ export async function initializeRoleDefinitions(): Promise<void> {
   await RoleDefinition.updateMany(
     { key: 'manager', isBuiltIn: true },
     {
-      $addToSet: { permissions: { $each: ['boards.members.role.update.samelower'] } },
+      $addToSet: { permissions: { $each: ['boards.members.role.update.lower'] } },
     },
   ).catch(() => undefined);
 

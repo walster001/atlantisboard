@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 import { getBoardById } from './boardService/queries.js';
-import { extractRefUserIdString } from './boardService/helpers.js';
+import { listBoardImportPlaceholderDirectoryRows } from './boardImportPlaceholderService.js';
 
 const MAX_LIMIT = 120;
 
@@ -151,7 +151,7 @@ export async function searchRegisteredUsers(params: {
 }
 
 /**
- * Placeholder users who are members of a board (shown in board settings "All Users" with import badges).
+ * Board-scoped import placeholders (shown in board settings "All Users" with import badges).
  */
 export async function listBoardImportPlaceholderDirectoryUsers(params: {
   readonly boardId: string;
@@ -163,45 +163,17 @@ export async function listBoardImportPlaceholderDirectoryUsers(params: {
   if (!board || !('_id' in board)) {
     return [];
   }
-  const memberIds = board.members.map((m) => extractRefUserIdString(m.userId)).filter((id) => id !== '');
-  if (memberIds.length === 0) {
-    return [];
-  }
-  const placeholders = await User.find({
-    _id: { $in: memberIds.map((id) => new mongoose.Types.ObjectId(id)) },
-    isPlaceholder: true,
-  })
-    .select('_id displayName email username profilePicture placeholderEmail isPlaceholder')
-    .lean();
-
-  const q = params.query.trim().toLowerCase();
-  const filtered =
-    q.length === 0
-      ? placeholders
-      : placeholders.filter((u) => {
-          const email = (u.placeholderEmail ?? u.email).toLowerCase();
-          return (
-            u.displayName.toLowerCase().includes(q) ||
-            email.includes(q) ||
-            u.username.toLowerCase().includes(q)
-          );
-        });
-
-  const capped = filtered.slice(0, Math.max(1, Math.min(params.limit, MAX_LIMIT)));
-  return capped.map((u) => {
-    const id = u._id.toString();
-    const displayEmail = u.placeholderEmail ?? u.email;
-    const base: DirectoryUser = {
-      _id: id,
-      displayName: u.displayName,
-      email: displayEmail,
-      username: u.username,
-      importPlaceholder: true,
-      importNotMapped: true,
-    };
-    if (u.profilePicture !== undefined && u.profilePicture !== '') {
-      return { ...base, profilePicture: u.profilePicture };
-    }
-    return base;
+  const rows = await listBoardImportPlaceholderDirectoryRows({
+    boardId: params.boardId,
+    query: params.query,
+    limit: params.limit,
   });
+  return rows.map((row) => ({
+    _id: row._id,
+    displayName: row.displayName,
+    email: row.email,
+    username: row.username,
+    importPlaceholder: true,
+    importNotMapped: true,
+  }));
 }

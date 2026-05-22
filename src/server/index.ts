@@ -19,12 +19,21 @@ import { expressCorsOptions } from './config/cors.js';
 // Background jobs can run in separate worker process or in main process
 // Set ENABLE_CRON_JOBS_IN_MAIN=true to run in main process (default: false, use separate worker)
 import { scheduleCronJobs } from './workers/cronJobs.js';
+import {
+  migrateLegacyUserPlaceholdersToBoardCollection,
+  repairWekanEmailStoredInImportUsername,
+  sanitizeBoardImportPlaceholderStoredEmails,
+} from './services/importPlaceholderUserService.js';
 
 // Connect to database on startup
-connectDatabase().catch((err) => {
-  logger.error({ err }, 'Failed to connect to database');
-  process.exit(1);
-});
+connectDatabase()
+  .then(() => migrateLegacyUserPlaceholdersToBoardCollection())
+  .then(() => repairWekanEmailStoredInImportUsername())
+  .then(() => sanitizeBoardImportPlaceholderStoredEmails())
+  .catch((err) => {
+    logger.error({ err }, 'Failed to connect to database or migrate import placeholders');
+    process.exit(1);
+  });
 
 // Initialize admin config on startup
 initializeAdminConfig().catch((err) => {

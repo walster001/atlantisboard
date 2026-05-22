@@ -84,6 +84,7 @@ export interface BoardApiMethods {
       limit?: number;
     }
   ): Promise<{ members: unknown[]; nextCursor?: string }>;
+  discardBoardImportPlaceholders(boardId: string): Promise<{ removedCount: number }>;
 }
 
 export const boardApiMethods: BoardApiMethods = {
@@ -194,5 +195,10 @@ export const boardApiMethods: BoardApiMethods = {
     const suffix = params.toString();
     const response = await this.client.get(`/boards/${boardId}/members${suffix === '' ? '' : `?${suffix}`}`);
     return response.data as { members: unknown[]; nextCursor?: string };
+  },
+
+  async discardBoardImportPlaceholders(this: ApiClient, boardId) {
+    const response = await this.client.post(`/boards/${boardId}/placeholders/discard`);
+    return response.data as { removedCount: number };
   },
 };

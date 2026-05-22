@@ -25,6 +25,7 @@ function normalizeWekanMemberPermissionToken(raw: string): string {
 
 /**
  * Board role for an imported Wekan member (importer is always added separately as `admin`).
+ * Wekan admin → manager; no-comments, comment-only, normal, and other non-admin → viewer.
  */
 export function mapWekanBoardMemberToBoardRoleKey(
   member: WekanImportedBoardMember,
@@ -49,7 +50,7 @@ export function mapWekanBoardMemberToBoardRoleKey(
     return 'viewer';
   }
   if (member.isNormalAssignedOnly === true) {
-    return 'manager';
+    return 'viewer';
   }
 
   const permRaw = member.permission;
@@ -68,7 +69,7 @@ export function mapWekanBoardMemberToBoardRoleKey(
       return 'viewer';
     }
     if (p === 'normal') {
-      return 'manager';
+      return 'viewer';
     }
     if (p === 'readonly' || p === 'readassignedonly') {
       return 'viewer';
@@ -77,9 +78,9 @@ export function mapWekanBoardMemberToBoardRoleKey(
       return 'viewer';
     }
     if (p === 'normalassignedonly') {
-      return 'manager';
+      return 'viewer';
     }
   }
 
-  return 'manager';
+  return 'viewer';
 }

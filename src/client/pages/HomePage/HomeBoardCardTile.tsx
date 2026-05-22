@@ -58,11 +58,6 @@ export function HomeBoardCardTile({
             }
           : undefined
       }
-      onSelectStart={(event) => {
-        if (boardDraggable) {
-          event.preventDefault();
-        }
-      }}
       onContextMenu={(event) => {
         if (boardDraggable) {
           event.preventDefault();
@@ -94,11 +89,6 @@ export function HomeBoardCardTile({
               ...(boardDraggable
                 ? { WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }
                 : {}),
-            }}
-            onSelectStart={(event) => {
-              if (boardDraggable) {
-                event.preventDefault();
-              }
             }}
           >
             {board.name}
@@ -138,11 +128,6 @@ export function HomeBoardCardTile({
                 ? { WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }
                 : undefined
             }
-            onSelectStart={(event) => {
-              if (boardDraggable) {
-                event.preventDefault();
-              }
-            }}
           >
             {board.description.trim()}
           </Text>

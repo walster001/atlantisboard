@@ -76,6 +76,9 @@ export async function getOrCreateBoardImportPlaceholder(params: {
   return doc._id.toString();
 }
 
+/** Board settings "All Users" can list every import placeholder on large Wekan boards. */
+const BOARD_IMPORT_PLACEHOLDER_DIRECTORY_CAP = 2000;
+
 export async function listBoardImportPlaceholderDirectoryRows(params: {
   readonly boardId: string;
   readonly query: string;
@@ -89,9 +92,13 @@ export async function listBoardImportPlaceholderDirectoryRows(params: {
     const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     filter.$or = [{ displayName: re }, { email: re }, { importUsername: re }];
   }
+  const rowLimit =
+    q.length === 0
+      ? BOARD_IMPORT_PLACEHOLDER_DIRECTORY_CAP
+      : Math.max(1, Math.min(params.limit, 120));
   const rows = await BoardImportPlaceholder.find(filter)
     .sort({ displayName: 1, _id: 1 })
-    .limit(Math.max(1, Math.min(params.limit, 120)))
+    .limit(rowLimit)
     .lean();
 
   return rows.map((row) => ({

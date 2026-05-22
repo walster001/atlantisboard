@@ -17,6 +17,7 @@ import {
   Button,
   Group,
   Loader,
+  Menu,
   Modal,
   Paper,
   Select,
@@ -25,7 +26,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconUserMinus } from '@tabler/icons-react';
+import { IconFilter, IconPlus, IconUserMinus, IconX } from '@tabler/icons-react';
 import { TableVirtuoso } from 'react-virtuoso';
 import axios from 'axios';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
@@ -95,6 +96,13 @@ function sortBoardMembersByDisplayName(members: readonly BoardMember[]): BoardMe
   return [...members].sort((m1, m2) =>
     compareUserRowsByDisplayName(extractUser(m1.userId), extractUser(m2.userId)),
   );
+}
+
+function memberPanelRowMatchesRoleFilter(row: MemberPanelRow, roleFilter: RoleKey): boolean {
+  if (row.kind === 'owner') {
+    return roleFilter === 'admin';
+  }
+  return row.member.roleKey === roleFilter;
 }
 
 /** Later entries win (newest page / API wins) so pagination merges stay consistent */
@@ -499,6 +507,7 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
   );
   /** Committed filter: applied only after Enter (initial '' shows everyone). */
   const [memberFilterQuery, setMemberFilterQuery] = useState('');
+  const [memberRoleFilter, setMemberRoleFilter] = useState<RoleKey | null>(null);
   const [membersLoadingMore, setMembersLoadingMore] = useState(false);
 
   const addRolesRef = useRef(addRoles);
@@ -589,6 +598,10 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
   useEffect(() => {
     void loadBoard();
   }, [loadBoard]);
+
+  useEffect(() => {
+    setMemberRoleFilter(null);
+  }, [boardId]);
 
   const fetchNextMemberPage = useCallback(async () => {
     const cursor = membersNextCursorRef.current;
@@ -792,7 +805,21 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
     return rows;
   }, [owner, members]);
 
-  const memberCount = (owner ? 1 : 0) + members.length;
+  const filteredMemberPanelRows = useMemo((): MemberPanelRow[] => {
+    if (memberRoleFilter == null) {
+      return sortedMemberPanelRows;
+    }
+    return sortedMemberPanelRows.filter((row) => memberPanelRowMatchesRoleFilter(row, memberRoleFilter));
+  }, [sortedMemberPanelRows, memberRoleFilter]);
+
+  const memberRoleFilterLabel = useMemo(() => {
+    if (memberRoleFilter == null) {
+      return null;
+    }
+    return roleOptions.find((option) => option.value === memberRoleFilter)?.label ?? memberRoleFilter;
+  }, [memberRoleFilter, roleOptions]);
+
+  const memberCount = filteredMemberPanelRows.length;
 
   const hasUnmappedDirectoryPlaceholders = useMemo(
     () => directoryUsers.some((u) => u.importPlaceholder === true && u.importNotMapped === true),
@@ -1141,9 +1168,58 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
             className="board-member-management__panel-head"
             style={{ flexShrink: 0 }}
           >
-            <Text fw={700} size="md">
-              Current Members ({memberCount})
-            </Text>
+            <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
+              <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+                <Text fw={700} size="md" style={{ flexShrink: 0 }}>
+                  Current Members ({memberCount})
+                </Text>
+                {memberRoleFilter != null && memberRoleFilterLabel != null ? (
+                  <Badge
+                    variant="light"
+                    size="sm"
+                    color="blue"
+                    rightSection={
+                      <ActionIcon
+                        size="xs"
+                        variant="transparent"
+                        color="blue"
+                        aria-label="Clear role filter"
+                        onClick={() => {
+                          setMemberRoleFilter(null);
+                        }}
+                      >
+                        <IconX size={12} stroke={2} />
+                      </ActionIcon>
+                    }
+                  >
+                    {memberRoleFilterLabel}
+                  </Badge>
+                ) : null}
+              </Group>
+              <Menu position="bottom-end" withinPortal>
+                <Menu.Target>
+                  <ActionIcon
+                    variant={memberRoleFilter != null ? 'light' : 'subtle'}
+                    color={memberRoleFilter != null ? 'blue' : 'gray'}
+                    aria-label="Filter members by role"
+                  >
+                    <IconFilter size={18} stroke={1.75} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  {roleOptions.map((option) => (
+                    <Menu.Item
+                      key={option.value}
+                      onClick={() => {
+                        setMemberRoleFilter(option.value);
+                      }}
+                    >
+                      {option.label}
+                    </Menu.Item>
+                  ))}
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
             <BoardMemberEnterToSearchField
               key={`mem-${boardId}`}
               ariaLabel="Search current members"
@@ -1163,11 +1239,13 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
               overflow: 'hidden',
             }}
           >
-            {sortedMemberPanelRows.length === 0 ? (
+            {filteredMemberPanelRows.length === 0 ? (
               <Text size="sm" c="dimmed" ta="center" py="md">
-                {memberFilterQuery.trim() !== ''
-                  ? 'No members match your search.'
-                  : 'No members to show.'}
+                {memberRoleFilter != null
+                  ? 'No members with this role.'
+                  : memberFilterQuery.trim() !== ''
+                    ? 'No members match your search.'
+                    : 'No members to show.'}
               </Text>
             ) : (
               <Box
@@ -1184,7 +1262,7 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
                 <TableVirtuoso
                   className="board-member-management__virtuoso-root"
                   style={{ height: '100%', minHeight: 0, width: '100%', flex: 1 }}
-                  data={sortedMemberPanelRows}
+                  data={filteredMemberPanelRows}
                   components={boardMemberTableVirtuosoComponents}
                   computeItemKey={(_index, row) =>
                     row.kind === 'owner' ? `owner:${row.user._id}` : extractUser(row.member.userId)._id

@@ -36,6 +36,17 @@
   flex-direction: column;
 }
 
+.admin-configuration-page__layout--users {
+  min-height: calc(100vh - 220px);
+  max-height: calc(100vh - 160px);
+}
+
+.admin-configuration-page__layout--users .admin-configuration-page__content {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .admin-configuration-page__header {
   margin-bottom: var(--mantine-spacing-lg);
 }

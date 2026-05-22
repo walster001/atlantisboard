@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Group, Paper, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import { db, type BoardDB, type BoardSettingsLivePatch } from '../../store/database.js';
@@ -29,15 +30,36 @@ function clampListMaxCards(n: number): number {
   return Math.min(LIST_MAX_CARDS_MAX, Math.max(LIST_MAX_CARDS_MIN, Math.round(n)));
 }
 
+const SWITCH_PROPS_TOUCH = {
+  size: 'md' as const,
+  styles: {
+    track: { minWidth: 52, minHeight: 30, cursor: 'pointer' },
+    thumb: { width: 24, height: 24 },
+    label: { fontSize: 'var(--mantine-font-size-md)' },
+    description: { fontSize: 'var(--mantine-font-size-sm)' },
+  },
+};
+
+const SWITCH_PROPS_DESKTOP = {
+  size: 'sm' as const,
+};
+
 interface BoardSettingsListSettingsPanelProps {
   boardId: string;
   onSettingsLivePatch?: (patch: BoardSettingsLivePatch) => void;
+  /** Board settings fullscreen shell (mobile/tablet): larger controls. */
+  mobileLayout?: boolean;
 }
 
 export function BoardSettingsListSettingsPanel({
   boardId,
   onSettingsLivePatch,
+  mobileLayout: mobileLayoutProp,
 }: BoardSettingsListSettingsPanelProps) {
+  const responsiveTier = useResponsiveTier();
+  const mobileLayout =
+    mobileLayoutProp ?? (responsiveTier === 'mobile' || responsiveTier === 'tablet');
+  const switchSizeProps = mobileLayout ? SWITCH_PROPS_TOUCH : SWITCH_PROPS_DESKTOP;
   const [board, setBoard] = useState<BoardDB | null>(null);
   const [maxCards, setMaxCards] = useState<number>(DEFAULT_BOARD_LIST_MAX_CARDS);
   const [maxCardsDraft, setMaxCardsDraft] = useState<string>(String(DEFAULT_BOARD_LIST_MAX_CARDS));
@@ -187,7 +209,8 @@ export function BoardSettingsListSettingsPanel({
           }}
           inputMode="numeric"
           disabled={loading}
-          style={{ maxWidth: 320 }}
+          size={mobileLayout ? 'md' : 'sm'}
+          style={{ maxWidth: mobileLayout ? undefined : 320 }}
           styles={{ input: { fontVariantNumeric: 'tabular-nums' } }}
           rightSection={
             <Text component="span" size="sm" c="dimmed" pr="xs">
@@ -215,7 +238,8 @@ export function BoardSettingsListSettingsPanel({
           inputMode="numeric"
           disabled={loading}
           mb="md"
-          style={{ maxWidth: 320 }}
+          size={mobileLayout ? 'md' : 'sm'}
+          style={{ maxWidth: mobileLayout ? undefined : 320 }}
           styles={{ input: { fontVariantNumeric: 'tabular-nums' } }}
         />
         <Switch
@@ -223,6 +247,7 @@ export function BoardSettingsListSettingsPanel({
           checked={enforceMaxCards}
           onChange={(e) => setEnforceMaxCards(e.currentTarget.checked)}
           disabled={loading}
+          {...switchSizeProps}
           description={
             enforceMaxCards
               ? 'Hard limit: server blocks new cards when a list is full.'
@@ -238,7 +263,7 @@ export function BoardSettingsListSettingsPanel({
       ) : null}
 
       <Group justify="flex-start">
-        <Button onClick={() => void handleSave()} loading={loading}>
+        <Button onClick={() => void handleSave()} loading={loading} size={mobileLayout ? 'sm' : 'md'}>
           Save
         </Button>
       </Group>

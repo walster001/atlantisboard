@@ -5,8 +5,14 @@ import { List } from '../../../models/List.js';
 import { Card } from '../../../models/Card.js';
 import { BoardLabel } from '../../../models/BoardLabel.js';
 import { Workspace } from '../../../models/Workspace.js';
-import { User } from '../../../models/User.js';
 import { ImportJob } from '../../../models/ImportJob.js';
+import type { ImportPreflightPayloadParsed } from '../../../../shared/import/importPreflightSchema.js';
+import type { ImportPreflightUser } from '../../../../shared/import/importPreflight.js';
+import { buildImportSourceUserMap } from '../importUserMapService.js';
+import {
+  collectTrelloMemberIdsForBoard,
+  mapTrelloBoardMemberToBoardRoleKey,
+} from '../../../../shared/import/trelloBoardMemberRoles.js';
 import { logger } from '../../../utils/logger.js';
 import { createActivity } from '../../activityService.js';
 import { emitToUser } from '../../../utils/socketIO.js';
@@ -41,8 +47,9 @@ export async function executeTrelloImportJob(params: {
   readonly jobId: string;
   readonly targetWorkspaceId?: string;
   readonly defaultUncolouredCardColour?: string;
+  readonly preflight?: ImportPreflightPayloadParsed;
 }): Promise<void> {
-  const { jsonData, userId, jobId, targetWorkspaceId, defaultUncolouredCardColour } = params;
+  const { jsonData, userId, jobId, targetWorkspaceId, defaultUncolouredCardColour, preflight } = params;
   const data = normalizeTrelloExport(jsonData);
   const listsOrdered = [...data.lists].filter((l) => l.closed !== true).sort((a, b) => a.pos - b.pos);
   const cardsOrdered = [...data.cards]
@@ -85,37 +92,30 @@ export async function executeTrelloImportJob(params: {
     workspaceId = defaultWorkspace._id.toString();
   }
 
-  const memberMap = new Map<string, string>();
+  const sourceUsers: ImportPreflightUser[] = (data.members ?? []).map((member) => {
+    const fullName = typeof member.fullName === 'string' && member.fullName.trim().length > 0 ? member.fullName.trim() : undefined;
+    const email = typeof member.email === 'string' && member.email.trim().length > 0 ? member.email.trim() : undefined;
+    const username = typeof member.username === 'string' && member.username.trim().length > 0 ? member.username.trim() : undefined;
+    return {
+      sourceUserId: member.id,
+      ...(fullName !== undefined ? { fullName } : {}),
+      ...(email !== undefined ? { email } : {}),
+      ...(username !== undefined ? { username } : {}),
+    };
+  });
+  const memberMap = await buildImportSourceUserMap({
+    sourceUsers,
+    source: 'trello',
+    importerUserId: userId,
+    preflight,
+  });
   const memberIdByEmail = new Map<string, string>();
-  if (data.members) {
-    for (const member of data.members) {
-      let resolvedUserId: string | undefined;
-      if (member.email) {
-        const user = await User.findOne({ email: member.email });
-        if (user) {
-          resolvedUserId = user._id.toString();
-        }
-      }
-      if (resolvedUserId === undefined && member.username) {
-        const user = await User.findOne({ username: member.username });
-        if (user) {
-          resolvedUserId = user._id.toString();
-        }
-      }
-      if (resolvedUserId === undefined && member.fullName) {
-        const user = await User.findOne({ displayName: member.fullName });
-        if (user) {
-          resolvedUserId = user._id.toString();
-        }
-      }
-      if (resolvedUserId !== undefined) {
-        memberMap.set(member.id, resolvedUserId);
-        if (member.email) {
-          memberIdByEmail.set(member.email.trim(), member.id);
-        }
-      }
+  for (const member of data.members ?? []) {
+    if (member.email != null && member.email.trim() !== '' && memberMap.has(member.id)) {
+      memberIdByEmail.set(member.email.trim(), member.id);
     }
   }
+  const importBoardMembers = preflight?.unmappedUserPolicy === 'create_placeholders';
 
   const boardMap = new Map<string, string>();
   const boardLabelMaps = new Map<string, Map<string, { id: string; name: string; color: string }>>();
@@ -140,6 +140,25 @@ export async function executeTrelloImportJob(params: {
       const boardWorkspaceId = orgId && workspaceMap.has(orgId) ? workspaceMap.get(orgId) : workspaceId;
       const rawBoardDesc =
         typeof trelloBoard.desc === 'string' && trelloBoard.desc.length > 0 ? trelloBoard.desc : undefined;
+      const boardMembers: Array<{ userId: mongoose.Types.ObjectId; roleKey: string; addedAt: Date }> = [
+        { userId: new mongoose.Types.ObjectId(userId), roleKey: 'admin', addedAt: new Date() },
+      ];
+      if (importBoardMembers) {
+        const seen = new Set<string>([userId]);
+        const trelloMemberIds = collectTrelloMemberIdsForBoard(trelloBoard.id, cardsOrdered);
+        for (const trelloMemberId of trelloMemberIds) {
+          const mapped = memberMap.get(trelloMemberId);
+          if (mapped == null || seen.has(mapped)) {
+            continue;
+          }
+          seen.add(mapped);
+          boardMembers.push({
+            userId: new mongoose.Types.ObjectId(mapped),
+            roleKey: mapTrelloBoardMemberToBoardRoleKey(),
+            addedAt: new Date(),
+          });
+        }
+      }
       const board = new Board({
         workspaceId: boardWorkspaceId,
         name: trelloBoard.name.slice(0, BOARD_NAME_MAX_LENGTH),
@@ -147,7 +166,7 @@ export async function executeTrelloImportJob(params: {
         background: resolveTrelloBoardBackgroundForImport(trelloBoard.prefs),
         visibility: 'workspace',
         ownerId: userId,
-        members: [],
+        members: boardMembers,
         settings: { allowComments: true, allowAttachments: true, cardCoverImages: true },
       });
       await board.save();

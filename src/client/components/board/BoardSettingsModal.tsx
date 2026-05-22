@@ -20,6 +20,7 @@ import {
   IconPalette,
   IconTag,
   IconUsers,
+  IconX,
 } from '@tabler/icons-react';
 import type { BoardSettingsLivePatch } from '../../store/database.js';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
@@ -83,7 +84,11 @@ export function BoardSettingsModal({
 }: BoardSettingsModalProps) {
   const responsiveTier = useResponsiveTier();
   const isMobile = responsiveTier === 'mobile';
+  const isTablet = responsiveTier === 'tablet';
   const isPwa = useIsPwa();
+  const useFullscreenShell = isMobile || isTablet || isPwa;
+  const shellModifier: 'mobile' | 'tablet' = isTablet && !isMobile ? 'tablet' : 'mobile';
+  const touchLayout = isMobile || isTablet;
   const [topTab, setTopTab] = useState<TopTab>('board');
   const [boardSideNav, setBoardSideNav] = useState<BoardSideNav>('labels');
   const [mobileDetail, setMobileDetail] = useState<MobileDetail>(null);
@@ -110,7 +115,15 @@ export function BoardSettingsModal({
         : 'Labels';
   })();
 
-  if (isMobile || isPwa) {
+  const handleShellHeaderAction = (): void => {
+    if (mobileDetail != null) {
+      setMobileDetail(null);
+      return;
+    }
+    onClose();
+  };
+
+  if (useFullscreenShell) {
     const showBoardRows = effectiveTopTab === 'board' && mobileDetail == null;
     const showThemeRows = effectiveTopTab === 'theme' && mobileDetail == null;
 
@@ -125,33 +138,57 @@ export function BoardSettingsModal({
         withCloseButton={false}
         title={null}
         classNames={{
-          inner: 'board-settings-modal__inner board-settings-modal__inner--mobile',
-          content: 'board-settings-modal__content board-settings-modal__content--mobile',
-          body: 'board-settings-modal__body board-settings-modal__body--mobile',
+          inner: `board-settings-modal__inner board-settings-modal__inner--${shellModifier}`,
+          content: `board-settings-modal__content board-settings-modal__content--${shellModifier}`,
+          body: `board-settings-modal__body board-settings-modal__body--${shellModifier}`,
         }}
       >
         <Box className="board-settings-modal__mobile-shell">
-          <Group className="board-settings-modal__mobile-header" gap="sm" wrap="nowrap" align="center">
-            <ActionIcon
-              type="button"
-              variant="subtle"
-              color="gray"
-              size="lg"
-              radius="md"
-              onClick={() => {
-                if (mobileDetail != null) {
-                  setMobileDetail(null);
-                  return;
-                }
-                onClose();
-              }}
-              aria-label="Go back"
-            >
-              <IconArrowLeft size={22} stroke={1.5} />
-            </ActionIcon>
-            <Title order={2} size="h4">
-              {mobileHeaderTitle}
-            </Title>
+          <Group
+            className={
+              isTablet
+                ? 'board-settings-modal__mobile-header board-settings-modal__mobile-header--tablet'
+                : 'board-settings-modal__mobile-header'
+            }
+            gap="sm"
+            wrap="nowrap"
+            align="center"
+          >
+            {isTablet ? (
+              <>
+                <Title order={2} size="h4" style={{ flex: 1, minWidth: 0 }}>
+                  {mobileHeaderTitle}
+                </Title>
+                <ActionIcon
+                  type="button"
+                  variant="subtle"
+                  color="gray"
+                  size="lg"
+                  radius="md"
+                  onClick={handleShellHeaderAction}
+                  aria-label={mobileDetail != null ? 'Go back' : 'Close board settings'}
+                >
+                  <IconX size={22} stroke={1.5} />
+                </ActionIcon>
+              </>
+            ) : (
+              <>
+                <ActionIcon
+                  type="button"
+                  variant="subtle"
+                  color="gray"
+                  size="lg"
+                  radius="md"
+                  onClick={handleShellHeaderAction}
+                  aria-label="Go back"
+                >
+                  <IconArrowLeft size={22} stroke={1.5} />
+                </ActionIcon>
+                <Title order={2} size="h4">
+                  {mobileHeaderTitle}
+                </Title>
+              </>
+            )}
           </Group>
 
           <Group className="board-settings-modal__mobile-top-icons" gap={10} wrap="nowrap">
@@ -284,13 +321,14 @@ export function BoardSettingsModal({
               {mobileDetail.kind === 'board' && mobileDetail.section === 'card-settings' ? (
                 <BoardSettingsCardSettingsPanel
                   boardId={boardId}
-                  mobileLayout
+                  mobileLayout={touchLayout}
                   {...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {})}
                 />
               ) : null}
               {mobileDetail.kind === 'board' && mobileDetail.section === 'list-settings' ? (
                 <BoardSettingsListSettingsPanel
                   boardId={boardId}
+                  mobileLayout={touchLayout}
                   {...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {})}
                 />
               ) : null}
@@ -312,14 +350,14 @@ export function BoardSettingsModal({
                   canManageCustomThemes={canManageCustomThemes}
                   {...(onThemeLivePatch !== undefined ? { onThemeLivePatch } : {})}
                   initialNav={mobileDetail.section === 'background' ? 'background' : 'theme'}
-                  mobileLayout
+                  mobileLayout={touchLayout}
                 />
               ) : null}
               {mobileDetail.kind === 'audit' ? (
                 <Suspense fallback={<TabPanelFallback />}>
                   <ActivityLog
                     boardId={boardId}
-                    mobileLayout
+                    mobileLayout={touchLayout}
                     {...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {})}
                   />
                 </Suspense>

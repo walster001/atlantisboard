@@ -14,6 +14,7 @@ import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isGoogleOAuthStrategyRegistered } from '../config/passport.js';
+import { claimImportPlaceholderMembershipsForUser } from '../services/importPlaceholderUserService.js';
 import { googleOAuthLanDeviceParamsForHostHeader } from '../../shared/utils/googleOAuthPrivateIp.js';
 import {
   googleOAuthAuthorizeStartUrl,
@@ -143,12 +144,12 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
       return;
     }
 
-    // Check if user already exists
+    const emailNorm = validated.email.trim().toLowerCase();
     const existingUser = await User.findOne({
-      $or: [{ email: validated.email }, { username: validated.username }],
-    });
+      $or: [{ email: emailNorm }, { username: validated.username }],
+    }).select('+passwordHash');
 
-    if (existingUser) {
+    if (existingUser && existingUser.isPlaceholder !== true) {
       res.status(409).json({
         error: {
           message: 'User already exists',
@@ -159,25 +160,81 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
       return;
     }
 
-    // Hash password
     const passwordHash = await hashPassword(validated.password);
-
-    const existingCount = await User.countDocuments();
+    const existingCount = await User.countDocuments({ isPlaceholder: { $ne: true } });
     const isFirstUser = existingCount === 0;
 
-    // Create user (first registered account becomes bootstrap App Admin)
-    const user = new User({
-      email: validated.email,
-      username: validated.username,
-      passwordHash,
-      displayName: validated.displayName,
-      emailVerified: false,
-      failedLoginAttempts: 0,
-      isAppAdmin: isFirstUser,
-      foundingAppAdmin: isFirstUser,
-    });
+    let user = existingUser;
+    if (existingUser?.isPlaceholder === true) {
+      const placeholderMatch =
+        existingUser.placeholderEmail?.toLowerCase() === emailNorm ||
+        existingUser.email.toLowerCase() === emailNorm;
+      if (!placeholderMatch) {
+        res.status(409).json({
+          error: {
+            message: 'User already exists',
+            code: 'USER_EXISTS',
+            statusCode: 409,
+          },
+        });
+        return;
+      }
+      existingUser.isPlaceholder = false;
+      existingUser.email = emailNorm;
+      existingUser.username = validated.username;
+      existingUser.passwordHash = passwordHash;
+      existingUser.displayName = validated.displayName;
+      existingUser.emailVerified = false;
+      existingUser.failedLoginAttempts = 0;
+      existingUser.set('placeholderSource', undefined, { strict: false });
+      existingUser.set('placeholderEmail', undefined, { strict: false });
+      existingUser.set('placeholderName', undefined, { strict: false });
+      existingUser.set('placeholderImportUsername', undefined, { strict: false });
+      if (isFirstUser) {
+        existingUser.isAppAdmin = true;
+        existingUser.foundingAppAdmin = true;
+      }
+      await existingUser.save();
+      user = existingUser;
+    } else {
+      const placeholderByImportEmail = await User.findOne({
+        isPlaceholder: true,
+        placeholderEmail: emailNorm,
+      }).select('+passwordHash');
+      if (placeholderByImportEmail) {
+        placeholderByImportEmail.isPlaceholder = false;
+        placeholderByImportEmail.email = emailNorm;
+        placeholderByImportEmail.username = validated.username;
+        placeholderByImportEmail.passwordHash = passwordHash;
+        placeholderByImportEmail.displayName = validated.displayName;
+        placeholderByImportEmail.emailVerified = false;
+        placeholderByImportEmail.failedLoginAttempts = 0;
+        placeholderByImportEmail.set('placeholderSource', undefined, { strict: false });
+        placeholderByImportEmail.set('placeholderEmail', undefined, { strict: false });
+        placeholderByImportEmail.set('placeholderName', undefined, { strict: false });
+        placeholderByImportEmail.set('placeholderImportUsername', undefined, { strict: false });
+        if (isFirstUser) {
+          placeholderByImportEmail.isAppAdmin = true;
+          placeholderByImportEmail.foundingAppAdmin = true;
+        }
+        await placeholderByImportEmail.save();
+        user = placeholderByImportEmail;
+      } else {
+        user = new User({
+          email: emailNorm,
+          username: validated.username,
+          passwordHash,
+          displayName: validated.displayName,
+          emailVerified: false,
+          failedLoginAttempts: 0,
+          isAppAdmin: isFirstUser,
+          foundingAppAdmin: isFirstUser,
+        });
+        await user.save();
+      }
+    }
 
-    await user.save();
+    await claimImportPlaceholderMembershipsForUser(user);
 
     // Generate token
     const token = generateToken({
@@ -300,11 +357,24 @@ router.post('/login', authRateLimiter, async (req, res, next) => {
       return;
     }
 
+    if (user.isPlaceholder === true) {
+      res.status(401).json({
+        error: {
+          message: 'Invalid email or password',
+          code: 'INVALID_CREDENTIALS',
+          statusCode: 401,
+        },
+      });
+      return;
+    }
+
     // Reset failed login attempts on successful login
     user.failedLoginAttempts = 0;
     user.set('lockedUntil', undefined);
     user.lastLogin = new Date();
     await user.save();
+
+    await claimImportPlaceholderMembershipsForUser(user);
 
     // Generate token
     const token = generateToken({

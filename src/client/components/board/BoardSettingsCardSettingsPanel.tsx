@@ -68,8 +68,9 @@ export function BoardSettingsCardSettingsPanel({
   onSettingsLivePatch,
   mobileLayout: mobileLayoutProp,
 }: BoardSettingsCardSettingsPanelProps) {
-  const isMobileTier = useResponsiveTier() === 'mobile';
-  const mobileLayout = mobileLayoutProp ?? isMobileTier;
+  const responsiveTier = useResponsiveTier();
+  const mobileLayout =
+    mobileLayoutProp ?? (responsiveTier === 'mobile' || responsiveTier === 'tablet');
   const switchSizeProps = mobileLayout ? SWITCH_PROPS_MOBILE : SWITCH_PROPS_DESKTOP;
   const [board, setBoard] = useState<BoardDB | null>(null);
   const [loading, setLoading] = useState(false);

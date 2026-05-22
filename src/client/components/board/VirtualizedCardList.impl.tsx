@@ -89,7 +89,7 @@ function VirtualizedCardListInner({
 
   /**
    * Swiper’s `swiper-no-swiping` blocks *all* carousel gestures starting on the list — including
-   * horizontal column changes. On mobile/tablet carousel we rely on `touch-action: pan-x pan-y`
+   * horizontal column changes. On the mobile carousel we rely on `touch-action: pan-x pan-y`
    * (boardView.css) + long-press card drag instead, so horizontal swipes can reach Swiper.
    */
   const listBodySwiperNoSwipingClass = kanbanCardTouchDragRequiresLongPress ? '' : ' swiper-no-swiping';

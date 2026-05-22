@@ -12228,6 +12228,134 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 }
 
+@media (min-width: 768px) and (max-width: 1199px) {
+  .board-settings-modal__inner--tablet {
+    padding: 0;
+  }
+
+  .board-settings-modal__content--tablet {
+    overflow: hidden;
+    border-radius: 0 !important;
+    width: 100dvw !important;
+    min-width: 100dvw !important;
+    max-width: 100dvw !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+  }
+
+  .board-settings-modal__body--tablet {
+    overflow: hidden;
+    padding: 0 !important;
+  }
+
+  .board-settings-modal__mobile-shell {
+    display: flex;
+    padding: calc(8px + env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+    background: var(--mantine-color-body);
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .board-settings-modal__mobile-header {
+    flex-shrink: 0;
+  }
+
+  .board-settings-modal__mobile-header--tablet {
+    justify-content: space-between;
+  }
+
+  .board-settings-modal__mobile-top-icons {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items:  center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .board-settings-modal__mobile-rows {
+    margin-top: 8px;
+  }
+
+  .board-settings-modal__mobile-row {
+    border: 1px solid var(--mantine-color-gray-3);
+    border-radius: var(--mantine-radius-md);
+    text-align: left;
+    font-size: var(--mantine-font-size-sm);
+    background: #fff;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 12px;
+    font-weight: 600;
+  }
+
+  .board-settings-modal__mobile-content {
+    display: flex;
+    overflow: hidden;
+    overscroll-behavior: contain;
+    border: 1px solid var(--mantine-color-gray-3);
+    border-radius: var(--mantine-radius-md);
+    padding: var(--mantine-spacing-sm);
+    background: #fff;
+    flex-direction: column;
+    flex: auto;
+    min-height: 0;
+    margin-top: 8px;
+  }
+
+  .board-settings-modal__mobile-content--users {
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    width: calc(100% + 20px);
+    max-width: none;
+    margin-left: -10px;
+    margin-right: -10px;
+    padding: 0;
+  }
+
+  .board-settings-modal__mobile-content--audit {
+    background: none;
+    border: none;
+    border-radius: 0;
+    width: calc(100% + 20px);
+    max-width: none;
+    margin-left: -10px;
+    margin-right: -10px;
+    padding: 0;
+  }
+
+  .board-settings-modal__mobile-content--settings-scroll {
+    overflow: hidden;
+    padding: var(--mantine-spacing-xs);
+  }
+
+  .board-settings-card-settings-panel--mobile {
+    overflow: hidden;
+    flex: auto;
+    min-height: 0;
+  }
+
+  .board-settings-card-settings-panel__header {
+    flex-shrink: 0;
+    padding-bottom: 2px;
+  }
+
+  .board-settings-card-settings-panel__scroll {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-right: 2px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    flex: auto;
+    min-height: 0;
+  }
+}
+
 /* src/client/components/activities/activityLog.css */
 .board-member-activity-log {
   display: flex;
@@ -13602,6 +13730,62 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   }
 }
 
+.board-page--tablet .board-page__header {
+  padding-bottom: 8px;
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-top: calc(8px + constant(safe-area-inset-top));
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+}
+
+.board-page--tablet .board-page__title {
+  letter-spacing: .03em;
+  font-size: 1.05rem;
+}
+
+.board-page--tablet .board-page__body {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.board-page--tablet .board-page__header-icon.mantine-ActionIcon-root {
+  touch-action: manipulation;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+
+.board-page--tablet .board-column__menu {
+  touch-action: manipulation;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px !important;
+  height: 44px !important;
+}
+
+.board-page--tablet .board-column__menu svg {
+  width: 22px;
+  height: 22px;
+}
+
+.board-page--tablet .board-card__kanban-menu-trigger {
+  touch-action: manipulation;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px !important;
+  height: 44px !important;
+}
+
+.board-page--tablet .board-card__kanban-menu-trigger svg {
+  width: 24px;
+  height: 24px;
+}
+
+.board-page--tablet .board-card.board-card--kanban .board-card__kanban-title {
+  padding-right: 52px;
+}
+
 @media (max-width: 767px) {
   .board-page {
     --board-viewport-gap: .75dvh;
@@ -13670,6 +13854,17 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 }
 
 .admin-configuration-page__layout--permissions .admin-configuration-page__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-configuration-page__layout--users {
+  min-height: calc(100vh - 220px);
+  max-height: calc(100vh - 160px);
+}
+
+.admin-configuration-page__layout--users .admin-configuration-page__content {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -14060,6 +14255,126 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
   }
+}
+
+/* src/client/components/admin/adminUsersTab.css */
+.admin-users-tab, .admin-users-tab__table-panel {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-users-tab__table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-sm);
+  background-color: var(--mantine-color-white);
+  flex-direction: column;
+  flex: auto;
+  min-height: 280px;
+  max-height: min(62vh, 680px);
+}
+
+.admin-users-tab__virtuoso-root {
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-users-tab__table-footer {
+  padding: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--mantine-color-gray-2);
+  flex-shrink: 0;
+}
+
+.admin-users-tab__data-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 1180px;
+}
+
+.admin-users-tab__data-table tbody tr {
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-users-tab__data-table tbody tr:hover .admin-users-tab__td {
+  background-color: var(--mantine-color-gray-1);
+}
+
+.admin-users-tab__th {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--mantine-font-size-sm);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+  border-right: 1px solid var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-gray-0);
+  white-space: nowrap;
+}
+
+.admin-users-tab__th:last-child {
+  border-right: none;
+}
+
+.admin-users-tab__th--actions {
+  text-align: right;
+}
+
+.admin-users-tab__td {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  vertical-align: middle;
+  font-size: var(--mantine-font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-right: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-users-tab__td:last-child {
+  border-right: none;
+}
+
+.admin-users-tab__td--striped {
+  background-color: var(--mantine-color-gray-0);
+}
+
+.admin-users-tab__td--actions {
+  text-align: right;
+}
+
+.admin-users-tab__cap-col {
+  padding-inline: var(--mantine-spacing-xs);
+  text-align: center;
+  vertical-align: middle;
+  min-width: 0;
+}
+
+.admin-users-tab__th.admin-users-tab__cap-col {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.admin-users-tab__td.admin-users-tab__cap-col {
+  white-space: nowrap;
+}
+
+.admin-users-tab__cap-cell {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items:  center;
+  gap: 4px;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
+}
+
+.admin-users-tab__cap-cell .mantine-Checkbox-root, .admin-users-tab__cap-cell > span {
+  display: inline-flex;
+  justify-content: center;
 }
 
 /* src/client/styles/index.processed.css */

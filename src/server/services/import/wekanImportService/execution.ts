@@ -4,8 +4,9 @@ import { List } from '../../../models/List.js';
 import { Card } from '../../../models/Card.js';
 import { BoardLabel } from '../../../models/BoardLabel.js';
 import { Workspace } from '../../../models/Workspace.js';
-import { User } from '../../../models/User.js';
 import { ImportJob } from '../../../models/ImportJob.js';
+import type { ImportPreflightUser } from '../../../../shared/import/importPreflight.js';
+import { buildImportSourceUserMap } from '../importUserMapService.js';
 import { logger } from '../../../utils/logger.js';
 import { createActivity } from '../../activityService.js';
 import { emitToUser } from '../../../utils/socketIO.js';
@@ -36,26 +37,32 @@ export async function executeWekanImportJob(params: {
     throw new Error('Wekan import: no boards found in file.');
   }
 
-  const userMap = new Map<string, string>();
-  if (data.users) {
-    for (const wekanUser of data.users) {
-      let matchedUser: (typeof User) | null = null;
-      const email = wekanUser.emails?.[0]?.address;
-      if (email) {
-        matchedUser = await User.findOne({ email });
-      }
-      if (!matchedUser && wekanUser.username) {
-        matchedUser = await User.findOne({ username: wekanUser.username });
-      }
-      if (!matchedUser && wekanUser.profile?.fullname) {
-        matchedUser = await User.findOne({ displayName: wekanUser.profile.fullname });
-      }
-      if (matchedUser) {
-        const autoMatchedUserId = (matchedUser as unknown as { _id: { toString: () => string } })._id.toString();
-        userMap.set(wekanUser._id, autoMatchedUserId);
-      }
-    }
-  }
+  const sourceUsers: ImportPreflightUser[] = (data.users ?? []).map((wekanUser) => {
+    const fullName =
+      typeof wekanUser.profile?.fullname === 'string' && wekanUser.profile.fullname.trim().length > 0
+        ? wekanUser.profile.fullname.trim()
+        : undefined;
+    const email =
+      typeof wekanUser.emails?.[0]?.address === 'string' && wekanUser.emails[0].address.trim().length > 0
+        ? wekanUser.emails[0].address.trim()
+        : undefined;
+    const username =
+      typeof wekanUser.username === 'string' && wekanUser.username.trim().length > 0
+        ? wekanUser.username.trim()
+        : undefined;
+    return {
+      sourceUserId: wekanUser._id,
+      ...(fullName !== undefined ? { fullName } : {}),
+      ...(email !== undefined ? { email } : {}),
+      ...(username !== undefined ? { username } : {}),
+    };
+  });
+  const userMap = await buildImportSourceUserMap({
+    sourceUsers,
+    source: 'wekan',
+    importerUserId: userId,
+    preflight,
+  });
 
   const workspaceMap = new Map<string, string>();
   const boardMap = new Map<string, string>();
@@ -109,8 +116,8 @@ export async function executeWekanImportJob(params: {
           ];
           seen.add(userId);
           for (const member of wekanBoard.members || []) {
-            const mapped = userMap.get(member.userId) || userId;
-            if (seen.has(mapped)) {
+            const mapped = userMap.get(member.userId);
+            if (mapped == null || seen.has(mapped)) {
               continue;
             }
             seen.add(mapped);

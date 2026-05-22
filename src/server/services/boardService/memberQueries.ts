@@ -22,20 +22,22 @@ export async function getBoardMembersPage(
   const memberUserIds = board.members.map((member) => extractRefUserIdString(member.userId));
   const allUserIds = Array.from(new Set([ownerUserId, ...memberUserIds].filter((id) => id !== '')));
   const users = await User.find({ _id: { $in: allUserIds } })
-    .select('_id displayName email profilePicture')
+    .select('_id displayName email profilePicture isPlaceholder placeholderEmail')
     .lean();
   const byId = new Map(users.map((user) => [String(user._id), user]));
 
   let rows: BoardMemberListItem[] = [
     (() => {
       const owner = byId.get(ownerUserId);
+      const ownerPlaceholder = owner?.isPlaceholder === true;
       return {
         userId: ownerUserId,
         displayName: owner?.displayName ?? 'Unknown user',
-        email: owner?.email ?? '',
+        email: owner?.placeholderEmail ?? owner?.email ?? '',
         ...(owner?.profilePicture !== undefined ? { profilePicture: owner.profilePicture } : {}),
         role: 'owner' as const,
         roleKey: 'admin',
+        ...(ownerPlaceholder ? { importPlaceholder: true, importNotMapped: true } : {}),
       };
     })(),
     ...board.members
@@ -43,14 +45,16 @@ export async function getBoardMembersPage(
       .map((member) => {
         const id = extractRefUserIdString(member.userId);
         const user = id !== '' ? byId.get(id) : undefined;
+        const memberPlaceholder = user?.isPlaceholder === true;
         return {
           userId: id,
           displayName: user?.displayName ?? 'Unknown user',
-          email: user?.email ?? '',
+          email: user?.placeholderEmail ?? user?.email ?? '',
           ...(user?.profilePicture !== undefined ? { profilePicture: user.profilePicture } : {}),
           role: 'member' as const,
           roleKey: member.roleKey,
           addedAt: member.addedAt,
+          ...(memberPlaceholder ? { importPlaceholder: true, importNotMapped: true } : {}),
         };
       }),
   ];

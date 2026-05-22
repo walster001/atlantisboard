@@ -25,7 +25,6 @@ import {
 } from './KanbanView/helpers.js';
 import { useKanbanViewController } from './KanbanView/useKanbanViewController.js';
 import type { ResponsiveTier } from '../../hooks/useResponsiveTier.js';
-import { getBoardListColumnWidthPx } from '../../utils/boardListColumnWidth.js';
 import './boardView.css';
 
 const MOBILE_CAROUSEL_EDGE_PX = 52;
@@ -48,7 +47,7 @@ interface KanbanViewProps {
   boardCardPatchRef?: MutableRefObject<((card: CardDB) => void) | null>;
   /** List/card menus and add-list/add-card — hidden until loaded, then from granular board keys. */
   kanbanCaps: KanbanBoardEditCaps;
-  /** `mobile` / `tablet`: Swiper carousel; `desktop`: horizontal columns + windowing. */
+  /** `mobile`: Swiper carousel; `tablet` / `desktop`: horizontal columns + windowing. */
   responsiveTier: ResponsiveTier;
 }
 
@@ -134,7 +133,7 @@ export function KanbanView({
   kanbanCaps,
   responsiveTier,
 }: KanbanViewProps) {
-  const isSwipeKanban = responsiveTier === 'mobile' || responsiveTier === 'tablet';
+  const isSwipeKanban = responsiveTier === 'mobile';
   const carouselEdgeBumpRef = useRef<((clientX: number) => void) | null>(null);
   const {
     assigneeDirectory,
@@ -172,26 +171,10 @@ export function KanbanView({
 
   const [activeIndex, setActiveIndex] = useState(0);
   const carouselHostRef = useRef<HTMLDivElement | null>(null);
-  const carouselRoCleanupRef = useRef<(() => void) | null>(null);
-  const [carouselHostWidth, setCarouselHostWidth] = useState(0);
   const bindMobileCarouselHostRef = useCallback(
     (node: HTMLDivElement | null) => {
-      carouselRoCleanupRef.current?.();
-      carouselRoCleanupRef.current = null;
       carouselHostRef.current = node;
       setColumnsGroupRef(node);
-      if (node == null) {
-        setCarouselHostWidth(0);
-        return;
-      }
-      const ro = new ResizeObserver(() => {
-        setCarouselHostWidth(node.clientWidth);
-      });
-      ro.observe(node);
-      setCarouselHostWidth(node.clientWidth);
-      carouselRoCleanupRef.current = (): void => {
-        ro.disconnect();
-      };
     },
     [setColumnsGroupRef],
   );
@@ -202,23 +185,13 @@ export function KanbanView({
 
   const totalMobileLists = mountedLists.length;
 
-  const carouselLayout = useMemo((): { readonly slidesPerView: 1 | 2; readonly maxActiveIndex: number } => {
-    const gap = LIST_HORIZONTAL_GAP_PX;
+  const carouselLayout = useMemo((): { readonly slidesPerView: 1; readonly maxActiveIndex: number } => {
     const total = totalMobileLists;
-    const prefer = getBoardListColumnWidthPx(board);
-    const avail = Math.max(0, carouselHostWidth);
     if (total === 0) {
       return { slidesPerView: 1, maxActiveIndex: 0 };
     }
-    const baseMax = Math.max(0, total - 1);
-    if (responsiveTier !== 'tablet' || total < 2 || avail === 0) {
-      return { slidesPerView: 1, maxActiveIndex: baseMax };
-    }
-    if (prefer * 2 + gap <= avail) {
-      return { slidesPerView: 2, maxActiveIndex: Math.max(0, total - 2) };
-    }
-    return { slidesPerView: 1, maxActiveIndex: baseMax };
-  }, [board, totalMobileLists, responsiveTier, carouselHostWidth]);
+    return { slidesPerView: 1, maxActiveIndex: Math.max(0, total - 1) };
+  }, [totalMobileLists]);
 
   useLayoutEffect(() => {
     if (!isSwipeKanban) {

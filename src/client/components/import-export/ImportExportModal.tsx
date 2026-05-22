@@ -27,11 +27,13 @@ import {
   wait,
 } from '../../utils/longTaskProgressNotifications.js';
 import {
+  buildTrelloImportPreflight,
   buildWekanImportPreflight,
   type ImportPreflightPayload,
   type ImportPreflightResult,
   type InlineButtonIconReplacement,
 } from '../../../shared/import/importPreflight.js';
+import { ImportUserManagementTab } from './ImportUserManagementTab.js';
 import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import {
@@ -59,7 +61,7 @@ interface ImportExportModalProps {
 }
 
 type ImportType = 'trello' | 'wekan' | 'csv' | null;
-type TabType = 'import' | 'replace-buttons' | 'export';
+type TabType = 'import' | 'replace-buttons' | 'user-management' | 'export';
 
 interface ImportJobClientView {
   status: string;
@@ -367,6 +369,7 @@ export function ImportExportModal({
   const [preflight, setPreflight] = useState<ImportPreflightResult | null>(null);
   const [preflightBusy, setPreflightBusy] = useState(false);
   const [inlineButtonReplacements, setInlineButtonReplacements] = useState<InlineButtonIconReplacement[]>([]);
+  const [importUsersAsPlaceholders, setImportUsersAsPlaceholders] = useState(false);
   const [exportColumns, setExportColumns] = useState<string[]>([
     'title',
     'description',
@@ -382,6 +385,7 @@ export function ImportExportModal({
 
   const wekanButtons = useMemo(() => (importType === 'wekan' ? preflight?.wekanButtons?.buttons ?? [] : []), [importType, preflight]);
   const needsReplaceButtons = importType === 'wekan' && wekanButtons.length > 0;
+  const showUserManagementTab = importType === 'trello' || importType === 'wekan';
 
   const unresolvedButtonsCount = useMemo(() => {
     if (!needsReplaceButtons) {
@@ -395,10 +399,11 @@ export function ImportExportModal({
   const resetPreflightState = useCallback((): void => {
     setPreflight(null);
     setInlineButtonReplacements([]);
+    setImportUsersAsPlaceholders(false);
   }, []);
 
   const runPreflightForFile = useCallback(async (nextFile: File, nextImportType: ImportType): Promise<void> => {
-    if (nextImportType !== 'wekan') {
+    if (nextImportType !== 'wekan' && nextImportType !== 'trello') {
       resetPreflightState();
       return;
     }
@@ -416,13 +421,16 @@ export function ImportExportModal({
         resetPreflightState();
         return;
       }
-      const result = buildWekanImportPreflight(parsed);
+      const result =
+        nextImportType === 'wekan' ? buildWekanImportPreflight(parsed) : buildTrelloImportPreflight(parsed);
       setPreflight(result);
       setInlineButtonReplacements([]);
 
       const hasButtons = nextImportType === 'wekan' && (result.wekanButtons?.buttons.length ?? 0) > 0;
       if (hasButtons) {
         setActiveTab('replace-buttons');
+      } else if (nextImportType === 'trello' || nextImportType === 'wekan') {
+        setActiveTab('user-management');
       } else {
         setActiveTab('import');
       }
@@ -450,7 +458,7 @@ export function ImportExportModal({
       nextImportType === 'trello' || nextImportType === 'wekan'
         ? {
             userDecisions: [],
-            unmappedUserPolicy: 'discard_unmapped',
+            unmappedUserPolicy: importUsersAsPlaceholders ? 'create_placeholders' : 'discard_unmapped',
             ...(nextImportType === 'wekan'
               ? { inlineButtonIconReplacements: inlineButtonReplacements }
               : {}),
@@ -646,6 +654,9 @@ export function ImportExportModal({
         <Tabs.List mb="md">
           <Tabs.Tab value="import">Import</Tabs.Tab>
           {needsReplaceButtons ? <Tabs.Tab value="replace-buttons">Replace Buttons</Tabs.Tab> : null}
+          {showUserManagementTab && file != null ? (
+            <Tabs.Tab value="user-management">User Management</Tabs.Tab>
+          ) : null}
           {boardId ? <Tabs.Tab value="export">Export</Tabs.Tab> : null}
         </Tabs.List>
 
@@ -791,12 +802,20 @@ export function ImportExportModal({
                     setActiveTab('replace-buttons');
                     return;
                   }
+                  if (showUserManagementTab && file != null) {
+                    setActiveTab('user-management');
+                    return;
+                  }
                   void handleImport();
                 }}
                 disabled={!file || !importType || loading || preflightBusy}
                 loading={loading}
               >
-                {needsReplaceButtons ? 'Continue preflight' : 'Import'}
+                {needsReplaceButtons
+                  ? 'Continue preflight'
+                  : showUserManagementTab && file != null
+                    ? 'Continue'
+                    : 'Import'}
               </Button>
             </Group>
           </Stack>
@@ -826,13 +845,56 @@ export function ImportExportModal({
                 color="blue"
                 radius="md"
                 onClick={() => {
+                  if (showUserManagementTab) {
+                    setActiveTab('user-management');
+                    return;
+                  }
                   void handleImport();
                 }}
                 disabled={!file || !importType || loading}
               >
                 {unresolvedButtonsCount > 0
-                  ? `Import (${unresolvedButtonsCount} icon source${unresolvedButtonsCount === 1 ? '' : 's'} unchanged)`
-                  : 'Import'}
+                  ? `Continue (${unresolvedButtonsCount} icon source${unresolvedButtonsCount === 1 ? '' : 's'} unchanged)`
+                  : 'Continue'}
+              </Button>
+            </Group>
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="user-management" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Stack gap="md" style={{ minHeight: 0, flex: 1 }}>
+            <Box style={PANEL_SCROLL_AREA_STYLE}>
+              <ImportUserManagementTab
+                preflight={preflight}
+                importUsersAsPlaceholders={importUsersAsPlaceholders}
+                onImportUsersAsPlaceholdersChange={setImportUsersAsPlaceholders}
+              />
+            </Box>
+            <Group justify="flex-end" gap="sm" style={PANEL_FOOTER_STYLE}>
+              <Button
+                variant="default"
+                radius="md"
+                onClick={() => {
+                  if (needsReplaceButtons) {
+                    setActiveTab('replace-buttons');
+                  } else {
+                    setActiveTab('import');
+                  }
+                }}
+                disabled={loading}
+              >
+                Back
+              </Button>
+              <Button
+                color="blue"
+                radius="md"
+                onClick={() => {
+                  void handleImport();
+                }}
+                disabled={!file || !importType || loading}
+                loading={loading}
+              >
+                Import
               </Button>
             </Group>
           </Stack>

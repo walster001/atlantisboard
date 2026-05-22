@@ -271,7 +271,9 @@ export default function AdminConfigurationPage() {
             className={
               configSubtab === 'permissions'
                 ? 'admin-configuration-page__layout admin-configuration-page__layout--permissions'
-                : 'admin-configuration-page__layout'
+                : configSubtab === 'users'
+                  ? 'admin-configuration-page__layout admin-configuration-page__layout--users'
+                  : 'admin-configuration-page__layout'
             }
           >
             <nav className="admin-configuration-page__sidebar" aria-label="Configuration sections">

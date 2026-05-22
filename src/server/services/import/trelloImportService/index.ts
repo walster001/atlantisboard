@@ -32,6 +32,7 @@ export async function importTrello(
       jobId,
       ...(targetWorkspaceId !== undefined ? { targetWorkspaceId } : {}),
       ...(defaultUncolouredCardColour !== undefined ? { defaultUncolouredCardColour } : {}),
+      ...(_preflight !== undefined ? { preflight: _preflight } : {}),
     });
     return jobId;
   } catch (error) {

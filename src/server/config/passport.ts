@@ -11,6 +11,7 @@ import {
 } from '../../shared/utils/googleOAuthCallbackUrl.js';
 import { deriveUniqueUsernameForGoogleOAuth } from '../utils/googleOAuthUsername.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
+import { claimImportPlaceholderMembershipsForUser } from '../services/importPlaceholderUserService.js';
 
 // Serialize user for session
 passport.serializeUser((user: Express.User, done) => {
@@ -147,7 +148,9 @@ export async function configureGoogleStrategy(): Promise<void> {
                   delete existingUser.placeholderSource;
                   delete existingUser.placeholderEmail;
                   delete existingUser.placeholderName;
+                  delete existingUser.placeholderImportUsername;
                   await existingUser.save();
+                  await claimImportPlaceholderMembershipsForUser(existingUser);
                   if (isFirstUser) {
                     logger.info({ userId: existingUser._id.toString() }, 'First user (from placeholder) automatically made app admin via OAuth');
                   } else {
@@ -186,6 +189,7 @@ export async function configureGoogleStrategy(): Promise<void> {
                   }
 
                   await existingUser.save();
+                  await claimImportPlaceholderMembershipsForUser(existingUser);
                   logAuditEvent({
                     userId: existingUser._id.toString(),
                     action: 'user.google_merged',
@@ -230,6 +234,7 @@ export async function configureGoogleStrategy(): Promise<void> {
                   },
                 });
                 await user.save();
+                await claimImportPlaceholderMembershipsForUser(user);
                 if (isFirstUser) {
                   logger.info({ userId: user._id.toString() }, 'First user automatically made app admin via Google OAuth');
                 } else {
@@ -254,6 +259,7 @@ export async function configureGoogleStrategy(): Promise<void> {
               }
               user.lastLogin = new Date();
               await user.save({ validateBeforeSave: false });
+              await claimImportPlaceholderMembershipsForUser(user);
             }
 
             if (!user) {

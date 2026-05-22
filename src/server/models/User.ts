@@ -50,6 +50,8 @@ export interface IUser extends Document {
   placeholderSource?: 'trello' | 'wekan';
   placeholderEmail?: string;
   placeholderName?: string;
+  /** Original import file username (login matching for board import placeholders). */
+  placeholderImportUsername?: string;
   failedLoginAttempts: number;
   lockedUntil?: Date;
   isAppAdmin: boolean;
@@ -201,6 +203,7 @@ const UserSchema = new Schema<IUser>(
     },
     placeholderEmail: String,
     placeholderName: String,
+    placeholderImportUsername: String,
     failedLoginAttempts: {
       type: Number,
       default: 0,

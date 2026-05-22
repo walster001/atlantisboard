@@ -49,12 +49,14 @@ export function BoardThemeColouringPanel({
   onSaveChanges,
   mobileLayout = false,
 }: BoardThemeColouringPanelProps) {
+  const themeActionSize = mobileLayout ? 44 : ('sm' as const);
   const saveButton = (
     <Button
       onClick={onSaveChanges}
       loading={saving}
       disabled={!canChangeTheme || !hasUnsavedChanges || saving}
       fullWidth={mobileLayout}
+      size={mobileLayout ? 'sm' : 'md'}
       {...(mobileLayout ? { className: 'board-theme-colouring-panel__save' } : {})}
     >
       Save Changes
@@ -114,7 +116,7 @@ export function BoardThemeColouringPanel({
                       <ActionIcon
                         type="button"
                         variant="default"
-                        size="sm"
+                        size={themeActionSize}
                         radius="xl"
                         aria-label="Edit theme"
                         className="board-theme-card__float-icon"
@@ -123,12 +125,12 @@ export function BoardThemeColouringPanel({
                           onEditTheme(theme.id);
                         }}
                       >
-                        <IconPencil size={16} stroke={1.5} />
+                        <IconPencil size={mobileLayout ? 20 : 16} stroke={1.5} />
                       </ActionIcon>
                       <ActionIcon
                         type="button"
                         variant="default"
-                        size="sm"
+                        size={themeActionSize}
                         radius="xl"
                         color="red"
                         aria-label="Delete theme"
@@ -138,13 +140,13 @@ export function BoardThemeColouringPanel({
                           onDeleteTheme(theme);
                         }}
                       >
-                        <IconTrash size={16} stroke={1.5} />
+                        <IconTrash size={mobileLayout ? 20 : 16} stroke={1.5} />
                       </ActionIcon>
                     </Group>
                     <ActionIcon
                       type="button"
                       variant="default"
-                      size="sm"
+                      size={themeActionSize}
                       radius="xl"
                       aria-label="Duplicate theme"
                       className="board-theme-card__float-icon"
@@ -153,7 +155,7 @@ export function BoardThemeColouringPanel({
                         onDuplicateTheme(theme);
                       }}
                     >
-                      <IconCopyPlus size={16} stroke={1.5} />
+                      <IconCopyPlus size={mobileLayout ? 20 : 16} stroke={1.5} />
                     </ActionIcon>
                   </Box>
                 )}

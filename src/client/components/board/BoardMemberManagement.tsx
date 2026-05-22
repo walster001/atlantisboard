@@ -7,10 +7,12 @@ import {
   memo,
   forwardRef,
   type ComponentPropsWithoutRef,
+  type ReactElement,
 } from 'react';
 import {
   Avatar,
   ActionIcon,
+  Badge,
   Box,
   Button,
   Group,
@@ -44,6 +46,8 @@ interface UserRow {
   displayName: string;
   email: string;
   profilePicture?: string | undefined;
+  importPlaceholder?: boolean | undefined;
+  importNotMapped?: boolean | undefined;
 }
 
 interface BoardMember {
@@ -63,6 +67,8 @@ interface BoardMemberListItem {
   profilePicture?: string;
   role: 'owner' | 'member';
   roleKey: string;
+  importPlaceholder?: boolean | undefined;
+  importNotMapped?: boolean | undefined;
 }
 
 function extractUser(userId: string | UserRow): UserRow {
@@ -173,6 +179,27 @@ const boardMemberTableVirtuosoComponents = {
 /** Tighter avatar in board settings mobile stacked layout (frees width for name/email). */
 const BOARD_MEMBER_MOBILE_AVATAR_PX = 32;
 
+function ImportPlaceholderBadges(props: {
+  readonly importPlaceholder?: boolean | undefined;
+  readonly importNotMapped?: boolean | undefined;
+}): ReactElement | null {
+  if (props.importPlaceholder !== true) {
+    return null;
+  }
+  return (
+    <Group gap={4} wrap="wrap">
+      <Badge size="xs" variant="light" color="grape">
+        Imported
+      </Badge>
+      {props.importNotMapped === true ? (
+        <Badge size="xs" variant="light" color="orange">
+          Not Mapped
+        </Badge>
+      ) : null}
+    </Group>
+  );
+}
+
 const BoardMemberUserIdentityStack = memo(function BoardMemberUserIdentityStack(props: {
   readonly user: UserRow;
   readonly compact?: boolean;
@@ -180,10 +207,16 @@ const BoardMemberUserIdentityStack = memo(function BoardMemberUserIdentityStack(
   const { user, compact = false } = props;
   const email = user.email.trim();
   return (
-    <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-      <Text fw={600} size={compact ? 'xs' : 'sm'} lineClamp={compact ? 2 : 1}>
-        {user.displayName}
-      </Text>
+    <Stack gap={compact ? 2 : 4} style={{ flex: 1, minWidth: 0 }}>
+      <Group gap={6} wrap="wrap" align="center">
+        <Text fw={600} size={compact ? 'xs' : 'sm'} lineClamp={compact ? 2 : 1} style={{ flex: 1, minWidth: 0 }}>
+          {user.displayName}
+        </Text>
+        <ImportPlaceholderBadges
+          importPlaceholder={user.importPlaceholder}
+          importNotMapped={user.importNotMapped}
+        />
+      </Group>
       <Tooltip label={email} disabled={email === ''} openDelay={350} position="top-start" multiline maw={420}>
         <Text
           component="span"
@@ -226,6 +259,7 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
     compactLayout = false,
   } = props;
   const avatarSize = compactLayout ? BOARD_MEMBER_MOBILE_AVATAR_PX : APP_USER_AVATAR_SIZE;
+  const isImportPlaceholder = user.importPlaceholder === true;
   return (
     <>
       <td className="board-member-management__td board-member-management__td--user">
@@ -262,7 +296,11 @@ const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: {
         )}
       </td>
       <td className="board-member-management__td board-member-management__td--action">
-        {canAddMember ? (
+        {isImportPlaceholder ? (
+          <Text size="xs" c="dimmed" ta="center">
+            On board
+          </Text>
+        ) : canAddMember ? (
           compactLayout ? (
             <Tooltip label="Add to board">
               <ActionIcon
@@ -496,6 +534,9 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
                 ...(ownerRow.profilePicture !== undefined
                   ? { profilePicture: ownerRow.profilePicture }
                   : {}),
+                ...(ownerRow.importPlaceholder === true
+                  ? { importPlaceholder: true, importNotMapped: ownerRow.importNotMapped === true }
+                  : {}),
               },
             }
           : {}),
@@ -505,6 +546,9 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
             displayName: row.displayName,
             email: row.email,
             ...(row.profilePicture !== undefined ? { profilePicture: row.profilePicture } : {}),
+            ...(row.importPlaceholder === true
+              ? { importPlaceholder: true, importNotMapped: row.importNotMapped === true }
+              : {}),
           },
           roleKey: row.roleKey as RoleKey,
         })),

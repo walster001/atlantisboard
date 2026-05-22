@@ -60,6 +60,8 @@ export interface BoardMemberListItem {
   role: 'owner' | 'member';
   roleKey: string;
   addedAt?: Date;
+  importPlaceholder?: boolean;
+  importNotMapped?: boolean;
 }
 
 export interface BoardMemberListResult {

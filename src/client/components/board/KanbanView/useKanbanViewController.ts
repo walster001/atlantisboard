@@ -42,7 +42,7 @@ interface KanbanViewControllerArgs {
   readonly board: BoardDB;
   readonly boardCardPatchRef?: MutableRefObject<((card: CardDB) => void) | null>;
   readonly kanbanCaps: KanbanBoardEditCaps;
-  /** When not `desktop`, lists render in the Swiper carousel (no scrollLeft virtualization). */
+  /** `mobile` uses Swiper carousel; `tablet` / `desktop` use horizontal scroll virtualization. */
   readonly responsiveTier: ResponsiveTier;
   readonly carouselEdgeBumpRef?: MutableRefObject<((clientX: number) => void) | null>;
 }
@@ -272,7 +272,7 @@ export function useKanbanViewController({
     board,
     lists,
     suppressCardOpenClickRef,
-    enabled: responsiveTier === 'desktop',
+    enabled: responsiveTier !== 'mobile',
   });
 
   useKanbanPragmaticDnd({

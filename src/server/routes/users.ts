@@ -7,7 +7,10 @@ import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter, fileUploadRateLimiter } from '../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
 import { getBoardById } from '../services/boardService.js';
-import { searchRegisteredUsers } from '../services/userDirectoryService.js';
+import {
+  listBoardImportPlaceholderDirectoryUsers,
+  searchRegisteredUsers,
+} from '../services/userDirectoryService.js';
 import { hasPermission, userCanCreateWorkspace, userCanUseImportDisplay } from '../utils/permissions.js';
 import { Workspace } from '../models/Workspace.js';
 import {
@@ -197,7 +200,13 @@ router.get('/search', apiRateLimiter, requireAuth as RequestHandler, async (req,
         }
       }
 
-      excludeUserIds = collectBoardOccupantUserIds(board);
+      const occupantIds = collectBoardOccupantUserIds(board);
+      const occupantDocs = await User.find({ _id: { $in: occupantIds } })
+        .select('_id isPlaceholder')
+        .lean();
+      excludeUserIds = occupantDocs
+        .filter((doc) => doc.isPlaceholder !== true)
+        .map((doc) => String(doc._id));
     }
     if (workspaceId.length > 0) {
       const requesterId = authReq.user.id;
@@ -243,8 +252,20 @@ router.get('/search', apiRateLimiter, requireAuth as RequestHandler, async (req,
       ...(cursor !== '' ? { cursor } : {}),
     });
 
+    let users = result.users;
+    if (boardId.length > 0 && cursor === '') {
+      const placeholders = await listBoardImportPlaceholderDirectoryUsers({
+        boardId,
+        requesterUserId: authReq.user.id,
+        query: q,
+        limit,
+      });
+      const seen = new Set(users.map((u) => u._id));
+      users = [...placeholders.filter((p) => !seen.has(p._id)), ...users];
+    }
+
     res.json({
-      users: result.users,
+      users,
       ...(result.nextCursor !== undefined ? { nextCursor: result.nextCursor } : {}),
     });
   } catch (error) {

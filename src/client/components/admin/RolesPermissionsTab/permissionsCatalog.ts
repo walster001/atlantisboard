@@ -105,8 +105,10 @@ export const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'invites.accept': 'Accept an invite link.',
   'import.trello': 'Start a Trello import.',
   'import.wekan': 'Start a Wekan import.',
-  'export.board.json': 'Export a board as JSON.',
   'export.board.csv': 'Export a board as CSV.',
+  'export.board.trello': 'Export a board as Trello JSON.',
+  'export.board.wekan': 'Export a board as Wekan JSON.',
+  'export.board.atlantisboard': 'Export a board as Atlantisboard JSON.',
   'ui.admin_settings.open': 'Show the Admin Settings entry in the user menu.',
 };
 

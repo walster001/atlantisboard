@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import { Board } from '../models/Board.js';
 import { InviteLink } from '../models/InviteLink.js';
 import { Workspace } from '../models/Workspace.js';
+import { LEGACY_BOARD_EXPORT_JSON_PERMISSION_KEY } from '../../shared/export/boardExportPermissions.js';
 
 export type BuiltInRoleKey = 'admin' | 'manager' | 'viewer';
 export type RoleKey = BuiltInRoleKey | `custom:${string}`;
@@ -46,8 +47,10 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'boards.view',
       'lists.view',
       'cards.view',
-      'export.board.json',
       'export.board.csv',
+      'export.board.trello',
+      'export.board.wekan',
+      'export.board.atlantisboard',
       'invites.accept',
       'labels.view',
       'boards.members.view',
@@ -104,8 +107,10 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'boards.view',
       'lists.view',
       'cards.view',
-      'export.board.json',
       'export.board.csv',
+      'export.board.trello',
+      'export.board.wekan',
+      'export.board.atlantisboard',
       'invites.accept',
       'labels.view',
       'boards.members.view',
@@ -142,8 +147,10 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'boards.view',
       'lists.view',
       'cards.view',
-      'export.board.json',
       'export.board.csv',
+      'export.board.trello',
+      'export.board.wekan',
+      'export.board.atlantisboard',
       'invites.accept',
       'labels.view',
     ],
@@ -271,6 +278,30 @@ export async function initializeRoleDefinitions(): Promise<void> {
         permissions: {
           $in: ['import.csv.start', 'import.jobs.view_own'],
         },
+      },
+    },
+  ).catch(() => undefined);
+
+  // Permission key migration: export.board.json → per-format export keys.
+  await RoleDefinition.updateMany(
+    { permissions: LEGACY_BOARD_EXPORT_JSON_PERMISSION_KEY },
+    {
+      $addToSet: {
+        permissions: {
+          $each: [
+            'export.board.trello',
+            'export.board.wekan',
+            'export.board.atlantisboard',
+          ],
+        },
+      },
+    },
+  ).catch(() => undefined);
+  await RoleDefinition.updateMany(
+    { permissions: LEGACY_BOARD_EXPORT_JSON_PERMISSION_KEY },
+    {
+      $pull: {
+        permissions: LEGACY_BOARD_EXPORT_JSON_PERMISSION_KEY,
       },
     },
   ).catch(() => undefined);

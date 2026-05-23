@@ -47,7 +47,11 @@ export type BoardPermissionKey =
   | 'cards.reorder'
   | 'cards.dates.start.edit'
   | 'cards.dates.due.edit'
-  | 'cards.dates.end.edit';
+  | 'cards.dates.end.edit'
+  | 'export.board.csv'
+  | 'export.board.trello'
+  | 'export.board.wekan'
+  | 'export.board.atlantisboard';
 
 export function useBoardPermissions(
   boardId: string | undefined,

@@ -49,7 +49,7 @@ async function sendJsonBoardExport(
 ): Promise<void> {
   try {
     const authReq = req as AuthenticatedRequest;
-    const ctx = await loadBoardExportContext(req.params.boardId, authReq.user.id);
+    const ctx = await loadBoardExportContext(req.params.boardId, authReq.user.id, format);
     const payload = await exportBoardPayload(req.params.boardId, authReq.user.id, format);
     const filename = sanitizeBoardExportFilename(
       ctx.board.name,
@@ -73,7 +73,7 @@ async function sendCsvBoardExport(
     const columns = req.query.columns
       ? (req.query.columns as string).split(',').map((c) => c.trim())
       : undefined;
-    const ctx = await loadBoardExportContext(req.params.boardId, authReq.user.id);
+    const ctx = await loadBoardExportContext(req.params.boardId, authReq.user.id, 'csv');
     const csv = await exportBoardAsCSV(req.params.boardId, authReq.user.id, columns);
     const filename = sanitizeBoardExportFilename(ctx.board.name, 'csv');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');

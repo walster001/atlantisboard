@@ -33,6 +33,8 @@ import {
 } from '../../constants/boardPresetColors.js';
 import { api } from '../../utils/api.js';
 import { BoardExportModal } from './BoardExportModal.js';
+import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
+import { canExportBoardInAnyFormat } from '../../../shared/export/boardExportPermissions.js';
 
 interface BoardCardMenuProps {
   boardId: string;
@@ -67,6 +69,9 @@ export function BoardCardMenu({
   );
   const [coverUseThemeDefault, setCoverUseThemeDefault] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
+
+  const { permissions, loaded: permissionsLoaded } = useBoardPermissions(boardId);
+  const canExportBoard = permissionsLoaded && canExportBoardInAnyFormat(permissions);
 
   const responsiveTier = useResponsiveTier();
   const coverColourModalFullScreen = responsiveTier === 'mobile';
@@ -284,6 +289,7 @@ export function BoardCardMenu({
               e.stopPropagation();
               openExportModal();
             }}
+            disabled={!canExportBoard}
           >
             Export board
           </Menu.Item>

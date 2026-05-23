@@ -6,7 +6,11 @@ import {
   BOARD_EXPORT_FORMATS,
   type BoardExportFormat,
 } from '../../../shared/export/boardExportFormats.js';
+import {
+  hasBoardExportFormatPermission,
+} from '../../../shared/export/boardExportPermissions.js';
 import { api } from '../../utils/api.js';
+import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
 
 interface BoardExportModalProps {
   readonly boardId: string;
@@ -21,15 +25,28 @@ const FORMAT_OPTIONS = BOARD_EXPORT_FORMATS.map((value) => ({
 }));
 
 export function BoardExportModal({ boardId, boardName, opened, onClose }: BoardExportModalProps) {
+  const { permissions, loaded: permissionsLoaded } = useBoardPermissions(boardId);
+  const allowedFormats = FORMAT_OPTIONS.filter((option) =>
+    hasBoardExportFormatPermission(permissions, option.value),
+  );
   const [format, setFormat] = useState<BoardExportFormat>('atlantisboard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const effectiveFormat =
+    allowedFormats.some((option) => option.value === format)
+      ? format
+      : (allowedFormats[0]?.value ?? 'atlantisboard');
+
   const handleExport = async (): Promise<void> => {
+    if (allowedFormats.length === 0) {
+      setError('You do not have permission to export this board.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const filename = await api.exportBoard(boardId, format);
+      const filename = await api.exportBoard(boardId, effectiveFormat);
       notifications.show({
         title: 'Export complete',
         message: `${filename} downloaded.`,
@@ -53,22 +70,30 @@ export function BoardExportModal({ boardId, boardName, opened, onClose }: BoardE
           </Text>
           <Select
             label="Format"
-            data={FORMAT_OPTIONS}
-            value={format}
+            data={allowedFormats}
+            value={effectiveFormat}
             onChange={(value) => {
               if (value != null && (BOARD_EXPORT_FORMATS as readonly string[]).includes(value)) {
                 setFormat(value as BoardExportFormat);
               }
             }}
             allowDeselect={false}
-            disabled={loading}
+            disabled={loading || !permissionsLoaded || allowedFormats.length === 0}
           />
+          {!permissionsLoaded ? (
+            <Text size="sm" c="dimmed">
+              Checking export permissions…
+            </Text>
+          ) : null}
+          {permissionsLoaded && allowedFormats.length === 0 ? (
+            <Alert color="orange">You do not have permission to export this board.</Alert>
+          ) : null}
           {error != null ? <Alert color="red">{error}</Alert> : null}
           <Group justify="flex-end" gap="xs">
             <Button variant="subtle" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button loading={loading} onClick={() => void handleExport()}>
+            <Button loading={loading} onClick={() => void handleExport()} disabled={!permissionsLoaded || allowedFormats.length === 0}>
               Export
             </Button>
           </Group>

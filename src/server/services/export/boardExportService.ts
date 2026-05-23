@@ -11,7 +11,7 @@ export async function exportBoardPayload(
   userId: string,
   format: BoardJsonExportFormat,
 ): Promise<unknown> {
-  const ctx = await loadBoardExportContext(boardId, userId);
+  const ctx = await loadBoardExportContext(boardId, userId, format);
   switch (format) {
     case 'atlantisboard':
       return buildAtlantisboardExportPayload(ctx);
@@ -27,7 +27,7 @@ export async function exportBoardAsCSV(
   userId: string,
   columns?: string[],
 ): Promise<string> {
-  const ctx = await loadBoardExportContext(boardId, userId);
+  const ctx = await loadBoardExportContext(boardId, userId, 'csv');
   const data = {
     board: { name: ctx.board.name },
     lists: ctx.lists.map((list) => ({ id: list._id.toString(), name: list.name })),

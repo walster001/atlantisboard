@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useState, type ReactElement } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { isAxiosError } from 'axios';
 import {
   Modal,
@@ -36,6 +36,10 @@ import {
 import { ImportUserManagementTab } from './ImportUserManagementTab.js';
 import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
 import { assertAtlantisboardExportShape } from '../../../shared/import/atlantisboardNormalize.js';
+import {
+  hasBoardExportFormatPermission,
+} from '../../../shared/export/boardExportPermissions.js';
+import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import {
   KB_IOS_MODAL_HEADER_SAFE_CLASS,
@@ -403,6 +407,21 @@ export function ImportExportModal({
 
   const responsiveTier = useResponsiveTier();
   const defaultCardColourModalFullScreen = responsiveTier === 'mobile';
+  const { permissions: boardPermissions, loaded: boardPermissionsLoaded } = useBoardPermissions(boardId);
+  const canExportAtlantisboardJson = hasBoardExportFormatPermission(boardPermissions, 'atlantisboard');
+  const canExportCsv = hasBoardExportFormatPermission(boardPermissions, 'csv');
+  const showExportTab = boardId != null && boardPermissionsLoaded && (canExportAtlantisboardJson || canExportCsv);
+
+  useEffect(() => {
+    if (!showExportTab) {
+      return;
+    }
+    if (exportFormat === 'json' && !canExportAtlantisboardJson && canExportCsv) {
+      setExportFormat('csv');
+    } else if (exportFormat === 'csv' && !canExportCsv && canExportAtlantisboardJson) {
+      setExportFormat('json');
+    }
+  }, [showExportTab, exportFormat, canExportAtlantisboardJson, canExportCsv]);
 
   const wekanButtons = useMemo(() => (importType === 'wekan' ? preflight?.wekanButtons?.buttons ?? [] : []), [importType, preflight]);
   const needsReplaceButtons = importType === 'wekan' && wekanButtons.length > 0;
@@ -619,6 +638,15 @@ export function ImportExportModal({
       return;
     }
 
+    if (exportFormat === 'json' && !canExportAtlantisboardJson) {
+      setError('You do not have permission to export this board as JSON.');
+      return;
+    }
+    if (exportFormat === 'csv' && !canExportCsv) {
+      setError('You do not have permission to export this board as CSV.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -706,7 +734,7 @@ export function ImportExportModal({
           {showUserManagementTab && file != null ? (
             <Tabs.Tab value="user-management">User Management</Tabs.Tab>
           ) : null}
-          {boardId ? <Tabs.Tab value="export">Export</Tabs.Tab> : null}
+          {showExportTab ? <Tabs.Tab value="export">Export</Tabs.Tab> : null}
         </Tabs.List>
 
         {error ? (
@@ -960,8 +988,12 @@ export function ImportExportModal({
               value={exportFormat}
               onChange={(value) => setExportFormat((value || 'json') as 'json' | 'csv')}
               data={[
-                { value: 'json', label: 'JSON (Complete board data)' },
-                { value: 'csv', label: 'CSV (Cards only, configurable columns)' },
+                ...(canExportAtlantisboardJson
+                  ? [{ value: 'json', label: 'JSON (Complete board data)' }]
+                  : []),
+                ...(canExportCsv
+                  ? [{ value: 'csv', label: 'CSV (Cards only, configurable columns)' }]
+                  : []),
               ]}
               disabled={loading}
               radius="md"

@@ -5,6 +5,11 @@ import { Card, type ICard } from '../../models/Card.js';
 import { List, type IList } from '../../models/List.js';
 import { User } from '../../models/User.js';
 import { hasPermission } from '../../utils/permissions.js';
+import {
+  boardExportPermissionKey,
+  LEGACY_BOARD_EXPORT_JSON_PERMISSION_KEY,
+} from '../../../shared/export/boardExportPermissions.js';
+import type { BoardExportFormat } from '../../../shared/export/boardExportFormats.js';
 
 export interface BoardExportUserSummary {
   readonly id: string;
@@ -42,7 +47,29 @@ async function loadUsersForExport(userIds: Iterable<string>): Promise<Map<string
   return map;
 }
 
-export async function loadBoardExportContext(boardId: string, userId: string): Promise<BoardExportContext> {
+async function assertBoardExportAllowed(
+  userId: string,
+  boardId: string,
+  format: BoardExportFormat,
+): Promise<void> {
+  const specificKey = boardExportPermissionKey(format);
+  if (await hasPermission({ id: userId }, boardId, specificKey)) {
+    return;
+  }
+  if (
+    format !== 'csv' &&
+    (await hasPermission({ id: userId }, boardId, LEGACY_BOARD_EXPORT_JSON_PERMISSION_KEY))
+  ) {
+    return;
+  }
+  throw new Error('Access denied');
+}
+
+export async function loadBoardExportContext(
+  boardId: string,
+  userId: string,
+  format: BoardExportFormat,
+): Promise<BoardExportContext> {
   const board = await Board.findById(boardId);
   if (board == null) {
     throw new Error('Board not found');
@@ -52,6 +79,7 @@ export async function loadBoardExportContext(boardId: string, userId: string): P
   if (!allowed) {
     throw new Error('Access denied');
   }
+  await assertBoardExportAllowed(userId, boardId, format);
 
   const [lists, cards, labels] = await Promise.all([
     List.find({ boardId }).sort({ position: 1 }),

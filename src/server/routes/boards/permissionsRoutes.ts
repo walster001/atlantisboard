@@ -42,6 +42,10 @@ const permissionProbeKeys = [
   'cards.dates.start.edit',
   'cards.dates.due.edit',
   'cards.dates.end.edit',
+  'export.board.csv',
+  'export.board.trello',
+  'export.board.wekan',
+  'export.board.atlantisboard',
 ] as const;
 
 export function registerPermissionsRoutes(router: Router): void {

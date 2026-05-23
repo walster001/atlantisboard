@@ -49,4 +49,15 @@ describe('theme permission role seeds', () => {
     expect(admin).toContain('cards.duplicate');
     expect(admin).toContain('invites.view');
   });
+
+  it('assigns per-format export permissions to all built-in roles', () => {
+    for (const roleKey of ['admin', 'manager', 'viewer'] as const) {
+      const perms = permissionsFor(roleKey);
+      expect(perms).toContain('export.board.csv');
+      expect(perms).toContain('export.board.trello');
+      expect(perms).toContain('export.board.wekan');
+      expect(perms).toContain('export.board.atlantisboard');
+      expect(perms).not.toContain('export.board.json');
+    }
+  });
 });

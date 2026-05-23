@@ -3,6 +3,8 @@
  * Heuristics match the shapes accepted by trelloNormalize / wekanImportService.
  */
 
+import { isAtlantisboardExportShape } from './atlantisboardNormalize.js';
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) {
     return null;
@@ -154,6 +156,13 @@ export function detectImportJsonSource(raw: unknown): 'trello' | 'wekan' {
 }
 
 export function assertImportJsonMatchesSource(raw: unknown, expected: 'trello' | 'wekan'): void {
+  if (isAtlantisboardExportShape(raw)) {
+    throw new ImportJsonSourceMismatchError(
+      'This JSON is an Atlantisboard board export. Choose “Atlantisboard JSON” as the import source.',
+      expected,
+      expected === 'trello' ? 'wekan' : 'trello',
+    );
+  }
   const detected = detectImportJsonSource(raw);
   if (detected !== expected) {
     const msg =

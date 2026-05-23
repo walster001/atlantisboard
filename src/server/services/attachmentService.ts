@@ -117,8 +117,23 @@ function extractObjectNameFromAttachmentUrl(rawUrl: string): string {
   }
 }
 
+export async function readAttachmentObjectBytes(
+  attachmentUrl: string,
+): Promise<{ readonly buffer: Buffer; readonly contentType: string } | null> {
+  try {
+    const meta = await getAttachmentObjectMeta(attachmentUrl);
+    if (meta.size > MAX_CARD_ATTACHMENT_BYTES) {
+      return null;
+    }
+    const stream = await openAttachmentReadStream(meta.objectName, null);
+    const buffer = await readStreamIntoBuffer(stream, MAX_CARD_ATTACHMENT_BYTES);
+    return { buffer, contentType: meta.contentType };
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Removes stored MinIO objects for non-placeholder attachments on cards in the given boards.
  * Call before deleting card documents so URLs remain resolvable.
  * Per-object failures are logged and skipped so bulk deletion can continue.
  */

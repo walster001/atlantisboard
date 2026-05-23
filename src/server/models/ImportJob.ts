@@ -1,6 +1,6 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
-export type ImportJobType = 'trello' | 'wekan' | 'csv';
+export type ImportJobType = 'trello' | 'wekan' | 'csv' | 'atlantisboard';
 export type ImportJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export interface IImportJobError {
@@ -67,7 +67,7 @@ const ImportJobSchema = new Schema<IImportJob>(
     },
     type: {
       type: String,
-      enum: ['trello', 'wekan', 'csv'],
+      enum: ['trello', 'wekan', 'csv', 'atlantisboard'],
       required: true,
       index: true,
     },

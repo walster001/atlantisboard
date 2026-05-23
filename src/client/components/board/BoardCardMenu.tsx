@@ -14,6 +14,7 @@ import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
   IconDots,
+  IconDownload,
   IconPencil,
   IconTrash,
   IconFileDescription,
@@ -31,6 +32,7 @@ import {
   normalizePresetHex,
 } from '../../constants/boardPresetColors.js';
 import { api } from '../../utils/api.js';
+import { BoardExportModal } from './BoardExportModal.js';
 
 interface BoardCardMenuProps {
   boardId: string;
@@ -64,6 +66,7 @@ export function BoardCardMenu({
     normalizePresetHex('#3b82f6', BOARD_PRESET_COLOURS),
   );
   const [coverUseThemeDefault, setCoverUseThemeDefault] = useState(true);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const responsiveTier = useResponsiveTier();
   const coverColourModalFullScreen = responsiveTier === 'mobile';
@@ -188,6 +191,11 @@ export function BoardCardMenu({
     }
   };
 
+  const openExportModal = () => {
+    setIsOpen(false);
+    setExportOpen(true);
+  };
+
   const openDeleteBoardModal = () => {
     setIsOpen(false);
     modals.openConfirmModal({
@@ -270,6 +278,16 @@ export function BoardCardMenu({
             Cover colour
           </Menu.Item>
           <Menu.Item
+            leftSection={<IconDownload size={16} />}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openExportModal();
+            }}
+          >
+            Export board
+          </Menu.Item>
+          <Menu.Item
             color="red"
             leftSection={<IconTrash size={16} />}
             onClick={(e) => {
@@ -282,6 +300,13 @@ export function BoardCardMenu({
           </Menu.Item>
         </Menu.Dropdown>
       </Menu>
+
+      <BoardExportModal
+        boardId={boardId}
+        boardName={boardName}
+        opened={exportOpen}
+        onClose={() => setExportOpen(false)}
+      />
 
       <Modal
         opened={renameOpen}

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import { importAtlantisboard } from '../services/import/atlantisboardImportService/index.js';
 import { importTrello } from '../services/import/trelloImportService.js';
 import { importWekan } from '../services/import/wekanImportService.js';
 import { importCSV } from '../services/import/csvImportService.js';
@@ -16,6 +17,10 @@ import {
   assertImportJsonMatchesSource,
   ImportJsonSourceMismatchError,
 } from '../../shared/import/detectImportJsonSource.js';
+import {
+  assertAtlantisboardExportShape,
+  AtlantisboardExportShapeError,
+} from '../../shared/import/atlantisboardNormalize.js';
 
 const router = Router();
 const importUploadMaxBytes = getBoardImportUploadMaxBytes();
@@ -123,7 +128,24 @@ async function userHasWorkspaceImportPermission(
   return false;
 }
 
-/** App admins may start Trello/Wekan (and CSV) imports without workspace-scoped import.* roles. */
+const importAtlantisboardSchema = z.object({
+  workspaceId: z.string().optional(),
+});
+
+async function userCanStartAtlantisboardImport(
+  userId: string,
+  isAppAdmin: boolean | undefined,
+): Promise<boolean> {
+  if (isAppAdmin === true) {
+    return true;
+  }
+  const [canTrello, canWekan] = await Promise.all([
+    userHasWorkspaceImportPermission(userId, 'import.trello'),
+    userHasWorkspaceImportPermission(userId, 'import.wekan'),
+  ]);
+  return canTrello || canWekan;
+}
+
 async function userCanStartBoardJsonImport(
   userId: string,
   isAppAdmin: boolean | undefined,
@@ -322,6 +344,99 @@ router.post('/wekan', upload.single('file'), async (req, res, next) => {
       res.status(400).json({
         error: {
           message: 'Invalid preflight payload',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Import native Atlantisboard JSON
+router.post('/atlantisboard', upload.single('file'), async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    if (!(await assertImportDisplayAllowed(res, authReq.user.id, authReq.user.isAppAdmin))) {
+      return;
+    }
+    const validated = importAtlantisboardSchema.parse(req.body);
+    if (typeof validated.workspaceId === 'string' && validated.workspaceId.trim() !== '') {
+      const allowed =
+        authReq.user.isAppAdmin === true ||
+        (await hasPermission(authReq.user.id, validated.workspaceId, 'import.trello', 'workspace')) ||
+        (await hasPermission(authReq.user.id, validated.workspaceId, 'import.wekan', 'workspace'));
+      if (!allowed) {
+        res.status(403).json({
+          error: { message: 'Insufficient permissions to import board', code: 'FORBIDDEN', statusCode: 403 },
+        });
+        return;
+      }
+    } else {
+      const allowed = await userCanStartAtlantisboardImport(authReq.user.id, authReq.user.isAppAdmin);
+      if (!allowed) {
+        res.status(403).json({
+          error: { message: 'Insufficient permissions to import board', code: 'FORBIDDEN', statusCode: 403 },
+        });
+        return;
+      }
+    }
+
+    if (!req.file) {
+      res.status(400).json({
+        error: {
+          message: 'File is required',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+
+    const jsonData = JSON.parse(req.file.buffer.toString('utf-8'));
+    try {
+      assertAtlantisboardExportShape(jsonData);
+    } catch (shapeError) {
+      if (shapeError instanceof AtlantisboardExportShapeError) {
+        res.status(400).json({
+          error: {
+            message: shapeError.message,
+            code: 'IMPORT_WRONG_JSON_SOURCE',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      throw shapeError;
+    }
+
+    const jobId = await importAtlantisboard(
+      jsonData,
+      authReq.user.id,
+      validated.workspaceId,
+    );
+
+    res.status(202).json({
+      message: 'Import started',
+      jobId,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+          details: error.issues,
+        },
+      });
+      return;
+    }
+    if (error instanceof SyntaxError) {
+      res.status(400).json({
+        error: {
+          message: 'Invalid JSON file',
           code: 'VALIDATION_ERROR',
           statusCode: 400,
         },

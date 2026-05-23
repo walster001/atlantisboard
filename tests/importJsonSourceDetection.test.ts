@@ -7,6 +7,7 @@ import {
   detectImportJsonSource,
   ImportJsonSourceMismatchError,
 } from '../src/shared/import/detectImportJsonSource.js';
+import { isAtlantisboardExportShape } from '../src/shared/import/atlantisboardNormalize.js';
 
 const trelloFixturePath = join(
   import.meta.dir,
@@ -51,5 +52,21 @@ describe('detectImportJsonSource', () => {
         expect(e.detected).toBe('wekan');
       }
     }
+  });
+
+  it('assertImportJsonMatchesSource rejects Atlantisboard exports for Trello/Wekan importers', () => {
+    const atlantisboardLike = {
+      format: 'atlantisboard-board-v1',
+      board: { name: 'Board', settings: {}, members: [] },
+      lists: [{ id: 'l1', name: 'List' }],
+      cards: [],
+    };
+    expect(isAtlantisboardExportShape(atlantisboardLike)).toBe(true);
+    expect(() => assertImportJsonMatchesSource(atlantisboardLike, 'trello')).toThrow(
+      ImportJsonSourceMismatchError,
+    );
+    expect(() => assertImportJsonMatchesSource(atlantisboardLike, 'wekan')).toThrow(
+      ImportJsonSourceMismatchError,
+    );
   });
 });

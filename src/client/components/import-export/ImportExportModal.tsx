@@ -35,6 +35,7 @@ import {
 } from '../../../shared/import/importPreflight.js';
 import { ImportUserManagementTab } from './ImportUserManagementTab.js';
 import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
+import { assertAtlantisboardExportShape } from '../../../shared/import/atlantisboardNormalize.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import {
   KB_IOS_MODAL_HEADER_SAFE_CLASS,
@@ -60,7 +61,7 @@ interface ImportExportModalProps {
   onImportComplete?: () => void | Promise<void>;
 }
 
-type ImportType = 'trello' | 'wekan' | 'csv' | null;
+type ImportType = 'trello' | 'wekan' | 'csv' | 'atlantisboard' | null;
 type TabType = 'import' | 'replace-buttons' | 'user-management' | 'export';
 
 interface ImportJobClientView {
@@ -74,7 +75,7 @@ interface ImportJobClientView {
   result?: Record<string, unknown>;
 }
 
-type ImportJobServerType = 'trello' | 'wekan' | 'csv';
+type ImportJobServerType = 'trello' | 'wekan' | 'csv' | 'atlantisboard';
 
 function parseImportJob(job: unknown): ImportJobClientView | null {
   if (job == null || typeof job !== 'object') {
@@ -87,7 +88,9 @@ function parseImportJob(job: unknown): ImportJobClientView | null {
   }
   const typeRaw = j.type;
   const type: ImportJobServerType =
-    typeRaw === 'trello' || typeRaw === 'wekan' || typeRaw === 'csv' ? typeRaw : 'csv';
+    typeRaw === 'trello' || typeRaw === 'wekan' || typeRaw === 'csv' || typeRaw === 'atlantisboard'
+      ? typeRaw
+      : 'csv';
   const progress = typeof j.progress === 'number' ? j.progress : 0;
   const totalItems = typeof j.totalItems === 'number' ? j.totalItems : 0;
   const processedItems = typeof j.processedItems === 'number' ? j.processedItems : 0;
@@ -144,6 +147,17 @@ function buildImportSuccessMessage(
     return `Successfully imported ${boardName} with ${listCount} list${listCount === 1 ? '' : 's'} and ${cardCount} card${cardCount === 1 ? '' : 's'}.`;
   }
   if (source === 'wekan') {
+    const boardName =
+      result != null &&
+      typeof result.boardName === 'string' &&
+      result.boardName.trim().length > 0
+        ? result.boardName.trim()
+        : 'your board';
+    const listCount = typeof result?.listCount === 'number' ? result.listCount : 0;
+    const cardCount = typeof result?.cardCount === 'number' ? result.cardCount : 0;
+    return `Successfully imported ${boardName} with ${listCount} list${listCount === 1 ? '' : 's'} and ${cardCount} card${cardCount === 1 ? '' : 's'}.`;
+  }
+  if (source === 'atlantisboard') {
     const boardName =
       result != null &&
       typeof result.boardName === 'string' &&
@@ -299,11 +313,18 @@ function ImportMappingCallout({ importType }: { importType: ImportType }) {
             { text: 'Trello Checklists → KanBoard Subtasks' },
             { text: 'Members, attachments, comments are imported with preflight mapping', emphasis: true },
           ]
-        : [
-            { text: 'CSV / TSV rows → KanBoard Cards (this board)' },
-            { text: 'Columns are mapped during import configuration' },
-            { text: 'Attachments and rich metadata are not imported', emphasis: true },
-          ];
+        : importType === 'atlantisboard'
+          ? [
+              { text: 'Atlantisboard export → restored board in this workspace' },
+              { text: 'Lists, cards, labels, checklists, and comments are preserved' },
+              { text: 'Inline attachment data URLs are re-uploaded to storage', emphasis: true },
+              { text: 'Users are mapped when they still exist; otherwise the importer is used', emphasis: true },
+            ]
+          : [
+              { text: 'CSV / TSV rows → KanBoard Cards (this board)' },
+              { text: 'Columns are mapped during import configuration' },
+              { text: 'Attachments and rich metadata are not imported', emphasis: true },
+            ];
 
   return (
     <Paper p="md" radius="md" bg="gray.0" withBorder>
@@ -386,6 +407,7 @@ export function ImportExportModal({
   const wekanButtons = useMemo(() => (importType === 'wekan' ? preflight?.wekanButtons?.buttons ?? [] : []), [importType, preflight]);
   const needsReplaceButtons = importType === 'wekan' && wekanButtons.length > 0;
   const showUserManagementTab = importType === 'trello' || importType === 'wekan';
+  const showDefaultCardColourPicker = importType !== 'atlantisboard';
 
   const unresolvedButtonsCount = useMemo(() => {
     if (!needsReplaceButtons) {
@@ -403,6 +425,25 @@ export function ImportExportModal({
   }, []);
 
   const runPreflightForFile = useCallback(async (nextFile: File, nextImportType: ImportType): Promise<void> => {
+    if (nextImportType === 'atlantisboard') {
+      setPreflightBusy(true);
+      try {
+        setError(null);
+        const rawText = await nextFile.text();
+        const parsed = JSON.parse(rawText) as unknown;
+        assertAtlantisboardExportShape(parsed);
+        resetPreflightState();
+        setActiveTab('import');
+      } catch (err) {
+        console.error('Atlantisboard import JSON validation failed:', err);
+        const msg = err instanceof Error ? err.message : 'Could not validate import file.';
+        setError(msg);
+        resetPreflightState();
+      } finally {
+        setPreflightBusy(false);
+      }
+      return;
+    }
     if (nextImportType !== 'wekan' && nextImportType !== 'trello') {
       resetPreflightState();
       return;
@@ -483,7 +524,7 @@ export function ImportExportModal({
         let result: { message: string; jobId: string };
         await wait(0);
 
-        if (nextImportType === 'trello' || nextImportType === 'wekan') {
+        if (nextImportType === 'trello' || nextImportType === 'wekan' || nextImportType === 'atlantisboard') {
           notifications.update({
             id: IMPORT_PROGRESS_NOTIFICATION_ID,
             color: 'blue',
@@ -501,7 +542,11 @@ export function ImportExportModal({
           } catch {
             throw new Error('Invalid JSON in import file.');
           }
-          assertImportJsonMatchesSource(parsed, nextImportType);
+          if (nextImportType === 'atlantisboard') {
+            assertAtlantisboardExportShape(parsed);
+          } else {
+            assertImportJsonMatchesSource(parsed, nextImportType);
+          }
         }
 
         if (nextImportType === 'trello') {
@@ -527,6 +572,8 @@ export function ImportExportModal({
             undefined,
             nextDefaultUncolouredCardColour,
           );
+        } else if (nextImportType === 'atlantisboard') {
+          result = await api.importAtlantisboard(nextFile, nextWorkspaceId);
         } else {
           throw new Error('Invalid import type');
         }
@@ -602,9 +649,11 @@ export function ImportExportModal({
       ? 'Wekan Export File'
       : importType === 'trello'
         ? 'Trello Export File'
-        : importType === 'csv'
-          ? 'CSV / TSV File'
-          : 'Export File';
+        : importType === 'atlantisboard'
+          ? 'Atlantisboard Export File'
+          : importType === 'csv'
+            ? 'CSV / TSV File'
+            : 'Export File';
 
   const modalTitle =
     activeTab === 'import' ? (
@@ -682,6 +731,7 @@ export function ImportExportModal({
               data={[
                 { value: 'wekan', label: 'Wekan JSON' },
                 { value: 'trello', label: 'Trello JSON' },
+                { value: 'atlantisboard', label: 'Atlantisboard JSON' },
                 ...(boardId ? [{ value: 'csv', label: 'CSV / TSV' }] : []),
               ]}
               disabled={loading}
@@ -708,6 +758,7 @@ export function ImportExportModal({
                   radius="md"
                 />
 
+                {showDefaultCardColourPicker ? (
                 <Box>
                   <ColorInput
                     label="Default colour for uncoloured cards"
@@ -755,8 +806,9 @@ export function ImportExportModal({
                     styles={{ input: { cursor: loading ? 'not-allowed' : 'pointer' } }}
                   />
                 </Box>
+                ) : null}
 
-                {importType === 'trello' && workspaceId ? (
+                {(importType === 'trello' || importType === 'atlantisboard') && workspaceId ? (
                   <Alert color="blue" radius="md">
                     Will import to workspace: {workspaceId}
                   </Alert>

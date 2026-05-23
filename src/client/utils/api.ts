@@ -16,6 +16,7 @@ import {
   invalidateFontsCatalogCache,
 } from './api/adminSystemApiMethods.js';
 import { adminBackupApiMethods, type AdminBackupApiMethods } from './api/adminBackupApiMethods.js';
+import { adminDatabaseApiMethods, type AdminDatabaseApiMethods } from './api/adminDatabaseApiMethods.js';
 import { userApiMethods, type UserApiMethods } from './api/userApiMethods.js';
 import { importExportApiMethods, type ImportExportApiMethods } from './api/importExportApiMethods.js';
 import { attachmentApiMethods, type AttachmentApiMethods } from './api/attachmentApiMethods.js';
@@ -156,6 +157,7 @@ export interface ApiClient
     AdminUserApiMethods,
     AdminSystemApiMethods,
     AdminBackupApiMethods,
+    AdminDatabaseApiMethods,
     UserApiMethods,
     ImportExportApiMethods,
     AttachmentApiMethods {}
@@ -173,6 +175,7 @@ Object.assign(ApiClient.prototype, inviteApiMethods);
 Object.assign(ApiClient.prototype, adminUserApiMethods);
 Object.assign(ApiClient.prototype, adminSystemApiMethods);
 Object.assign(ApiClient.prototype, adminBackupApiMethods);
+Object.assign(ApiClient.prototype, adminDatabaseApiMethods);
 Object.assign(ApiClient.prototype, userApiMethods);
 Object.assign(ApiClient.prototype, importExportApiMethods);
 Object.assign(ApiClient.prototype, attachmentApiMethods);

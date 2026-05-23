@@ -1,7 +1,12 @@
 import type { ImportPreflightUser } from '../../../shared/import/importPreflight.js';
 import type { UnmappedUserPolicy } from '../../../shared/import/importPreflight.js';
 import type { ImportPreflightPayloadParsed } from '../../../shared/import/importPreflightSchema.js';
-import { resolveImportActorId } from './importUserMapService.js';
+import { resolveImportUserResolution } from '../../../shared/import/importUserResolution.js';
+import {
+  batchGetOrCreateBoardImportPlaceholders,
+  type BatchBoardImportPlaceholderEntry,
+} from '../boardImportPlaceholderService.js';
+import { autoMatchSourceUser } from './importUserMapService.js';
 
 export function stubImportPreflightUser(sourceUserId: string): ImportPreflightUser {
   const trimmed = sourceUserId.trim();
@@ -82,8 +87,22 @@ export function collectWekanReferencedUserIdsForBoard(
   return ids;
 }
 
+function actorMapLookup(actorMap: Map<string, string>, sourceUserId: string): string | undefined {
+  const trimmed = sourceUserId.trim();
+  return actorMap.get(sourceUserId) ?? (trimmed !== sourceUserId ? actorMap.get(trimmed) : undefined);
+}
+
+function actorMapStore(actorMap: Map<string, string>, sourceUserId: string, resolvedId: string): void {
+  actorMap.set(sourceUserId, resolvedId);
+  const trimmed = sourceUserId.trim();
+  if (trimmed !== '' && trimmed !== sourceUserId) {
+    actorMap.set(trimmed, resolvedId);
+  }
+}
+
 /**
  * Creates placeholders (or maps existing users) for every identity on the board when policy allows.
+ * Placeholder rows are inserted in batches to avoid per-user round trips on large Wekan boards.
  */
 export async function ensureBoardImportPlaceholdersSeeded(params: {
   readonly boardId: string;
@@ -100,20 +119,59 @@ export async function ensureBoardImportPlaceholdersSeeded(params: {
   }
 
   const toResolve = new Set<string>([...params.referencedSourceUserIds, ...params.sourceUsersById.keys()]);
+  const placeholderEntries: BatchBoardImportPlaceholderEntry[] = [];
+
   for (const sourceUserId of toResolve) {
     if (sourceUserId.trim() === '') {
       continue;
     }
-    await resolveImportActorId({
-      boardId: params.boardId,
-      sourceUserId,
-      sourceUsersById: params.sourceUsersById,
-      actorMap: params.actorMap,
-      source: params.source,
-      roleKey: 'viewer',
+    if (actorMapLookup(params.actorMap, sourceUserId) != null) {
+      continue;
+    }
+
+    const trimmed = sourceUserId.trim();
+    const sourceUser =
+      params.sourceUsersById.get(sourceUserId) ?? params.sourceUsersById.get(trimmed);
+    const decision = params.preflight?.userDecisions.find(
+      (d) => d.sourceUserId === sourceUserId || d.sourceUserId === trimmed,
+    );
+    const autoMatchedUserId =
+      actorMapLookup(params.actorMap, sourceUserId) ??
+      (sourceUser != null ? await autoMatchSourceUser(sourceUser) : undefined);
+
+    const resolution = resolveImportUserResolution({
+      ...(decision !== undefined ? { decision } : {}),
+      ...(autoMatchedUserId !== undefined ? { autoMatchedUserId } : {}),
       policy: params.policy,
       importerUserId: params.importerUserId,
-      preflight: params.preflight,
     });
+
+    switch (resolution.kind) {
+      case 'map':
+        actorMapStore(params.actorMap, sourceUserId, resolution.userId);
+        break;
+      case 'discard':
+        break;
+      case 'create_placeholder': {
+        const placeholderSource =
+          sourceUser ?? params.sourceUsersById.get(trimmed) ?? stubImportPreflightUser(trimmed);
+        placeholderEntries.push({ sourceUser: placeholderSource, roleKey: 'viewer' });
+        break;
+      }
+    }
+  }
+
+  if (placeholderEntries.length === 0) {
+    return;
+  }
+
+  const created = await batchGetOrCreateBoardImportPlaceholders({
+    boardId: params.boardId,
+    source: params.source,
+    entries: placeholderEntries,
+  });
+
+  for (const [sourceUserId, placeholderId] of created) {
+    actorMapStore(params.actorMap, sourceUserId, placeholderId);
   }
 }

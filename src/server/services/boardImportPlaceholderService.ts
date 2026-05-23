@@ -4,14 +4,28 @@ import { BoardImportPlaceholder } from '../models/BoardImportPlaceholder.js';
 import { Card } from '../models/Card.js';
 import { logger } from '../utils/logger.js';
 import { hasPermission } from '../utils/permissions.js';
+import { buildBoardImportPlaceholderInsertFields } from '../../shared/import/boardImportPlaceholderInsert.js';
 import {
   displayEmailForImportPlaceholderUser,
   isSyntheticImportPlaceholderEmail,
 } from '../../shared/import/importPlaceholderDisplay.js';
-import { normalizeImportSourceEmail } from '../../shared/import/importSourceUserContact.js';
 import type { ImportPreflightUser } from '../../shared/import/importPreflight.js';
 import { extractRefUserIdString } from './boardService/helpers.js';
 import { emitBoardUpdatedRealtime } from './boardService/shared.js';
+
+const PLACEHOLDER_INSERT_BATCH_SIZE = 500;
+
+export interface BatchBoardImportPlaceholderEntry {
+  readonly sourceUser: ImportPreflightUser;
+  readonly roleKey: string;
+}
+
+function shouldUpgradePlaceholderEmail(existingEmail: string, nextEmail: string | undefined): boolean {
+  return (
+    nextEmail != null &&
+    (existingEmail === '' || isSyntheticImportPlaceholderEmail(existingEmail))
+  );
+}
 
 export interface BoardImportPlaceholderDirectoryRow {
   readonly _id: string;
@@ -28,52 +42,146 @@ export async function isBoardImportPlaceholderId(id: string): Promise<boolean> {
   return (await BoardImportPlaceholder.exists({ _id: id })) != null;
 }
 
+/**
+ * Creates or reuses board import placeholders in bulk (one find + batched insertMany per board).
+ */
+export async function batchGetOrCreateBoardImportPlaceholders(params: {
+  readonly boardId: string;
+  readonly source: 'trello' | 'wekan';
+  readonly entries: readonly BatchBoardImportPlaceholderEntry[];
+}): Promise<Map<string, string>> {
+  const { boardId, source, entries } = params;
+  const result = new Map<string, string>();
+  if (entries.length === 0) {
+    return result;
+  }
+
+  const boardOid = new mongoose.Types.ObjectId(boardId);
+  const uniqueEntries = new Map<string, BatchBoardImportPlaceholderEntry>();
+  for (const entry of entries) {
+    const sourceUserId = entry.sourceUser.sourceUserId.trim();
+    if (sourceUserId === '') {
+      continue;
+    }
+    if (!uniqueEntries.has(sourceUserId)) {
+      uniqueEntries.set(sourceUserId, {
+        sourceUser: { ...entry.sourceUser, sourceUserId },
+        roleKey: entry.roleKey,
+      });
+    }
+  }
+
+  const sourceUserIds = [...uniqueEntries.keys()];
+  if (sourceUserIds.length === 0) {
+    return result;
+  }
+
+  const existingRows = await BoardImportPlaceholder.find({
+    boardId: boardOid,
+    sourceUserId: { $in: sourceUserIds },
+  })
+    .select('_id sourceUserId email')
+    .lean();
+
+  const emailUpgradeOps: Parameters<typeof BoardImportPlaceholder.bulkWrite>[0] = [];
+
+  for (const row of existingRows) {
+    const id = row._id.toString();
+    result.set(row.sourceUserId, id);
+    const entry = uniqueEntries.get(row.sourceUserId);
+    if (entry == null) {
+      continue;
+    }
+    const fields = buildBoardImportPlaceholderInsertFields(entry);
+    const existingEmail =
+      typeof row.email === 'string' && row.email.trim() !== '' ? row.email.trim() : '';
+    if (shouldUpgradePlaceholderEmail(existingEmail, fields.email)) {
+      emailUpgradeOps.push({
+        updateOne: {
+          filter: { _id: row._id },
+          update: { $set: { email: fields.email! } },
+        },
+      });
+    }
+  }
+
+  if (emailUpgradeOps.length > 0) {
+    await BoardImportPlaceholder.bulkWrite(emailUpgradeOps, { ordered: false });
+  }
+
+  const missingIds = sourceUserIds.filter((id) => !result.has(id));
+  if (missingIds.length === 0) {
+    return result;
+  }
+
+  const insertDocs = missingIds.map((sourceUserId) => {
+    const entry = uniqueEntries.get(sourceUserId);
+    if (entry == null) {
+      throw new Error(`Missing placeholder entry for ${sourceUserId}`);
+    }
+    const fields = buildBoardImportPlaceholderInsertFields(entry);
+    return {
+      boardId: boardOid,
+      source,
+      sourceUserId: fields.sourceUserId,
+      displayName: fields.displayName,
+      roleKey: fields.roleKey,
+      ...(fields.email != null ? { email: fields.email } : {}),
+      ...(fields.importUsername != null ? { importUsername: fields.importUsername } : {}),
+    };
+  });
+
+  for (let offset = 0; offset < insertDocs.length; offset += PLACEHOLDER_INSERT_BATCH_SIZE) {
+    const chunk = insertDocs.slice(offset, offset + PLACEHOLDER_INSERT_BATCH_SIZE);
+    try {
+      const inserted = await BoardImportPlaceholder.insertMany(chunk, { ordered: false });
+      for (const doc of inserted) {
+        result.set(doc.sourceUserId, doc._id.toString());
+      }
+    } catch (error: unknown) {
+      const stillMissing = missingIds.filter((id) => !result.has(id));
+      if (stillMissing.length === 0) {
+        continue;
+      }
+      const refetched = await BoardImportPlaceholder.find({
+        boardId: boardOid,
+        sourceUserId: { $in: stillMissing },
+      })
+        .select('_id sourceUserId')
+        .lean();
+      for (const row of refetched) {
+        result.set(row.sourceUserId, row._id.toString());
+      }
+      const unresolved = stillMissing.filter((id) => !result.has(id));
+      if (unresolved.length > 0) {
+        logger.error(
+          { error, boardId, unresolvedCount: unresolved.length },
+          'batchGetOrCreateBoardImportPlaceholders insert failed',
+        );
+        throw error;
+      }
+    }
+  }
+
+  return result;
+}
+
 export async function getOrCreateBoardImportPlaceholder(params: {
   readonly boardId: string;
   readonly source: 'trello' | 'wekan';
   readonly sourceUser: ImportPreflightUser;
   readonly roleKey: string;
 }): Promise<string> {
-  const { boardId, source, sourceUser, roleKey } = params;
-  const email = normalizeImportSourceEmail(sourceUser.email);
-  const importUsername =
-    sourceUser.username != null && sourceUser.username.trim().length >= 3
-      ? sourceUser.username.trim().toLowerCase()
-      : undefined;
-  const displayName =
-    sourceUser.fullName?.trim() ||
-    sourceUser.username?.trim() ||
-    email?.split('@')[0] ||
-    `Imported user ${sourceUser.sourceUserId.slice(0, 8)}`;
-
-  const existing = await BoardImportPlaceholder.findOne({
-    boardId: new mongoose.Types.ObjectId(boardId),
-    sourceUserId: sourceUser.sourceUserId,
-  })
-    .select('_id email')
-    .lean();
-  if (existing) {
-    const existingEmail =
-      typeof existing.email === 'string' && existing.email.trim() !== '' ? existing.email.trim() : '';
-    const shouldSetEmail =
-      email != null &&
-      (existingEmail === '' || isSyntheticImportPlaceholderEmail(existingEmail));
-    if (shouldSetEmail) {
-      await BoardImportPlaceholder.updateOne({ _id: existing._id }, { $set: { email } });
-    }
-    return existing._id.toString();
-  }
-
-  const doc = await BoardImportPlaceholder.create({
-    boardId: new mongoose.Types.ObjectId(boardId),
-    source,
-    sourceUserId: sourceUser.sourceUserId,
-    displayName: displayName.slice(0, 100),
-    roleKey,
-    ...(email != null ? { email } : {}),
-    ...(importUsername != null ? { importUsername } : {}),
+  const map = await batchGetOrCreateBoardImportPlaceholders({
+    boardId: params.boardId,
+    source: params.source,
+    entries: [{ sourceUser: params.sourceUser, roleKey: params.roleKey }],
   });
-  return doc._id.toString();
+  const id = map.get(params.sourceUser.sourceUserId.trim());
+  if (id == null) {
+    throw new Error('Failed to create board import placeholder');
+  }
+  return id;
 }
 
 /** Board settings "All Users" can list every import placeholder on large Wekan boards. */

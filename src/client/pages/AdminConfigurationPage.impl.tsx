@@ -26,6 +26,7 @@ import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
 import { useIsPwa } from '../hooks/usePwaDisplayMode.js';
 import {
   AdminBackupPanel,
+  AdminDatabasePanel,
   AdminMonitorPanel,
   AdminUsersTab,
   LoaderCentered,
@@ -175,6 +176,10 @@ export default function AdminConfigurationPage() {
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminUsersTab currentUserId={user.id} />
                 </Suspense>
+              ) : mobileConfigOpen === 'database' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminDatabasePanel />
+                </Suspense>
               ) : mobileConfigOpen === 'backup' ? (
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminBackupPanel />
@@ -299,6 +304,10 @@ export default function AdminConfigurationPage() {
               ) : configSubtab === 'users' ? (
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminUsersTab currentUserId={user.id} />
+                </Suspense>
+              ) : configSubtab === 'database' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminDatabasePanel />
                 </Suspense>
               ) : configSubtab === 'backup' ? (
                 <Suspense fallback={<LoaderCentered />}>

@@ -19,6 +19,7 @@ Typical areas include:
 - **Permissions** — roles and what each role may do.  
 - **Users** — accounts on this server.  
 - **Integrations** — may be a placeholder until finished.  
+- **Database** — MongoDB collection counts, orphan/stale row detection, and manual cleanup.  
 - **Backup** — run or schedule backups to safe storage.  
 - **Monitor** — health-style information for operators.
 

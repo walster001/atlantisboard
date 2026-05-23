@@ -15,7 +15,7 @@ import {
 } from '../importSourceUserCatalog.js';
 import {
   buildImportRealUserMap,
-  isImportPlaceholderActorId,
+  isEligibleImportBoardMemberActorId,
   resolveImportActorId,
 } from '../importUserMapService.js';
 import {
@@ -155,6 +155,16 @@ export async function executeTrelloImportJob(params: {
       const trelloMemberIds = collectTrelloMemberIdsForBoard(trelloBoard.id, cardsOrdered);
       const boardSourceUsersById = extendSourceUsersById(sourceUsers, trelloMemberIds);
       const boardActorMap = new Map(realUserMap);
+      await ensureBoardImportPlaceholdersSeeded({
+        boardId: atlBoardId,
+        sourceUsersById: boardSourceUsersById,
+        referencedSourceUserIds: trelloMemberIds,
+        actorMap: boardActorMap,
+        source: 'trello',
+        policy: unmappedPolicy,
+        importerUserId: userId,
+        preflight,
+      });
       const seenMemberIds = new Set<string>([userId]);
       for (const trelloMemberId of trelloMemberIds) {
         const actorId = await resolveImportActorId({
@@ -168,7 +178,11 @@ export async function executeTrelloImportJob(params: {
           importerUserId: userId,
           preflight,
         });
-        if (actorId == null || seenMemberIds.has(actorId) || (await isImportPlaceholderActorId(actorId))) {
+        if (
+          actorId == null ||
+          seenMemberIds.has(actorId) ||
+          !(await isEligibleImportBoardMemberActorId(actorId, unmappedPolicy))
+        ) {
           continue;
         }
         seenMemberIds.add(actorId);
@@ -178,16 +192,6 @@ export async function executeTrelloImportJob(params: {
           addedAt: new Date(),
         });
       }
-      await ensureBoardImportPlaceholdersSeeded({
-        boardId: atlBoardId,
-        sourceUsersById: boardSourceUsersById,
-        referencedSourceUserIds: trelloMemberIds,
-        actorMap: boardActorMap,
-        source: 'trello',
-        policy: unmappedPolicy,
-        importerUserId: userId,
-        preflight,
-      });
       if (board.members.length > 1) {
         await board.save();
       }

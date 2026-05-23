@@ -19,7 +19,7 @@ export const inlineButtonIconReplacementSchema = z.object({
 
 export const importPreflightPayloadSchema = z.object({
   userDecisions: z.array(importUserDecisionSchema).default([]),
-  unmappedUserPolicy: unmappedUserPolicySchema.default('map_to_importer'),
+  unmappedUserPolicy: unmappedUserPolicySchema.default('discard_unmapped'),
   inlineButtonIconReplacements: z.array(inlineButtonIconReplacementSchema).optional(),
 });
 

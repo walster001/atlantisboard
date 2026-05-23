@@ -6,6 +6,7 @@ import { registerAppAdminRoutes } from './appAdminRoutes.js';
 import { registerBrandingRoutes } from './brandingRoutes.js';
 import { registerConfigRoutes } from './configRoutes.js';
 import { registerFontsRoutes } from './fontsRoutes.js';
+import { registerDatabaseMaintenanceRoutes } from './databaseMaintenanceRoutes.js';
 import { registerMetricsRoutes } from './metricsRoutes.js';
 import { registerPermissionsRoutes } from './permissionsRoutes.js';
 import { registerPlaceholderUserRoutes } from './placeholderUserRoutes.js';
@@ -22,6 +23,7 @@ router.use(apiRateLimiter);
 
 router.use('/backup', adminBackupRoutes);
 registerMetricsRoutes(router);
+registerDatabaseMaintenanceRoutes(router);
 registerUserSecurityRoutes(router);
 registerUsersRoutes(router);
 registerConfigRoutes(router);

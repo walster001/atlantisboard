@@ -10,6 +10,7 @@ import { User } from '../models/User.js';
 import { logger } from '../utils/logger.js';
 import { extractRefUserIdString } from './boardService/helpers.js';
 import {
+  batchGetOrCreateBoardImportPlaceholders,
   claimBoardImportPlaceholdersForUser,
   discardAllBoardImportPlaceholdersOnBoard,
   getOrCreateBoardImportPlaceholder,
@@ -22,6 +23,7 @@ import { normalizeImportSourceEmail } from '../../shared/import/importSourceUser
 import type { ImportPreflightUser } from '../../shared/import/importPreflight.js';
 
 export {
+  batchGetOrCreateBoardImportPlaceholders,
   claimBoardImportPlaceholdersForUser as claimImportPlaceholderMembershipsForUser,
   discardAllBoardImportPlaceholdersOnBoard as discardAllUnmappedPlaceholdersOnBoard,
   getOrCreateBoardImportPlaceholder,

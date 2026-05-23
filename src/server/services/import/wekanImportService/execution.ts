@@ -14,7 +14,7 @@ import {
 } from '../importSourceUserCatalog.js';
 import {
   buildImportRealUserMap,
-  isImportPlaceholderActorId,
+  isEligibleImportBoardMemberActorId,
   resolveImportActorId,
 } from '../importUserMapService.js';
 import { logger } from '../../../utils/logger.js';
@@ -118,6 +118,16 @@ export async function executeWekanImportJob(params: {
       const referencedUserIds = collectWekanReferencedUserIdsForBoard(data, wekanBoard._id);
       const boardSourceUsersById = extendSourceUsersById(sourceUsers, referencedUserIds);
       const boardActorMap = new Map(realUserMap);
+      await ensureBoardImportPlaceholdersSeeded({
+        boardId: atlBoardId,
+        sourceUsersById: boardSourceUsersById,
+        referencedSourceUserIds: referencedUserIds,
+        actorMap: boardActorMap,
+        source: 'wekan',
+        policy: unmappedPolicy,
+        importerUserId: userId,
+        preflight,
+      });
       const seenMemberIds = new Set<string>([userId]);
       for (const member of wekanBoard.members || []) {
         const roleKey = mapWekanBoardMemberToBoardRoleKey(member);
@@ -132,7 +142,11 @@ export async function executeWekanImportJob(params: {
           importerUserId: userId,
           preflight,
         });
-        if (actorId == null || seenMemberIds.has(actorId) || (await isImportPlaceholderActorId(actorId))) {
+        if (
+          actorId == null ||
+          seenMemberIds.has(actorId) ||
+          !(await isEligibleImportBoardMemberActorId(actorId, unmappedPolicy))
+        ) {
           continue;
         }
         seenMemberIds.add(actorId);
@@ -142,16 +156,6 @@ export async function executeWekanImportJob(params: {
           addedAt: new Date(),
         });
       }
-      await ensureBoardImportPlaceholdersSeeded({
-        boardId: atlBoardId,
-        sourceUsersById: boardSourceUsersById,
-        referencedSourceUserIds: referencedUserIds,
-        actorMap: boardActorMap,
-        source: 'wekan',
-        policy: unmappedPolicy,
-        importerUserId: userId,
-        preflight,
-      });
       if (board.members.length > 1) {
         await board.save();
       }

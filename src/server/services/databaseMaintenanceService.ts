@@ -42,7 +42,13 @@ const KNOWN_COLLECTIONS = new Set<string>([
   'permissionsets',
   'roledefinitions',
   'boardimportplaceholders',
+  'themes',
 ]);
+
+/** Application MongoDB collection names shown as "Known" in Admin → Database. */
+export function listKnownApplicationCollectionNames(): readonly string[] {
+  return [...KNOWN_COLLECTIONS].sort((a, b) => a.localeCompare(b));
+}
 
 const ORPHAN_DELETE_BATCH = 2000;
 

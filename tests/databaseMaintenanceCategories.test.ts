@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { DATABASE_CLEANUP_CATEGORY_IDS } from '../src/shared/types/adminDatabaseMaintenance.js';
-import { listSafeCleanupCategoryIds } from '../src/server/services/databaseMaintenanceService.js';
+import {
+  listKnownApplicationCollectionNames,
+  listSafeCleanupCategoryIds,
+} from '../src/server/services/databaseMaintenanceService.js';
+import { LEGACY_UNUSED_MONGO_COLLECTIONS } from '../src/server/services/startupMigrations.js';
 
 describe('database maintenance categories', () => {
   test('safe cleanup ids are a subset of all category ids', () => {
@@ -18,5 +22,16 @@ describe('database maintenance categories', () => {
     const safe = listSafeCleanupCategoryIds();
     expect(safe).toContain('stale-import-jobs');
     expect(safe).toContain('stale-backup-jobs');
+  });
+
+  test('themes is a known application collection', () => {
+    expect(listKnownApplicationCollectionNames()).toContain('themes');
+  });
+
+  test('legacy template collections are not part of the application schema', () => {
+    const known = new Set(listKnownApplicationCollectionNames());
+    for (const legacy of LEGACY_UNUSED_MONGO_COLLECTIONS) {
+      expect(known.has(legacy)).toBe(false);
+    }
   });
 });

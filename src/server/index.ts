@@ -16,6 +16,7 @@ import { setupSocketIO } from './sockets/index.js';
 import { initializeMinIOBuckets } from './config/minio.js';
 import { initializeRoleDefinitions } from './services/roleService.js';
 import { initializeBoardThemes } from './services/boardThemeService.js';
+import { dropLegacyUnusedCollections } from './services/startupMigrations.js';
 import { expressCorsOptions } from './config/cors.js';
 // Background jobs can run in separate worker process or in main process
 // Set ENABLE_CRON_JOBS_IN_MAIN=true to run in main process (default: false, use separate worker)
@@ -31,6 +32,7 @@ connectDatabase()
   .then(() => migrateLegacyUserPlaceholdersToBoardCollection())
   .then(() => repairWekanEmailStoredInImportUsername())
   .then(() => sanitizeBoardImportPlaceholderStoredEmails())
+  .then(() => dropLegacyUnusedCollections())
   .then(() => initializeBoardThemes())
   .catch((err) => {
     logger.error({ err }, 'Failed to connect to database or run startup migrations');

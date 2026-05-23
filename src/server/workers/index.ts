@@ -12,7 +12,9 @@ async function startWorker(): Promise<void> {
   // Connect to database
   try {
     await connectDatabase();
+    const { dropLegacyUnusedCollections } = await import('../services/startupMigrations.js');
     const { initializeBoardThemes } = await import('../services/boardThemeService.js');
+    await dropLegacyUnusedCollections();
     await initializeBoardThemes();
     logger.info('Database connected for worker process');
   } catch (error) {

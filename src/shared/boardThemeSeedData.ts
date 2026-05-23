@@ -1,5 +1,8 @@
 import type { BoardThemeDefinition } from './boardTheme.js';
-import { BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA } from './boardTheme.js';
+
+const BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA = '#00000000';
+
+export const BOARD_DEFAULT_THEME_ID = 'ocean-blue';
 
 /** System theme slugs that keep light navbar foreground despite smart-contrast rules. */
 export const BOARD_NAVBAR_LIGHT_FG_THEME_SLUGS: readonly string[] = ['sunset-orange', 'mint-green', 'teal'];

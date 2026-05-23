@@ -22,6 +22,11 @@ import {
 } from '../services/userAvatarService.js';
 import { logger } from '../utils/logger.js';
 import { sanitizeAndMergeHomeWorkspaceOrder } from '../services/workspaceService.js';
+import {
+  attachCustomBoardThemesToPreferences,
+  loadSystemThemeCatalog,
+  replaceUserCustomThemes,
+} from '../services/boardThemeService.js';
 import { normalizeBoardThemeSettings } from '../../shared/boardTheme.js';
 
 const router = Router();
@@ -488,7 +493,9 @@ router.get('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, asy
       return;
     }
 
-    res.json({ preferences: user.preferences });
+    res.json({
+      preferences: await attachCustomBoardThemesToPreferences(authReq.user.id, user.preferences),
+    });
   } catch (error) {
     next(error);
   }
@@ -522,24 +529,31 @@ router.put('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, asy
       );
     }
     if (validated.customBoardThemes !== undefined) {
+      const catalog = await loadSystemThemeCatalog();
       const normalizedThemes = validated.customBoardThemes.map((theme) => {
-        const normalized = normalizeBoardThemeSettings({
-          selectedThemeId: theme.id,
-          selectedTheme: theme,
-          customThemes: [theme],
-          smartContrast: true,
-          backgroundMode: 'theme',
-          backgroundColor: theme.palette.canvasBg,
-        });
+        const normalized = normalizeBoardThemeSettings(
+          {
+            selectedThemeId: theme.id,
+            selectedTheme: theme,
+            customThemes: [theme],
+            smartContrast: true,
+            backgroundMode: 'theme',
+            backgroundColor: theme.palette.canvasBg,
+          },
+          undefined,
+          catalog,
+        );
         return normalized.selectedTheme;
       });
-      user.preferences.customBoardThemes = normalizedThemes;
+      await replaceUserCustomThemes(authReq.user.id, normalizedThemes);
     }
 
     user.preferences.theme = 'light';
 
     user.markModified('preferences');
     await user.save();
+
+    const preferences = await attachCustomBoardThemesToPreferences(authReq.user.id, user.preferences);
 
     res.json({
       user: {
@@ -549,7 +563,7 @@ router.put('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, asy
         displayName: user.displayName,
         profilePicture: user.profilePicture,
         isAppAdmin: user.isAppAdmin,
-        preferences: user.preferences,
+        preferences,
         emailVerified: user.emailVerified,
       },
     });

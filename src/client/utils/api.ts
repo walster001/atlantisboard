@@ -20,6 +20,7 @@ import { adminDatabaseApiMethods, type AdminDatabaseApiMethods } from './api/adm
 import { userApiMethods, type UserApiMethods } from './api/userApiMethods.js';
 import { importExportApiMethods, type ImportExportApiMethods } from './api/importExportApiMethods.js';
 import { attachmentApiMethods, type AttachmentApiMethods } from './api/attachmentApiMethods.js';
+import { themesApiMethods, type ThemesApiMethods } from './api/themesApiMethods.js';
 import { API_BASE_URL } from './api/shared.js';
 export { invalidateFontsCatalogCache };
 
@@ -160,7 +161,8 @@ export interface ApiClient
     AdminDatabaseApiMethods,
     UserApiMethods,
     ImportExportApiMethods,
-    AttachmentApiMethods {}
+    AttachmentApiMethods,
+    ThemesApiMethods {}
 
 Object.assign(ApiClient.prototype, authApiMethods);
 Object.assign(ApiClient.prototype, workspaceApiMethods);
@@ -179,5 +181,6 @@ Object.assign(ApiClient.prototype, adminDatabaseApiMethods);
 Object.assign(ApiClient.prototype, userApiMethods);
 Object.assign(ApiClient.prototype, importExportApiMethods);
 Object.assign(ApiClient.prototype, attachmentApiMethods);
+Object.assign(ApiClient.prototype, themesApiMethods);
 
 export const api = new ApiClient();

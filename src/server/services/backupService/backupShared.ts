@@ -8,6 +8,7 @@ export const MONGO_RESTORE_ORDER: readonly string[] = [
   'roledefinitions',
   'permissionsets',
   'users',
+  'themes',
   'adminconfigs',
   'backupjobs',
   'workspaces',

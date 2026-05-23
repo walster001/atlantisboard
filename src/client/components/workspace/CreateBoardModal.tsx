@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Modal,
   TextInput,
@@ -13,13 +13,13 @@ import {
 import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_NAME_MAX_LENGTH } from '../../constants/boardFieldLimits.js';
 import { api } from '../../utils/api.js';
 import {
-  BOARD_DEFAULT_THEMES,
+  BOARD_DEFAULT_THEME_ID,
   createDefaultBoardThemeSettings,
   findBoardThemeById,
   resolveBoardBackgroundFromThemeSettings,
   type BoardThemeDefinition,
 } from '../../../shared/boardTheme.js';
-import { useAuthContext } from '../../contexts/AuthContext.js';
+import { useBoardThemes } from '../../hooks/useBoardThemes.js';
 
 interface CreateBoardModalProps {
   workspaceId: string;
@@ -28,31 +28,30 @@ interface CreateBoardModalProps {
 }
 
 export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoardModalProps) {
-  const { user } = useAuthContext();
+  const { catalog, allThemes, systemThemes } = useBoardThemes();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedThemeId, setSelectedThemeId] = useState(BOARD_DEFAULT_THEMES[0]?.id ?? 'ocean-blue');
+  const defaultThemeId = systemThemes[0]?.id ?? BOARD_DEFAULT_THEME_ID;
+  const [selectedThemeId, setSelectedThemeId] = useState(defaultThemeId);
 
   const availableThemes = useMemo<BoardThemeDefinition[]>(() => {
-    const userCustomThemes = Array.isArray(user?.preferences.customBoardThemes)
-      ? user.preferences.customBoardThemes
-      : [];
     const seen = new Set<string>();
     const merged: BoardThemeDefinition[] = [];
-    for (const theme of BOARD_DEFAULT_THEMES) {
-      if (seen.has(theme.id)) continue;
-      seen.add(theme.id);
-      merged.push({ id: theme.id, name: theme.name, palette: { ...theme.palette } });
-    }
-    for (const theme of userCustomThemes) {
+    for (const theme of allThemes) {
       if (seen.has(theme.id)) continue;
       seen.add(theme.id);
       merged.push({ id: theme.id, name: theme.name, palette: { ...theme.palette } });
     }
     return merged;
-  }, [user?.preferences.customBoardThemes]);
+  }, [allThemes]);
+
+  useEffect(() => {
+    setSelectedThemeId((current) =>
+      availableThemes.some((theme) => theme.id === current) ? current : defaultThemeId,
+    );
+  }, [availableThemes, defaultThemeId]);
 
   const nameOverLimit = name.length > BOARD_NAME_MAX_LENGTH;
   const descriptionOverLimit = description.length > BOARD_DESCRIPTION_MAX_LENGTH;
@@ -91,11 +90,11 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
       }
       const selectedTheme =
         availableThemes.find((theme) => theme.id === selectedThemeId) ??
-        findBoardThemeById(selectedThemeId) ??
-        findBoardThemeById('ocean-blue') ??
-        BOARD_DEFAULT_THEMES[0];
+        findBoardThemeById(selectedThemeId, catalog) ??
+        findBoardThemeById(BOARD_DEFAULT_THEME_ID, catalog) ??
+        systemThemes[0];
       if (selectedTheme != null) {
-        const themeSettings = createDefaultBoardThemeSettings(selectedTheme.id);
+        const themeSettings = createDefaultBoardThemeSettings(selectedTheme.id, catalog);
         themeSettings.selectedTheme = {
           id: selectedTheme.id,
           name: selectedTheme.name,

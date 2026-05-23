@@ -1,5 +1,5 @@
 export type EntityViewMode = 'summary' | 'detail';
-import type { BoardThemeSettings } from '../boardTheme.js';
+import type { BoardThemeSettings, BoardThemeSettingsStored } from '../boardTheme.js';
 
 export interface WorkspaceSummaryDTO {
   id: string;
@@ -51,7 +51,7 @@ export interface BoardSummaryDTO {
   name: string;
   description?: string;
   background?: string;
-  themeSettings?: BoardThemeSettings;
+  themeSettings?: BoardThemeSettings | BoardThemeSettingsStored;
   visibility: 'private' | 'workspace' | 'public';
   ownerId: string;
   members: Array<{

@@ -21,6 +21,7 @@ export interface BoardThemeColouringPanelProps {
   canChangeTheme: boolean;
   canManageCustomThemes: boolean;
   draft: BoardThemeSettings;
+  systemThemes: readonly BoardThemeDefinition[];
   themeCards: readonly BoardThemeDefinition[];
   saving: boolean;
   hasUnsavedChanges: boolean;
@@ -38,6 +39,7 @@ export function BoardThemeColouringPanel({
   canChangeTheme,
   canManageCustomThemes,
   draft,
+  systemThemes,
   themeCards,
   saving,
   hasUnsavedChanges,
@@ -90,7 +92,7 @@ export function BoardThemeColouringPanel({
       <SimpleGrid cols={{ base: 1, sm: 2, md: 2, lg: 3 }} spacing="md">
         {themeCards.map((theme) => {
           const selected = theme.id === draft.selectedThemeId;
-          const isDefault = isBoardDefaultThemeId(theme.id);
+          const isDefault = isBoardDefaultThemeId(theme.id, systemThemes);
           const previewPalette = applySmartContrastToThemePalette(theme.palette, draft.smartContrast);
           return (
             <Card

@@ -1,3 +1,16 @@
+import {
+  BOARD_NAVBAR_LIGHT_FG_THEME_SLUGS,
+  BOARD_THEME_EDITOR_NAV_CANVAS_SWATCHES,
+  SYSTEM_BOARD_THEME_SEEDS,
+} from './boardThemeSeedData.js';
+import {
+  buildFallbackBoardThemeCatalog,
+  defaultThemeFromCatalog,
+  findBoardThemeInCatalog,
+  isSystemBoardThemeId,
+  type BoardThemeCatalog,
+} from './boardThemeCatalog.js';
+
 /**
  * Canonical board chrome palette. Values flow to the live board via
  * `getBoardPageThemeStyle` in `src/client/utils/boardThemeStyle.ts` as CSS custom properties
@@ -73,255 +86,36 @@ export interface BoardThemeSettings {
   boardOpacity?: number | undefined;
 }
 
-export const BOARD_DEFAULT_THEME_ID = 'ocean-blue';
-
-/** Fully transparent 8-digit HEXA for native scrollbar tracks on `.board-page` (`scrollbar-color` second colour). */
-export const BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA = '#00000000';
-
-/**
- * Saturated default navbars where white labels are kept for smart contrast. A strict 4.5:1 check
- * would pick dark text on these mid-luminance fills; the board chrome is designed for light nav FG.
- */
-export const BOARD_NAVBAR_LIGHT_FG_THEME_IDS: readonly string[] = ['sunset-orange', 'mint-green', 'teal'];
-
-export function boardThemePrefersNavbarLightForeground(themeId: string): boolean {
-  return BOARD_NAVBAR_LIGHT_FG_THEME_IDS.includes(themeId);
+/** Persisted on boards after theme hydration migration (no embedded theme payloads). */
+export interface BoardThemeSettingsStored {
+  selectedThemeId: string;
+  smartContrast: boolean;
+  backgroundMode: BoardBackgroundMode;
+  backgroundColor?: string | undefined;
+  backgroundImageUrl?: string | undefined;
+  backgroundImageScale?: BoardBackgroundImageScale | undefined;
+  backgroundFocalX?: number | undefined;
+  backgroundFocalY?: number | undefined;
+  boardOpacity?: number | undefined;
+  /** Legacy embedded fields — migrated to `themes` collection. */
+  selectedTheme?: BoardThemeDefinition;
+  customThemes?: BoardThemeDefinition[];
 }
 
-export const BOARD_DEFAULT_THEMES: readonly BoardThemeDefinition[] = [
-  {
-    id: 'ocean-blue',
-    name: 'Ocean Blue',
-    palette: {
-      navbarBg: '#1a5b99',
-      navbarBorder: '#ffffff1f',
-      canvasBg: '#2b82c9',
-      listBg: '#ffffff',
-      listHeaderText: '#172b4d',
-      listMuted: '#5e6c84',
-      listMutedStrong: '#42526e',
-      listControlHoverBg: '#0000000f',
-      listShadow: '0 1px 3px #0000001f',
-      addListBg: '#ffffff33',
-      addListBgHover: '#ffffff47',
-      cardDetailBg: '#f8f9fb',
-      cardDetailTitleText: '#1a1b1e',
-      cardDetailText: '#868e96',
-      cardDetailButtonBg: '#f0f1f4',
-      cardDetailButtonText: '#1f2937',
-      cardDetailButtonHoverBg: '#e4e6ea',
-      cardDetailButtonHoverText: '#1f2937',
-      scrollbarColor: 'unset',
-      scrollbarTrackColor: BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
-    },
-  },
-  {
-    id: 'sunset-orange',
-    name: 'Sunset Orange',
-    palette: {
-      navbarBg: '#be7b12',
-      navbarBorder: '#ffffff2e',
-      canvasBg: '#d8902b',
-      listBg: '#ffffff',
-      listHeaderText: '#3b2b12',
-      listMuted: '#6c5a40',
-      listMutedStrong: '#503d27',
-      listControlHoverBg: '#00000012',
-      listShadow: '0 1px 3px #00000021',
-      addListBg: '#ffffff33',
-      addListBgHover: '#ffffff4d',
-      cardDetailBg: '#fcfaf7',
-      cardDetailTitleText: '#1a1b1e',
-      cardDetailText: '#866a45',
-      cardDetailButtonBg: '#f4efe8',
-      cardDetailButtonText: '#3f2c19',
-      cardDetailButtonHoverBg: '#eadfce',
-      cardDetailButtonHoverText: '#3f2c19',
-      scrollbarColor: 'unset',
-      scrollbarTrackColor: BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
-    },
-  },
-  {
-    id: 'forest-green',
-    name: 'Forest Green',
-    palette: {
-      navbarBg: '#3f7d24',
-      navbarBorder: '#ffffff29',
-      canvasBg: '#5fa237',
-      listBg: '#ffffff',
-      listHeaderText: '#193018',
-      listMuted: '#52684f',
-      listMutedStrong: '#395139',
-      listControlHoverBg: '#0000000f',
-      listShadow: '0 1px 3px #0000001f',
-      addListBg: '#ffffff33',
-      addListBgHover: '#ffffff4d',
-      cardDetailBg: '#f7faf7',
-      cardDetailTitleText: '#1a1b1e',
-      cardDetailText: '#56725a',
-      cardDetailButtonBg: '#edf3ed',
-      cardDetailButtonText: '#1e3221',
-      cardDetailButtonHoverBg: '#dde7dd',
-      cardDetailButtonHoverText: '#1e3221',
-      scrollbarColor: 'unset',
-      scrollbarTrackColor: BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
-    },
-  },
-  {
-    id: 'ruby-red',
-    name: 'Ruby Red',
-    palette: {
-      navbarBg: '#9d3d2b',
-      navbarBorder: '#ffffff2e',
-      canvasBg: '#b8503a',
-      listBg: '#ffffff',
-      listHeaderText: '#3a1f1b',
-      listMuted: '#715552',
-      listMutedStrong: '#553a37',
-      listControlHoverBg: '#0000000f',
-      listShadow: '0 1px 3px #00000021',
-      addListBg: '#ffffff33',
-      addListBgHover: '#ffffff4d',
-      cardDetailBg: '#faf7f7',
-      cardDetailTitleText: '#1a1b1e',
-      cardDetailText: '#7a5e5e',
-      cardDetailButtonBg: '#f3ecec',
-      cardDetailButtonText: '#3c2323',
-      cardDetailButtonHoverBg: '#e7dddd',
-      cardDetailButtonHoverText: '#3c2323',
-      scrollbarColor: 'unset',
-      scrollbarTrackColor: BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
-    },
-  },
-  {
-    id: 'royal-purple',
-    name: 'Royal Purple',
-    palette: {
-      navbarBg: '#7b5db5',
-      navbarBorder: '#ffffff2e',
-      canvasBg: '#987ad0',
-      listBg: '#ffffff',
-      listHeaderText: '#2a2242',
-      listMuted: '#625a79',
-      listMutedStrong: '#4a4262',
-      listControlHoverBg: '#0000000f',
-      listShadow: '0 1px 3px #00000021',
-      addListBg: '#ffffff38',
-      addListBgHover: '#ffffff4f',
-      cardDetailBg: '#f8f7fb',
-      cardDetailTitleText: '#1a1b1e',
-      cardDetailText: '#676080',
-      cardDetailButtonBg: '#efecf7',
-      cardDetailButtonText: '#2a2242',
-      cardDetailButtonHoverBg: '#e3ddf1',
-      cardDetailButtonHoverText: '#2a2242',
-      scrollbarColor: 'unset',
-      scrollbarTrackColor: BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
-    },
-  },
-  {
-    id: 'hot-pink',
-    name: 'Hot Pink',
-    palette: {
-      navbarBg: '#c04a97',
-      navbarBorder: '#ffffff33',
-      canvasBg: '#dc65af',
-      listBg: '#ffffff',
-      listHeaderText: '#3f1f33',
-      listMuted: '#7a5c71',
-      listMutedStrong: '#604657',
-      listControlHoverBg: '#0000000f',
-      listShadow: '0 1px 3px #00000021',
-      addListBg: '#ffffff3b',
-      addListBgHover: '#ffffff54',
-      cardDetailBg: '#fbf7fa',
-      cardDetailTitleText: '#1a1b1e',
-      cardDetailText: '#7b6273',
-      cardDetailButtonBg: '#f3ecf1',
-      cardDetailButtonText: '#3f1f33',
-      cardDetailButtonHoverBg: '#e8dde6',
-      cardDetailButtonHoverText: '#3f1f33',
-      scrollbarColor: 'unset',
-      scrollbarTrackColor: BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
-    },
-  },
-  {
-    id: 'mint-green',
-    name: 'Mint Green',
-    palette: {
-      navbarBg: '#53b972',
-      navbarBorder: '#ffffff29',
-      canvasBg: '#75cf8f',
-      listBg: '#ffffff',
-      listHeaderText: '#193226',
-      listMuted: '#567666',
-      listMutedStrong: '#3f5c4e',
-      listControlHoverBg: '#0000000f',
-      listShadow: '0 1px 3px #0000001f',
-      addListBg: '#ffffff33',
-      addListBgHover: '#ffffff4f',
-      cardDetailBg: '#f7fbf8',
-      cardDetailTitleText: '#1a1b1e',
-      cardDetailText: '#5a7568',
-      cardDetailButtonBg: '#edf4ef',
-      cardDetailButtonText: '#1f3329',
-      cardDetailButtonHoverBg: '#dfe9e2',
-      cardDetailButtonHoverText: '#1f3329',
-      scrollbarColor: 'unset',
-      scrollbarTrackColor: BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
-    },
-  },
-  {
-    id: 'teal',
-    name: 'Teal',
-    palette: {
-      navbarBg: '#2f9abc',
-      navbarBorder: '#ffffff2e',
-      canvasBg: '#46b3d7',
-      listBg: '#ffffff',
-      listHeaderText: '#17353e',
-      listMuted: '#5a7480',
-      listMutedStrong: '#435c66',
-      listControlHoverBg: '#0000000f',
-      listShadow: '0 1px 3px #0000001f',
-      addListBg: '#ffffff33',
-      addListBgHover: '#ffffff4d',
-      cardDetailBg: '#f7fafb',
-      cardDetailTitleText: '#1a1b1e',
-      cardDetailText: '#5a717a',
-      cardDetailButtonBg: '#edf3f5',
-      cardDetailButtonText: '#18323a',
-      cardDetailButtonHoverBg: '#dee8eb',
-      cardDetailButtonHoverText: '#18323a',
-      scrollbarColor: 'unset',
-      scrollbarTrackColor: BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
-    },
-  },
-] as const;
+export { BOARD_DEFAULT_THEME_ID } from './boardThemeSeedData.js';
 
-/**
- * Fixed 8-digit HEXA swatches for board theme `ColorInput` pickers (navbar + canvas only).
- * Order: each entry in {@link BOARD_DEFAULT_THEMES} — `navbarBg`, then `canvasBg`. Update this
- * list when default theme nav/canvas colours change.
- */
-export const BOARD_THEME_EDITOR_NAV_CANVAS_SWATCHES: readonly string[] = [
-  '#1a5b99ff',
-  '#2b82c9ff',
-  '#be7b12ff',
-  '#d8902bff',
-  '#3f7d24ff',
-  '#5fa237ff',
-  '#9d3d2bff',
-  '#b8503aff',
-  '#7b5db5ff',
-  '#987ad0ff',
-  '#c04a97ff',
-  '#dc65afff',
-  '#53b972ff',
-  '#75cf8fff',
-  '#2f9abcff',
-  '#46b3d7ff',
-];
+export const BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA = '#00000000';
+
+export const BOARD_NAVBAR_LIGHT_FG_THEME_IDS = BOARD_NAVBAR_LIGHT_FG_THEME_SLUGS;
+
+export function boardThemePrefersNavbarLightForeground(themeId: string): boolean {
+  return BOARD_NAVBAR_LIGHT_FG_THEME_SLUGS.includes(themeId);
+}
+
+/** @deprecated Load from `/api/v1/themes` or {@link SYSTEM_BOARD_THEME_SEEDS}. */
+export const BOARD_DEFAULT_THEMES = SYSTEM_BOARD_THEME_SEEDS;
+
+export { BOARD_THEME_EDITOR_NAV_CANVAS_SWATCHES, SYSTEM_BOARD_THEME_SEEDS };
 
 function cloneTheme(theme: BoardThemeDefinition): BoardThemeDefinition {
   return {
@@ -331,21 +125,21 @@ function cloneTheme(theme: BoardThemeDefinition): BoardThemeDefinition {
   };
 }
 
-export function findBoardThemeById(themeId: string): BoardThemeDefinition | null {
-  const trimmed = themeId.trim();
-  if (trimmed === '') {
-    return null;
-  }
-  const found = BOARD_DEFAULT_THEMES.find((theme) => theme.id === trimmed);
-  return found != null ? cloneTheme(found) : null;
+export function findBoardThemeById(
+  themeId: string,
+  catalog: BoardThemeCatalog = buildFallbackBoardThemeCatalog(),
+): BoardThemeDefinition | null {
+  return findBoardThemeInCatalog(themeId, catalog);
 }
 
-export function createDefaultBoardThemeSettings(themeId?: string): BoardThemeSettings {
+export function createDefaultBoardThemeSettings(
+  themeId?: string,
+  catalog: BoardThemeCatalog = buildFallbackBoardThemeCatalog(),
+): BoardThemeSettings {
   const preferred = themeId?.trim() ?? '';
   const selectedTheme =
-    (preferred !== '' ? findBoardThemeById(preferred) : null) ??
-    findBoardThemeById(BOARD_DEFAULT_THEME_ID) ??
-    cloneTheme(BOARD_DEFAULT_THEMES[0]!);
+    (preferred !== '' ? findBoardThemeInCatalog(preferred, catalog) : null) ??
+    defaultThemeFromCatalog(catalog);
   return {
     selectedThemeId: selectedTheme.id,
     selectedTheme,
@@ -364,19 +158,23 @@ export function resolveBoardThemeByIdOrCurrent(
   selectedThemeId: string,
   selectedTheme: BoardThemeDefinition,
   customThemes: readonly BoardThemeDefinition[],
+  catalog: BoardThemeCatalog = buildFallbackBoardThemeCatalog(),
 ): BoardThemeDefinition {
   const selectedCustom = customThemes.find((t) => t.id === selectedThemeId);
   if (selectedCustom != null) {
     return cloneTheme(selectedCustom);
   }
-  const defaultTheme = findBoardThemeById(selectedThemeId);
-  if (defaultTheme != null) {
-    return defaultTheme;
+  const fromCatalog = findBoardThemeInCatalog(selectedThemeId, catalog);
+  if (fromCatalog != null) {
+    return fromCatalog;
   }
   return cloneTheme(selectedTheme);
 }
 
-function normalizeThemeCandidate(candidate: unknown): BoardThemeDefinition | null {
+function normalizeThemeCandidate(
+  candidate: unknown,
+  catalog: BoardThemeCatalog,
+): BoardThemeDefinition | null {
   if (candidate == null || typeof candidate !== 'object') {
     return null;
   }
@@ -388,7 +186,8 @@ function normalizeThemeCandidate(candidate: unknown): BoardThemeDefinition | nul
   if (typeof c.id !== 'string' || c.id.trim() === '' || typeof c.name !== 'string' || c.name.trim() === '') {
     return null;
   }
-  const defaultTheme = findBoardThemeById(c.id) ?? findBoardThemeById(BOARD_DEFAULT_THEME_ID);
+  const defaultTheme =
+    findBoardThemeInCatalog(c.id, catalog) ?? defaultThemeFromCatalog(catalog);
   if (defaultTheme == null) {
     return null;
   }
@@ -412,29 +211,18 @@ function normalizeThemeCandidate(candidate: unknown): BoardThemeDefinition | nul
 export function normalizeBoardThemeSettings(
   next: unknown,
   prev?: BoardThemeSettings,
+  catalog: BoardThemeCatalog = buildFallbackBoardThemeCatalog(),
 ): BoardThemeSettings {
-  const base = prev ?? createDefaultBoardThemeSettings();
+  const base = prev ?? createDefaultBoardThemeSettings(undefined, catalog);
   if (next == null || typeof next !== 'object') {
     return base;
   }
-  const value = next as {
-    selectedThemeId?: unknown;
-    selectedTheme?: unknown;
-    customThemes?: unknown;
-    smartContrast?: unknown;
-    backgroundMode?: unknown;
-    backgroundColor?: unknown;
-    backgroundImageUrl?: unknown;
-    backgroundImageScale?: unknown;
-    backgroundFocalX?: unknown;
-    backgroundFocalY?: unknown;
-    boardOpacity?: unknown;
-  };
+  const value = next as BoardThemeSettingsStored;
   const customThemesRaw = Array.isArray(value.customThemes) ? value.customThemes : base.customThemes;
   let customThemes = customThemesRaw
-    .map((entry) => normalizeThemeCandidate(entry))
+    .map((entry) => normalizeThemeCandidate(entry, catalog))
     .filter((entry): entry is BoardThemeDefinition => entry != null);
-  const selectedThemeCandidate = normalizeThemeCandidate(value.selectedTheme);
+  const selectedThemeCandidate = normalizeThemeCandidate(value.selectedTheme, catalog);
   const selectedThemeId =
     typeof value.selectedThemeId === 'string' && value.selectedThemeId.trim() !== ''
       ? value.selectedThemeId.trim()
@@ -442,7 +230,7 @@ export function normalizeBoardThemeSettings(
   if (
     selectedThemeCandidate != null &&
     selectedThemeCandidate.id === selectedThemeId &&
-    findBoardThemeById(selectedThemeId) == null
+    findBoardThemeInCatalog(selectedThemeId, catalog) == null
   ) {
     const idx = customThemes.findIndex((t) => t.id === selectedThemeId);
     if (idx >= 0) {
@@ -456,6 +244,7 @@ export function normalizeBoardThemeSettings(
     selectedThemeId,
     selectedThemeCandidate ?? base.selectedTheme,
     customThemes,
+    catalog,
   );
   const modeRaw = typeof value.backgroundMode === 'string' ? value.backgroundMode : base.backgroundMode;
   const backgroundMode: BoardBackgroundMode =
@@ -502,6 +291,27 @@ export function normalizeBoardThemeSettings(
       ? { backgroundImageUrl: value.backgroundImageUrl.trim() }
       : {}),
   };
+}
+
+export function dehydrateBoardThemeSettings(settings: BoardThemeSettings): BoardThemeSettingsStored {
+  return {
+    selectedThemeId: settings.selectedThemeId,
+    smartContrast: settings.smartContrast,
+    backgroundMode: settings.backgroundMode,
+    backgroundImageScale: settings.backgroundImageScale,
+    backgroundFocalX: settings.backgroundFocalX,
+    backgroundFocalY: settings.backgroundFocalY,
+    boardOpacity: settings.boardOpacity,
+    ...(settings.backgroundColor != null ? { backgroundColor: settings.backgroundColor } : {}),
+    ...(settings.backgroundImageUrl != null ? { backgroundImageUrl: settings.backgroundImageUrl } : {}),
+  };
+}
+
+export function isSystemBoardTheme(
+  themeId: string,
+  catalog: BoardThemeCatalog = buildFallbackBoardThemeCatalog(),
+): boolean {
+  return isSystemBoardThemeId(themeId, catalog);
 }
 
 export function resolveBoardBackgroundFromThemeSettings(settings: BoardThemeSettings): string | undefined {

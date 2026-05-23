@@ -1,5 +1,4 @@
 import {
-  BOARD_DEFAULT_THEMES,
   normalizeBoardThemeSettings,
   type BoardThemeDefinition,
   type BoardThemeSettings,
@@ -15,8 +14,11 @@ export function cloneTheme(theme: BoardThemeDefinition): BoardThemeDefinition {
   };
 }
 
-export function toThemeCardItems(settings: BoardThemeSettings): BoardThemeDefinition[] {
-  const defaults = BOARD_DEFAULT_THEMES.map((theme) => cloneTheme(theme));
+export function toThemeCardItems(
+  settings: BoardThemeSettings,
+  systemThemes?: readonly BoardThemeDefinition[],
+): BoardThemeDefinition[] {
+  const defaults = (systemThemes ?? []).map((theme) => cloneTheme(theme));
   const custom = settings.customThemes.map((theme) => cloneTheme(theme));
   const customForCards = custom.map((theme) =>
     theme.id === settings.selectedThemeId ? cloneTheme(settings.selectedTheme) : theme,
@@ -61,8 +63,11 @@ export function themeCardMiniBoardCanvasBackground(canvasColor: string): string 
   return canvasColor;
 }
 
-export function isBoardDefaultThemeId(themeId: string): boolean {
-  return BOARD_DEFAULT_THEMES.some((entry) => entry.id === themeId);
+export function isBoardDefaultThemeId(
+  themeId: string,
+  systemThemes?: readonly BoardThemeDefinition[],
+): boolean {
+  return (systemThemes ?? []).some((entry) => entry.id === themeId);
 }
 
 export function buildAddThemeDraft(base: BoardThemeSettings): BoardThemeSettings {

@@ -15,6 +15,7 @@ import { logAuditEvent } from '../utils/auditLogger.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isGoogleOAuthStrategyRegistered } from '../config/passport.js';
 import { claimImportPlaceholderMembershipsForUser } from '../services/importPlaceholderUserService.js';
+import { attachCustomBoardThemesToPreferences } from '../services/boardThemeService.js';
 import { googleOAuthLanDeviceParamsForHostHeader } from '../../shared/utils/googleOAuthPrivateIp.js';
 import {
   googleOAuthAuthorizeStartUrl,
@@ -265,7 +266,7 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
         displayName: user.displayName,
         profilePicture: user.profilePicture,
         isAppAdmin: user.isAppAdmin,
-        preferences: user.preferences,
+        preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
         emailVerified: user.emailVerified,
       },
     });
@@ -405,7 +406,7 @@ router.post('/login', authRateLimiter, async (req, res, next) => {
         displayName: user.displayName,
         profilePicture: user.profilePicture,
         isAppAdmin: user.isAppAdmin,
-        preferences: user.preferences,
+        preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
         emailVerified: user.emailVerified,
       },
     });
@@ -457,7 +458,7 @@ router.get('/me', apiRateLimiter, requireAuth as RequestHandler, async (req, res
         displayName: user.displayName,
         profilePicture: user.profilePicture,
         isAppAdmin: user.isAppAdmin,
-        preferences: user.preferences,
+        preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
         emailVerified: user.emailVerified,
       },
     });

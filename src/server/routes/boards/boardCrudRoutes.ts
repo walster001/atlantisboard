@@ -9,7 +9,6 @@ import {
   getUserBoards,
   updateBoard,
 } from '../../services/boardService.js';
-import { normalizeBoardThemeSettings } from '../../../shared/boardTheme.js';
 import { selectFields } from './helpers.js';
 import { boardViewQuerySchema, createBoardSchema, updateBoardSchema } from './schemas.js';
 
@@ -18,13 +17,8 @@ export function registerBoardCollectionRoutes(router: Router): void {
     try {
       const authReq = req as AuthenticatedRequest;
       const validated = createBoardSchema.parse(req.body);
-      const normalizedThemeSettings =
-        validated.themeSettings !== undefined
-          ? normalizeBoardThemeSettings(validated.themeSettings)
-          : undefined;
       const board = await createBoard({
         ...validated,
-        ...(normalizedThemeSettings !== undefined ? { themeSettings: normalizedThemeSettings } : {}),
         ownerId: authReq.user.id,
       });
 
@@ -166,18 +160,7 @@ export function registerBoardItemReadUpdateRoutes(router: Router): void {
     try {
       const authReq = req as AuthenticatedRequest;
       const validated = updateBoardSchema.parse(req.body);
-      const normalizedThemeSettings =
-        validated.themeSettings !== undefined
-          ? normalizeBoardThemeSettings(validated.themeSettings)
-          : undefined;
-      const board = await updateBoard(
-        req.params.id,
-        {
-          ...validated,
-          ...(normalizedThemeSettings !== undefined ? { themeSettings: normalizedThemeSettings } : {}),
-        },
-        authReq.user.id,
-      );
+      const board = await updateBoard(req.params.id, validated, authReq.user.id);
       if (!board) {
         res.status(404).json({
           error: {

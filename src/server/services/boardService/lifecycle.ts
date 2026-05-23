@@ -12,6 +12,11 @@ import {
 } from '../importPlaceholderUserService.js';
 import { emitWorkspaceHomeAccessRefreshForUser } from '../workspaceService.js';
 import {
+  hydrateBoardDocumentForUser,
+  loadThemeCatalogForContext,
+  persistBoardThemeSettings,
+} from '../boardThemeService.js';
+import {
   createDefaultBoardThemeSettings,
   normalizeBoardThemeSettings,
   resolveBoardBackgroundFromThemeSettings,
@@ -41,13 +46,19 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
     .lean();
   const position = (typeof last?.position === 'number' ? last.position : -1) + 1;
 
+  const catalog = await loadThemeCatalogForContext(input.ownerId);
+  const normalizedInput =
+    input.themeSettings !== undefined
+      ? normalizeBoardThemeSettings(input.themeSettings, createDefaultBoardThemeSettings(undefined, catalog), catalog)
+      : createDefaultBoardThemeSettings(undefined, catalog);
+
   const board = new Board({
     workspaceId: input.workspaceId,
     position,
     name: input.name,
     description: input.description,
     background: undefined,
-    themeSettings: normalizeBoardThemeSettings(input.themeSettings, createDefaultBoardThemeSettings()),
+    themeSettings: undefined,
     visibility: input.visibility || 'private',
     ownerId: input.ownerId,
     members: [],
@@ -69,13 +80,20 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
 
   if (input.background !== undefined) {
     board.background = input.background;
-  } else if (board.themeSettings != null) {
-    const resolvedBackground = resolveBoardBackgroundFromThemeSettings(board.themeSettings);
+  } else {
+    const resolvedBackground = resolveBoardBackgroundFromThemeSettings(normalizedInput);
     if (resolvedBackground !== undefined) {
       board.background = resolvedBackground;
     }
   }
 
+  await board.save();
+  const { stored } = await persistBoardThemeSettings({
+    userId: input.ownerId,
+    boardId: board._id.toString(),
+    settings: normalizedInput,
+  });
+  board.themeSettings = stored;
   await board.save();
 
   logAuditEvent({
@@ -89,7 +107,7 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
 
   logger.info({ boardId: board._id.toString(), ownerId: input.ownerId }, 'Board created');
   emitBoardCreatedRealtime(board);
-  return board;
+  return hydrateBoardDocumentForUser(board, input.ownerId);
 }
 
 export async function deleteBoard(boardId: string, userId: string): Promise<boolean> {

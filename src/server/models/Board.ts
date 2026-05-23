@@ -3,7 +3,7 @@ import {
   BOARD_DESCRIPTION_MAX_LENGTH,
   BOARD_NAME_MAX_LENGTH,
 } from '../../shared/constants/entityTextLimits.js';
-import type { BoardThemeSettings } from '../../shared/boardTheme.js';
+import type { BoardThemeSettings, BoardThemeSettingsStored } from '../../shared/boardTheme.js';
 
 export type BoardVisibility = 'private' | 'workspace' | 'public';
 export type BoardRole = 'admin' | 'manager' | 'viewer';
@@ -53,7 +53,7 @@ export interface IBoard extends Document {
   name: string;
   description?: string;
   background?: string;
-  themeSettings?: BoardThemeSettings;
+  themeSettings?: BoardThemeSettings | BoardThemeSettingsStored;
   visibility: BoardVisibility;
   ownerId: mongoose.Types.ObjectId;
   createdAt: Date;

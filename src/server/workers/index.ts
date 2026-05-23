@@ -12,6 +12,8 @@ async function startWorker(): Promise<void> {
   // Connect to database
   try {
     await connectDatabase();
+    const { initializeBoardThemes } = await import('../services/boardThemeService.js');
+    await initializeBoardThemes();
     logger.info('Database connected for worker process');
   } catch (error) {
     logger.error({ error }, 'Failed to connect to database in worker process');

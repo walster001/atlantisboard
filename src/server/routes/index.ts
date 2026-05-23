@@ -19,6 +19,7 @@ import { brandingRoutes } from './branding.js';
 import { boardBackgroundRoutes } from './boardBackgrounds.js';
 import { fontRoutes } from './fonts.js';
 import { importInlineRoutes } from './importInline.js';
+import { themesRoutes } from './themes.js';
 
 export const apiRoutes = Router();
 
@@ -36,6 +37,9 @@ apiRoutes.use('/import-inline', importInlineRoutes);
 
 // Public custom fonts (MinIO fonts bucket)
 apiRoutes.use('/fonts', fontRoutes);
+
+// Board theme catalog (system + user + board scoped)
+apiRoutes.use('/themes', themesRoutes);
 
 // Authentication routes
 apiRoutes.use('/auth', authRoutes);

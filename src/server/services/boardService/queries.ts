@@ -6,6 +6,10 @@ import { isBoardMember } from '../../utils/permissions.js';
 import type { BoardSummaryDTO } from '../../../shared/types/viewModels.js';
 import { getBoardKanbanSnapshot } from '../cardService.js';
 import {
+  hydrateBoardDocumentForUser,
+  hydrateBoardSummaryForUser,
+} from '../boardThemeService.js';
+import {
   ensureLegacyBoardPositions,
   toBoardSummary,
 } from './shared.js';
@@ -33,13 +37,19 @@ export async function getBoardById(
   }
 
   if (board.ownerId.toString() === userId) {
-    return view === 'summary' ? toBoardSummary(board) : board;
+    return view === 'summary'
+      ? hydrateBoardSummaryForUser(toBoardSummary(board), userId)
+      : hydrateBoardDocumentForUser(board, userId);
   }
   if (await isBoardMember(userId, boardId)) {
-    return view === 'summary' ? toBoardSummary(board) : board;
+    return view === 'summary'
+      ? hydrateBoardSummaryForUser(toBoardSummary(board), userId)
+      : hydrateBoardDocumentForUser(board, userId);
   }
   if (board.visibility === 'public') {
-    return view === 'summary' ? toBoardSummary(board) : board;
+    return view === 'summary'
+      ? hydrateBoardSummaryForUser(toBoardSummary(board), userId)
+      : hydrateBoardDocumentForUser(board, userId);
   }
 
   return null;
@@ -79,9 +89,9 @@ export async function getUserBoards(
   }
   const boards = await boardQuery;
   if (options?.view === 'summary') {
-    return boards.map((board) => toBoardSummary(board));
+    return Promise.all(boards.map((board) => hydrateBoardSummaryForUser(toBoardSummary(board), userId)));
   }
-  return boards;
+  return Promise.all(boards.map((board) => hydrateBoardDocumentForUser(board, userId)));
 }
 
 export async function getBoardsByWorkspace(
@@ -124,9 +134,9 @@ export async function getBoardsByWorkspace(
   }
   const boards = await boardQuery;
   if (options?.view === 'summary') {
-    return boards.map((board) => toBoardSummary(board));
+    return Promise.all(boards.map((board) => hydrateBoardSummaryForUser(toBoardSummary(board), userId)));
   }
-  return boards;
+  return Promise.all(boards.map((board) => hydrateBoardDocumentForUser(board, userId)));
 }
 
 /**
@@ -194,7 +204,7 @@ export async function getBoardKanbanSnapshotForUser(
   }
   const snapshot = await getBoardKanbanSnapshot(boardId, options);
   return {
-    board: toBoardSummary(boardDoc),
+    board: await hydrateBoardSummaryForUser(toBoardSummary(boardDoc), userId),
     lists: snapshot.lists,
     cardsByList: snapshot.cardsByList,
   };

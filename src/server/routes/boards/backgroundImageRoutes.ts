@@ -1,8 +1,8 @@
 import { type Router } from 'express';
 import type { AuthenticatedRequest } from '../../../shared/types/express.js';
-import { normalizeBoardThemeSettings } from '../../../shared/boardTheme.js';
 import { Board } from '../../models/Board.js';
 import { updateBoard } from '../../services/boardService.js';
+import { hydrateBoardThemeSettings } from '../../services/boardThemeService.js';
 import {
   deleteBoardBackgroundByPublicUrl,
   uploadBoardBackgroundAsset,
@@ -56,7 +56,11 @@ export function registerBackgroundImageRoutes(router: Router): void {
           }
         }
 
-        const previousThemeSettings = normalizeBoardThemeSettings(boardDoc.themeSettings);
+        const previousThemeSettings = await hydrateBoardThemeSettings(
+          boardDoc.themeSettings,
+          authReq.user.id,
+          req.params.id,
+        );
         const previousImageUrl =
           previousThemeSettings.backgroundMode === 'image'
             ? previousThemeSettings.backgroundImageUrl?.trim() ?? ''
@@ -70,7 +74,11 @@ export function registerBackgroundImageRoutes(router: Router): void {
           req.file.mimetype,
           req.file.originalname,
         );
-        const nextThemeSettings = normalizeBoardThemeSettings(boardDoc.themeSettings);
+        const nextThemeSettings = await hydrateBoardThemeSettings(
+          boardDoc.themeSettings,
+          authReq.user.id,
+          req.params.id,
+        );
         const scaleInput = typeof req.body.backgroundImageScale === 'string' ? req.body.backgroundImageScale : '';
         const focalXInput =
           typeof req.body.backgroundFocalX === 'string' ? Number.parseFloat(req.body.backgroundFocalX) : undefined;
@@ -156,7 +164,11 @@ export function registerBackgroundImageRoutes(router: Router): void {
         }
       }
 
-      const nextThemeSettings = normalizeBoardThemeSettings(boardDoc.themeSettings);
+      const nextThemeSettings = await hydrateBoardThemeSettings(
+        boardDoc.themeSettings,
+        authReq.user.id,
+        req.params.id,
+      );
       const existingImageUrl =
         nextThemeSettings.backgroundMode === 'image'
           ? nextThemeSettings.backgroundImageUrl?.trim() ?? ''

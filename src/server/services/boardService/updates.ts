@@ -8,8 +8,15 @@ import {
 } from '../../utils/permissions.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import {
+  hydrateBoardDocumentForUser,
+  hydrateBoardThemeSettings,
+  loadThemeCatalogForContext,
+  persistBoardThemeSettings,
+} from '../boardThemeService.js';
+import {
   normalizeBoardThemeSettings,
   resolveBoardBackgroundFromThemeSettings,
+  type BoardThemeSettings,
 } from '../../../shared/boardTheme.js';
 import type { UpdateBoardInput } from './types.js';
 import { emitBoardUpdatedRealtime, emitWorkspaceTransitionsOnBoardMove } from './shared.js';
@@ -43,10 +50,14 @@ export async function updateBoard(
       }
     }
     if (input.themeSettings !== undefined) {
-      const previousThemeSettings = normalizeBoardThemeSettings(board.themeSettings);
-      const previousCustomThemes = previousThemeSettings.customThemes;
-      const nextCustomThemes = input.themeSettings.customThemes;
-      const customThemesChanged = JSON.stringify(previousCustomThemes) !== JSON.stringify(nextCustomThemes);
+      const catalog = await loadThemeCatalogForContext(userId, boardId);
+      const previousThemeSettings = await hydrateBoardThemeSettings(board.themeSettings, userId, boardId);
+      const nextNormalized = normalizeBoardThemeSettings(input.themeSettings, previousThemeSettings, catalog);
+      const previousCustomIds = new Set(previousThemeSettings.customThemes.map((t) => t.id));
+      const nextCustomIds = new Set(nextNormalized.customThemes.map((t) => t.id));
+      const customThemesChanged =
+        previousCustomIds.size !== nextCustomIds.size ||
+        [...nextCustomIds].some((id) => !previousCustomIds.has(id));
       if (customThemesChanged) {
         const canManageCustomThemes = await hasPermission({ id: userId }, boardId, 'boards.themes.customtheme');
         if (!canManageCustomThemes) {
@@ -129,9 +140,14 @@ export async function updateBoard(
   if (input.description !== undefined) board.description = input.description;
   if (input.background !== undefined) board.background = input.background;
   if (input.themeSettings !== undefined) {
-    board.themeSettings = normalizeBoardThemeSettings(input.themeSettings, board.themeSettings);
-    if (input.background === undefined && board.themeSettings != null) {
-      const resolvedBackground = resolveBoardBackgroundFromThemeSettings(board.themeSettings);
+    const { hydrated, stored } = await persistBoardThemeSettings({
+      userId,
+      boardId,
+      settings: input.themeSettings as BoardThemeSettings,
+    });
+    board.themeSettings = stored;
+    if (input.background === undefined) {
+      const resolvedBackground = resolveBoardBackgroundFromThemeSettings(hydrated);
       if (resolvedBackground !== undefined) {
         board.background = resolvedBackground;
       }
@@ -209,6 +225,11 @@ export async function updateBoard(
     timestamp: new Date(),
   });
 
+  const hydratedThemeSettings =
+    input.themeSettings !== undefined
+      ? await hydrateBoardThemeSettings(board.themeSettings, userId, boardId)
+      : undefined;
+
   emitBoardUpdatedRealtime(board, undefined, {
     changedFields: {
       ...(input.workspaceId !== undefined
@@ -217,12 +238,12 @@ export async function updateBoard(
       ...(input.name !== undefined ? { name: board.name } : {}),
       ...(input.description !== undefined ? { description: board.description } : {}),
       ...(input.background !== undefined ? { background: board.background } : {}),
-      ...(input.themeSettings !== undefined ? { themeSettings: board.themeSettings } : {}),
+      ...(hydratedThemeSettings !== undefined ? { themeSettings: hydratedThemeSettings } : {}),
       ...(input.visibility !== undefined ? { visibility: board.visibility } : {}),
       ...(input.settings !== undefined ? { settings: board.settings } : {}),
       updatedAt: board.updatedAt,
     },
   });
 
-  return board;
+  return hydrateBoardDocumentForUser(board, userId);
 }

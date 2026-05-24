@@ -72,33 +72,27 @@ class RedisStore implements RateLimitStore {
   }
 }
 
-// Helper function to get IP address with IPv6 support
+// Helper function to get IP address — respects Express `trust proxy` via req.ip
 function getClientIp(req: Request): string {
-  // Check various headers for IP address (for proxies/load balancers)
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
+  const trustProxy = req.app.get('trust proxy');
+  if (trustProxy) {
+    const ip = req.ip;
+    if (typeof ip === 'string' && ip.length > 0) {
+      if (ip.startsWith('::ffff:')) {
+        return ip.substring(7);
+      }
+      return ip;
+    }
   }
-  if (typeof forwarded === 'object' && forwarded !== null && forwarded[0]) {
-    return forwarded[0].trim();
-  }
-  
-  // Check x-real-ip header
-  const realIp = req.headers['x-real-ip'];
-  if (typeof realIp === 'string') {
-    return realIp;
-  }
-  
-  // Fallback to socket address
+
   const socketAddress = req.socket.remoteAddress;
   if (socketAddress) {
-    // Handle IPv6 mapped IPv4 addresses
     if (socketAddress.startsWith('::ffff:')) {
       return socketAddress.substring(7);
     }
     return socketAddress;
   }
-  
+
   return 'unknown';
 }
 

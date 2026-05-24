@@ -3,6 +3,9 @@
  * so oversized bodies cannot bypass one layer.
  */
 
+/** Default 50 MB; clamp 1–1024 MB via env. */
+const CARD_ATTACHMENT_DEFAULT_MB = 50;
+
 /** Upper bound for `CARD_ATTACHMENT_MAX_MB` (1 GiB). */
 const CARD_ATTACHMENT_MAX_MB_CEILING = 1024;
 
@@ -13,10 +16,10 @@ const CARD_ATTACHMENT_MAX_MB_CEILING = 1024;
  */
 export const CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES = 20 * 1024 * 1024;
 
-/** Default 1024 MB (1 GiB); clamp 1–1024 MB via env. */
+/** Default 50 MB; clamp 1–1024 MB via env. */
 export function getCardAttachmentMaxBytes(): number {
-  const parsed = Number.parseInt(process.env.CARD_ATTACHMENT_MAX_MB ?? String(CARD_ATTACHMENT_MAX_MB_CEILING), 10);
-  const mb = Number.isFinite(parsed) ? parsed : CARD_ATTACHMENT_MAX_MB_CEILING;
+  const parsed = Number.parseInt(process.env.CARD_ATTACHMENT_MAX_MB ?? String(CARD_ATTACHMENT_DEFAULT_MB), 10);
+  const mb = Number.isFinite(parsed) ? parsed : CARD_ATTACHMENT_DEFAULT_MB;
   const clamped = Math.min(CARD_ATTACHMENT_MAX_MB_CEILING, Math.max(1, mb));
   return clamped * 1024 * 1024;
 }

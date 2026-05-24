@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { AuthenticatedRequest } from '../../../shared/types/express.js';
 import { User } from '../../models/User.js';
 import { emitPermissionsUpdated } from './helpers.js';
+import { revokeAllTokensForUser } from '../../utils/jwtBlocklist.js';
+import { jwtExpiresInSeconds } from '../../utils/jwt.js';
 
 const setAppAdminSchema = z.object({
   userId: z.string().trim().min(1),
@@ -117,6 +119,7 @@ export function registerAppAdminRoutes(router: Router): void {
       if (user.isAppAdmin) {
         user.isAppAdmin = false;
         await user.save();
+        await revokeAllTokensForUser(userId, jwtExpiresInSeconds());
         emitPermissionsUpdated({
           affectedUserIds: [userId],
           reason: 'app_admin.revoked',

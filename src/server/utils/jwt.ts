@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { logger } from './logger.js';
-import { isJwtJtiBlocklisted } from './jwtBlocklist.js';
+import { isJwtJtiBlocklisted, getUserTokenRevokedAt } from './jwtBlocklist.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
@@ -42,7 +42,7 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
       issuer: 'kanboard',
       audience: 'kanboard-users',
       algorithms: ['HS256'],
-    }) as JWTPayload;
+    }) as JWTPayload & { iat?: number };
 
     if (typeof decoded.jti !== 'string' || decoded.jti.trim() === '') {
       logger.warn('JWT missing jti claim');
@@ -51,6 +51,16 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
 
     if (await isJwtJtiBlocklisted(decoded.jti)) {
       logger.warn({ jti: decoded.jti }, 'JWT jti is blocklisted');
+      return null;
+    }
+
+    const revokedAt = await getUserTokenRevokedAt(decoded.userId);
+    if (
+      revokedAt != null &&
+      typeof decoded.iat === 'number' &&
+      decoded.iat <= revokedAt
+    ) {
+      logger.warn({ userId: decoded.userId, jti: decoded.jti }, 'JWT issued before user revocation');
       return null;
     }
 

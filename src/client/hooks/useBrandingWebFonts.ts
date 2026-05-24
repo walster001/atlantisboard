@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { api } from '../utils/api.js';
+import { getCspNonce } from '../utils/cspNonce.js';
 import {
   SYSTEM_UI_FONT_FAMILY,
   customFontFormatFromFileName,
@@ -53,6 +54,10 @@ export function useBrandingWebFonts(
         }
         const format = customFontFormatFromFileName(entry.fileName);
         const style = document.createElement('style');
+        const cspNonce = getCspNonce();
+        if (cspNonce != null) {
+          style.setAttribute('nonce', cspNonce);
+        }
         style.setAttribute('data-kb-font-face', entry.fileName);
         const safeName = entry.displayName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         const urlJson = JSON.stringify(entry.url);

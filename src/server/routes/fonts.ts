@@ -1,5 +1,6 @@
 import { Router, type RequestHandler } from 'express';
 import { createRateLimiter } from '../middleware/rateLimit.js';
+import { requireSignedAssetOrAuth } from '../middleware/auth.js';
 import { getFontObjectStream, listFontCatalog } from '../services/fontService.js';
 import { logger } from '../utils/logger.js';
 
@@ -20,6 +21,11 @@ router.get('/:fileName', apiRateLimiter, ((req, res, next) => {
   const fileName = typeof raw === 'string' ? raw.replace(/\\/g, '/').split('/').pop() ?? '' : '';
   void (async () => {
     try {
+      const assetPath = `/api/v1/fonts/${fileName}`;
+      const allowed = await requireSignedAssetOrAuth(req, res, assetPath);
+      if (!allowed) {
+        return;
+      }
       const result = await getFontObjectStream(fileName);
       if (!result) {
         res.status(404).json({

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { createServer } from 'http';
@@ -17,8 +17,11 @@ import { initializeMinIOBuckets } from './config/minio.js';
 import { initializeRoleDefinitions } from './services/roleService.js';
 import { initializeBoardThemes } from './services/boardThemeService.js';
 import { dropLegacyUnusedCollections } from './services/startupMigrations.js';
+import { migrateLegacyCardDescriptionHtmlBatch } from './services/migrateLegacyCardDescriptionHtmlJob.js';
 import { assertProductionCorsConfig, expressCorsOptions } from './config/cors.js';
 import { assertProductionSecrets } from './utils/productionSecrets.js';
+import { attachCspNonce, getCspNonceFromResponse } from './middleware/cspNonce.js';
+import { renderSpaIndexHtml } from './utils/spaIndex.js';
 // Background jobs can run in separate worker process or in main process
 // Set ENABLE_CRON_JOBS_IN_MAIN=true to run in main process (default: false, use separate worker)
 import { scheduleCronJobs } from './workers/cronJobs.js';
@@ -34,6 +37,7 @@ connectDatabase()
   .then(() => repairWekanEmailStoredInImportUsername())
   .then(() => sanitizeBoardImportPlaceholderStoredEmails())
   .then(() => dropLegacyUnusedCollections())
+  .then(() => migrateLegacyCardDescriptionHtmlBatch())
   .then(() => initializeBoardThemes())
   .catch((err) => {
     logger.error({ err }, 'Failed to connect to database or run startup migrations');
@@ -75,9 +79,16 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', Number.isFinite(trustProxyHops) && trustProxyHops > 0 ? trustProxyHops : 1);
 }
 
+// Per-request CSP nonce (must run before Helmet)
+app.use(attachCspNonce);
+
 // Security middleware — relaxed in dev; strict CSP/HSTS in production
 const isProduction = process.env.NODE_ENV === 'production';
 const appOrigin = (process.env.APP_URL ?? process.env.CORS_ORIGIN ?? '').replace(/\/$/, '');
+
+function cspNonceDirective(_req: Request, res: Response): string {
+  return `'nonce-${getCspNonceFromResponse(res)}'`;
+}
 
 app.use(
   helmet({
@@ -85,7 +96,7 @@ app.use(
       ? {
           directives: {
             defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", cspNonceDirective],
             scriptSrc: ["'self'"],
             imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
             connectSrc: [
@@ -152,10 +163,11 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve static files from public directory
+// Serve static files from public directory (index.html served via SPA handler with CSP nonce)
 const publicPath = join(process.cwd(), 'public');
 app.use(
   express.static(publicPath, {
+    index: false,
     setHeaders(res, filePath) {
       const normalized = filePath.replace(/\\/g, '/');
       if (normalized.endsWith('/sw.js')) {
@@ -185,7 +197,10 @@ app.use((req, res, next) => {
     return next();
   }
   try {
-    res.sendFile(join(publicPath, 'index.html'));
+    const nonce = getCspNonceFromResponse(res);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    res.send(renderSpaIndexHtml(nonce));
   } catch (err) {
     next(err);
   }

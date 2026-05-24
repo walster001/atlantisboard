@@ -20,6 +20,8 @@ import { Workspace } from '../../models/Workspace.js';
 import { mapUserAccountCapabilityFlags } from '../../services/accountCapabilitiesService.js';
 import { deleteUserAvatar } from '../../services/userAvatarService.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
+import { revokeAllTokensForUser } from '../../utils/jwtBlocklist.js';
+import { jwtExpiresInSeconds } from '../../utils/jwt.js';
 import {
   emitPermissionsUpdated,
   removeTargetUserFromBoardMemberships,
@@ -314,7 +316,7 @@ export function registerUsersRoutes(router: Router): void {
           { $pull: { assignees: id, comments: { userId: id }, attachments: { uploadedBy: id } } },
         ),
         Card.updateMany({ createdBy: id }, { $set: { createdBy: authReq.user.id } }),
-        User.deleteOne({ _id: id }),
+        revokeAllTokensForUser(id, jwtExpiresInSeconds()).then(() => User.deleteOne({ _id: id })),
         deleteUserAvatar(id),
       ]);
 

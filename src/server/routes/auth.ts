@@ -8,7 +8,7 @@ import { getAdminConfig } from '../services/adminService.js';
 import { toPublicLoginBranding } from '../services/loginBrandingPreview.js';
 import { toPublicAppBranding } from '../services/appBrandingPreview.js';
 import { hashPassword, verifyPassword, validatePassword } from '../utils/password.js';
-import { generateToken } from '../utils/jwt.js';
+import { generateToken, jwtExpiresInSeconds } from '../utils/jwt.js';
 import {
   authTokenResponseField,
   clearAuthCookie,
@@ -26,6 +26,7 @@ import { logger } from '../utils/logger.js';
 import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { requireAuth, blocklistTokenFromRequest } from '../middleware/auth.js';
+import { revokeAllTokensForUser } from '../utils/jwtBlocklist.js';
 import { isGoogleOAuthStrategyRegistered } from '../config/passport.js';
 import { claimImportPlaceholderMembershipsForUser } from '../services/importPlaceholderUserService.js';
 import { attachCustomBoardThemesToPreferences } from '../services/boardThemeService.js';
@@ -626,6 +627,7 @@ router.post('/reset-password', authRateLimiter, async (req, res, next) => {
     user.set('verificationToken', undefined);
     user.set('verificationTokenExpiresAt', undefined);
     await user.save();
+    await revokeAllTokensForUser(user._id.toString(), jwtExpiresInSeconds());
 
     logger.info({ userId: user._id.toString(), email: user.email }, 'Password reset completed');
 

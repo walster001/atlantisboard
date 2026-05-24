@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { MINIO_BUCKET_FONTS } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { logger } from '../utils/logger.js';
+import { createSignedAssetUrl } from '../utils/signedAssetUrl.js';
 import {
   fontFamilyValueFromDisplayName,
   SYSTEM_UI_FONT_FAMILY,
@@ -170,7 +171,7 @@ export async function uploadCustomFont(
     fileName: objectName,
     displayName: effectiveDisplayName,
     fontFamilyValue: fontFamilyValueFromDisplayName(effectiveDisplayName),
-    url: `/api/v1/fonts/${objectName}`,
+    url: createSignedAssetUrl(`/api/v1/fonts/${objectName}`),
   };
 }
 
@@ -228,7 +229,7 @@ export async function listFontCatalog(): Promise<FontCatalogEntry[]> {
         fileName: name,
         displayName: display,
         fontFamilyValue: fontFamilyValueFromDisplayName(display),
-        url: `/api/v1/fonts/${name}`,
+        url: createSignedAssetUrl(`/api/v1/fonts/${name}`),
       });
     } catch (err) {
       logger.warn({ err, name }, 'Skipping font object (stat failed)');

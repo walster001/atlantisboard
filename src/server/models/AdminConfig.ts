@@ -290,7 +290,7 @@ const AdminConfigSchema = new Schema<IAdminConfig>(
     registrationMode: {
       type: String,
       enum: ['open', 'invite-only', 'disabled'],
-      default: process.env.NODE_ENV === 'production' ? 'invite-only' : 'open',
+      default: 'open',
     },
     loginScreenBranding: {
       type: LoginScreenBrandingSchema,

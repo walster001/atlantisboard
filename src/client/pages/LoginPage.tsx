@@ -31,6 +31,7 @@ export default function LoginPage() {
   const [loginOptionsLoading, setLoginOptionsLoading] = useState(true);
   const [emailPasswordAllowed, setEmailPasswordAllowed] = useState(true);
   const [googleLoginAllowed, setGoogleLoginAllowed] = useState(false);
+  const [registrationOpen, setRegistrationOpen] = useState(true);
   const [googleOAuthStartUrl, setGoogleOAuthStartUrl] = useState<string | null>(null);
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
@@ -69,6 +70,7 @@ export default function LoginPage() {
         if (!cancelled) {
           setEmailPasswordAllowed(opts.emailPassword);
           setGoogleLoginAllowed(opts.googleLogin);
+          setRegistrationOpen(opts.registrationOpen !== false);
           setGoogleOAuthStartUrl(
             typeof opts.googleOAuthStartUrl === 'string' && opts.googleOAuthStartUrl.length > 0
               ? opts.googleOAuthStartUrl
@@ -139,7 +141,11 @@ export default function LoginPage() {
             ? 'Your email is not authorized in the external database required for this application.'
             : err === 'google_email_conflict'
               ? 'This email is already linked to a different Google account. Use that Google account or sign in with email and password.'
-              : 'Google sign-in failed. You may not be allowed to access this application.';
+              : err === 'google_registration_disabled'
+                ? 'New account registration is disabled on this server.'
+                : err === 'google_registration_invite_only'
+                  ? 'New account registration is invite-only. Contact an administrator for access.'
+                  : 'Google sign-in failed. You may not be allowed to access this application.';
       setError(msg);
       searchParams.delete('error');
       setSearchParams(searchParams, { replace: true });
@@ -211,12 +217,14 @@ export default function LoginPage() {
         onSubmit={(e) => void handleSubmit(e)}
         submitLoading={loading}
         onGoogleClick={handleGoogleLogin}
-        {...(emailPasswordAllowed
+        {...(emailPasswordAllowed && registrationOpen
           ? {
               onSignUpClick: () => setRegisterModalOpen(true),
               onForgotPasswordClick: () => setForgotModalOpen(true),
             }
-          : {})}
+          : emailPasswordAllowed
+            ? { onForgotPasswordClick: () => setForgotModalOpen(true) }
+            : {})}
       />
       <ForgotPasswordModal opened={forgotModalOpen} onClose={() => setForgotModalOpen(false)} />
       <RegisterModal

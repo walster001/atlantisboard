@@ -4,7 +4,6 @@ import { User } from '../models/User.js';
 import { AdminConfig } from '../models/AdminConfig.js';
 import { decrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
-import { verifyUserInMySQL } from '../services/mysqlService.js';
 import {
   normalizeGoogleOAuthCallbackUrl,
   resolveGoogleOAuthPassportCallbackUrl,
@@ -204,6 +203,15 @@ export async function configureGoogleStrategy(): Promise<void> {
                   user = existingUser;
                 }
               } else {
+                const registration = await assertNewUserRegistrationAllowed();
+                if (!registration.allowed) {
+                  logger.warn(
+                    { email, mode: registration.mode, reason: registration.reason },
+                    'Google sign-up denied by registration policy',
+                  );
+                  return done(new Error(registration.reason), false);
+                }
+
                 // Check if this is the first user (before creating)
                 const userCount = await User.countDocuments();
                 const isFirstUser = userCount === 0;

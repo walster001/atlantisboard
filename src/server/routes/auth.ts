@@ -21,12 +21,16 @@ import {
   isPasswordResetTokenExpired,
   passwordResetExpiresAt,
 } from '../utils/passwordResetToken.js';
-import type { RegistrationMode } from '../models/AdminConfig.js';
 import { logger } from '../utils/logger.js';
 import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { requireAuth, blocklistTokenFromRequest } from '../middleware/auth.js';
 import { revokeAllTokensForUser } from '../utils/jwtBlocklist.js';
+import {
+  assertNewUserRegistrationAllowed,
+  isNewUserRegistrationOpen,
+  resolveRegistrationMode,
+} from '../utils/registrationPolicy.js';
 import { isGoogleOAuthStrategyRegistered } from '../config/passport.js';
 import { claimImportPlaceholderMembershipsForUser } from '../services/importPlaceholderUserService.js';
 import { attachCustomBoardThemesToPreferences } from '../services/boardThemeService.js';
@@ -55,13 +59,11 @@ async function assertEmailPasswordAllowed(res: Response): Promise<boolean> {
 }
 
 async function assertRegistrationAllowed(res: Response): Promise<boolean> {
-  const cfg = await AdminConfig.findOne();
-  const mode: RegistrationMode = cfg?.registrationMode ?? (process.env.NODE_ENV === 'production' ? 'invite-only' : 'open');
-  const existingCount = await User.countDocuments({ isPlaceholder: { $ne: true } });
-  if (existingCount === 0) {
+  const registration = await assertNewUserRegistrationAllowed();
+  if (registration.allowed) {
     return true;
   }
-  if (mode === 'disabled') {
+  if (registration.reason === 'REGISTRATION_DISABLED') {
     res.status(403).json({
       error: {
         message: 'Registration is disabled on this server.',
@@ -71,17 +73,14 @@ async function assertRegistrationAllowed(res: Response): Promise<boolean> {
     });
     return false;
   }
-  if (mode === 'invite-only') {
-    res.status(403).json({
-      error: {
-        message: 'Registration is invite-only. Contact an administrator for access.',
-        code: 'REGISTRATION_INVITE_ONLY',
-        statusCode: 403,
-      },
-    });
-    return false;
-  }
-  return true;
+  res.status(403).json({
+    error: {
+      message: 'Registration is invite-only. Contact an administrator for access.',
+      code: 'REGISTRATION_INVITE_ONLY',
+      statusCode: 403,
+    },
+  });
+  return false;
 }
 
 function sendAuthSuccess(
@@ -132,6 +131,8 @@ router.get('/login-options', apiRateLimiter, async (_req, res, next) => {
         defaultAuthMethod: 'email' as const,
         emailPassword: true,
         googleLogin: false,
+        registrationMode: 'open' as const,
+        registrationOpen: true,
       });
       return;
     }
@@ -148,10 +149,15 @@ router.get('/login-options', apiRateLimiter, async (_req, res, next) => {
       process.env.GOOGLE_OAUTH_BROWSER_ORIGIN,
     );
 
+    const registrationMode = resolveRegistrationMode(cfg.registrationMode);
+    const registrationOpen = await isNewUserRegistrationOpen();
+
     res.json({
       defaultAuthMethod: cfg.defaultAuthMethod,
       emailPassword: cfg.authMethods.emailPassword,
       googleLogin,
+      registrationMode,
+      registrationOpen,
       ...(googleLogin && googleOAuthStartUrl !== null
         ? { googleOAuthStartUrl }
         : {}),
@@ -833,7 +839,11 @@ router.get('/google/callback', authRateLimiter, (req, res, next) => {
               ? 'mysql_denied'
               : err?.message === 'GOOGLE_ACCOUNT_EMAIL_CONFLICT'
                 ? 'email_conflict'
-                : 'failed';
+                : err?.message === 'REGISTRATION_DISABLED'
+                  ? 'registration_disabled'
+                  : err?.message === 'REGISTRATION_INVITE_ONLY'
+                    ? 'registration_invite_only'
+                    : 'failed';
         res.redirect(`${base}/login?error=google_${reason}`);
         return;
       }

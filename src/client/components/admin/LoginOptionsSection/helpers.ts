@@ -2,6 +2,8 @@ import type { ChangeEvent } from 'react';
 
 export type DefaultAuthMethod = 'email' | 'google' | 'google-external';
 
+export type RegistrationMode = 'open' | 'invite-only' | 'disabled';
+
 export interface AdminConfigShape {
   authMethods: {
     emailPassword: boolean;
@@ -30,6 +32,7 @@ export interface AdminConfigShape {
     verificationQuery?: string;
   };
   defaultAuthMethod: DefaultAuthMethod;
+  registrationMode: RegistrationMode;
 }
 
 export interface MysqlDraft {
@@ -68,6 +71,26 @@ export function formatMysqlHostForDisplay(host: string | undefined, port: number
   if (!host) return '';
   if (port !== undefined && port !== 3306) return `${host}:${port}`;
   return host;
+}
+
+export function registrationModeDescription(
+  authMethod: DefaultAuthMethod,
+  mode: RegistrationMode,
+): string {
+  const modeLabel =
+    mode === 'open'
+      ? 'Open — anyone can create a new account.'
+      : mode === 'invite-only'
+        ? 'Invite-only — new accounts require an administrator or invite link.'
+        : 'Disabled — no new accounts; existing users can still sign in.';
+
+  if (authMethod === 'email') {
+    return `Controls who can register with email and password. ${modeLabel}`;
+  }
+  if (authMethod === 'google') {
+    return `Controls who can sign up with Google for the first time. ${modeLabel}`;
+  }
+  return `Controls who can create a new account via Google (with database verification). ${modeLabel}`;
 }
 
 export function applyAuthMode(prev: AdminConfigShape, mode: DefaultAuthMethod): AdminConfigShape {

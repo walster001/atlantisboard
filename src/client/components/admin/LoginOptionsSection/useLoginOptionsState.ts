@@ -120,9 +120,13 @@ export function useLoginOptionsState(): UseLoginOptionsStateResult {
 
   const applyLoadedConfig = useCallback(
     (nextConfig: AdminConfigShape) => {
-      setConfig(nextConfig);
-      resetMysqlDraftFromConfig(nextConfig);
-      const go = nextConfig.googleOAuth ?? { enabled: false };
+      const normalized: AdminConfigShape = {
+        ...nextConfig,
+        registrationMode: nextConfig.registrationMode ?? 'open',
+      };
+      setConfig(normalized);
+      resetMysqlDraftFromConfig(normalized);
+      const go = normalized.googleOAuth ?? { enabled: false };
       const configured = !!(go.clientIdSet && go.clientSecretSet);
       setGoogleDraft({
         clientId: configured ? '' : (go.clientId || ''),
@@ -131,7 +135,7 @@ export function useLoginOptionsState(): UseLoginOptionsStateResult {
       });
       setGoogleReplaceMode(false);
       setGoogleFormOpen(!configured);
-      prevAuthMethodRef.current = nextConfig.defaultAuthMethod;
+      prevAuthMethodRef.current = normalized.defaultAuthMethod;
     },
     [resetMysqlDraftFromConfig],
   );

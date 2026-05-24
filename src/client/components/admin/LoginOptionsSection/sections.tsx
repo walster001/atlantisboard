@@ -15,10 +15,12 @@ import { IconChevronDown, IconChevronUp, IconDeviceFloppy, IconPlug } from '@tab
 import {
   DEFAULT_VERIFICATION_SQL,
   applyAuthMode,
+  registrationModeDescription,
   type AdminConfigShape,
   type DefaultAuthMethod,
   type GoogleDraft,
   type MysqlDraft,
+  type RegistrationMode,
 } from '../LoginOptionsSection/helpers.js';
 import { GoogleCredentialsFields, MysqlConnectionFields } from './sectionFormFields.js';
 interface LoginStyleSectionProps {
@@ -39,6 +41,12 @@ export function LoginStyleSection({ config, setConfig }: LoginStyleSectionProps)
       : config.defaultAuthMethod === 'google'
         ? 'Only Google sign-in is available. Local login and registration are hidden.'
         : 'Google sign-in with additional database verification. Users must exist in the external MySQL database.';
+
+  const registrationSelectData: { value: RegistrationMode; label: string }[] = [
+    { value: 'open', label: 'Open registration' },
+    { value: 'invite-only', label: 'Invite-only' },
+    { value: 'disabled', label: 'Disabled' },
+  ];
 
   return (
     <Card shadow="sm" padding="lg" radius="md" withBorder>
@@ -67,6 +75,21 @@ export function LoginStyleSection({ config, setConfig }: LoginStyleSectionProps)
         <Alert color="gray" variant="light">
           {methodDescription}
         </Alert>
+        <Select
+          label="New account registration"
+          description={registrationModeDescription(config.defaultAuthMethod, config.registrationMode)}
+          data={registrationSelectData}
+          value={config.registrationMode}
+          allowDeselect={false}
+          onChange={(value) => {
+            if (value !== 'open' && value !== 'invite-only' && value !== 'disabled') {
+              return;
+            }
+            startTransition(() => {
+              setConfig((c) => (c ? { ...c, registrationMode: value } : c));
+            });
+          }}
+        />
       </Stack>
     </Card>
   );

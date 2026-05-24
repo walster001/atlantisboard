@@ -29,6 +29,7 @@ export function buildLoginOptionsSavePayload(args: {
   const payload: Record<string, unknown> = {
     authMethods: config.authMethods,
     defaultAuthMethod: config.defaultAuthMethod,
+    registrationMode: config.registrationMode,
   };
   const googleConfigured = !!(config.googleOAuth.clientIdSet && config.googleOAuth.clientSecretSet);
   if (config.defaultAuthMethod === 'google' || config.defaultAuthMethod === 'google-external') {

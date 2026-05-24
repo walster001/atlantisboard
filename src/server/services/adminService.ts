@@ -128,7 +128,11 @@ export async function updateAdminConfig(
   }
 
   if (u.registrationMode !== undefined) {
-    config.registrationMode = u.registrationMode;
+    const mode = u.registrationMode;
+    if (mode !== 'open' && mode !== 'invite-only' && mode !== 'disabled') {
+      throw new Error('Invalid registrationMode');
+    }
+    config.registrationMode = mode;
   }
 
   if (u.googleOAuth) {

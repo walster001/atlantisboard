@@ -1,6 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import type { Server as HTTPServer } from 'http';
 import { verifyToken } from '../utils/jwt.js';
+import { extractTokenFromHandshake } from '../middleware/auth.js';
 import { hasPermission, isWorkspaceMember } from '../utils/permissions.js';
 import { User } from '../models/User.js';
 import { logger } from '../utils/logger.js';
@@ -36,13 +37,18 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
   // Authentication middleware for Socket.io
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace('Bearer ', '');
+      const token =
+        extractTokenFromHandshake(
+          socket.handshake.auth?.token,
+          socket.handshake.headers?.authorization,
+          socket.handshake.headers?.cookie,
+        ) ?? null;
 
       if (!token) {
         return next(new Error('Authentication token required'));
       }
 
-      const payload = verifyToken(token);
+      const payload = await verifyToken(token);
       if (!payload) {
         return next(new Error('Invalid or expired token'));
       }

@@ -2,6 +2,7 @@ import { SQL } from 'bun';
 import { AdminConfig } from '../models/AdminConfig.js';
 import { decrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
+import { assertMysqlHostAllowed } from '../utils/ssrfGuard.js';
 
 export interface MySQLConfig {
   host: string;
@@ -123,6 +124,7 @@ export async function verifyUserInMySQL(email: string): Promise<boolean> {
   }
 
   try {
+    await assertMysqlHostAllowed(config.host);
     const url = buildMysqlUrl(config);
     const mysql = new SQL(url);
     const result = await mysql.unsafe(config.verificationQuery, [email]);
@@ -175,6 +177,7 @@ export async function testExternalMySQLConnection(input: TestMySQLInput): Promis
   };
 
   try {
+    await assertMysqlHostAllowed(cfg.host);
     const url = buildMysqlUrl(cfg);
     const mysql = new SQL(url);
     await mysql`SELECT 1 AS ping`;

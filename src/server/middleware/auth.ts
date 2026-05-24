@@ -1,7 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/jwt.js';
+import { verifyToken, jwtExpiresInSeconds } from '../utils/jwt.js';
+import { blocklistJwtJti } from '../utils/jwtBlocklist.js';
 import { User } from '../models/User.js';
 import { logger } from '../utils/logger.js';
+import { AUTH_COOKIE_NAME, isProductionAuthMode } from '../utils/authCookie.js';
+import { verifySignedAssetUrl } from '../utils/signedAssetUrl.js';
 import type { AuthenticatedRequest, OptionalAuthRequest } from '../../shared/types/express.js';
 
 export async function requireAuth(
@@ -23,7 +26,7 @@ export async function requireAuth(
       return;
     }
 
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
 
     if (!payload) {
       res.status(401).json({
@@ -36,7 +39,6 @@ export async function requireAuth(
       return;
     }
 
-    // Verify user still exists
     const user = await User.findById(payload.userId).select('+failedLoginAttempts +lockedUntil isAppAdmin');
     if (!user) {
       res.status(401).json({
@@ -49,7 +51,6 @@ export async function requireAuth(
       return;
     }
 
-    // Check if account is locked
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       res.status(403).json({
         error: {
@@ -95,7 +96,7 @@ export async function optionalAuth(
       return;
     }
 
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
 
     if (!payload) {
       next();
@@ -118,7 +119,6 @@ export async function optionalAuth(
 
     next();
   } catch (error) {
-    // For optional auth, continue even if there's an error
     logger.warn({ error }, 'Error in optionalAuth middleware, continuing without auth');
     next();
   }
@@ -131,7 +131,7 @@ export async function requireAppAdmin(
 ): Promise<void> {
   try {
     const authReq = req as AuthenticatedRequest;
-    
+
     if (!authReq.user || !authReq.user.id) {
       res.status(401).json({
         error: {
@@ -143,27 +143,19 @@ export async function requireAppAdmin(
       return;
     }
 
-    // Check isAppAdmin from JWT payload first (performance optimization)
-    // If not available, fall back to database query
-    let isAppAdmin = authReq.user.isAppAdmin;
-    
-    if (isAppAdmin === undefined) {
-      // Fallback to database query if not in JWT
-      const user = await User.findById(authReq.user.id).select('isAppAdmin');
-      if (!user) {
-        res.status(401).json({
-          error: {
-            message: 'User not found',
-            code: 'USER_NOT_FOUND',
-            statusCode: 401,
-          },
-        });
-        return;
-      }
-      isAppAdmin = user.isAppAdmin || false;
+    const user = await User.findById(authReq.user.id).select('isAppAdmin');
+    if (!user) {
+      res.status(401).json({
+        error: {
+          message: 'User not found',
+          code: 'USER_NOT_FOUND',
+          statusCode: 401,
+        },
+      });
+      return;
     }
 
-    if (!isAppAdmin) {
+    if (!user.isAppAdmin) {
       logger.warn(
         { userId: authReq.user.id, ip: req.ip },
         'Non-admin user attempted to access admin route'
@@ -178,6 +170,7 @@ export async function requireAppAdmin(
       return;
     }
 
+    authReq.user.isAppAdmin = true;
     next();
   } catch (error) {
     logger.error({ error }, 'Error in requireAppAdmin middleware');
@@ -191,13 +184,23 @@ export async function requireAppAdmin(
   }
 }
 
+export async function blocklistTokenFromRequest(req: Request): Promise<void> {
+  const token = extractToken(req);
+  if (token == null) {
+    return;
+  }
+  const payload = await verifyToken(token);
+  if (payload?.jti) {
+    await blocklistJwtJti(payload.jti, jwtExpiresInSeconds());
+  }
+}
+
 function extractToken(req: Request): string | null {
   const isLikelyJwt = (value: string): boolean => {
     const token = value.trim();
     return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
   };
 
-  // Check Authorization header
   const authHeader = req.headers['authorization'];
   if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
     const bearerToken = authHeader.substring(7).trim();
@@ -206,19 +209,91 @@ function extractToken(req: Request): string | null {
     }
   }
 
-  // Check cookie - need cookie-parser middleware for this
   const cookies = (req as { cookies?: Record<string, string> }).cookies;
-  if (typeof cookies?.token === 'string' && isLikelyJwt(cookies.token)) {
-    return cookies.token.trim();
+  if (typeof cookies?.[AUTH_COOKIE_NAME] === 'string' && isLikelyJwt(cookies[AUTH_COOKIE_NAME])) {
+    return cookies[AUTH_COOKIE_NAME].trim();
   }
 
-  // Fallback for image/file URLs that pass token via query string.
-  const query = req.query as Record<string, unknown>;
-  const queryToken = query.token;
-  if (typeof queryToken === 'string' && isLikelyJwt(queryToken)) {
-    return queryToken.trim();
+  if (!isProductionAuthMode()) {
+    const query = req.query as Record<string, unknown>;
+    const queryToken = query.token;
+    if (typeof queryToken === 'string' && isLikelyJwt(queryToken)) {
+      return queryToken.trim();
+    }
   }
 
   return null;
 }
 
+export function extractTokenFromHandshake(
+  authToken: unknown,
+  authorizationHeader: unknown,
+  cookieHeader: unknown,
+): string | null {
+  const isLikelyJwt = (value: string): boolean =>
+    /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value.trim());
+
+  if (typeof authToken === 'string' && isLikelyJwt(authToken)) {
+    return authToken.trim();
+  }
+
+  if (typeof authorizationHeader === 'string' && authorizationHeader.startsWith('Bearer ')) {
+    const bearer = authorizationHeader.substring(7).trim();
+    if (isLikelyJwt(bearer)) {
+      return bearer;
+    }
+  }
+
+  if (typeof cookieHeader === 'string' && cookieHeader.length > 0) {
+    for (const part of cookieHeader.split(';')) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith(`${AUTH_COOKIE_NAME}=`)) {
+        const value = trimmed.slice(AUTH_COOKIE_NAME.length + 1).trim();
+        if (isLikelyJwt(value)) {
+          return value;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+export function hasValidSignedAssetQuery(req: Request, assetPath: string): boolean {
+  const exp = typeof req.query.exp === 'string' ? req.query.exp : undefined;
+  const sig = typeof req.query.sig === 'string' ? req.query.sig : undefined;
+  return verifySignedAssetUrl(assetPath, exp, sig);
+}
+
+export async function requireSignedAssetOrAuth(
+  req: Request,
+  res: Response,
+  assetPath: string,
+): Promise<boolean> {
+  if (hasValidSignedAssetQuery(req, assetPath)) {
+    return true;
+  }
+  const token = extractToken(req);
+  if (token == null) {
+    res.status(401).json({
+      error: {
+        message: 'Authentication or signed URL required',
+        code: 'UNAUTHORIZED',
+        statusCode: 401,
+      },
+    });
+    return false;
+  }
+  const payload = await verifyToken(token);
+  if (payload == null) {
+    res.status(401).json({
+      error: {
+        message: 'Invalid or expired token',
+        code: 'INVALID_TOKEN',
+        statusCode: 401,
+      },
+    });
+    return false;
+  }
+  return true;
+}

@@ -46,6 +46,9 @@ export interface IUser extends Document {
   };
   emailVerified: boolean;
   verificationToken?: string;
+  verificationTokenExpiresAt?: Date;
+  passwordResetTokenHash?: string;
+  passwordResetTokenExpiresAt?: Date;
   isPlaceholder?: boolean;
   placeholderSource?: 'trello' | 'wekan';
   placeholderEmail?: string;
@@ -193,6 +196,9 @@ const UserSchema = new Schema<IUser>(
       default: false,
     },
     verificationToken: String,
+    verificationTokenExpiresAt: Date,
+    passwordResetTokenHash: { type: String, select: false },
+    passwordResetTokenExpiresAt: Date,
     isPlaceholder: {
       type: Boolean,
       default: false,
@@ -240,6 +246,15 @@ const UserSchema = new Schema<IUser>(
  * Full-text search for user directory / member pickers. One text index per collection (MongoDB rule).
  * Weights favor display name, then username, then email.
  */
+UserSchema.index(
+  { foundingAppAdmin: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { foundingAppAdmin: true },
+    name: 'founding_app_admin_unique',
+  },
+);
+
 UserSchema.index(
   { displayName: 'text', email: 'text', username: 'text' },
   {

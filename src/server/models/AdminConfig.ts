@@ -112,11 +112,14 @@ export interface IBackupSettings {
   lastScheduledRunAt?: Date;
 }
 
+export type RegistrationMode = 'open' | 'invite-only' | 'disabled';
+
 export interface IAdminConfig extends Document {
   authMethods: IAuthMethods;
   googleOAuth: IGoogleOAuth;
   externalMySQL: IExternalMySQL;
   defaultAuthMethod: DefaultAuthMethod;
+  registrationMode: RegistrationMode;
   loginScreenBranding: ILoginScreenBranding;
   appScreenBranding: IAppScreenBranding;
   rateLimiting: IRateLimiting;
@@ -283,6 +286,11 @@ const AdminConfigSchema = new Schema<IAdminConfig>(
       type: String,
       enum: ['email', 'google', 'google-external'],
       default: 'email',
+    },
+    registrationMode: {
+      type: String,
+      enum: ['open', 'invite-only', 'disabled'],
+      default: process.env.NODE_ENV === 'production' ? 'invite-only' : 'open',
     },
     loginScreenBranding: {
       type: LoginScreenBrandingSchema,

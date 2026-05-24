@@ -9,10 +9,23 @@ import { toPublicLoginBranding } from '../services/loginBrandingPreview.js';
 import { toPublicAppBranding } from '../services/appBrandingPreview.js';
 import { hashPassword, verifyPassword, validatePassword } from '../utils/password.js';
 import { generateToken } from '../utils/jwt.js';
+import {
+  authTokenResponseField,
+  clearAuthCookie,
+  isProductionAuthMode,
+  setAuthCookie,
+} from '../utils/authCookie.js';
+import {
+  generatePasswordResetToken,
+  hashPasswordResetToken,
+  isPasswordResetTokenExpired,
+  passwordResetExpiresAt,
+} from '../utils/passwordResetToken.js';
+import type { RegistrationMode } from '../models/AdminConfig.js';
 import { logger } from '../utils/logger.js';
 import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, blocklistTokenFromRequest } from '../middleware/auth.js';
 import { isGoogleOAuthStrategyRegistered } from '../config/passport.js';
 import { claimImportPlaceholderMembershipsForUser } from '../services/importPlaceholderUserService.js';
 import { attachCustomBoardThemesToPreferences } from '../services/boardThemeService.js';
@@ -38,6 +51,49 @@ async function assertEmailPasswordAllowed(res: Response): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+async function assertRegistrationAllowed(res: Response): Promise<boolean> {
+  const cfg = await AdminConfig.findOne();
+  const mode: RegistrationMode = cfg?.registrationMode ?? (process.env.NODE_ENV === 'production' ? 'invite-only' : 'open');
+  const existingCount = await User.countDocuments({ isPlaceholder: { $ne: true } });
+  if (existingCount === 0) {
+    return true;
+  }
+  if (mode === 'disabled') {
+    res.status(403).json({
+      error: {
+        message: 'Registration is disabled on this server.',
+        code: 'REGISTRATION_DISABLED',
+        statusCode: 403,
+      },
+    });
+    return false;
+  }
+  if (mode === 'invite-only') {
+    res.status(403).json({
+      error: {
+        message: 'Registration is invite-only. Contact an administrator for access.',
+        code: 'REGISTRATION_INVITE_ONLY',
+        statusCode: 403,
+      },
+    });
+    return false;
+  }
+  return true;
+}
+
+function sendAuthSuccess(
+  res: Response,
+  statusCode: number,
+  token: string,
+  user: Record<string, unknown>,
+): void {
+  setAuthCookie(res, token);
+  res.status(statusCode).json({
+    ...authTokenResponseField(token),
+    user,
+  });
 }
 
 // Rate limiters
@@ -126,6 +182,9 @@ router.get('/app-branding', apiRateLimiter, async (_req, res, next) => {
 router.post('/register', authRateLimiter, async (req, res, next) => {
   try {
     if (!(await assertEmailPasswordAllowed(res))) {
+      return;
+    }
+    if (!(await assertRegistrationAllowed(res))) {
       return;
     }
 
@@ -237,7 +296,6 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
 
     await claimImportPlaceholderMembershipsForUser(user);
 
-    // Generate token
     const token = generateToken({
       userId: user._id.toString(),
       email: user.email,
@@ -245,7 +303,6 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
       isAppAdmin: user.isAppAdmin,
     });
 
-    // Log audit event
     logAuditEvent({
       userId: user._id.toString(),
       action: 'register',
@@ -257,20 +314,32 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
 
     logger.info({ userId: user._id.toString(), email: user.email }, 'User registered');
 
-    res.status(201).json({
-      token,
-      user: {
-        id: user._id.toString(),
-        email: user.email,
-        username: user.username,
-        displayName: user.displayName,
-        profilePicture: user.profilePicture,
-        isAppAdmin: user.isAppAdmin,
-        preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
-        emailVerified: user.emailVerified,
-      },
+    sendAuthSuccess(res, 201, token, {
+      id: user._id.toString(),
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+      profilePicture: user.profilePicture,
+      isAppAdmin: user.isAppAdmin,
+      preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+      emailVerified: user.emailVerified,
     });
   } catch (error) {
+    if (
+      error != null &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: number }).code === 11000
+    ) {
+      res.status(409).json({
+        error: {
+          message: 'User already exists',
+          code: 'USER_EXISTS',
+          statusCode: 409,
+        },
+      });
+      return;
+    }
     if (error instanceof z.ZodError) {
       res.status(400).json({
         error: {
@@ -397,18 +466,15 @@ router.post('/login', authRateLimiter, async (req, res, next) => {
 
     logger.info({ userId: user._id.toString(), email: user.email }, 'User logged in');
 
-    res.json({
-      token,
-      user: {
-        id: user._id.toString(),
-        email: user.email,
-        username: user.username,
-        displayName: user.displayName,
-        profilePicture: user.profilePicture,
-        isAppAdmin: user.isAppAdmin,
-        preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
-        emailVerified: user.emailVerified,
-      },
+    sendAuthSuccess(res, 200, token, {
+      id: user._id.toString(),
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+      profilePicture: user.profilePicture,
+      isAppAdmin: user.isAppAdmin,
+      preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+      emailVerified: user.emailVerified,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -427,9 +493,13 @@ router.post('/login', authRateLimiter, async (req, res, next) => {
 });
 
 // Logout endpoint
-router.post('/logout', apiRateLimiter, async (_req, res) => {
-  // For JWT-based auth, logout is handled client-side by removing the token
-  // This endpoint exists for consistency and potential future session-based auth
+router.post('/logout', apiRateLimiter, async (req, res) => {
+  try {
+    await blocklistTokenFromRequest(req);
+  } catch (error) {
+    logger.warn({ error }, 'Failed to blocklist token on logout');
+  }
+  clearAuthCookie(res);
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -484,12 +554,13 @@ router.post('/forgot-password', authRateLimiter, async (req, res, next) => {
       return;
     }
 
-    // Generate reset token (simplified - in production, use crypto.randomBytes and store with expiry)
-    const resetToken = crypto.randomUUID();
-    user.verificationToken = resetToken;
+    const resetToken = generatePasswordResetToken();
+    user.passwordResetTokenHash = hashPasswordResetToken(resetToken);
+    user.passwordResetTokenExpiresAt = passwordResetExpiresAt();
+    user.set('verificationToken', undefined);
     await user.save();
 
-    // TODO: Send email with reset link
+    // TODO: Send email with reset link containing resetToken
     logger.info({ userId: user._id.toString(), email: user.email }, 'Password reset requested');
 
     res.json({ message: 'If the email exists, a password reset link has been sent' });
@@ -532,9 +603,12 @@ router.post('/reset-password', authRateLimiter, async (req, res, next) => {
       return;
     }
 
-    const user = await User.findOne({ verificationToken: validated.token });
+    const tokenHash = hashPasswordResetToken(validated.token);
+    const user = await User.findOne({ passwordResetTokenHash: tokenHash }).select(
+      '+passwordResetTokenHash +passwordResetTokenExpiresAt',
+    );
 
-    if (!user) {
+    if (!user || isPasswordResetTokenExpired(user.passwordResetTokenExpiresAt)) {
       res.status(400).json({
         error: {
           message: 'Invalid or expired reset token',
@@ -545,10 +619,12 @@ router.post('/reset-password', authRateLimiter, async (req, res, next) => {
       return;
     }
 
-    // Hash new password
     const passwordHash = await hashPassword(validated.password);
     user.passwordHash = passwordHash;
+    user.set('passwordResetTokenHash', undefined);
+    user.set('passwordResetTokenExpiresAt', undefined);
     user.set('verificationToken', undefined);
+    user.set('verificationTokenExpiresAt', undefined);
     await user.save();
 
     logger.info({ userId: user._id.toString(), email: user.email }, 'Password reset completed');
@@ -588,7 +664,7 @@ router.get('/verify-email', authRateLimiter, async (req, res, next) => {
 
     const user = await User.findOne({ verificationToken: token });
 
-    if (!user) {
+    if (!user || (user.verificationTokenExpiresAt != null && user.verificationTokenExpiresAt < new Date())) {
       res.status(400).json({
         error: {
           message: 'Invalid or expired verification token',
@@ -601,6 +677,7 @@ router.get('/verify-email', authRateLimiter, async (req, res, next) => {
 
     user.emailVerified = true;
     user.set('verificationToken', undefined);
+    user.set('verificationTokenExpiresAt', undefined);
     await user.save();
 
     logger.info({ userId: user._id.toString(), email: user.email }, 'Email verified');
@@ -728,6 +805,7 @@ router.get('/google/callback', authRateLimiter, (req, res, next) => {
   const base = oauthRedirectBase(req);
   if (!isGoogleOAuthStrategyRegistered()) {
     delete req.session.oauthReturnTo;
+    delete req.session.oauthPendingUserId;
     res.redirect(`${base}/login?error=google_failed`);
     return;
   }
@@ -737,6 +815,7 @@ router.get('/google/callback', authRateLimiter, (req, res, next) => {
     (err: Error | null, user: Express.User | false | null | undefined) => {
       if (err || !user) {
         delete req.session.oauthReturnTo;
+        delete req.session.oauthPendingUserId;
         if (err) {
           logger.warn(
             { errMessage: err.message, errName: err.name },
@@ -763,17 +842,114 @@ router.get('/google/callback', authRateLimiter, (req, res, next) => {
         username: string;
         isAppAdmin?: boolean;
       };
-      const token = generateToken({
-        userId: u.id,
-        email: u.email,
-        username: u.username,
-        ...(u.isAppAdmin === true ? { isAppAdmin: true as const } : {}),
-      });
+
       delete req.session.oauthReturnTo;
-      /* Post-login path: client uses sessionStorage (see postLoginRedirect); omit `next` from URL */
-      res.redirect(`${base}/login?token=${encodeURIComponent(token)}&oauth=1`);
+
+      req.session.regenerate((regenErr?: Error) => {
+        if (regenErr) {
+          next(regenErr);
+          return;
+        }
+
+        req.session.oauthPendingUserId = u.id;
+
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            next(saveErr);
+            return;
+          }
+
+          if (isProductionAuthMode()) {
+            res.redirect(`${base}/login?oauth=1`);
+            return;
+          }
+
+          const token = generateToken({
+            userId: u.id,
+            email: u.email,
+            username: u.username,
+            ...(u.isAppAdmin === true ? { isAppAdmin: true as const } : {}),
+          });
+          setAuthCookie(res, token);
+          res.redirect(`${base}/login?token=${encodeURIComponent(token)}&oauth=1`);
+        });
+      });
     }
   )(req, res, next);
+});
+
+router.post('/oauth/exchange', authRateLimiter, async (req, res, next) => {
+  try {
+    const pendingUserId = req.session.oauthPendingUserId;
+    if (pendingUserId == null || pendingUserId.trim() === '') {
+      res.status(400).json({
+        error: {
+          message: 'No pending OAuth session',
+          code: 'OAUTH_EXCHANGE_MISSING',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+
+    delete req.session.oauthPendingUserId;
+
+    const user = await User.findById(pendingUserId);
+    if (!user || user.isPlaceholder === true) {
+      res.status(401).json({
+        error: {
+          message: 'OAuth user not found',
+          code: 'UNAUTHORIZED',
+          statusCode: 401,
+        },
+      });
+      return;
+    }
+
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      res.status(403).json({
+        error: {
+          message: 'Account is locked',
+          code: 'ACCOUNT_LOCKED',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
+
+    user.lastLogin = new Date();
+    await user.save();
+
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      username: user.username,
+      ...(user.isAppAdmin ? { isAppAdmin: true as const } : {}),
+    });
+
+    logAuditEvent({
+      userId: user._id.toString(),
+      action: 'login',
+      resourceType: 'user',
+      resourceId: user._id.toString(),
+      ipAddress: req.ip || undefined,
+      timestamp: new Date(),
+      metadata: { method: 'google-oauth' },
+    });
+
+    sendAuthSuccess(res, 200, token, {
+      id: user._id.toString(),
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+      profilePicture: user.profilePicture,
+      isAppAdmin: user.isAppAdmin,
+      preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+      emailVerified: user.emailVerified,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export { router as authRoutes };

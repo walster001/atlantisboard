@@ -10,7 +10,8 @@ export interface AuthApiMethods {
     password: string;
     displayName: string;
   }): Promise<unknown>;
-  login(email: string, password: string): Promise<{ token: string; user: unknown }>;
+  login(email: string, password: string): Promise<{ token?: string; user: unknown }>;
+  oauthExchange(): Promise<{ user: unknown }>;
   logout(): Promise<void>;
   getCurrentUser(): Promise<unknown>;
   forgotPassword(email: string): Promise<void>;
@@ -38,6 +39,18 @@ export const authApiMethods: AuthApiMethods = {
     return response.data;
   },
 
+  async oauthExchange(this: ApiClient): Promise<{ user: unknown }> {
+    const response = await this.client.post('/auth/oauth/exchange');
+    const data = response.data;
+    if (data != null && typeof data === 'object' && 'token' in data) {
+      const token = (data as { token?: unknown }).token;
+      if (typeof token === 'string' && token.length > 0) {
+        this.setToken(token);
+      }
+    }
+    return data as { user: unknown };
+  },
+
   async login(this: ApiClient, email, password) {
     const response = await this.client.post('/auth/login', { email, password });
     const data = response.data;
@@ -47,7 +60,7 @@ export const authApiMethods: AuthApiMethods = {
         this.setToken(token);
       }
     }
-    return data as { token: string; user: unknown };
+    return data as { token?: string; user: unknown };
   },
 
   async logout(this: ApiClient) {

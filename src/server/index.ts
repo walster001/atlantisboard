@@ -17,7 +17,8 @@ import { initializeMinIOBuckets } from './config/minio.js';
 import { initializeRoleDefinitions } from './services/roleService.js';
 import { initializeBoardThemes } from './services/boardThemeService.js';
 import { dropLegacyUnusedCollections } from './services/startupMigrations.js';
-import { expressCorsOptions } from './config/cors.js';
+import { assertProductionCorsConfig, expressCorsOptions } from './config/cors.js';
+import { assertProductionSecrets } from './utils/productionSecrets.js';
 // Background jobs can run in separate worker process or in main process
 // Set ENABLE_CRON_JOBS_IN_MAIN=true to run in main process (default: false, use separate worker)
 import { scheduleCronJobs } from './workers/cronJobs.js';
@@ -60,30 +61,62 @@ initializeVapid().catch((err) => {
   logger.error({ err }, 'Failed to initialize VAPID keys');
 });
 
+assertProductionSecrets();
+assertProductionCorsConfig();
+
 const app = express();
 const httpServer = createServer(app);
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-// Security middleware
+if (process.env.NODE_ENV === 'production') {
+  const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
+  app.set('trust proxy', Number.isFinite(trustProxyHops) && trustProxyHops > 0 ? trustProxyHops : 1);
+}
+
+// Security middleware — relaxed in dev; strict CSP/HSTS in production
+const isProduction = process.env.NODE_ENV === 'production';
+const appOrigin = (process.env.APP_URL ?? process.env.CORS_ORIGIN ?? '').replace(/\/$/, '');
+
 app.use(
   helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
-        connectSrc: ["'self'", 'ws:', 'wss:'],
-        fontSrc: ["'self'", 'data:'],
-        objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
-        frameSrc: ["'none'"],
-        // Keep dev LAN access on plain HTTP in WSL/Windows setups.
-        upgradeInsecureRequests: null,
-      },
-    },
+    contentSecurityPolicy: isProduction
+      ? {
+          directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+            connectSrc: [
+              "'self'",
+              ...(appOrigin !== '' ? [appOrigin] : []),
+              'wss:',
+            ],
+            fontSrc: ["'self'", 'data:'],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'", ...(appOrigin !== '' ? [appOrigin] : [])],
+            frameSrc: ["'none'"],
+            upgradeInsecureRequests: [],
+          },
+        }
+      : {
+          directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+            connectSrc: ["'self'", 'ws:', 'wss:'],
+            fontSrc: ["'self'", 'data:'],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'"],
+            frameSrc: ["'none'"],
+            upgradeInsecureRequests: null,
+          },
+        },
+    strictTransportSecurity: isProduction
+      ? { maxAge: 31_536_000, includeSubDomains: true, preload: true }
+      : false,
     crossOriginEmbedderPolicy: false,
   })
 );

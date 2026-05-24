@@ -1,6 +1,7 @@
 import type { ILoginScreenBranding } from '../models/AdminConfig.js';
 import type { PublicLoginBranding } from '../../shared/types/loginBranding.js';
 import { stripLegacyBrandingFontStacks } from '../../shared/types/customFonts.js';
+import { rewriteBrandingPathToSigned } from '../utils/signedAssetUrl.js';
 
 interface NormalizedLoginBranding {
   backgroundEnabled: boolean;
@@ -98,10 +99,10 @@ export function toPublicLoginBranding(
     taglineColor: b.taglineColor,
     faviconEnabled: lb?.faviconEnabled ?? false,
     browserTabTitleEnabled: lb?.browserTabTitleEnabled ?? false,
-    ...(b.logo ? { logo: b.logo } : {}),
+    ...(b.logo ? { logo: rewriteBrandingPathToSigned(b.logo) ?? b.logo } : {}),
     ...(b.appName ? { appName: b.appName } : {}),
     ...(b.tagline ? { tagline: b.tagline } : {}),
-    ...(faviconUrl ? { faviconUrl } : {}),
+    ...(faviconUrl ? { faviconUrl: rewriteBrandingPathToSigned(faviconUrl) ?? faviconUrl } : {}),
     ...(browserTabTitle ? { browserTabTitle } : {}),
   };
 }

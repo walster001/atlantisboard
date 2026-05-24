@@ -1,4 +1,5 @@
 import type { ICard } from '../models/Card.js';
+import { publicAttachmentUrl } from './attachmentService.js';
 import { spreadPosForIndex } from '../../shared/utils/cardListPos.js';
 import type { ChecklistProgressDTO, CardDetailDTO, CardSummaryDTO } from '../../shared/types/viewModels.js';
 
@@ -132,7 +133,7 @@ export function toCardDetail(card: ICard): CardDetailDTO {
     attachments: card.attachments.map((attachment) => ({
       id: attachment.id,
       name: attachment.name,
-      url: attachment.url,
+      url: publicAttachmentUrl(attachment),
       ...(typeof attachment.originalFileName === 'string' && attachment.originalFileName.trim() !== ''
         ? { originalFileName: attachment.originalFileName.trim() }
         : {}),

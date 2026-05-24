@@ -20,7 +20,9 @@ import {
   isAllowedAvatarMime,
   uploadUserAvatar,
 } from '../services/userAvatarService.js';
+import { requireSignedAssetOrAuth } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
+import { createSignedAssetUrl } from '../utils/signedAssetUrl.js';
 import { sanitizeAndMergeHomeWorkspaceOrder } from '../services/workspaceService.js';
 import {
   attachCustomBoardThemesToPreferences,
@@ -38,7 +40,8 @@ const uploadAvatar = multer({
 
 /** Same-origin path + cache-bust query so `<img>` reloads after each upload (JWT not sent on images). */
 function uploadedAvatarPublicUrl(userId: string): string {
-  return `/api/v1/users/avatar/${userId}?v=${Date.now()}`;
+  const signed = createSignedAssetUrl(`/api/v1/users/avatar/${userId}`);
+  return `${signed}&v=${Date.now()}`;
 }
 
 /** Public image URL for `<img src>` (JWT is not sent on image requests). Rate-limited. */
@@ -48,6 +51,11 @@ router.get('/avatar/:userId', apiRateLimiter, (req, res, next) => {
       const { userId } = req.params;
       if (!mongoose.Types.ObjectId.isValid(userId)) {
         res.status(404).end();
+        return;
+      }
+      const assetPath = `/api/v1/users/avatar/${userId}`;
+      const allowed = await requireSignedAssetOrAuth(req, res, assetPath);
+      if (!allowed) {
         return;
       }
       const result = await getUserAvatarObject(userId);

@@ -362,7 +362,7 @@ router.get('/attachments/:attachmentId/url', async (req, res, next) => {
       return;
     }
 
-    const url = await getAttachmentUrl(attachment.url);
+    const url = await getAttachmentUrl(attachment.url, attachmentId);
 
     res.json({ url });
   } catch (error) {

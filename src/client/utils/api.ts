@@ -22,6 +22,11 @@ import { importExportApiMethods, type ImportExportApiMethods } from './api/impor
 import { attachmentApiMethods, type AttachmentApiMethods } from './api/attachmentApiMethods.js';
 import { themesApiMethods, type ThemesApiMethods } from './api/themesApiMethods.js';
 import { API_BASE_URL } from './api/shared.js';
+import { env } from '../config/env.js';
+
+function useCookieAuthOnly(): boolean {
+  return env.NODE_ENV === 'production';
+}
 export { invalidateFontsCatalogCache };
 
 /** Paths that do not require authentication; redirect to login is skipped on these. */
@@ -57,9 +62,11 @@ export class ApiClient {
     // Request interceptor to add auth token and CSRF token
     this.client.interceptors.request.use(
       async (config) => {
-        const token = this.getToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        if (!useCookieAuthOnly()) {
+          const token = this.getToken();
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
         }
 
         // Add CSRF token for state-changing requests
@@ -131,16 +138,22 @@ export class ApiClient {
   }
 
   getToken(): string | null {
-    // Try to get token from cookie (set by server) or localStorage
+    if (useCookieAuthOnly()) {
+      return null;
+    }
     return localStorage.getItem('token') || null;
   }
 
   clearToken(): void {
-    localStorage.removeItem('token');
+    if (!useCookieAuthOnly()) {
+      localStorage.removeItem('token');
+    }
   }
 
   setToken(token: string): void {
-    localStorage.setItem('token', token);
+    if (!useCookieAuthOnly()) {
+      localStorage.setItem('token', token);
+    }
   }
 }
 

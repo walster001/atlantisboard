@@ -4,6 +4,7 @@ import { Box, Loader } from '@mantine/core';
 import { useAuthContext } from '../contexts/AuthContext.js';
 import { useAppBranding } from '../contexts/AppBrandingContext.js';
 import { api } from '../utils/api.js';
+import { env } from '../config/env.js';
 import { BrandedLoginCard } from '../components/auth/BrandedLoginCard.js';
 import { RegisterModal } from '../components/auth/RegisterModal.js';
 import { ForgotPasswordModal } from '../components/auth/ForgotPasswordModal.js';
@@ -91,9 +92,32 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    const token = searchParams.get('token');
     const oauth = searchParams.get('oauth');
-    if (token && oauth === '1') {
+    if (oauth !== '1') {
+      return;
+    }
+
+    const token = searchParams.get('token');
+    const isProduction = env.NODE_ENV === 'production';
+
+    if (isProduction && !token) {
+      searchParams.delete('oauth');
+      searchParams.delete('next');
+      setSearchParams(searchParams, { replace: true });
+      void api
+        .oauthExchange()
+        .then(() => refreshUser())
+        .then(() => {
+          const target = consumePostLoginRedirect() ?? '/';
+          navigate(target, { replace: true });
+        })
+        .catch(() => {
+          setError('Google sign-in could not be completed. Please try again.');
+        });
+      return;
+    }
+
+    if (token) {
       api.setToken(token);
       searchParams.delete('token');
       searchParams.delete('oauth');

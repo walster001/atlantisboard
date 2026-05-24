@@ -127,6 +127,10 @@ export async function updateAdminConfig(
     config.defaultAuthMethod = u.defaultAuthMethod;
   }
 
+  if (u.registrationMode !== undefined) {
+    config.registrationMode = u.registrationMode;
+  }
+
   if (u.googleOAuth) {
     const go = u.googleOAuth as Partial<IGoogleOAuth> & { replaceGoogleOAuth?: boolean };
     if (go.enabled !== undefined) {

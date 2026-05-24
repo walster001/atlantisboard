@@ -63,15 +63,60 @@ source "$PROJECT_ROOT/.env" 2>/dev/null || true
 set -u
 
 # Validate critical production variables
-CRITICAL_VARS=("JWT_SECRET" "SESSION_SECRET" "ENCRYPTION_KEY")
+CRITICAL_VARS=("JWT_SECRET" "SESSION_SECRET" "CSRF_SECRET" "ENCRYPTION_KEY")
+INSECURE_SECRET_PATTERNS=(
+  "change-this-to-a-secure-random-string-in-production"
+  "change-this-secret-in-production"
+  "your-secret-key-change-in-production"
+  "change-this-session-secret-in-production"
+  "your-session-secret-change-in-production"
+  "change-this-csrf-secret-in-production"
+)
+MIN_SECRET_LENGTH=32
 MISSING_VARS=()
+
+is_insecure_secret() {
+  local value="$1"
+  if [ -z "$value" ]; then
+    return 0
+  fi
+  if [ "${#value}" -lt "$MIN_SECRET_LENGTH" ]; then
+    return 0
+  fi
+  for pattern in "${INSECURE_SECRET_PATTERNS[@]}"; do
+    if [ "$value" = "$pattern" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 for var in "${CRITICAL_VARS[@]}"; do
   var_value=$(grep "^${var}=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
-  if [ -z "$var_value" ] || [ "$var_value" = "change-this-to-a-secure-random-string-in-production" ]; then
+  if is_insecure_secret "$var_value"; then
     MISSING_VARS+=("$var")
   fi
 done
+
+# Require non-default MinIO and Redis credentials in production
+MINIO_ACCESS_KEY_VALUE=$(grep "^MINIO_ACCESS_KEY=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
+MINIO_SECRET_KEY_VALUE=$(grep "^MINIO_SECRET_KEY=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
+REDIS_PASSWORD_VALUE=$(grep "^REDIS_PASSWORD=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
+
+if [ -z "$MINIO_ACCESS_KEY_VALUE" ] || [ "$MINIO_ACCESS_KEY_VALUE" = "minioadmin" ]; then
+  MISSING_VARS+=("MINIO_ACCESS_KEY")
+fi
+if [ -z "$MINIO_SECRET_KEY_VALUE" ] || [ "$MINIO_SECRET_KEY_VALUE" = "minioadmin" ]; then
+  MISSING_VARS+=("MINIO_SECRET_KEY")
+fi
+if [ -z "$REDIS_PASSWORD_VALUE" ]; then
+  MISSING_VARS+=("REDIS_PASSWORD")
+fi
+
+CORS_ORIGIN_VALUE=$(grep "^CORS_ORIGIN=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
+if [ -z "$CORS_ORIGIN_VALUE" ] || echo "$CORS_ORIGIN_VALUE" | grep -q '\*'; then
+  MISSING_VARS+=("CORS_ORIGIN")
+fi
 
 if [ ${#MISSING_VARS[@]} -gt 0 ]; then
   echo -e "${RED}Critical production variables are missing or invalid:${NC}"
@@ -160,7 +205,7 @@ echo ""
 echo -e "${BLUE}Application URLs:${NC}"
 echo -e "  Application: ${GREEN}${APP_URL}${NC}"
 echo -e "  Health Check: ${GREEN}${APP_URL}/health${NC}"
-echo -e "  MinIO Console: ${GREEN}http://localhost:9001${NC}"
+echo -e "  Note: MongoDB, Redis, and MinIO are internal-only (not published to the host)."
 echo ""
 echo -e "${BLUE}Useful Commands:${NC}"
 echo -e "  View logs: ${YELLOW}docker compose -f docker-compose.prod.yml logs -f${NC}"

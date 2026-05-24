@@ -5,6 +5,7 @@ import type { AuthenticatedRequest } from '../../shared/types/express.js';
 import { BOARD_MEMBER_AUDIT_ACTIVITY_TYPES } from '../../shared/constants/boardMemberAuditActivities.js';
 import { Activity } from '../models/Activity.js';
 import { hasPermission } from '../utils/permissions.js';
+import { sanitizeActivitySearchInput } from '../../shared/utils/escapeRegex.js';
 
 const router = Router();
 
@@ -102,7 +103,9 @@ router.get('/boards/:boardId', async (req, res, next) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
     const type = req.query.type as string | undefined;
     const cardId = req.query.cardId as string | undefined;
-    const search = req.query.search as string | undefined;
+    const search = sanitizeActivitySearchInput(
+      typeof req.query.search === 'string' ? req.query.search : undefined,
+    );
 
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
     const query: { boardId: string; type?: string; cardId?: string; createdAt?: { $lt: Date }; $or?: Array<{ description?: { $regex: string; $options: string } }> } = { boardId };
@@ -174,7 +177,9 @@ router.get('/cards/:cardId', async (req, res, next) => {
     }
 
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
-    const search = req.query.search as string | undefined;
+    const search = sanitizeActivitySearchInput(
+      typeof req.query.search === 'string' ? req.query.search : undefined,
+    );
 
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
     const query: { cardId: string; createdAt?: { $lt: Date }; $or?: Array<{ description?: { $regex: string; $options: string } }> } = { cardId };

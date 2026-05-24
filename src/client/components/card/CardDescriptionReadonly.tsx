@@ -1,5 +1,7 @@
 import { memo, useMemo } from 'react';
+import { generateJSON } from '@tiptap/html';
 import { renderToReactElement } from '@tiptap/static-renderer';
+import { sanitizeHtml } from '../../../shared/utils/sanitizeHtml.js';
 import {
   getCardDescriptionExtensions,
   isCardDescriptionEmpty,
@@ -13,9 +15,28 @@ export interface CardDescriptionReadonlyProps {
   valueHtml?: string | undefined;
 }
 
+function legacyHtmlToDescriptionDoc(valueHtml: string) {
+  const sanitized = sanitizeHtml(valueHtml);
+  if (sanitized === '') {
+    return null;
+  }
+  try {
+    const doc = generateJSON(sanitized, getCardDescriptionExtensions());
+    return isCardDescriptionEmpty(doc) ? null : doc;
+  } catch {
+    return null;
+  }
+}
+
 function CardDescriptionReadonlyInner({ valueJson, valueHtml }: CardDescriptionReadonlyProps) {
-  const fromJson = useMemo(() => {
-    const doc = parseCardDescriptionJson(valueJson);
+  const rendered = useMemo(() => {
+    let doc = parseCardDescriptionJson(valueJson);
+    if (isCardDescriptionEmpty(doc) && typeof valueHtml === 'string' && valueHtml.trim() !== '') {
+      const migrated = legacyHtmlToDescriptionDoc(valueHtml);
+      if (migrated != null) {
+        doc = migrated;
+      }
+    }
     if (isCardDescriptionEmpty(doc)) {
       return null;
     }
@@ -28,22 +49,15 @@ function CardDescriptionReadonlyInner({ valueJson, valueHtml }: CardDescriptionR
         },
       },
     });
-  }, [valueJson]);
+  }, [valueJson, valueHtml]);
 
-  if (fromJson != null) {
-    return (
-      <div className="card-desc-tiptap-read card-desc-tiptap-read--detail">{fromJson}</div>
-    );
+  if (rendered == null) {
+    return null;
   }
-  if (typeof valueHtml === 'string' && valueHtml.trim() !== '') {
-    return (
-      <div
-        className="card-desc-tiptap-read card-desc-tiptap-read--detail"
-        dangerouslySetInnerHTML={{ __html: valueHtml }}
-      />
-    );
-  }
-  return null;
+
+  return (
+    <div className="card-desc-tiptap-read card-desc-tiptap-read--detail">{rendered}</div>
+  );
 }
 
 /** Static render only — no ProseMirror editor; memoized to avoid re-running the static renderer on unrelated parent updates. */

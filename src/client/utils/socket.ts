@@ -9,6 +9,8 @@ class SocketClient {
   private readonly maxReconnectAttempts = 5;
 
   connect(token: string): Socket {
+    const authToken = token.trim();
+
     if (this.socket?.connected) {
       return this.socket;
     }
@@ -16,7 +18,7 @@ class SocketClient {
     if (
       this.socket != null &&
       !this.socket.connected &&
-      this.lastAuthToken === token
+      this.lastAuthToken === authToken
     ) {
       return this.socket;
     }
@@ -27,14 +29,13 @@ class SocketClient {
       this.socket = null;
     }
 
-    this.lastAuthToken = token;
+    this.lastAuthToken = authToken;
 
     const SOCKET_URL = env.SOCKET_URL || window.location.origin;
 
     this.socket = io(SOCKET_URL, {
-      auth: {
-        token,
-      },
+      withCredentials: true,
+      ...(authToken !== '' ? { auth: { token: authToken } } : {}),
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,

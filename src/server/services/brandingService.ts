@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { MINIO_BUCKET_BRANDING } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { logger } from '../utils/logger.js';
+import { isBlockedSvgUpload } from '../utils/sanitizeHtml.js';
 
 initializeMinIOBuckets().catch((error) => {
   logger.error({ error }, 'Failed to initialize MinIO buckets (branding)');
@@ -108,6 +109,11 @@ export async function uploadBrandingAsset(
   originalName?: string
 ): Promise<string> {
   const client = getMinIOClient();
+  const rawMime = mimeType.split(';')[0]?.trim().toLowerCase() ?? '';
+  if (isBlockedSvgUpload(rawMime, originalName)) {
+    throw new Error('SVG uploads are not allowed for branding assets');
+  }
+
   const ext = resolveBrandingExtension(mimeType, kind, originalName);
 
   if (!ext) {
@@ -129,10 +135,9 @@ export async function uploadBrandingAsset(
   const id = crypto.randomUUID();
   /** Flat key at bucket root (bucket name is already `branding`). Legacy nested keys still resolve on read/delete. */
   const objectName = `${id}${ext}`;
-  const rawMime = mimeType.split(';')[0]?.trim().toLowerCase() ?? '';
   const contentType =
     rawMime && rawMime !== 'application/octet-stream' && rawMime !== 'binary/octet-stream'
-      ? (mimeType.split(';')[0]?.trim() ?? 'application/octet-stream')
+      ? rawMime
       : guessContentTypeFromName(`asset${ext}`);
 
   await client.putObject(BUCKET, objectName, buffer, buffer.length, {

@@ -37,10 +37,6 @@ export const attachmentApiMethods: AttachmentApiMethods = {
 
   getAttachmentFileUrl(this: ApiClient, attachmentId) {
     const safeId = encodeURIComponent(attachmentId);
-    const token = this.getToken();
-    if (token && token.trim() !== '') {
-      return `${API_BASE_URL}/attachments/${safeId}/file?token=${encodeURIComponent(token)}`;
-    }
     return `${API_BASE_URL}/attachments/${safeId}/file`;
   },
 

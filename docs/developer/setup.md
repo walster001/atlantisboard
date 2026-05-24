@@ -112,7 +112,17 @@ The dev script builds the client as needed and watches for changes.
 
 Maintain a local `.env` based on **`.env.example`** in the repository root. That file is the source of truth for variable names and comments. At minimum for local dev you will set or accept defaults for server host/port, MongoDB URI, Redis, MinIO, JWT/session-related secrets, optional Google OAuth keys, and `CORS_ORIGIN`.
 
-**Production:** set strong random values for all secrets, set `NODE_ENV=production`, and use real connection strings. The production deploy script validates that default secrets are not left in place.
+**Production:** set strong random values for all secrets (`openssl rand -base64 48`), set `NODE_ENV=production`, and use real connection strings. Required secrets: `JWT_SECRET`, `SESSION_SECRET`, `CSRF_SECRET`, and `ENCRYPTION_KEY` (each at least 32 characters). The server refuses to start in production with placeholder or short secrets.
+
+Set explicit `CORS_ORIGIN` (no `*` wildcard) matching your SPA origin, e.g. `https://app.atlantis.social`. Set `TRUST_PROXY_HOPS=1` when running behind nginx or Caddy. See `deploy/nginx/kanboard.conf` for a production reverse-proxy template.
+
+**Production Docker:** `docker-compose.prod.yml` keeps MongoDB, Redis, and MinIO on the internal Docker network only (no host ports). Only the `app` service is published. Branding assets are served through app proxy routes (`/api/v1/branding/*`), not a public MinIO bucket policy. Set non-default `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, and `REDIS_PASSWORD` before `./scripts/prod-deploy.sh`.
+
+**Build-time client URLs:** set `API_BASE_URL` / `SOCKET_URL` (or equivalent build env) to your production app origin so the SPA and Socket.io client connect to the same host as `CORS_ORIGIN`.
+
+**OAuth staging checklist:** register `https://app.atlantis.social/api/v1/auth/google/callback` (and matching `GOOGLE_OAUTH_BROWSER_ORIGIN`) in Google Cloud before go-live.
+
+The production deploy script validates that default secrets and infrastructure credentials are not left in place.
 
 ---
 
@@ -164,11 +174,25 @@ Examples:
 ./scripts/prod-deploy.sh
 ```
 
+The script validates secrets (`JWT_SECRET`, `SESSION_SECRET`, `CSRF_SECRET`, `ENCRYPTION_KEY`), non-default MinIO/Redis credentials, and explicit `CORS_ORIGIN` before starting containers.
+
 Or manually:
 
 ```bash
 docker build -t kanboard:latest .
 docker compose -f docker-compose.prod.yml up -d
+```
+
+**Reverse proxy:** terminate TLS on the host with nginx (see `deploy/nginx/kanboard.conf`) or Caddy. Forward `/`, `/api/`, `/health`, and `/socket.io/` to the app container. Do not expose MongoDB, Redis, or MinIO to the public internet.
+
+**Recommended production env (example):**
+
+```bash
+NODE_ENV=production
+APP_URL=https://app.atlantis.social
+CORS_ORIGIN=https://app.atlantis.social
+TRUST_PROXY_HOPS=1
+GOOGLE_OAUTH_BROWSER_ORIGIN=https://app.atlantis.social
 ```
 
 **Bare metal:**

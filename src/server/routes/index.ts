@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { authRoutes } from './auth.js';
 import { adminRoutes } from './admin.js';
 import { workspaceRoutes } from './workspaces.js';
@@ -20,8 +20,19 @@ import { boardBackgroundRoutes } from './boardBackgrounds.js';
 import { fontRoutes } from './fonts.js';
 import { importInlineRoutes } from './importInline.js';
 import { themesRoutes } from './themes.js';
+import { csrfProtection } from '../middleware/csrf.js';
 
 export const apiRoutes = Router();
+
+const CSRF_EXCLUDED_PATHS = new Set(['/auth/google', '/auth/google/callback']);
+
+function csrfProtectionUnlessExcluded(req: Request, res: Response, next: NextFunction): void {
+  const path = req.path;
+  if (path.startsWith('/csrf') || CSRF_EXCLUDED_PATHS.has(path)) {
+    return next();
+  }
+  csrfProtection(req, res, next);
+}
 
 // CSRF token endpoint (must be before CSRF protection middleware, safe GET request)
 apiRoutes.use('/csrf', csrfRoutes);
@@ -40,6 +51,9 @@ apiRoutes.use('/fonts', fontRoutes);
 
 // Board theme catalog (system + user + board scoped)
 apiRoutes.use('/themes', themesRoutes);
+
+// CSRF protection for all state-changing requests below (OAuth + CSRF token routes excluded)
+apiRoutes.use(csrfProtectionUnlessExcluded);
 
 // Authentication routes
 apiRoutes.use('/auth', authRoutes);
@@ -87,9 +101,9 @@ apiRoutes.use('/invites', inviteRoutes);
 // Attachment routes
 apiRoutes.use('/', attachmentRoutes);
 
-// Test route
-apiRoutes.get('/test', (_req, res) => {
-  res.json({ message: 'API is working', timestamp: new Date().toISOString() });
-});
-
-
+// Debug route — disabled in production (use /health for probes)
+if (process.env.NODE_ENV !== 'production') {
+  apiRoutes.get('/test', (_req, res) => {
+    res.json({ message: 'API is working', timestamp: new Date().toISOString() });
+  });
+}

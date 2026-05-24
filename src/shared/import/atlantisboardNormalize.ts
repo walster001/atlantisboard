@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ATLANTISBOARD_EXPORT_FORMAT_VERSION } from '../export/boardExportFormats.js';
+import { sanitizeHtml } from '../utils/sanitizeHtml.js';
 
 const attachmentSchema = z
   .object({
@@ -204,7 +205,16 @@ export function assertAtlantisboardExportShape(raw: unknown): void {
 
 export function normalizeAtlantisboardExport(raw: unknown): NormalizedAtlantisboardExport {
   assertAtlantisboardExportShape(raw);
-  return exportSchema.parse(raw);
+  const parsed = exportSchema.parse(raw);
+  return {
+    ...parsed,
+    cards: parsed.cards.map((card) => ({
+      ...card,
+      ...(card.descriptionHtml != null && card.descriptionHtml !== ''
+        ? { descriptionHtml: sanitizeHtml(card.descriptionHtml) }
+        : {}),
+    })),
+  };
 }
 
 export function parseDataUrl(dataUrl: string): { readonly mimeType: string; readonly buffer: Buffer } | null {

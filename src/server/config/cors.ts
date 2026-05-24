@@ -13,23 +13,27 @@ function splitEnvOrigins(value: string | undefined): string[] {
     .filter((part) => part.length > 0);
 }
 
-const configuredOrigins = splitEnvOrigins(process.env.CORS_ORIGIN);
-const allowAllOrigins = configuredOrigins.includes('*');
-const configuredOriginSet = new Set(configuredOrigins.filter((origin) => origin !== '*'));
-const isProduction = process.env.NODE_ENV === 'production';
+function readCorsOriginsFromEnv(): readonly string[] {
+  return splitEnvOrigins(process.env.CORS_ORIGIN);
+}
 
 export function isAllowedCorsOrigin(origin: string | undefined): boolean {
+  const origins = readCorsOriginsFromEnv();
+  const allowAll = origins.includes('*');
+  const originSet = new Set(origins.filter((entry) => entry !== '*'));
+  const production = process.env.NODE_ENV === 'production';
+
   // Non-browser clients and same-origin server probes may omit Origin.
   if (origin == null || origin.trim() === '') {
     return true;
   }
-  if (allowAllOrigins) {
+  if (allowAll) {
     return true;
   }
-  if (configuredOriginSet.has(origin)) {
+  if (originSet.has(origin)) {
     return true;
   }
-  if (!isProduction && (DEV_LOCALHOST_ORIGIN_RE.test(origin) || DEV_LAN_ORIGIN_RE.test(origin))) {
+  if (!production && (DEV_LOCALHOST_ORIGIN_RE.test(origin) || DEV_LAN_ORIGIN_RE.test(origin))) {
     return true;
   }
   return false;
@@ -41,4 +45,30 @@ export const expressCorsOptions: CorsOptions = {
   },
   credentials: true,
 };
+
+/**
+ * Reject wildcard CORS in production so browser credentials cannot be sent
+ * from arbitrary origins.
+ */
+export function assertProductionCorsConfig(): void {
+  if (process.env.NODE_ENV !== 'production') {
+    return;
+  }
+
+  const origins = readCorsOriginsFromEnv();
+  const allowAll = origins.includes('*');
+
+  if (allowAll) {
+    throw new Error(
+      'Production startup blocked: CORS_ORIGIN must not include "*". ' +
+        'Set explicit origins, e.g. CORS_ORIGIN=https://app.atlantis.social'
+    );
+  }
+
+  if (origins.length === 0) {
+    throw new Error(
+      'Production startup blocked: CORS_ORIGIN must list at least one explicit browser origin.'
+    );
+  }
+}
 

@@ -57,3 +57,36 @@ describe('Workspace API', () => {
   });
 });
 
+describe('CSRF protection', () => {
+  it('should reject mutating requests without CSRF token', async () => {
+    const response = await request('/api/v1/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'CSRF Test Workspace' }),
+    });
+
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe('CSRF_TOKEN_MISSING');
+  });
+
+  it('should allow mutating requests with a valid CSRF token', async () => {
+    const tokenResponse = await request('/api/v1/csrf/token', { method: 'GET' });
+    expect(tokenResponse.status).toBe(200);
+    const tokenBody = (await tokenResponse.json()) as { csrfToken?: string };
+    expect(tokenBody.csrfToken).toBeDefined();
+
+    const response = await request('/api/v1/workspaces', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-csrf-token': tokenBody.csrfToken ?? '',
+      },
+      body: JSON.stringify({ name: 'CSRF Test Workspace' }),
+    });
+
+    // CSRF passed — request reaches auth layer (401 without credentials).
+    expect(response.status).toBe(401);
+  });
+});
+

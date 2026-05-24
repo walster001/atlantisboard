@@ -5,6 +5,7 @@ import {
   DEFAULT_BOARD_NAVBAR_ICON_SIZE_PX,
   DEFAULT_HOMEPAGE_NAVBAR_ICON_SIZE_PX,
 } from '../../shared/types/appBranding.js';
+import { rewriteBrandingPathToSigned } from '../utils/signedAssetUrl.js';
 
 const DEFAULT_TEXT = '#212529';
 const DEFAULT_NAV_BG = '#ffffff';
@@ -39,10 +40,10 @@ export function toPublicAppBranding(
       b.boardNavbarIconSizePx,
       DEFAULT_BOARD_NAVBAR_ICON_SIZE_PX
     ),
-    ...(icon ? { homepageNavbarIconUrl: icon } : {}),
+    ...(icon ? { homepageNavbarIconUrl: rewriteBrandingPathToSigned(icon) ?? icon } : {}),
     ...(label ? { homepageNavbarLabel: label } : {}),
-    ...(bgImg ? { homepageBackgroundImageUrl: bgImg } : {}),
-    ...(boardIcon ? { boardNavbarIconUrl: boardIcon } : {}),
+    ...(bgImg ? { homepageBackgroundImageUrl: rewriteBrandingPathToSigned(bgImg) ?? bgImg } : {}),
+    ...(boardIcon ? { boardNavbarIconUrl: rewriteBrandingPathToSigned(boardIcon) ?? boardIcon } : {}),
     ...(defaultFont ? { defaultUiFontFamily: defaultFont } : {}),
   };
 }

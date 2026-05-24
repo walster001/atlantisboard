@@ -14,8 +14,8 @@ import crypto from 'crypto';
 import { createReadStream } from 'node:fs';
 import type { Readable } from 'node:stream';
 import { getCardAttachmentMaxBytes } from '../constants/uploads.js';
-// Malware scanning - TODO: Install and configure Pompelmi library
-// For now, we'll do basic file type validation
+import { scanUploadForMalware } from '../utils/uploadMalwareScan.js';
+import { isBlockedSvgUpload } from '../utils/sanitizeHtml.js';
 
 export interface FileUploadResult {
   id: string;
@@ -90,10 +90,26 @@ initializeMinIOBuckets().catch((error) => {
 export const MAX_CARD_ATTACHMENT_BYTES = getCardAttachmentMaxBytes();
 const BUCKET_NAME = MINIO_BUCKET_CARD_ATTACHMENTS;
 
+export function buildAttachmentProxyUrl(attachmentId: string): string {
+  return `/api/v1/attachments/${encodeURIComponent(attachmentId)}/file`;
+}
+
+export function publicAttachmentUrl(attachment: { readonly id: string; readonly url: string }): string {
+  const trimmed = attachment.url.trim();
+  if (trimmed.startsWith('/api/v1/attachments/')) {
+    return trimmed.split('?')[0] ?? trimmed;
+  }
+  return buildAttachmentProxyUrl(attachment.id);
+}
+
 function extractObjectNameFromAttachmentUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim();
   if (trimmed === '') {
     throw new Error('Attachment URL is empty');
+  }
+
+  if (trimmed.startsWith('/api/v1/attachments/')) {
+    throw new Error('Cannot resolve MinIO object from proxy URL without attachment context');
   }
 
   const parsePath = (pathLike: string): string => {
@@ -181,10 +197,7 @@ export async function uploadCardAttachment(
     throw new Error(`File size exceeds maximum limit of ${MAX_CARD_ATTACHMENT_BYTES / (1024 * 1024)} MB`);
   }
 
-  // Basic file type validation (malware scanning with Pompelmi to be implemented)
-  // TODO: Install pompelmi package and enable malware scanning
-  // For now, we validate file extensions and MIME types
-  const allowedMimeTypes = [
+  const allowedMimeTypes = new Set([
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
     'video/mp4', 'video/webm', 'video/quicktime', 'video/ogg',
     'application/pdf',
@@ -192,12 +205,17 @@ export async function uploadCardAttachment(
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  ];
-  
-  if (mimeType && !allowedMimeTypes.includes(mimeType)) {
-    logger.warn({ fileName, mimeType }, 'File type not in allowed list, proceeding with warning');
-    // Allow upload but log warning - in production, implement proper malware scanning
+  ]);
+
+  const normalizedMime = mimeType.split(';')[0]?.trim().toLowerCase() ?? '';
+  if (isBlockedSvgUpload(normalizedMime, fileName)) {
+    throw new Error('SVG uploads are not allowed');
   }
+  if (!allowedMimeTypes.has(normalizedMime)) {
+    throw new Error(`File type not allowed: ${normalizedMime || 'unknown'}`);
+  }
+
+  await scanUploadForMalware(file, fileName, normalizedMime);
 
   // Generate unique file ID
   const fileId = crypto.randomUUID();
@@ -238,13 +256,14 @@ export async function uploadCardAttachment(
       });
     }
 
-    // Get presigned URL for accessing the file
-    const url = await client.presignedGetObject(BUCKET_NAME, objectName, 7 * 24 * 60 * 60); // 7 days expiry
+    // Internal MinIO object key (never expose presigned URLs to clients).
+    const storedUrl = objectName;
+    const publicUrl = buildAttachmentProxyUrl(fileId);
 
     const result: FileUploadResult = {
       id: fileId,
       name: fileName,
-      url,
+      url: publicUrl,
       type: mimeType,
       size: byteLength,
       uploadedAt: new Date(),
@@ -260,7 +279,7 @@ export async function uploadCardAttachment(
     card.attachments.push({
       id: fileId,
       name: fileName,
-      url,
+      url: storedUrl,
       isPlaceholder: false,
       type: mimeType,
       size: byteLength,
@@ -353,19 +372,13 @@ export async function deleteCardAttachment(
 }
 
 /**
- * Get presigned URL for attachment download
+ * Returns app-proxied stream URL (legacy presigned URLs are normalized on read).
  */
-export async function getAttachmentUrl(attachmentUrl: string): Promise<string> {
-  const client = getMinIOClient();
-  const objectName = extractObjectNameFromAttachmentUrl(attachmentUrl);
-
-  try {
-    const url = await client.presignedGetObject(BUCKET_NAME, objectName, 7 * 24 * 60 * 60); // 7 days
-    return url;
-  } catch (error) {
-    logger.error({ error, attachmentUrl }, 'Error generating presigned URL');
-    throw error;
+export async function getAttachmentUrl(attachmentUrl: string, attachmentId: string): Promise<string> {
+  if (attachmentUrl.startsWith('/api/v1/attachments/')) {
+    return attachmentUrl;
   }
+  return buildAttachmentProxyUrl(attachmentId);
 }
 
 async function readStreamIntoBuffer(stream: Readable, maxBytes: number): Promise<Buffer> {
@@ -426,11 +439,10 @@ export async function duplicateCardAttachmentsForNewCard(args: {
       'X-Uploaded-By': String(att.uploadedBy),
       'X-File-Name': encodeURIComponent(att.name),
     });
-    const url = await client.presignedGetObject(BUCKET_NAME, destObjectName, 7 * 24 * 60 * 60);
     out.push({
       id: newId,
       name: att.name,
-      url,
+      url: destObjectName,
       ...(typeof att.originalFileName === 'string' && att.originalFileName.trim() !== ''
         ? { originalFileName: att.originalFileName }
         : {}),

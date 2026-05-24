@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, isPublicPath } from '../utils/api.js';
+import { env } from '../config/env.js';
 import { socketClient } from '../utils/socket.js';
 import { db, type UserDB } from '../store/database.js';
 import type { BoardThemeDefinition } from '../../shared/boardTheme.js';
@@ -40,8 +41,9 @@ export function useAuth() {
 
   const loadUser = useCallback(async () => {
     const runGen = ++loadGenRef.current;
+    const useCookies = env.NODE_ENV === 'production';
     try {
-      const token = localStorage.getItem('token');
+      const token = useCookies ? 'cookie' : localStorage.getItem('token');
       if (!token) {
         if (aliveRef.current && loadGenRef.current === runGen) {
           setAuthState({ user: null, loading: false, authenticated: false });
@@ -74,8 +76,15 @@ export function useAuth() {
       }
       await db.users.put(userDB);
 
-      // Connect socket with token
-      socketClient.connect(token);
+      // Connect socket with token (production uses HttpOnly cookie on handshake)
+      if (useCookies) {
+        socketClient.connect('');
+      } else {
+        const socketToken = localStorage.getItem('token');
+        if (socketToken) {
+          socketClient.connect(socketToken);
+        }
+      }
 
       if (aliveRef.current && loadGenRef.current === runGen) {
         setAuthState({ user, loading: false, authenticated: true });
@@ -83,7 +92,9 @@ export function useAuth() {
     } catch (error) {
       console.error('Error loading user:', error);
       // Clear token and user data
-      localStorage.removeItem('token');
+      if (!useCookies) {
+        localStorage.removeItem('token');
+      }
       await db.users.clear().catch(() => {
         // Ignore IndexedDB errors
       });
@@ -128,10 +139,14 @@ export function useAuth() {
     }
     await db.users.put(userDB);
 
-    // Connect socket
-    const token = localStorage.getItem('token');
-    if (token) {
-      socketClient.connect(token);
+    const useCookies = env.NODE_ENV === 'production';
+    if (useCookies) {
+      socketClient.connect('');
+    } else {
+      const token = localStorage.getItem('token');
+      if (token) {
+        socketClient.connect(token);
+      }
     }
 
     setAuthState({ user, loading: false, authenticated: true });

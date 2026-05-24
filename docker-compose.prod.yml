@@ -3,8 +3,6 @@ services:
     image: mongo:8.0
     container_name: kanboard-mongodb-prod
     restart: unless-stopped
-    ports:
-      - "27017:27017"
     environment:
       MONGO_INITDB_DATABASE: kanboard
     volumes:
@@ -22,8 +20,6 @@ services:
     image: redis:7-alpine
     container_name: kanboard-redis-prod
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     # Match dev compose: omit --requirepass when REDIS_PASSWORD is unset; healthcheck must auth when password is set.
     command: >
       sh -c "
@@ -54,9 +50,6 @@ services:
     image: minio/minio:latest
     container_name: kanboard-minio-prod
     restart: unless-stopped
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
@@ -87,7 +80,6 @@ services:
       mc mb myminio/user-avatars --ignore-existing;
       mc mb myminio/backgrounds --ignore-existing;
       mc mb myminio/backups --ignore-existing;
-      mc anonymous set public myminio/branding;
       exit 0;
       "
     networks:
@@ -119,10 +111,13 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       SESSION_SECRET: ${SESSION_SECRET}
+      CSRF_SECRET: ${CSRF_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      APP_URL: ${APP_URL:-http://localhost:3000}
     depends_on:
       mongodb:
         condition: service_healthy
@@ -148,4 +143,3 @@ volumes:
 networks:
   kanboard-network-prod:
     driver: bridge
-

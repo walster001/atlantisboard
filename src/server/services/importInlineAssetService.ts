@@ -4,6 +4,7 @@ import { MINIO_BUCKET_IMPORT_INLINE } from '../../shared/constants/minioBuckets.
 import { getMinIOClient } from '../config/minio.js';
 import { Card } from '../models/Card.js';
 import { logger } from '../utils/logger.js';
+import { isBlockedSvgUpload } from '../utils/sanitizeHtml.js';
 
 const BUCKET = MINIO_BUCKET_IMPORT_INLINE;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -11,7 +12,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const IMPORT_INLINE_OBJECT_STEM_RE =
   /\/api\/v1\/import-inline\/([a-f0-9-]{36}\.(?:png|jpg|jpeg|webp|svg|ico))\b/gi;
 
-const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico']);
+const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.ico']);
 
 const IMAGE_MIME_TO_EXT: Record<string, string> = {
   'image/png': '.png',
@@ -175,6 +176,9 @@ export async function uploadImportInlineImage(
   mimeType: string,
   originalName?: string
 ): Promise<string> {
+  if (isBlockedSvgUpload(mimeType, originalName)) {
+    throw new Error('SVG uploads are not allowed for import-inline images');
+  }
   const ext = resolveExtension(mimeType, originalName);
   if (ext == null || !ALLOWED_EXT.has(ext)) {
     throw new Error('Unsupported file type for import-inline image upload');

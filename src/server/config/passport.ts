@@ -11,6 +11,8 @@ import {
 import { deriveUniqueUsernameForGoogleOAuth } from '../utils/googleOAuthUsername.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { claimImportPlaceholderMembershipsForUser } from '../services/importPlaceholderUserService.js';
+import { verifyUserInMySQL } from '../services/mysqlService.js';
+import { assertNewUserRegistrationAllowed } from '../utils/registrationPolicy.js';
 
 // Serialize user for session
 passport.serializeUser((user: Express.User, done) => {

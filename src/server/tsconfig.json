@@ -2,13 +2,9 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022"],
     "moduleResolution": "bundler",
-    "types": ["bun-types", "node"],
     "resolveJsonModule": true,
-    "allowJs": true,
-    "checkJs": false,
-    "jsx": "react-jsx",
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -28,22 +24,8 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "noEmit": true,
-    "incremental": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "baseUrl": ".",
-    "paths": {
-      "@server/*": ["src/server/*"],
-      "@client/*": ["src/client/*"],
-      "@shared/*": ["src/shared/*"]
-    }
+    "types": ["bun-types", "node"]
   },
-  "include": ["src/**/*", "tests/**/*", "scripts/**/*.ts"],
-  "exclude": [
-    "**/node_modules",
-    "**/dist",
-    "**/build",
-    "**/cache",
-    "**/.git",
-    "public"
-  ]
+  "include": ["./**/*.ts", "./**/*.d.ts", "../shared/**/*.ts", "../shared/**/*.d.ts"],
+  "exclude": ["**/node_modules"]
 }

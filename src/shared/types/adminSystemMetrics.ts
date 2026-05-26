@@ -1,3 +1,12 @@
+/** Lightweight entry stored in the server-side ring buffer for trend charts. */
+export interface MetricsHistoryEntry {
+  readonly timestamp: string;
+  readonly cpuPercent: number;
+  readonly hostMemUsedPercent: number;
+  readonly diskUsedPercent: number;
+  readonly rssMb: number;
+}
+
 /** JSON returned by `GET /api/v1/admin/system/metrics` (app admin only). */
 export interface AdminSystemMetricsSnapshot {
   readonly timestamp: string;

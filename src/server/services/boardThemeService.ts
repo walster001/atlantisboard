@@ -56,22 +56,13 @@ export async function seedSystemBoardThemes(): Promise<number> {
 }
 
 async function upsertCustomTheme(params: {
-  readonly scope: 'user' | 'board';
   readonly slug: string;
   readonly name: string;
   readonly palette: BoardThemeDefinition['palette'];
   readonly ownerUserId: Types.ObjectId;
-  readonly boardId?: Types.ObjectId;
 }): Promise<void> {
-  if (params.scope === 'board' && params.boardId == null) {
-    throw new Error('boardId is required for board-scoped themes');
-  }
-  const filter =
-    params.scope === 'user'
-      ? { scope: 'user' as const, ownerUserId: params.ownerUserId, slug: params.slug }
-      : { scope: 'board' as const, boardId: params.boardId!, slug: params.slug };
   await BoardTheme.updateOne(
-    filter,
+    { scope: 'user', ownerUserId: params.ownerUserId, slug: params.slug },
     {
       $set: {
         name: params.name,
@@ -79,10 +70,9 @@ async function upsertCustomTheme(params: {
         prefersNavbarLightForeground: false,
       },
       $setOnInsert: {
-        scope: params.scope,
+        scope: 'user',
         slug: params.slug,
         ownerUserId: params.ownerUserId,
-        ...(params.boardId != null ? { boardId: params.boardId } : {}),
       },
     },
     { upsert: true },
@@ -112,7 +102,6 @@ export async function migrateEmbeddedBoardThemesToCollection(): Promise<{
         continue;
       }
       await upsertCustomTheme({
-        scope: 'user',
         slug: theme.id.trim(),
         name: theme.name,
         palette: theme.palette,
@@ -138,19 +127,16 @@ export async function migrateEmbeddedBoardThemesToCollection(): Promise<{
       continue;
     }
     const ownerUserId = board.ownerId;
-    const boardOid = board._id;
     const embeddedCustom = Array.isArray(raw.customThemes) ? raw.customThemes : [];
     for (const theme of embeddedCustom) {
       if (typeof theme.id !== 'string' || theme.id.trim() === '') {
         continue;
       }
       await upsertCustomTheme({
-        scope: 'board',
         slug: theme.id.trim(),
         name: theme.name,
         palette: theme.palette,
         ownerUserId,
-        boardId: boardOid,
       });
       boardThemes += 1;
     }
@@ -163,20 +149,18 @@ export async function migrateEmbeddedBoardThemesToCollection(): Promise<{
       !embeddedCustom.some((t) => t.id === selected.id)
     ) {
       await upsertCustomTheme({
-        scope: 'board',
         slug: selected.id.trim(),
         name: selected.name,
         palette: selected.palette,
         ownerUserId,
-        boardId: boardOid,
       });
       boardThemes += 1;
     }
 
-    const catalog = await loadThemeCatalogForContext(ownerUserId.toString(), boardOid.toString());
+    const catalog = await loadThemeCatalogForContext(ownerUserId.toString());
     const hydrated = normalizeBoardThemeSettings(raw, undefined, catalog);
     const dehydrated = dehydrateBoardThemeSettings(hydrated);
-    await Board.updateOne({ _id: boardOid }, { $set: { themeSettings: dehydrated } });
+    await Board.updateOne({ _id: board._id }, { $set: { themeSettings: dehydrated } });
     boardsDehydrated += 1;
   }
 
@@ -186,9 +170,49 @@ export async function migrateEmbeddedBoardThemesToCollection(): Promise<{
   return { userThemes, boardThemes, boardsDehydrated };
 }
 
+/**
+ * Converts any legacy `scope: 'board'` theme records to `scope: 'user'`
+ * so they become globally accessible to the owning user across all boards.
+ */
+async function migrateBoardScopedThemesToUser(): Promise<number> {
+  const boardScoped = await BoardTheme.collection
+    .find({ scope: 'board' })
+    .toArray();
+  if (boardScoped.length === 0) {
+    return 0;
+  }
+  let converted = 0;
+  for (const theme of boardScoped) {
+    if (theme.ownerUserId == null) {
+      await BoardTheme.collection.deleteOne({ _id: theme._id });
+      converted += 1;
+      continue;
+    }
+    await BoardTheme.updateOne(
+      { scope: 'user', ownerUserId: theme.ownerUserId, slug: theme.slug },
+      {
+        $setOnInsert: {
+          scope: 'user',
+          slug: theme.slug,
+          name: theme.name,
+          palette: theme.palette,
+          ownerUserId: theme.ownerUserId,
+          prefersNavbarLightForeground: theme.prefersNavbarLightForeground ?? false,
+        },
+      },
+      { upsert: true },
+    );
+    await BoardTheme.collection.deleteOne({ _id: theme._id });
+    converted += 1;
+  }
+  logger.info({ count: converted }, 'Migrated board-scoped themes to user-scoped');
+  return converted;
+}
+
 export async function initializeBoardThemes(): Promise<void> {
   await seedSystemBoardThemes();
   await migrateEmbeddedBoardThemesToCollection();
+  await migrateBoardScopedThemesToUser();
 }
 
 export async function loadSystemThemeCatalog(): Promise<BoardThemeCatalog> {
@@ -211,14 +235,14 @@ export async function loadSystemThemeCatalog(): Promise<BoardThemeCatalog> {
 
 export async function loadThemeCatalogForContext(
   userId: string,
-  boardId?: string,
 ): Promise<BoardThemeCatalog> {
   const system = await loadSystemThemeCatalog();
-  const or: Record<string, unknown>[] = [{ scope: 'user', ownerUserId: new mongoose.Types.ObjectId(userId) }];
-  if (boardId != null && mongoose.Types.ObjectId.isValid(boardId)) {
-    or.push({ scope: 'board', boardId: new mongoose.Types.ObjectId(boardId) });
-  }
-  const customDocs = await BoardTheme.find({ $or: or }).sort({ name: 1, slug: 1 }).lean();
+  const customDocs = await BoardTheme.find({
+    scope: 'user',
+    ownerUserId: new mongoose.Types.ObjectId(userId),
+  })
+    .sort({ name: 1, slug: 1 })
+    .lean();
   return buildBoardThemeCatalog({
     systemThemes: system.systemThemes,
     customThemes: customDocs.map(boardThemeDocToDefinition),
@@ -227,54 +251,40 @@ export async function loadThemeCatalogForContext(
 
 export async function listThemesForUser(
   userId: string,
-  boardId?: string,
 ): Promise<readonly BoardThemeDefinition[]> {
-  const catalog = await loadThemeCatalogForContext(userId, boardId);
+  const catalog = await loadThemeCatalogForContext(userId);
   return [...catalog.systemThemes, ...catalog.customThemes];
 }
 
 export async function hydrateBoardThemeSettings(
   stored: unknown,
   userId: string,
-  boardId?: string,
 ): Promise<BoardThemeSettings> {
-  const catalog = await loadThemeCatalogForContext(userId, boardId);
+  const catalog = await loadThemeCatalogForContext(userId);
   return normalizeBoardThemeSettings(stored, createDefaultBoardThemeSettings(undefined, catalog), catalog);
 }
 
 export async function persistBoardThemeSettings(params: {
   readonly userId: string;
-  readonly boardId: string;
   readonly settings: BoardThemeSettings;
 }): Promise<{ readonly hydrated: BoardThemeSettings; readonly stored: BoardThemeSettingsStored }> {
-  const boardOid = new mongoose.Types.ObjectId(params.boardId);
   const ownerOid = new mongoose.Types.ObjectId(params.userId);
-  const catalog = await loadThemeCatalogForContext(params.userId, params.boardId);
+  const catalog = await loadThemeCatalogForContext(params.userId);
   const normalized = normalizeBoardThemeSettings(params.settings, undefined, catalog);
 
   for (const theme of normalized.customThemes) {
     if (catalog.systemThemes.some((entry) => entry.id === theme.id)) {
       continue;
     }
-    const existingUser = await BoardTheme.exists({
-      scope: 'user',
-      ownerUserId: ownerOid,
-      slug: theme.id,
-    });
-    if (existingUser != null) {
-      continue;
-    }
     await upsertCustomTheme({
-      scope: 'board',
       slug: theme.id,
       name: theme.name,
       palette: theme.palette,
       ownerUserId: ownerOid,
-      boardId: boardOid,
     });
   }
 
-  const refreshedCatalog = await loadThemeCatalogForContext(params.userId, params.boardId);
+  const refreshedCatalog = await loadThemeCatalogForContext(params.userId);
   const hydrated = normalizeBoardThemeSettings(normalized, undefined, refreshedCatalog);
   const stored = dehydrateBoardThemeSettings(hydrated);
   return { hydrated, stored };
@@ -307,12 +317,11 @@ export async function getUserCustomThemes(userId: string): Promise<readonly Boar
 export async function attachHydratedThemeSettingsToBoard<T extends { themeSettings?: unknown }>(
   board: T,
   userId: string,
-  boardId: string,
 ): Promise<T & { themeSettings?: BoardThemeSettings }> {
   if (board.themeSettings == null) {
     return board as T & { themeSettings?: BoardThemeSettings };
   }
-  const themeSettings = await hydrateBoardThemeSettings(board.themeSettings, userId, boardId);
+  const themeSettings = await hydrateBoardThemeSettings(board.themeSettings, userId);
   return { ...board, themeSettings };
 }
 
@@ -321,11 +330,7 @@ export async function hydrateBoardDocumentForUser(
   userId: string,
 ): Promise<Document & IBoard> {
   if (board.themeSettings != null) {
-    const themeSettings = await hydrateBoardThemeSettings(
-      board.themeSettings,
-      userId,
-      board._id.toString(),
-    );
+    const themeSettings = await hydrateBoardThemeSettings(board.themeSettings, userId);
     board.set('themeSettings', themeSettings);
   }
   return board;
@@ -338,7 +343,7 @@ export async function hydrateBoardSummaryForUser(
   if (summary.themeSettings == null) {
     return summary;
   }
-  const themeSettings = await hydrateBoardThemeSettings(summary.themeSettings, userId, summary.id);
+  const themeSettings = await hydrateBoardThemeSettings(summary.themeSettings, userId);
   return { ...summary, themeSettings };
 }
 

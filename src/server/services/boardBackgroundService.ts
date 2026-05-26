@@ -1,6 +1,8 @@
 import crypto from 'crypto';
+import type { Types } from 'mongoose';
 import { MINIO_BUCKET_BACKGROUNDS } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
+import { Board } from '../models/Board.js';
 import { logger } from '../utils/logger.js';
 
 initializeMinIOBuckets().catch((error) => {
@@ -133,5 +135,37 @@ export async function deleteBoardBackgroundByPublicUrl(url: string): Promise<boo
       return false;
     }
     throw err;
+  }
+}
+
+/**
+ * Remove MinIO background objects for the given boards.
+ * Call before deleting board documents so the `background` URLs remain resolvable.
+ * Per-object failures are logged and skipped so bulk deletion can continue.
+ */
+export async function removeStoredBackgroundObjectsForBoardIds(boardIds: Types.ObjectId[]): Promise<void> {
+  if (boardIds.length === 0) {
+    return;
+  }
+  const boards = await Board.find({ _id: { $in: boardIds } }).select('background').lean();
+  for (const board of boards) {
+    const bg = board.background;
+    if (typeof bg !== 'string' || bg.trim() === '') {
+      continue;
+    }
+    const match = pathnameFromInput(bg).match(BOARD_BACKGROUND_PATH);
+    if (!match?.[1]) {
+      continue;
+    }
+    try {
+      await getMinIOClient().removeObject(BUCKET, match[1]);
+    } catch (error: unknown) {
+      if (!isMinioNotFound(error)) {
+        logger.warn(
+          { error, boardId: String(board._id), background: bg },
+          'Failed to remove MinIO object during board background cleanup',
+        );
+      }
+    }
   }
 }

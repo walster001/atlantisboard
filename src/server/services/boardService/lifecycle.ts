@@ -90,7 +90,6 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
   await board.save();
   const { stored } = await persistBoardThemeSettings({
     userId: input.ownerId,
-    boardId: board._id.toString(),
     settings: normalizedInput,
   });
   board.themeSettings = stored;

@@ -112,6 +112,20 @@ export interface IBackupSettings {
   lastScheduledRunAt?: Date;
 }
 
+export type SmtpProvider = 'custom' | 'gmail' | 'mailgun' | 'postmark' | 'ses' | 'sendgrid' | 'brevo';
+
+export interface ISmtpConfig {
+  provider: SmtpProvider;
+  host?: string;
+  port: number;
+  secure: boolean;
+  username?: string;
+  password?: string;
+  fromAddress?: string;
+  fromName?: string;
+  enabled: boolean;
+}
+
 export type RegistrationMode = 'open' | 'invite-only' | 'disabled';
 
 export interface IAdminConfig extends Document {
@@ -125,6 +139,7 @@ export interface IAdminConfig extends Document {
   rateLimiting: IRateLimiting;
   vapidKeys?: IVapidKeys;
   backupSettings?: IBackupSettings;
+  smtp: ISmtpConfig;
   updatedBy: mongoose.Types.ObjectId;
   updatedAt: Date;
 }
@@ -264,6 +279,25 @@ const BackupSettingsSchema = new Schema<IBackupSettings>(
   { _id: false }
 );
 
+const SmtpConfigSchema = new Schema<ISmtpConfig>(
+  {
+    provider: {
+      type: String,
+      enum: ['custom', 'gmail', 'mailgun', 'postmark', 'ses', 'sendgrid', 'brevo'],
+      default: 'custom',
+    },
+    host: String,
+    port: { type: Number, default: 587 },
+    secure: { type: Boolean, default: false },
+    username: String,
+    password: String,
+    fromAddress: String,
+    fromName: String,
+    enabled: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
 const AdminConfigSchema = new Schema<IAdminConfig>(
   {
     authMethods: {
@@ -315,6 +349,10 @@ const AdminConfigSchema = new Schema<IAdminConfig>(
     backupSettings: {
       type: BackupSettingsSchema,
       default: () => ({ retentionDays: 14, scheduleEnabled: false }),
+    },
+    smtp: {
+      type: SmtpConfigSchema,
+      default: () => ({ enabled: false }),
     },
     updatedBy: {
       type: Schema.Types.ObjectId,

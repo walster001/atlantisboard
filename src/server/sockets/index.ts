@@ -8,6 +8,7 @@ import { logger } from '../utils/logger.js';
 import { setupChangeStreams } from './changeStreams.js';
 import { setSocketIOInstance } from '../utils/socketIO.js';
 import { isAllowedCorsOrigin } from '../config/cors.js';
+import { getAdminMonitorRoom } from '../services/systemMetricsService.js';
 
 export interface SocketAuthData {
   userId: string;
@@ -188,6 +189,25 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
 
     socket.on('typing:stop', (data: { boardId: string; cardId?: string }) => {
       emitTyping(false, data);
+    });
+
+    socket.on('admin:monitor:subscribe', async () => {
+      try {
+        const adminUser = await User.findById(user.userId).select('isAppAdmin').lean();
+        if (adminUser?.isAppAdmin !== true) {
+          logger.warn({ userId: user.userId }, 'Denied admin:monitor:subscribe (not app admin)');
+          return;
+        }
+        socket.join(getAdminMonitorRoom());
+        logger.debug({ userId: user.userId }, 'User joined admin:monitor room');
+      } catch (error) {
+        logger.error({ error, userId: user.userId }, 'admin:monitor:subscribe handler error');
+      }
+    });
+
+    socket.on('admin:monitor:unsubscribe', () => {
+      socket.leave(getAdminMonitorRoom());
+      logger.debug({ userId: user.userId }, 'User left admin:monitor room');
     });
 
     // Handle disconnection

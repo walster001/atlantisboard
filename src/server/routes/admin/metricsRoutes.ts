@@ -1,5 +1,5 @@
 import type { Router } from 'express';
-import { getAdminSystemMetricsSnapshot } from '../../services/systemMetricsService.js';
+import { getAdminSystemMetricsSnapshot, getMetricsHistory } from '../../services/systemMetricsService.js';
 
 export function registerMetricsRoutes(router: Router): void {
   router.get('/system/metrics', async (_req, res, next) => {
@@ -9,5 +9,9 @@ export function registerMetricsRoutes(router: Router): void {
     } catch (error) {
       next(error);
     }
+  });
+
+  router.get('/system/metrics/history', (_req, res) => {
+    res.json(getMetricsHistory());
   });
 }

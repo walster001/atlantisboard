@@ -1,7 +1,7 @@
 import mongoose, { Schema, type Document, type Model, type Types } from 'mongoose';
 import type { BoardThemePalette } from '../../shared/boardTheme.js';
 
-export type BoardThemeScope = 'system' | 'user' | 'board';
+export type BoardThemeScope = 'system' | 'user';
 
 export interface IBoardTheme extends Document {
   slug: string;
@@ -9,7 +9,6 @@ export interface IBoardTheme extends Document {
   palette: BoardThemePalette;
   scope: BoardThemeScope;
   ownerUserId?: Types.ObjectId;
-  boardId?: Types.ObjectId;
   prefersNavbarLightForeground: boolean;
   sortOrder: number;
   createdAt: Date;
@@ -47,9 +46,8 @@ const BoardThemeSchema = new Schema<IBoardTheme>(
     slug: { type: String, required: true, trim: true },
     name: { type: String, required: true, trim: true, maxlength: 120 },
     palette: { type: BoardThemePaletteSchema, required: true },
-    scope: { type: String, enum: ['system', 'user', 'board'], required: true, index: true },
+    scope: { type: String, enum: ['system', 'user'], required: true, index: true },
     ownerUserId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
-    boardId: { type: Schema.Types.ObjectId, ref: 'Board', index: true },
     prefersNavbarLightForeground: { type: Boolean, default: false },
     sortOrder: { type: Number, default: 0 },
   },
@@ -63,10 +61,6 @@ BoardThemeSchema.index(
 BoardThemeSchema.index(
   { scope: 1, ownerUserId: 1, slug: 1 },
   { unique: true, partialFilterExpression: { scope: 'user' } },
-);
-BoardThemeSchema.index(
-  { scope: 1, boardId: 1, slug: 1 },
-  { unique: true, partialFilterExpression: { scope: 'board' } },
 );
 
 export const BoardTheme: Model<IBoardTheme> = mongoose.model<IBoardTheme>('BoardTheme', BoardThemeSchema);

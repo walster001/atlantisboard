@@ -6,11 +6,12 @@ import { ImportJob } from '../models/ImportJob.js';
 import { InviteLink } from '../models/InviteLink.js';
 import { List } from '../models/List.js';
 import { removeStoredAttachmentObjectsForBoardIds } from './attachmentService.js';
+import { removeStoredBackgroundObjectsForBoardIds } from './boardBackgroundService.js';
 import { removeStoredImportInlineObjectsForBoardIds } from './importInlineAssetService.js';
 
 /**
- * Deletes persisted data for the given boards: MinIO attachments, import-inline icons, cards, lists, board labels,
- * activity rows, and board-scoped invite links.
+ * Deletes persisted data for the given boards: MinIO attachments, board background images,
+ * import-inline icons, cards, lists, board labels, activity rows, and board-scoped invite links.
  *
  * Does not use the Notification model — notifications are not implemented in the app yet.
  */
@@ -20,6 +21,7 @@ export async function deleteAllMongoAndStorageForBoardIds(boardIds: Types.Object
   }
 
   await removeStoredAttachmentObjectsForBoardIds(boardIds);
+  await removeStoredBackgroundObjectsForBoardIds(boardIds);
   await removeStoredImportInlineObjectsForBoardIds(boardIds);
   await Card.deleteMany({ boardId: { $in: boardIds } });
   await List.deleteMany({ boardId: { $in: boardIds } });

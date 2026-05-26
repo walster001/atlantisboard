@@ -1,5 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes, scrypt } from 'crypto';
+import { appendFileSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 import { promisify } from 'util';
+import { logger } from './logger.js';
 
 const scryptAsync = promisify(scrypt);
 const ALGORITHM = 'aes-256-gcm';
@@ -7,8 +10,30 @@ const KEY_LENGTH = 32;
 const IV_LENGTH = 16;
 const SALT_LENGTH = 64;
 
-// In production, use a proper secret management system
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || randomBytes(32).toString('hex');
+function resolveEncryptionKey(): string {
+  if (process.env.ENCRYPTION_KEY) {
+    return process.env.ENCRYPTION_KEY;
+  }
+
+  const generated = randomBytes(32).toString('hex');
+
+  try {
+    const envPath = resolve(process.cwd(), '.env');
+    const contents = readFileSync(envPath, 'utf8');
+    if (!contents.includes('ENCRYPTION_KEY=')) {
+      const separator = contents.endsWith('\n') ? '' : '\n';
+      appendFileSync(envPath, `${separator}\n# Auto-generated encryption key — do not remove\nENCRYPTION_KEY=${generated}\n`);
+      logger.info('ENCRYPTION_KEY generated and persisted to .env');
+    }
+  } catch {
+    logger.warn('Could not persist ENCRYPTION_KEY to .env — encrypted data will not survive restarts');
+  }
+
+  process.env.ENCRYPTION_KEY = generated;
+  return generated;
+}
+
+const ENCRYPTION_KEY = resolveEncryptionKey();
 
 async function getKey(salt: Buffer): Promise<Buffer> {
   return (await scryptAsync(ENCRYPTION_KEY, salt, KEY_LENGTH)) as Buffer;

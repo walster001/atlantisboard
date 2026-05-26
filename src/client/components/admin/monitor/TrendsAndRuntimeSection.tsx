@@ -21,7 +21,9 @@ export function TrendsAndRuntimeSection(props: {
                 h={140}
                 data={[...history]}
                 dataKey="t"
-                withDots={false}
+                withDots
+                dotProps={{ r: 2.5, strokeWidth: 1 }}
+                activeDotProps={{ r: 5, strokeWidth: 2 }}
                 withLegend={false}
                 curveType="natural"
                 yAxisProps={{ domain: [0, 'dataMax + 5'] }}
@@ -39,7 +41,9 @@ export function TrendsAndRuntimeSection(props: {
                 h={140}
                 data={[...history]}
                 dataKey="t"
-                withDots={false}
+                withDots
+                dotProps={{ r: 2.5, strokeWidth: 1 }}
+                activeDotProps={{ r: 5, strokeWidth: 2 }}
                 withLegend={false}
                 curveType="natural"
                 yAxisProps={{ domain: [0, 100] }}
@@ -57,7 +61,9 @@ export function TrendsAndRuntimeSection(props: {
                 h={140}
                 data={[...history]}
                 dataKey="t"
-                withDots={false}
+                withDots
+                dotProps={{ r: 2.5, strokeWidth: 1 }}
+                activeDotProps={{ r: 5, strokeWidth: 2 }}
                 withLegend={false}
                 curveType="natural"
                 yAxisProps={{ domain: [0, 100] }}

@@ -8,6 +8,7 @@ export const CONFIGURATION_SUBTABS = [
   { value: 'permissions', label: 'Permissions' },
   { value: 'users', label: 'Users' },
   { value: 'integrations', label: 'Integrations' },
+  { value: 'email', label: 'Email' },
   { value: 'database', label: 'Database' },
   { value: 'backup', label: 'Backup' },
   { value: 'monitor', label: 'Monitor' },

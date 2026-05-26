@@ -127,6 +127,11 @@ const boardSchema = z
   })
   .passthrough();
 
+const inlineAssetEntrySchema = z.object({
+  dataUrl: z.string().min(1),
+  contentType: z.string().min(1),
+});
+
 const exportSchema = z
   .object({
     format: z.string().optional(),
@@ -134,6 +139,7 @@ const exportSchema = z
     lists: z.array(listSchema).min(1),
     cards: z.array(cardSchema).optional().default([]),
     labels: z.array(labelSchema).optional().default([]),
+    inlineAssets: z.record(z.string(), inlineAssetEntrySchema).optional().default({}),
     exportedAt: z.string().optional(),
   })
   .passthrough();

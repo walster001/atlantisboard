@@ -1,6 +1,58 @@
 import { ATLANTISBOARD_EXPORT_FORMAT_VERSION } from '../../../shared/export/boardExportFormats.js';
+import { logger } from '../../utils/logger.js';
+import {
+  collectImportInlineObjectNamesFromText,
+  getImportInlineObjectStream,
+} from '../importInlineAssetService.js';
 import { encodeExportAttachments } from './encodeExportAttachment.js';
 import type { BoardExportContext } from './loadBoardExportContext.js';
+
+interface InlineAssetEntry {
+  readonly dataUrl: string;
+  readonly contentType: string;
+}
+
+async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as unknown as Uint8Array));
+  }
+  return Buffer.concat(chunks);
+}
+
+async function extractInlineAssets(
+  cards: ReadonlyArray<{ description?: string | undefined; descriptionHtml?: string | undefined }>,
+): Promise<Record<string, InlineAssetEntry>> {
+  const objectNames = new Set<string>();
+  for (const card of cards) {
+    collectImportInlineObjectNamesFromText(card.description, objectNames);
+    collectImportInlineObjectNamesFromText(card.descriptionHtml, objectNames);
+  }
+
+  if (objectNames.size === 0) {
+    return {};
+  }
+
+  const assets: Record<string, InlineAssetEntry> = {};
+  for (const name of objectNames) {
+    try {
+      const result = await getImportInlineObjectStream(name);
+      if (result == null) {
+        logger.warn({ objectName: name }, 'Inline asset not found in MinIO during export, skipping');
+        continue;
+      }
+      const buffer = await streamToBuffer(result.stream);
+      const safeMime = result.contentType.trim() !== '' ? result.contentType : 'application/octet-stream';
+      assets[name] = {
+        dataUrl: `data:${safeMime};base64,${buffer.toString('base64')}`,
+        contentType: safeMime,
+      };
+    } catch (error: unknown) {
+      logger.warn({ error, objectName: name }, 'Failed to read inline asset for export, skipping');
+    }
+  }
+  return assets;
+}
 
 export async function buildAtlantisboardExportPayload(ctx: BoardExportContext): Promise<unknown> {
   const boardId = ctx.board._id.toString();
@@ -40,6 +92,8 @@ export async function buildAtlantisboardExportPayload(ctx: BoardExportContext): 
     })),
   );
 
+  const inlineAssets = await extractInlineAssets(cards);
+
   return {
     format: ATLANTISBOARD_EXPORT_FORMAT_VERSION,
     board: {
@@ -70,6 +124,7 @@ export async function buildAtlantisboardExportPayload(ctx: BoardExportContext): 
       isPredefined: label.isPredefined,
     })),
     users: [...ctx.usersById.values()],
+    inlineAssets,
     exportedAt: new Date().toISOString(),
   };
 }

@@ -15,14 +15,60 @@ import {
 import {
   atlantisboardImportToDate,
   normalizeAtlantisboardExport,
+  parseDataUrl,
 } from '../../../../shared/import/atlantisboardNormalize.js';
+import type { NormalizedAtlantisboardExport } from '../../../../shared/import/atlantisboardNormalize.js';
 import { createActivity } from '../../activityService.js';
+import { uploadImportInlineImage } from '../../importInlineAssetService.js';
 import { createImportProgressTracker } from '../trelloImportService/progressTracker.js';
 import { emitToUser } from '../../../utils/socketIO.js';
 import { logger } from '../../../utils/logger.js';
 import { materializeAtlantisboardAttachments } from './attachments.js';
 
 const CARD_INSERT_BATCH = 40;
+
+/**
+ * Re-uploads inline assets from a data-URL-encoded export payload and builds
+ * a function that rewrites old `/api/v1/import-inline/{name}` references to
+ * their freshly uploaded counterparts.
+ */
+async function buildInlineAssetRewriter(
+  inlineAssets: NormalizedAtlantisboardExport['inlineAssets'],
+): Promise<((text: string) => string) | null> {
+  const entries = Object.entries(inlineAssets);
+  if (entries.length === 0) {
+    return null;
+  }
+
+  const urlMap = new Map<string, string>();
+  for (const [oldName, asset] of entries) {
+    try {
+      const parsed = parseDataUrl(asset.dataUrl);
+      if (parsed == null) {
+        logger.warn({ objectName: oldName }, 'Could not parse inline asset data URL during import, skipping');
+        continue;
+      }
+      const newUrl = await uploadImportInlineImage(parsed.buffer, parsed.mimeType, oldName);
+      urlMap.set(oldName, newUrl);
+    } catch (error: unknown) {
+      logger.warn({ error, objectName: oldName }, 'Failed to re-upload inline asset during import, skipping');
+    }
+  }
+
+  if (urlMap.size === 0) {
+    return null;
+  }
+
+  return (text: string): string => {
+    let result = text;
+    for (const [oldName, newUrl] of urlMap) {
+      const escaped = oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = new RegExp(`/api/v1/import-inline/${escaped}`, 'g');
+      result = result.replace(pattern, newUrl);
+    }
+    return result;
+  };
+}
 
 async function resolveExistingUserObjectId(
   candidateId: string | undefined,
@@ -70,6 +116,7 @@ export async function executeAtlantisboardImportJob(params: {
 }): Promise<void> {
   const { jsonData, userId, jobId, targetWorkspaceId } = params;
   const data = normalizeAtlantisboardExport(jsonData);
+  const rewriteInlineUrl = await buildInlineAssetRewriter(data.inlineAssets);
 
   let workspaceId = targetWorkspaceId;
   if (workspaceId == null || workspaceId.trim() === '') {
@@ -208,15 +255,24 @@ export async function executeAtlantisboardImportJob(params: {
         })),
       );
 
+      const cardDescription =
+        exportedCard.description != null && exportedCard.description !== '' && rewriteInlineUrl != null
+          ? rewriteInlineUrl(exportedCard.description)
+          : exportedCard.description;
+      const cardDescriptionHtml =
+        exportedCard.descriptionHtml != null && rewriteInlineUrl != null
+          ? rewriteInlineUrl(exportedCard.descriptionHtml)
+          : exportedCard.descriptionHtml;
+
       docs.push({
         _id: cardOid,
         listId: new mongoose.Types.ObjectId(listId),
         boardId: boardOid,
         title: exportedCard.title.slice(0, CARD_TITLE_MAX_LENGTH),
-        ...(exportedCard.description != null && exportedCard.description !== ''
-          ? { description: exportedCard.description }
+        ...(cardDescription != null && cardDescription !== ''
+          ? { description: cardDescription }
           : {}),
-        ...(exportedCard.descriptionHtml != null ? { descriptionHtml: exportedCard.descriptionHtml } : {}),
+        ...(cardDescriptionHtml != null ? { descriptionHtml: cardDescriptionHtml } : {}),
         descriptionPreview: exportedCard.descriptionPreview ?? '',
         descriptionCharCount: exportedCard.descriptionCharCount ?? 0,
         position: exportedCard.position ?? 0,

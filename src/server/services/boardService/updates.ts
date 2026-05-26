@@ -50,8 +50,8 @@ export async function updateBoard(
       }
     }
     if (input.themeSettings !== undefined) {
-      const catalog = await loadThemeCatalogForContext(userId, boardId);
-      const previousThemeSettings = await hydrateBoardThemeSettings(board.themeSettings, userId, boardId);
+      const catalog = await loadThemeCatalogForContext(userId);
+      const previousThemeSettings = await hydrateBoardThemeSettings(board.themeSettings, userId);
       const nextNormalized = normalizeBoardThemeSettings(input.themeSettings, previousThemeSettings, catalog);
       const previousCustomIds = new Set(previousThemeSettings.customThemes.map((t) => t.id));
       const nextCustomIds = new Set(nextNormalized.customThemes.map((t) => t.id));
@@ -142,7 +142,6 @@ export async function updateBoard(
   if (input.themeSettings !== undefined) {
     const { hydrated, stored } = await persistBoardThemeSettings({
       userId,
-      boardId,
       settings: input.themeSettings as BoardThemeSettings,
     });
     board.themeSettings = stored;
@@ -227,7 +226,7 @@ export async function updateBoard(
 
   const hydratedThemeSettings =
     input.themeSettings !== undefined
-      ? await hydrateBoardThemeSettings(board.themeSettings, userId, boardId)
+      ? await hydrateBoardThemeSettings(board.themeSettings, userId)
       : undefined;
 
   emitBoardUpdatedRealtime(board, undefined, {

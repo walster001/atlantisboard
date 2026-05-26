@@ -21,7 +21,7 @@ function fallbackCatalog(): BoardThemeCatalog {
   });
 }
 
-export function useBoardThemes(boardId?: string): UseBoardThemesResult {
+export function useBoardThemes(): UseBoardThemesResult {
   const [catalog, setCatalog] = useState<BoardThemeCatalog>(fallbackCatalog);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export function useBoardThemes(boardId?: string): UseBoardThemesResult {
       try {
         setLoading(true);
         setError(null);
-        const response = await api.getThemes(boardId);
+        const response = await api.getThemes();
         if (cancelled) {
           return;
         }
@@ -59,7 +59,7 @@ export function useBoardThemes(boardId?: string): UseBoardThemesResult {
     return () => {
       cancelled = true;
     };
-  }, [boardId, reloadToken]);
+  }, [reloadToken]);
 
   const allThemes = useMemo(
     () => [...catalog.systemThemes, ...catalog.customThemes],

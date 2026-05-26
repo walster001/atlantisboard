@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import os from 'node:os';
 import { Router, type Request, type RequestHandler, type Response } from 'express';
 import { z } from 'zod';
@@ -22,6 +23,7 @@ import {
   passwordResetExpiresAt,
 } from '../utils/passwordResetToken.js';
 import { logger } from '../utils/logger.js';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../services/emailService.js';
 import { createRateLimiter } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { requireAuth, blocklistTokenFromRequest } from '../middleware/auth.js';
@@ -303,6 +305,13 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
 
     await claimImportPlaceholderMembershipsForUser(user);
 
+    const verificationToken = crypto.randomBytes(32).toString('base64url');
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    void sendVerificationEmail(user.email, verificationToken, user.displayName);
+
     const token = generateToken({
       userId: user._id.toString(),
       email: user.email,
@@ -567,7 +576,7 @@ router.post('/forgot-password', authRateLimiter, async (req, res, next) => {
     user.set('verificationToken', undefined);
     await user.save();
 
-    // TODO: Send email with reset link containing resetToken
+    void sendPasswordResetEmail(user.email, resetToken);
     logger.info({ userId: user._id.toString(), email: user.email }, 'Password reset requested');
 
     res.json({ message: 'If the email exists, a password reset link has been sent' });

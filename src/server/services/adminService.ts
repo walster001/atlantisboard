@@ -1,4 +1,4 @@
-import { AdminConfig, type IAdminConfig, type IExternalMySQL, type IGoogleOAuth } from '../models/AdminConfig.js';
+import { AdminConfig, type IAdminConfig, type IExternalMySQL, type IGoogleOAuth, type ISmtpConfig } from '../models/AdminConfig.js';
 import { encrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
@@ -82,11 +82,38 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
         environmentBackupLocationConfigured: envPath !== null,
       };
 
+  const rawSmtp = o.smtp;
+  const safeSmtp: Record<string, unknown> = rawSmtp
+    ? {
+        provider: rawSmtp.provider,
+        host: rawSmtp.host ?? '',
+        port: rawSmtp.port,
+        secure: rawSmtp.secure,
+        username: rawSmtp.username ?? '',
+        password: rawSmtp.password ? ENCRYPTED_PLACEHOLDER : undefined,
+        passwordSet: !!rawSmtp.password,
+        fromAddress: rawSmtp.fromAddress ?? '',
+        fromName: rawSmtp.fromName ?? '',
+        enabled: rawSmtp.enabled,
+      }
+    : {
+        provider: 'custom',
+        host: '',
+        port: 587,
+        secure: false,
+        username: '',
+        passwordSet: false,
+        fromAddress: '',
+        fromName: '',
+        enabled: false,
+      };
+
   return {
     ...o,
     googleOAuth: safeGoogle,
     externalMySQL: safeExternal,
     backupSettings: safeBackupSettings,
+    smtp: safeSmtp,
   };
 }
 
@@ -346,6 +373,45 @@ export async function updateAdminConfig(
         throw error;
       }
     }
+  }
+
+  if ((updates as Record<string, unknown>).smtp) {
+    const sm = (updates as Record<string, unknown>).smtp as Partial<ISmtpConfig>;
+    if (sm.enabled !== undefined) {
+      config.smtp.enabled = sm.enabled;
+    }
+    if (sm.provider !== undefined) {
+      config.smtp.provider = sm.provider;
+    }
+    if (sm.host !== undefined) {
+      config.smtp.host = sm.host;
+    }
+    if (sm.port !== undefined) {
+      config.smtp.port = sm.port;
+    }
+    if (sm.secure !== undefined) {
+      config.smtp.secure = sm.secure;
+    }
+    if (sm.username !== undefined) {
+      config.smtp.username = sm.username;
+    }
+    if (sm.fromAddress !== undefined) {
+      config.smtp.fromAddress = sm.fromAddress;
+    }
+    if (sm.fromName !== undefined) {
+      config.smtp.fromName = sm.fromName;
+    }
+
+    const pw = sm.password;
+    if (pw && pw !== ENCRYPTED_PLACEHOLDER && pw !== '') {
+      try {
+        config.smtp.password = await encrypt(pw);
+      } catch (error) {
+        logger.error({ error }, 'Failed to encrypt SMTP password');
+        throw error;
+      }
+    }
+    config.markModified('smtp');
   }
 
   config.updatedBy = new (await import('mongoose')).default.Types.ObjectId(userId) as mongoose.Types.ObjectId;

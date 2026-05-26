@@ -27,6 +27,7 @@ import { useIsPwa } from '../hooks/usePwaDisplayMode.js';
 import {
   AdminBackupPanel,
   AdminDatabasePanel,
+  AdminEmailPanel,
   AdminMonitorPanel,
   AdminUsersTab,
   LoaderCentered,
@@ -176,6 +177,10 @@ export default function AdminConfigurationPage() {
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminUsersTab currentUserId={user.id} />
                 </Suspense>
+              ) : mobileConfigOpen === 'email' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminEmailPanel />
+                </Suspense>
               ) : mobileConfigOpen === 'database' ? (
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminDatabasePanel />
@@ -304,6 +309,10 @@ export default function AdminConfigurationPage() {
               ) : configSubtab === 'users' ? (
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminUsersTab currentUserId={user.id} />
+                </Suspense>
+              ) : configSubtab === 'email' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminEmailPanel />
                 </Suspense>
               ) : configSubtab === 'database' ? (
                 <Suspense fallback={<LoaderCentered />}>

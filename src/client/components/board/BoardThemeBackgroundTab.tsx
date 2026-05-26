@@ -49,7 +49,7 @@ export function BoardThemeBackgroundTab({
   mobileLayout = false,
 }: BoardThemeBackgroundTabProps) {
   const { refreshUser } = useAuthContext();
-  const { catalog, systemThemes, reload: reloadThemes } = useBoardThemes(boardId);
+  const { catalog, systemThemes, reload: reloadThemes } = useBoardThemes();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);

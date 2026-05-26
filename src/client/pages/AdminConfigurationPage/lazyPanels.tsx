@@ -6,6 +6,11 @@ export const AdminUsersTab = lazy(async () => {
   return { default: m.AdminUsersTab };
 });
 
+export const AdminEmailPanel = lazy(async () => {
+  const m = await import('../../components/admin/AdminEmailPanel.js');
+  return { default: m.AdminEmailPanel };
+});
+
 export const AdminDatabasePanel = lazy(async () => {
   const m = await import('../../components/admin/AdminDatabasePanel.js');
   return { default: m.AdminDatabasePanel };

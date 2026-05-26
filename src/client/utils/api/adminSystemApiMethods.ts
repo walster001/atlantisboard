@@ -1,5 +1,5 @@
 import type { PublicCustomFontEntry } from '../../../shared/types/customFonts.js';
-import type { AdminSystemMetricsSnapshot } from '../../../shared/types/adminSystemMetrics.js';
+import type { AdminSystemMetricsSnapshot, MetricsHistoryEntry } from '../../../shared/types/adminSystemMetrics.js';
 import type { ApiClient } from '../api.js';
 
 let fontsCatalogCache: Promise<{ fonts: PublicCustomFontEntry[] }> | null = null;
@@ -44,10 +44,12 @@ export interface AdminSystemApiMethods {
           verificationQuery?: string;
         }
   ): Promise<{ ok: boolean; message: string }>;
+  testSmtpEmail(recipientEmail: string): Promise<{ ok: boolean; message: string }>;
   getFontsCatalog(): Promise<{ fonts: PublicCustomFontEntry[] }>;
   uploadCustomFont(file: File, displayName?: string): Promise<{ font: PublicCustomFontEntry }>;
   deleteCustomFontFile(fileName: string): Promise<void>;
   getAdminSystemMetrics(): Promise<AdminSystemMetricsSnapshot>;
+  getAdminSystemMetricsHistory(): Promise<readonly MetricsHistoryEntry[]>;
 }
 
 export const adminSystemApiMethods: AdminSystemApiMethods = {
@@ -95,6 +97,11 @@ export const adminSystemApiMethods: AdminSystemApiMethods = {
     return response.data;
   },
 
+  async testSmtpEmail(this: ApiClient, recipientEmail) {
+    const response = await this.client.post<{ ok: boolean; message: string }>('/admin/email/test', { recipientEmail });
+    return response.data;
+  },
+
   async getFontsCatalog(this: ApiClient) {
     if (!fontsCatalogCache) {
       fontsCatalogCache = this.client
@@ -130,6 +137,11 @@ export const adminSystemApiMethods: AdminSystemApiMethods = {
 
   async getAdminSystemMetrics(this: ApiClient) {
     const response = await this.client.get<AdminSystemMetricsSnapshot>('/admin/system/metrics');
+    return response.data;
+  },
+
+  async getAdminSystemMetricsHistory(this: ApiClient) {
+    const response = await this.client.get<readonly MetricsHistoryEntry[]>('/admin/system/metrics/history');
     return response.data;
   },
 };

@@ -1,9 +1,9 @@
 import type { AdminSystemMetricsSnapshot } from '../../../../shared/types/adminSystemMetrics.js';
 import type { MonitorPoint } from './types.js';
 
-export const POLL_MS = 1000;
-export const TREND_POINT_MS = 30_000;
-const HISTORY_CAP = 10;
+export const COLLECTION_INTERVAL_S = 10;
+const TREND_POINT_MS = COLLECTION_INTERVAL_S * 1000;
+export const HISTORY_CAP = 30;
 
 export function formatShortTime(iso: string): string {
   const d = new Date(iso);
@@ -101,9 +101,5 @@ export function appendTrendPoint(
     };
     return pushPoint([baseline], nextPoint);
   }
-  const last = prev[prev.length - 1];
-  if (next.ts - last.ts < TREND_POINT_MS) {
-    return [...prev];
-  }
-  return pushPoint(prev, nextPoint);
+  return pushPoint(prev as MonitorPoint[], nextPoint);
 }

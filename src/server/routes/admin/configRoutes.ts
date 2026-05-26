@@ -13,6 +13,7 @@ import {
   testExternalMySQLConnection,
   type TestMySQLInput,
 } from '../../services/mysqlService.js';
+import { sendTestEmail } from '../../services/emailService.js';
 import type { AuthenticatedRequest } from '../../../shared/types/express.js';
 
 const testExternalMysqlSavedSchema = z.object({
@@ -150,6 +151,31 @@ export function registerConfigRoutes(router: Router): void {
             message: error.message,
             code: 'NOT_FOUND',
             statusCode: 404,
+          },
+        });
+        return;
+      }
+      next(error);
+    }
+  });
+
+  const testSmtpEmailSchema = z.object({
+    recipientEmail: z.string().email(),
+  });
+
+  router.post('/email/test', async (req, res, next) => {
+    try {
+      const { recipientEmail } = testSmtpEmailSchema.parse(req.body);
+      const result = await sendTestEmail(recipientEmail);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({
+          error: {
+            message: 'Validation failed',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+            errors: error.issues,
           },
         });
         return;

@@ -8,17 +8,12 @@ export interface ThemesCatalogResponse {
 }
 
 export interface ThemesApiMethods {
-  getThemes(boardId?: string): Promise<ThemesCatalogResponse>;
+  getThemes(): Promise<ThemesCatalogResponse>;
 }
 
 export const themesApiMethods: ThemesApiMethods = {
-  async getThemes(this: ApiClient, boardId) {
-    const params = new URLSearchParams();
-    if (boardId != null && boardId.trim() !== '') {
-      params.set('boardId', boardId.trim());
-    }
-    const query = params.toString();
-    const response = await this.client.get(`/themes${query !== '' ? `?${query}` : ''}`);
+  async getThemes(this: ApiClient) {
+    const response = await this.client.get('/themes');
     return response.data as ThemesCatalogResponse;
   },
 };

@@ -1,14 +1,14 @@
-# Builds the Jekyll site in /pages and deploys to GitHub Pages.
-# Enable in repo Settings → Pages → Build and deployment → Source: GitHub Actions.
-name: Deploy Jekyll Pages site
+# Preprocesses docs/wiki/ Markdown into pages/wiki/ for the Jekyll site,
+# then triggers the Jekyll Pages build/deploy.
+name: Build & Deploy Wiki
 
 on:
   push:
     branches: ["main", "master"]
     paths:
-      - "pages/**"
-      - ".github/workflows/jekyll-pages.yml"
-      - "!docs/wiki/**"
+      - "docs/wiki/**"
+      - ".github/scripts/build-wiki.sh"
+      - ".github/workflows/wiki-build.yml"
   workflow_dispatch:
 
 permissions:
@@ -26,14 +26,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Preprocess wiki pages
+        run: bash .github/scripts/build-wiki.sh
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:
           source: ./pages
           destination: ./_site
           token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

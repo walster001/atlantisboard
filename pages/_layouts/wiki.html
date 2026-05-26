@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en" class="site-root">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {% seo %}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}" />
+    <link rel="icon" href="{{ '/assets/images/atlantisboard-gem.png' | relative_url }}" type="image/png" />
+  </head>
+  <body class="site site--wiki">
+    {% assign gh_repo = site.github.repository_url %}
+    {% assign wiki_branch = site.wiki_branch | default: 'main' %}
+    {% assign wiki_path = site.wiki_path | default: 'docs/wiki' %}
+    {% capture wiki_url %}{{ gh_repo }}/tree/{{ wiki_branch }}/{{ wiki_path }}{% endcapture %}
+    {% capture releases_url %}{{ gh_repo }}/releases{% endcapture %}
+
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <header class="site-header" id="header" role="banner">
+      <div class="site-header__bar">
+        <div class="site-header__inner">
+          <a class="brand" href="{{ '/' | relative_url }}">
+            <img
+              class="brand__mark"
+              src="{{ '/assets/images/atlantisboard-gem.png' | relative_url }}"
+              width="48"
+              height="48"
+              alt=""
+              decoding="async"
+            />
+            <span class="brand__wordmark">{{ site.title }}</span>
+          </a>
+
+          <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu" data-nav-toggle>
+            <span class="nav-toggle__bar" aria-hidden="true"></span>
+            <span class="nav-toggle__bar" aria-hidden="true"></span>
+          </button>
+
+          <nav id="site-nav" class="site-nav" aria-label="Primary">
+            <ul class="site-nav__list">
+              <li><a class="site-nav__link" href="{{ '/' | relative_url }}">Home</a></li>
+              <li><a class="site-nav__link" href="{{ '/about/' | relative_url }}">About</a></li>
+              <li><a class="site-nav__link site-nav__link--active" href="{{ '/wiki/' | relative_url }}">Wiki</a></li>
+              <li><a class="site-nav__link site-nav__link--external" href="{{ releases_url }}" rel="noopener noreferrer">Download</a></li>
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <div class="wiki-layout" id="main" tabindex="-1">
+      <button type="button" class="wiki-sidebar-toggle" aria-expanded="false" aria-controls="wiki-sidebar" aria-label="Toggle wiki navigation" data-sidebar-toggle>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <aside class="wiki-sidebar" id="wiki-sidebar" aria-label="Wiki navigation">
+        <div class="wiki-sidebar__search">
+          <input
+            type="search"
+            class="wiki-search-input"
+            placeholder="Search wiki..."
+            aria-label="Search wiki pages"
+            data-wiki-search
+          />
+        </div>
+
+        <nav class="wiki-nav" aria-label="Wiki pages">
+          {% assign root_pages = site.pages | where_exp: "p", "p.layout == 'wiki'" | where_exp: "p", "p.parent == nil" | sort: "nav_order" %}
+          {% assign child_pages = site.pages | where_exp: "p", "p.layout == 'wiki'" | where_exp: "p", "p.parent != nil" | sort: "nav_order" %}
+
+          <ul class="wiki-nav__list" data-wiki-nav>
+            {% for rp in root_pages %}
+              {% assign children = child_pages | where: "parent", rp.title %}
+              <li class="wiki-nav__item{% if children.size > 0 %} wiki-nav__item--has-children{% endif %}{% if page.url == rp.url %} wiki-nav__item--active{% endif %}">
+                <a class="wiki-nav__link{% if page.url == rp.url %} wiki-nav__link--active{% endif %}" href="{{ rp.url | relative_url }}">{{ rp.title }}</a>
+                {% if children.size > 0 %}
+                  <ul class="wiki-nav__children{% if page.url == rp.url or page.parent == rp.title %} wiki-nav__children--open{% endif %}">
+                    {% for cp in children %}
+                      <li class="wiki-nav__item{% if page.url == cp.url %} wiki-nav__item--active{% endif %}">
+                        <a class="wiki-nav__link{% if page.url == cp.url %} wiki-nav__link--active{% endif %}" href="{{ cp.url | relative_url }}">{{ cp.title }}</a>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </nav>
+      </aside>
+
+      <main class="wiki-content">
+        <article class="wiki-article">
+          {% if page.parent %}
+            <nav class="wiki-breadcrumb" aria-label="Breadcrumb">
+              <ol>
+                <li><a href="{{ '/wiki/' | relative_url }}">Wiki</a></li>
+                {% assign parent_page = site.pages | where: "title", page.parent | where_exp: "p", "p.layout == 'wiki'" | first %}
+                {% if parent_page %}
+                  <li><a href="{{ parent_page.url | relative_url }}">{{ parent_page.title }}</a></li>
+                {% endif %}
+                <li aria-current="page">{{ page.title }}</li>
+              </ol>
+            </nav>
+          {% endif %}
+
+          <h1 class="wiki-article__title">{{ page.title }}</h1>
+
+          {% if page.description %}
+            <p class="wiki-article__description">{{ page.description }}</p>
+          {% endif %}
+
+          <div class="wiki-article__body">
+            {{ content }}
+          </div>
+        </article>
+
+        {% assign siblings = child_pages | where: "parent", page.parent | sort: "nav_order" %}
+        {% if siblings.size > 1 %}
+          {% assign prev_page = nil %}
+          {% assign next_page = nil %}
+          {% assign found = false %}
+          {% for s in siblings %}
+            {% if found and next_page == nil %}
+              {% assign next_page = s %}
+            {% endif %}
+            {% if s.url == page.url %}
+              {% assign found = true %}
+            {% endif %}
+            {% unless found %}
+              {% assign prev_page = s %}
+            {% endunless %}
+          {% endfor %}
+
+          {% if prev_page or next_page %}
+            <nav class="wiki-pager" aria-label="Page navigation">
+              {% if prev_page %}
+                <a class="wiki-pager__link wiki-pager__link--prev" href="{{ prev_page.url | relative_url }}">
+                  <span class="wiki-pager__label">Previous</span>
+                  <span class="wiki-pager__title">{{ prev_page.title }}</span>
+                </a>
+              {% else %}
+                <span></span>
+              {% endif %}
+              {% if next_page %}
+                <a class="wiki-pager__link wiki-pager__link--next" href="{{ next_page.url | relative_url }}">
+                  <span class="wiki-pager__label">Next</span>
+                  <span class="wiki-pager__title">{{ next_page.title }}</span>
+                </a>
+              {% endif %}
+            </nav>
+          {% endif %}
+        {% endif %}
+      </main>
+    </div>
+
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <p class="site-footer__copy">&copy; {{ 'now' | date: '%Y' }} Atlantis Leadership Inc.</p>
+      </div>
+    </footer>
+
+    <script>
+      (function () {
+        var btn = document.querySelector("[data-nav-toggle]");
+        var nav = document.getElementById("site-nav");
+        if (btn && nav) {
+          btn.addEventListener("click", function () {
+            var open = nav.classList.toggle("site-nav--open");
+            btn.setAttribute("aria-expanded", open ? "true" : "false");
+          });
+        }
+
+        var sidebarBtn = document.querySelector("[data-sidebar-toggle]");
+        var sidebar = document.getElementById("wiki-sidebar");
+        if (sidebarBtn && sidebar) {
+          sidebarBtn.addEventListener("click", function () {
+            var open = sidebar.classList.toggle("wiki-sidebar--open");
+            sidebarBtn.setAttribute("aria-expanded", open ? "true" : "false");
+          });
+        }
+
+        var parentItems = document.querySelectorAll(".wiki-nav__item--has-children > .wiki-nav__link");
+        parentItems.forEach(function (link) {
+          link.addEventListener("click", function (e) {
+            var children = link.nextElementSibling;
+            if (children && children.classList.contains("wiki-nav__children")) {
+              if (!link.classList.contains("wiki-nav__link--active")) {
+                e.preventDefault();
+                children.classList.toggle("wiki-nav__children--open");
+              }
+            }
+          });
+        });
+
+        var searchInput = document.querySelector("[data-wiki-search]");
+        var navItems = document.querySelectorAll("[data-wiki-nav] .wiki-nav__item");
+        if (searchInput) {
+          searchInput.addEventListener("input", function () {
+            var q = this.value.toLowerCase().trim();
+            navItems.forEach(function (item) {
+              var link = item.querySelector(".wiki-nav__link");
+              var text = link ? link.textContent.toLowerCase() : "";
+              var match = !q || text.indexOf(q) !== -1;
+
+              var childLinks = item.querySelectorAll(".wiki-nav__children .wiki-nav__link");
+              var childMatch = false;
+              childLinks.forEach(function (cl) {
+                if (cl.textContent.toLowerCase().indexOf(q) !== -1) childMatch = true;
+              });
+
+              if (match || childMatch) {
+                item.style.display = "";
+                if (childMatch && q) {
+                  var children = item.querySelector(".wiki-nav__children");
+                  if (children) children.classList.add("wiki-nav__children--open");
+                }
+              } else {
+                item.style.display = "none";
+              }
+            });
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -126,6 +126,16 @@ export interface ISmtpConfig {
   enabled: boolean;
 }
 
+export interface IEmailBranding {
+  backgroundColor?: string;
+  textColor?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
+  linkColor?: string;
+  footerText?: string;
+  customLayoutHtml?: string;
+}
+
 export type RegistrationMode = 'open' | 'invite-only' | 'disabled';
 
 export interface IAdminConfig extends Document {
@@ -140,6 +150,7 @@ export interface IAdminConfig extends Document {
   vapidKeys?: IVapidKeys;
   backupSettings?: IBackupSettings;
   smtp: ISmtpConfig;
+  emailBranding: IEmailBranding;
   updatedBy: mongoose.Types.ObjectId;
   updatedAt: Date;
 }
@@ -279,6 +290,19 @@ const BackupSettingsSchema = new Schema<IBackupSettings>(
   { _id: false }
 );
 
+const EmailBrandingSchema = new Schema<IEmailBranding>(
+  {
+    backgroundColor: { type: String, default: '#f2efe5' },
+    textColor: { type: String, default: '#38322d' },
+    buttonColor: { type: String, default: '#1a1a1a' },
+    buttonTextColor: { type: String, default: '#ffffff' },
+    linkColor: { type: String, default: '#4da6d8' },
+    footerText: String,
+    customLayoutHtml: String,
+  },
+  { _id: false }
+);
+
 const SmtpConfigSchema = new Schema<ISmtpConfig>(
   {
     provider: {
@@ -353,6 +377,10 @@ const AdminConfigSchema = new Schema<IAdminConfig>(
     smtp: {
       type: SmtpConfigSchema,
       default: () => ({ enabled: false }),
+    },
+    emailBranding: {
+      type: EmailBrandingSchema,
+      default: () => ({}),
     },
     updatedBy: {
       type: Schema.Types.ObjectId,

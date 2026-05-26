@@ -17,6 +17,7 @@ export const CONFIGURATION_SUBTABS = [
 export const CUSTOMISATION_SUBTABS = [
   { value: 'login-branding', label: 'Login branding' },
   { value: 'app-branding', label: 'App branding' },
+  { value: 'email-branding', label: 'Email branding' },
   { value: 'custom-fonts', label: 'Custom fonts' },
   { value: 'templates', label: 'Templates' },
 ] as const;

@@ -1,6 +1,6 @@
 import { Router, type RequestHandler } from 'express';
 import { getBrandingObjectStream, type BrandingUploadKind } from '../services/brandingService.js';
-import { hasValidSignedAssetQuery } from '../middleware/auth.js';
+import { requireSignedAssetOrAuth } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -15,14 +15,8 @@ function sendBrandingFile(
   void (async () => {
     try {
       const assetPath = `/api/v1/branding/${kind}/${fileId}`;
-      if (!hasValidSignedAssetQuery(req, assetPath)) {
-        res.status(401).json({
-          error: {
-            message: 'Valid signed URL required',
-            code: 'UNAUTHORIZED',
-            statusCode: 401,
-          },
-        });
+      const allowed = await requireSignedAssetOrAuth(req, res, assetPath);
+      if (!allowed) {
         return;
       }
       const result = await getBrandingObjectStream(kind, fileId);

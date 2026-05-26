@@ -19,6 +19,7 @@ import './adminConfigurationPage.css';
 import { LoginOptionsSection } from '../components/admin/LoginOptionsSection.js';
 import { LoginBrandingSection } from '../components/admin/LoginBrandingSection.js';
 import { AppBrandingSection } from '../components/admin/AppBrandingSection.js';
+import { EmailBrandingSection } from '../components/admin/EmailBrandingSection.js';
 import { CustomFontsSection } from '../components/admin/CustomFontsSection.js';
 import { RolesPermissionsTab } from '../components/admin/RolesPermissionsTab.js';
 import { useAuthContext } from '../contexts/AuthContext.js';
@@ -209,6 +210,8 @@ export default function AdminConfigurationPage() {
               <LoginBrandingSection />
             ) : customisationSubtab === 'app-branding' ? (
               <AppBrandingSection />
+            ) : customisationSubtab === 'email-branding' ? (
+              <EmailBrandingSection />
             ) : customisationSubtab === 'custom-fonts' ? (
               <CustomFontsSection />
             ) : (
@@ -341,7 +344,7 @@ export default function AdminConfigurationPage() {
         <Tabs.Panel value="customisation" pt="md">
           <div
             className={
-              customisationSubtab === 'login-branding' || customisationSubtab === 'app-branding'
+              customisationSubtab === 'login-branding' || customisationSubtab === 'app-branding' || customisationSubtab === 'email-branding'
                 ? 'admin-configuration-page__layout admin-configuration-page__layout--sticky-preview'
                 : 'admin-configuration-page__layout'
             }
@@ -366,6 +369,8 @@ export default function AdminConfigurationPage() {
                 <LoginBrandingSection />
               ) : customisationSubtab === 'app-branding' ? (
                 <AppBrandingSection />
+              ) : customisationSubtab === 'email-branding' ? (
+                <EmailBrandingSection />
               ) : customisationSubtab === 'custom-fonts' ? (
                 <CustomFontsSection />
               ) : (

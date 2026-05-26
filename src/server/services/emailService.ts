@@ -1,15 +1,18 @@
 import { resolve } from 'path';
+import { writeFileSync, mkdirSync } from 'fs';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import type Mail from 'nodemailer/lib/mailer';
 import hbs from 'nodemailer-express-handlebars';
-import { AdminConfig } from '../models/AdminConfig.js';
+import { AdminConfig, type IEmailBranding } from '../models/AdminConfig.js';
 import { getBrandingObjectStream, type BrandingUploadKind } from './brandingService.js';
 import { decrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
 
 const EMAILS_DIR = resolve(process.cwd(), 'src', 'server', 'emails');
+const LAYOUTS_DIR = resolve(EMAILS_DIR, 'layouts');
+const CUSTOM_LAYOUT_PATH = resolve(LAYOUTS_DIR, 'custom.handlebars');
 const LOGO_CID = 'brand-logo';
 
 interface SmtpTransportConfig {
@@ -74,7 +77,40 @@ async function resolveSmtpConfig(): Promise<SmtpTransportConfig | null> {
   return null;
 }
 
-function createTransport(cfg: SmtpTransportConfig): Transporter<SMTPTransport.SentMessageInfo> {
+/**
+ * Writes the custom layout handlebars string from DB to a cache file so
+ * nodemailer-express-handlebars can reference it as `defaultLayout: 'custom'`.
+ * Returns the layout name to use ('custom' or 'main').
+ */
+function syncCustomLayout(branding: IEmailBranding | undefined): string {
+  if (branding?.customLayoutHtml) {
+    try {
+      mkdirSync(LAYOUTS_DIR, { recursive: true });
+      writeFileSync(CUSTOM_LAYOUT_PATH, branding.customLayoutHtml, 'utf-8');
+      return 'custom';
+    } catch (err) {
+      logger.warn({ err }, 'Failed to write custom email layout cache file — falling back to default');
+    }
+  }
+  return 'main';
+}
+
+/**
+ * Builds the template context variables for email branding colors so
+ * child templates can use `{{defaultVal textColor "#38322d"}}` etc.
+ */
+function buildBrandingContext(branding: IEmailBranding | undefined): Record<string, string> {
+  return {
+    textColor: branding?.textColor ?? '#38322d',
+    buttonColor: branding?.buttonColor ?? '#1a1a1a',
+    buttonTextColor: branding?.buttonTextColor ?? '#ffffff',
+    linkColor: branding?.linkColor ?? '#4da6d8',
+    backgroundColor: branding?.backgroundColor ?? '#f2efe5',
+    footerText: branding?.footerText ?? '',
+  };
+}
+
+function createTransport(cfg: SmtpTransportConfig, layoutName: string = 'main'): Transporter<SMTPTransport.SentMessageInfo> {
   const opts: SMTPTransport.Options & { family?: number } = {
     host: cfg.host,
     port: cfg.port,
@@ -97,8 +133,13 @@ function createTransport(cfg: SmtpTransportConfig): Transporter<SMTPTransport.Se
     hbs({
       viewEngine: {
         extname: '.handlebars',
-        layoutsDir: resolve(EMAILS_DIR, 'layouts'),
-        defaultLayout: 'main',
+        layoutsDir: LAYOUTS_DIR,
+        defaultLayout: layoutName,
+        helpers: {
+          defaultVal(value: unknown, fallback: unknown): unknown {
+            return (value != null && value !== '') ? value : fallback;
+          },
+        },
       },
       viewPath: EMAILS_DIR,
       extName: '.handlebars',
@@ -116,7 +157,9 @@ export async function getSmtpTransport(): Promise<Transporter<SMTPTransport.Sent
   const cfg = await resolveSmtpConfig();
   if (!cfg) return null;
 
-  return createTransport(cfg);
+  const config = await AdminConfig.findOne().lean();
+  const layoutName = syncCustomLayout(config?.emailBranding);
+  return createTransport(cfg, layoutName);
 }
 
 function getAppUrl(): string {
@@ -202,7 +245,10 @@ export async function sendEmail(mail: TemplateMail): Promise<boolean> {
     return false;
   }
 
-  const transport = createTransport(cfg);
+  const adminConfig = await AdminConfig.findOne().lean();
+  const branding = adminConfig?.emailBranding;
+  const layoutName = syncCustomLayout(branding);
+  const transport = createTransport(cfg, layoutName);
   const logoAttachment = await resolveLogoAttachment();
 
   const attachments: Mail.Attachment[] = [];
@@ -218,6 +264,7 @@ export async function sendEmail(mail: TemplateMail): Promise<boolean> {
       appUrl: getAppUrl(),
       appName: cfg.fromName,
       logoCid: logoAttachment ? `cid:${LOGO_CID}` : null,
+      ...buildBrandingContext(branding),
       ...mail.context,
     },
     attachments,
@@ -235,7 +282,10 @@ export async function sendTestEmail(recipientEmail: string): Promise<{ ok: boole
     return { ok: false, message: 'SMTP is not configured or not enabled' };
   }
 
-  const transport = createTransport(cfg);
+  const adminConfig = await AdminConfig.findOne().lean();
+  const branding = adminConfig?.emailBranding;
+  const layoutName = syncCustomLayout(branding);
+  const transport = createTransport(cfg, layoutName);
 
   try {
     const logoAttachment = await resolveLogoAttachment();
@@ -254,6 +304,7 @@ export async function sendTestEmail(recipientEmail: string): Promise<{ ok: boole
         appUrl: getAppUrl(),
         appName: cfg.fromName,
         logoCid: logoAttachment ? `cid:${LOGO_CID}` : null,
+        ...buildBrandingContext(branding),
         host: cfg.host,
         port: cfg.port,
       },
@@ -299,7 +350,7 @@ export async function sendPasswordResetEmail(to: string, resetToken: string): Pr
       template: 'password-reset',
       context: {
         resetLink,
-        expiresIn: '1 hour',
+        expiresIn: '10 minutes',
       },
     });
 

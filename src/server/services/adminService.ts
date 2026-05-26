@@ -1,4 +1,4 @@
-import { AdminConfig, type IAdminConfig, type IExternalMySQL, type IGoogleOAuth, type ISmtpConfig } from '../models/AdminConfig.js';
+import { AdminConfig, type IAdminConfig, type IEmailBranding, type IExternalMySQL, type IGoogleOAuth, type ISmtpConfig } from '../models/AdminConfig.js';
 import { encrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
@@ -7,6 +7,7 @@ import { DEFAULT_VERIFICATION_QUERY } from './mysqlService.js';
 import { normalizeGoogleOAuthCallbackUrl } from '../../shared/utils/googleOAuthCallbackUrl.js';
 import { normalizeDefaultUiFontFamilyInput } from './fontService.js';
 import { BackupLocationNotConfiguredError, getResolvedBackupLocationFromEnv } from './backupLocationEnv.js';
+import { generateEmailLayout } from './emailTemplateGenerator.js';
 
 const ENCRYPTED_PLACEHOLDER = '***ENCRYPTED***';
 
@@ -108,12 +109,25 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
         enabled: false,
       };
 
+  const rawEmailBranding = o.emailBranding;
+  const safeEmailBranding: Record<string, unknown> = rawEmailBranding
+    ? {
+        backgroundColor: rawEmailBranding.backgroundColor,
+        textColor: rawEmailBranding.textColor,
+        buttonColor: rawEmailBranding.buttonColor,
+        buttonTextColor: rawEmailBranding.buttonTextColor,
+        linkColor: rawEmailBranding.linkColor,
+        footerText: rawEmailBranding.footerText ?? '',
+      }
+    : {};
+
   return {
     ...o,
     googleOAuth: safeGoogle,
     externalMySQL: safeExternal,
     backupSettings: safeBackupSettings,
     smtp: safeSmtp,
+    emailBranding: safeEmailBranding,
   };
 }
 
@@ -412,6 +426,21 @@ export async function updateAdminConfig(
       }
     }
     config.markModified('smtp');
+  }
+
+  if ((updates as Record<string, unknown>).emailBranding) {
+    const eb = (updates as Record<string, unknown>).emailBranding as Partial<IEmailBranding>;
+    const existing = config.toObject().emailBranding ?? {};
+    const merged: Record<string, unknown> = { ...existing };
+    for (const key of Object.keys(eb) as (keyof IEmailBranding)[]) {
+      const v = eb[key];
+      if (v !== undefined && key !== 'customLayoutHtml') {
+        merged[key] = v;
+      }
+    }
+    merged.customLayoutHtml = generateEmailLayout(merged as IEmailBranding);
+    config.set('emailBranding', merged);
+    config.markModified('emailBranding');
   }
 
   config.updatedBy = new (await import('mongoose')).default.Types.ObjectId(userId) as mongoose.Types.ObjectId;

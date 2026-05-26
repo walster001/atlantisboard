@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 10 * 60 * 1000;
 
 export function generatePasswordResetToken(): string {
   return crypto.randomBytes(32).toString('base64url');

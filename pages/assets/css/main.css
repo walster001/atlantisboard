@@ -791,7 +791,7 @@ body.site:not(.site--home) .site-footer {
 :root {
   --wiki-header-offset: max(0px, calc((100vw - var(--content-max)) / 2));
   --ease-wiki-slide: cubic-bezier(0.25, 1, 0.5, 1);
-  --duration-wiki-slide: 0.25s;
+  --duration-wiki-slide: 0.4s;
 }
 
 /* Brand: centered position → far left */

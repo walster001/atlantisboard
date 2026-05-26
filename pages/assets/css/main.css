@@ -785,23 +785,58 @@ body.site:not(.site--home) .site-footer {
 }
 
 /* ══════════════════════════════════════════════════════
-   Wiki header — brand slides left to align with sidebar
+   Wiki header — brand slides left, nav slides right
    ══════════════════════════════════════════════════════ */
 
-@keyframes wiki-header-slide {
-  from {
-    transform: translateX(max(0px, calc((100vw - var(--content-max)) / 2)));
-  }
-  to {
-    transform: translateX(0);
-  }
+:root {
+  --wiki-header-offset: max(0px, calc((100vw - var(--content-max)) / 2));
+}
+
+/* Brand: centered position → far left */
+@keyframes wiki-brand-enter {
+  from { transform: translateX(var(--wiki-header-offset)); }
+  to   { transform: translateX(0); }
+}
+
+/* Nav: centered position → far right */
+@keyframes wiki-nav-enter {
+  from { transform: translateX(calc(var(--wiki-header-offset) * -1)); }
+  to   { transform: translateX(0); }
+}
+
+/* Reverse: brand slides back from far-left to centered */
+@keyframes wiki-brand-exit {
+  from { transform: translateX(calc(var(--wiki-header-offset) * -1)); }
+  to   { transform: translateX(0); }
+}
+
+/* Reverse: nav slides back from far-right to centered */
+@keyframes wiki-nav-exit {
+  from { transform: translateX(var(--wiki-header-offset)); }
+  to   { transform: translateX(0); }
 }
 
 body.site--wiki .site-header__inner {
   max-width: none;
   margin-left: 0;
   margin-right: 0;
-  animation: wiki-header-slide 0.65s var(--ease-editorial) both;
+}
+
+body.site--wiki .site-header__inner > .brand {
+  animation: wiki-brand-enter 0.65s var(--ease-editorial) both;
+}
+
+body.site--wiki .site-header__inner > .site-nav {
+  animation: wiki-nav-enter 0.65s var(--ease-editorial) both;
+}
+
+/* Non-wiki pages: slide back when navigating away from wiki */
+body.site--from-wiki .site-header__inner > .brand {
+  animation: wiki-brand-exit 0.65s var(--ease-editorial) both;
+}
+
+body.site--from-wiki .site-header__inner > .site-nav {
+  animation: wiki-nav-exit 0.65s var(--ease-editorial) both;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1262,6 +1297,12 @@ body.site--wiki .site-footer {
   body.site--wiki .site-header__inner {
     max-width: var(--content-max);
     margin: 0 auto;
+  }
+
+  body.site--wiki .site-header__inner > .brand,
+  body.site--wiki .site-header__inner > .site-nav,
+  body.site--from-wiki .site-header__inner > .brand,
+  body.site--from-wiki .site-header__inner > .site-nav {
     animation: none;
   }
 

@@ -14,6 +14,7 @@ import {
   EDITOR_TEXT_COLOR_FALLBACK,
 } from './toolbarConfig.js';
 import { useResponsiveTier } from '../../../hooks/useResponsiveTier.js';
+import { useVisualViewportKeyboard } from '../../../hooks/useVisualViewportKeyboard.js';
 import { ToolbarContent } from './ToolbarContent.js';
 
 interface CardDescriptionEditorToolbarProps {
@@ -49,6 +50,7 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
   cardId,
 }: CardDescriptionEditorToolbarProps) {
   const isMobile = useResponsiveTier() === 'mobile';
+  const keyboardDock = useVisualViewportKeyboard(isMobile);
   const [colorPopoverOpen, setColorPopoverOpen] = useState(false);
   const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
   const [textColorPickerValue, setTextColorPickerValue] = useState(EDITOR_TEXT_COLOR_FALLBACK);
@@ -229,6 +231,8 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
       editor={editor}
       ui={ui}
       isMobile={isMobile}
+      isKeyboardDocked={keyboardDock.isKeyboardOpen}
+      keyboardDockBottom={keyboardDock.bottom}
       colorPopoverOpen={colorPopoverOpen}
       emojiPopoverOpen={emojiPopoverOpen}
       textColorPickerValue={textColorPickerValue}

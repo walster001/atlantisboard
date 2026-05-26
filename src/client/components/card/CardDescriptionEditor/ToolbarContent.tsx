@@ -1,4 +1,4 @@
-import type { MutableRefObject } from 'react';
+import { useMemo, type CSSProperties, type MutableRefObject } from 'react';
 import type { Editor } from '@tiptap/core';
 import {
   ActionIcon,
@@ -50,6 +50,8 @@ interface ToolbarContentProps {
   readonly editor: Editor;
   readonly ui: ToolbarUiState;
   readonly isMobile: boolean;
+  readonly isKeyboardDocked: boolean;
+  readonly keyboardDockBottom: number;
   readonly colorPopoverOpen: boolean;
   readonly emojiPopoverOpen: boolean;
   readonly textColorPickerValue: string;
@@ -71,6 +73,8 @@ export function ToolbarContent({
   editor,
   ui,
   isMobile,
+  isKeyboardDocked,
+  keyboardDockBottom,
   colorPopoverOpen,
   emojiPopoverOpen,
   textColorPickerValue,
@@ -87,13 +91,27 @@ export function ToolbarContent({
   onInsertImage,
   onInsertVideo,
 }: ToolbarContentProps) {
+  const toolbarStyle = useMemo((): CSSProperties => {
+    if (!isKeyboardDocked) {
+      return { borderBottom: '1px solid var(--mantine-color-gray-3)' };
+    }
+    return {
+      borderTop: '1px solid var(--mantine-color-gray-3)',
+      bottom: keyboardDockBottom,
+    };
+  }, [isKeyboardDocked, keyboardDockBottom]);
+
+  const toolbarClassName = isKeyboardDocked
+    ? 'card-desc-tiptap-toolbar card-desc-tiptap-toolbar--keyboard-docked'
+    : 'card-desc-tiptap-toolbar';
+
   return (
     <Group
-      className="card-desc-tiptap-toolbar"
+      className={toolbarClassName}
       gap={4}
       p="xs"
       wrap="wrap"
-      style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}
+      style={toolbarStyle}
     >
       {/* Own positioning context so the toolbar row can use `position: sticky` on mobile without `position: relative` defeating it. */}
       <Box aria-hidden pos="relative" w={0} h={0} flex="0 0 0" style={{ overflow: 'hidden' }}>

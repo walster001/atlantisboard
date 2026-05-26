@@ -10196,6 +10196,31 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     padding-right: 10px;
     font-size: .95rem;
   }
+
+  .card-desc-tiptap-toolbar--keyboard-docked {
+    z-index: 1000;
+    padding-inline: var(--mantine-spacing-md, 16px);
+    padding-top: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--board-card-detail-bg, #f8f9fb);
+    border-top: 1px solid var(--mantine-color-gray-3);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: none;
+    left: 0;
+    right: 0;
+    box-shadow: 0 -4px 12px #0f172a14;
+    position: fixed !important;
+    border-bottom: none !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+    margin: 0 !important;
+    top: auto !important;
+  }
+
+  .card-desc-tiptap-editor:has(.card-desc-tiptap-toolbar--keyboard-docked) .ProseMirror {
+    padding-bottom: 64px;
+  }
 }
 
 /* src/client/components/card/cardInlineButtonEditModal.css */
@@ -13712,17 +13737,21 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    align-items:  center;
+    align-items: stretch;
     padding-top: 1.5rem;
+    padding-left: .75rem;
+    padding-right: .75rem;
   }
 
   .board-page__mobile-add-list-slide .board-page__add-list {
     width: 100%;
-    max-width: 320px;
+    max-width: 100%;
+    min-height: 3rem;
   }
 
   .board-page__mobile-add-list-composer {
-    padding: .75rem;
+    width: 100%;
+    margin-top: .75rem;
   }
 
   .board-page__mobile-carousel .board-column.board-column--width-auto, .board-page__mobile-carousel .board-page__column-track--auto {

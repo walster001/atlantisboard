@@ -16,6 +16,11 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useAuthContext } from '../contexts/AuthContext.js';
+import {
+  KB_IOS_MODAL_HEADER_SAFE_CLASS,
+  modalStylesFullscreenSafeBody,
+} from '../constants/iosModalSafeArea.js';
+import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
 import { api } from '../utils/api.js';
 import { resizeImageToSquareAvatarBlob } from '../utils/resizeAvatarImage.js';
 import { userMenuStyleAvatarInitials } from '../utils/userMenuStyleAvatarInitials.js';
@@ -48,6 +53,7 @@ function isAppHostedAvatar(userId: string, profilePicture: string | undefined): 
 
 export function ProfileSettingsModal({ opened, onClose }: ProfileSettingsModalProps) {
   const { user, refreshUser } = useAuthContext();
+  const isMobile = useResponsiveTier() === 'mobile';
 
   const [displayName, setDisplayName] = useState('');
   const [languagePref, setLanguagePref] = useState('en');
@@ -194,7 +200,17 @@ export function ProfileSettingsModal({ opened, onClose }: ProfileSettingsModalPr
     isAppHostedAvatar(user.id, user.profilePicture);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Profile Settings" size="md">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Profile Settings"
+      size="md"
+      fullScreen={isMobile}
+      centered={!isMobile}
+      closeButtonProps={isMobile ? { size: 'lg' } : undefined}
+      classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
+      styles={modalStylesFullscreenSafeBody(isMobile)}
+    >
       {!user ? null : (
         <Stack gap="lg">
           {saveError ? (
@@ -294,10 +310,10 @@ export function ProfileSettingsModal({ opened, onClose }: ProfileSettingsModalPr
           </Stack>
 
           <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={onClose} disabled={saving}>
+            <Button variant="default" onClick={onClose} disabled={saving} size={isMobile ? 'md' : 'sm'}>
               Cancel
             </Button>
-            <Button onClick={() => void handleSaveAll()} loading={saving}>
+            <Button onClick={() => void handleSaveAll()} loading={saving} size={isMobile ? 'md' : 'sm'}>
               Save
             </Button>
           </Group>

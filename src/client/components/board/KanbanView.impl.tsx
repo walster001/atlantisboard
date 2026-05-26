@@ -185,7 +185,7 @@ export function KanbanView({
 
   const totalMobileLists = mountedLists.length;
 
-  const mobileShowAddListSlide = isSwipeKanban && kanbanCaps.canAddList && !addListComposerOpen;
+  const mobileShowAddListSlide = isSwipeKanban && kanbanCaps.canAddList;
   const totalMobileSlides = totalMobileLists + (mobileShowAddListSlide ? 1 : 0);
 
   const carouselLayout = useMemo((): { readonly slidesPerView: 1; readonly maxActiveIndex: number } => {
@@ -363,6 +363,14 @@ export function KanbanView({
     [draggingCardIdScopedByListId],
   );
 
+  const mobileHandleListCreated = useCallback(
+    (response?: { list: unknown }) => {
+      closeAddListComposer();
+      handleListCreated(response);
+    },
+    [closeAddListComposer, handleListCreated],
+  );
+
   const mobileIndicators = useMemo(() => {
     if (!isSwipeKanban || totalMobileSlides <= 1) {
       return null;
@@ -396,15 +404,15 @@ export function KanbanView({
         onClickCapture={handleColumnsClickCapture}
       >
         {mobileIndicators}
-        {totalMobileSlides === 0 && !addListComposerOpen ? (
+        {totalMobileSlides === 0 ? (
           <Box aria-hidden style={{ minHeight: 280 }} />
-        ) : totalMobileSlides === 0 && addListComposerOpen ? null : (
+        ) : (
           <Swiper
             className="board-page__mobile-carousel-inner board-page__mobile-carousel-swiper"
             slidesPerView={carouselLayout.slidesPerView}
             spaceBetween={LIST_HORIZONTAL_GAP_PX}
             grabCursor={draggingCardId == null}
-            allowTouchMove={draggingCardId == null && totalMobileSlides > 1 && !addListComposerOpen}
+            allowTouchMove={draggingCardId == null && totalMobileSlides > 1}
             touchRatio={MOBILE_CAROUSEL_SWIPER_TOUCH_RATIO}
             threshold={MOBILE_CAROUSEL_SWIPER_THRESHOLD_PX}
             longSwipesRatio={MOBILE_CAROUSEL_SWIPER_LONG_SWIPES_RATIO}
@@ -444,35 +452,36 @@ export function KanbanView({
             {mobileShowAddListSlide ? (
               <SwiperSlide key="__add-list" className="board-page__mobile-carousel-slide-outer">
                 <Box className="board-page__mobile-carousel-slide board-page__mobile-add-list-slide">
-                  <Button
-                    variant="default"
-                    className="board-page__add-list"
-                    justify="flex-start"
-                    leftSection={
-                      <span className="board-page__add-list-icon" aria-hidden>
-                        +
-                      </span>
-                    }
-                    styles={KANBAN_ADD_LIST_BUTTON_STYLES}
-                    onClick={openAddListComposer}
-                  >
-                    Add another list
-                  </Button>
+                  {addListComposerOpen ? (
+                    <Box className="board-page__mobile-add-list-composer">
+                      <BoardInlineListComposer
+                        boardId={board.id}
+                        getNextPosition={getNextListPosition}
+                        onListCreated={mobileHandleListCreated}
+                        onCancel={closeAddListComposer}
+                      />
+                    </Box>
+                  ) : (
+                    <Button
+                      variant="default"
+                      className="board-page__add-list"
+                      justify="flex-start"
+                      leftSection={
+                        <span className="board-page__add-list-icon" aria-hidden>
+                          +
+                        </span>
+                      }
+                      styles={KANBAN_ADD_LIST_BUTTON_STYLES}
+                      onClick={openAddListComposer}
+                    >
+                      Add another list
+                    </Button>
+                  )}
                 </Box>
               </SwiperSlide>
             ) : null}
           </Swiper>
         )}
-        {isSwipeKanban && addListComposerOpen ? (
-          <Box className="board-page__mobile-add-list-composer">
-            <BoardInlineListComposer
-              boardId={board.id}
-              getNextPosition={getNextListPosition}
-              onListCreated={handleListCreated}
-              onCancel={closeAddListComposer}
-            />
-          </Box>
-        ) : null}
       </Box>
     );
   }

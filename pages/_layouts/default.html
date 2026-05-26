@@ -82,6 +82,13 @@
 
     <script>
       (function () {
+        try {
+          if (sessionStorage.getItem("atlboard-from-wiki") === "1") {
+            document.body.classList.add("site--from-wiki");
+            sessionStorage.removeItem("atlboard-from-wiki");
+          }
+        } catch (e) {}
+
         var btn = document.querySelector("[data-nav-toggle]");
         var nav = document.getElementById("site-nav");
         if (!btn || !nav) return;

@@ -148,12 +148,14 @@ export function useSortableListActions({
   }, [updateBoardListsColor]);
 
   const openDeleteListModal = useCallback((): void => {
+    const isMobileViewport = window.innerWidth < 768;
     modals.openConfirmModal({
       title: 'Delete list?',
       centered: true,
       children: `This will permanently delete the list "${list.name}" and all cards in it. This action cannot be undone.`,
       labels: { confirm: 'Delete list', cancel: 'Cancel' },
-      confirmProps: { color: 'red' },
+      confirmProps: { color: 'red', size: isMobileViewport ? 'xs' : 'sm' },
+      cancelProps: { size: isMobileViewport ? 'xs' : 'sm' },
       onConfirm: async () => {
         try {
           const response = await api.deleteList(list.id);

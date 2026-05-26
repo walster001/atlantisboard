@@ -176,6 +176,8 @@
 
     <script>
       (function () {
+        try { sessionStorage.setItem("atlboard-from-wiki", "1"); } catch (e) {}
+
         var btn = document.querySelector("[data-nav-toggle]");
         var nav = document.getElementById("site-nav");
         if (btn && nav) {

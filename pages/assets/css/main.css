@@ -974,7 +974,7 @@ body.site--wiki .site-footer {
 }
 
 .wiki-article {
-  max-width: 52rem;
+  max-width: 100%;
 }
 
 .wiki-article__title {
@@ -1047,6 +1047,7 @@ body.site--wiki .site-footer {
 }
 
 .wiki-article__body img {
+  width: 100%;
   max-width: 100%;
   height: auto;
   border-radius: 6px;

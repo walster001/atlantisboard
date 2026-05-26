@@ -66,7 +66,7 @@ function LoginOptionsSectionInner() {
       )}
       {success && <Alert color="green">{success}</Alert>}
 
-      <LoginStyleSection config={config} setConfig={setConfig} />
+      <LoginStyleSection config={config} setConfig={setConfig} googleConfigured={googleConfigured} />
       <GoogleOAuthSection
         config={config}
         googleConfigured={googleConfigured}

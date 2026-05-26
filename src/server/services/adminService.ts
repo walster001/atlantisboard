@@ -176,6 +176,10 @@ export async function updateAdminConfig(
     config.registrationMode = mode;
   }
 
+  if (u.requireEmailVerification !== undefined) {
+    config.requireEmailVerification = u.requireEmailVerification === true;
+  }
+
   if (u.googleOAuth) {
     const go = u.googleOAuth as Partial<IGoogleOAuth> & { replaceGoogleOAuth?: boolean };
     if (go.enabled !== undefined) {

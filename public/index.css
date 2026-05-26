@@ -9767,8 +9767,6 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
 
 .kb-login-host--pwa {
   height: 100svh;
-  height: 100dvh;
-  min-height: 100svh;
   position: fixed;
   overflow: hidden;
   overscroll-behavior: contain;
@@ -9777,26 +9775,48 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   padding-top: env(safe-area-inset-top, 0px);
   box-sizing: border-box;
   width: 100%;
-  min-height: 100dvh;
+  height: 100dvh;
   inset: 0;
+  min-height: 0 !important;
+}
+
+.kb-login-host--pwa.kb-login-host--scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 767px) {
   .kb-login-host {
     height: 100svh;
-    height: 100dvh;
-    min-height: 100svh;
     position: fixed;
     overflow: hidden;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: auto;
-    padding-top: constant(safe-area-inset-top);
-    padding-top: env(safe-area-inset-top, 0px);
     box-sizing: border-box;
     width: 100%;
-    min-height: 100dvh;
+    height: 100dvh;
     inset: 0;
+    min-height: 0 !important;
   }
+
+  .kb-login-host.kb-login-host--scrollable {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .kb-login-logo--compact {
+    width: 70% !important;
+    max-width: 80px !important;
+    margin-bottom: 4px !important;
+  }
+}
+
+.kb-login-host--pwa .kb-login-logo--compact {
+  width: 70% !important;
+  max-width: 80px !important;
+  margin-bottom: 4px !important;
 }
 
 /* src/client/components/common/twemojiPlainText.css */
@@ -15011,6 +15031,10 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     padding-top: calc(var(--spacing) * 0);
   }
 
+  .pt-8 {
+    padding-top: calc(var(--spacing) * 8);
+  }
+
   .pb-3 {
     padding-bottom: calc(var(--spacing) * 3);
   }
@@ -15172,6 +15196,12 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   @media (min-width: 48rem) {
     .md\:p-8 {
       padding: calc(var(--spacing) * 8);
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .md\:pt-12 {
+      padding-top: calc(var(--spacing) * 12);
     }
   }
 

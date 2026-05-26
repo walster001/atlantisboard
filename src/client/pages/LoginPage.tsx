@@ -141,11 +141,13 @@ export default function LoginPage() {
             ? 'Your email is not authorized in the external database required for this application.'
             : err === 'google_email_conflict'
               ? 'This email is already linked to a different Google account. Use that Google account or sign in with email and password.'
-              : err === 'google_registration_disabled'
-                ? 'New account registration is disabled on this server.'
-                : err === 'google_registration_invite_only'
-                  ? 'New account registration is invite-only. Contact an administrator for access.'
-                  : 'Google sign-in failed. You may not be allowed to access this application.';
+              : err === 'google_merge_unverified'
+                ? 'A local account with this email exists but has not been verified. Please verify your email first, then try signing in with Google.'
+                : err === 'google_registration_disabled'
+                  ? 'New account registration is disabled on this server.'
+                  : err === 'google_registration_invite_only'
+                    ? 'New account registration is invite-only. Contact an administrator for access.'
+                    : 'Google sign-in failed. You may not be allowed to access this application.';
       setError(msg);
       searchParams.delete('error');
       setSearchParams(searchParams, { replace: true });
@@ -180,6 +182,14 @@ export default function LoginPage() {
     } catch (err) {
       if (err instanceof z.ZodError) {
         setError(err.issues[0]?.message || 'Validation error');
+      } else if (
+        err != null &&
+        typeof err === 'object' &&
+        'response' in err
+      ) {
+        const axiosErr = err as { response?: { data?: { error?: { message?: string; code?: string } } } };
+        const apiMsg = axiosErr.response?.data?.error?.message;
+        setError(apiMsg ?? 'Login failed. Please try again.');
       } else if (err instanceof Error) {
         setError(err.message || 'Login failed');
       } else {

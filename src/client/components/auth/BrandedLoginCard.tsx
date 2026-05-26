@@ -92,7 +92,8 @@ export function BrandedLoginCard({
 
   const isFullscreen = branding.loginBoxStyle === 'fullscreen';
   const cardBg = branding.loginBoxBackgroundColor || undefined;
-  const showDivider = showLocalForm && showGoogle;
+  const showBothMethods = showLocalForm && showGoogle;
+  const showDivider = showBothMethods;
   const inputTitleColor = branding.loginInputTitleColor;
   const linkTitleColor = branding.loginLinkTitleColor;
   const signInBtnBg = branding.loginSignInButtonColor;
@@ -125,13 +126,14 @@ export function BrandedLoginCard({
         <img
           src={branding.logo}
           alt=""
+          className={showBothMethods && !isPreview ? 'kb-login-logo--compact' : undefined}
           style={{
             width: branding.logoSizePx,
             maxWidth: '100%',
             height: 'auto',
             borderRadius: '50%',
             objectFit: 'cover',
-            margin: isPreview ? '0 auto 8px' : '0 auto 16px',
+            margin: isPreview ? '0 auto 8px' : showBothMethods ? '0 auto 8px' : '0 auto 16px',
             display: 'block',
           }}
         />
@@ -398,7 +400,7 @@ export function BrandedLoginCard({
         },
       }}
     >
-      <Stack gap={isPreview ? 'sm' : 'lg'}>
+      <Stack gap={isPreview ? 'sm' : showBothMethods ? 'md' : 'lg'}>
         {headerBlock}
         {variant === 'live' && loginOptionsLoading ? (
           <Text size="sm" c="dimmed" ta="center">
@@ -412,7 +414,7 @@ export function BrandedLoginCard({
         ) : null}
         {showLocalForm && variant === 'live' ? localFormLive : null}
         {showLocalForm && variant === 'preview' ? localFormPreview : null}
-        {showDivider ? <Divider label="OR" labelPosition="center" my="md" /> : null}
+        {showDivider ? <Divider label="OR" labelPosition="center" my="xs" /> : null}
         {showGoogle ? googleBtn : null}
         {variant === 'live' ? footerLive : footerPreview}
       </Stack>
@@ -432,9 +434,11 @@ export function BrandedLoginCard({
 
   return (
     <div
-      className={`kb-login-host${isPwa ? ' kb-login-host--pwa' : ''} min-h-screen flex items-center justify-center ${
-        isFullscreen ? 'p-4 md:p-8' : 'p-4'
-      }`}
+      className={`kb-login-host${isPwa ? ' kb-login-host--pwa' : ''}${
+        showBothMethods ? ' kb-login-host--scrollable' : ''
+      } min-h-screen flex ${
+        showBothMethods ? 'items-start pt-8 md:pt-12' : 'items-center'
+      } justify-center ${isFullscreen ? 'p-4 md:p-8' : 'p-4'}`}
       style={pageBgStyle}
     >
       {inner}

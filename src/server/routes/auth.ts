@@ -305,19 +305,52 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
 
     await claimImportPlaceholderMembershipsForUser(user);
 
+    const adminCfg = await AdminConfig.findOne();
+    const verificationRequired = isFirstUser
+      ? false
+      : adminCfg?.requireEmailVerification !== false;
+
+    if (!verificationRequired) {
+      user.emailVerified = true;
+      await user.save();
+
+      const token = generateToken({
+        userId: user._id.toString(),
+        email: user.email,
+        username: user.username,
+        isAppAdmin: user.isAppAdmin,
+      });
+
+      logAuditEvent({
+        userId: user._id.toString(),
+        action: 'register',
+        resourceType: 'user',
+        resourceId: user._id.toString(),
+        ipAddress: req.ip || undefined,
+        timestamp: new Date(),
+      });
+
+      logger.info({ userId: user._id.toString(), email: user.email }, 'User registered (verification not required)');
+
+      sendAuthSuccess(res, 201, token, {
+        id: user._id.toString(),
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        profilePicture: user.profilePicture,
+        isAppAdmin: user.isAppAdmin,
+        preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+        emailVerified: true,
+      });
+      return;
+    }
+
     const verificationToken = crypto.randomBytes(32).toString('base64url');
     user.verificationToken = verificationToken;
     user.verificationTokenExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
     void sendVerificationEmail(user.email, verificationToken, user.displayName);
-
-    const token = generateToken({
-      userId: user._id.toString(),
-      email: user.email,
-      username: user.username,
-      isAppAdmin: user.isAppAdmin,
-    });
 
     logAuditEvent({
       userId: user._id.toString(),
@@ -328,17 +361,11 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
       timestamp: new Date(),
     });
 
-    logger.info({ userId: user._id.toString(), email: user.email }, 'User registered');
+    logger.info({ userId: user._id.toString(), email: user.email }, 'User registered — verification email sent');
 
-    sendAuthSuccess(res, 201, token, {
-      id: user._id.toString(),
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      profilePicture: user.profilePicture,
-      isAppAdmin: user.isAppAdmin,
-      preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
-      emailVerified: user.emailVerified,
+    res.status(202).json({
+      verificationRequired: true,
+      message: 'Account created. Please check your email to verify your address before signing in.',
     });
   } catch (error) {
     if (
@@ -452,6 +479,20 @@ router.post('/login', authRateLimiter, async (req, res, next) => {
         },
       });
       return;
+    }
+
+    if (!user.emailVerified) {
+      const cfg = await AdminConfig.findOne();
+      if (cfg?.requireEmailVerification !== false) {
+        res.status(403).json({
+          error: {
+            message: 'Please verify your email address before signing in. Check your inbox for a verification link.',
+            code: 'EMAIL_NOT_VERIFIED',
+            statusCode: 403,
+          },
+        });
+        return;
+      }
     }
 
     // Reset failed login attempts on successful login
@@ -663,7 +704,7 @@ router.post('/reset-password', authRateLimiter, async (req, res, next) => {
   }
 });
 
-// Verify email endpoint
+// Verify email endpoint — verifies ownership and issues a JWT to log the user in
 router.get('/verify-email', authRateLimiter, async (req, res, next) => {
   try {
     const token = req.query.token as string;
@@ -699,8 +740,71 @@ router.get('/verify-email', authRateLimiter, async (req, res, next) => {
 
     logger.info({ userId: user._id.toString(), email: user.email }, 'Email verified');
 
-    res.json({ message: 'Email verified successfully' });
+    logAuditEvent({
+      userId: user._id.toString(),
+      action: 'email_verified',
+      resourceType: 'user',
+      resourceId: user._id.toString(),
+      timestamp: new Date(),
+    });
+
+    const jwt = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      username: user.username,
+      isAppAdmin: user.isAppAdmin,
+    });
+
+    sendAuthSuccess(res, 200, jwt, {
+      id: user._id.toString(),
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+      profilePicture: user.profilePicture,
+      isAppAdmin: user.isAppAdmin,
+      preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+      emailVerified: true,
+    });
   } catch (error) {
+    next(error);
+  }
+});
+
+// Resend verification email
+router.post('/resend-verification', authRateLimiter, async (req, res, next) => {
+  try {
+    const schema = z.object({ email: z.string().email() });
+    const { email } = schema.parse(req.body);
+    const emailNorm = email.toLowerCase().trim();
+
+    const user = await User.findOne({ email: emailNorm });
+
+    if (!user || user.emailVerified || user.isPlaceholder) {
+      res.json({ message: 'If that email is registered and unverified, a new verification link has been sent.' });
+      return;
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString('base64url');
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    void sendVerificationEmail(user.email, verificationToken, user.displayName);
+
+    logger.info({ userId: user._id.toString(), email: user.email }, 'Verification email resent');
+
+    res.json({ message: 'If that email is registered and unverified, a new verification link has been sent.' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: {
+          message: 'Valid email address is required',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
     next(error);
   }
 });
@@ -848,11 +952,13 @@ router.get('/google/callback', authRateLimiter, (req, res, next) => {
               ? 'mysql_denied'
               : err?.message === 'GOOGLE_ACCOUNT_EMAIL_CONFLICT'
                 ? 'email_conflict'
-                : err?.message === 'REGISTRATION_DISABLED'
-                  ? 'registration_disabled'
-                  : err?.message === 'REGISTRATION_INVITE_ONLY'
-                    ? 'registration_invite_only'
-                    : 'failed';
+                : err?.message === 'GOOGLE_MERGE_UNVERIFIED_LOCAL'
+                  ? 'merge_unverified'
+                  : err?.message === 'REGISTRATION_DISABLED'
+                    ? 'registration_disabled'
+                    : err?.message === 'REGISTRATION_INVITE_ONLY'
+                      ? 'registration_invite_only'
+                      : 'failed';
         res.redirect(`${base}/login?error=google_${reason}`);
         return;
       }

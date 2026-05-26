@@ -212,6 +212,7 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
 
     // Handle disconnection
     socket.on('disconnect', () => {
+      typingThrottleByCard.clear();
       logger.info({ userId: user.userId, socketId: socket.id }, 'Socket.io client disconnected');
       
       // Get all rooms the socket was in and notify of disconnection

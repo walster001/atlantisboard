@@ -16,7 +16,8 @@ export interface AuthApiMethods {
   getCurrentUser(): Promise<unknown>;
   forgotPassword(email: string): Promise<void>;
   resetPassword(token: string, password: string): Promise<void>;
-  verifyEmail(token: string): Promise<void>;
+  verifyEmail(token: string): Promise<unknown>;
+  resendVerification(email: string): Promise<void>;
   getLoginOptions(): Promise<PublicLoginOptions>;
   getLoginBranding(): Promise<{ branding: PublicLoginBranding }>;
   getAppBranding(): Promise<{ appBranding: PublicAppBranding }>;
@@ -82,7 +83,19 @@ export const authApiMethods: AuthApiMethods = {
   },
 
   async verifyEmail(this: ApiClient, token) {
-    await this.client.get('/auth/verify-email', { params: { token } });
+    const response = await this.client.get('/auth/verify-email', { params: { token } });
+    const data = response.data;
+    if (data != null && typeof data === 'object' && 'token' in data) {
+      const jwt = (data as { token?: unknown }).token;
+      if (typeof jwt === 'string' && jwt.length > 0) {
+        this.setToken(jwt);
+      }
+    }
+    return data;
+  },
+
+  async resendVerification(this: ApiClient, email) {
+    await this.client.post('/auth/resend-verification', { email });
   },
 
   async getLoginOptions(this: ApiClient) {

@@ -123,16 +123,19 @@ export async function verifyUserInMySQL(email: string): Promise<boolean> {
     return false;
   }
 
+  let mysql: SQL | undefined;
   try {
     await assertMysqlHostAllowed(config.host);
     const url = buildMysqlUrl(config);
-    const mysql = new SQL(url);
+    mysql = new SQL(url);
     const result = await mysql.unsafe(config.verificationQuery, [email]);
     const rows = normalizeSqlRows(result);
     return rows.length > 0;
   } catch (error) {
     logger.error({ error, email }, 'Error verifying user in external MySQL');
     return false;
+  } finally {
+    await mysql?.close();
   }
 }
 
@@ -176,10 +179,11 @@ export async function testExternalMySQLConnection(input: TestMySQLInput): Promis
     verificationQuery: queryText,
   };
 
+  let mysql: SQL | undefined;
   try {
     await assertMysqlHostAllowed(cfg.host);
     const url = buildMysqlUrl(cfg);
-    const mysql = new SQL(url);
+    mysql = new SQL(url);
     await mysql`SELECT 1 AS ping`;
     await mysql.unsafe(queryText, ['__kanboard_connection_test__@invalid.local']);
     return { ok: true, message: 'Connection successful. Verification query executed.' };
@@ -187,5 +191,7 @@ export async function testExternalMySQLConnection(input: TestMySQLInput): Promis
     const message = error instanceof Error ? error.message : 'Connection failed';
     logger.warn({ error, host: cfg.host }, 'External MySQL test connection failed');
     return { ok: false, message };
+  } finally {
+    await mysql?.close();
   }
 }

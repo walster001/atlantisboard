@@ -169,9 +169,18 @@ export function useAuth() {
       username: string;
       password: string;
       displayName: string;
-    }): Promise<void> => {
-      await api.register(data);
+    }): Promise<unknown> => {
+      const result = await api.register(data);
+      if (
+        result != null &&
+        typeof result === 'object' &&
+        'verificationRequired' in result &&
+        (result as { verificationRequired?: boolean }).verificationRequired
+      ) {
+        return result;
+      }
       await loadUser();
+      return result;
     },
     [loadUser]
   );

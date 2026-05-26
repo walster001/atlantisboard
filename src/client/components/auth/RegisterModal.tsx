@@ -6,11 +6,13 @@ import {
   Modal,
   PasswordInput,
   Stack,
+  Text,
   TextInput,
   Title,
 } from '@mantine/core';
 import { z } from 'zod';
 import { useAuthContext } from '../../contexts/AuthContext.js';
+import { api } from '../../utils/api.js';
 import { validatePassword } from '../../utils/password.js';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter.js';
 
@@ -73,6 +75,52 @@ const emptyForm: RegisterFormState = {
   confirmPassword: '',
 };
 
+function VerificationSentView({
+  email,
+  onClose,
+}: {
+  readonly email: string;
+  readonly onClose: () => void;
+}): ReactElement {
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
+
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      await api.resendVerification(email);
+      setResent(true);
+    } catch {
+      // Silently handle — endpoint always returns success to avoid enumeration
+    } finally {
+      setResending(false);
+    }
+  };
+
+  return (
+    <Stack gap="md" pt="xs">
+      <Alert color="blue" title="Check your email">
+        We sent a verification link to <strong>{email}</strong>. Click the link in the email to activate your account and sign in.
+      </Alert>
+      <Text size="sm" c="dimmed">
+        The link expires in 10 minutes. If you don&apos;t see it, check your spam folder.
+      </Text>
+      {resent ? (
+        <Alert color="green" variant="light">
+          Verification email resent.
+        </Alert>
+      ) : (
+        <Button variant="subtle" fullWidth loading={resending} onClick={() => void handleResend()}>
+          Resend verification email
+        </Button>
+      )}
+      <Button variant="light" fullWidth onClick={onClose}>
+        Close
+      </Button>
+    </Stack>
+  );
+}
+
 function RegisterModalBody({
   onClose,
   onSuccess,
@@ -84,6 +132,7 @@ function RegisterModalBody({
   const [form, setForm] = useState<RegisterFormState>({ ...emptyForm });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -97,12 +146,23 @@ function RegisterModalBody({
         return;
       }
       setLoading(true);
-      await register({
+      const result = await register({
         displayName: parsed.displayName.trim(),
         username: parsed.username.trim(),
         email: parsed.email.trim(),
         password: parsed.password,
       });
+
+      if (
+        result != null &&
+        typeof result === 'object' &&
+        'verificationRequired' in result &&
+        (result as { verificationRequired?: boolean }).verificationRequired
+      ) {
+        setVerificationEmail(parsed.email.trim());
+        return;
+      }
+
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -115,6 +175,10 @@ function RegisterModalBody({
       setLoading(false);
     }
   };
+
+  if (verificationEmail != null) {
+    return <VerificationSentView email={verificationEmail} onClose={onClose} />;
+  }
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)}>

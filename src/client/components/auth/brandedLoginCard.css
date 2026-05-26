@@ -5,8 +5,7 @@
 .kb-login-host--pwa {
   height: 100svh;
   height: 100dvh;
-  min-height: 100svh;
-  min-height: 100dvh;
+  min-height: 0 !important;
   width: 100%;
   position: fixed;
   inset: 0;
@@ -19,22 +18,43 @@
   box-sizing: border-box;
 }
 
+.kb-login-host--pwa.kb-login-host--scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 @media (max-width: 767px) {
   .kb-login-host {
     /* iOS: prefer svh (stable) then dvh (dynamic) */
     height: 100svh;
     height: 100dvh;
-    min-height: 100svh;
-    min-height: 100dvh;
+    min-height: 0 !important;
     width: 100%;
     position: fixed;
     inset: 0;
     overflow: hidden;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: auto;
-    padding-top: constant(safe-area-inset-top);
-    padding-top: env(safe-area-inset-top, 0px);
     box-sizing: border-box;
   }
+
+  .kb-login-host.kb-login-host--scrollable {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .kb-login-logo--compact {
+    width: 70% !important;
+    max-width: 80px !important;
+    margin-bottom: 4px !important;
+  }
+}
+
+.kb-login-host--pwa .kb-login-logo--compact {
+  width: 70% !important;
+  max-width: 80px !important;
+  margin-bottom: 4px !important;
 }
 

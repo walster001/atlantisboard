@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Card, Button, Alert, Stack, Title, Loader, Box } from '@mantine/core';
+import { isAxiosError } from 'axios';
 import { api } from '../utils/api';
+import { useAuthContext } from '../contexts/AuthContext';
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { refreshUser } = useAuthContext();
   const token = searchParams.get('token');
 
   const [loading, setLoading] = useState(true);
@@ -28,25 +31,28 @@ export default function VerifyEmailPage() {
 
       try {
         await api.verifyEmail(token);
-        
+
         if (!isMountedRef.current) return;
 
         setSuccess(true);
-        
-        // Clear existing timeout if any
+        await refreshUser();
+
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
         }
-        
+
         timeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) {
-            navigate('/login');
+            navigate('/');
           }
           timeoutRef.current = null;
-        }, 3000);
+        }, 2000);
       } catch (err) {
         if (!isMountedRef.current) return;
-        if (err instanceof Error) {
+        if (isAxiosError(err)) {
+          const msg = (err.response?.data as { error?: { message?: string } } | undefined)?.error?.message;
+          setError(msg ?? 'Failed to verify email. The link may have expired.');
+        } else if (err instanceof Error) {
           setError(err.message || 'Failed to verify email');
         } else {
           setError('Failed to verify email. Please try again.');
@@ -67,7 +73,7 @@ export default function VerifyEmailPage() {
         timeoutRef.current = null;
       }
     };
-  }, [token, navigate]);
+  }, [token, navigate, refreshUser]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
@@ -82,10 +88,10 @@ export default function VerifyEmailPage() {
           ) : success ? (
             <Stack gap="md">
               <Alert color="green">
-                Email verified successfully! Redirecting to login...
+                Email verified successfully! Signing you in...
               </Alert>
-              <Button component={Link} to="/login" color="blue" fullWidth>
-                Go to Login
+              <Button component={Link} to="/" color="blue" fullWidth>
+                Go to Dashboard
               </Button>
             </Stack>
           ) : (
@@ -96,9 +102,6 @@ export default function VerifyEmailPage() {
               <Stack gap="xs">
                 <Button component={Link} to="/login" color="blue" fullWidth>
                   Back to Login
-                </Button>
-                <Button component={Link} to="/login" variant="subtle" fullWidth>
-                  Register New Account
                 </Button>
               </Stack>
             </Stack>

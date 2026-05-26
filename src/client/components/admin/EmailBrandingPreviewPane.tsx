@@ -32,6 +32,7 @@ function buildTemplateBody(
   appName: string,
 ): string {
   const infoBoxBg = adjustOpacity(backgroundColor, 0.85);
+  const separatorColor = adjustOpacity(textColor, 0.2);
 
   switch (template) {
     case 'test':
@@ -73,9 +74,9 @@ function buildTemplateBody(
           </tr>
         </table>
         <p style="margin:0 0 16px;font-size:14px;color:${textColor};opacity:0.7;line-height:1.6;">
-          This link will expire in 1 hour. If you didn&#39;t request a password reset, you can safely ignore this email — your password will remain unchanged.
+          This link will expire in 10 minutes. If you didn&#39;t request a password reset, you can safely ignore this email — your password will remain unchanged.
         </p>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;border-top:1px solid ${textColor}33;padding-top:16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;border-top:1px solid ${separatorColor};padding-top:16px;">
           <tr>
             <td>
               <p style="margin:0;font-size:12px;color:${textColor};opacity:0.5;line-height:1.5;">
@@ -102,9 +103,9 @@ function buildTemplateBody(
           </tr>
         </table>
         <p style="margin:0 0 16px;font-size:14px;color:${textColor};opacity:0.7;line-height:1.6;">
-          This link will expire in 24 hours. If you didn&#39;t create an account, you can safely ignore this email.
+          This link will expire in 10 minutes. If you didn&#39;t create an account, you can safely ignore this email.
         </p>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;border-top:1px solid ${textColor}33;padding-top:16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;border-top:1px solid ${separatorColor};padding-top:16px;">
           <tr>
             <td>
               <p style="margin:0;font-size:12px;color:${textColor};opacity:0.5;line-height:1.5;">

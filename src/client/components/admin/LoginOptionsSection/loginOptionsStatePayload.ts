@@ -30,9 +30,14 @@ export function buildLoginOptionsSavePayload(args: {
     authMethods: config.authMethods,
     defaultAuthMethod: config.defaultAuthMethod,
     registrationMode: config.registrationMode,
+    requireEmailVerification: config.requireEmailVerification,
   };
   const googleConfigured = !!(config.googleOAuth.clientIdSet && config.googleOAuth.clientSecretSet);
-  if (config.defaultAuthMethod === 'google' || config.defaultAuthMethod === 'google-external') {
+  const usesGoogle =
+    config.defaultAuthMethod === 'email-google' ||
+    config.defaultAuthMethod === 'google' ||
+    config.defaultAuthMethod === 'google-external';
+  if (usesGoogle) {
     if (googleReplaceMode || !googleConfigured) {
       const googlePayload: Record<string, unknown> = {
         enabled: config.googleOAuth.enabled,

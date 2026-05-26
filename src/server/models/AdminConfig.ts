@@ -1,6 +1,6 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
-export type DefaultAuthMethod = 'email' | 'google' | 'google-external';
+export type DefaultAuthMethod = 'email' | 'email-google' | 'google' | 'google-external';
 
 export interface IAuthMethods {
   emailPassword: boolean;
@@ -144,6 +144,7 @@ export interface IAdminConfig extends Document {
   externalMySQL: IExternalMySQL;
   defaultAuthMethod: DefaultAuthMethod;
   registrationMode: RegistrationMode;
+  requireEmailVerification: boolean;
   loginScreenBranding: ILoginScreenBranding;
   appScreenBranding: IAppScreenBranding;
   rateLimiting: IRateLimiting;
@@ -342,13 +343,17 @@ const AdminConfigSchema = new Schema<IAdminConfig>(
     },
     defaultAuthMethod: {
       type: String,
-      enum: ['email', 'google', 'google-external'],
+      enum: ['email', 'email-google', 'google', 'google-external'],
       default: 'email',
     },
     registrationMode: {
       type: String,
       enum: ['open', 'invite-only', 'disabled'],
       default: 'open',
+    },
+    requireEmailVerification: {
+      type: Boolean,
+      default: true,
     },
     loginScreenBranding: {
       type: LoginScreenBrandingSchema,

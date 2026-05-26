@@ -1,6 +1,6 @@
 import type { ChangeEvent } from 'react';
 
-export type DefaultAuthMethod = 'email' | 'google' | 'google-external';
+export type DefaultAuthMethod = 'email' | 'email-google' | 'google' | 'google-external';
 
 export type RegistrationMode = 'open' | 'invite-only' | 'disabled';
 
@@ -33,6 +33,7 @@ export interface AdminConfigShape {
   };
   defaultAuthMethod: DefaultAuthMethod;
   registrationMode: RegistrationMode;
+  requireEmailVerification: boolean;
 }
 
 export interface MysqlDraft {
@@ -87,6 +88,9 @@ export function registrationModeDescription(
   if (authMethod === 'email') {
     return `Controls who can register with email and password. ${modeLabel}`;
   }
+  if (authMethod === 'email-google') {
+    return `Controls who can register with email/password or Google. ${modeLabel}`;
+  }
   if (authMethod === 'google') {
     return `Controls who can sign up with Google for the first time. ${modeLabel}`;
   }
@@ -103,6 +107,16 @@ export function applyAuthMode(prev: AdminConfigShape, mode: DefaultAuthMethod): 
       authMethods: { emailPassword: true, googleOAuth: false, googleOAuthExternalMySQL: false },
       googleOAuth: { ...google, enabled: false },
       externalMySQL: { ...external, enabled: false },
+    };
+  }
+  if (mode === 'email-google') {
+    return {
+      ...prev,
+      defaultAuthMethod: 'email-google',
+      authMethods: { emailPassword: true, googleOAuth: true, googleOAuthExternalMySQL: false },
+      googleOAuth: { ...google, enabled: true },
+      externalMySQL: { ...external, enabled: false },
+      requireEmailVerification: true,
     };
   }
   if (mode === 'google') {

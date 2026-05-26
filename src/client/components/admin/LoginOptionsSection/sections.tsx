@@ -7,6 +7,7 @@ import {
   Group,
   Select,
   Stack,
+  Switch,
   Text,
   Title,
   UnstyledButton,
@@ -26,21 +27,26 @@ import { GoogleCredentialsFields, MysqlConnectionFields } from './sectionFormFie
 interface LoginStyleSectionProps {
   readonly config: AdminConfigShape;
   readonly setConfig: Dispatch<SetStateAction<AdminConfigShape | null>>;
+  readonly googleConfigured: boolean;
 }
 
-export function LoginStyleSection({ config, setConfig }: LoginStyleSectionProps) {
+export function LoginStyleSection({ config, setConfig, googleConfigured }: LoginStyleSectionProps) {
   const authMethodSelectData: { value: DefaultAuthMethod; label: string }[] = [
     { value: 'email', label: 'Local Accounts' },
+    { value: 'email-google', label: 'Local Accounts + Google' },
     { value: 'google', label: 'Google Login Only' },
     { value: 'google-external', label: 'Google Login + Database Verification' },
   ];
 
-  const methodDescription =
-    config.defaultAuthMethod === 'email'
-      ? 'Users sign in and register with email and password only. Google sign-in is hidden.'
-      : config.defaultAuthMethod === 'google'
-        ? 'Only Google sign-in is available. Local login and registration are hidden.'
-        : 'Google sign-in with additional database verification. Users must exist in the external MySQL database.';
+  const methodDescriptions: Record<DefaultAuthMethod, string> = {
+    email: 'Users sign in and register with email and password only. Google sign-in is hidden.',
+    'email-google':
+      'Users sign in with email/password and can also use "Continue with Google". Both options are shown on the login page.',
+    google: 'Only Google sign-in is available. Local login and registration are hidden.',
+    'google-external':
+      'Google sign-in with additional database verification. Users must exist in the external MySQL database.',
+  };
+  const methodDescription = methodDescriptions[config.defaultAuthMethod];
 
   const registrationSelectData: { value: RegistrationMode; label: string }[] = [
     { value: 'open', label: 'Open registration' },
@@ -64,7 +70,12 @@ export function LoginStyleSection({ config, setConfig }: LoginStyleSectionProps)
             if (value === null) {
               return;
             }
-            if (value !== 'email' && value !== 'google' && value !== 'google-external') {
+            if (
+              value !== 'email' &&
+              value !== 'email-google' &&
+              value !== 'google' &&
+              value !== 'google-external'
+            ) {
               return;
             }
             startTransition(() => {
@@ -90,6 +101,30 @@ export function LoginStyleSection({ config, setConfig }: LoginStyleSectionProps)
             });
           }}
         />
+        {(config.defaultAuthMethod === 'email' || config.defaultAuthMethod === 'email-google') && (
+          <Stack gap={4}>
+            <Text size="sm" fw={500}>Mandatory email verification</Text>
+            <Group gap="md" align="flex-start">
+              <Switch
+                checked={config.requireEmailVerification}
+                size="md"
+                withThumbIndicator={false}
+                disabled={(googleConfigured || config.defaultAuthMethod === 'email-google') && config.requireEmailVerification}
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  startTransition(() => {
+                    setConfig((c) => (c ? { ...c, requireEmailVerification: checked } : c));
+                  });
+                }}
+              />
+              <Text size="xs" c="dimmed" style={{ flex: 1 }}>
+                {googleConfigured || config.defaultAuthMethod === 'email-google'
+                  ? 'Google accounts detected — all local users must verify email ownership so fake local accounts are not merged.'
+                  : 'Require new users to verify their email address before they can sign in. Google accounts are verified by Google automatically.'}
+              </Text>
+            </Group>
+          </Stack>
+        )}
       </Stack>
     </Card>
   );
@@ -115,7 +150,11 @@ export function GoogleOAuthSection({
   googleDraft,
   setGoogleDraft,
 }: GoogleOAuthSectionProps) {
-  if (config.defaultAuthMethod !== 'google' && config.defaultAuthMethod !== 'google-external') {
+  if (
+    config.defaultAuthMethod !== 'email-google' &&
+    config.defaultAuthMethod !== 'google' &&
+    config.defaultAuthMethod !== 'google-external'
+  ) {
     return null;
   }
   return (

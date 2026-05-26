@@ -12,6 +12,13 @@ export function dispatchAppBrandingUpdated(): void {
   window.dispatchEvent(new Event(APP_BRANDING_UPDATED_EVENT));
 }
 
+/** Fired after admin saves login options so sibling tabs can refresh previews. */
+export const LOGIN_OPTIONS_UPDATED_EVENT = 'atlantisboard:login-options-updated';
+
+export function dispatchLoginOptionsUpdated(): void {
+  window.dispatchEvent(new Event(LOGIN_OPTIONS_UPDATED_EVENT));
+}
+
 /** Fired after custom fonts are uploaded or removed so branding font lists can refresh. */
 export const FONTS_CATALOG_UPDATED_EVENT = 'atlantisboard:fonts-catalog-updated';
 

@@ -9,9 +9,9 @@ const DEFAULT_TEXT = '#38322d';
  * file at send time so nodemailer-express-handlebars can reference it as
  * `defaultLayout: 'custom'`.
  *
- * All handlebars expressions (`{{subject}}`, `{{appName}}`, `{{logoCid}}`,
- * `{{{body}}}`, `{{footerText}}`) are preserved verbatim so the layout
- * remains a valid handlebars template.
+ * Colors are baked in as literals so the layout works without relying on
+ * context variables. Handlebars expressions (`{{subject}}`, `{{appName}}`,
+ * `{{logoCid}}`, `{{{body}}}`, `{{footerText}}`) are preserved verbatim.
  */
 export function generateEmailLayout(branding: IEmailBranding): string {
   const bg = branding.backgroundColor ?? DEFAULT_BG;

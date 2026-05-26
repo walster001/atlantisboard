@@ -3,7 +3,7 @@ import { Alert, Box, Button, Group, Loader, Modal, SimpleGrid, Stack, Text, Titl
 import { useDebouncedValue, useDisclosure } from '@mantine/hooks';
 import { api } from '../../utils/api.js';
 import { isAppHostedBrandingAssetUrl } from '../../../shared/brandingAssetUrl.js';
-import { dispatchLoginBrandingUpdated, FONTS_CATALOG_UPDATED_EVENT } from '../../appBrandingEvents.js';
+import { dispatchLoginBrandingUpdated, FONTS_CATALOG_UPDATED_EVENT, LOGIN_OPTIONS_UPDATED_EVENT } from '../../appBrandingEvents.js';
 import {
   DEFAULT_LOGIN_BRANDING_DRAFT,
   getDefaultLoginScreenBrandingForReset,
@@ -142,12 +142,17 @@ function LoginBrandingSectionInner() {
   }, [reloadCustomFonts]);
 
   useEffect(() => {
-    void api
-      .getLoginOptions()
-      .then((opts) => {
-        if (isMounted.current) setLoginPreviewOpts({ emailPassword: opts.emailPassword, googleLogin: opts.googleLogin });
-      })
-      .catch(() => undefined);
+    const fetchLoginOpts = () => {
+      void api
+        .getLoginOptions()
+        .then((opts) => {
+          if (isMounted.current) setLoginPreviewOpts({ emailPassword: opts.emailPassword, googleLogin: opts.googleLogin });
+        })
+        .catch(() => undefined);
+    };
+    fetchLoginOpts();
+    window.addEventListener(LOGIN_OPTIONS_UPDATED_EVENT, fetchLoginOpts);
+    return () => window.removeEventListener(LOGIN_OPTIONS_UPDATED_EVENT, fetchLoginOpts);
   }, []);
 
   const handleSave = useCallback(async () => {

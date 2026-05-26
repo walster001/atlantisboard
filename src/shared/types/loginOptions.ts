@@ -1,7 +1,7 @@
 export type RegistrationMode = 'open' | 'invite-only' | 'disabled';
 
 export interface PublicLoginOptions {
-  readonly defaultAuthMethod: 'email' | 'google' | 'google-external';
+  readonly defaultAuthMethod: 'email' | 'email-google' | 'google' | 'google-external';
   readonly emailPassword: boolean;
   readonly googleLogin: boolean;
   readonly registrationMode: RegistrationMode;

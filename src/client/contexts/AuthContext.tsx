@@ -29,7 +29,7 @@ interface AuthContextType {
     username: string;
     password: string;
     displayName: string;
-  }) => Promise<void>;
+  }) => Promise<unknown>;
   refreshUser: () => Promise<void>;
 }
 

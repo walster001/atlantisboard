@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { dispatchLoginOptionsUpdated } from '../../../appBrandingEvents.js';
 import { api } from '../../../utils/api.js';
 import {
   DEFAULT_VERIFICATION_SQL,
@@ -123,6 +124,7 @@ export function useLoginOptionsState(): UseLoginOptionsStateResult {
       const normalized: AdminConfigShape = {
         ...nextConfig,
         registrationMode: nextConfig.registrationMode ?? 'open',
+        requireEmailVerification: nextConfig.requireEmailVerification !== false,
       };
       setConfig(normalized);
       resetMysqlDraftFromConfig(normalized);
@@ -183,7 +185,7 @@ export function useLoginOptionsState(): UseLoginOptionsStateResult {
     }
     prevAuthMethodRef.current = method;
 
-    if (method === 'google' || method === 'google-external') {
+    if (method === 'email-google' || method === 'google' || method === 'google-external') {
       const configured = !!(config.googleOAuth?.clientIdSet && config.googleOAuth?.clientSecretSet);
       setGoogleReplaceMode(false);
       setGoogleFormOpen(!configured);
@@ -210,6 +212,7 @@ export function useLoginOptionsState(): UseLoginOptionsStateResult {
         return;
       }
       applyLoadedConfig(saved as AdminConfigShape);
+      dispatchLoginOptionsUpdated();
       showToast(message);
     } catch (err) {
       if (isMountedRef.current) {

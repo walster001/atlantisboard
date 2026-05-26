@@ -170,6 +170,14 @@ export async function configureGoogleStrategy(): Promise<void> {
                     return done(new Error('GOOGLE_ACCOUNT_EMAIL_CONFLICT'), false);
                   }
 
+                  if (!existingUser.googleId && !existingUser.emailVerified) {
+                    logger.warn(
+                      { email },
+                      'Google login rejected: local account with same email has not verified email ownership',
+                    );
+                    return done(new Error('GOOGLE_MERGE_UNVERIFIED_LOCAL'), false);
+                  }
+
                   existingUser.googleId = profile.id;
                   const googleVerified = !!profile.emails?.[0]?.verified;
                   existingUser.emailVerified =

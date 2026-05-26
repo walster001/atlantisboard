@@ -41,6 +41,46 @@ function buildBoardSocketPayload(board: Document & IBoard): {
   };
 }
 
+/**
+ * Emit only `board:patched` without the full `board:updated` payload.
+ * Use for operations that change non-theme fields (e.g. members) to avoid
+ * sending dehydrated themeSettings that would revert the active theme on clients.
+ */
+export function emitBoardPatchedOnly(
+  board: Document & IBoard,
+  changedFields: Record<string, unknown>,
+  extraNotifyUserIds?: readonly string[],
+): void {
+  const boardId = board._id.toString();
+  const patchPayload = {
+    boardId,
+    changedFields,
+    removedFields: [] as string[],
+    serverTs: Date.now(),
+    version: 2,
+  };
+  emitToBoard(boardId, 'board:patched', patchPayload);
+  const ws = board.workspaceId?.toString();
+  if (ws) {
+    emitToWorkspace(ws, 'board:patched', patchPayload);
+  }
+  const ownerStr = board.ownerId.toString();
+  emitToUser(ownerStr, 'board:patched', patchPayload);
+  for (const m of board.members) {
+    const uid = m.userId.toString();
+    if (uid !== ownerStr) {
+      emitToUser(uid, 'board:patched', patchPayload);
+    }
+  }
+  if (extraNotifyUserIds != null) {
+    for (const uid of extraNotifyUserIds) {
+      if (uid !== ownerStr) {
+        emitToUser(uid, 'board:patched', patchPayload);
+      }
+    }
+  }
+}
+
 /** Fan-out like change streams: board room, workspace, owner, each member (+ optional extra user rooms). */
 export function emitBoardUpdatedRealtime(
   board: Document & IBoard,

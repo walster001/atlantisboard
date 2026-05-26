@@ -13,8 +13,8 @@ import {
   getRoleHierarchyLevel,
 } from '../roleService.js';
 import {
+  emitBoardPatchedOnly,
   emitBoardPermissionsUpdated,
-  emitBoardUpdatedRealtime,
   resolveBoardActorRoleKey,
   resolveBoardRoleUpdateModeForActor,
   resolveTargetDisplayNameForAudit,
@@ -80,7 +80,7 @@ export async function addBoardMember(
   });
 
   await board.save();
-  emitBoardUpdatedRealtime(board);
+  emitBoardPatchedOnly(board, { members: board.members, updatedAt: board.updatedAt });
 
   const wsId = board.workspaceId?.toString();
   if (wsId) {
@@ -140,10 +140,7 @@ export async function removeBoardMember(
   board.members = board.members.filter((m) => m.userId.toString() !== memberUserId);
   await board.save();
 
-  emitBoardUpdatedRealtime(board);
-  // Removed user should drop the board immediately on home (no refresh).
-  // Do not include them in `emitBoardUpdatedRealtime` — a trailing `board:updated` races with this
-  // and can re-upsert the tile for clients still in `workspace:*` or via microtask ordering.
+  emitBoardPatchedOnly(board, { members: board.members, updatedAt: board.updatedAt });
   emitToUser(memberUserId, 'board:deleted', { boardId, serverTs: Date.now() });
 
   const removedUserWorkspaceId = board.workspaceId?.toString().trim() ?? '';
@@ -234,7 +231,7 @@ export async function updateBoardMemberRole(
   member.roleKey = newRoleKey;
   await board.save();
 
-  emitBoardUpdatedRealtime(board);
+  emitBoardPatchedOnly(board, { members: board.members, updatedAt: board.updatedAt });
   emitBoardPermissionsUpdated(boardId, [memberUserId], {
     reason: 'board.member.role.update',
     roleKey: newRoleKey,

@@ -88,13 +88,15 @@
               {% if page.parent == section %}{% assign section_active = true %}{% endif %}
               <li class="wiki-nav__item wiki-nav__item--has-children" data-wiki-section>
                 <span class="wiki-nav__heading{% if section_active %} wiki-nav__heading--open{% endif %}">{{ section }}</span>
-                <ul class="wiki-nav__children{% if section_active %} wiki-nav__children--open{% endif %}">
-                  {% for cp in children %}
-                    <li class="wiki-nav__item{% if page.url == cp.url %} wiki-nav__item--active{% endif %}">
-                      <a class="wiki-nav__link{% if page.url == cp.url %} wiki-nav__link--active{% endif %}" href="{{ cp.url | relative_url }}">{{ cp.title }}</a>
-                    </li>
-                  {% endfor %}
-                </ul>
+                <div class="wiki-nav__children{% if section_active %} wiki-nav__children--open{% endif %}">
+                  <ul class="wiki-nav__children-inner">
+                    {% for cp in children %}
+                      <li class="wiki-nav__item{% if page.url == cp.url %} wiki-nav__item--active{% endif %}">
+                        <a class="wiki-nav__link{% if page.url == cp.url %} wiki-nav__link--active{% endif %}" href="{{ cp.url | relative_url }}">{{ cp.title }}</a>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </div>
               </li>
             {% endif %}
           {% endfor %}

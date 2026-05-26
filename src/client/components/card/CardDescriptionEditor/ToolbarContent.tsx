@@ -50,8 +50,6 @@ interface ToolbarContentProps {
   readonly editor: Editor;
   readonly ui: ToolbarUiState;
   readonly isMobile: boolean;
-  readonly isKeyboardDocked: boolean;
-  readonly keyboardDockBottom: number;
   readonly colorPopoverOpen: boolean;
   readonly emojiPopoverOpen: boolean;
   readonly textColorPickerValue: string;
@@ -73,8 +71,6 @@ export function ToolbarContent({
   editor,
   ui,
   isMobile,
-  isKeyboardDocked,
-  keyboardDockBottom,
   colorPopoverOpen,
   emojiPopoverOpen,
   textColorPickerValue,
@@ -92,22 +88,12 @@ export function ToolbarContent({
   onInsertVideo,
 }: ToolbarContentProps) {
   const toolbarStyle = useMemo((): CSSProperties => {
-    if (!isKeyboardDocked) {
-      return { borderBottom: '1px solid var(--mantine-color-gray-3)' };
-    }
-    return {
-      borderTop: '1px solid var(--mantine-color-gray-3)',
-      bottom: keyboardDockBottom,
-    };
-  }, [isKeyboardDocked, keyboardDockBottom]);
-
-  const toolbarClassName = isKeyboardDocked
-    ? 'card-desc-tiptap-toolbar card-desc-tiptap-toolbar--keyboard-docked'
-    : 'card-desc-tiptap-toolbar';
+    return { borderBottom: '1px solid var(--mantine-color-gray-3)' };
+  }, []);
 
   return (
     <Group
-      className={toolbarClassName}
+      className="card-desc-tiptap-toolbar"
       gap={4}
       p="xs"
       wrap="wrap"

@@ -790,6 +790,8 @@ body.site:not(.site--home) .site-footer {
 
 :root {
   --wiki-header-offset: max(0px, calc((100vw - var(--content-max)) / 2));
+  --ease-wiki-slide: cubic-bezier(0.25, 1, 0.5, 1);
+  --duration-wiki-slide: 0.25s;
 }
 
 /* Brand: centered position → far left */
@@ -823,20 +825,20 @@ body.site--wiki .site-header__inner {
 }
 
 body.site--wiki .site-header__inner > .brand {
-  animation: wiki-brand-enter 0.65s var(--ease-editorial) both;
+  animation: wiki-brand-enter var(--duration-wiki-slide) var(--ease-wiki-slide) both;
 }
 
 body.site--wiki .site-header__inner > .site-nav {
-  animation: wiki-nav-enter 0.65s var(--ease-editorial) both;
+  animation: wiki-nav-enter var(--duration-wiki-slide) var(--ease-wiki-slide) both;
 }
 
 /* Non-wiki pages: slide back when navigating away from wiki */
 body.site--from-wiki .site-header__inner > .brand {
-  animation: wiki-brand-exit 0.65s var(--ease-editorial) both;
+  animation: wiki-brand-exit var(--duration-wiki-slide) var(--ease-wiki-slide) both;
 }
 
 body.site--from-wiki .site-header__inner > .site-nav {
-  animation: wiki-nav-exit 0.65s var(--ease-editorial) both;
+  animation: wiki-nav-exit var(--duration-wiki-slide) var(--ease-wiki-slide) both;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -954,16 +956,20 @@ body.site--from-wiki .site-header__inner > .site-nav {
 }
 
 .wiki-nav__children {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-wiki-slide) var(--ease-wiki-slide);
+}
+
+.wiki-nav__children-inner {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 0;
   overflow: hidden;
-  transition: max-height var(--duration-slow) var(--ease-editorial);
 }
 
 .wiki-nav__children--open {
-  max-height: 80rem;
+  grid-template-rows: 1fr;
 }
 
 .wiki-nav__children .wiki-nav__link {
@@ -982,9 +988,9 @@ body.site--from-wiki .site-header__inner > .site-nav {
   text-transform: uppercase;
   color: var(--color-text);
   cursor: pointer;
+  transition: color var(--duration-wiki-slide) var(--ease-wiki-slide);
   margin-top: 0.5rem;
   user-select: none;
-  transition: color var(--duration) var(--ease-editorial);
 }
 
 .wiki-nav__heading:hover {
@@ -999,7 +1005,7 @@ body.site--from-wiki .site-header__inner > .site-nav {
   border-right: 1.5px solid var(--color-text-muted);
   border-bottom: 1.5px solid var(--color-text-muted);
   transform: rotate(-45deg);
-  transition: transform var(--duration) var(--ease-editorial);
+  transition: transform var(--duration-wiki-slide) var(--ease-wiki-slide);
   flex-shrink: 0;
 }
 

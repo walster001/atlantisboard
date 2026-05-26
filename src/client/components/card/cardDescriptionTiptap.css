@@ -417,8 +417,8 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     z-index: 5;
     margin-top: calc(-1 * var(--mantine-spacing-xs, 8px));
     margin-inline: calc(-1 * var(--mantine-spacing-md, 16px));
-    width: calc(100% + 2 * var(--mantine-spacing-md, 32px));
-    max-width: none;
+    width: 100vw;
+    max-width: 100vw;
     padding-inline: var(--mantine-spacing-md, 16px);
     padding-top: max(var(--mantine-spacing-xs, 8px), env(safe-area-inset-top, 0px));
     padding-bottom: 10px;
@@ -440,36 +440,5 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     padding-left: 10px;
     padding-right: 10px;
     font-size: 0.95rem;
-  }
-
-  /*
-   * Keyboard-docked toolbar: fixed to the bottom of the visual viewport
-   * (directly above the virtual keyboard).  The dynamic `bottom` value is
-   * set via inline style from the useVisualViewportKeyboard hook.
-   */
-  .card-desc-tiptap-toolbar--keyboard-docked {
-    position: fixed !important;
-    top: auto !important;
-    left: 0;
-    right: 0;
-    z-index: 1000;
-    margin: 0 !important;
-    width: 100% !important;
-    max-width: none;
-    padding-inline: var(--mantine-spacing-md, 16px);
-    padding-top: 10px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-    background: var(--board-card-detail-bg, #f8f9fb);
-    border-top: 1px solid var(--mantine-color-gray-3);
-    border-bottom: none !important;
-    box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
-    overflow-x: auto;
-    flex-wrap: nowrap !important;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Compensate editor content so it isn't obscured behind the fixed toolbar. */
-  .card-desc-tiptap-editor:has(.card-desc-tiptap-toolbar--keyboard-docked) .ProseMirror {
-    padding-bottom: 64px;
   }
 }

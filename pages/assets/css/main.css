@@ -689,9 +689,9 @@ body.site--home .site-footer__inner {
   }
 }
 
-body.site .site-header__inner > .brand,
-body.site .site-header__inner > .nav-toggle,
-body.site .site-nav__list > li,
+body.site:not(.site--wiki):not(.site--from-wiki) .site-header__inner > .brand,
+body.site:not(.site--wiki):not(.site--from-wiki) .site-header__inner > .nav-toggle,
+body.site:not(.site--wiki):not(.site--from-wiki) .site-nav__list > li,
 body.site--home .hero .hero__content > *,
 body.site:not(.site--home) .page-title,
 body.site:not(.site--home) .prose > p,
@@ -700,35 +700,35 @@ body.site .site-footer {
   animation: site-reveal var(--duration-reveal) var(--ease-reveal) both;
 }
 
-body.site .site-header__inner > .brand {
+body.site:not(.site--wiki):not(.site--from-wiki) .site-header__inner > .brand {
   animation-delay: 0.06s;
 }
 
-body.site .site-header__inner > .nav-toggle {
+body.site:not(.site--wiki):not(.site--from-wiki) .site-header__inner > .nav-toggle {
   animation-delay: 0.08s;
 }
 
-body.site .site-nav__list > li:nth-child(1) {
+body.site:not(.site--wiki):not(.site--from-wiki) .site-nav__list > li:nth-child(1) {
   animation-delay: 0.11s;
 }
 
-body.site .site-nav__list > li:nth-child(2) {
+body.site:not(.site--wiki):not(.site--from-wiki) .site-nav__list > li:nth-child(2) {
   animation-delay: 0.15s;
 }
 
-body.site .site-nav__list > li:nth-child(3) {
+body.site:not(.site--wiki):not(.site--from-wiki) .site-nav__list > li:nth-child(3) {
   animation-delay: 0.19s;
 }
 
-body.site .site-nav__list > li:nth-child(4) {
+body.site:not(.site--wiki):not(.site--from-wiki) .site-nav__list > li:nth-child(4) {
   animation-delay: 0.23s;
 }
 
-body.site .site-nav__list > li:nth-child(5) {
+body.site:not(.site--wiki):not(.site--from-wiki) .site-nav__list > li:nth-child(5) {
   animation-delay: 0.27s;
 }
 
-body.site .site-nav__list > li:nth-child(6) {
+body.site:not(.site--wiki):not(.site--from-wiki) .site-nav__list > li:nth-child(6) {
   animation-delay: 0.31s;
 }
 

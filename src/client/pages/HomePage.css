@@ -287,6 +287,15 @@
   opacity: 0.45;
 }
 
+.home-page__board-drop-indicator {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 2px;
+  background: var(--mantine-color-blue-5);
+  grid-column: 1 / -1;
+  transition: opacity 0.12s ease;
+}
+
 @media (max-width: 1199px) {
   .home-page {
     --home-page-content-max-width: 100%;

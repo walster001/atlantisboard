@@ -9328,6 +9328,15 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   opacity: .45;
 }
 
+.home-page__board-drop-indicator {
+  background: var(--mantine-color-blue-5);
+  grid-column: 1 / -1;
+  border-radius: 2px;
+  width: 100%;
+  min-height: 4px;
+  transition: opacity .12s;
+}
+
 @media (max-width: 1199px) {
   .home-page {
     --home-page-content-max-width: 100%;
@@ -13697,6 +13706,23 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     flex: 1;
     height: 100%;
     min-height: 0;
+  }
+
+  .board-page__mobile-add-list-slide {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items:  center;
+    padding-top: 1.5rem;
+  }
+
+  .board-page__mobile-add-list-slide .board-page__add-list {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .board-page__mobile-add-list-composer {
+    padding: .75rem;
   }
 
   .board-page__mobile-carousel .board-column.board-column--width-auto, .board-page__mobile-carousel .board-page__column-track--auto {

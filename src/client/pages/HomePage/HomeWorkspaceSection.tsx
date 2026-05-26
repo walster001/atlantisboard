@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { Fragment, type ReactElement } from 'react';
 import { IconGripVertical, IconPlus } from '@tabler/icons-react';
 import { ActionIcon, Box, Group, Menu, Stack, Text, Title } from '@mantine/core';
 import type { BoardDB, WorkspaceDB } from '../../store/database.js';
@@ -157,34 +157,72 @@ function WorkspaceHeaderAndBoards({
         aria-label={`Workspace ${workspace.name ?? 'Workspace'} boards`}
       >
         {workspaceBoards.length > 0 ? (
-          workspaceBoards.map((board) => (
-            <HomeBoardCardTile
-              key={board.id}
-              board={board}
-              workspaceId={workspace.id}
-              showBoardCardMenu={controller.canShowBoardCardMenu(board.id)}
-              boardDraggable={controller.canDragBoardOnHome(board)}
-              isDraggingSource={controller.draggingBoardId === board.id}
-              {...(controller.boardLongPressUi?.boardId === board.id
-                ? { reorderLongPressPhase: controller.boardLongPressUi.phase }
-                : {})}
-              suppressNavigateRef={controller.suppressBoardClickRef}
-              hoveredBoardId={controller.hoveredBoardId}
-              onHover={controller.setHoveredBoardId}
-              onOpenBoard={controller.openBoard}
-              onRefresh={controller.refreshData}
-            />
-          ))
+          <BoardGridWithDropIndicator
+            workspaceBoards={workspaceBoards}
+            workspaceId={workspace.id}
+            controller={controller}
+            boardScopedHomeOnly={boardScopedHomeOnly}
+            canCreateBoardInWs={canCreateBoardInWs}
+          />
         ) : (
-          <Text ta="center" c="dimmed" py="md" size="sm">
-            {boardScopedHomeOnly
-              ? 'No boards shared with you in this workspace yet.'
-              : canCreateBoardInWs
-                ? 'No boards in this workspace. Click + beside the title to add one.'
-                : 'No boards in this workspace yet.'}
-          </Text>
+          <>
+            {controller.isMobile && controller.boardDropIndicator?.workspaceId === workspace.id ? (
+              <div className="home-page__board-drop-indicator" aria-hidden />
+            ) : null}
+            <Text ta="center" c="dimmed" py="md" size="sm">
+              {boardScopedHomeOnly
+                ? 'No boards shared with you in this workspace yet.'
+                : canCreateBoardInWs
+                  ? 'No boards in this workspace. Click + beside the title to add one.'
+                  : 'No boards in this workspace yet.'}
+            </Text>
+          </>
         )}
       </div>
+    </>
+  );
+}
+
+function BoardGridWithDropIndicator({
+  workspaceBoards,
+  workspaceId,
+  controller,
+}: {
+  readonly workspaceBoards: readonly BoardDB[];
+  readonly workspaceId: string;
+  readonly controller: HomePageController;
+  readonly boardScopedHomeOnly: boolean;
+  readonly canCreateBoardInWs: boolean;
+}): ReactElement {
+  const indicator = controller.isMobile ? controller.boardDropIndicator : null;
+  const showIndicator = indicator != null && indicator.workspaceId === workspaceId;
+  const showAtEnd = showIndicator && indicator.anchorBoardId == null;
+
+  return (
+    <>
+      {workspaceBoards.map((board) => (
+        <Fragment key={board.id}>
+          {showIndicator && indicator.anchorBoardId === board.id ? (
+            <div className="home-page__board-drop-indicator" aria-hidden />
+          ) : null}
+          <HomeBoardCardTile
+            board={board}
+            workspaceId={workspaceId}
+            showBoardCardMenu={controller.canShowBoardCardMenu(board.id)}
+            boardDraggable={controller.canDragBoardOnHome(board)}
+            isDraggingSource={controller.draggingBoardId === board.id}
+            {...(controller.boardLongPressUi?.boardId === board.id
+              ? { reorderLongPressPhase: controller.boardLongPressUi.phase }
+              : {})}
+            suppressNavigateRef={controller.suppressBoardClickRef}
+            hoveredBoardId={controller.hoveredBoardId}
+            onHover={controller.setHoveredBoardId}
+            onOpenBoard={controller.openBoard}
+            onRefresh={controller.refreshData}
+          />
+        </Fragment>
+      ))}
+      {showAtEnd ? <div className="home-page__board-drop-indicator" aria-hidden /> : null}
     </>
   );
 }

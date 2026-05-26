@@ -60,6 +60,18 @@ export interface HomeBoardTileRect {
   readonly rect: DOMRectReadOnly;
 }
 
+function isSingleColumnLayout(tiles: readonly HomeBoardTileRect[]): boolean {
+  if (tiles.length < 2) {
+    return true;
+  }
+  for (let i = 1; i < tiles.length; i += 1) {
+    if (Math.abs(tiles[i]!.rect.top - tiles[i - 1]!.rect.top) <= 8) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function collectBoardTilesInGrid(grid: HTMLElement, excludeBoardId?: string): HomeBoardTileRect[] {
   const nodes = grid.querySelectorAll<HTMLElement>('[data-home-board-id]');
   const out: HomeBoardTileRect[] = [];
@@ -94,6 +106,8 @@ export function pickHomeBoardInsertAnchor(
     return { anchorBoardId: null, dropOnEmptyGrid: true };
   }
 
+  const isSingleColumn = tiles.length < 2 || isSingleColumnLayout(tiles);
+
   for (let i = 0; i < tiles.length; i += 1) {
     const { boardId, rect } = tiles[i]!;
     const inside =
@@ -102,7 +116,9 @@ export function pickHomeBoardInsertAnchor(
       clientY >= rect.top &&
       clientY <= rect.bottom;
     if (inside) {
-      const before = clientX < rect.left + rect.width / 2;
+      const before = isSingleColumn
+        ? clientY < rect.top + rect.height / 2
+        : clientX < rect.left + rect.width / 2;
       if (before) {
         return { anchorBoardId: boardId, dropOnEmptyGrid: false };
       }
@@ -127,6 +143,13 @@ export function pickHomeBoardInsertAnchor(
     return { anchorBoardId: best.boardId, dropOnEmptyGrid: false };
   }
   if (clientY > best.rect.bottom) {
+    return { anchorBoardId: tiles[idx + 1]?.boardId ?? null, dropOnEmptyGrid: false };
+  }
+  if (isSingleColumn) {
+    const midY = best.rect.top + best.rect.height / 2;
+    if (clientY < midY) {
+      return { anchorBoardId: best.boardId, dropOnEmptyGrid: false };
+    }
     return { anchorBoardId: tiles[idx + 1]?.boardId ?? null, dropOnEmptyGrid: false };
   }
   const midX = best.rect.left + best.rect.width / 2;

@@ -785,6 +785,26 @@ body.site:not(.site--home) .site-footer {
 }
 
 /* ══════════════════════════════════════════════════════
+   Wiki header — brand slides left to align with sidebar
+   ══════════════════════════════════════════════════════ */
+
+@keyframes wiki-header-slide {
+  from {
+    transform: translateX(max(0px, calc((100vw - var(--content-max)) / 2)));
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+body.site--wiki .site-header__inner {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  animation: wiki-header-slide 0.65s var(--ease-editorial) both;
+}
+
+/* ══════════════════════════════════════════════════════
    Wiki layout — fixed sidebar + content with responsive collapse
    ══════════════════════════════════════════════════════ */
 
@@ -1237,6 +1257,12 @@ body.site--wiki .site-footer {
 @media (max-width: 900px) {
   .wiki-layout {
     margin-left: 0;
+  }
+
+  body.site--wiki .site-header__inner {
+    max-width: var(--content-max);
+    margin: 0 auto;
+    animation: none;
   }
 
   body.site--wiki .site-footer {

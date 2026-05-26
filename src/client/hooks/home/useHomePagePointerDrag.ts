@@ -36,6 +36,11 @@ export interface HomeBoardLongPressUi {
   readonly phase: HomeBoardLongPressPhase;
 }
 
+export type BoardDropIndicator = {
+  readonly workspaceId: string;
+  readonly anchorBoardId: string | null;
+} | null;
+
 type FloatState =
   | { readonly kind: 'board'; readonly name: string }
   | { readonly kind: 'workspace'; readonly name: string }
@@ -59,7 +64,7 @@ type ActiveBoard = {
   readonly boardId: string;
   readonly sourceWorkspaceId: string;
   readonly pointerId: number;
-  readonly captureTarget: HTMLElement;
+  readonly captureTarget: HTMLElement | null;
   readonly initialX: number;
   readonly initialY: number;
   readonly boardsBefore: BoardDB[];
@@ -78,7 +83,7 @@ type ActiveWorkspace = {
   readonly kind: 'active_workspace';
   readonly workspaceId: string;
   readonly pointerId: number;
-  readonly captureTarget: HTMLElement;
+  readonly captureTarget: HTMLElement | null;
   readonly initialX: number;
   readonly initialY: number;
   readonly orderedIdsBefore: string[];
@@ -140,6 +145,7 @@ export function useHomePagePointerDrag(
   readonly floatPreview: FloatState;
   readonly draggingBoardId: string | null;
   readonly boardLongPressUi: HomeBoardLongPressUi | null;
+  readonly boardDropIndicator: BoardDropIndicator;
 } {
   const sessionRef = useRef<Session>(null);
   const rafRef = useRef<number | null>(null);
@@ -147,6 +153,7 @@ export function useHomePagePointerDrag(
   const [floatPreview, setFloatPreview] = useState<FloatState>(null);
   const [draggingBoardId, setDraggingBoardId] = useState<string | null>(null);
   const [boardLongPressUi, setBoardLongPressUi] = useState<HomeBoardLongPressUi | null>(null);
+  const [boardDropIndicator, setBoardDropIndicator] = useState<BoardDropIndicator>(null);
   const suppressBoardClickRef = useRef(false);
 
   const refsR = useRef(refs);
@@ -198,7 +205,7 @@ export function useHomePagePointerDrag(
         window.clearTimeout(s.armTimerId);
       }
       sessionRef.current = null;
-      if (s != null && (s.kind === 'active_board' || s.kind === 'active_workspace')) {
+      if (s != null && (s.kind === 'active_board' || s.kind === 'active_workspace') && s.captureTarget != null) {
         try {
           s.captureTarget.releasePointerCapture(s.pointerId);
         } catch {
@@ -210,6 +217,7 @@ export function useHomePagePointerDrag(
       actionsRef.current.setBoardGridDropTarget(null);
       setDraggingBoardId(null);
       setBoardLongPressUi(null);
+      setBoardDropIndicator(null);
       actionsRef.current.setHomeDraggingClass(false);
     };
 
@@ -245,11 +253,14 @@ export function useHomePagePointerDrag(
           return;
         }
         const captureTarget = s.handleEl;
-        try {
-          captureTarget.setPointerCapture(ev.pointerId);
-        } catch {
-          disarm();
-          return;
+        const isTouchPointer = ev.pointerType === 'touch' || ev.pointerType === 'pen';
+        if (!isTouchPointer) {
+          try {
+            captureTarget.setPointerCapture(ev.pointerId);
+          } catch {
+            disarm();
+            return;
+          }
         }
         const tile = root.querySelector<HTMLElement>(`[data-home-board-id="${CSS.escape(s.boardId)}"]`);
         if (tile != null) {
@@ -263,7 +274,7 @@ export function useHomePagePointerDrag(
           boardId: s.boardId,
           sourceWorkspaceId: s.workspaceId,
           pointerId: ev.pointerId,
-          captureTarget,
+          captureTarget: isTouchPointer ? null : captureTarget,
           initialX: s.startX,
           initialY: s.startY,
           boardsBefore: m.boards,
@@ -285,18 +296,21 @@ export function useHomePagePointerDrag(
           return;
         }
         const captureTarget = s.handleEl;
-        try {
-          captureTarget.setPointerCapture(ev.pointerId);
-        } catch {
-          disarm();
-          return;
+        const isTouchPointer = ev.pointerType === 'touch' || ev.pointerType === 'pen';
+        if (!isTouchPointer) {
+          try {
+            captureTarget.setPointerCapture(ev.pointerId);
+          } catch {
+            disarm();
+            return;
+          }
         }
         refsR.current.previewMetricsRef.current = { width: 200, height: 44 };
         sessionRef.current = {
           kind: 'active_workspace',
           workspaceId: s.workspaceId,
           pointerId: ev.pointerId,
-          captureTarget,
+          captureTarget: isTouchPointer ? null : captureTarget,
           initialX: s.startX,
           initialY: s.startY,
           orderedIdsBefore: [...m.orderedWorkspaceIds],
@@ -328,6 +342,17 @@ export function useHomePagePointerDrag(
             actionsRef.current.setBoardGridDropTarget(targetWs);
           } else {
             actionsRef.current.setBoardGridDropTarget(null);
+          }
+          if (touchReorderRequiresLongPressRef.current && targetWs != null) {
+            const grid = findHomeBoardGridForWorkspace(root, targetWs);
+            if (grid != null) {
+              const { anchorBoardId } = pickHomeBoardInsertAnchor(grid, ev.clientX, ev.clientY, live.boardId);
+              setBoardDropIndicator({ workspaceId: targetWs, anchorBoardId });
+            } else {
+              setBoardDropIndicator(null);
+            }
+          } else if (touchReorderRequiresLongPressRef.current) {
+            setBoardDropIndicator(null);
           }
         }
 
@@ -462,6 +487,35 @@ export function useHomePagePointerDrag(
       }, 0);
     };
 
+    const onWindowPointerCancel = (ev: PointerEvent): void => {
+      const s = sessionRef.current;
+      if (s == null) {
+        return;
+      }
+      if (
+        (s.kind === 'active_board' || s.kind === 'pending_board') &&
+        s.pointerId === ev.pointerId
+      ) {
+        if (s.kind === 'active_board') {
+          actionsRef.current.setAllBoards(s.boardsBefore);
+        }
+        disarm();
+        window.setTimeout(() => {
+          suppressBoardClickRef.current = false;
+        }, 0);
+        return;
+      }
+      if (
+        (s.kind === 'active_workspace' || s.kind === 'pending_workspace') &&
+        s.pointerId === ev.pointerId
+      ) {
+        disarm();
+        window.setTimeout(() => {
+          suppressBoardClickRef.current = false;
+        }, 0);
+      }
+    };
+
     const onWindowPointerUp = (ev: PointerEvent): void => {
       const s = sessionRef.current;
       if (s == null) {
@@ -520,7 +574,7 @@ export function useHomePagePointerDrag(
           };
           window.addEventListener('pointermove', onWindowPointerMove);
           window.addEventListener('pointerup', onWindowPointerUp);
-          window.addEventListener('pointercancel', onWindowPointerUp);
+          window.addEventListener('pointercancel', onWindowPointerCancel);
         }
         return;
       }
@@ -580,7 +634,7 @@ export function useHomePagePointerDrag(
           };
           window.addEventListener('pointermove', onWindowPointerMove);
           window.addEventListener('pointerup', onWindowPointerUp);
-          window.addEventListener('pointercancel', onWindowPointerUp);
+          window.addEventListener('pointercancel', onWindowPointerCancel);
         }
       }
     };
@@ -634,11 +688,11 @@ export function useHomePagePointerDrag(
       root.removeEventListener('touchmove', onTouchMoveCapture, true);
       window.removeEventListener('pointermove', onWindowPointerMove);
       window.removeEventListener('pointerup', onWindowPointerUp);
-      window.removeEventListener('pointercancel', onWindowPointerUp);
+      window.removeEventListener('pointercancel', onWindowPointerCancel);
       cancelRaf();
       sessionRef.current = null;
     };
   }, [layoutReady, refs.listRootRef, touchReorderRequiresLongPress]);
 
-  return { suppressBoardClickRef, floatPreview, draggingBoardId, boardLongPressUi };
+  return { suppressBoardClickRef, floatPreview, draggingBoardId, boardLongPressUi, boardDropIndicator };
 }

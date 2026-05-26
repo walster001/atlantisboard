@@ -26,23 +26,10 @@
 
 @media (max-width: 767px) {
   .kb-login-host {
-    /* iOS: prefer svh (stable) then dvh (dynamic) */
-    height: 100svh;
-    height: 100dvh;
-    min-height: 0 !important;
+    min-height: 100svh;
+    min-height: 100dvh;
     width: 100%;
-    position: fixed;
-    inset: 0;
-    overflow: hidden;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: auto;
     box-sizing: border-box;
-  }
-
-  .kb-login-host.kb-login-host--scrollable {
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
   }
 
   .kb-login-logo--compact {

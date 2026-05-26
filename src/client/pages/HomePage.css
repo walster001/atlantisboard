@@ -312,6 +312,8 @@
     inset: 0;
     overflow: hidden;
     overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
   }
 
   .home-page__nav {
@@ -329,9 +331,10 @@
   }
 
   .home-page__main {
-    min-height: calc(100dvh - 64px);
+    flex: 1 1 0%;
+    min-height: 0;
     padding: 0.75rem;
-    overflow: auto;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -435,4 +438,13 @@
   inset: 0;
   overflow: hidden;
   overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-page--pwa .home-page__main {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }

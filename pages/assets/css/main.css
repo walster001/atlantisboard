@@ -824,11 +824,11 @@ body.site--wiki .site-header__inner {
   margin-right: 0;
 }
 
-body.site--wiki .site-header__inner > .brand {
+body.site--wiki:not(.site--wiki-internal) .site-header__inner > .brand {
   animation: wiki-brand-enter var(--duration-wiki-slide) var(--ease-wiki-slide) both;
 }
 
-body.site--wiki .site-header__inner > .site-nav {
+body.site--wiki:not(.site--wiki-internal) .site-header__inner > .site-nav {
   animation: wiki-nav-enter var(--duration-wiki-slide) var(--ease-wiki-slide) both;
 }
 

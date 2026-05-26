@@ -1,5 +1,5 @@
 import { Fragment, type ReactElement } from 'react';
-import { IconGripVertical, IconPlus } from '@tabler/icons-react';
+import { IconArrowDown, IconArrowUp, IconGripVertical, IconPlus } from '@tabler/icons-react';
 import { ActionIcon, Box, Group, Menu, Stack, Text, Title } from '@mantine/core';
 import type { BoardDB, WorkspaceDB } from '../../store/database.js';
 import { HomeBoardCardTile } from './HomeBoardCardTile.js';
@@ -42,6 +42,7 @@ export function HomeWorkspaceSection({
             <WorkspaceHeaderAndBoards
               workspace={workspace}
               workspaceBoards={workspaceBoards}
+              fullIndex={fullIndex}
               controller={controller}
               boardScopedHomeOnly={boardScopedHomeOnly}
               wsManage={wsManage}
@@ -59,6 +60,7 @@ export function HomeWorkspaceSection({
 function WorkspaceHeaderAndBoards({
   workspace,
   workspaceBoards,
+  fullIndex,
   controller,
   boardScopedHomeOnly,
   wsManage,
@@ -68,6 +70,7 @@ function WorkspaceHeaderAndBoards({
 }: {
   readonly workspace: WorkspaceDB;
   readonly workspaceBoards: readonly BoardDB[];
+  readonly fullIndex: number;
   readonly controller: HomePageController;
   readonly boardScopedHomeOnly: boolean;
   readonly wsManage: boolean;
@@ -78,7 +81,7 @@ function WorkspaceHeaderAndBoards({
   return (
     <>
       <Group gap="xs" wrap="nowrap" align="center">
-        {wsUpdate ? (
+        {wsUpdate && !controller.isMobile ? (
           <Box
             component="span"
             data-home-workspace-drag-handle="1"
@@ -92,6 +95,30 @@ function WorkspaceHeaderAndBoards({
             <IconGripVertical size={18} aria-hidden />
           </Box>
         ) : null}
+        {wsUpdate && controller.isMobile && controller.totalWorkspaceCount > 1 ? (
+          <Group gap={2} wrap="nowrap">
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="md"
+              aria-label="Move workspace up"
+              disabled={fullIndex === 0}
+              onClick={() => controller.moveWorkspaceUp(workspace.id)}
+            >
+              <IconArrowUp size={20} />
+            </ActionIcon>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="md"
+              aria-label="Move workspace down"
+              disabled={fullIndex >= controller.totalWorkspaceCount - 1}
+              onClick={() => controller.moveWorkspaceDown(workspace.id)}
+            >
+              <IconArrowDown size={20} />
+            </ActionIcon>
+          </Group>
+        ) : null}
         <Title order={2} size="h3" fw={700} className="home-page__workspace-title">
           {workspace.name}
         </Title>
@@ -99,18 +126,18 @@ function WorkspaceHeaderAndBoards({
           <ActionIcon
             variant="subtle"
             color="gray"
-            size="sm"
+            size={controller.isMobile ? 'md' : 'sm'}
             className="home-page__workspace-add-board-icon"
             aria-label="Add board"
             onClick={() => controller.openCreateBoard(workspace.id)}
           >
-            <IconPlus size={16} stroke={2} />
+            <IconPlus size={controller.isMobile ? 20 : 16} stroke={2} />
           </ActionIcon>
         ) : null}
         {!boardScopedHomeOnly && wsManage ? (
           <Menu position="bottom-end" shadow="md" width={200}>
             <Menu.Target>
-              <ActionIcon variant="subtle" color="gray" size="sm" aria-label="Workspace options">
+              <ActionIcon variant="subtle" color="gray" size={controller.isMobile ? 'md' : 'sm'} aria-label="Workspace options">
                 <span className="home-page__ellipsis-icon">⋯</span>
               </ActionIcon>
             </Menu.Target>

@@ -86,6 +86,9 @@ export interface HomePageController {
   readonly openBoard: (boardId: string) => void;
   readonly refreshData: () => Promise<void>;
   readonly setHoveredBoardId: (boardId: string | null) => void;
+  readonly moveWorkspaceUp: (workspaceId: string) => void;
+  readonly moveWorkspaceDown: (workspaceId: string) => void;
+  readonly totalWorkspaceCount: number;
   readonly canCreateWorkspace: boolean;
   readonly canUseImport: boolean;
   readonly openCreateWorkspace: () => void;
@@ -179,6 +182,40 @@ export function useHomePageController(): HomePageController {
       await refreshUser();
     },
     [refreshUser],
+  );
+
+  const moveWorkspaceUp = useCallback(
+    async (workspaceId: string) => {
+      const ids = orderedWorkspaces.map((w) => w.id);
+      const idx = ids.indexOf(workspaceId);
+      if (idx <= 0) return;
+      const next = [...ids];
+      next[idx] = ids[idx - 1]!;
+      next[idx - 1] = workspaceId;
+      try {
+        await persistWorkspaceOrder(next);
+      } catch {
+        notifications.show({ title: 'Error', message: 'Failed to reorder workspace.', color: 'red' });
+      }
+    },
+    [orderedWorkspaces, persistWorkspaceOrder],
+  );
+
+  const moveWorkspaceDown = useCallback(
+    async (workspaceId: string) => {
+      const ids = orderedWorkspaces.map((w) => w.id);
+      const idx = ids.indexOf(workspaceId);
+      if (idx < 0 || idx >= ids.length - 1) return;
+      const next = [...ids];
+      next[idx] = ids[idx + 1]!;
+      next[idx + 1] = workspaceId;
+      try {
+        await persistWorkspaceOrder(next);
+      } catch {
+        notifications.show({ title: 'Error', message: 'Failed to reorder workspace.', color: 'red' });
+      }
+    },
+    [orderedWorkspaces, persistWorkspaceOrder],
   );
 
   const actionsRef = useRef<HomePagePointerDragActions>(null!);
@@ -332,6 +369,9 @@ export function useHomePageController(): HomePageController {
     canUpdateWorkspace,
     canDeleteWorkspace,
     canCreateBoardInWorkspace,
+    moveWorkspaceUp,
+    moveWorkspaceDown,
+    totalWorkspaceCount: orderedWorkspaces.length,
     canCreateWorkspace: homeCapabilities.canCreateWorkspace,
     canUseImport: homeCapabilities.canUseImport,
     openBoard: (boardId) => navigate(`/boards/${boardId}`),

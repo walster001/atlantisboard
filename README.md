@@ -58,7 +58,7 @@ Fork, branch, commit, push, and open a pull request. Run typecheck and tests as 
 2. Merge to `main` — **Staging** workflow uploads a zip artifact (`atlantisboard-<version>.zip`).
 3. Run **Deploy to Production** (Actions → workflow_dispatch): confirm CHANGELOG, publish to npm (`atlantisboard`), create GitHub Release with notes.
 
-**GitHub secrets:** `NPM_TOKEN` (npm automation token) on the `production` environment. `GITHUB_TOKEN` is provided by Actions.
+**GitHub secrets:** See [.github/SECRETS.md](.github/SECRETS.md) — repository `CI_*` secrets for tests; npm publish uses **OIDC trusted publishing** (configure on npmjs.com, no `NPM_TOKEN`).
 
 Local dry run:
 

@@ -34,6 +34,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/walster001/atlantisboard.git"
+    "url": "git+https://github.com/walster001/atlantisboard.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

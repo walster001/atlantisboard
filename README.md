@@ -54,9 +54,9 @@ Fork, branch, commit, push, and open a pull request. Run typecheck and tests as 
 
 ## Releases (maintainers)
 
-1. Update version in root `package.json` and add a `## [x.y.z]` section to [CHANGELOG.md](CHANGELOG.md).
-2. Merge to `main` — **Staging** workflow uploads a zip artifact (`atlantisboard-<version>.zip`).
-3. Run **Deploy to Production** (Actions → workflow_dispatch): confirm CHANGELOG, publish to npm (`atlantisboard`), create GitHub Release with notes.
+1. Update version in root `package.json` and add a `## [x.y.z]` section to [CHANGELOG.md](CHANGELOG.md). **The version must not already exist on npm** (the workflow checks before building).
+2. Merge to `main` — **Staging** workflow uploads a zip artifact after CI passes.
+3. Run **Deploy to Production** (Actions → workflow_dispatch): set **version** if it differs from `package.json`, confirm CHANGELOG, publish to npm (`atlantisboard`), create GitHub Release with notes.
 
 **GitHub secrets:** See [.github/SECRETS.md](.github/SECRETS.md) — repository `CI_*` secrets for tests; npm publish uses **OIDC trusted publishing** (configure on npmjs.com, no `NPM_TOKEN`).
 

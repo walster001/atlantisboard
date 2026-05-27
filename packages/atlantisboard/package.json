@@ -1,6 +1,6 @@
 {
   "name": "atlantisboard",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Atlantisboard - Self-hosted Open-source Kanban",
   "license": "MIT",
   "type": "module",

@@ -16,6 +16,11 @@ on:
         description: "I have added a ## [version] section to CHANGELOG.md for this release"
         required: true
         type: boolean
+      recover_release:
+        description: "Recovery mode: skip npm publish if this version is already on npm (e.g. GitHub Release failed after publish)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -68,11 +73,31 @@ jobs:
           if [[ -z "$V" ]]; then
             V="$(bun -e 'console.log((await Bun.file("package.json").json()).version)')"
           fi
+          if [[ ! "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid semver: $V"
+            exit 1
+          fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=v${V}" >> "$GITHUB_OUTPUT"
 
       - name: Validate CHANGELOG section
         run: ./scripts/changelog-extract.sh "${{ steps.ver.outputs.version }}" > /tmp/release-notes.md
+
+      - name: Check npm registry
+        id: npm
+        run: |
+          STATE="$(./scripts/release-check-npm-version.sh "${{ steps.ver.outputs.version }}")"
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          if [[ "$STATE" == "published" ]]; then
+            if [[ "${{ inputs.recover_release }}" != "true" ]]; then
+              echo "::error::atlantisboard@${{ steps.ver.outputs.version }} is already on npm. Bump the version, or re-run with recover_release enabled to finish GitHub Release only."
+              exit 1
+            fi
+            echo "::warning::Version already on npm; npm publish will be skipped (recover_release)."
+          fi
+
+      - name: Sync release version to package.json
+        run: ./scripts/sync-release-version.sh "${{ steps.ver.outputs.version }}"
 
       - run: bun install --frozen-lockfile
 
@@ -85,15 +110,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git rev-parse "${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Tag ${{ steps.ver.outputs.tag }} already exists"
+          TAG="${{ steps.ver.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; skipping tag push"
           else
-            git tag -a "${{ steps.ver.outputs.tag }}" -m "Release ${{ steps.ver.outputs.version }}"
-            git push origin "${{ steps.ver.outputs.tag }}"
+            git tag -a "$TAG" -m "Release ${{ steps.ver.outputs.version }}"
+            git push origin "$TAG"
           fi
 
-      # Authenticates via npm trusted publisher (OIDC). Do not set NODE_AUTH_TOKEN here.
       - name: Publish to npm
+        if: steps.npm.outputs.state != 'published'
         working-directory: packages/atlantisboard
         run: npm publish --access public --tag "${{ inputs.npm_dist_tag }}"
 

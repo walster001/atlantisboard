@@ -48,6 +48,15 @@ export async function createMockWorkspace(
   return workspace;
 }
 
+/** Creates a workspace and board owned by `ownerId` (for integration tests). */
+export async function createMockBoardForUser(
+  ownerId: mongoose.Types.ObjectId,
+  name?: string,
+): Promise<IBoard> {
+  const workspace = await createMockWorkspace(ownerId);
+  return createMockBoard(workspace._id, ownerId, name);
+}
+
 export async function createMockBoard(
   workspaceId: mongoose.Types.ObjectId,
   ownerId: mongoose.Types.ObjectId,

@@ -1,6 +1,16 @@
 import mongoose from 'mongoose';
 import type { Express } from 'express';
-import { app } from '../../src/server/index.js';
+import { User } from '../../src/server/models/User.js';
+import { initializeAdminConfig } from '../../src/server/models/AdminConfig.js';
+import { generateToken } from '../../src/server/utils/jwt.js';
+import { createMockUser } from './mockData.js';
+import {
+  apiInject,
+  resetIntegrationHttpSession,
+  waitForServer,
+  type ApiInjectOptions,
+  type ApiInjectResponse,
+} from './integrationHttp.js';
 
 export interface TestUser {
   _id: string;
@@ -15,72 +25,51 @@ export interface TestAuthToken {
   user: TestUser;
 }
 
-let testDb: typeof mongoose | null = null;
-
-export async function connectTestDatabase(): Promise<void> {
-  if (testDb) {
+export async function clearTestDatabase(): Promise<void> {
+  await waitForServer();
+  const { readyState, collections } = mongoose.connection;
+  if (readyState !== 1) {
     return;
   }
-
-  const testDbUri = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/kanboard-test';
-  testDb = await mongoose.connect(testDbUri);
-}
-
-export async function disconnectTestDatabase(): Promise<void> {
-  if (testDb) {
-    await mongoose.connection.dropDatabase();
-    await mongoose.connection.close();
-    testDb = null;
+  for (const collection of Object.values(collections)) {
+    await collection.deleteMany({});
   }
-}
 
-export async function clearTestDatabase(): Promise<void> {
-  if (testDb) {
-    const collections = mongoose.connection.collections;
-    for (const key in collections) {
-      await collections[key].deleteMany({});
-    }
-  }
+  await initializeAdminConfig();
 }
 
 export async function getAuthToken(
   email: string = 'test@example.com',
-  password: string = 'TestPassword123!'
+  password: string = 'TestPassword123!',
 ): Promise<TestAuthToken> {
-  // Register user if doesn't exist
-  try {
-    await app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/register',
-      payload: {
-        email,
-        username: email.split('@')[0],
-        password,
-        displayName: 'Test User',
-      },
-    });
-  } catch (err) {
-    // User might already exist, try login
-  }
+  resetIntegrationHttpSession();
+  await waitForServer();
 
-  // Login to get token
-  const loginResponse = await app.inject({
-    method: 'POST',
-    url: '/api/v1/auth/login',
-    payload: {
+  let user = await User.findOne({ email });
+  if (!user) {
+    user = await createMockUser({
       email,
       password,
-    },
-  });
-
-  if (loginResponse.statusCode !== 200) {
-    throw new Error('Failed to authenticate test user');
+      username: email.split('@')[0] ?? 'testuser',
+      displayName: 'Test User',
+    });
   }
 
-  const body = JSON.parse(loginResponse.body);
+  const token = generateToken({
+    userId: user._id.toString(),
+    email: user.email,
+    username: user.username,
+    isAppAdmin: user.isAppAdmin,
+  });
+
   return {
-    token: body.token,
-    user: body.user,
+    token,
+    user: {
+      _id: user._id.toString(),
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+    },
   };
 }
 
@@ -90,14 +79,19 @@ export function createAuthHeaders(token: string): Record<string, string> {
   };
 }
 
+/** Fastify-style inject for integration tests (HTTP to the running server). */
+export async function injectApp(options: ApiInjectOptions): Promise<ApiInjectResponse> {
+  return apiInject(options);
+}
+
 export async function makeAuthenticatedRequest(
-  app: Express,
+  _app: Express,
   method: string,
   url: string,
   token: string,
-  payload?: unknown
+  payload?: unknown,
 ): Promise<{ statusCode: number; body: unknown }> {
-  const response = await app.inject({
+  const response = await apiInject({
     method,
     url,
     payload,
@@ -106,7 +100,6 @@ export async function makeAuthenticatedRequest(
 
   return {
     statusCode: response.statusCode,
-    body: JSON.parse(response.body),
+    body: JSON.parse(response.body) as unknown,
   };
 }
-

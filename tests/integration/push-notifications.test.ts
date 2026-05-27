@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { app } from '../../src/server/index.js';
-import { getAuthToken, clearTestDatabase } from '../helpers/testHelpers.js';
+import '../../src/server/index.js';
+import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import { createMockUser } from '../helpers/mockData.js';
 import { User } from '../../src/server/models/User.js';
 import { getVapidPublicKey } from '../../src/server/config/vapid.js';
@@ -40,13 +40,13 @@ describeDb('Push Notifications', () => {
     };
 
     it('should register push subscription', async () => {
-      const response = await app.inject({
+      const response = await injectApp({
         method: 'POST',
         url: '/api/v1/users/me/push-subscription',
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
-        payload: mockSubscription,
+        payload: { subscription: mockSubscription },
       });
 
       expect(response.statusCode).toBe(200);
@@ -60,17 +60,17 @@ describeDb('Push Notifications', () => {
 
     it('should delete push subscription', async () => {
       // First register
-      await app.inject({
+      await injectApp({
         method: 'POST',
         url: '/api/v1/users/me/push-subscription',
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
-        payload: mockSubscription,
+        payload: { subscription: mockSubscription },
       });
 
       // Then delete
-      const response = await app.inject({
+      const response = await injectApp({
         method: 'DELETE',
         url: '/api/v1/users/me/push-subscription',
         headers: {
@@ -83,15 +83,15 @@ describeDb('Push Notifications', () => {
       expect(body.message).toContain('removed');
 
       // Verify subscription is removed
-      const user = await User.findById(userId).select('+pushSubscription');
-      expect(user?.pushSubscription).toBeUndefined();
+      const user = await User.findById(userId).select('+pushSubscription').lean();
+      expect(user?.pushSubscription?.endpoint).toBeUndefined();
     });
 
     it('should require authentication for push subscription', async () => {
-      const response = await app.inject({
+      const response = await injectApp({
         method: 'POST',
         url: '/api/v1/users/me/push-subscription',
-        payload: mockSubscription,
+        payload: { subscription: mockSubscription },
       });
 
       expect(response.statusCode).toBe(401);
@@ -100,7 +100,7 @@ describeDb('Push Notifications', () => {
 
   describe('VAPID Public Key Endpoint', () => {
     it('should return VAPID public key', async () => {
-      const response = await app.inject({
+      const response = await injectApp({
         method: 'GET',
         url: '/api/v1/users/vapid-public-key',
       });

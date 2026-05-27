@@ -24,6 +24,10 @@ openssl rand -base64 48
 
 `MONGODB_URI` / `REDIS_*` in workflows point at ephemeral service containers on `localhost`; those connection strings are not secrets.
 
+## Staging artifact workflow
+
+`staging.yml` runs **after** a successful **CI** push to `main`/`master` (`workflow_run`) and builds the release zip only — it does not re-run lint/typecheck/test (avoids duplicate verify jobs on every push).
+
 ## npm publish (production) — OIDC trusted publisher, not `NPM_TOKEN`
 
 **Deploy to Production** publishes with [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) (short-lived OIDC credentials). You do **not** need a long-lived `NPM_TOKEN` for release.

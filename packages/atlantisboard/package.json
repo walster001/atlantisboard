@@ -4,9 +4,26 @@
   "description": "Atlantisboard - Self-hosted Open-source Kanban",
   "license": "MIT",
   "type": "module",
+  "main": "./dist/server/index.js",
+  "module": "./dist/server/index.js",
+  "style": "./public/index.css",
   "engines": {
     "bun": ">=1.3.5"
   },
+  "exports": {
+    ".": {
+      "import": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
+    },
+    "./server": "./dist/server/index.js",
+    "./worker": "./dist/workers/index.js",
+    "./index.js": "./public/index.js",
+    "./index.css": "./public/index.css",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
   "bin": {
     "atlantisboard": "install/bin/atlantisboard.js",
     "atlantisboard-setup": "install/bin/setup.sh"

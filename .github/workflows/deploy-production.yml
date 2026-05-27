@@ -22,6 +22,15 @@ permissions:
   id-token: write # npm trusted publishing (OIDC)
 
 jobs:
+  gate:
+    if: inputs.confirm != true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require release confirmation
+        run: |
+          echo "::error::Production release aborted. Check 'confirm' after adding a ## [version] section to CHANGELOG.md."
+          exit 1
+
   verify:
     if: inputs.confirm == true
     uses: ./.github/workflows/reusable-verify.yml
@@ -84,10 +93,6 @@ jobs:
       - name: Publish to npm
         working-directory: packages/atlantisboard
         run: npm publish --access public --tag "${{ inputs.npm_dist_tag }}"
-
-      - name: Install GitHub CLI
-        run: |
-          type gh >/dev/null 2>&1 || sudo apt-get update && sudo apt-get install -y gh
 
       - name: Create GitHub Release
         env:

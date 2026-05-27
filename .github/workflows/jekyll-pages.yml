@@ -8,7 +8,6 @@ on:
     paths:
       - "pages/**"
       - ".github/workflows/jekyll-pages.yml"
-      - "!docs/wiki/**"
   workflow_dispatch:
 
 permissions:

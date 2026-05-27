@@ -149,7 +149,6 @@ export function useHomePagePointerDrag(
 } {
   const sessionRef = useRef<Session>(null);
   const rafRef = useRef<number | null>(null);
-  const commitRafRef = useRef<number | null>(null);
   const [floatPreview, setFloatPreview] = useState<FloatState>(null);
   const [draggingBoardId, setDraggingBoardId] = useState<string | null>(null);
   const [boardLongPressUi, setBoardLongPressUi] = useState<HomeBoardLongPressUi | null>(null);
@@ -174,10 +173,6 @@ export function useHomePagePointerDrag(
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
-      }
-      if (commitRafRef.current != null) {
-        cancelAnimationFrame(commitRafRef.current);
-        commitRafRef.current = null;
       }
     };
 
@@ -526,25 +521,11 @@ export function useHomePagePointerDrag(
         return;
       }
       if (s.kind === 'active_board' && s.pointerId === ev.pointerId) {
-        const evSnapshot = { clientX: ev.clientX, clientY: ev.clientY } satisfies Pick<
-          PointerEvent,
-          'clientX' | 'clientY'
-        >;
-        commitRafRef.current = requestAnimationFrame(() => {
-          commitRafRef.current = null;
-          void commitBoardDrag(evSnapshot);
-        });
+        void commitBoardDrag({ clientX: ev.clientX, clientY: ev.clientY });
         return;
       }
       if (s.kind === 'active_workspace' && s.pointerId === ev.pointerId) {
-        const evSnapshot = { clientX: ev.clientX, clientY: ev.clientY } satisfies Pick<
-          PointerEvent,
-          'clientX' | 'clientY'
-        >;
-        commitRafRef.current = requestAnimationFrame(() => {
-          commitRafRef.current = null;
-          void commitWorkspaceDrag(evSnapshot);
-        });
+        void commitWorkspaceDrag({ clientX: ev.clientX, clientY: ev.clientY });
       }
     };
 

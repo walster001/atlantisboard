@@ -63,6 +63,8 @@ export default function AdminConfigurationPage() {
   const [mobileConfigOpen, setMobileConfigOpen] = useState<ConfigurationSubtab | null>(null);
   const [customisationSubtab, setCustomisationSubtab] =
     useState<CustomisationSubtab>('login-branding');
+  const [mobileCustomisationOpen, setMobileCustomisationOpen] =
+    useState<CustomisationSubtab | null>(null);
 
   const handleBack = (): void => {
     if (window.history.length > 1) {
@@ -86,6 +88,15 @@ export default function AdminConfigurationPage() {
   if (isMobile) {
     const sectionLabel =
       CONFIGURATION_SUBTABS.find((t) => t.value === mobileConfigOpen)?.label ?? mobileConfigOpen;
+    const customisationSectionLabel =
+      CUSTOMISATION_SUBTABS.find((t) => t.value === mobileCustomisationOpen)?.label ??
+      mobileCustomisationOpen;
+    const mobileDrillTitle =
+      mobileConfigOpen != null
+        ? sectionLabel
+        : mobileCustomisationOpen != null
+          ? customisationSectionLabel
+          : null;
     return (
       <Box
         className={`admin-configuration-page admin-configuration-page--mobile${
@@ -104,6 +115,10 @@ export default function AdminConfigurationPage() {
                 setMobileConfigOpen(null);
                 return;
               }
+              if (mobileCustomisationOpen != null) {
+                setMobileCustomisationOpen(null);
+                return;
+              }
               if (mainTab === 'customisation') {
                 startTransition(() => setMainTab('configuration'));
                 return;
@@ -115,10 +130,10 @@ export default function AdminConfigurationPage() {
             <IconArrowLeft size={22} stroke={1.5} />
           </ActionIcon>
           <Title order={2} size="h4">
-            {mobileConfigOpen == null ? 'Admin Configuration' : sectionLabel}
+            {mobileDrillTitle ?? 'Admin Configuration'}
           </Title>
         </Group>
-        {mobileConfigOpen == null ? (
+        {mobileConfigOpen == null && mobileCustomisationOpen == null ? (
           <Group className="admin-configuration-page__mobile-top-icons" gap={10} wrap="nowrap">
             <ActionIcon
               type="button"
@@ -132,6 +147,7 @@ export default function AdminConfigurationPage() {
                   startTransition(() => setMainTab('configuration'));
                 }
                 setMobileConfigOpen(null);
+                setMobileCustomisationOpen(null);
               }}
             >
               <IconTool size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
@@ -148,6 +164,7 @@ export default function AdminConfigurationPage() {
                   startTransition(() => setMainTab('customisation'));
                 }
                 setMobileConfigOpen(null);
+                setMobileCustomisationOpen(null);
               }}
             >
               <IconSparkles size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
@@ -204,19 +221,32 @@ export default function AdminConfigurationPage() {
               )}
             </Box>
           )
+        ) : mobileCustomisationOpen == null ? (
+          <Stack gap="xs">
+            {CUSTOMISATION_SUBTABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                className="admin-configuration-page__mobile-row"
+                onClick={() => setMobileCustomisationOpen(tab.value)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </Stack>
         ) : (
           <Box className="admin-configuration-page__mobile-content">
-            {customisationSubtab === 'login-branding' ? (
+            {mobileCustomisationOpen === 'login-branding' ? (
               <LoginBrandingSection />
-            ) : customisationSubtab === 'app-branding' ? (
+            ) : mobileCustomisationOpen === 'app-branding' ? (
               <AppBrandingSection />
-            ) : customisationSubtab === 'email-branding' ? (
+            ) : mobileCustomisationOpen === 'email-branding' ? (
               <EmailBrandingSection />
-            ) : customisationSubtab === 'custom-fonts' ? (
+            ) : mobileCustomisationOpen === 'custom-fonts' ? (
               <CustomFontsSection />
             ) : (
               <Stack gap="xs">
-                <Title order={3}>{activeCustomisationSubLabel}</Title>
+                <Title order={3}>{customisationSectionLabel}</Title>
                 <Text size="sm" c="dimmed">
                   This section will be configured in a follow-up change.
                 </Text>

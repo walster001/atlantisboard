@@ -406,7 +406,7 @@ export function ImportExportModal({
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
 
   const responsiveTier = useResponsiveTier();
-  const defaultCardColourModalFullScreen = responsiveTier === 'mobile';
+  const isMobile = responsiveTier === 'mobile';
   const { permissions: boardPermissions, loaded: boardPermissionsLoaded } = useBoardPermissions(boardId);
   const canExportAtlantisboardJson = hasBoardExportFormatPermission(boardPermissions, 'atlantisboard');
   const canExportCsv = hasBoardExportFormatPermission(boardPermissions, 'csv');
@@ -709,10 +709,22 @@ export function ImportExportModal({
       opened={true}
       onClose={onClose}
       title={modalTitle}
-      centered
-      size='lg'
+      size="lg"
       radius="md"
       padding="lg"
+      fullScreen={isMobile}
+      centered={!isMobile}
+      {...(isMobile ? { closeButtonProps: { size: 'lg' as const } } : {})}
+      classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
+      styles={{
+        ...modalStylesFullscreenSafeBody(isMobile),
+        ...(isMobile
+          ? {
+              content: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
+              body: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' },
+            }
+          : {}),
+      }}
       overlayProps={{ backgroundOpacity: 0.45 }}
     >
       <Tabs
@@ -725,7 +737,7 @@ export function ImportExportModal({
           minHeight: 0,
           flex: 1,
           overflow: 'hidden',
-          maxHeight: '76vh',
+          ...(isMobile ? {} : { maxHeight: '76vh' }),
         }}
       >
         <Tabs.List mb="md">
@@ -1056,11 +1068,11 @@ export function ImportExportModal({
         opened={defaultCardColourModalOpen}
         onClose={() => setDefaultCardColourModalOpen(false)}
         title="Default colour for uncoloured cards"
-        centered={!defaultCardColourModalFullScreen}
+        centered={!isMobile}
         size="lg"
-        fullScreen={defaultCardColourModalFullScreen}
+        fullScreen={isMobile}
         classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
-        styles={modalStylesFullscreenSafeBody(defaultCardColourModalFullScreen)}
+        styles={modalStylesFullscreenSafeBody(isMobile)}
         radius="md"
         zIndex={520}
         overlayProps={{ backgroundOpacity: 0.45 }}

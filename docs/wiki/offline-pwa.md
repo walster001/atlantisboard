@@ -83,9 +83,9 @@ Some features cannot function offline and require an active network connection:
 
 When Atlantisboard detects a loss of connectivity:
 
-- An **offline indicator** appears in the UI, clearly communicating the current state.
-- A notification informs you that changes will be queued and synced when connectivity returns.
-- The indicator clears automatically when the connection is restored and sync completes.
+- A persistent **“Offline mode”** notification appears (yellow banner: *You are offline, changes will not be saved.*).
+- While you are online, **no offline badge** is shown in the board navbar — connection is assumed normal.
+- The notification clears automatically when the browser and server are reachable again.
 
 ![Offline indicator](images/offline-indicator.png)
 
@@ -115,11 +115,11 @@ Atlantisboard uses a service worker to enable offline capabilities:
 
 - Visit boards you'll need frequently so they're cached for offline access.
 - The PWA install provides the best offline experience — browsers may clear service worker caches more aggressively for non-installed sites.
-- Check the offline indicator before making critical changes — online mode ensures your work is immediately saved and shared with collaborators.
+- If you see the offline notification, wait until it clears before relying on live collaboration — online mode ensures your work is immediately saved and shared with collaborators.
 
 ---
 
 ## Related Pages
 
-- [Board Overview](board-overview.md) — Understanding the board interface and connection status indicator.
-- [Real-Time Collaboration](real-time.md) — How live sync works when you're online.
+- [Board Overview](board-overview.md) — Understanding the board interface and offline notice behaviour.
+- [Real-Time Collaboration](realtime.md) — How live sync works when you're online.

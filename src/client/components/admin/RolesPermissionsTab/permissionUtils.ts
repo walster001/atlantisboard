@@ -4,6 +4,20 @@ export function clampHierarchyLevel(value: number): number {
   return Math.max(0, Math.min(1_000_000, Math.floor(value)));
 }
 
+/** First unused hierarchy level for a new custom role (built-ins use ≤300; customs start at 1000). */
+export function suggestNextHierarchyLevel(
+  roles: readonly { readonly hierarchyLevel: number }[],
+): number {
+  const CUSTOM_ROLE_HIERARCHY_FLOOR = 1000;
+  let maxLevel = CUSTOM_ROLE_HIERARCHY_FLOOR - 1;
+  for (const role of roles) {
+    if (Number.isFinite(role.hierarchyLevel) && role.hierarchyLevel > maxLevel) {
+      maxLevel = role.hierarchyLevel;
+    }
+  }
+  return clampHierarchyLevel(Math.max(CUSTOM_ROLE_HIERARCHY_FLOOR, maxLevel + 1));
+}
+
 export function parseHierarchyFromInput(input: string, fallback: number): number {
   const digits = input.replace(/\D+/g, '');
   if (digits === '') {

@@ -37,7 +37,7 @@ From left to right, the navbar includes:
 | **Back button** | Returns you to the [home page](home-page.md). |
 | **Brand icon** | Displays the board-specific icon (customisable via [App Branding](admin-app-branding.md)). Click to return home. |
 | **Board title** | The name of the current board. Click to edit (if you have permission). |
-| **Offline indicator** | Appears when the app detects a lost network connection. See [Offline & PWA](offline-pwa.md). |
+| **Offline notice** | No badge while online. When offline, a persistent notification warns that changes will not be saved. See [Offline & PWA](offline-pwa.md). |
 | **Invites button** | Opens the [Invites & Sharing](board-settings-invites.md) modal for creating and managing invite links. |
 | **Settings button** | Opens [Board Settings](board-settings-card.md) (gear icon). |
 | **User menu avatar** | Your profile avatar — click for account options and sign-out. |
@@ -63,7 +63,7 @@ The board canvas includes auto-scroll zones at the left and right edges. When yo
 When a board first loads, you may briefly see a loading state while data is fetched from the server. Once loaded:
 
 - **Real-time sync** — changes made by other users appear instantly thanks to [MongoDB Change Streams and Socket.io](realtime.md).
-- **Connection status** — the navbar shows a visual indicator when the Socket.io connection drops, and the app automatically attempts to reconnect.
+- **Offline notice** — when the network or server is unreachable, a persistent notification warns you; there is no “live” badge while connected. The client automatically attempts to reconnect in the background. See [Real-Time Collaboration](realtime.md) and [Offline & PWA](offline-pwa.md).
 
 ---
 

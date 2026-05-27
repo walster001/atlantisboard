@@ -40,7 +40,6 @@ function AppNotifications(): ReactElement {
 const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const BoardPage = lazy(() => import('./pages/BoardPage'));
-const AdminPanel = lazy(() => import('./components/admin/AdminPanel.js').then((m) => ({ default: m.AdminPanel })));
 const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPage.js'));
 
 // Lazy load additional auth pages
@@ -138,7 +137,7 @@ function App() {
                   path="/admin"
                   element={
                     <ProtectedRoute>
-                      <AdminPanel />
+                      <Navigate to="/admin/configuration" replace />
                     </ProtectedRoute>
                   }
                 />

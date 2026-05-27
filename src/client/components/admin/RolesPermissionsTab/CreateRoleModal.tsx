@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Alert, Button, Group, Modal, Stack, TextInput, Textarea } from '@mantine/core';
 import { api } from '../../../utils/api.js';
 import { buildUniqueCustomRoleKey } from './roleKeyUtils.js';
@@ -6,15 +6,17 @@ import { parseHierarchyFromInput } from './permissionUtils.js';
 
 export function CreateRoleModal(props: {
   readonly existingRoleKeys: readonly string[];
+  readonly defaultHierarchyLevel: number;
   readonly onClose: () => void;
   readonly onCreated: (createdRoleKey: string) => Promise<void>;
 }) {
-  const { existingRoleKeys, onClose, onCreated } = props;
+  const { existingRoleKeys, defaultHierarchyLevel, onClose, onCreated } = props;
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
-  const [hierarchyLevel, setHierarchyLevel] = useState<number>(1000);
+  const [hierarchyLevel, setHierarchyLevel] = useState<number>(defaultHierarchyLevel);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitInFlightRef = useRef(false);
 
   const existingKeySet = useMemo(() => new Set(existingRoleKeys), [existingRoleKeys]);
   const derivedKey = useMemo(
@@ -23,6 +25,10 @@ export function CreateRoleModal(props: {
   );
 
   const submit = async (): Promise<void> => {
+    if (submitInFlightRef.current) {
+      return;
+    }
+    submitInFlightRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -40,8 +46,21 @@ export function CreateRoleModal(props: {
       });
       await onCreated(key);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create role');
+      const axiosMsg =
+        e != null &&
+        typeof e === 'object' &&
+        'response' in e &&
+        (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+          ?.message;
+      setError(
+        typeof axiosMsg === 'string' && axiosMsg.length > 0
+          ? axiosMsg
+          : e instanceof Error
+            ? e.message
+            : 'Failed to create role',
+      );
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };

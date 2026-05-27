@@ -352,5 +352,15 @@ export async function attachCustomBoardThemesToPreferences<T extends Record<stri
   preferences: T,
 ): Promise<T & { customBoardThemes: readonly BoardThemeDefinition[] }> {
   const customBoardThemes = await getUserCustomThemes(userId);
-  return { ...preferences, customBoardThemes };
+  /**
+   * `preferences` can be a Mongoose subdocument. Spreading a subdocument is unreliable (fields may
+   * not be enumerable), which can cause preference keys like `homeWorkspaceOrder` to disappear
+   * from API responses after reload.
+   */
+  const maybeDoc = preferences as unknown as { toObject?: () => unknown };
+  const plain =
+    typeof maybeDoc?.toObject === 'function'
+      ? (maybeDoc.toObject() as T)
+      : (preferences as T);
+  return { ...plain, customBoardThemes };
 }

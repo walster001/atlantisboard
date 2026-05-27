@@ -379,8 +379,22 @@ export async function getUserWorkspaces(
 }
 
 function workspaceSummaryDtoId(w: unknown): string {
-  const o = w as { id?: string };
-  return typeof o.id === 'string' && o.id.trim() !== '' ? o.id.trim() : '';
+  const o = w as { id?: unknown; _id?: unknown };
+  if (typeof o.id === 'string' && o.id.trim() !== '') {
+    return o.id.trim();
+  }
+  if (o._id != null) {
+    if (typeof o._id === 'string' && o._id.trim() !== '') {
+      return o._id.trim();
+    }
+    if (typeof o._id === 'object' && o._id !== null && 'toString' in (o._id as object)) {
+      const s = (o._id as { toString(): string }).toString();
+      if (typeof s === 'string' && s !== '' && s !== '[object Object]') {
+        return s;
+      }
+    }
+  }
+  return '';
 }
 
 /**

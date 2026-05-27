@@ -9,7 +9,12 @@ import { api } from '../../../utils/api.js';
 import { useAuthContext } from '../../../contexts/AuthContext.js';
 import { CATEGORY_ORDER } from './categoryMeta.js';
 import { MEMBERS_ROLE_UPDATE_MODE_KEYS, MEMBERS_ROLE_UPDATE_MODE_OPTIONS, PERMISSION_DESCRIPTIONS } from './permissionsCatalog.js';
-import { clampHierarchyLevel, parseHierarchyFromInput, permissionCategoryForKey } from './permissionUtils.js';
+import {
+  clampHierarchyLevel,
+  parseHierarchyFromInput,
+  permissionCategoryForKey,
+  suggestNextHierarchyLevel,
+} from './permissionUtils.js';
 import { BUILTIN_ROLE_ORDER } from './roleDefinitions.js';
 import { CreateRoleModal } from './CreateRoleModal.js';
 import type { AppAdminRow, CategoryStatus, PermissionCategoryKey, RoleRow } from './types.js';
@@ -78,6 +83,8 @@ export function RolesPermissionsTab() {
     const byKey = new Map(roles.filter((role) => role.isBuiltIn).map((role) => [role.key, role]));
     return BUILTIN_ROLE_ORDER.map((key) => byKey.get(key)).filter((role): role is RoleRow => role !== undefined);
   }, [roles]);
+
+  const nextCustomRoleHierarchyLevel = useMemo(() => suggestNextHierarchyLevel(roles), [roles]);
 
   const custom = useMemo(() => roles.filter((role) => !role.isBuiltIn), [roles]);
   const roleByKey = useMemo(() => new Map(roles.map((role) => [role.key, role])), [roles]);
@@ -322,6 +329,7 @@ export function RolesPermissionsTab() {
       {showCreate ? (
         <CreateRoleModal
           existingRoleKeys={roles.map((role) => role.key)}
+          defaultHierarchyLevel={nextCustomRoleHierarchyLevel}
           onClose={() => setShowCreate(false)}
           onCreated={async (createdRoleKey) => {
             setShowCreate(false);

@@ -916,9 +916,9 @@ A reference table covering every `.env` variable grouped by category:
 
 **Content**:
 - Board page layout: navbar at top, horizontally scrollable lists below.
-- **Board navbar**: back button (returns to home), brand icon (customisable via App Branding), board title, offline indicator, invites button, settings button, user menu avatar.
+- **Board navbar**: back button (returns to home), brand icon (customisable via App Branding), board title, offline notice (notification only when unreachable — no badge while online), invites button, settings button, user menu avatar.
 - Scrolling and navigation: horizontal scroll for lists, vertical scroll within each list.
-- Board loading states and real-time sync indicator.
+- Board loading states; real-time sync is silent when online (offline notification when unreachable).
 - Horizontal virtualisation for boards with many lists (performance optimisation).
 
 **Image placeholders**:
@@ -1003,9 +1003,9 @@ The card detail modal with all sections:
   - Drag to reorder items.
   - Delete individual items or entire checklists.
 - **Comments**:
-  - Add a comment (rich text).
-  - Edit / delete your own comments (delete others' requires `comments.delete` permission).
-  - Typing indicator for real-time collaboration.
+  - Add a comment (plain text field + Save).
+  - Delete your own comments (delete others' requires `comments.delete` permission).
+  - Real-time sync on create/delete (no typing preview while another user composes).
   - Comment timestamps and author avatars.
 - **Attachments**:
   - Upload files (drag-and-drop or file picker).
@@ -1082,10 +1082,10 @@ The card detail modal with all sections:
   - Board settings and theme changes.
   - Workspace changes.
   - Invite link creation/deletion.
-- **Typing indicators**: see when another user is typing a comment.
-- **User presence**: `user:joined` / `user:left` events when members open/leave a board.
+- **Comments**: sync on create/delete via card updates; no typing indicator in the UI.
+- **User presence**: server emits `user:joined` / `user:left` (not shown in UI today).
 - **Delta mode**: only changed fields are sent, reducing bandwidth.
-- **Connection status indicator**: visible on the board navbar.
+- **Offline notice**: persistent notification when offline; no “live” connection badge while online.
 - **Reconnection behaviour**: automatic with up to 5 attempts and 1–5 second backoff.
 - **Requirements**: MongoDB replica set must be configured; change streams can be disabled via environment variables.
 

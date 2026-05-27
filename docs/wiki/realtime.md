@@ -1,7 +1,7 @@
 ---
 layout: wiki
 title: "Real-Time Collaboration"
-description: "How real-time works — MongoDB Change Streams, Socket.io, live updates, typing indicators, user presence, and reconnection handling."
+description: "How real-time works — MongoDB Change Streams, Socket.io, live updates, user presence, offline notices, and reconnection handling."
 parent: "Boards"
 nav_order: 38
 permalink: /wiki/realtime/
@@ -47,18 +47,12 @@ Nearly every collaborative action in Atlantisboard is reflected live:
 - **Cards** — creation, title and description edits, moves between lists, reordering, colour changes, date updates, assignee changes, deletion.
 - **Lists** — creation, renaming, reordering, colour changes, deletion.
 - **Checklists** — item additions, completions, reordering, and deletions.
-- **Comments** — new comments, edits, and deletions.
+- **Comments** — new comments and deletions appear on other users' screens as soon as they are saved (there is no live “typing” preview while someone composes a comment).
 - **Labels** — creation, name and colour changes, removal from cards.
 - **Members** — additions, role changes, and removals.
 - **Board settings** — theme changes, background updates, card/list setting toggles.
 - **Workspace changes** — renames, description updates, membership changes.
 - **Invite links** — creation and deletion of invite URLs.
-
----
-
-## Typing Indicators
-
-When another user is actively typing a comment on a card, a typing indicator appears in the comments section of that card. This helps prevent duplicate responses and lets you know a team member is engaged.
 
 ---
 
@@ -69,7 +63,7 @@ The real-time system tracks which users are currently viewing a board:
 - **`user:joined`** — emitted when a user opens a board, signalling their presence to other viewers.
 - **`user:left`** — emitted when a user navigates away from the board or disconnects.
 
-This presence information can be used to show which team members are currently looking at the same board.
+The server emits join/leave events for each board room. The current UI does not display a “who is viewing” list; presence is infrastructure for future features.
 
 ---
 
@@ -79,12 +73,13 @@ To minimise bandwidth usage, the real-time system operates in **delta mode** —
 
 ---
 
-## Connection Status Indicator
+## Offline and Connection Feedback
 
-The board navbar displays a visual indicator reflecting the Socket.io connection state:
+When you are online and connected, **no connection badge or “live” indicator is shown** in the board navbar — real-time sync runs silently in the background.
 
-- **Connected** — the indicator is hidden or shows a subtle "live" state. Everything is syncing normally.
-- **Disconnected** — a warning indicator appears, letting you know that real-time updates are temporarily unavailable. You can continue working, but changes from other users will not appear until the connection is restored.
+If the browser or server is unreachable, Atlantisboard shows a persistent **“Offline mode”** notification (yellow banner) with the message that you are offline and changes will not be saved. That notice clears automatically when connectivity returns. See [Offline & PWA](offline-pwa.md) for queued changes and cached boards.
+
+There is no separate Socket.io “connected” indicator in the navbar today; loss of real-time updates is surfaced through this offline notice and through stale data until you refresh or reconnect.
 
 ---
 
@@ -95,7 +90,7 @@ If the WebSocket connection drops (due to network issues, server restart, etc.),
 - **Up to 5 reconnection attempts** are made.
 - **Backoff interval** ranges from 1 to 5 seconds between attempts, preventing connection storms.
 - On successful reconnection, the client re-subscribes to the relevant board rooms and receives any missed updates.
-- If all reconnection attempts fail, the connection status indicator remains in the disconnected state. Refreshing the page initiates a fresh connection.
+- If all reconnection attempts fail, you may not receive live updates until you refresh the page or connectivity returns. The offline notice appears when the browser or server is unreachable.
 
 ---
 

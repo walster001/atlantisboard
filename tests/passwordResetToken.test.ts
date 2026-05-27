@@ -21,13 +21,13 @@ describe('passwordResetToken', () => {
     expect(hashPasswordResetToken(token)).not.toBe(hashPasswordResetToken(generatePasswordResetToken()));
   });
 
-  test('passwordResetExpiresAt is approximately one hour ahead', () => {
+  test('passwordResetExpiresAt is approximately ten minutes ahead', () => {
     const before = Date.now();
     const expiresAt = passwordResetExpiresAt();
     const after = Date.now();
     const ms = expiresAt.getTime();
-    expect(ms).toBeGreaterThanOrEqual(before + 59 * 60 * 1000);
-    expect(ms).toBeLessThanOrEqual(after + 61 * 60 * 1000);
+    expect(ms).toBeGreaterThanOrEqual(before + 9 * 60 * 1000);
+    expect(ms).toBeLessThanOrEqual(after + 11 * 60 * 1000);
   });
 
   test('isPasswordResetTokenExpired treats missing and past dates as expired', () => {

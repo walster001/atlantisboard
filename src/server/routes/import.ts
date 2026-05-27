@@ -11,6 +11,7 @@ import { ImportJob } from '../models/ImportJob.js';
 import multer from 'multer';
 import { getBoardImportUploadMaxBytes } from '../constants/uploads.js';
 import { Workspace } from '../models/Workspace.js';
+import { Board } from '../models/Board.js';
 import { hasPermission, userCanUseImportDisplay } from '../utils/permissions.js';
 import { importPreflightPayloadSchema } from '../../shared/import/importPreflightSchema.js';
 import {
@@ -155,6 +156,47 @@ async function userCanStartBoardJsonImport(
     return true;
   }
   return userHasWorkspaceImportPermission(userId, permissionKey);
+}
+
+/** Board-scoped import authorization for CSV (404 when board missing or not allowed — AC-012). */
+async function userCanImportCsvToBoard(
+  userId: string,
+  isAppAdmin: boolean | undefined,
+  boardId: string,
+): Promise<boolean> {
+  if (isAppAdmin === true) {
+    return true;
+  }
+
+  const board = await Board.findById(boardId).select('workspaceId ownerId').lean();
+  if (!board) {
+    return false;
+  }
+
+  if (board.ownerId?.toString() === userId) {
+    return true;
+  }
+
+  const [canTrelloOnBoard, canWekanOnBoard] = await Promise.all([
+    hasPermission({ id: userId }, boardId, 'import.trello'),
+    hasPermission({ id: userId }, boardId, 'import.wekan'),
+  ]);
+  if (canTrelloOnBoard || canWekanOnBoard) {
+    return true;
+  }
+
+  const workspaceId = board.workspaceId?.toString();
+  if (workspaceId != null && workspaceId !== '') {
+    const [canTrelloWs, canWekanWs] = await Promise.all([
+      hasPermission(userId, workspaceId, 'import.trello', 'workspace'),
+      hasPermission(userId, workspaceId, 'import.wekan', 'workspace'),
+    ]);
+    if (canTrelloWs || canWekanWs) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // Import Trello JSON
@@ -455,21 +497,21 @@ router.post('/csv', upload.single('file'), async (req, res, next) => {
       return;
     }
     const validated = importCSVSchema.parse(req.body);
-    {
-      let allowed = authReq.user.isAppAdmin === true;
-      if (!allowed) {
-        const [canTrello, canWekan] = await Promise.all([
-          userHasWorkspaceImportPermission(authReq.user.id, 'import.trello'),
-          userHasWorkspaceImportPermission(authReq.user.id, 'import.wekan'),
-        ]);
-        allowed = canTrello || canWekan;
-      }
-      if (!allowed) {
-        res.status(403).json({
-          error: { message: 'Insufficient permissions to import CSV', code: 'FORBIDDEN', statusCode: 403 },
-        });
-        return;
-      }
+
+    const canImportToBoard = await userCanImportCsvToBoard(
+      authReq.user.id,
+      authReq.user.isAppAdmin,
+      validated.boardId,
+    );
+    if (!canImportToBoard) {
+      res.status(404).json({
+        error: {
+          message: 'Board not found',
+          code: 'NOT_FOUND',
+          statusCode: 404,
+        },
+      });
+      return;
     }
 
     if (!req.file) {

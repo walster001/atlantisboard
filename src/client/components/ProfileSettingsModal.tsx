@@ -207,7 +207,7 @@ export function ProfileSettingsModal({ opened, onClose }: ProfileSettingsModalPr
       size="md"
       fullScreen={isMobile}
       centered={!isMobile}
-      closeButtonProps={isMobile ? { size: 'lg' } : undefined}
+      {...(isMobile ? { closeButtonProps: { size: 'lg' as const } } : {})}
       classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
       styles={modalStylesFullscreenSafeBody(isMobile)}
     >

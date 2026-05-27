@@ -153,6 +153,25 @@ function buildBrandingContext(branding: IEmailBranding | undefined): Record<stri
   };
 }
 
+/**
+ * SMTP TLS verification is enabled by default. Set `SMTP_TLS_INSECURE=true` only in
+ * non-production to connect to local/dev mail sinks with self-signed certificates.
+ */
+export function buildSmtpTlsOptions(): NonNullable<SMTPTransport.Options['tls']> {
+  const insecureRequested = process.env.SMTP_TLS_INSECURE === 'true';
+  const production = process.env.NODE_ENV === 'production';
+  if (production && insecureRequested) {
+    logger.warn('SMTP_TLS_INSECURE is ignored in production; TLS certificate verification stays enabled');
+  }
+  if (!production && insecureRequested) {
+    return {
+      rejectUnauthorized: false,
+      checkServerIdentity: () => undefined,
+    };
+  }
+  return { rejectUnauthorized: true };
+}
+
 function createTransport(cfg: SmtpTransportConfig, layoutName: string = 'main'): Transporter<SMTPTransport.SentMessageInfo> {
   const opts: SMTPTransport.Options & { family?: number } = {
     host: cfg.host,
@@ -163,10 +182,7 @@ function createTransport(cfg: SmtpTransportConfig, layoutName: string = 'main'):
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 15_000,
-    tls: {
-      rejectUnauthorized: false,
-      checkServerIdentity: () => undefined,
-    },
+    tls: buildSmtpTlsOptions(),
   };
 
   const transport = nodemailer.createTransport(opts);

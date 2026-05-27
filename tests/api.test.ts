@@ -16,6 +16,22 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
   throw lastError instanceof Error ? lastError : new Error('Request failed');
 }
 
+/** Bun fetch does not persist cookies; forward Set-Cookie for session-bound CSRF tests. */
+function cookieHeaderFromResponse(response: Response): string | undefined {
+  const getSetCookie = response.headers.getSetCookie;
+  if (typeof getSetCookie !== 'function') {
+    return undefined;
+  }
+  const setCookies = getSetCookie.call(response.headers) as string[];
+  if (setCookies.length === 0) {
+    return undefined;
+  }
+  return setCookies
+    .map((entry) => entry.split(';')[0]?.trim() ?? '')
+    .filter((part) => part.length > 0)
+    .join('; ');
+}
+
 describe('API Health Check', () => {
   it('should return health status', async () => {
     const response = await request('/health', { method: 'GET' });
@@ -71,22 +87,58 @@ describe('CSRF protection', () => {
   });
 
   it('should allow mutating requests with a valid CSRF token', async () => {
-    const tokenResponse = await request('/api/v1/csrf/token', { method: 'GET' });
+    const tokenResponse = await request('/api/v1/csrf/token', {
+      method: 'GET',
+      credentials: 'include',
+    });
     expect(tokenResponse.status).toBe(200);
     const tokenBody = (await tokenResponse.json()) as { csrfToken?: string };
     expect(tokenBody.csrfToken).toBeDefined();
 
+    const csrfToken = tokenBody.csrfToken ?? '';
+    const sessionCookies = cookieHeaderFromResponse(tokenResponse);
+
     const response = await request('/api/v1/workspaces', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'content-type': 'application/json',
-        'x-csrf-token': tokenBody.csrfToken ?? '',
+        'x-csrf-token': csrfToken,
+        ...(sessionCookies ? { cookie: sessionCookies } : {}),
       },
       body: JSON.stringify({ name: 'CSRF Test Workspace' }),
     });
 
     // CSRF passed — request reaches auth layer (401 without credentials).
     expect(response.status).toBe(401);
+  });
+
+  it('should reject mutating requests when header and cookie CSRF tokens mismatch', async () => {
+    const tokenResponse = await request('/api/v1/csrf/token', {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const tokenBody = (await tokenResponse.json()) as { csrfToken?: string };
+    const csrfToken = tokenBody.csrfToken ?? '';
+    const sessionCookies = cookieHeaderFromResponse(tokenResponse);
+    const mismatchCookies = sessionCookies
+      ? sessionCookies.replace(/(^|; )csrf-token=[^;]*/, '$1csrf-token=mismatch-token-value')
+      : 'csrf-token=mismatch-token-value';
+
+    const response = await request('/api/v1/workspaces', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+        'x-csrf-token': csrfToken,
+        cookie: mismatchCookies,
+      },
+      body: JSON.stringify({ name: 'CSRF Mismatch Workspace' }),
+    });
+
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe('CSRF_TOKEN_INVALID');
   });
 });
 

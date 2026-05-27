@@ -38,6 +38,9 @@ function snapshotAuditEntry(entry: AuditLogEntry): AuditLogEntry {
 /**
  * Schedules audit logging on the next event-loop turn so handlers and DB work are
  * not blocked by synchronous pino / pino-pretty serialization on the hot path.
+ *
+ * TODO(AC-003): Persist audit events to a MongoDB collection with TTL/retention instead of
+ * log-only emission; add a background job for archival and compliance export.
  */
 export function logAuditEvent(entry: AuditLogEntry): void {
   const snap = snapshotAuditEntry(entry);

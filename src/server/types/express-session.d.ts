@@ -6,5 +6,7 @@ declare module 'express-session' {
     oauthReturnTo?: string;
     /** One-time OAuth user id pending JWT exchange (production HttpOnly cookie flow). */
     oauthPendingUserId?: string;
+    /** Per-session secret for Bun.CSRF token generation (AUTH-001). */
+    csrfSecret?: string;
   }
 }

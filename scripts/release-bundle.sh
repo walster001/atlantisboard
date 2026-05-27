@@ -98,7 +98,7 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-ZIP_NAME="kanboard-${VERSION}.zip"
+ZIP_NAME="atlantisboard-${VERSION}.zip"
 ZIP_PATH="release/${ZIP_NAME}"
 
 echo "==> Release bundle for kanboard ${VERSION}"

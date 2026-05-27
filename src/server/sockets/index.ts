@@ -81,9 +81,17 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
     const typingThrottleByCard = new Map<string, number>();
     const TYPING_THROTTLE_MS = Math.max(100, Number(process.env.REALTIME_TYPING_THROTTLE_MS ?? 300));
 
-    const emitTyping = (typing: boolean, data: { boardId: string; cardId?: string }): void => {
+    const emitTyping = async (
+      typing: boolean,
+      data: { boardId: string; cardId?: string },
+    ): Promise<void> => {
       const boardId = typeof data.boardId === 'string' ? data.boardId.trim() : '';
       if (boardId === '') {
+        return;
+      }
+      const allowed = await hasPermission({ id: user.userId }, boardId, 'boards.view');
+      if (!allowed) {
+        logger.warn({ userId: user.userId, boardId }, 'Denied typing indicator emit');
         return;
       }
       const cardId = typeof data.cardId === 'string' && data.cardId.trim() !== '' ? data.cardId.trim() : undefined;
@@ -175,20 +183,28 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
 
     // Handle typing indicators (for comments)
     socket.on('comment:typing', (data: { boardId: string; cardId?: string }) => {
-      emitTyping(true, data);
+      void emitTyping(true, data).catch((error: unknown) => {
+        logger.error({ error, userId: user.userId }, 'comment:typing handler error');
+      });
     });
 
     socket.on('comment:typing:stop', (data: { boardId: string; cardId?: string }) => {
-      emitTyping(false, data);
+      void emitTyping(false, data).catch((error: unknown) => {
+        logger.error({ error, userId: user.userId }, 'comment:typing:stop handler error');
+      });
     });
 
     // Legacy typing events (for backwards compatibility)
     socket.on('typing:start', (data: { boardId: string; cardId?: string }) => {
-      emitTyping(true, data);
+      void emitTyping(true, data).catch((error: unknown) => {
+        logger.error({ error, userId: user.userId }, 'typing:start handler error');
+      });
     });
 
     socket.on('typing:stop', (data: { boardId: string; cardId?: string }) => {
-      emitTyping(false, data);
+      void emitTyping(false, data).catch((error: unknown) => {
+        logger.error({ error, userId: user.userId }, 'typing:stop handler error');
+      });
     });
 
     socket.on('admin:monitor:subscribe', async () => {

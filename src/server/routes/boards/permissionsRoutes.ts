@@ -13,7 +13,6 @@ import { resolveBoardRoleUpdateModeForActor } from './helpers.js';
 const permissionProbeKeys = [
   'boards.view',
   'boards.update',
-  'boards.reorder_in_home',
   'boards.settings.update',
   'boards.themes.changetheme',
   'boards.themes.customtheme',

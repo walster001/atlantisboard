@@ -4,7 +4,16 @@ import '../src/server/index.js';
 const BASE_URL = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
 
 async function request(path, init) {
-  return await fetch(`${BASE_URL}${path}`, init);
+  let lastError;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      return await fetch(`${BASE_URL}${path}`, init);
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Request failed');
 }
 
 async function register(email, username) {

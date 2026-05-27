@@ -122,7 +122,7 @@ export interface HomePagePointerDragActions {
   readonly setBoardGridDropTarget: (workspaceId: string | null) => void;
   readonly setHomeDraggingClass: (on: boolean) => void;
   readonly canDragBoard: (board: BoardDB) => boolean;
-  readonly canReorderAllBoardsInWorkspace: (workspaceId: string) => boolean;
+  readonly refreshUserAfterBoardMove: () => Promise<void>;
   readonly hasBoardUpdate: (boardId: string) => boolean;
   readonly hasWorkspaceUpdate: (workspaceId: string) => boolean;
   readonly persistWorkspaceOrder: (orderedIds: string[]) => Promise<void>;
@@ -393,15 +393,6 @@ export function useHomePagePointerDrag(
       const { anchorBoardId } = pickHomeBoardInsertAnchor(grid, ev.clientX, ev.clientY, s.boardId);
 
       const sameWs = s.sourceWorkspaceId === targetWs;
-      if (sameWs && !acts.canReorderAllBoardsInWorkspace(targetWs)) {
-        acts.setAllBoards(s.boardsBefore);
-        disarm();
-        acts.onMoveError('You cannot reorder boards in this workspace.');
-        window.setTimeout(() => {
-          suppressBoardClickRef.current = false;
-        }, 0);
-        return;
-      }
 
       let applied: BoardDB[] | null = moveHomeBoardOptimistic(m.boards, s.boardId, targetWs, anchorBoardId);
       if (applied == null && !sameWs) {
@@ -432,6 +423,7 @@ export function useHomePagePointerDrag(
 
       try {
         await persistHomeBoardMove(input);
+        await acts.refreshUserAfterBoardMove();
       } catch (err) {
         console.error(err);
         acts.setAllBoards(s.boardsBefore);

@@ -140,7 +140,7 @@ export async function uploadCustomFont(
       return '';
     }
     return withoutExt
-      .replace(/[_\-]+/g, ' ')
+      .replace(/[_-]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   })();

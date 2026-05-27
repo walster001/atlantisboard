@@ -1,4 +1,4 @@
-import axios, { type AxiosError, type AxiosInstance } from 'axios';
+import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { authApiMethods, type AuthApiMethods } from './api/authApiMethods.js';
 import { workspaceApiMethods, type WorkspaceApiMethods } from './api/workspaceApiMethods.js';
 import { boardApiMethods, type BoardApiMethods } from './api/boardApiMethods.js';
@@ -22,10 +22,10 @@ import { importExportApiMethods, type ImportExportApiMethods } from './api/impor
 import { attachmentApiMethods, type AttachmentApiMethods } from './api/attachmentApiMethods.js';
 import { themesApiMethods, type ThemesApiMethods } from './api/themesApiMethods.js';
 import { API_BASE_URL } from './api/shared.js';
-import { env } from '../config/env.js';
+import { usesHttpOnlyAuth } from '../config/env.js';
 
-function useCookieAuthOnly(): boolean {
-  return env.NODE_ENV === 'production';
+interface CsrfRetryAxiosRequestConfig extends InternalAxiosRequestConfig {
+  _csrfRetried?: boolean;
 }
 export { invalidateFontsCatalogCache };
 
@@ -39,6 +39,18 @@ export function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/verify-email') ||
     pathname.startsWith('/invite/')
   );
+}
+
+function isCsrfError(error: AxiosError): boolean {
+  if (error.response?.status !== 403) {
+    return false;
+  }
+  const data = error.response.data;
+  if (data == null || typeof data !== 'object' || !('error' in data)) {
+    return false;
+  }
+  const code = (data as { error?: { code?: string } }).error?.code;
+  return code === 'CSRF_TOKEN_MISSING' || code === 'CSRF_TOKEN_INVALID';
 }
 
 export class ApiClient {
@@ -62,7 +74,7 @@ export class ApiClient {
     // Request interceptor to add auth token and CSRF token
     this.client.interceptors.request.use(
       async (config) => {
-        if (!useCookieAuthOnly()) {
+        if (!usesHttpOnlyAuth()) {
           const token = this.getToken();
           if (token) {
             config.headers.Authorization = `Bearer ${token}`;
@@ -86,41 +98,29 @@ export class ApiClient {
       }
     );
 
-    // Response interceptor for error handling and CSRF token extraction
+    // Response interceptor for error handling (CSRF retry once)
     this.client.interceptors.response.use(
-      (response) => {
-        // Extract CSRF token from response header or cookie
-        const csrfTokenHeader = response.headers['x-csrf-token'];
-        if (csrfTokenHeader) {
-          this.csrfToken = csrfTokenHeader;
+      (response) => response,
+      async (error: AxiosError) => {
+        const config = error.config as CsrfRetryAxiosRequestConfig | undefined;
+
+        if (config && isCsrfError(error) && !config._csrfRetried) {
+          try {
+            await this.fetchCSRFToken();
+            config._csrfRetried = true;
+            return this.client.request(config);
+          } catch {
+            return Promise.reject(error);
+          }
         }
 
-        // Also check cookie (if accessible)
-        const cookies = document.cookie.split(';');
-        const csrfCookie = cookies.find((c) => c.trim().startsWith('csrf-token='));
-        if (csrfCookie) {
-          this.csrfToken = csrfCookie.split('=')[1];
-        }
-
-        return response;
-      },
-      (error: AxiosError) => {
         if (error.response?.status === 401) {
-          // Clear token
           this.clearToken();
           if (!isPublicPath(window.location.pathname)) {
             window.location.href = '/login';
           }
         }
-        if (error.response?.status === 403 && error.response?.data && typeof error.response.data === 'object' && 'error' in error.response.data) {
-          const errorData = error.response.data as { error?: { code?: string } };
-          if (errorData.error?.code === 'CSRF_TOKEN_MISSING' || errorData.error?.code === 'CSRF_TOKEN_INVALID') {
-            // CSRF token invalid or missing, fetch new one and retry
-            this.fetchCSRFToken().catch(() => {
-              // Silently fail
-            });
-          }
-        }
+
         return Promise.reject(error);
       }
     );
@@ -138,22 +138,23 @@ export class ApiClient {
   }
 
   getToken(): string | null {
-    if (useCookieAuthOnly()) {
+    if (usesHttpOnlyAuth()) {
       return null;
     }
     return localStorage.getItem('token') || null;
   }
 
   clearToken(): void {
-    if (!useCookieAuthOnly()) {
+    if (!usesHttpOnlyAuth()) {
       localStorage.removeItem('token');
     }
   }
 
   setToken(token: string): void {
-    if (!useCookieAuthOnly()) {
-      localStorage.setItem('token', token);
+    if (usesHttpOnlyAuth()) {
+      return;
     }
+    localStorage.setItem('token', token);
   }
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, isPublicPath } from '../utils/api.js';
-import { env } from '../config/env.js';
+import { usesHttpOnlyAuth } from '../config/env.js';
 import { socketClient } from '../utils/socket.js';
 import { db, type UserDB } from '../store/database.js';
 import type { BoardThemeDefinition } from '../../shared/boardTheme.js';
@@ -19,6 +19,7 @@ interface User {
     language: string;
     notificationPreferences: Record<string, unknown>;
     homeWorkspaceOrder?: string[];
+    homeBoardOrderByWorkspace?: Record<string, string[]>;
     customBoardThemes?: BoardThemeDefinition[];
   };
   emailVerified: boolean;
@@ -41,7 +42,7 @@ export function useAuth() {
 
   const loadUser = useCallback(async () => {
     const runGen = ++loadGenRef.current;
-    const useCookies = env.NODE_ENV === 'production';
+    const useCookies = usesHttpOnlyAuth();
     try {
       const token = useCookies ? 'cookie' : localStorage.getItem('token');
       if (!token) {
@@ -139,7 +140,7 @@ export function useAuth() {
     }
     await db.users.put(userDB);
 
-    const useCookies = env.NODE_ENV === 'production';
+    const useCookies = usesHttpOnlyAuth();
     if (useCookies) {
       socketClient.connect('');
     } else {

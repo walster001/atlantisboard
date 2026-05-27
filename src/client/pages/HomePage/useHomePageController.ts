@@ -150,7 +150,11 @@ export function useHomePageController(): HomePageController {
     () => mergeWorkspacesWithHomeOrder(workspaces, user?.preferences?.homeWorkspaceOrder),
     [workspaces, user?.preferences?.homeWorkspaceOrder],
   );
-  const boardsByWorkspaceMap = useMemo(() => buildBoardsByWorkspaceSortedMap(allBoards), [allBoards]);
+  const homeBoardOrderByWorkspace = user?.preferences?.homeBoardOrderByWorkspace;
+  const boardsByWorkspaceMap = useMemo(
+    () => buildBoardsByWorkspaceSortedMap(allBoards, homeBoardOrderByWorkspace),
+    [allBoards, homeBoardOrderByWorkspace],
+  );
 
   const listRootRef = useRef<HTMLDivElement | null>(null);
   const floatHostRef = useRef<HTMLDivElement | null>(null);
@@ -224,10 +228,8 @@ export function useHomePageController(): HomePageController {
     setWorkspaceRowDrag,
     setBoardGridDropTarget: setBoardGridDropTargetWsId,
     setHomeDraggingClass: setHomePageDragging,
-    canDragBoard: (board) => homePerms.canDragBoardOnHome(board),
-    canReorderAllBoardsInWorkspace: (workspaceId) =>
-      user != null &&
-      homePerms.canReorderAllBoardsInScope(user.id, boardsByWorkspaceMap.get(workspaceId.trim()) ?? []),
+    canDragBoard: (board) => user != null && homePerms.canDragBoardOnHome(board),
+    refreshUserAfterBoardMove: refreshUser,
     hasBoardUpdate: homePerms.hasBoardUpdate,
     hasWorkspaceUpdate: (workspaceId) =>
       user != null && wsPerms.loaded && wsPerms.can(workspaceId, 'workspaces.update'),

@@ -20,12 +20,17 @@ export interface UserApiMethods {
   updateUserPreferences(preferences: {
     language?: string;
     homeWorkspaceOrder?: readonly string[];
+    homeBoardOrderPatch?: {
+      readonly workspaceId: string;
+      readonly orderedBoardIds: readonly string[];
+    };
     customBoardThemes?: readonly BoardThemeDefinition[];
   }): Promise<{ user: unknown }>;
   getUserPreferences(): Promise<{
     preferences: {
       language?: string;
       homeWorkspaceOrder?: string[];
+      homeBoardOrderByWorkspace?: Record<string, string[]>;
       customBoardThemes?: BoardThemeDefinition[];
     };
   }>;
@@ -90,6 +95,7 @@ export const userApiMethods: UserApiMethods = {
       preferences: {
         language?: string;
         homeWorkspaceOrder?: string[];
+        homeBoardOrderByWorkspace?: Record<string, string[]>;
         customBoardThemes?: BoardThemeDefinition[];
       };
     };

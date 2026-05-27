@@ -2,6 +2,7 @@ import { api } from '../../utils/api.js';
 import { transformBoard } from '../../utils/transform.js';
 import type { BoardDB, WorkspaceDB } from '../../store/database.js';
 import { canMoveBoardToTarget } from '../../components/home/homePageBoardMovePermissions.js';
+import { persistHomeBoardOrderForWorkspace } from './homeBoardPreferences.js';
 import {
   boardIdKey,
   boardsAfterCrossWorkspaceAppend,
@@ -114,10 +115,7 @@ export async function persistHomeBoardMove(input: HomeBoardMoveInput): Promise<v
     if (finalIds.length === 0) {
       return;
     }
-    await api.reorderHomeBoards({
-      workspaceId: rowWs,
-      orderedBoardIds: finalIds,
-    });
+    await persistHomeBoardOrderForWorkspace(rowWs, finalIds);
     return;
   }
 
@@ -151,10 +149,10 @@ export async function persistHomeBoardMove(input: HomeBoardMoveInput): Promise<v
     sourceServerBoards,
   );
   if (targetIds.length > 0) {
-    await api.reorderHomeBoards({ workspaceId: rowWs, orderedBoardIds: targetIds });
+    await persistHomeBoardOrderForWorkspace(rowWs, targetIds);
   }
   if (sourceIds.length > 0) {
-    await api.reorderHomeBoards({ workspaceId: sourceRowWs, orderedBoardIds: sourceIds });
+    await persistHomeBoardOrderForWorkspace(sourceRowWs, sourceIds);
   }
 }
 

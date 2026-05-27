@@ -69,7 +69,6 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'boards.settings.update',
       'boards.themes.changetheme',
       'boards.themes.customtheme',
-      'boards.reorder_in_home',
       'boards.create',
       'lists.create',
       'lists.update',
@@ -193,7 +192,7 @@ export async function initializeRoleDefinitions(): Promise<void> {
     {
       $addToSet: {
         permissions: {
-          $each: ['comments.delete', 'cards.duplicate', 'boards.reorder_in_home'],
+          $each: ['comments.delete', 'cards.duplicate'],
         },
       },
     },
@@ -204,7 +203,6 @@ export async function initializeRoleDefinitions(): Promise<void> {
       $pull: {
         permissions: {
           $each: [
-            'boards.reorder_in_home',
             'comments.delete',
             'invites.view',
             'cards.duplicate',
@@ -218,6 +216,11 @@ export async function initializeRoleDefinitions(): Promise<void> {
         },
       },
     },
+  ).catch(() => undefined);
+
+  await RoleDefinition.updateMany(
+    { permissions: { $in: ['boards.reorder_in_home'] } },
+    { $pull: { permissions: 'boards.reorder_in_home' } },
   ).catch(() => undefined);
 
   // Permission key migration: import.*.start → import.*
@@ -729,6 +732,18 @@ export function isValidCustomRoleKey(key: string): key is `custom:${string}` {
   }
   const slug = key.slice('custom:'.length);
   return /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slug);
+}
+
+/** Workspace/board custom roles must not include app-admin or account capability keys. */
+export function findForbiddenWorkspaceRolePermission(
+  permissions: readonly string[],
+): string | null {
+  for (const permission of permissions) {
+    if (permission.startsWith('app.') || permission.startsWith('users.')) {
+      return permission;
+    }
+  }
+  return null;
 }
 
 export async function getRoleHierarchyLevel(roleKey: string): Promise<number | null> {

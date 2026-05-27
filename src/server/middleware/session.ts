@@ -28,9 +28,11 @@ export const sessionMiddleware = session({
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    // Lax: required so the session cookie is sent on the OAuth return navigation
-    // (Google → /api/v1/auth/google/callback). Strict would omit the cookie on that
-    // cross-site redirect and break Passport OAuth state / oauthReturnTo.
+    // AUTH-004 threat model: `lax` is required so the session cookie is sent on the OAuth
+    // return navigation (Google → /api/v1/auth/google/callback). `strict` would drop the
+    // cookie on that cross-site redirect and break Passport OAuth `state` / oauthReturnTo.
+    // Mutating API auth uses the HttpOnly JWT cookie (`sameSite: strict`) plus session-bound
+    // CSRF double-submit; OAuth routes are CSRF-middleware-exempt (see routes/index.ts AUTH-007).
     sameSite: 'lax',
     maxAge: SESSION_COOKIE_MAX_AGE_MS,
   },

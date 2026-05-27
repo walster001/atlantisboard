@@ -116,6 +116,8 @@ const buildProcess = spawn([
   'public',
   '--target',
   'browser',
+  '--define',
+  'process.env.NODE_ENV=\\"production\\"',
   '--external',
   'mongoose',
   '--external',

@@ -41,6 +41,8 @@ export interface IUser extends Document {
     };
     /** Per-user boards homepage workspace row order (visible workspace ids only). */
     homeWorkspaceOrder?: string[];
+    /** Per-user board tile order within each workspace row on the home page (workspace id → board ids). */
+    homeBoardOrderByWorkspace?: Map<string, string[]> | Record<string, string[]>;
     /** App-wide custom board themes for this user (used by create-board + board settings). */
     customBoardThemes?: BoardThemeDefinition[];
   };
@@ -140,6 +142,11 @@ const PreferencesSchema = new Schema(
     language: { type: String, default: 'en' },
     notificationPreferences: { type: NotificationPreferencesSchema, default: () => ({}) },
     homeWorkspaceOrder: { type: [String], default: undefined },
+    homeBoardOrderByWorkspace: {
+      type: Map,
+      of: [String],
+      default: undefined,
+    },
     customBoardThemes: { type: [BoardThemeDefinitionSchema], default: undefined },
   },
   { _id: false }

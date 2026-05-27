@@ -1,0 +1,39 @@
+{
+  "name": "atlantisboard",
+  "version": "1.0.0",
+  "description": "Atlantisboard - Self-hosted Open-source Kanban",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.3.5"
+  },
+  "bin": {
+    "atlantisboard": "install/bin/atlantisboard.js",
+    "atlantisboard-setup": "install/bin/setup.sh"
+  },
+  "files": [
+    "dist",
+    "public",
+    "package.json",
+    "bun.lock",
+    ".env.example",
+    "DEPLOYMENT.md",
+    "README.md",
+    "install"
+  ],
+  "scripts": {
+    "postinstall": "node install/postinstall.js",
+    "start": "bun run dist/server/index.js",
+    "start:worker": "bun run dist/workers/index.js"
+  },
+  "keywords": [
+    "kanban",
+    "atlantisboard",
+    "trello",
+    "self-hosted"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/walster001/atlantisboard.git"
+  }
+}

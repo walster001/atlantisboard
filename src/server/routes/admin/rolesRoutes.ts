@@ -1,7 +1,11 @@
 import type { Router } from 'express';
 import { z } from 'zod';
 import { RoleDefinition } from '../../models/RoleDefinition.js';
-import { isBuiltInRoleKey, isValidCustomRoleKey } from '../../services/roleService.js';
+import {
+  findForbiddenWorkspaceRolePermission,
+  isBuiltInRoleKey,
+  isValidCustomRoleKey,
+} from '../../services/roleService.js';
 import { emitPermissionsUpdated } from './helpers.js';
 
 const roleKeySchema = z.string().trim().min(1).max(80);
@@ -49,6 +53,17 @@ export function registerRolesRoutes(router: Router): void {
         res.status(400).json({
           error: {
             message: 'Invalid custom role key (expected custom:<slug>)',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      const forbiddenPermission = findForbiddenWorkspaceRolePermission(body.permissions);
+      if (forbiddenPermission != null) {
+        res.status(400).json({
+          error: {
+            message: `Permission "${forbiddenPermission}" is not allowed on workspace/board roles`,
             code: 'VALIDATION_ERROR',
             statusCode: 400,
           },
@@ -113,7 +128,20 @@ export function registerRolesRoutes(router: Router): void {
       }
       if (patch.displayName !== undefined) role.displayName = patch.displayName;
       if (patch.description !== undefined) role.description = patch.description;
-      if (patch.permissions !== undefined) role.permissions = patch.permissions;
+      if (patch.permissions !== undefined) {
+        const forbiddenPermission = findForbiddenWorkspaceRolePermission(patch.permissions);
+        if (forbiddenPermission != null) {
+          res.status(400).json({
+            error: {
+              message: `Permission "${forbiddenPermission}" is not allowed on workspace/board roles`,
+              code: 'VALIDATION_ERROR',
+              statusCode: 400,
+            },
+          });
+          return;
+        }
+        role.permissions = patch.permissions;
+      }
       if (patch.hierarchyLevel !== undefined) {
         const hierarchyExists = await RoleDefinition.findOne({
           hierarchyLevel: patch.hierarchyLevel,

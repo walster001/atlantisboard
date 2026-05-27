@@ -24,6 +24,7 @@ import { csrfProtection } from '../middleware/csrf.js';
 
 export const apiRoutes = Router();
 
+// OAuth browser redirects cannot send X-CSRF-Token; Passport validates the `state` parameter instead.
 const CSRF_EXCLUDED_PATHS = new Set(['/auth/google', '/auth/google/callback']);
 
 function csrfProtectionUnlessExcluded(req: Request, res: Response, next: NextFunction): void {

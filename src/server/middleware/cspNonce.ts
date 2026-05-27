@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 
 export const CSP_NONCE_LOCALS_KEY = 'cspNonce';
 
-export function attachCspNonce(req: Request, res: Response, next: NextFunction): void {
+export function attachCspNonce(_req: Request, res: Response, next: NextFunction): void {
   res.locals[CSP_NONCE_LOCALS_KEY] = crypto.randomBytes(16).toString('base64');
   next();
 }

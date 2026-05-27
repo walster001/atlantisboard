@@ -36,6 +36,38 @@ export function dedupeBoardsLastWinsById(boards: readonly BoardDB[]): BoardDB[] 
 /**
  * Apply saved home workspace order: known ids first, then remaining workspaces by `createdAt` desc.
  */
+function defaultBoardSort(a: BoardDB, b: BoardDB): number {
+  if (a.position !== b.position) {
+    return a.position - b.position;
+  }
+  return b.createdAt.getTime() - a.createdAt.getTime();
+}
+
+/**
+ * Apply saved per-user home board order within one workspace row.
+ */
+export function mergeBoardsWithHomeOrder(
+  boards: readonly BoardDB[],
+  order: readonly string[] | undefined,
+): BoardDB[] {
+  if (order == null || order.length === 0) {
+    return [...boards].sort(defaultBoardSort);
+  }
+  const byId = new Map(boards.map((b) => [boardIdKey(b.id), b] as const));
+  const seen = new Set<string>();
+  const out: BoardDB[] = [];
+  for (const id of order) {
+    const key = boardIdKey(id);
+    const board = byId.get(key);
+    if (board != null && !seen.has(key)) {
+      out.push(board);
+      seen.add(key);
+    }
+  }
+  const rest = boards.filter((b) => !seen.has(boardIdKey(b.id))).sort(defaultBoardSort);
+  return [...out, ...rest];
+}
+
 export function mergeWorkspacesWithHomeOrder(
   workspaces: readonly WorkspaceDB[],
   order: readonly string[] | undefined,
@@ -59,20 +91,21 @@ export function mergeWorkspacesWithHomeOrder(
   return [...out, ...rest];
 }
 
-export function getBoardsInWorkspaceSorted(allBoards: BoardDB[], workspaceId: string): BoardDB[] {
+export function getBoardsInWorkspaceSorted(
+  allBoards: BoardDB[],
+  workspaceId: string,
+  homeBoardOrderByWorkspace?: Readonly<Record<string, readonly string[]>>,
+): BoardDB[] {
   const wid = workspaceId.trim();
   const list = allBoards.filter((b) => boardWorkspaceKey(b) === wid);
-  return [...list].sort((a, b) => {
-    if (a.position !== b.position) {
-      return a.position - b.position;
-    }
-    return b.createdAt.getTime() - a.createdAt.getTime();
-  });
+  const order = homeBoardOrderByWorkspace?.[wid];
+  return mergeBoardsWithHomeOrder(list, order);
 }
 
 /** One pass over `allBoards` — use from `useMemo` instead of calling `getBoardsInWorkspaceSorted` per workspace row. */
 export function buildBoardsByWorkspaceSortedMap(
   allBoards: readonly BoardDB[],
+  homeBoardOrderByWorkspace?: Readonly<Record<string, readonly string[]>>,
 ): ReadonlyMap<string, BoardDB[]> {
   const map = new Map<string, BoardDB[]>();
   for (const b of allBoards) {
@@ -87,15 +120,11 @@ export function buildBoardsByWorkspaceSortedMap(
     }
     bucket.push(b);
   }
-  for (const arr of map.values()) {
-    arr.sort((a, bb) => {
-      if (a.position !== bb.position) {
-        return a.position - bb.position;
-      }
-      return bb.createdAt.getTime() - a.createdAt.getTime();
-    });
+  const sorted = new Map<string, BoardDB[]>();
+  for (const [wid, bucket] of map) {
+    sorted.set(wid, mergeBoardsWithHomeOrder(bucket, homeBoardOrderByWorkspace?.[wid]));
   }
-  return map;
+  return sorted;
 }
 
 export function sortBoardsFlatHome(prev: BoardDB[]): BoardDB[] {
@@ -110,48 +139,6 @@ export function sortBoardsFlatHome(prev: BoardDB[]): BoardDB[] {
     }
     return b.createdAt.getTime() - a.createdAt.getTime();
   });
-}
-
-/**
- * Apply one `boards:positionsSynced` payload to the in-memory home list.
- *
- * Only updates **position** for boards the client already attributes to `workspaceId`.
- * Never assigns `workspaceId` from this event: cross-workspace membership is applied via
- * `board:updated` / API. Otherwise a stale or duplicate `positionsSynced` for workspace A
- * (still listing a board that moved to B) would yank that board back to A and break later drags.
- */
-export function mergeHomePositionsSyncIntoBoards(
-  prev: readonly BoardDB[],
-  workspaceId: string,
-  orderedBoardIds: readonly string[],
-): { readonly next: BoardDB[]; readonly touched: boolean } {
-  const wid = workspaceId.trim();
-  const posById = new Map(orderedBoardIds.map((id, i) => [boardIdKey(String(id)), i]));
-  const inReorder = new Set(orderedBoardIds.map((id) => boardIdKey(String(id))));
-  let touched = false;
-  const next = prev.map((b) => {
-    const bid = boardIdKey(b.id);
-    if (!inReorder.has(bid)) {
-      return b;
-    }
-    const p = posById.get(bid);
-    if (p === undefined) {
-      return b;
-    }
-    const curWs = boardWorkspaceKey(b);
-    if (curWs !== wid) {
-      return b;
-    }
-    if (b.position === p) {
-      return b;
-    }
-    touched = true;
-    return { ...b, position: p };
-  });
-  if (!touched) {
-    return { next: prev as BoardDB[], touched: false };
-  }
-  return { next: sortBoardsFlatHome(next), touched: true };
 }
 
 export function resolveDropTargetWorkspaceIdForHome(

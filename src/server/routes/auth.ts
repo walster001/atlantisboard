@@ -24,7 +24,7 @@ import {
 } from '../utils/passwordResetToken.js';
 import { logger } from '../utils/logger.js';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../services/emailService.js';
-import { createRateLimiter } from '../middleware/rateLimit.js';
+import { createRateLimiter, loginIpRateLimiter } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { requireAuth, blocklistTokenFromRequest } from '../middleware/auth.js';
 import { revokeAllTokensForUser } from '../utils/jwtBlocklist.js';
@@ -42,6 +42,7 @@ import {
   googleOAuthRedirectToBrowserOriginIfNeeded,
 } from '../../shared/utils/googleOAuthCallbackUrl.js';
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import { issueCSRFToken } from '../middleware/csrf.js';
 
 const router = Router();
 
@@ -399,7 +400,7 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
 });
 
 // Login endpoint
-router.post('/login', authRateLimiter, async (req, res, next) => {
+router.post('/login', authRateLimiter, loginIpRateLimiter, async (req, res, next) => {
   try {
     if (!(await assertEmailPasswordAllowed(res))) {
       return;
@@ -503,6 +504,17 @@ router.post('/login', authRateLimiter, async (req, res, next) => {
 
     await claimImportPlaceholderMembershipsForUser(user);
 
+    // Session fixation protection (align with Google OAuth callback path)
+    await new Promise<void>((resolve, reject) => {
+      req.session.regenerate((regenErr?: Error) => {
+        if (regenErr) {
+          reject(regenErr);
+          return;
+        }
+        resolve();
+      });
+    });
+
     // Generate token
     const token = generateToken({
       userId: user._id.toString(),
@@ -522,6 +534,8 @@ router.post('/login', authRateLimiter, async (req, res, next) => {
     });
 
     logger.info({ userId: user._id.toString(), email: user.email }, 'User logged in');
+
+    issueCSRFToken(req, res);
 
     sendAuthSuccess(res, 200, token, {
       id: user._id.toString(),

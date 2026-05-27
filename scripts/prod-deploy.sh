@@ -63,7 +63,7 @@ source "$PROJECT_ROOT/.env" 2>/dev/null || true
 set -u
 
 # Validate critical production variables
-CRITICAL_VARS=("JWT_SECRET" "SESSION_SECRET" "CSRF_SECRET" "ENCRYPTION_KEY")
+CRITICAL_VARS=("JWT_SECRET" "SESSION_SECRET" "CSRF_SECRET" "ENCRYPTION_KEY" "MEDIA_SIGN_SECRET")
 INSECURE_SECRET_PATTERNS=(
   "change-this-to-a-secure-random-string-in-production"
   "change-this-secret-in-production"
@@ -71,6 +71,7 @@ INSECURE_SECRET_PATTERNS=(
   "change-this-session-secret-in-production"
   "your-session-secret-change-in-production"
   "change-this-csrf-secret-in-production"
+  "change-this-media-sign-secret-in-production"
 )
 MIN_SECRET_LENGTH=32
 MISSING_VARS=()
@@ -109,8 +110,27 @@ fi
 if [ -z "$MINIO_SECRET_KEY_VALUE" ] || [ "$MINIO_SECRET_KEY_VALUE" = "minioadmin" ]; then
   MISSING_VARS+=("MINIO_SECRET_KEY")
 fi
-if [ -z "$REDIS_PASSWORD_VALUE" ]; then
+if [ -z "$REDIS_PASSWORD_VALUE" ] || [ "${#REDIS_PASSWORD_VALUE}" -lt "$MIN_SECRET_LENGTH" ]; then
   MISSING_VARS+=("REDIS_PASSWORD")
+fi
+
+MONGODB_URI_VALUE=$(grep "^MONGODB_URI=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
+if [ -z "$MONGODB_URI_VALUE" ] || ! echo "$MONGODB_URI_VALUE" | grep -q '@'; then
+  MISSING_VARS+=("MONGODB_URI (must include username:password@)")
+fi
+if [ -n "$MONGODB_URI_VALUE" ] && ! echo "$MONGODB_URI_VALUE" | grep -q 'replicaSet='; then
+  MISSING_VARS+=("MONGODB_URI (must include replicaSet=)")
+fi
+
+MEDIA_SIGN_VALUE=$(grep "^MEDIA_SIGN_SECRET=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
+JWT_SECRET_VALUE=$(grep "^JWT_SECRET=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
+if [ -n "$MEDIA_SIGN_VALUE" ] && [ -n "$JWT_SECRET_VALUE" ] && [ "$MEDIA_SIGN_VALUE" = "$JWT_SECRET_VALUE" ]; then
+  MISSING_VARS+=("MEDIA_SIGN_SECRET (must differ from JWT_SECRET)")
+fi
+
+POMPELMI_SKIP_VALUE=$(grep "^POMPELMI_SKIP_SCAN=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
+if [ "$POMPELMI_SKIP_VALUE" = "true" ]; then
+  MISSING_VARS+=("POMPELMI_SKIP_SCAN (must not be true in production)")
 fi
 
 CORS_ORIGIN_VALUE=$(grep "^CORS_ORIGIN=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")

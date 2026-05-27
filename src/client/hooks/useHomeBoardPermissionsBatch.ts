@@ -28,7 +28,8 @@ async function fetchPermissionsChunked(boardIds: readonly string[]): Promise<Map
 }
 
 /**
- * One request set per visible home board — aligns drag/reorder/menu with `hasPermission` (custom roles, workspace roles).
+ * One request set per visible home board — for board menus and cross-workspace moves.
+ * Home tile order within a row is per-user and does not use `boards.reorder_in_home`.
  */
 export function useHomeBoardPermissionsBatch(
   userId: string | undefined,
@@ -37,7 +38,6 @@ export function useHomeBoardPermissionsBatch(
   readonly loaded: boolean;
   readonly can: (boardId: string, key: BoardPermissionKey) => boolean;
   readonly canDragBoardOnHome: (board: BoardDB) => boolean;
-  readonly canReorderAllBoardsInScope: (uid: string, scope: readonly BoardDB[]) => boolean;
   readonly hasBoardUpdate: (boardId: string) => boolean;
 } {
   const [byBoardId, setByBoardId] = useState<Map<string, ReadonlySet<string>>>(new Map());
@@ -81,80 +81,53 @@ export function useHomeBoardPermissionsBatch(
   }, [userId, stableIds]);
 
   useEffect(() => {
-    const socket = socketClient.getSocket();
-    if (!socket || stableIds === '' || userId === undefined || userId === '') {
-      return undefined;
+    if (userId === undefined || userId === '') {
+      return;
     }
-    const ids = stableIds.split(',');
-    let cancelled = false;
-    const handler = (): void => {
+    const ids = stableIds === '' ? [] : stableIds.split(',');
+    if (ids.length === 0) {
+      return;
+    }
+    const onInvalidate = (): void => {
       void fetchPermissionsChunked(ids).then((next) => {
-        if (!cancelled) {
-          setByBoardId(next);
-          setLoaded(true);
-        }
+        setByBoardId(next);
+        setLoaded(true);
       });
     };
-    socket.on('permissions.updated', handler);
+    socketClient.on('permissions:invalidate', onInvalidate);
     return () => {
-      cancelled = true;
-      socket.off('permissions.updated', handler);
+      socketClient.off('permissions:invalidate', onInvalidate);
     };
   }, [userId, stableIds]);
 
   const can = useCallback(
     (boardId: string, key: BoardPermissionKey): boolean => {
+      if (!loaded) {
+        return false;
+      }
       return byBoardId.get(boardId)?.has(key) ?? false;
     },
-    [byBoardId],
+    [loaded, byBoardId],
   );
 
   const hasBoardUpdate = useCallback(
     (boardId: string): boolean => {
-      return can(boardId, 'boards.update');
-    },
-    [can],
-  );
-
-  const canDragBoardOnHome = useCallback(
-    (board: BoardDB): boolean => {
-      if (userId === undefined || userId === '') {
-        return false;
-      }
-      if (board.ownerId === userId) {
+      const board = boards.find((b) => b.id === boardId);
+      if (board?.ownerId === userId) {
         return true;
       }
-      if (!loaded) {
-        return false;
-      }
-      return (
-        can(board.id, 'boards.reorder_in_home') ||
-        can(board.id, 'boards.update')
-      );
+      return can(boardId, 'boards.update');
     },
-    [userId, loaded, can],
+    [boards, userId, can],
   );
 
-  const canReorderAllBoardsInScope = useCallback(
-    (uid: string, scope: readonly BoardDB[]): boolean => {
-      if (uid === '') {
-        return false;
-      }
-      if (scope.length === 0) {
-        return false;
-      }
-      if (!loaded) {
-        return scope.every((b) => b.ownerId === uid);
-      }
-      return scope.every((b) => {
-        if (b.ownerId === uid) {
-          return true;
-        }
-        return can(b.id, 'boards.reorder_in_home') || can(b.id, 'boards.update');
-      });
+  /** Any signed-in user who sees a board on home may drag it (reorder is per-user; cross-workspace moves are gated on drop). */
+  const canDragBoardOnHome = useCallback(
+    (_board: BoardDB): boolean => {
+      return userId != null && userId !== '';
     },
-    [loaded, can],
+    [userId],
   );
 
-  return { loaded, can, canDragBoardOnHome, canReorderAllBoardsInScope, hasBoardUpdate };
+  return { loaded, can, canDragBoardOnHome, hasBoardUpdate };
 }

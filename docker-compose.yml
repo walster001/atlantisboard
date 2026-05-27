@@ -6,7 +6,7 @@ services:
     container_name: kanboard-mongodb
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     environment:
       MONGO_INITDB_DATABASE: kanboard
     command:
@@ -78,7 +78,7 @@ services:
     container_name: kanboard-redis
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379'
     command: >
       sh -c "
       if [ -n \"$${REDIS_PASSWORD}\" ]; then
@@ -113,8 +113,8 @@ services:
     container_name: kanboard-minio
     restart: unless-stopped
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
@@ -149,7 +149,6 @@ services:
       mc mb myminio/user-avatars --ignore-existing;
       mc mb myminio/backgrounds --ignore-existing;
       mc mb myminio/backups --ignore-existing;
-      mc anonymous set public myminio/branding;
       exit 0;
       "
     networks:

@@ -127,7 +127,9 @@ function nudgeScrollLayoutOnce(shadow: ShadowRoot): void {
     return;
   }
   void scrollEl.offsetHeight;
-  scrollEl.scrollTop = scrollEl.scrollTop;
+  // Force layout recalc in shadow DOM (read scrollTop, then write same value).
+  const scrollTop = scrollEl.scrollTop;
+  scrollEl.scrollTop = scrollTop;
 }
 
 function injectShadowStyles(

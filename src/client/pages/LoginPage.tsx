@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Loader } from '@mantine/core';
 import { useAuthContext } from '../contexts/AuthContext.js';
 import { useAppBranding } from '../contexts/AppBrandingContext.js';
 import { api } from '../utils/api.js';
-import { env } from '../config/env.js';
+import { usesHttpOnlyAuth } from '../config/env.js';
 import { BrandedLoginCard } from '../components/auth/BrandedLoginCard.js';
 import { RegisterModal } from '../components/auth/RegisterModal.js';
 import { ForgotPasswordModal } from '../components/auth/ForgotPasswordModal.js';
@@ -37,6 +37,26 @@ export default function LoginPage() {
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const strippedNextFromUrlRef = useRef(false);
   const strippedForgotQueryRef = useRef(false);
+  const oauthDevTokenRef = useRef<string | null>(null);
+  const strippedOAuthTokenFromUrlRef = useRef(false);
+
+  /** Dev OAuth: remove JWT from the address bar before paint (token kept in memory only). */
+  useLayoutEffect(() => {
+    if (usesHttpOnlyAuth() || strippedOAuthTokenFromUrlRef.current) {
+      return;
+    }
+    const url = new URL(globalThis.location.href);
+    const token = url.searchParams.get('token');
+    if (!token) {
+      return;
+    }
+    strippedOAuthTokenFromUrlRef.current = true;
+    oauthDevTokenRef.current = token;
+    url.searchParams.delete('token');
+    const query = url.searchParams.toString();
+    const path = `${url.pathname}${query.length > 0 ? `?${query}` : ''}${url.hash}`;
+    globalThis.history.replaceState(globalThis.history.state, '', path);
+  }, []);
 
   /** Legacy `?next=` in address bar → sessionStorage, then strip (avoids exposing return path in URL). */
   useEffect(() => {
@@ -99,8 +119,8 @@ export default function LoginPage() {
       return;
     }
 
-    const token = searchParams.get('token');
-    const isProduction = env.NODE_ENV === 'production';
+    const isProduction = usesHttpOnlyAuth();
+    const token = isProduction ? searchParams.get('token') : oauthDevTokenRef.current;
 
     if (isProduction && !token) {
       searchParams.delete('oauth');
@@ -121,6 +141,7 @@ export default function LoginPage() {
 
     if (token) {
       api.setToken(token);
+      oauthDevTokenRef.current = null;
       searchParams.delete('token');
       searchParams.delete('oauth');
       searchParams.delete('next');

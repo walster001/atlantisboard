@@ -67,15 +67,6 @@ export interface SocketInvitesChangedPayload {
   readonly boardId?: string;
 }
 
-/** Home page board order within one workspace (from reorder API + boards:positionsSynced). */
-export interface SocketHomeBoardsPositionsSyncedPayload {
-  readonly workspaceId: string;
-  readonly orderedBoardIds: readonly string[];
-  readonly serverTs?: number;
-  /** Monotonic server-side sequence for this event stream (per workspace stale check on client). */
-  readonly sequence?: number;
-}
-
 /** Fired after IndexedDB is patched for a server-driven `cards:bulk-color-updated` event. */
 export interface SocketCardsBulkColorPayload {
   readonly boardId: string;
@@ -101,7 +92,6 @@ const listUpdatedSubs = new Set<(p: SocketListUpdatedPayload) => void>();
 const listDeletedSubs = new Set<(p: SocketListDeletedPayload) => void>();
 const boardLabelsChangedSubs = new Set<(p: SocketBoardLabelsChangedPayload) => void>();
 const invitesChangedSubs = new Set<(p: SocketInvitesChangedPayload) => void>();
-const homeBoardsPositionsSyncedSubs = new Set<(p: SocketHomeBoardsPositionsSyncedPayload) => void>();
 const cardsBulkColorSubs = new Set<(p: SocketCardsBulkColorPayload) => void>();
 const listsBulkColorSubs = new Set<(p: SocketListsBulkColorPayload) => void>();
 
@@ -280,21 +270,6 @@ export function subscribeSocketInvitesChanged(
 
 export function emitSocketInvitesChanged(p: SocketInvitesChangedPayload): void {
   for (const fn of invitesChangedSubs) {
-    fn(p);
-  }
-}
-
-export function subscribeSocketHomeBoardsPositionsSynced(
-  fn: (p: SocketHomeBoardsPositionsSyncedPayload) => void,
-): Unsubscribe {
-  homeBoardsPositionsSyncedSubs.add(fn);
-  return () => {
-    homeBoardsPositionsSyncedSubs.delete(fn);
-  };
-}
-
-export function emitSocketHomeBoardsPositionsSynced(p: SocketHomeBoardsPositionsSyncedPayload): void {
-  for (const fn of homeBoardsPositionsSyncedSubs) {
     fn(p);
   }
 }

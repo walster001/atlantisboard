@@ -1,0 +1,75 @@
+# Dependency stack for atlantisboard-setup (Docker mode). Run the app via systemd on the host.
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: atlantisboard-mongodb-deps
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: kanboard
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
+    volumes:
+      - mongo-data:/data/db
+      - ./mongodb/replica-init.sh:/replica-init.sh:ro
+    ports:
+      - '27017:27017'
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mongodb-init:
+    image: mongo:8.0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: 'no'
+    environment:
+      MONGODB_HOST: mongodb:27017
+      MONGODB_REPLICA_MEMBER_HOST: mongodb:27017
+    volumes:
+      - ./mongodb/replica-init.sh:/replica-init.sh:ro
+    entrypoint: ['bash', '/replica-init.sh']
+
+  redis:
+    image: redis:7-alpine
+    container_name: atlantisboard-redis-deps
+    restart: unless-stopped
+    command: >
+      sh -c "
+      if [ -n \"$${REDIS_PASSWORD}\" ]; then
+        redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\"
+      else
+        redis-server --appendonly yes
+      fi
+      "
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: atlantisboard-minio-deps
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    command: server /data --console-address "127.0.0.1:9001"
+    volumes:
+      - minio-data:/data
+    ports:
+      - '9000:9000'
+
+volumes:
+  mongo-data:
+  redis-data:
+  minio-data:

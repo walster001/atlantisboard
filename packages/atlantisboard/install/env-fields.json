@@ -1,0 +1,206 @@
+{
+  "sections": [
+    {
+      "id": "server",
+      "title": "Server",
+      "fields": [
+        {
+          "key": "NODE_ENV",
+          "label": "Node environment",
+          "description": "Use production for live deployments.",
+          "default": "production",
+          "secret": false
+        },
+        {
+          "key": "PORT",
+          "label": "HTTP port",
+          "description": "Port the application listens on.",
+          "default": "3000",
+          "secret": false
+        },
+        {
+          "key": "HOST",
+          "label": "Bind address",
+          "description": "0.0.0.0 listens on all interfaces.",
+          "default": "0.0.0.0",
+          "secret": false
+        },
+        {
+          "key": "APP_URL",
+          "label": "Public app URL",
+          "description": "Base URL users open in the browser (e.g. https://boards.example.com).",
+          "default": "http://localhost:3000",
+          "secret": false
+        },
+        {
+          "key": "CORS_ORIGIN",
+          "label": "CORS allowed origins",
+          "description": "Comma-separated browser origins allowed to call the API.",
+          "default": "http://localhost:3000",
+          "secret": false
+        },
+        {
+          "key": "TRUST_PROXY_HOPS",
+          "label": "Trusted proxy hops",
+          "description": "Set to 1 when behind nginx or Caddy.",
+          "default": "1",
+          "secret": false
+        }
+      ]
+    },
+    {
+      "id": "secrets",
+      "title": "Security secrets",
+      "fields": [
+        {
+          "key": "JWT_SECRET",
+          "label": "JWT secret",
+          "description": "Signing key for JWTs. Auto-generated if left empty.",
+          "default": "",
+          "secret": true,
+          "generate": "openssl rand -base64 48"
+        },
+        {
+          "key": "SESSION_SECRET",
+          "label": "Session secret",
+          "description": "Express session signing secret.",
+          "default": "",
+          "secret": true,
+          "generate": "openssl rand -base64 48"
+        },
+        {
+          "key": "CSRF_SECRET",
+          "label": "CSRF secret",
+          "description": "CSRF token signing secret (required in production).",
+          "default": "",
+          "secret": true,
+          "generate": "openssl rand -base64 48"
+        },
+        {
+          "key": "ENCRYPTION_KEY",
+          "label": "Encryption key",
+          "description": "AES-256-GCM key for stored credentials.",
+          "default": "",
+          "secret": true,
+          "generate": "openssl rand -base64 48"
+        },
+        {
+          "key": "MEDIA_SIGN_SECRET",
+          "label": "Media signing secret",
+          "description": "HMAC secret for signed asset URLs (must differ from JWT).",
+          "default": "",
+          "secret": true,
+          "generate": "openssl rand -base64 48"
+        }
+      ]
+    },
+    {
+      "id": "mongodb",
+      "title": "MongoDB",
+      "fields": [
+        {
+          "key": "MONGODB_URI",
+          "label": "MongoDB URI",
+          "description": "Must include replicaSet= for change streams.",
+          "default": "mongodb://localhost:27017/kanboard?replicaSet=rs0",
+          "secret": false
+        },
+        {
+          "key": "MONGODB_DB_NAME",
+          "label": "Database name",
+          "description": "MongoDB database name.",
+          "default": "kanboard",
+          "secret": false
+        }
+      ]
+    },
+    {
+      "id": "redis",
+      "title": "Redis",
+      "fields": [
+        {
+          "key": "REDIS_HOST",
+          "label": "Redis host",
+          "description": "Use redis when using bundled Docker Compose dependencies.",
+          "default": "localhost",
+          "secret": false
+        },
+        {
+          "key": "REDIS_PORT",
+          "label": "Redis port",
+          "description": "Redis TCP port.",
+          "default": "6379",
+          "secret": false
+        },
+        {
+          "key": "REDIS_PASSWORD",
+          "label": "Redis password",
+          "description": "Required in production.",
+          "default": "",
+          "secret": true
+        }
+      ]
+    },
+    {
+      "id": "minio",
+      "title": "MinIO (object storage)",
+      "fields": [
+        {
+          "key": "MINIO_ENDPOINT",
+          "label": "MinIO endpoint",
+          "description": "Hostname only (not URL).",
+          "default": "localhost",
+          "secret": false
+        },
+        {
+          "key": "MINIO_PORT",
+          "label": "MinIO port",
+          "description": "S3 API port.",
+          "default": "9000",
+          "secret": false
+        },
+        {
+          "key": "MINIO_ACCESS_KEY",
+          "label": "MinIO access key",
+          "description": "Application access key.",
+          "default": "minioadmin",
+          "secret": false
+        },
+        {
+          "key": "MINIO_SECRET_KEY",
+          "label": "MinIO secret key",
+          "description": "Application secret key.",
+          "default": "",
+          "secret": true
+        },
+        {
+          "key": "MINIO_USE_SSL",
+          "label": "MinIO TLS",
+          "description": "true or false.",
+          "default": "false",
+          "secret": false
+        }
+      ]
+    },
+    {
+      "id": "worker",
+      "title": "Background jobs",
+      "fields": [
+        {
+          "key": "ENABLE_CRON_JOBS_IN_MAIN",
+          "label": "Run cron in main process",
+          "description": "true = single process; false = use atlantisboard-worker systemd unit.",
+          "default": "false",
+          "secret": false
+        },
+        {
+          "key": "BACKUP_LOCATION",
+          "label": "Backup directory",
+          "description": "Absolute path for admin backup ZIP files.",
+          "default": "/var/backups/atlantisboard",
+          "secret": false
+        }
+      ]
+    }
+  ]
+}

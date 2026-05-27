@@ -1,6 +1,11 @@
 # Kanboard (Atlantisboard)
 
+[![CI](https://github.com/your-org/atlantisboard/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/atlantisboard/actions/workflows/ci.yml)
+[![Staging](https://github.com/your-org/atlantisboard/actions/workflows/staging.yml/badge.svg)](https://github.com/your-org/atlantisboard/actions/workflows/staging.yml)
+
 Self-hosted Kanban-style boards: **workspaces**, **lists**, **cards**, permissions, invites, import/export, and live collaboration so your team sees updates without constantly refreshing.
+
+Production install via npm: `npm install -g atlantisboard` then `atlantisboard-setup` — see [npm install wiki](docs/wiki/npm-install.md).
 
 ---
 
@@ -44,6 +49,24 @@ Roadmap items in older marketing copy (for example some template or CSV flows) m
 ## Contributing
 
 Fork, branch, commit, push, and open a pull request. Run typecheck and tests as in [docs/developer/setup.md](docs/developer/setup.md) before submitting.
+
+---
+
+## Releases (maintainers)
+
+1. Update version in root `package.json` and add a `## [x.y.z]` section to [CHANGELOG.md](CHANGELOG.md).
+2. Merge to `main` — **Staging** workflow uploads a zip artifact (`atlantisboard-<version>.zip`).
+3. Run **Deploy to Production** (Actions → workflow_dispatch): confirm CHANGELOG, publish to npm (`atlantisboard`), create GitHub Release with notes.
+
+**GitHub secrets:** `NPM_TOKEN` (npm automation token) on the `production` environment. `GITHUB_TOKEN` is provided by Actions.
+
+Local dry run:
+
+```bash
+./scripts/build-npm-package.sh
+./scripts/release-bundle.sh
+(cd packages/atlantisboard && npm pack)
+```
 
 ---
 

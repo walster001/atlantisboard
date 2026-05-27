@@ -37,9 +37,11 @@ function validateHref(href: unknown): boolean {
     return false;
   }
   const t = href.trim();
+  if (t.startsWith('http://')) {
+    return false;
+  }
   return (
     t.startsWith('https://') ||
-    t.startsWith('http://') ||
     t.startsWith('/') ||
     t.startsWith('./') ||
     t.startsWith('../') ||

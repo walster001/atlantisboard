@@ -152,6 +152,45 @@ export function createRateLimiter(
   });
 }
 
+/** Per-IP limiter for credential endpoints (mitigates password spraying across accounts — AC-002). */
+export function createIpKeyedRateLimiter(
+  redisKeyPrefix: string,
+  options: { windowMs: number; max: number },
+): ReturnType<typeof rateLimit> {
+  const windowMs = options.windowMs;
+  const store = new RedisStore(redis, `ratelimit:${redisKeyPrefix}`, windowMs);
+  return rateLimit({
+    store,
+    windowMs,
+    max: options.max,
+    keyGenerator: (req: Request) => `ip:${getClientIp(req)}`,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req: Request, res: Response) => {
+      logger.warn(
+        {
+          type: redisKeyPrefix,
+          ip: getClientIp(req),
+        },
+        'IP rate limit exceeded',
+      );
+      res.status(429).json({
+        error: {
+          message: 'Too many requests, please try again later',
+          code: 'RATE_LIMIT_EXCEEDED',
+          statusCode: 429,
+        },
+      });
+    },
+  });
+}
+
+/** Stricter cap on login attempts per IP (15 min window). Stacks with authRateLimiter. */
+export const loginIpRateLimiter = createIpKeyedRateLimiter('login_ip', {
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+});
+
 // Pre-configured limiters (will use defaults initially, can be updated)
 export const authRateLimiter = createRateLimiter('auth');
 export const fileUploadRateLimiter = createRateLimiter('file');

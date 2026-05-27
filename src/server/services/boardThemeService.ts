@@ -298,7 +298,6 @@ export async function replaceUserCustomThemes(
   await BoardTheme.deleteMany({ scope: 'user', ownerUserId: ownerOid });
   for (const theme of themes) {
     await upsertCustomTheme({
-      scope: 'user',
       slug: theme.id,
       name: theme.name,
       palette: theme.palette,

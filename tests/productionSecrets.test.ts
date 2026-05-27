@@ -1,5 +1,22 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { assertProductionSecrets } from '../src/server/utils/productionSecrets.js';
+import {
+  assertProductionSecrets,
+  mongoUriHasCredentials,
+} from '../src/server/utils/productionSecrets.js';
+
+describe('mongoUriHasCredentials', () => {
+  it('returns true when username and password are present', () => {
+    expect(
+      mongoUriHasCredentials(
+        'mongodb://kanboard_app:secret@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0',
+      ),
+    ).toBe(true);
+  });
+
+  it('returns false when credentials are missing', () => {
+    expect(mongoUriHasCredentials('mongodb://mongodb:27017/kanboard')).toBe(false);
+  });
+});
 
 describe('assertProductionSecrets', () => {
   const originalEnv = { ...process.env };
@@ -7,6 +24,23 @@ describe('assertProductionSecrets', () => {
   afterEach(() => {
     process.env = { ...originalEnv };
   });
+
+  function setSecureProductionSecrets(): void {
+    const secure = 'a'.repeat(48);
+    const media = 'b'.repeat(48);
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = secure;
+    process.env.SESSION_SECRET = secure;
+    process.env.CSRF_SECRET = secure;
+    process.env.ENCRYPTION_KEY = secure;
+    process.env.MEDIA_SIGN_SECRET = media;
+    process.env.REDIS_PASSWORD = secure;
+    process.env.MINIO_ACCESS_KEY = secure;
+    process.env.MINIO_SECRET_KEY = secure;
+    process.env.MONGODB_URI =
+      'mongodb://kanboard_app:secret@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0';
+    delete process.env.POMPELMI_SKIP_SCAN;
+  }
 
   it('does nothing outside production', () => {
     process.env.NODE_ENV = 'development';
@@ -25,13 +59,31 @@ describe('assertProductionSecrets', () => {
   });
 
   it('accepts secrets that meet minimum length and are not placeholders', () => {
-    process.env.NODE_ENV = 'production';
-    const secure = 'a'.repeat(48);
-    process.env.JWT_SECRET = secure;
-    process.env.SESSION_SECRET = secure;
-    process.env.CSRF_SECRET = secure;
-    process.env.ENCRYPTION_KEY = secure;
-
+    setSecureProductionSecrets();
     expect(() => assertProductionSecrets()).not.toThrow();
+  });
+
+  it('blocks POMPELMI_SKIP_SCAN in production', () => {
+    setSecureProductionSecrets();
+    process.env.POMPELMI_SKIP_SCAN = 'true';
+    expect(() => assertProductionSecrets()).toThrow(/POMPELMI_SKIP_SCAN/);
+  });
+
+  it('blocks default MinIO credentials in production', () => {
+    setSecureProductionSecrets();
+    process.env.MINIO_ACCESS_KEY = 'minioadmin';
+    expect(() => assertProductionSecrets()).toThrow(/MINIO_ACCESS_KEY/);
+  });
+
+  it('blocks MongoDB URI without credentials in production', () => {
+    setSecureProductionSecrets();
+    process.env.MONGODB_URI = 'mongodb://mongodb:27017/kanboard?replicaSet=rs0';
+    expect(() => assertProductionSecrets()).toThrow(/MONGODB_URI must include credentials/);
+  });
+
+  it('blocks MEDIA_SIGN_SECRET equal to JWT_SECRET in production', () => {
+    setSecureProductionSecrets();
+    process.env.MEDIA_SIGN_SECRET = process.env.JWT_SECRET;
+    expect(() => assertProductionSecrets()).toThrow(/MEDIA_SIGN_SECRET must differ/);
   });
 });

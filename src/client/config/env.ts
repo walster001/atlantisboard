@@ -45,6 +45,11 @@ function readEnvNumber(key: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** HttpOnly cookie auth in production; dev may use localStorage JWT for convenience. */
+export function usesHttpOnlyAuth(): boolean {
+  return readEnvString('NODE_ENV', 'development') === 'production';
+}
+
 export const env = {
   NODE_ENV: readEnvString('NODE_ENV', 'development'),
   API_BASE_URL: readEnvString('API_BASE_URL', ''),

@@ -245,6 +245,12 @@ export function resetRealtimeTelemetryForTests(): void {
   batchStates.clear();
 }
 
+/** Clears the Socket.io instance and pending batch timers (test isolation). */
+export function resetSocketIOForTests(): void {
+  resetRealtimeTelemetryForTests();
+  ioInstance = null;
+}
+
 /**
  * Emit event to a board room
  */

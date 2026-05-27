@@ -21,14 +21,6 @@ import {
 import { logger } from '../../utils/logger.js';
 import type { BoardMemberAuditHints } from './types.js';
 
-/** Monotonic counter for home `boards:positionsSynced` so clients can reject stale reorder events. */
-let homeBoardPositionsSequence = 0;
-
-export function nextHomeBoardPositionsSequence(): number {
-  homeBoardPositionsSequence += 1;
-  return homeBoardPositionsSequence;
-}
-
 function buildBoardSocketPayload(board: Document & IBoard): {
   boardId: string;
   data: Record<string, unknown>;

@@ -1,0 +1,24 @@
+[Unit]
+Description=Atlantisboard Application
+After=network.target mongod.service redis-server.service
+Wants=mongod.service redis-server.service
+
+[Service]
+Type=simple
+User=atlantisboard
+Group=atlantisboard
+WorkingDirectory=@INSTALL_DIR@
+EnvironmentFile=@INSTALL_DIR@/.env
+ExecStart=@BUN_BIN@ run @INSTALL_DIR@/dist/server/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=@BACKUP_DIR@
+
+[Install]
+WantedBy=multi-user.target

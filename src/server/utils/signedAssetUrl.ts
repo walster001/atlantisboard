@@ -3,8 +3,15 @@ import crypto from 'node:crypto';
 const DEFAULT_TTL_SECONDS = 86_400;
 
 function signingSecret(): string {
+  const media = process.env.MEDIA_SIGN_SECRET?.trim();
+  if (process.env.NODE_ENV === 'production') {
+    if (media == null || media === '') {
+      throw new Error('MEDIA_SIGN_SECRET is required in production');
+    }
+    return media;
+  }
   return (
-    process.env.MEDIA_SIGN_SECRET?.trim() ||
+    media ||
     process.env.JWT_SECRET?.trim() ||
     'change-this-secret-in-production'
   );

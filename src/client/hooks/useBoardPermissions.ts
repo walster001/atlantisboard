@@ -19,7 +19,6 @@ export interface KanbanBoardEditCaps {
 export type BoardPermissionKey =
   | 'boards.view'
   | 'boards.update'
-  | 'boards.reorder_in_home'
   | 'boards.settings.update'
   | 'boards.themes.changetheme'
   | 'boards.themes.customtheme'

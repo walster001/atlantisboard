@@ -30,12 +30,18 @@ This page documents every environment variable recognised by Atlantisboard. Vari
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MONGODB_URI` | `mongodb://localhost:27017/kanboard?replicaSet=rs0` | Connection string (replica set required for change streams) |
+| `MONGODB_URI` | `mongodb://localhost:27017/kanboard?replicaSet=rs0` | Connection string (replica set required for change streams). **Production:** must include username, password, and `replicaSet=` |
 | `MONGODB_DB_NAME` | `kanboard` | Database name |
+| `MONGODB_ROOT_USER` | _(production Compose)_ | MongoDB root user (first init only; store securely) |
+| `MONGODB_ROOT_PASSWORD` | _(production Compose)_ | MongoDB root password |
+| `MONGODB_APP_USER` | `kanboard_app` | Application database user (production Compose init) |
+| `MONGODB_APP_PASSWORD` | _(production Compose)_ | Password for `MONGODB_APP_USER` |
 | `ENABLE_CHANGE_STREAMS` | `true` | Enable MongoDB change streams for real-time sync |
 | `DISABLE_CHANGE_STREAMS` | _(empty)_ | Force change streams off |
 
 > **Important:** MongoDB must be configured as a replica set. Change Streams — the foundation of Atlantisboard's real-time collaboration — do not work without one. Even single-node deployments need a replica set. See the [Manual Installation](manual-install.md) guide for initialisation commands.
+
+> **Production:** The application refuses to start when `MONGODB_URI` has no credentials. Production Docker Compose enables SCRAM authentication and creates a least-privilege app user. Example URI: `mongodb://kanboard_app:SECRET@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0`
 
 ---
 
@@ -67,8 +73,9 @@ This page documents every environment variable recognised by Atlantisboard. Vari
 | `SESSION_SECRET` | _(must set)_ | Express session signing secret |
 | `CSRF_SECRET` | _(must set)_ | CSRF token signing secret |
 | `ENCRYPTION_KEY` | _(must set)_ | AES-256-GCM key for encrypting stored credentials (OAuth secrets, MySQL passwords, VAPID keys) |
+| `MEDIA_SIGN_SECRET` | _(must set in production)_ | HMAC secret for signed branding/font/asset URLs. Must differ from `JWT_SECRET` |
 
-> **Warning:** These four secrets are critical for application security. Generate each one independently with `openssl rand -base64 48`. Never share them, commit them to version control, or reuse the same value for multiple variables.
+> **Warning:** These five secrets are critical for application security. Generate each one independently with `openssl rand -base64 48`. Never share them, commit them to version control, or reuse the same value for multiple variables.
 
 ---
 
@@ -112,11 +119,17 @@ These variables are only used when the authentication method is set to **Google 
 | `MINIO_ENDPOINT` | `localhost` | MinIO server address (use `minio` in Docker Compose) |
 | `MINIO_PORT` | `9000` | MinIO API port |
 | `MINIO_USE_SSL` | `false` | Use HTTPS for MinIO |
-| `MINIO_ACCESS_KEY` | `minioadmin` | MinIO root user |
-| `MINIO_SECRET_KEY` | `minioadmin` | MinIO root password |
+| `MINIO_ACCESS_KEY` | `minioadmin` | Application S3 access key (also used as MinIO root in dev when `MINIO_ROOT_*` unset) |
+| `MINIO_SECRET_KEY` | `minioadmin` | Application S3 secret key |
+| `MINIO_ROOT_ACCESS_KEY` | _(falls back to `MINIO_ACCESS_KEY`)_ | MinIO **server** root user (production Compose). Set separately from app keys for least privilege |
+| `MINIO_ROOT_SECRET_KEY` | _(falls back to `MINIO_SECRET_KEY`)_ | MinIO server root password |
 | `MINIO_UPLOAD_PART_SIZE_MB` | `128` | Multipart upload chunk size (16–256 MiB) |
 
 > **Warning:** Change the default `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` in production. The defaults (`minioadmin` / `minioadmin`) are for development only.
+
+> **Least privilege:** For production, set `MINIO_ROOT_ACCESS_KEY` / `MINIO_ROOT_SECRET_KEY` for the MinIO daemon and use **different** `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` for the app. Production Compose `minio-setup` creates a scoped user with read/write on application buckets only. Branding assets are served through the app via signed URLs—not anonymous MinIO access.
+
+> **TLS:** Set `MINIO_USE_SSL=true` when MinIO is behind HTTPS. Set `REDIS_TLS=true` for managed Redis or internal TLS. Traffic on the default Docker bridge is plaintext unless TLS is enabled.
 
 ---
 
@@ -125,6 +138,7 @@ These variables are only used when the authentication method is set to **Google 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CORS_ORIGIN` | `http://localhost:3000` | Comma-separated allowed CORS origins. Wildcard `*` rejected in production |
+| `CORS_ALLOW_MISSING_ORIGIN` | `false` | Production only: set `true` to allow credentialed API calls with no `Origin` header (non-browser clients). Browsers and installed PWAs normally send `Origin`; leave unset unless you operate server-to-server integrations |
 | `TRUST_PROXY_HOPS` | `1` | Number of trusted reverse proxy hops (Nginx/Caddy = 1) |
 | `APP_URL` | `http://localhost:3000` | Public-facing application URL |
 | `API_URL` | `http://localhost:3000/api/v1` | API base URL |
@@ -169,6 +183,8 @@ Rate limits are enforced per IP address using Redis-backed counters. Adjust thes
 
 > **Note:** The `BACKUP_LOCATION` must be an absolute path on the server (e.g. `/var/backups/atlantisboard`). The directory must exist and be writable by the application process. When using Docker, mount a host volume to this path so backups are accessible outside the container.
 
+> **Security:** Backup jobs use the MinIO Client (`mc`) with credentials from the app environment. Prefer a scoped `MINIO_ACCESS_KEY` (not root) so a compromised app process has limited object-store access. Never enable `POMPELMI_SKIP_SCAN=true` in production.
+
 ---
 
 ## Push Notifications (Optional)
@@ -178,6 +194,16 @@ Rate limits are enforced per IP address using Redis-backed counters. Adjust thes
 | `VAPID_SUBJECT` | _(empty)_ | VAPID subject for web push (e.g. `mailto:admin@example.com`) |
 
 VAPID (Voluntary Application Server Identification) is required for Web Push notifications. Set this to a `mailto:` URL or a URL for your application. VAPID keys are generated automatically by the application and stored encrypted using `ENCRYPTION_KEY`.
+
+---
+
+## Email (SMTP)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SMTP_TLS_INSECURE` | `false` | **Development only:** set `true` to skip SMTP TLS certificate verification (local mail sinks with self-signed certs). Ignored when `NODE_ENV=production` |
+
+Admin UI SMTP settings use the same TLS policy: verification is always on in production.
 
 ---
 
@@ -196,11 +222,17 @@ By default, scheduled background jobs (backups, cleanup tasks) run in a separate
 For a minimal production deployment, make sure you have set:
 
 - [ ] `NODE_ENV=production`
-- [ ] `JWT_SECRET`, `SESSION_SECRET`, `CSRF_SECRET`, `ENCRYPTION_KEY` (four unique secrets)
+- [ ] `JWT_SECRET`, `SESSION_SECRET`, `CSRF_SECRET`, `ENCRYPTION_KEY`, `MEDIA_SIGN_SECRET` (five unique secrets)
 - [ ] `APP_URL` and `CORS_ORIGIN` (your public domain)
-- [ ] `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` (changed from defaults)
-- [ ] `REDIS_PASSWORD` (if Redis is network-accessible)
-- [ ] `MONGODB_URI` (if not using the default Docker Compose setup)
+- [ ] `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` (changed from defaults; scoped user recommended)
+- [ ] `REDIS_PASSWORD` (≥32 characters)
+- [ ] `MONGODB_URI` with credentials and `replicaSet=` (production Compose: also `MONGODB_ROOT_*` and `MONGODB_APP_PASSWORD`)
+
+---
+
+## Security testing (CI)
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `bun audit`, typecheck, and unit tests on each push/PR. **OWASP ZAP / DAST** is not yet automated in CI; run a baseline ZAP scan against a staging deployment before major releases until a workflow job is added (see internal security report INFRA-008).
 
 ---
 

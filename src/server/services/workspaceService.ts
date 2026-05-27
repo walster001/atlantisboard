@@ -725,6 +725,8 @@ export async function deleteWorkspace(
   await Board.deleteMany({ workspaceId: workspace._id });
   await cleanupImportPlaceholderUsersAfterBoardRemoval(placeholderUserIds);
   await User.updateMany({}, { $pull: { 'preferences.homeWorkspaceOrder': workspaceId } });
+  const { clearHomeBoardOrderForWorkspaceForAllUsers } = await import('./homeBoardPreferencesService.js');
+  await clearHomeBoardOrderForWorkspaceForAllUsers(workspaceId);
 
   await Workspace.findByIdAndDelete(workspaceId);
 

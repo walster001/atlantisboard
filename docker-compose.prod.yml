@@ -5,28 +5,62 @@ services:
     restart: unless-stopped
     environment:
       MONGO_INITDB_DATABASE: kanboard
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USER:?Set MONGODB_ROOT_USER in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:?Set MONGODB_ROOT_PASSWORD in .env}
+      MONGODB_APP_USER: ${MONGODB_APP_USER:-kanboard_app}
+      MONGODB_APP_PASSWORD: ${MONGODB_APP_PASSWORD:?Set MONGODB_APP_PASSWORD in .env}
+    command:
+      [
+        'mongod',
+        '--replSet',
+        'rs0',
+        '--bind_ip_all',
+      ]
     volumes:
       - mongo-data-prod:/data/db
       - mongo-config-prod:/data/configdb
+      - ./docker/mongodb/init-app-user.js:/docker-entrypoint-initdb.d/init-app-user.js:ro
     networks:
       - kanboard-network-prod
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: >
+        sh -c "
+        mongosh \"mongodb://$${MONGO_INITDB_ROOT_USERNAME}:$${MONGO_INITDB_ROOT_PASSWORD}@localhost:27017/admin\" --quiet --eval \"db.adminCommand('ping')\"
+        "
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+
+  mongodb-init:
+    image: mongo:8.0
+    container_name: kanboard-mongodb-init-prod
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: 'no'
+    environment:
+      MONGODB_ROOT_USER: ${MONGODB_ROOT_USER}
+      MONGODB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+      MONGODB_HOST: mongodb
+      MONGODB_REPLICA_MEMBER_HOST: mongodb:27017
+    volumes:
+      - ./docker/mongodb/replica-init.sh:/replica-init.sh:ro
+    entrypoint: ['bash', '/replica-init.sh']
+    networks:
+      - kanboard-network-prod
 
   redis:
     image: redis:7-alpine
     container_name: kanboard-redis-prod
     restart: unless-stopped
-    # Match dev compose: omit --requirepass when REDIS_PASSWORD is unset; healthcheck must auth when password is set.
     command: >
       sh -c "
       if [ -n \"$${REDIS_PASSWORD}\" ]; then
         redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\"
       else
-        redis-server --appendonly yes
+        echo 'REDIS_PASSWORD is required in production Compose' >&2;
+        exit 1;
       fi
       "
     volumes:
@@ -36,11 +70,7 @@ services:
     healthcheck:
       test: >
         sh -c "
-        if [ -n \"$${REDIS_PASSWORD}\" ]; then
-          redis-cli -a \"$${REDIS_PASSWORD}\" ping
-        else
-          redis-cli ping
-        fi
+        redis-cli -a \"$${REDIS_PASSWORD}\" ping
         "
       interval: 10s
       timeout: 5s
@@ -51,9 +81,9 @@ services:
     container_name: kanboard-minio-prod
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-    command: server /data --console-address ":9001"
+      MINIO_ROOT_USER: ${MINIO_ROOT_ACCESS_KEY:-${MINIO_ACCESS_KEY:?Set MINIO_ACCESS_KEY in .env}}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_SECRET_KEY:-${MINIO_SECRET_KEY:?Set MINIO_SECRET_KEY in .env}}
+    command: server /data --console-address "127.0.0.1:9001"
     volumes:
       - minio-data-prod:/data
     networks:
@@ -69,19 +99,15 @@ services:
     container_name: kanboard-minio-setup-prod
     depends_on:
       - minio
-    entrypoint: >
-      /bin/sh -c "
-      sleep 5;
-      mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin};
-      mc mb myminio/import-inline --ignore-existing;
-      mc mb myminio/card-attachments --ignore-existing;
-      mc mb myminio/branding --ignore-existing;
-      mc mb myminio/fonts --ignore-existing;
-      mc mb myminio/user-avatars --ignore-existing;
-      mc mb myminio/backgrounds --ignore-existing;
-      mc mb myminio/backups --ignore-existing;
-      exit 0;
-      "
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_ROOT_ACCESS_KEY: ${MINIO_ROOT_ACCESS_KEY:-}
+      MINIO_ROOT_SECRET_KEY: ${MINIO_ROOT_SECRET_KEY:-}
+    volumes:
+      - ./docker/minio/prod-setup.sh:/setup.sh:ro
+      - ./docker/minio/app-readwrite-policy.json:/policy/app-readwrite-policy.json:ro
+    entrypoint: ['/bin/sh', '/setup.sh']
     networks:
       - kanboard-network-prod
 
@@ -97,15 +123,17 @@ services:
       NODE_ENV: production
       PORT: ${PORT:-3000}
       HOST: ${HOST:-0.0.0.0}
-      MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/kanboard}
+      MONGODB_URI: ${MONGODB_URI:?Set MONGODB_URI with credentials and replicaSet= in .env}
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      REDIS_TLS: ${REDIS_TLS:-false}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
       MINIO_PORT: ${MINIO_PORT:-9000}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      MEDIA_SIGN_SECRET: ${MEDIA_SIGN_SECRET:?Set MEDIA_SIGN_SECRET in .env}
       BACKUP_MC_PATH: ${BACKUP_MC_PATH:-/usr/local/bin/mc}
       BACKUP_MC_MIRROR_ALIAS: ${BACKUP_MC_MIRROR_ALIAS:-local}
       JWT_SECRET: ${JWT_SECRET}
@@ -121,10 +149,14 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      mongodb-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio:
         condition: service_healthy
+      minio-setup:
+        condition: service_completed_successfully
     networks:
       - kanboard-network-prod
     healthcheck:

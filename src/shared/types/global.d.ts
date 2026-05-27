@@ -35,6 +35,7 @@ declare global {
 }
 
 // Express Request extension for authenticated requests
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- namespace augments express
 declare namespace Express {
   interface Request {
     user?: {

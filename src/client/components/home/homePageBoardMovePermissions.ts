@@ -9,13 +9,6 @@ export function canUserEditBoard(userId: string, board: BoardDB): boolean {
   return roleKey === 'admin' || roleKey === 'manager';
 }
 
-export function canReorderAllBoardsInScope(userId: string, boards: BoardDB[]): boolean {
-  if (boards.length === 0) {
-    return false;
-  }
-  return boards.every((b) => canUserEditBoard(userId, b));
-}
-
 function canManageWorkspaceForBoardMoves(
   userId: string,
   workspace: WorkspaceDB,

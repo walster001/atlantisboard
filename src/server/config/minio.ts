@@ -1,10 +1,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import { Client as MinIOClient } from 'minio';
-import {
-  MINIO_BUCKET_BRANDING,
-  MINIO_BUCKET_NAMES,
-} from '../../shared/constants/minioBuckets.js';
+import { MINIO_BUCKET_NAMES } from '../../shared/constants/minioBuckets.js';
 import { logger } from '../utils/logger.js';
 
 let minioClient: MinIOClient | null = null;
@@ -57,32 +54,6 @@ export async function initializeMinIOBuckets(): Promise<void> {
         logger.info({ bucket: bucketName }, 'Created MinIO bucket');
       }
 
-      // Public read for direct MinIO URLs (optional; API also proxies GET /branding/*).
-      // Do not fail startup if the bucket uses a custom policy in the console.
-      if (bucketName === MINIO_BUCKET_BRANDING) {
-        try {
-          await client.setBucketPolicy(
-            bucketName,
-            JSON.stringify({
-              Version: '2012-10-17',
-              Statement: [
-                {
-                  Effect: 'Allow',
-                  Principal: { AWS: ['*'] },
-                  Action: ['s3:GetObject'],
-                  Resource: [`arn:aws:s3:::${bucketName}/*`],
-                },
-              ],
-            })
-          );
-          logger.info({ bucket: bucketName }, 'Set branding bucket to public read');
-        } catch (error) {
-          logger.warn(
-            { error, bucket: bucketName },
-            'Could not apply default branding bucket policy; ensure MinIO allows GetObject if needed, or keep your custom policy'
-          );
-        }
-      }
     } catch (error) {
       logger.error({ error, bucket: bucketName }, 'Error initializing MinIO bucket');
       throw error;

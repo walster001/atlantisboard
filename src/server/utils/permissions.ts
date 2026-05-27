@@ -143,7 +143,6 @@ const BUILTIN_ROLE_PERMISSION_FALLBACKS: Readonly<Record<UserRole, readonly stri
     'boards.settings.update',
     'boards.themes.changetheme',
     'boards.themes.customtheme',
-    'boards.reorder_in_home',
     'boards.create',
     'lists.create',
     'lists.update',
@@ -462,9 +461,8 @@ export async function hasPermission(
 }
 
 /**
- * Whether the user may organize boards in a workspace's home row (reorder within the row or move boards
- * in/out). Aligns with {@link reorderBoardsInHomeScope}: `workspaces.update`, workspace ownership,
- * or a workspace role whose permission set includes `boards.reorder_in_home` (e.g. built-in manager).
+ * Whether the user may move boards between workspace home rows (`Board.workspaceId` changes).
+ * Per-user tile order within a row does not require this — any signed-in user with access may reorder locally.
  */
 export async function userCanReorganizeWorkspaceHomeBoardBucket(
   userId: string,
@@ -491,8 +489,7 @@ export async function userCanReorganizeWorkspaceHomeBoardBucket(
       ? member.roleKey.trim()
       : 'viewer';
   const roleKey = (rawKey === 'member' ? 'viewer' : rawKey) as RoleKey;
-  const perms = await getPermissionsForRoleKey(roleKey);
-  return perms.includes('boards.reorder_in_home');
+  return roleKey === 'admin' || roleKey === 'manager';
 }
 
 /**

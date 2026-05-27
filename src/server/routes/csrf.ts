@@ -1,18 +1,16 @@
 import { Router } from 'express';
-import { generateCSRFToken, attachCSRFToken } from '../middleware/csrf.js';
+import { attachCSRFToken } from '../middleware/csrf.js';
 
 const router = Router();
 
 /**
  * GET /api/v1/csrf/token
- * Get a CSRF token for the current session
- * This endpoint is safe (GET request) and doesn't require CSRF protection
+ * Issue or refresh a session-bound CSRF token (safe GET; excluded from csrfProtection).
  */
 router.get('/token', attachCSRFToken, (req, res) => {
-  const token = (req as { csrfToken?: string }).csrfToken || generateCSRFToken();
-  
+  const token = (req as { csrfToken?: string }).csrfToken;
   res.json({
-    csrfToken: token,
+    csrfToken: token ?? '',
   });
 });
 

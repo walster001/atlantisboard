@@ -5,7 +5,7 @@ import {
   emitToBoard,
   emitToUsers,
   getSocketTelemetrySnapshot,
-  resetRealtimeTelemetryForTests,
+  resetSocketIOForTests,
   setSocketIOInstance,
 } from '../src/server/utils/socketIO.js';
 
@@ -29,7 +29,7 @@ function createMockIo(logs: { roomEmits: RoomEmit[]; globalEmits: GlobalEmit[] }
 
 describe('socket realtime helpers', () => {
   beforeEach(() => {
-    resetRealtimeTelemetryForTests();
+    resetSocketIOForTests();
   });
 
   it('dedupes identical room emits in a short TTL window', () => {
@@ -47,7 +47,7 @@ describe('socket realtime helpers', () => {
     setSocketIOInstance(createMockIo(logs));
     emitToBoard('b1', 'import:progress', { progress: 10 });
     emitToBoard('b1', 'import:progress', { progress: 20 });
-    await new Promise((resolve) => setTimeout(resolve, 140));
+    await new Promise((resolve) => setTimeout(resolve, 200));
     expect(logs.roomEmits.length).toBe(1);
     expect(logs.roomEmits[0]?.event).toBe('import:progress');
     const payload = logs.roomEmits[0]?.payload as { batchSize?: number; events?: unknown[] };

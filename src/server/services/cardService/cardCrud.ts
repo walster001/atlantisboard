@@ -14,6 +14,7 @@ import { CARD_POS_STEP, spreadPosForIndex } from '../../../shared/utils/cardList
 import { ensureCardsHavePosForList } from './positioning.js';
 import type { CreateCardInput, UpdateCardInput } from './types.js';
 import { cardDateFieldChanged, getBoardListCardLimits } from './types.js';
+import { assertListOnBoard } from './listBoardValidation.js';
 
 export async function createCard(input: CreateCardInput, userId: string): Promise<Document & ICard> {
   const list = await List.findById(input.listId);
@@ -25,6 +26,8 @@ export async function createCard(input: CreateCardInput, userId: string): Promis
   if (!board) {
     throw new Error('Board not found');
   }
+
+  assertListOnBoard(list.boardId, input.boardId);
 
   // Check permissions (viewer cannot create)
   if (board.ownerId.toString() !== userId) {
@@ -174,7 +177,14 @@ export async function updateCard(
     card.descriptionCharCount = descriptionPreviewData.charCount;
     card.descriptionHtml = renderCardDescriptionHtml(input.description);
   }
-  if (input.listId !== undefined) card.listId = input.listId as unknown as typeof card.boardId;
+  if (input.listId !== undefined) {
+    const targetList = await List.findById(input.listId).select('boardId').lean();
+    if (targetList == null) {
+      throw new Error('List not found');
+    }
+    assertListOnBoard(targetList.boardId, boardIdStr);
+    card.listId = input.listId as unknown as typeof card.listId;
+  }
   if (input.position !== undefined) card.position = input.position;
   if (input.color !== undefined) card.color = input.color;
   if (input.cover !== undefined) card.cover = input.cover;

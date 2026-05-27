@@ -170,6 +170,7 @@ export interface UserDB {
     language: string;
     notificationPreferences: Record<string, unknown>;
     homeWorkspaceOrder?: string[];
+    homeBoardOrderByWorkspace?: Record<string, string[]>;
   };
   emailVerified: boolean;
   lastSyncAt?: Date | undefined;

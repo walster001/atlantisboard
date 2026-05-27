@@ -38,7 +38,6 @@ export const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'boards.view': 'View a board.',
   'boards.update': 'Update board settings/content.',
   'boards.delete': 'Delete a board.',
-  'boards.reorder_in_home': 'Reorder boards on the home page.',
   'boards.settings.open': 'Open Board Settings (UI affordance).',
   'boards.settings.update': 'Update board settings (appearance + behavior).',
   'boards.themes.changetheme': 'Open Theme & Background tab and apply board theme/background changes.',

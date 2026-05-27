@@ -23,6 +23,7 @@ import {
 import { requireSignedAssetOrAuth } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import { createSignedAssetUrl } from '../utils/signedAssetUrl.js';
+import { sanitizeAndSaveHomeBoardOrderForWorkspace } from '../services/homeBoardPreferencesService.js';
 import { sanitizeAndMergeHomeWorkspaceOrder } from '../services/workspaceService.js';
 import {
   attachCustomBoardThemesToPreferences,
@@ -87,6 +88,12 @@ const updatePreferencesSchema = z
   .object({
     language: z.string().min(2).max(20).optional(),
     homeWorkspaceOrder: z.array(z.string().min(1)).max(500).optional(),
+    homeBoardOrderPatch: z
+      .object({
+        workspaceId: z.string().min(1).max(128),
+        orderedBoardIds: z.array(z.string().min(1)).max(500),
+      })
+      .optional(),
     customBoardThemes: z
       .array(
         z.object({
@@ -535,6 +542,17 @@ router.put('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, asy
         authReq.user.id,
         validated.homeWorkspaceOrder,
       );
+    }
+    if (validated.homeBoardOrderPatch !== undefined) {
+      await sanitizeAndSaveHomeBoardOrderForWorkspace(
+        authReq.user.id,
+        validated.homeBoardOrderPatch.workspaceId,
+        validated.homeBoardOrderPatch.orderedBoardIds,
+      );
+      const refreshed = await User.findById(authReq.user.id);
+      if (refreshed != null) {
+        user.preferences = refreshed.preferences;
+      }
     }
     if (validated.customBoardThemes !== undefined) {
       const catalog = await loadSystemThemeCatalog();

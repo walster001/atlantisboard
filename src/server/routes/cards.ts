@@ -90,15 +90,27 @@ router.post('/', async (req, res, next) => {
       });
       return;
     }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
+    if (error instanceof Error) {
+      if (error.message.includes('permissions')) {
+        res.status(403).json({
+          error: {
+            message: error.message,
+            code: 'FORBIDDEN',
+            statusCode: 403,
+          },
+        });
+        return;
+      }
+      if (error.message.includes('List not found') || error.message.includes('Board not found')) {
+        res.status(404).json({
+          error: {
+            message: error.message,
+            code: 'NOT_FOUND',
+            statusCode: 404,
+          },
+        });
+        return;
+      }
     }
     next(error);
   }
@@ -318,15 +330,27 @@ router.put('/:id', async (req, res, next) => {
       });
       return;
     }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
+    if (error instanceof Error) {
+      if (error.message.includes('permissions')) {
+        res.status(403).json({
+          error: {
+            message: error.message,
+            code: 'FORBIDDEN',
+            statusCode: 403,
+          },
+        });
+        return;
+      }
+      if (error.message.includes('List not found')) {
+        res.status(404).json({
+          error: {
+            message: error.message,
+            code: 'NOT_FOUND',
+            statusCode: 404,
+          },
+        });
+        return;
+      }
     }
     next(error);
   }

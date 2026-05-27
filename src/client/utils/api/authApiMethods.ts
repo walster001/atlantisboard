@@ -54,6 +54,8 @@ export const authApiMethods: AuthApiMethods = {
 
   async login(this: ApiClient, email, password) {
     const response = await this.client.post('/auth/login', { email, password });
+    // Server regenerates session and issues a new CSRF token on successful login.
+    await this.fetchCSRFToken();
     const data = response.data;
     if (data != null && typeof data === 'object' && 'token' in data) {
       const token = (data as { token?: unknown }).token;

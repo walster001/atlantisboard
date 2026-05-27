@@ -1,65 +1,63 @@
+import crypto from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 
 // Get Bun's CSRF API at runtime
-// Bun.CSRF is available at runtime but TypeScript definitions may not include it
-const BunWithCSRF = typeof Bun !== 'undefined' ? (Bun as unknown as { CSRF?: { generate: (secret: string, options: { encoding: string; expiresIn: number }) => string; verify: (token: string, options: { secret: string; encoding: string; maxAge: number }) => boolean } }) : null;
+const BunWithCSRF =
+  typeof Bun !== 'undefined'
+    ? (Bun as unknown as {
+        CSRF?: {
+          generate: (secret: string, options: { encoding: string; expiresIn: number }) => string;
+          verify: (
+            token: string,
+            options: { secret: string; encoding: string; maxAge: number },
+          ) => boolean;
+        };
+      })
+    : null;
 const CSRF = BunWithCSRF?.CSRF;
 
 if (!CSRF) {
   throw new Error('Bun.CSRF is not available. Make sure you are running with Bun runtime.');
 }
 
-// CSRF secret from environment variable (should be set in production)
-const CSRF_SECRET = process.env.CSRF_SECRET || 'change-this-csrf-secret-in-production';
-
-if (CSRF_SECRET === 'change-this-csrf-secret-in-production') {
+if (process.env.CSRF_SECRET === 'change-this-csrf-secret-in-production' || !process.env.CSRF_SECRET) {
   logger.warn('Using default CSRF secret. Change CSRF_SECRET in production!');
 }
 
-// CSRF token configuration
 const CSRF_CONFIG = {
   encoding: 'base64url' as const,
   expiresIn: 60 * 60 * 1000, // 1 hour
   maxAge: 60 * 60 * 1000, // 1 hour
 };
 
-// Safe methods that don't require CSRF protection
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
+const CSRF_COOKIE_NAME = 'csrf-token';
 
-/**
- * Generate a CSRF token using Bun's CSRF API
- */
-export function generateCSRFToken(): string {
-  try {
-    if (!CSRF) {
-      throw new Error('Bun.CSRF is not available');
-    }
-    // Use Bun's built-in CSRF.generate() function
-    return CSRF.generate(CSRF_SECRET, CSRF_CONFIG);
-  } catch (error) {
-    logger.error({ error }, 'Error generating CSRF token');
-    throw new Error('Failed to generate CSRF token');
+function getSessionCsrfSecret(req: Request): string | undefined {
+  if (!req.session) {
+    return undefined;
   }
+  if (req.session.csrfSecret == null || req.session.csrfSecret === '') {
+    req.session.csrfSecret = crypto.randomBytes(32).toString('base64url');
+  }
+  return req.session.csrfSecret;
 }
 
-/**
- * Verify a CSRF token using Bun's CSRF API
- */
-export function verifyCSRFToken(token: string): boolean {
-  try {
-    if (!CSRF) {
-      logger.error('Bun.CSRF is not available for verification');
-      return false;
-    }
-    
-    if (!token || typeof token !== 'string') {
-      return false;
-    }
+function generateTokenForSecret(secret: string): string {
+  if (!CSRF) {
+    throw new Error('Bun.CSRF is not available');
+  }
+  return CSRF.generate(secret, CSRF_CONFIG);
+}
 
-    // Use Bun's built-in CSRF.verify() function
+function verifyTokenForSecret(token: string, secret: string): boolean {
+  if (!CSRF || !token || typeof token !== 'string') {
+    return false;
+  }
+  try {
     return CSRF.verify(token, {
-      secret: CSRF_SECRET,
+      secret,
       encoding: CSRF_CONFIG.encoding,
       maxAge: CSRF_CONFIG.maxAge,
     });
@@ -69,33 +67,81 @@ export function verifyCSRFToken(token: string): boolean {
   }
 }
 
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function setCSRFCookie(res: Response, token: string): void {
+  res.cookie(CSRF_COOKIE_NAME, token, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: CSRF_CONFIG.expiresIn,
+  });
+}
+
 /**
- * CSRF protection middleware
- * Verifies CSRF tokens on state-changing requests (POST, PUT, PATCH, DELETE)
+ * Issue a session-bound CSRF token (cookie + response header).
+ * Call from GET /csrf/token and after login/session regeneration only.
+ */
+export function issueCSRFToken(req: Request, res: Response): string {
+  const secret = getSessionCsrfSecret(req);
+  if (!secret) {
+    throw new Error('Session required to issue CSRF token');
+  }
+
+  const token = generateTokenForSecret(secret);
+  setCSRFCookie(res, token);
+  res.setHeader('X-CSRF-Token', token);
+  (req as Request & { csrfToken?: string }).csrfToken = token;
+  return token;
+}
+
+/**
+ * Middleware for routes that explicitly refresh CSRF (e.g. GET /csrf/token).
+ */
+export function attachCSRFToken(req: Request, res: Response, next: NextFunction): void {
+  try {
+    issueCSRFToken(req, res);
+    next();
+  } catch (error) {
+    logger.error({ error }, 'Error issuing CSRF token');
+    next(error);
+  }
+}
+
+function readSubmittedCsrfToken(req: Request): string | undefined {
+  const header = req.headers['x-csrf-token'];
+  if (typeof header === 'string' && header.length > 0) {
+    return header;
+  }
+  const bodyToken = req.body?.csrfToken;
+  if (typeof bodyToken === 'string' && bodyToken.length > 0) {
+    return bodyToken;
+  }
+  return undefined;
+}
+
+/**
+ * CSRF protection: double-submit cookie + session-bound Bun.CSRF verification.
  */
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
-  // Skip CSRF check for safe methods
   if (SAFE_METHODS.includes(req.method)) {
     return next();
   }
 
-  // Skip CSRF check for API endpoints that use token-based auth (JWT)
-  // CSRF is primarily needed for session-based authentication
-  // Since we use JWT tokens with SameSite=strict cookies, CSRF risk is lower
-  // However, we still implement it for defense in depth
+  const submittedToken = readSubmittedCsrfToken(req);
+  const cookieToken = req.cookies?.[CSRF_COOKIE_NAME] as string | undefined;
 
-  // Get CSRF token from header or body
-  const csrfToken = req.headers['x-csrf-token'] as string | undefined || 
-                    (req.body && req.body.csrfToken as string | undefined);
-
-  if (!csrfToken) {
+  if (!submittedToken || !cookieToken) {
     logger.warn(
-      {
-        method: req.method,
-        path: req.path,
-        ip: req.ip,
-      },
-      'CSRF token missing'
+      { method: req.method, path: req.path, ip: req.ip },
+      'CSRF token missing (header/cookie)',
     );
     res.status(403).json({
       error: {
@@ -107,15 +153,26 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
     return;
   }
 
-  // Verify CSRF token
-  if (!verifyCSRFToken(csrfToken)) {
+  if (!timingSafeEqualStrings(submittedToken, cookieToken)) {
     logger.warn(
-      {
-        method: req.method,
-        path: req.path,
-        ip: req.ip,
+      { method: req.method, path: req.path, ip: req.ip },
+      'CSRF double-submit mismatch',
+    );
+    res.status(403).json({
+      error: {
+        message: 'Invalid CSRF token',
+        code: 'CSRF_TOKEN_INVALID',
+        statusCode: 403,
       },
-      'Invalid CSRF token'
+    });
+    return;
+  }
+
+  const sessionSecret = req.session?.csrfSecret;
+  if (!sessionSecret || !verifyTokenForSecret(submittedToken, sessionSecret)) {
+    logger.warn(
+      { method: req.method, path: req.path, ip: req.ip },
+      'Invalid CSRF token (session-bound verification failed)',
     );
     res.status(403).json({
       error: {
@@ -129,29 +186,3 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
 
   next();
 }
-
-/**
- * Middleware to attach CSRF token to response
- * Sets a cookie with the CSRF token and makes it available in response
- */
-export function attachCSRFToken(req: Request, res: Response, next: NextFunction): void {
-  // Generate CSRF token
-  const token = generateCSRFToken();
-
-  // Set CSRF token in cookie (for SameSite protection)
-  res.cookie('csrf-token', token, {
-    httpOnly: false, // Must be readable by JavaScript for SPAs
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: CSRF_CONFIG.expiresIn,
-  });
-
-  // Also include in response header for easy access
-  res.setHeader('X-CSRF-Token', token);
-
-  // Attach to request for potential use in routes
-  (req as Request & { csrfToken?: string }).csrfToken = token;
-
-  next();
-}
-

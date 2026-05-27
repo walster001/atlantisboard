@@ -4,7 +4,7 @@ export const MINIO_BUCKET_IMPORT_INLINE = 'import-inline' as const;
 /** MinIO bucket for card file attachments. */
 export const MINIO_BUCKET_CARD_ATTACHMENTS = 'card-attachments' as const;
 
-/** MinIO bucket for login / app branding images (public read policy may apply). */
+/** MinIO bucket for login / app branding images (served via signed app URLs). */
 export const MINIO_BUCKET_BRANDING = 'branding' as const;
 
 /** MinIO bucket for uploaded custom UI fonts. */

@@ -394,34 +394,33 @@ class InlineButtonNodeView {
       };
     }
     this.setupContainerClick(true);
-    const self = this;
     return {
       dom: this.elements.wrapper,
       update: (updatedNode: PMNode) => {
         if (updatedNode.type.name !== 'inlineButton') {
           return false;
         }
-        self.context.node = updatedNode;
-        applyButtonVisuals(self.elements.inner, updatedNode.attrs as Record<string, unknown>);
+        this.context.node = updatedNode;
+        applyButtonVisuals(this.elements.inner, updatedNode.attrs as Record<string, unknown>);
         const containerStyleAttr = updatedNode.attrs.containerStyle;
         const wrapperStyleRaw = updatedNode.attrs.wrapperStyle;
         const baseWrapperStyle =
           typeof wrapperStyleRaw === 'string' && wrapperStyleRaw.trim() !== ''
             ? wrapperStyleRaw
-            : getWrapperStyle(self.inline);
+            : getWrapperStyle(this.inline);
         const offset = readOffsetAttrs(updatedNode.attrs as Record<string, unknown>);
         if (typeof containerStyleAttr === 'string' && containerStyleAttr.trim() !== '') {
-          self.elements.container.setAttribute('style', containerStyleAttr);
+          this.elements.container.setAttribute('style', containerStyleAttr);
         }
-        self.elements.wrapper.setAttribute(
+        this.elements.wrapper.setAttribute(
           'style',
           buildWrapperStyleWithOffsets(baseWrapperStyle, offset.x, offset.y),
         );
-        self.applyResizeLimits();
+        this.applyResizeLimits();
         return true;
       },
       destroy: () => {
-        self.teardownListeners();
+        this.teardownListeners();
       },
     };
   }

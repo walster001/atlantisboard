@@ -17,15 +17,24 @@ function readCorsOriginsFromEnv(): readonly string[] {
   return splitEnvOrigins(process.env.CORS_ORIGIN);
 }
 
+function allowMissingCorsOrigin(): boolean {
+  if (process.env.NODE_ENV !== 'production') {
+    return true;
+  }
+  return process.env.CORS_ALLOW_MISSING_ORIGIN === 'true';
+}
+
 export function isAllowedCorsOrigin(origin: string | undefined): boolean {
   const origins = readCorsOriginsFromEnv();
   const allowAll = origins.includes('*');
   const originSet = new Set(origins.filter((entry) => entry !== '*'));
   const production = process.env.NODE_ENV === 'production';
 
-  // Non-browser clients and same-origin server probes may omit Origin.
+  // Browsers and installed PWAs send Origin on credentialed API calls. Non-browser
+  // integrations (curl, workers) may omit it — blocked in production unless
+  // CORS_ALLOW_MISSING_ORIGIN=true (see docs/wiki/environment-variables.md).
   if (origin == null || origin.trim() === '') {
-    return true;
+    return allowMissingCorsOrigin();
   }
   if (allowAll) {
     return true;

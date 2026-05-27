@@ -1,4 +1,5 @@
-import express, { type Request, type Response } from 'express';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { createServer } from 'http';
@@ -86,8 +87,8 @@ app.use(attachCspNonce);
 const isProduction = process.env.NODE_ENV === 'production';
 const appOrigin = (process.env.APP_URL ?? process.env.CORS_ORIGIN ?? '').replace(/\/$/, '');
 
-function cspNonceDirective(_req: Request, res: Response): string {
-  return `'nonce-${getCspNonceFromResponse(res)}'`;
+function cspNonceDirective(_req: IncomingMessage, res: ServerResponse): string {
+  return `'nonce-${getCspNonceFromResponse(res as express.Response)}'`;
 }
 
 app.use(
@@ -151,9 +152,7 @@ app.use(passport.session());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// CSRF token middleware - attach token to all responses
-import { attachCSRFToken } from './middleware/csrf.js';
-app.use(attachCSRFToken);
+// CSRF tokens are issued only via GET /api/v1/csrf/token and after login (not on every response).
 
 // API routes
 app.use('/api/v1', apiRoutes);

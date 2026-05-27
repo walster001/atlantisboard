@@ -16,6 +16,7 @@ interface AuthContextType {
       language: string;
       notificationPreferences: Record<string, unknown>;
       homeWorkspaceOrder?: string[];
+      homeBoardOrderByWorkspace?: Record<string, string[]>;
       customBoardThemes?: BoardThemeDefinition[];
     };
     emailVerified: boolean;

@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useRef,
   useState,
   type Dispatch,
   type MutableRefObject,
@@ -11,16 +10,11 @@ import {
   subscribeSocketBoardCreated,
   subscribeSocketBoardDeleted,
   subscribeSocketBoardUpdated,
-  subscribeSocketHomeBoardsPositionsSynced,
   subscribeSocketWorkspaceCreated,
   subscribeSocketWorkspaceDeleted,
   subscribeSocketWorkspaceUpdated,
 } from '../../utils/socketRealtimeBridge.js';
-import {
-  boardIdKey,
-  mergeHomePositionsSyncIntoBoards,
-  sortBoardsFlatHome,
-} from './homeBoardLayout.js';
+import { boardIdKey, sortBoardsFlatHome } from './homeBoardLayout.js';
 
 export interface UseBoardRealtimeSyncOptions {
   readonly isMountedRef: MutableRefObject<boolean>;
@@ -39,12 +33,6 @@ export function useBoardRealtimeSync(options: UseBoardRealtimeSyncOptions): {
   const { isMountedRef } = options;
   const [allBoards, setAllBoards] = useState<BoardDB[]>([]);
   const [workspaces, setWorkspaces] = useState<WorkspaceDB[]>([]);
-
-  /**
-   * Same `boards:positionsSynced` may be delivered more than once (e.g. workspace + user fan-out).
-   * Dedupe by payload identity so we do not double-merge.
-   */
-  const lastHomePositionsDedupeKeyRef = useRef<string>('');
 
   useEffect(() => {
     const upsertBoardInHomeState = (board: BoardDB): void => {
@@ -94,26 +82,6 @@ export function useBoardRealtimeSync(options: UseBoardRealtimeSyncOptions): {
       }
       setWorkspaces((prev) => prev.filter((w) => w.id !== workspaceId));
     });
-    const unsubHomePositions = subscribeSocketHomeBoardsPositionsSynced(
-      ({ workspaceId, orderedBoardIds, sequence, serverTs }) => {
-        if (!isMountedRef.current) {
-          return;
-        }
-        const dedupeKey = `${workspaceId}:${sequence ?? 'na'}:${serverTs ?? 'na'}:${orderedBoardIds.join(',')}`;
-        if (dedupeKey === lastHomePositionsDedupeKeyRef.current) {
-          return;
-        }
-        lastHomePositionsDedupeKeyRef.current = dedupeKey;
-        setAllBoards((prev) => {
-          const { next, touched } = mergeHomePositionsSyncIntoBoards(
-            prev,
-            workspaceId,
-            orderedBoardIds,
-          );
-          return touched ? next : prev;
-        });
-      },
-    );
     return () => {
       unsubUpdated();
       unsubCreated();
@@ -121,7 +89,6 @@ export function useBoardRealtimeSync(options: UseBoardRealtimeSyncOptions): {
       unsubWsUpdated();
       unsubWsCreated();
       unsubWsDeleted();
-      unsubHomePositions();
     };
   }, []);
 

@@ -8,6 +8,14 @@ build/
 release/
 *.tsbuildinfo
 
+# npm package artifacts (scripts/build-npm-package.sh — do not commit)
+packages/atlantisboard/dist/
+packages/atlantisboard/public/
+packages/atlantisboard/bun.lock
+packages/atlantisboard/.env.example
+packages/atlantisboard/DEPLOYMENT.md
+packages/atlantisboard/README.md
+
 # Environment variables
 .env
 .env.local

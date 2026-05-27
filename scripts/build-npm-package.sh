@@ -14,6 +14,14 @@ echo "==> Building atlantisboard npm package v${VERSION}"
 echo "==> bun install --frozen-lockfile"
 bun install --frozen-lockfile
 
+# PostCSS requires nanoid/non-secure; a corrupted Bun install cache can leave zero-byte files.
+NANOID_NON_SECURE="${PROJECT_ROOT}/node_modules/nanoid/non-secure/index.cjs"
+if [[ ! -s "${NANOID_NON_SECURE}" ]]; then
+  echo "==> Repairing corrupt nanoid install (empty files in Bun cache)"
+  rm -rf "${HOME}/.bun/install/cache/nanoid@"* "${PROJECT_ROOT}/node_modules/nanoid"
+  bun install --frozen-lockfile
+fi
+
 echo "==> build:client"
 bun run build:client
 

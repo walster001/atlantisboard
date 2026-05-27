@@ -112,6 +112,7 @@
         "eslint-plugin-react": "^7.37.5",
         "eslint-plugin-react-hooks": "^7.0.1",
         "globals": "16.0.0",
+        "nanoid": "3.3.12",
         "postcss": "8.5.10",
         "prettier": "^3.7.4",
         "typescript": "5.9.3",

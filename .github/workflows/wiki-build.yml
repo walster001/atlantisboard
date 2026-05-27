@@ -1,6 +1,6 @@
 # Preprocesses docs/wiki/ Markdown into pages/wiki/ for the Jekyll site,
 # then triggers the Jekyll Pages build/deploy.
-name: Build & Deploy Wiki
+name: Build Website Wiki
 
 on:
   push:

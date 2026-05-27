@@ -1,6 +1,6 @@
 # Builds the Jekyll site in /pages and deploys to GitHub Pages.
 # Enable in repo Settings → Pages → Build and deployment → Source: GitHub Actions.
-name: Deploy Jekyll Pages site
+name: Deploy Website
 
 on:
   push:

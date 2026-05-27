@@ -573,5 +573,5 @@ export function stopMetricsCollection(): void {
     return;
   }
   clearInterval(collectionTimer);
-  collectionTimer = null;
+  collectionTimer = undefined;
 }

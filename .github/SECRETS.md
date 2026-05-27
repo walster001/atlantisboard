@@ -55,7 +55,7 @@ Workflow requirements (already configured in `deploy-production.yml`):
 
 - `permissions: id-token: write`
 - npm CLI **≥ 11.5.1** (installed in the release job)
-- Node **≥ 22.14** (via `setup-node` Node 22 on hosted runners)
+- Node **24** (via `setup-node` on the production release job; Actions runtime via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`)
 - Do **not** set `NODE_AUTH_TOKEN` on the publish step (it overrides OIDC)
 
 Provenance attestations are generated automatically for public packages published from a public repo.

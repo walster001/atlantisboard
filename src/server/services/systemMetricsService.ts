@@ -516,7 +516,11 @@ function emitSampleToSubscribers(entry: MetricsHistoryEntry): void {
   if (io == null) {
     return;
   }
-  const room = io.sockets.adapter.rooms.get(ADMIN_MONITOR_ROOM);
+  const rooms = io.sockets?.adapter?.rooms;
+  if (rooms == null) {
+    return;
+  }
+  const room = rooms.get(ADMIN_MONITOR_ROOM);
   if (room == null || room.size === 0) {
     return;
   }
@@ -564,4 +568,10 @@ export function startMetricsCollection(): void {
   }
 }
 
-startMetricsCollection();
+export function stopMetricsCollection(): void {
+  if (collectionTimer == null) {
+    return;
+  }
+  clearInterval(collectionTimer);
+  collectionTimer = null;
+}

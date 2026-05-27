@@ -14,6 +14,7 @@ import { connectSessionRedis } from './config/redis.js';
 import { sessionMiddleware } from './middleware/session.js';
 import { configureGoogleStrategy, passport } from './config/passport.js';
 import { setupSocketIO } from './sockets/index.js';
+import { startMetricsCollection, stopMetricsCollection } from './services/systemMetricsService.js';
 import { initializeMinIOBuckets } from './config/minio.js';
 import { initializeRoleDefinitions } from './services/roleService.js';
 import { initializeBoardThemes } from './services/boardThemeService.js';
@@ -201,6 +202,10 @@ app.use(errorHandler);
 // Setup Socket.io
 const io = setupSocketIO(httpServer);
 
+if (process.env.NODE_ENV !== 'test') {
+  startMetricsCollection();
+}
+
 // Schedule background cron jobs (optional - can run in separate worker process instead)
 // Set ENABLE_CRON_JOBS_IN_MAIN=true to enable, or run worker separately: bun run src/server/workers/index.ts
 if (process.env.ENABLE_CRON_JOBS_IN_MAIN === 'true') {
@@ -261,6 +266,8 @@ async function shutdown(): Promise<void> {
     const { cleanupCronJobs } = await import('./workers/cronJobs.js');
     cleanupCronJobs();
   }
+
+  stopMetricsCollection();
 
   // Close HTTP server
   httpServer.close(() => {

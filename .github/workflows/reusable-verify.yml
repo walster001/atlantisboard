@@ -5,6 +5,9 @@ name: Reusable verify
 on:
   workflow_call:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   lint-typecheck:
     runs-on: ubuntu-latest

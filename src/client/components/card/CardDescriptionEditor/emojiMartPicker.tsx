@@ -1,5 +1,5 @@
 import { lazy, useEffect, useRef, type CSSProperties } from 'react';
-import { EMOJI_DATASOURCE_TWITTER_SPRITESHEET_64_PUBLIC_PATH } from '../../../../shared/twemojiPublic.js';
+import { EMOJI_SPRITESHEET_PUBLIC_PATH } from '../../../../shared/twemojiPublic.js';
 import {
   CARD_DETAIL_EMOJI_MART_INPUT_FOCUS_RGB,
   CARD_DETAIL_MODAL_BACKGROUND_HEX,
@@ -609,7 +609,7 @@ export const LazyEmojiMartPicker = lazy(async () => {
           maxFrequentRows={2}
           set="twitter"
           dynamicWidth
-          getSpritesheetURL={() => EMOJI_DATASOURCE_TWITTER_SPRITESHEET_64_PUBLIC_PATH}
+          getSpritesheetURL={() => EMOJI_SPRITESHEET_PUBLIC_PATH}
         />
       </div>
     );

@@ -1,65 +1,27 @@
 import type { JSONContent } from '@tiptap/core';
-import twemoji from 'twemoji';
-import { getTwitterEmojiSpriteCell } from '../twemoji/twitterEmojiSpriteLookup.js';
+import { getEmojiSpriteCell } from '../twemoji/emojiSpriteLookup.js';
+import { segmentGraphemes } from './segmentGraphemes.js';
+import { twemojiRecognizesGrapheme } from './twemojiDetect.js';
 
-/** Runtime API; package typings omit `test`. */
-function twemojiTest(text: string): boolean {
-  return (twemoji as unknown as { test(s: string): boolean }).test(text);
-}
-
-function segmentGraphemes(input: string): readonly string[] {
-  const IntlAny = globalThis.Intl as unknown as {
-    Segmenter?: new (locales?: unknown, options?: { granularity: string }) => {
-      segment(s: string): Iterable<{ segment: string }>;
-    };
-  };
-  if (typeof IntlAny.Segmenter === 'function') {
-    const seg = new IntlAny.Segmenter(undefined, { granularity: 'grapheme' });
-    return Array.from(seg.segment(input), (part) => part.segment);
+function twemojiInlineNode(grapheme: string): JSONContent | null {
+  const cell = getEmojiSpriteCell(grapheme);
+  if (cell == null) {
+    return null;
   }
-  const out: string[] = [];
-  for (let i = 0; i < input.length; ) {
-    const cp = input.codePointAt(i);
-    if (cp === undefined) {
-      break;
-    }
-    const w = cp > 0xffff ? 2 : 1;
-    out.push(input.slice(i, i + w));
-    i += w;
-  }
-  return out;
-}
-
-function twemojiInlineNode(grapheme: string): JSONContent {
-  const cell = getTwitterEmojiSpriteCell(grapheme);
-  if (cell != null) {
-    return {
-      type: 'twemojiEmoji',
-      attrs: {
-        emoji: grapheme,
-        alt: grapheme,
-        spriteX: cell.x,
-        spriteY: cell.y,
-        src: '',
-      },
-    };
-  }
-  const codePoint = twemoji.convert.toCodePoint(grapheme);
   return {
     type: 'twemojiEmoji',
     attrs: {
       emoji: grapheme,
       alt: grapheme,
-      spriteX: null,
-      spriteY: null,
-      src: `/twemoji/72x72/${codePoint}.png`,
+      spriteX: cell.x,
+      spriteY: cell.y,
+      src: '',
     },
   };
 }
 
 /**
  * Splits a text string into `text` + `twemojiEmoji` (+ spacer `text`) nodes wherever Twemoji recognizes emoji.
- * Mirrors {@link TwemojiEmoji} insert behaviour (spritesheet cell when known, else `/twemoji/72x72/*.png`).
  */
 function splitTextNodeToInlinePieces(text: string): JSONContent[] {
   if (text === '') {
@@ -74,10 +36,15 @@ function splitTextNodeToInlinePieces(text: string): JSONContent[] {
     }
   };
   for (const g of segmentGraphemes(text)) {
-    if (g !== '' && twemojiTest(g)) {
+    if (g !== '' && twemojiRecognizesGrapheme(g)) {
       flushBuf();
-      out.push(twemojiInlineNode(g));
-      out.push({ type: 'text', text: ' ' });
+      const node = twemojiInlineNode(g);
+      if (node != null) {
+        out.push(node);
+        out.push({ type: 'text', text: ' ' });
+      } else {
+        buf += g;
+      }
     } else {
       buf += g;
     }

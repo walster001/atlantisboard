@@ -1,52 +1,35 @@
 /**
- * Same-origin Twemoji 72×72 PNGs under `/twemoji/72x72/` (see `scripts/sync-twemoji-assets.ts`).
- * Avoids third-party CDNs and browser tracking-prevention issues with cross-site emoji assets.
+ * Same-origin Twitter emoji spritesheet (see `scripts/build-extended-emoji-spritesheet.ts`).
+ * All in-app emoji rendering uses CSS background cells on this sheet — no per-file PNG tiles.
  */
 
-export const TWEMOJI_PNG_PUBLIC_PREFIX = '/twemoji/72x72/';
-
-/**
- * emoji-mart hardcodes spritesheet mode; this path mirrors the jsDelivr layout but is served from
- * `public/` (copied from `emoji-datasource-twitter` by `scripts/sync-twemoji-assets.ts`).
- */
-export const EMOJI_DATASOURCE_TWITTER_SPRITESHEET_64_PUBLIC_PATH =
+/** emoji-mart + card descriptions + plain titles */
+export const EMOJI_SPRITESHEET_PUBLIC_PATH =
   '/emoji-datasource/twitter/sheets-256/64.png';
 
-/** Options for `twemoji.parse()` — resolves to `/twemoji/72x72/<codepoint>.png`. */
-export const TWEMOJI_PARSE_OPTIONS = {
-  base: '/twemoji/',
-  folder: '72x72',
-  ext: '.png',
-  className: 'card-desc-twemoji',
-} as const;
+/** @deprecated Use {@link EMOJI_SPRITESHEET_PUBLIC_PATH}. */
+export const EMOJI_DATASOURCE_TWITTER_SPRITESHEET_64_PUBLIC_PATH =
+  EMOJI_SPRITESHEET_PUBLIC_PATH;
 
 const PNG_CODEPOINT_TAIL = /\/([0-9a-f-]+)\.png(?:\?.*)?$/i;
 
-/**
- * Rewrites known Twemoji CDN (or legacy) image URLs to the local public path so stored card JSON
- * keeps working after switching off jsDelivr/maxcdn.
- */
-export function rewriteTwemojiSrcToPublic(src: unknown): string {
+/** Extract Twemoji-style hyphenated codepoint from a legacy per-tile `src` URL. */
+export function parseTwemojiCodepointFromSrc(src: unknown): string | null {
   if (typeof src !== 'string') {
-    return '';
+    return null;
   }
   const s = src.trim();
   if (s === '') {
-    return '';
-  }
-  if (s.startsWith(TWEMOJI_PNG_PUBLIC_PREFIX)) {
-    return s;
+    return null;
   }
   const m = s.match(PNG_CODEPOINT_TAIL);
   if (m == null) {
-    return s;
+    return null;
   }
   const looksTwemoji =
-    s.includes('twemoji') ||
-    s.includes('72x72') ||
-    /^[0-9a-f-]+\.png$/i.test(s);
+    s.includes('twemoji') || s.includes('72x72') || /^[0-9a-f-]+\.png$/i.test(s);
   if (!looksTwemoji) {
-    return s;
+    return null;
   }
-  return `${TWEMOJI_PNG_PUBLIC_PREFIX}${m[1]}.png`;
+  return m[1]!.toLowerCase();
 }

@@ -9829,12 +9829,11 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
 }
 
 /* src/client/components/common/twemojiPlainText.css */
-.twemoji-plain-text img.emoji, .twemoji-plain-text img.card-desc-twemoji {
+.twemoji-plain-text .card-desc-twemoji--sheet {
   vertical-align: text-bottom;
   display: inline-block;
   box-sizing: content-box;
   width: 1.1em;
-  max-width: none;
   height: 1.1em;
   margin: 0 .12em;
 }

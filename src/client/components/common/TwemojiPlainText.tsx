@@ -1,6 +1,5 @@
-import twemoji from 'twemoji';
 import { useEffect, useRef, type CSSProperties } from 'react';
-import { TWEMOJI_PARSE_OPTIONS } from '../../../shared/twemojiPublic.js';
+import { applyTwemojiPlainTextDom } from './twemojiPlainTextDom.js';
 import './twemojiPlainText.css';
 
 export interface TwemojiPlainTextProps {
@@ -10,9 +9,8 @@ export interface TwemojiPlainTextProps {
 }
 
 /**
- * Renders plain text with Unicode emoji replaced by Twemoji `<img>` (same assets as card description).
- * Uses `textContent` + `twemoji.parse` so HTML in titles is not interpreted as markup.
- * Runs in `useEffect` (not layout) so parsing stays off the layout/commit hot path when modals open.
+ * Renders plain text with Unicode emoji as Twitter spritesheet cells (same sheet as card descriptions).
+ * Uses `textContent` segmentation so HTML in titles is not interpreted as markup.
  */
 export function TwemojiPlainText({ text, className, style }: TwemojiPlainTextProps) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -21,8 +19,7 @@ export function TwemojiPlainText({ text, className, style }: TwemojiPlainTextPro
     if (el == null) {
       return;
     }
-    el.textContent = text;
-    twemoji.parse(el, TWEMOJI_PARSE_OPTIONS);
+    applyTwemojiPlainTextDom(el, text);
   }, [text]);
   return (
     <span

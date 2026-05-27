@@ -13,7 +13,6 @@ import { join } from 'path';
 
 /** MiB — tuned with docker-compose service limits (~2.75 GiB) for ≤~6 GiB total dev usage. */
 const HEAP_MB = {
-  twemojiSync: 512,
   initialClientBuild: 1024,
   clientWatcher: 1024,
   serverWatch: 1536,
@@ -32,19 +31,6 @@ function envWithMaxOldSpaceMiB(maxMiB: number): Record<string, string> {
 
 const projectRoot = process.cwd();
 
-console.log('🙂 Twemoji assets…');
-const twemojiProc = spawn(['bun', 'run', join(projectRoot, 'scripts/sync-twemoji-assets.ts')], {
-  cwd: projectRoot,
-  stdout: 'inherit',
-  stderr: 'inherit',
-  env: envWithMaxOldSpaceMiB(HEAP_MB.twemojiSync),
-});
-await twemojiProc.exited;
-if (twemojiProc.exitCode !== 0) {
-  console.warn(
-    '⚠️  Twemoji sync failed — run `bun run scripts/sync-twemoji-assets.ts` for local emoji PNGs.',
-  );
-}
 const publicDir = join(projectRoot, 'public');
 const indexJsPath = join(publicDir, 'index.js');
 

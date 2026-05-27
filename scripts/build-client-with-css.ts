@@ -55,19 +55,6 @@ if (!existsSync(publicFontsDir)) {
   mkdirSync(publicFontsDir, { recursive: true });
 }
 
-// Step 0: Same-origin Twemoji PNG tiles (skips if already synced)
-console.log('🙂 Twemoji assets…');
-const twemojiSync = spawn(['bun', 'run', join(projectRoot, 'scripts/sync-twemoji-assets.ts')], {
-  cwd: projectRoot,
-  stdout: 'inherit',
-  stderr: 'inherit',
-});
-await twemojiSync.exited;
-if (twemojiSync.exitCode !== 0) {
-  console.error('❌ Twemoji sync failed (network or tar required)');
-  process.exit(1);
-}
-
 // Step 1: Process CSS through PostCSS with Tailwind v4
 console.log('🎨 Processing CSS through PostCSS/Tailwind v4...');
 try {

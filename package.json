@@ -10,7 +10,7 @@
     "dev:worker": "bun run --watch src/server/workers/index.ts",
     "dev-start": "./scripts/dev-start.sh",
     "dev-deploy": "./scripts/dev-deploy.sh",
-    "sync-twemoji": "bun run scripts/sync-twemoji-assets.ts",
+    "build:emoji-sheet": "bun run scripts/build-extended-emoji-spritesheet.ts",
     "build:client": "bun run scripts/build-client-with-css.ts",
     "build:client:watch": "bun run scripts/build-client-watch.ts",
     "build": "bun build src/server/index.ts --outdir dist/server --target bun --external @aws-sdk/client-s3 && bun build src/client/index.tsx --outdir dist/client --target browser --define process.env.NODE_ENV=\\\"production\\\" --external mongoose --external ioredis --external mongodb --external minio --external express --external socket.io --external passport && bun build src/server/workers/index.ts --outdir dist/workers --target bun --external @aws-sdk/client-s3",
@@ -146,6 +146,7 @@
     "nanoid": "3.3.12",
     "postcss": "8.5.10",
     "prettier": "^3.7.4",
+    "sharp": "0.34.5",
     "typescript": "5.9.3"
   },
   "engines": {

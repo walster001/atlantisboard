@@ -1,10 +1,10 @@
 import { Node, mergeAttributes } from '@tiptap/core';
-import twemoji from 'twemoji';
-import { rewriteTwemojiSrcToPublic } from '../../../shared/twemojiPublic.js';
 import {
-  getTwitterEmojiSheetMeta,
-  getTwitterEmojiSpriteCell,
-} from '../../../shared/twemoji/twitterEmojiSpriteLookup.js';
+  getEmojiSpriteCell,
+  getEmojiSpriteCellForCodepoint,
+  getEmojiSpriteSheetMeta,
+} from '../../../shared/twemoji/emojiSpriteLookup.js';
+import { parseTwemojiCodepointFromSrc } from '../../../shared/twemojiPublic.js';
 import { parseTwemojiSpriteCoord } from '../../../shared/twemojiSpriteCoord.js';
 import { buildTwemojiSpritesheetInlineStyle } from './twemojiSheetSpanStyle.js';
 
@@ -13,12 +13,8 @@ export interface InsertTwemojiOptions {
 }
 
 export interface TwemojiExtensionOptions {
-  baseUrl: string;
-  fileExtension: string;
   HTMLAttributes: Record<string, string>;
 }
-
-const twemojiSrcCache = new Map<string, string>();
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -28,16 +24,30 @@ declare module '@tiptap/core' {
   }
 }
 
-function toTwemojiSrc(emoji: string, baseUrl: string, fileExtension: string): string {
-  const cacheKey = `${baseUrl}\0${emoji}`;
-  const cached = twemojiSrcCache.get(cacheKey);
-  if (cached != null) {
-    return cached;
+function resolveSpriteCoords(attrs: Record<string, unknown>): {
+  readonly x: number;
+  readonly y: number;
+} | null {
+  const sx = parseTwemojiSpriteCoord(attrs.spriteX);
+  const sy = parseTwemojiSpriteCoord(attrs.spriteY);
+  if (sx != null && sy != null && sx >= 0 && sy >= 0) {
+    return { x: sx, y: sy };
   }
-  const codePoint = twemoji.convert.toCodePoint(emoji);
-  const src = `${baseUrl}${codePoint}${fileExtension}`;
-  twemojiSrcCache.set(cacheKey, src);
-  return src;
+  const emoji = typeof attrs.emoji === 'string' ? attrs.emoji.trim() : '';
+  if (emoji !== '') {
+    const cell = getEmojiSpriteCell(emoji);
+    if (cell != null) {
+      return cell;
+    }
+  }
+  const cp = parseTwemojiCodepointFromSrc(attrs.src);
+  if (cp != null) {
+    const cell = getEmojiSpriteCellForCodepoint(cp);
+    if (cell != null) {
+      return cell;
+    }
+  }
+  return null;
 }
 
 export const TwemojiEmoji = Node.create<TwemojiExtensionOptions>({
@@ -49,8 +59,6 @@ export const TwemojiEmoji = Node.create<TwemojiExtensionOptions>({
   draggable: false,
   addOptions() {
     return {
-      baseUrl: '/twemoji/72x72/',
-      fileExtension: '.png',
       HTMLAttributes: {
         loading: 'lazy',
         decoding: 'async',
@@ -70,7 +78,32 @@ export const TwemojiEmoji = Node.create<TwemojiExtensionOptions>({
   },
   parseHTML() {
     return [
-      { tag: 'img[data-emoji-node="true"]' },
+      {
+        tag: 'img[data-emoji-node="true"]',
+        getAttrs: (element) => {
+          if (!(element instanceof HTMLImageElement)) {
+            return false;
+          }
+          const emoji =
+            element.getAttribute('data-emoji') ??
+            element.getAttribute('alt') ??
+            '';
+          const cp = parseTwemojiCodepointFromSrc(element.getAttribute('src') ?? '');
+          const cell =
+            (emoji.trim() !== '' ? getEmojiSpriteCell(emoji) : undefined) ??
+            (cp != null ? getEmojiSpriteCellForCodepoint(cp) : undefined);
+          if (cell == null) {
+            return false;
+          }
+          return {
+            emoji,
+            alt: element.getAttribute('alt') ?? emoji,
+            spriteX: cell.x,
+            spriteY: cell.y,
+            src: '',
+          };
+        },
+      },
       {
         tag: 'span[data-emoji-node="true"].card-desc-twemoji--sheet',
         getAttrs: (element) => {
@@ -110,40 +143,28 @@ export const TwemojiEmoji = Node.create<TwemojiExtensionOptions>({
         ? HTMLAttributes.alt
         : emoji;
 
-    const sx = parseTwemojiSpriteCoord(HTMLAttributes.spriteX);
-    const sy = parseTwemojiSpriteCoord(HTMLAttributes.spriteY);
-
-    if (sx != null && sy != null && sx >= 0 && sy >= 0) {
-      const { cols, rows } = getTwitterEmojiSheetMeta();
-      const style = buildTwemojiSpritesheetInlineStyle(sx, sy, cols, rows);
-      return [
-        'span',
-        mergeAttributes(
-          {
-            class: 'card-desc-twemoji card-desc-twemoji--sheet',
-            'data-emoji-node': 'true',
-            'data-sprite-x': String(sx),
-            'data-sprite-y': String(sy),
-            'data-emoji': emoji,
-            role: 'img',
-            'aria-label': alt,
-            style,
-          },
-          {},
-        ),
-      ];
+    const coords = resolveSpriteCoords(HTMLAttributes);
+    if (coords == null) {
+      return ['span', { 'data-emoji-node': 'true' }, emoji];
     }
 
-    const src = rewriteTwemojiSrcToPublic(HTMLAttributes.src);
+    const { cols, rows } = getEmojiSpriteSheetMeta();
+    const style = buildTwemojiSpritesheetInlineStyle(coords.x, coords.y, cols, rows);
     return [
-      'img',
-      mergeAttributes(this.options.HTMLAttributes, {
-        emoji: HTMLAttributes.emoji,
-        alt: HTMLAttributes.alt ?? HTMLAttributes.emoji,
-        src,
-        class: 'card-desc-twemoji',
-        'data-emoji-node': 'true',
-      }),
+      'span',
+      mergeAttributes(
+        {
+          class: 'card-desc-twemoji card-desc-twemoji--sheet',
+          'data-emoji-node': 'true',
+          'data-sprite-x': String(coords.x),
+          'data-sprite-y': String(coords.y),
+          'data-emoji': emoji,
+          role: 'img',
+          'aria-label': alt,
+          style,
+        },
+        {},
+      ),
     ];
   },
   addCommands() {
@@ -155,35 +176,20 @@ export const TwemojiEmoji = Node.create<TwemojiExtensionOptions>({
           if (emoji.length === 0) {
             return false;
           }
-          const cell = getTwitterEmojiSpriteCell(emoji);
-          if (cell != null) {
-            return chain()
-              .insertContent([
-                {
-                  type: this.name,
-                  attrs: {
-                    emoji,
-                    alt: emoji,
-                    spriteX: cell.x,
-                    spriteY: cell.y,
-                    src: '',
-                  },
-                },
-                { type: 'text', text: ' ' },
-              ])
-              .run();
+          const cell = getEmojiSpriteCell(emoji);
+          if (cell == null) {
+            return chain().insertContent(emoji).run();
           }
-          const src = toTwemojiSrc(emoji, this.options.baseUrl, this.options.fileExtension);
           return chain()
             .insertContent([
               {
                 type: this.name,
                 attrs: {
                   emoji,
-                  src,
                   alt: emoji,
-                  spriteX: null,
-                  spriteY: null,
+                  spriteX: cell.x,
+                  spriteY: cell.y,
+                  src: '',
                 },
               },
               { type: 'text', text: ' ' },

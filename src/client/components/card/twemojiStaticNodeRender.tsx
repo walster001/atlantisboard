@@ -1,9 +1,39 @@
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { createElement } from 'react';
-import { rewriteTwemojiSrcToPublic } from '../../../shared/twemojiPublic.js';
+import {
+  getEmojiSpriteCell,
+  getEmojiSpriteCellForCodepoint,
+  getEmojiSpriteSheetMeta,
+} from '../../../shared/twemoji/emojiSpriteLookup.js';
+import { parseTwemojiCodepointFromSrc } from '../../../shared/twemojiPublic.js';
 import { parseTwemojiSpriteCoord } from '../../../shared/twemojiSpriteCoord.js';
-import { getTwitterEmojiSheetMeta } from '../../../shared/twemoji/twitterEmojiSpriteLookup.js';
 import { buildTwemojiSpritesheetReactStyle } from './twemojiSheetSpanStyle.js';
+
+function resolveSpriteCoords(attrs: Record<string, unknown>): {
+  readonly x: number;
+  readonly y: number;
+} | null {
+  const sx = parseTwemojiSpriteCoord(attrs.spriteX);
+  const sy = parseTwemojiSpriteCoord(attrs.spriteY);
+  if (sx != null && sy != null && sx >= 0 && sy >= 0) {
+    return { x: sx, y: sy };
+  }
+  const emoji = typeof attrs.emoji === 'string' ? attrs.emoji.trim() : '';
+  if (emoji !== '') {
+    const cell = getEmojiSpriteCell(emoji);
+    if (cell != null) {
+      return cell;
+    }
+  }
+  const cp = parseTwemojiCodepointFromSrc(attrs.src);
+  if (cp != null) {
+    const cell = getEmojiSpriteCellForCodepoint(cp);
+    if (cell != null) {
+      return cell;
+    }
+  }
+  return null;
+}
 
 /**
  * Custom static render for `twemojiEmoji`: `@tiptap/static-renderer` stringifies `style` by splitting
@@ -18,29 +48,22 @@ export function renderCardDescriptionTwemojiStaticNode({ node }: { readonly node
   }
   const alt =
     typeof attrs.alt === 'string' && attrs.alt.trim() !== '' ? attrs.alt : emoji;
-  const sx = parseTwemojiSpriteCoord(attrs.spriteX);
-  const sy = parseTwemojiSpriteCoord(attrs.spriteY);
-  if (sx != null && sy != null && sx >= 0 && sy >= 0) {
-    const { cols, rows } = getTwitterEmojiSheetMeta();
-    const style = buildTwemojiSpritesheetReactStyle(sx, sy, cols, rows);
-    return createElement('span', {
-      className: 'card-desc-twemoji card-desc-twemoji--sheet',
-      'data-emoji-node': 'true',
-      'data-sprite-x': String(sx),
-      'data-sprite-y': String(sy),
-      'data-emoji': emoji,
-      role: 'img',
-      'aria-label': alt,
-      style,
-    });
+
+  const coords = resolveSpriteCoords(attrs as Record<string, unknown>);
+  if (coords == null) {
+    return emoji;
   }
-  const src = rewriteTwemojiSrcToPublic(attrs.src);
-  return createElement('img', {
-    className: 'card-desc-twemoji',
+
+  const { cols, rows } = getEmojiSpriteSheetMeta();
+  const style = buildTwemojiSpritesheetReactStyle(coords.x, coords.y, cols, rows);
+  return createElement('span', {
+    className: 'card-desc-twemoji card-desc-twemoji--sheet',
     'data-emoji-node': 'true',
-    alt,
-    src,
-    loading: 'lazy',
-    decoding: 'async',
+    'data-sprite-x': String(coords.x),
+    'data-sprite-y': String(coords.y),
+    'data-emoji': emoji,
+    role: 'img',
+    'aria-label': alt,
+    style,
   });
 }

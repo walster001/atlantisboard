@@ -71,12 +71,6 @@ mongo-data/
 # Redis data
 redis-data/
 
-# Twemoji raster tiles (run: bun run sync-twemoji)
-public/twemoji/72x72/*.png
-
-# emoji-mart Twitter spritesheet (~2.8MB; copied from emoji-datasource-twitter)
-public/emoji-datasource/twitter/sheets-256/*.png
-
 #Buglist
 Buglist-New.txt
 

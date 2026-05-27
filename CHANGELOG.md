@@ -7,16 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-27
+
 ### Added
 
 - GitHub Actions CI split (lint, typecheck, test, audit), staging artifact workflow, and manual production release workflow.
 - npm package `atlantisboard` with Whiptail-based `atlantisboard-setup` installer and systemd unit templates.
+- Fix Twemoji Assets, consolidate spritesheet and remove redundant pngs from asset bundle to reduce filesize. 
 
 ## [1.0.0] - 2026-05-27
 
 ### Added
 
 - Initial production release pipeline, npm installer scaffolding, and deployment documentation.
-
-[Unreleased]: https://github.com/walster001/atlantisboard/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/walster001/atlantisboard/releases/tag/v1.0.0

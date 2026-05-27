@@ -21,8 +21,11 @@ if (!CSRF) {
   throw new Error('Bun.CSRF is not available. Make sure you are running with Bun runtime.');
 }
 
-if (process.env.CSRF_SECRET === 'change-this-csrf-secret-in-production' || !process.env.CSRF_SECRET) {
-  logger.warn('Using default CSRF secret. Change CSRF_SECRET in production!');
+const csrfSecretEnv = process.env.CSRF_SECRET?.trim() ?? '';
+if (csrfSecretEnv === '' || csrfSecretEnv === 'change-this-csrf-secret-in-production') {
+  if (process.env.NODE_ENV === 'production') {
+    logger.warn('CSRF_SECRET is missing or uses a placeholder. Set CSRF_SECRET in production!');
+  }
 }
 
 const CSRF_CONFIG = {

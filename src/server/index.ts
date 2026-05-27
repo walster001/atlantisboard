@@ -45,17 +45,7 @@ connectDatabase()
     process.exit(1);
   });
 
-// Initialize admin config on startup
-initializeAdminConfig().catch((err) => {
-  logger.error({ err }, 'Failed to initialize admin config');
-});
-
-// Initialize built-in roles on startup
-initializeRoleDefinitions().catch((err) => {
-  logger.error({ err }, 'Failed to initialize role definitions');
-});
-
-// Initialize MinIO buckets on startup
+// MinIO bucket init (non-fatal when object storage is unavailable, e.g. CI without MinIO)
 initializeMinIOBuckets().catch((err) => {
   logger.error({ err }, 'Failed to initialize MinIO buckets');
 });

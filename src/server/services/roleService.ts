@@ -156,19 +156,36 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
   },
 ] as const;
 
+let roleDefinitionsInitPromise: Promise<void> | null = null;
+
 export async function initializeRoleDefinitions(): Promise<void> {
+  if (roleDefinitionsInitPromise != null) {
+    return roleDefinitionsInitPromise;
+  }
+
+  roleDefinitionsInitPromise = seedRoleDefinitions().catch((err) => {
+    roleDefinitionsInitPromise = null;
+    throw err;
+  });
+
+  return roleDefinitionsInitPromise;
+}
+
+async function seedRoleDefinitions(): Promise<void> {
   for (const seed of BUILTIN_ROLE_SEEDS) {
-    const existing = await RoleDefinition.findOne({ key: seed.key }).select('_id').lean();
-    if (existing) {
-      continue;
-    }
-    await RoleDefinition.create({
-      key: seed.key,
-      displayName: seed.displayName,
-      permissions: [...seed.permissions],
-      hierarchyLevel: seed.hierarchyLevel,
-      isBuiltIn: true,
-    });
+    await RoleDefinition.updateOne(
+      { key: seed.key },
+      {
+        $setOnInsert: {
+          key: seed.key,
+          displayName: seed.displayName,
+          permissions: [...seed.permissions],
+          hierarchyLevel: seed.hierarchyLevel,
+          isBuiltIn: true,
+        },
+      },
+      { upsert: true },
+    );
   }
 
   // Remove legacy built-in role "member" (treat as viewer).

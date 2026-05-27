@@ -44,6 +44,11 @@ export function getMinIOClient(): MinIOClient {
 }
 
 export async function initializeMinIOBuckets(): Promise<void> {
+  if (process.env.NODE_ENV === 'test') {
+    logger.info('Skipping MinIO bucket initialization in test environment');
+    return;
+  }
+
   const client = getMinIOClient();
 
   for (const bucketName of MINIO_BUCKET_NAMES) {

@@ -39,6 +39,7 @@ atlantisboard-setup   # run later on the target host
 3. **Environment** — prompts for each important variable (labels and descriptions); secrets can be auto-generated.
 4. **Dependencies** — `bun install --production` in the install directory.
 5. **systemd** — optional `atlantisboard` and `atlantisboard-worker` units (background cron/backup jobs use the worker unless `ENABLE_CRON_JOBS_IN_MAIN=true`).
+6. **Reverse proxy (optional)** — at the end of the wizard, choose **Nginx** or **Caddy**. You get the same Whiptail prompts for domain, backend host/port, upload limits, and TLS paths (Nginx) or log path (Caddy). The installer can install the package on Debian/Ubuntu via `apt`, write the site config, update `APP_URL` / `CORS_ORIGIN` / `TRUST_PROXY_HOPS` in `.env`, and optionally run `certbot --nginx`.
 
 ## After install
 

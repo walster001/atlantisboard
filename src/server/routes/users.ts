@@ -425,7 +425,7 @@ router.delete(
   }
 );
 
-router.get('/vapid-public-key', apiRateLimiter, async (req, res, next) => {
+router.get('/vapid-public-key', apiRateLimiter, async (_req, res, next) => {
   try {
     const publicKey = await getVapidPublicKey();
     res.json({ publicKey });

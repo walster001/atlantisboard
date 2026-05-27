@@ -1,0 +1,95 @@
+{
+  "sections": [
+    {
+      "id": "common",
+      "title": "Reverse proxy",
+      "applies_to": ["nginx", "caddy"],
+      "fields": [
+        {
+          "key": "PROXY_DOMAIN",
+          "label": "Public domain name",
+          "description": "DNS must point to this server (e.g. boards.example.com). Used for HTTPS and APP_URL.",
+          "default": "",
+          "secret": false
+        },
+        {
+          "key": "PROXY_BACKEND_HOST",
+          "label": "Atlantisboard backend host",
+          "description": "Where the app listens (usually 127.0.0.1 on the same host).",
+          "default": "127.0.0.1",
+          "secret": false
+        },
+        {
+          "key": "PROXY_BACKEND_PORT",
+          "label": "Atlantisboard backend port",
+          "description": "Must match PORT in your .env file.",
+          "default": "3000",
+          "secret": false
+        },
+        {
+          "key": "PROXY_MAX_BODY_MB",
+          "label": "Max upload size (MB)",
+          "description": "Request body limit at the proxy (match card attachment limits).",
+          "default": "100",
+          "secret": false
+        },
+        {
+          "key": "PROXY_ACME_EMAIL",
+          "label": "ACME / Let's Encrypt email",
+          "description": "Optional. Used by Caddy and certbot for certificate expiry notices.",
+          "default": "",
+          "secret": false
+        }
+      ]
+    },
+    {
+      "id": "nginx_tls",
+      "title": "Nginx TLS paths",
+      "applies_to": ["nginx"],
+      "fields": [
+        {
+          "key": "NGINX_SSL_CERT",
+          "label": "SSL certificate path",
+          "description": "fullchain.pem from Let's Encrypt or your CA.",
+          "default": "/etc/letsencrypt/live/DOMAIN_PLACEHOLDER/fullchain.pem",
+          "secret": false
+        },
+        {
+          "key": "NGINX_SSL_KEY",
+          "label": "SSL private key path",
+          "description": "privkey.pem from Let's Encrypt or your CA.",
+          "default": "/etc/letsencrypt/live/DOMAIN_PLACEHOLDER/privkey.pem",
+          "secret": false
+        },
+        {
+          "key": "NGINX_SSL_OPTIONS",
+          "label": "Certbot SSL options include",
+          "description": "Leave default if you use certbot on Debian/Ubuntu.",
+          "default": "/etc/letsencrypt/options-ssl-nginx.conf",
+          "secret": false
+        },
+        {
+          "key": "NGINX_SSL_DHPARAM",
+          "label": "DH parameters path",
+          "description": "ssl-dhparams.pem from certbot (optional on modern TLS).",
+          "default": "/etc/letsencrypt/ssl-dhparams.pem",
+          "secret": false
+        }
+      ]
+    },
+    {
+      "id": "caddy_logging",
+      "title": "Caddy logging",
+      "applies_to": ["caddy"],
+      "fields": [
+        {
+          "key": "CADDY_LOG_FILE",
+          "label": "Access log file",
+          "description": "Directory must exist and be writable by caddy user.",
+          "default": "/var/log/caddy/atlantisboard.log",
+          "secret": false
+        }
+      ]
+    }
+  ]
+}

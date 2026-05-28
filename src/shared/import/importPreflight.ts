@@ -173,10 +173,17 @@ function decodeHtmlEntities(value: string): string {
     .replace(/&gt;/g, '>');
 }
 
-// Legacy Wekan inline-button snippet:
-// <span ... display:inline-flex;><img ... src='...'><a ... href='...'>TEXT</a></span>
-const LEGACY_INLINE_BUTTON_RE =
-  /<span[^>]*display\s*:\s*inline-flex[^>]*>\s*<img[^>]*src=['"]([^'"]+)['"][^>]*>\s*<a[^>]*href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>\s*<\/span>/gi;
+function stripHtmlTags(value: string): string {
+  return value.replace(/<[^>]*>/g, '');
+}
+
+// Legacy Wekan inline-button snippets (two common shapes):
+// - `<span style="display:inline-flex"><img src="..."><a href="...">TEXT</a></span>`
+// - `<span style="display:inline-flex"><a href="..."><img src="...">TEXT</a></span>`
+const LEGACY_INLINE_BUTTON_RES: readonly RegExp[] = [
+  /<span[^>]*display\s*:\s*inline-flex[^>]*>\s*<img[^>]*src\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>\s*<a[^>]*href\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>([\s\S]*?)<\/a>\s*<\/span>/gi,
+  /<(?:span|div)[^>]*display\s*:\s*inline-flex[^>]*>[\s\S]*?<a[^>]*href\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>[\s\S]*?<img[^>]*src\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>[\s\S]*?<\/a>[\s\S]*?<\/(?:span|div)>/gi,
+] as const;
 
 function isCandidateIconSource(iconSrc: string): boolean {
   const t = iconSrc.trim();
@@ -209,32 +216,40 @@ export function detectWekanLegacyInlineButtons(
 
   for (const card of cards) {
     const cardId = str(card._id);
-    const description = str(card.description);
-    if (cardId == null || description == null) {
+    const descriptionRaw = str(card.description);
+    if (cardId == null || descriptionRaw == null) {
       continue;
     }
+    // Decode entities so legacy snippets with &quot; quotes can be detected.
+    const description = decodeHtmlEntities(descriptionRaw);
 
-    LEGACY_INLINE_BUTTON_RE.lastIndex = 0;
     let idx = 0;
-    let match: RegExpExecArray | null = LEGACY_INLINE_BUTTON_RE.exec(description);
-    while (match != null) {
-      const iconSrc = decodeHtmlEntities((match[1] ?? '').trim());
-      const href = decodeHtmlEntities((match[2] ?? '').trim());
-      const buttonText = normalizeWhitespace(decodeHtmlEntities(match[3] ?? ''));
-      if (isCandidateIconSource(iconSrc) && href !== '' && buttonText !== '') {
-        const maybeCardTitle = str(card.title);
-        out.push({
-          id: `${cardId}:${idx}`,
-          cardId,
-          ...(maybeCardTitle != null ? { cardTitle: maybeCardTitle } : {}),
-          href,
-          buttonText,
-          iconSrc,
-          originalHtml: match[0],
-        });
+    for (const re of LEGACY_INLINE_BUTTON_RES) {
+      re.lastIndex = 0;
+      let match: RegExpExecArray | null = re.exec(description);
+      while (match != null) {
+        const full = match[0] ?? '';
+        const g1 = decodeHtmlEntities((match[1] ?? '').trim());
+        const g2 = decodeHtmlEntities((match[2] ?? '').trim());
+        const g3 = decodeHtmlEntities((match[3] ?? '').trim());
+        const iconSrc = g1.includes('://') || g1.startsWith('/') ? g1 : g2;
+        const href = g1 === iconSrc ? g2 : g1;
+        const buttonText = normalizeWhitespace(decodeHtmlEntities(g3 !== '' ? g3 : stripHtmlTags(full)));
+        if (isCandidateIconSource(iconSrc) && href !== '' && buttonText !== '') {
+          const maybeCardTitle = str(card.title);
+          out.push({
+            id: `${cardId}:${idx}`,
+            cardId,
+            ...(maybeCardTitle != null ? { cardTitle: maybeCardTitle } : {}),
+            href,
+            buttonText,
+            iconSrc,
+            originalHtml: full,
+          });
+        }
+        idx += 1;
+        match = re.exec(description);
       }
-      idx += 1;
-      match = LEGACY_INLINE_BUTTON_RE.exec(description);
     }
   }
 

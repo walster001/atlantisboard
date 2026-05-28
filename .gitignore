@@ -62,13 +62,13 @@ temp/
 .kombai/
 wsl/
 
-# MinIO data
+# Local Docker bind-mount data (see docs/DOCKER-DEV-DATA.md)
+.docker-data/*
+!.docker-data/.gitkeep
+
+# Legacy per-service dirs (older compose layouts)
 minio-data/
-
-# MongoDB data
 mongo-data/
-
-# Redis data
 redis-data/
 
 #Buglist

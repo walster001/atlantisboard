@@ -25,6 +25,15 @@ function stripHtmlTags(value: string): string {
   return value.replace(/<[^>]*>/g, '');
 }
 
+function normalizeImportedInlineHref(rawHref: string): string {
+  const trimmed = rawHref.trim();
+  // Card-description href validation rejects plain http://. For legacy imports, prefer https://.
+  if (trimmed.toLowerCase().startsWith('http://')) {
+    return `https://${trimmed.slice('http://'.length)}`;
+  }
+  return trimmed;
+}
+
 export function sanitizeImportedPlainText(value: string): string {
   return decodeHtmlEntities(stripHtmlTags(value)).replace(/\s+/g, ' ').trim();
 }
@@ -40,8 +49,24 @@ export function sanitizeImportedDescriptionText(value: string): string {
     .trim();
 }
 
-const LEGACY_INLINE_BUTTON_RE =
-  /<span[^>]*display\s*:\s*inline-flex[^>]*>\s*<img[^>]*src=['"]([^'"]+)['"][^>]*>\s*<a[^>]*href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>\s*<\/span>/gi;
+/**
+ * Wekan exports inline "buttons" as HTML snippets in card descriptions. Historically we've seen:
+ * - `<span style="display:inline-flex"> <img src="..."> <a href="...">TEXT</a></span>`
+ * - Variants where the `<a>` wraps the `<img>` and/or extra markup exists inside the anchor.
+ *
+ * We keep this regex-based (no DOM) and support a small set of resilient shapes.
+ *
+ * Capture groups:
+ *  - iconSrc (1)
+ *  - href    (2)
+ *  - label   (3) (may include markup)
+ */
+const LEGACY_INLINE_BUTTON_RES: readonly RegExp[] = [
+  // Original shape: <img ...><a href=...>LABEL</a>
+  /<span[^>]*display\s*:\s*inline-flex[^>]*>\s*<img[^>]*src\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>\s*<a[^>]*href\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>([\s\S]*?)<\/a>\s*<\/span>/gi,
+  // Anchor wraps image: <a href=...><img src=...>LABEL</a> (with any wrapper tags)
+  /<(?:span|div)[^>]*display\s*:\s*inline-flex[^>]*>[\s\S]*?<a[^>]*href\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>[\s\S]*?<img[^>]*src\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>[\s\S]*?<\/a>[\s\S]*?<\/(?:span|div)>/gi,
+] as const;
 const LEGACY_HORIZONTAL_RULE_RE = /<\s*hr\b[^>]*>(?:\s*<\/\s*hr\s*>)?/gi;
 
 function parseInlineStyleDeclarations(styleAttr: string): Map<string, string> {
@@ -162,33 +187,52 @@ function buildWekanDescriptionDocNodes(
   localizedByIconSrc: ReadonlyMap<string, string>,
   plainTextSegmentsOnly: boolean,
 ): Array<Record<string, unknown>> {
+  // Wekan exports sometimes entity-encode attribute quotes. Decode entities up-front so the
+  // legacy inline-button regexes can match reliably (and so markdown/plain parsing sees real text).
+  const input = decodeHtmlEntities(description);
   const nodes: Array<Record<string, unknown>> = [];
   let cursor = 0;
-  LEGACY_INLINE_BUTTON_RE.lastIndex = 0;
   LEGACY_HORIZONTAL_RULE_RE.lastIndex = 0;
-  while (cursor < description.length) {
-    LEGACY_INLINE_BUTTON_RE.lastIndex = cursor;
+  while (cursor < input.length) {
     LEGACY_HORIZONTAL_RULE_RE.lastIndex = cursor;
-    const inlineMatch = LEGACY_INLINE_BUTTON_RE.exec(description);
-    const hrMatch = LEGACY_HORIZONTAL_RULE_RE.exec(description);
+    // Find earliest inline-button match among known legacy shapes.
+    let inlineMatch: { readonly re: RegExp; readonly match: RegExpExecArray } | null = null;
+    for (const re of LEGACY_INLINE_BUTTON_RES) {
+      re.lastIndex = cursor;
+      const m = re.exec(input);
+      if (m == null) {
+        continue;
+      }
+      if (inlineMatch == null || m.index < inlineMatch.match.index) {
+        inlineMatch = { re, match: m };
+      }
+    }
+    const hrMatch = LEGACY_HORIZONTAL_RULE_RE.exec(input);
     if (inlineMatch == null && hrMatch == null) {
       break;
     }
     const nextMatch =
-      inlineMatch != null && (hrMatch == null || inlineMatch.index <= hrMatch.index)
-        ? { kind: 'inlineButton' as const, match: inlineMatch }
+      inlineMatch != null && (hrMatch == null || inlineMatch.match.index <= hrMatch.index)
+        ? { kind: 'inlineButton' as const, match: inlineMatch.match }
         : { kind: 'horizontalRule' as const, match: hrMatch as RegExpExecArray };
-    const before = description.slice(cursor, nextMatch.match.index);
+    const before = input.slice(cursor, nextMatch.match.index);
     pushMarkdownOrPlainAsBlocks(before, nodes, plainTextSegmentsOnly);
     if (nextMatch.kind === 'horizontalRule') {
       nodes.push({ type: 'horizontalRule' });
       cursor = nextMatch.match.index + nextMatch.match[0].length;
       continue;
     }
-    const [full, rawIconSrc, rawHref, rawButtonText] = nextMatch.match;
-    const iconSrc = decodeHtmlEntities((rawIconSrc ?? '').trim());
-    const href = decodeHtmlEntities((rawHref ?? '').trim());
-    const buttonText = decodeHtmlEntities((rawButtonText ?? '').replace(/\s+/g, ' ').trim());
+    const full = nextMatch.match[0];
+    // Normalize capture groups across shapes:
+    // - re[0] captures (iconSrc, href, label)
+    // - re[1] captures (href, iconSrc) and label is unknown → derive from stripped HTML.
+    const g1 = decodeHtmlEntities((nextMatch.match[1] ?? '').trim());
+    const g2 = decodeHtmlEntities((nextMatch.match[2] ?? '').trim());
+    const g3 = decodeHtmlEntities((nextMatch.match[3] ?? '').trim());
+    const iconSrc = g1.includes('://') || g1.startsWith('/') ? g1 : g2;
+    const href = normalizeImportedInlineHref(g1 === iconSrc ? g2 : g1);
+    const buttonTextRaw = g3 !== '' ? g3 : stripHtmlTags(full);
+    const buttonText = decodeHtmlEntities(buttonTextRaw).replace(/\s+/g, ' ').trim();
     const inlineButton = buildTrelloImportInlineButton(href, buttonText);
     if (inlineButton != null) {
       const replacement = replacementByIconSrc.get(iconSrc);
@@ -208,7 +252,7 @@ function buildWekanDescriptionDocNodes(
     }
     cursor = nextMatch.match.index + full.length;
   }
-  const tail = description.slice(cursor);
+  const tail = input.slice(cursor);
   pushMarkdownOrPlainAsBlocks(tail, nodes, plainTextSegmentsOnly);
   return nodes;
 }
@@ -313,14 +357,18 @@ export function extractLegacyInlineButtonCandidates(cards: readonly WekanCard[])
     if (description.trim() === '') {
       continue;
     }
-    LEGACY_INLINE_BUTTON_RE.lastIndex = 0;
-    let match: RegExpExecArray | null = LEGACY_INLINE_BUTTON_RE.exec(description);
-    while (match != null) {
-      const iconSrc = decodeHtmlEntities((match[1] ?? '').trim());
-      if (iconSrc !== '') {
-        out.push({ iconSrc });
+    for (const re of LEGACY_INLINE_BUTTON_RES) {
+      re.lastIndex = 0;
+      let match: RegExpExecArray | null = re.exec(description);
+      while (match != null) {
+        const g1 = decodeHtmlEntities((match[1] ?? '').trim());
+        const g2 = decodeHtmlEntities((match[2] ?? '').trim());
+        const iconSrc = g1.includes('://') || g1.startsWith('/') ? g1 : g2;
+        if (iconSrc !== '') {
+          out.push({ iconSrc });
+        }
+        match = re.exec(description);
       }
-      match = LEGACY_INLINE_BUTTON_RE.exec(description);
     }
   }
   return out;

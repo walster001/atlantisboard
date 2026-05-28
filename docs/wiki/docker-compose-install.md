@@ -258,6 +258,17 @@ docker compose -f docker-compose.prod.yml down -v
 
 ---
 
+## Local development persistence
+
+The root `docker-compose.yml` (used by `./scripts/dev-start.sh`) stores MongoDB, Redis, and MinIO on the **host** under `.docker-data/` via bind mounts. Data survives `docker compose down` and container removal.
+
+- **Safe:** `docker compose stop`, `docker compose down` (without `-v`)
+- **Risky:** `docker compose down -v`, `docker volume prune`, deleting `.docker-data/`
+
+See **[DOCKER-DEV-DATA.md](../DOCKER-DEV-DATA.md)** for layout, `KANBOARD_DOCKER_DATA_DIR`, backups, and migrating from old named volumes.
+
+---
+
 ## Next Steps
 
 - [Environment Variables Reference](environment-variables.md) — fine-tune every configuration option.

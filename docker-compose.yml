@@ -1,12 +1,18 @@
-# Dev stack (~2.75 GiB steady-state for mongodb+redis+minio) + Bun caps in scripts/dev.ts (~2.5 GiB concurrent).
-# Total intended dev footprint ≤ ~6 GiB including Docker overhead (see scripts/dev-start.sh).
+# Local development: MongoDB, Redis, MinIO
+#
+# PERSISTENCE POLICY (read docs/DOCKER-DEV-DATA.md):
+# - Data is stored on the HOST under .docker-data/ (bind mounts), not only inside Docker volumes.
+# - SAFE:    docker compose stop | docker compose down        (no -v flag)
+# - UNSAFE:  docker compose down -v | docker volume prune | rm -rf .docker-data
+#
+# Override storage root: KANBOARD_DOCKER_DATA_DIR in .env (absolute path recommended outside repo)
+
 services:
   mongodb:
     image: mongo:8.0
     container_name: kanboard-mongodb
-    restart: unless-stopped
     ports:
-      - "127.0.0.1:27017:27017"
+      - '27017:27017'
     environment:
       MONGO_INITDB_DATABASE: kanboard
     command:
@@ -15,23 +21,26 @@ services:
         '--replSet',
         'rs0',
         '--bind_ip_all',
-        '--wiredTigerCacheSizeGB',
-        '0.75',
       ]
     volumes:
-      - mongo-data:/data/db
-      - mongo-config:/data/configdb
+      - type: bind
+        source: ${KANBOARD_DOCKER_DATA_DIR:-./.docker-data}/mongodb/db
+        target: /data/db
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ${KANBOARD_DOCKER_DATA_DIR:-./.docker-data}/mongodb/configdb
+        target: /data/configdb
+        bind:
+          create_host_path: true
     networks:
       - kanboard-network
     healthcheck:
-      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/kanboard --quiet
       interval: 10s
       timeout: 5s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: 2G
+      start_period: 30s
 
   mongodb-init:
     image: mongo:8.0
@@ -40,55 +49,34 @@ services:
       mongodb:
         condition: service_healthy
     restart: 'no'
+    environment:
+      MONGODB_HOST: mongodb
+      MONGODB_REPLICA_MEMBER_HOST: mongodb:27017
+    volumes:
+      - ./docker/mongodb/replica-init.sh:/replica-init.sh:ro
+    entrypoint: ['bash', '/replica-init.sh']
     networks:
       - kanboard-network
-    command: >
-      bash -lc "
-        mongosh --host mongodb:27017 --quiet --eval '
-          try {
-            const status = rs.status();
-            if (status && status.ok === 1) {
-              const conf = rs.conf();
-              const currentHost = conf?.members?.[0]?.host;
-              if (currentHost === \"localhost:27017\") {
-                print(\"rs already initialized\");
-                quit(0);
-              }
-              // Reconfigure to a host-accessible address so clients connecting via localhost can discover the primary.
-              conf.members[0].host = \"localhost:27017\";
-              rs.reconfig(conf, { force: true });
-              print(\"rs reconfigured to localhost:27017\");
-              quit(0);
-            }
-          } catch (e) {}
-          rs.initiate({
-            _id: \"rs0\",
-            members: [{ _id: 0, host: \"localhost:27017\" }]
-          });
-          print(\"rs initiated\");
-        '
-      "
-    deploy:
-      resources:
-        limits:
-          memory: 384M
 
   redis:
     image: redis:7-alpine
     container_name: kanboard-redis
-    restart: unless-stopped
     ports:
-      - '127.0.0.1:6379:6379'
+      - '6379:6379'
     command: >
       sh -c "
       if [ -n \"$${REDIS_PASSWORD}\" ]; then
-        redis-server --appendonly yes --maxmemory 200mb --maxmemory-policy allkeys-lru --requirepass \"$${REDIS_PASSWORD}\"
+        redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\"
       else
-        redis-server --appendonly yes --maxmemory 200mb --maxmemory-policy allkeys-lru
+        redis-server --appendonly yes
       fi
       "
     volumes:
-      - redis-data:/data
+      - type: bind
+        source: ${KANBOARD_DOCKER_DATA_DIR:-./.docker-data}/redis
+        target: /data
+        bind:
+          create_host_path: true
     networks:
       - kanboard-network
     healthcheck:
@@ -103,24 +91,23 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: 256M
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: kanboard-minio
-    restart: unless-stopped
     ports:
-      - '127.0.0.1:9000:9000'
-      - '127.0.0.1:9001:9001'
+      - '9000:9000'
+      - '9001:9001'
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     command: server /data --console-address ":9001"
     volumes:
-      - minio-data:/data
+      - type: bind
+        source: ${KANBOARD_DOCKER_DATA_DIR:-./.docker-data}/minio
+        target: /data
+        bind:
+          create_host_path: true
     networks:
       - kanboard-network
     healthcheck:
@@ -128,41 +115,20 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-    deploy:
-      resources:
-        limits:
-          memory: 512M
 
   minio-setup:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T23-30-25Z
     container_name: kanboard-minio-setup
     depends_on:
       - minio
-    entrypoint: >
-      /bin/sh -c "
-      sleep 5;
-      mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin};
-      mc mb myminio/import-inline --ignore-existing;
-      mc mb myminio/card-attachments --ignore-existing;
-      mc mb myminio/branding --ignore-existing;
-      mc mb myminio/fonts --ignore-existing;
-      mc mb myminio/user-avatars --ignore-existing;
-      mc mb myminio/backgrounds --ignore-existing;
-      mc mb myminio/backups --ignore-existing;
-      exit 0;
-      "
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - ./docker/minio/setup.sh:/setup.sh:ro
+    entrypoint: ['/bin/sh', '/setup.sh']
     networks:
       - kanboard-network
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
-volumes:
-  mongo-data:
-  mongo-config:
-  redis-data:
-  minio-data:
 
 networks:
   kanboard-network:

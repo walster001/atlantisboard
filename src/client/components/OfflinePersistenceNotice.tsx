@@ -6,15 +6,15 @@ const OFFLINE_NOTICE_ID = 'offline-unsaved-warning';
 const SERVER_POLL_MIN_MS = 3000;
 const SERVER_POLL_MAX_MS = 60000;
 
-function resolveCsrfProbeUrl(): string {
+function resolveHealthProbeUrl(): string {
   const base = env.API_BASE_URL || '/api/v1';
-  const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
-  return `${trimmed}/csrf/token`;
+  const apiUrl = new URL(base, window.location.origin);
+  return new URL('/health', apiUrl.origin).toString();
 }
 
 async function isServerReachable(): Promise<boolean> {
   try {
-    const response = await fetch(resolveCsrfProbeUrl(), {
+    const response = await fetch(resolveHealthProbeUrl(), {
       method: 'GET',
       credentials: 'include',
       cache: 'no-store',

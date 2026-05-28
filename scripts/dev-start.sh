@@ -56,6 +56,17 @@ fi
 
 # Start Docker services
 cd "$PROJECT_ROOT"
+if [ -f "$PROJECT_ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$PROJECT_ROOT/.env"
+  set +a
+fi
+DOCKER_DATA_DIR="$("$SCRIPT_DIR/ensure-docker-data-dirs.sh")"
+echo -e "${BLUE}Docker dev data:${NC} ${DOCKER_DATA_DIR}"
+echo -e "${YELLOW}Never run:${NC} docker compose down -v  (see docs/DOCKER-DEV-DATA.md)"
+"$SCRIPT_DIR/check-docker-data-migration.sh" || true
+echo ""
 echo -e "${BLUE}Starting Docker services...${NC}"
 RESTART_DOCKER=false
 if docker compose ps --services --filter "status=running" | grep -q "mongodb\|redis\|minio"; then

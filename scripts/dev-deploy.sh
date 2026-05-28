@@ -59,6 +59,16 @@ echo ""
 # Step 3: Start Docker services
 log "Starting Docker services..."
 cd "$PROJECT_ROOT"
+if [ -f "$PROJECT_ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$PROJECT_ROOT/.env"
+  set +a
+fi
+DOCKER_DATA_DIR="$("$SCRIPT_DIR/ensure-docker-data-dirs.sh")"
+echo -e "${BLUE}Docker dev data:${NC} ${DOCKER_DATA_DIR}"
+echo -e "${YELLOW}Never run:${NC} docker compose down -v  (see docs/DOCKER-DEV-DATA.md)"
+echo ""
 if docker compose ps --services --filter "status=running" | grep -q "mongodb\|redis\|minio"; then
   echo -e "${YELLOW}Some Docker services are already running${NC}"
   read -p "Restart all services? (y/n) " -n 1 -r

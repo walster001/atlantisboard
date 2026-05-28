@@ -14449,9 +14449,6 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     --text-sm: .875rem;
     --text-sm--line-height: calc(1.25 / .875);
     --radius-lg: .5rem;
-    --ease-in: cubic-bezier(.4, 0, 1, 1);
-    --ease-out: cubic-bezier(0, 0, .2, 1);
-    --ease-in-out: cubic-bezier(.4, 0, .2, 1);
     --animate-spin: spin 1s linear infinite;
     --default-transition-duration: .15s;
     --default-transition-timing-function: cubic-bezier(.4, 0, .2, 1);

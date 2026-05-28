@@ -26,6 +26,7 @@ import axios from 'axios';
 import { TableVirtuoso } from 'react-virtuoso';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
+import { subscribeSocketWorkspaceUpdated } from '../../utils/socketRealtimeBridge.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
 import { BoardMemberEnterToSearchField } from '../board/BoardMemberEnterToSearchField.js';
 import '../board/boardMemberManagement.css';
@@ -381,9 +382,25 @@ export function WorkspaceMemberManagement({
     [workspaceId],
   );
 
+  const loadWorkspaceMembersRef = useRef(loadWorkspaceMembers);
+  loadWorkspaceMembersRef.current = loadWorkspaceMembers;
+  const [directoryRefreshKey, setDirectoryRefreshKey] = useState(0);
+
   useEffect(() => {
     void loadWorkspaceMembers();
   }, [loadWorkspaceMembers]);
+
+  useEffect(() => {
+    return subscribeSocketWorkspaceUpdated(({ workspaceId: wid, workspace }) => {
+      if (wid !== workspaceId) {
+        return;
+      }
+      if (workspace.members !== undefined) {
+        void loadWorkspaceMembersRef.current({ quiet: true });
+        setDirectoryRefreshKey((k) => k + 1);
+      }
+    });
+  }, [workspaceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -493,7 +510,7 @@ export function WorkspaceMemberManagement({
 
     void run();
     return () => controller.abort();
-  }, [workspaceId, directoryQuery]);
+  }, [workspaceId, directoryQuery, directoryRefreshKey]);
 
   const handleDirectoryEndReached = useCallback(() => {
     if (

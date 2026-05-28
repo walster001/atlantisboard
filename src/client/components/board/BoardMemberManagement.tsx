@@ -31,6 +31,7 @@ import { TableVirtuoso } from 'react-virtuoso';
 import axios from 'axios';
 import { APP_USER_AVATAR_SIZE } from '../../constants/userAvatar.js';
 import { api } from '../../utils/api.js';
+import { subscribeSocketBoardUpdated } from '../../utils/socketRealtimeBridge.js';
 import { userMenuStyleAvatarInitials } from '../../utils/userMenuStyleAvatarInitials.js';
 import { BoardMemberEnterToSearchField } from './BoardMemberEnterToSearchField.js';
 import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
@@ -521,10 +522,13 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
   directoryQueryRef.current = directoryQuery;
   boardIdRef.current = boardId;
 
-  const loadBoard = useCallback(async (cursor?: string) => {
+  const loadBoard = useCallback(async (cursor?: string, opts?: { readonly quiet?: boolean }) => {
+    const quiet = opts?.quiet === true;
     try {
       if (cursor === undefined) {
-        setBoardLoading(true);
+        if (!quiet) {
+          setBoardLoading(true);
+        }
       } else {
         setMembersLoadingMore(true);
       }
@@ -591,13 +595,31 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
       if (cursor !== undefined) {
         setMembersLoadingMore(false);
       }
-      setBoardLoading(false);
+      if (!quiet) {
+        setBoardLoading(false);
+      }
     }
   }, [boardId, memberFilterQuery]);
+
+  const loadBoardRef = useRef(loadBoard);
+  loadBoardRef.current = loadBoard;
+  const [directoryRefreshKey, setDirectoryRefreshKey] = useState(0);
 
   useEffect(() => {
     void loadBoard();
   }, [loadBoard]);
+
+  useEffect(() => {
+    return subscribeSocketBoardUpdated(({ boardId: bid, board }) => {
+      if (bid !== boardId) {
+        return;
+      }
+      if (board.members !== undefined) {
+        void loadBoardRef.current(undefined, { quiet: true });
+        setDirectoryRefreshKey((k) => k + 1);
+      }
+    });
+  }, [boardId]);
 
   useEffect(() => {
     setMemberRoleFilter(null);
@@ -704,7 +726,7 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
     return () => {
       controller.abort();
     };
-  }, [boardId, directoryQuery]);
+  }, [boardId, directoryQuery, directoryRefreshKey]);
 
   const handleDirectoryEndReached = useCallback(() => {
     if (

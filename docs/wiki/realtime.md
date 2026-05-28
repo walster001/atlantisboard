@@ -26,6 +26,12 @@ This architecture ensures that the database is always the single source of truth
 
 ## Change Streams
 
+Atlantisboard runs **7 collection-level change streams** (not per-board or per-document filters). Each stream watches an entire collection; the server routes events to the correct Socket.io rooms in application code. This avoids hundreds of targeted streams, which cannot use indexes and increase CPU and memory use on the database.
+
+Resume tokens are persisted in **Redis** after each processed event. On process restart or transient stream errors, streams reopen with `resumeAfter` so events are not skipped when the oplog still contains them. Ensure Redis persistence (RDB/AOF) in production so tokens survive Redis restarts.
+
+**Oplog sizing:** change streams depend on the replica set oplog. Size it to retain at least **24–48 hours** of writes so a deploy or outage does not roll the oplog past your last resume token. See [Docker Compose Installation](docker-compose-install.md#mongodb--database) and [Deployment overview](../../DEPLOYMENT.md#mongodb-oplog-sizing-change-streams).
+
 Atlantisboard runs **7 change streams**, each watching a different collection:
 
 | Collection | What It Watches |

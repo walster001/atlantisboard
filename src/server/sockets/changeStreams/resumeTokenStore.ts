@@ -60,3 +60,15 @@ export async function saveResumeToken(streamId: string, token: ResumeToken | und
 export function persistResumeTokenAsync(streamId: string, token: ResumeToken | undefined): void {
   void saveResumeToken(streamId, token);
 }
+
+export async function deleteResumeToken(streamId: string): Promise<void> {
+  try {
+    await redis.del(resumeKey(streamId));
+  } catch (error) {
+    logger.warn({ error, streamId }, 'Failed to delete change stream resume token from Redis');
+  }
+}
+
+export function deleteResumeTokenAsync(streamId: string): void {
+  void deleteResumeToken(streamId);
+}

@@ -150,6 +150,8 @@ You should see the Atlantisboard login page. Proceed to [Creating the First Admi
 
 MongoDB 8.0 stores all application data: users, workspaces, boards, cards, labels, comments, activities, and settings. It runs as a **replica set** with **SCRAM authentication** in production (required for Change Streams, which power real-time collaboration). The `mongodb-init` job configures `rs0` on first deploy.
 
+**Oplog sizing:** change streams read the oplog. For production, configure enough oplog retention (typically **24–48 hours** of writes at peak load) so a deploy or outage does not roll the oplog before the app resumes from its stored tokens. On self-hosted MongoDB, adjust `replication.oplogSizeMB`; on Atlas, use the cluster’s oplog window settings. Check headroom with `db.getReplicationInfo()` in `mongosh`.
+
 ### `redis` — Session Store & Rate Limiting
 
 Redis 7 Alpine handles:

@@ -7,7 +7,6 @@ import {
   ColorInput,
   Group,
   Modal,
-  Select,
   Stack,
   Text,
   TextInput,
@@ -22,8 +21,6 @@ import {
   modalStylesFullscreenSafeBody,
 } from '../../constants/iosModalSafeArea.js';
 import './cardInlineButtonEditModal.css';
-
-const RADIUS_OPTIONS = ['0', '4', '8', '12', '16', '20'] as const;
 
 type InlineButtonDraft = {
   readonly href: string;
@@ -332,12 +329,17 @@ export function CardDescriptionInlineButtonEditModal({
         <ColorInput label="Background color" value={bgColor} onChange={setBgColor} format="hex" />
       </Group>
 
-      <Select
+      <TextInput
         label="Roundness"
-        data={RADIUS_OPTIONS.map((r) => ({ value: r, label: `${r}px` }))}
         value={borderRadiusPx}
-        onChange={(v) => setBorderRadiusPx(v ?? '4')}
-        allowDeselect={false}
+        onChange={(e) => setBorderRadiusPx(e.currentTarget.value)}
+        inputMode="numeric"
+        placeholder={String(DEFAULT_INLINE_BUTTON_ATTRS.borderRadiusPx)}
+        rightSection={
+          <Text size="xs" c="dimmed" mr={4}>
+            px
+          </Text>
+        }
       />
     </>
   );

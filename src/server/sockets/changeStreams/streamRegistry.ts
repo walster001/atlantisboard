@@ -6,14 +6,22 @@ type ClosableChangeStream = {
   on: (ev: 'error', fn: (err: unknown) => void) => void;
 };
 
-const changeStreams: ClosableChangeStream[] = [];
+const changeStreamsByLabel = new Map<string, ClosableChangeStream>();
 let changeStreamReplicaSetErrorLogged = false;
 
-export function registerChangeStream(stream: ClosableChangeStream): void {
-  changeStreams.push(stream);
+export function registerChangeStream(label: string, stream: ClosableChangeStream): void {
+  changeStreamsByLabel.set(label, stream);
 }
 
-export function attachChangeStreamErrorHandler(stream: ClosableChangeStream, label: string): void {
+export function unregisterChangeStream(label: string): void {
+  changeStreamsByLabel.delete(label);
+}
+
+export function attachChangeStreamErrorHandler(
+  stream: ClosableChangeStream,
+  label: string,
+  onRecoverableError?: () => void,
+): void {
   stream.on('error', (err: unknown) => {
     if (isChangeStreamReplicaSetError(err)) {
       if (!changeStreamReplicaSetErrorLogged) {
@@ -21,24 +29,24 @@ export function attachChangeStreamErrorHandler(stream: ClosableChangeStream, lab
         logger.warn(
           'MongoDB Change Streams stopped: $changeStream requires a replica set (40573). Use Atlas or rs.initiate(), or set ENABLE_CHANGE_STREAMS=false.'
         );
-        void Promise.all(changeStreams.map((s) => s.close().catch(() => undefined))).then(() => {
-          changeStreams.length = 0;
-        });
+        void closeAllChangeStreams();
       }
       return;
     }
     logger.error({ err, label }, 'Change stream error');
+    onRecoverableError?.();
   });
 }
 
 export async function closeAllChangeStreams(): Promise<void> {
+  const streams = [...changeStreamsByLabel.values()];
+  changeStreamsByLabel.clear();
   await Promise.all(
-    changeStreams.map((stream) =>
+    streams.map((stream) =>
       stream.close().catch((error) => {
         logger.error({ error }, 'Error closing change stream');
       }),
     ),
   );
-  changeStreams.length = 0;
   logger.info('All change streams closed');
 }

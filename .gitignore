@@ -63,8 +63,7 @@ temp/
 wsl/
 
 # Local Docker bind-mount data (see docs/DOCKER-DEV-DATA.md)
-.docker-data/*
-!.docker-data/.gitkeep
+.docker-data/
 
 # Legacy per-service dirs (older compose layouts)
 minio-data/

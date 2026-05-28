@@ -18,11 +18,17 @@ import {
   handleListChange,
   handleWorkspaceChange,
 } from './dispatchers.js';
+import { closeAllChangeStreams } from './streamRegistry.js';
+import { startCollectionWatch } from './collectionWatch.js';
 import {
-  attachChangeStreamErrorHandler,
-  closeAllChangeStreams,
-  registerChangeStream,
-} from './streamRegistry.js';
+  activityChangeStreamPipeline,
+  boardChangeStreamPipeline,
+  boardLabelChangeStreamPipeline,
+  cardChangeStreamPipeline,
+  inviteLinkChangeStreamPipeline,
+  listChangeStreamPipeline,
+  workspaceChangeStreamPipeline,
+} from './pipelines.js';
 
 export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
   if (!shouldRunChangeStreams()) {
@@ -57,71 +63,87 @@ export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
   }
 
   try {
-    const commonPipeline = [
-      {
-        $match: {
-          operationType: { $in: ['insert', 'update', 'replace', 'delete'] },
+    await Promise.all([
+      startCollectionWatch({
+        streamId: 'workspace',
+        label: 'Workspace',
+        model: Workspace,
+        pipeline: workspaceChangeStreamPipeline,
+        watchOptions: { fullDocument: 'updateLookup' },
+        onChange: (change) => {
+          handleWorkspaceChange(change, io);
         },
-      },
-    ];
+        io,
+      }),
+      startCollectionWatch({
+        streamId: 'board',
+        label: 'Board',
+        model: Board,
+        pipeline: boardChangeStreamPipeline,
+        watchOptions: { fullDocument: 'updateLookup' },
+        onChange: (change) => {
+          handleBoardChange(change, io);
+        },
+        io,
+      }),
+      startCollectionWatch({
+        streamId: 'list',
+        label: 'List',
+        model: List,
+        pipeline: listChangeStreamPipeline,
+        watchOptions: { fullDocument: 'updateLookup' },
+        onChange: (change) => {
+          handleListChange(change, io);
+        },
+        io,
+      }),
+      startCollectionWatch({
+        streamId: 'card',
+        label: 'Card',
+        model: Card,
+        pipeline: cardChangeStreamPipeline,
+        watchOptions: {},
+        onChange: (change) => {
+          handleCardChange(change, io);
+        },
+        io,
+      }),
+      startCollectionWatch({
+        streamId: 'activity',
+        label: 'Activity',
+        model: Activity,
+        pipeline: activityChangeStreamPipeline,
+        watchOptions: {},
+        onChange: (change) => {
+          handleActivityChange(change, io);
+        },
+        io,
+      }),
+      startCollectionWatch({
+        streamId: 'boardlabel',
+        label: 'BoardLabel',
+        model: BoardLabel,
+        pipeline: boardLabelChangeStreamPipeline,
+        watchOptions: { fullDocument: 'updateLookup' },
+        onChange: (change) => {
+          handleLabelChange(change, io);
+        },
+        io,
+      }),
+      startCollectionWatch({
+        streamId: 'invitelink',
+        label: 'InviteLink',
+        model: InviteLink,
+        pipeline: inviteLinkChangeStreamPipeline,
+        watchOptions: { fullDocument: 'updateLookup' },
+        onChange: (change) => {
+          handleInviteChange(change, io);
+        },
+        io,
+      }),
+    ]);
 
-    // Workspace Change Stream
-    const workspaceStream = Workspace.watch(commonPipeline, { fullDocument: 'updateLookup' });
-    attachChangeStreamErrorHandler(workspaceStream, 'Workspace');
-    workspaceStream.on('change', (change) => {
-      handleWorkspaceChange(change, io);
-    });
-    registerChangeStream(workspaceStream);
-
-    // Board Change Stream
-    const boardStream = Board.watch(commonPipeline, { fullDocument: 'updateLookup' });
-    attachChangeStreamErrorHandler(boardStream, 'Board');
-    boardStream.on('change', (change) => {
-      handleBoardChange(change, io);
-    });
-    registerChangeStream(boardStream);
-
-    // List Change Stream
-    const listStream = List.watch(commonPipeline, { fullDocument: 'updateLookup' });
-    attachChangeStreamErrorHandler(listStream, 'List');
-    listStream.on('change', (change) => {
-      handleListChange(change, io);
-    });
-    registerChangeStream(listStream);
-
-    // Card Change Stream
-    const cardStream = Card.watch(commonPipeline, { fullDocument: 'updateLookup' });
-    attachChangeStreamErrorHandler(cardStream, 'Card');
-    cardStream.on('change', (change) => {
-      handleCardChange(change, io);
-    });
-    registerChangeStream(cardStream);
-
-    // Activity Change Stream
-    const activityStream = Activity.watch([{ $match: { operationType: 'insert' } }], { fullDocument: 'updateLookup' });
-    attachChangeStreamErrorHandler(activityStream, 'Activity');
-    activityStream.on('change', (change) => {
-      handleActivityChange(change, io);
-    });
-    registerChangeStream(activityStream);
-
-    // BoardLabel Change Stream
-    const labelStream = BoardLabel.watch(commonPipeline, { fullDocument: 'updateLookup' });
-    attachChangeStreamErrorHandler(labelStream, 'BoardLabel');
-    labelStream.on('change', (change) => {
-      handleLabelChange(change, io);
-    });
-    registerChangeStream(labelStream);
-
-    // InviteLink Change Stream
-    const inviteStream = InviteLink.watch(commonPipeline, { fullDocument: 'updateLookup' });
-    attachChangeStreamErrorHandler(inviteStream, 'InviteLink');
-    inviteStream.on('change', (change) => {
-      handleInviteChange(change, io);
-    });
-    registerChangeStream(inviteStream);
-
-    logger.info('MongoDB Change Streams initialized');
+    logger.info('MongoDB Change Streams initialized (7 collection watchers, resume tokens in Redis)');
   } catch (error) {
     if (isChangeStreamReplicaSetError(error)) {
       logger.warn(
@@ -143,4 +165,3 @@ export const initializeChangeStreams = setupChangeStreams;
 export async function closeChangeStreams(): Promise<void> {
   await closeAllChangeStreams();
 }
-

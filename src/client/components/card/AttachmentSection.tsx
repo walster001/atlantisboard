@@ -20,6 +20,10 @@ import { IconPaperclip, IconTrash, IconUpload, IconX } from '@tabler/icons-react
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
 import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
+import {
+  formatCardAttachmentMaxMb,
+  getClientCardAttachmentMaxBytes,
+} from '../../utils/uploadLimits.js';
 import { normalizeCardFromApi } from '../../utils/transform.js';
 import {
   CARD_DETAIL_SECTION_ICON_COLOR,
@@ -57,6 +61,10 @@ export function AttachmentSection({
     readonly height: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachmentMaxMb = useMemo(
+    () => formatCardAttachmentMaxMb(getClientCardAttachmentMaxBytes()),
+    [],
+  );
 
   const extractObjectPath = (rawUrl: string): string => {
     const trimmed = rawUrl.trim();
@@ -159,12 +167,12 @@ export function AttachmentSection({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // File size limit: 1000 MB
-    const maxSize = 1000 * 1024 * 1024;
+    const maxSize = getClientCardAttachmentMaxBytes();
+    const maxMb = formatCardAttachmentMaxMb(maxSize);
     const oversizedFiles = Array.from(files).filter((file) => file.size > maxSize);
-    
+
     if (oversizedFiles.length > 0) {
-      setError(`File(s) exceed size limit of 1000 MB: ${oversizedFiles.map((f) => f.name).join(', ')}`);
+      setError(`File(s) exceed size limit of ${maxMb} MB: ${oversizedFiles.map((f) => f.name).join(', ')}`);
       return;
     }
 
@@ -531,7 +539,7 @@ export function AttachmentSection({
       )}
 
       <Text size="xs" c="dimmed">
-        File size limit: 1000 MB<br />
+        File size limit: {attachmentMaxMb} MB<br />
         Supported: All file types (malware scanning enabled). Use <strong>Set as card cover</strong> on image
         attachments to show them on the board.
       </Text>

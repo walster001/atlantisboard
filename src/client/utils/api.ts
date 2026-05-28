@@ -23,6 +23,7 @@ import { attachmentApiMethods, type AttachmentApiMethods } from './api/attachmen
 import { themesApiMethods, type ThemesApiMethods } from './api/themesApiMethods.js';
 import { API_BASE_URL } from './api/shared.js';
 import { usesHttpOnlyAuth } from '../config/env.js';
+import { readCsrfCookie } from './csrfCookie.js';
 
 interface CsrfRetryAxiosRequestConfig extends InternalAxiosRequestConfig {
   _csrfRetried?: boolean;
@@ -56,6 +57,7 @@ function isCsrfError(error: AxiosError): boolean {
 export class ApiClient {
   client: AxiosInstance;
   csrfToken: string | null = null;
+  private csrfFetchPromise: Promise<void> | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -66,8 +68,8 @@ export class ApiClient {
       withCredentials: true,
     });
 
-    // Initialize CSRF token
-    this.fetchCSRFToken().catch(() => {
+    // Initialize CSRF token (deduped; cookie synced after fetch)
+    this.ensureCsrfToken().catch(() => {
       // Silently fail, will try again on next request
     });
 
@@ -81,13 +83,11 @@ export class ApiClient {
           }
         }
 
-        // Add CSRF token for state-changing requests
+        // Add CSRF token for state-changing requests (cookie is source of truth; memory can lag)
         if (config.method && ['post', 'put', 'patch', 'delete'].includes(config.method.toLowerCase())) {
-          if (!this.csrfToken) {
-            await this.fetchCSRFToken();
-          }
-          if (this.csrfToken) {
-            config.headers['X-CSRF-Token'] = this.csrfToken;
+          const token = await this.resolveCsrfToken();
+          if (token) {
+            config.headers['X-CSRF-Token'] = token;
           }
         }
 
@@ -106,7 +106,11 @@ export class ApiClient {
 
         if (config && isCsrfError(error) && !config._csrfRetried) {
           try {
-            await this.fetchCSRFToken();
+            await this.ensureCsrfToken();
+            const token = readCsrfCookie() ?? this.csrfToken;
+            if (token) {
+              config.headers['X-CSRF-Token'] = token;
+            }
             config._csrfRetried = true;
             return this.client.request(config);
           } catch {
@@ -126,11 +130,48 @@ export class ApiClient {
     );
   }
 
+  /** Cookie wins over memory (shared across tabs; memory is per-tab). */
+  private syncCsrfFromCookie(): string | null {
+    const fromCookie = readCsrfCookie();
+    if (fromCookie) {
+      this.csrfToken = fromCookie;
+    }
+    return fromCookie ?? this.csrfToken;
+  }
+
+  private async resolveCsrfToken(): Promise<string | null> {
+    const existing = this.syncCsrfFromCookie();
+    if (existing) {
+      return existing;
+    }
+    await this.ensureCsrfToken();
+    return this.syncCsrfFromCookie();
+  }
+
+  /** Deduplicate concurrent CSRF fetches (e.g. rapid card PUTs). */
+  async ensureCsrfToken(): Promise<void> {
+    if (this.csrfFetchPromise) {
+      return this.csrfFetchPromise;
+    }
+    this.csrfFetchPromise = this.fetchCSRFToken().finally(() => {
+      this.csrfFetchPromise = null;
+    });
+    return this.csrfFetchPromise;
+  }
+
   async fetchCSRFToken(): Promise<void> {
     try {
       const response = await this.client.get('/csrf/token');
-      if (response.data?.csrfToken) {
-        this.csrfToken = response.data.csrfToken;
+      const fromBody =
+        response.data != null &&
+        typeof response.data === 'object' &&
+        'csrfToken' in response.data &&
+        typeof (response.data as { csrfToken?: unknown }).csrfToken === 'string'
+          ? (response.data as { csrfToken: string }).csrfToken
+          : null;
+      this.syncCsrfFromCookie();
+      if (!this.csrfToken && fromBody) {
+        this.csrfToken = fromBody;
       }
     } catch {
       /* will try again on next request */

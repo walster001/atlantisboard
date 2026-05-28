@@ -3,6 +3,10 @@ import {
   importPreflightUserFromWekanRecord,
 } from './importSourceUserContact.js';
 import { normalizeTrelloExport } from './trelloNormalize.js';
+import {
+  decodeWekanHtmlEntities,
+  LEGACY_WEKAN_INLINE_BUTTON_RES,
+} from './wekanLegacyInlineHtmlPatterns.js';
 
 export type ImportSourceType = 'trello' | 'wekan';
 
@@ -164,26 +168,9 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
-}
-
 function stripHtmlTags(value: string): string {
   return value.replace(/<[^>]*>/g, '');
 }
-
-// Legacy Wekan inline-button snippets (two common shapes):
-// - `<span style="display:inline-flex"><img src="..."><a href="...">TEXT</a></span>`
-// - `<span style="display:inline-flex"><a href="..."><img src="...">TEXT</a></span>`
-const LEGACY_INLINE_BUTTON_RES: readonly RegExp[] = [
-  /<span[^>]*display\s*:\s*inline-flex[^>]*>\s*<img[^>]*src\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>\s*<a[^>]*href\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>([\s\S]*?)<\/a>\s*<\/span>/gi,
-  /<(?:span|div)[^>]*display\s*:\s*inline-flex[^>]*>[\s\S]*?<a[^>]*href\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>[\s\S]*?<img[^>]*src\s*=\s*(?:['"]|&quot;)?([^'"\s>]+)(?:['"]|&quot;)?[^>]*>[\s\S]*?<\/a>[\s\S]*?<\/(?:span|div)>/gi,
-] as const;
 
 function isCandidateIconSource(iconSrc: string): boolean {
   const t = iconSrc.trim();
@@ -221,20 +208,20 @@ export function detectWekanLegacyInlineButtons(
       continue;
     }
     // Decode entities so legacy snippets with &quot; quotes can be detected.
-    const description = decodeHtmlEntities(descriptionRaw);
+    const description = decodeWekanHtmlEntities(descriptionRaw);
 
     let idx = 0;
-    for (const re of LEGACY_INLINE_BUTTON_RES) {
+    for (const re of LEGACY_WEKAN_INLINE_BUTTON_RES) {
       re.lastIndex = 0;
       let match: RegExpExecArray | null = re.exec(description);
       while (match != null) {
         const full = match[0] ?? '';
-        const g1 = decodeHtmlEntities((match[1] ?? '').trim());
-        const g2 = decodeHtmlEntities((match[2] ?? '').trim());
-        const g3 = decodeHtmlEntities((match[3] ?? '').trim());
+        const g1 = decodeWekanHtmlEntities((match[1] ?? '').trim());
+        const g2 = decodeWekanHtmlEntities((match[2] ?? '').trim());
+        const g3 = decodeWekanHtmlEntities((match[3] ?? '').trim());
         const iconSrc = g1.includes('://') || g1.startsWith('/') ? g1 : g2;
         const href = g1 === iconSrc ? g2 : g1;
-        const buttonText = normalizeWhitespace(decodeHtmlEntities(g3 !== '' ? g3 : stripHtmlTags(full)));
+        const buttonText = normalizeWhitespace(decodeWekanHtmlEntities(g3 !== '' ? g3 : stripHtmlTags(full)));
         if (isCandidateIconSource(iconSrc) && href !== '' && buttonText !== '') {
           const maybeCardTitle = str(card.title);
           out.push({

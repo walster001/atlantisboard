@@ -1,5 +1,7 @@
 import { Card } from '../models/Card.js';
 import { logger } from '../utils/logger.js';
+import { repairLegacyWekanHtmlInCardDescriptionJson } from '../../shared/import/repairLegacyWekanCardDescription.js';
+import { hasLegacyWekanInlineButtonHtml } from '../../shared/import/wekanLegacyInlineHtmlPatterns.js';
 import {
   descriptionJsonNeedsHtmlMigration,
   migrateLegacyDescriptionHtmlToJson,
@@ -16,7 +18,10 @@ export async function migrateLegacyCardDescriptionHtmlBatch(): Promise<number> {
 
   for (;;) {
     const filter: Record<string, unknown> = {
-      descriptionHtml: { $exists: true, $nin: [null, ''] },
+      $or: [
+        { descriptionHtml: { $exists: true, $nin: [null, ''] } },
+        { description: { $regex: 'display\\s*:\\s*inline-flex', $options: 'i' } },
+      ],
     };
     if (lastId != null) {
       filter._id = { $gt: lastId };
@@ -37,6 +42,15 @@ export async function migrateLegacyCardDescriptionHtmlBatch(): Promise<number> {
       const description = typeof card.description === 'string' ? card.description : undefined;
       const descriptionHtml =
         typeof card.descriptionHtml === 'string' ? card.descriptionHtml : undefined;
+
+      if (description != null && description !== '' && hasLegacyWekanInlineButtonHtml(description)) {
+        const repaired = repairLegacyWekanHtmlInCardDescriptionJson(description);
+        if (repaired != null) {
+          await Card.updateOne({ _id: card._id }, { $set: { description: repaired } });
+          migrated += 1;
+          continue;
+        }
+      }
 
       if (!descriptionJsonNeedsHtmlMigration(description)) {
         continue;

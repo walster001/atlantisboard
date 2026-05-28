@@ -7,6 +7,9 @@ import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
 import StarterKit from '@tiptap/starter-kit';
 import { JSDOM } from 'jsdom';
+import { hasLegacyWekanInlineButtonHtml } from '../../shared/import/wekanLegacyInlineHtmlPatterns.js';
+import { wekanLegacyHtmlToCardDescriptionJson } from '../../shared/import/wekanLegacyInlineHtml.js';
+import { repairLegacyWekanHtmlInCardDescriptionJson } from '../../shared/import/repairLegacyWekanCardDescription.js';
 import { sanitizeHtml } from '../../shared/utils/sanitizeHtml.js';
 import { isValidCardDescriptionDoc } from '../../shared/validation/cardDescriptionDoc.js';
 
@@ -84,6 +87,19 @@ export function migrateLegacyDescriptionHtmlToJson(descriptionHtml: string): str
   if (sanitized.trim() === '') {
     return null;
   }
+  if (hasLegacyWekanInlineButtonHtml(sanitized)) {
+    const fromWekan = wekanLegacyHtmlToCardDescriptionJson(sanitized);
+    if (fromWekan !== '') {
+      try {
+        const parsed: unknown = JSON.parse(fromWekan);
+        if (isValidCardDescriptionDoc(parsed)) {
+          return fromWekan;
+        }
+      } catch {
+        /* fall through to generic HTML migration */
+      }
+    }
+  }
   try {
     const schema = getSchema(getMigrationExtensions());
     const dom = new JSDOM(`<!DOCTYPE html><html><body>${sanitized}</body></html>`);
@@ -102,6 +118,13 @@ export function tryMigrateCardDescriptionFields(input: {
   description: string | undefined;
   descriptionHtml: string | undefined;
 }): { description: string; clearDescriptionHtml: boolean } | null {
+  const description = input.description?.trim() ?? '';
+  if (description !== '') {
+    const repaired = repairLegacyWekanHtmlInCardDescriptionJson(description);
+    if (repaired != null) {
+      return { description: repaired, clearDescriptionHtml: false };
+    }
+  }
   const html = input.descriptionHtml?.trim() ?? '';
   if (html === '') {
     return null;

@@ -8,6 +8,7 @@ import { FontSize, TextStyle } from '@tiptap/extension-text-style';
 import StarterKit from '@tiptap/starter-kit';
 import { common, createLowlight } from 'lowlight';
 import ImageResize from 'tiptap-extension-resize-image';
+import { repairLegacyWekanHtmlInCardDescriptionJson } from '../../../shared/import/repairLegacyWekanCardDescription.js';
 import { isValidCardDescriptionDoc } from '../../../shared/validation/cardDescriptionDoc.js';
 import {
   CardDescriptionHeading,
@@ -96,8 +97,10 @@ export function parseCardDescriptionJson(value: string | undefined | null): JSON
   if (value == null || value.trim() === '') {
     return emptyCardDescriptionJson;
   }
+  const repairedJson = repairLegacyWekanHtmlInCardDescriptionJson(value);
+  const source = repairedJson ?? value;
   try {
-    const parsed: unknown = JSON.parse(value) as unknown;
+    const parsed: unknown = JSON.parse(source) as unknown;
     if (isValidCardDescriptionDoc(parsed)) {
       return repairCardDescriptionDocForPm(parsed as JSONContent);
     }

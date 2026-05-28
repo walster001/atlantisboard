@@ -10,17 +10,11 @@ const MATCH_MUTATIONS: PipelineStage = {
 };
 
 /**
- * Drops MongoDB internal version keys from change events when fullDocument is present.
- * Does not remove application fields required by socket payloads.
+ * Drops Mongoose `__v` from fullDocument. Exclusion-only projection (MongoDB 8+ rejects
+ * mixing inclusion and exclusion in the same $project stage).
  */
 const PROJECT_WITHOUT_DOC_VERSION: PipelineStage = {
   $project: {
-    _id: 1,
-    operationType: 1,
-    documentKey: 1,
-    updateDescription: 1,
-    clusterTime: 1,
-    ns: 1,
     'fullDocument.__v': 0,
   },
 };

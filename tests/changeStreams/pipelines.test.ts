@@ -17,8 +17,8 @@ describe('change stream pipelines', () => {
     expect(cardChangeStreamPipeline[0]).toHaveProperty('$match');
   });
 
-  it('strips __v from workspace fullDocument projections', () => {
+  it('strips __v from workspace fullDocument via exclusion-only $project', () => {
     const project = workspaceChangeStreamPipeline[1] as { $project?: Record<string, unknown> };
-    expect(project.$project?.['fullDocument.__v']).toBe(0);
+    expect(project.$project).toEqual({ 'fullDocument.__v': 0 });
   });
 });

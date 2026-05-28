@@ -1,7 +1,7 @@
 /** Default card attachment cap when env is unset (MB). */
 export const CARD_ATTACHMENT_DEFAULT_MB = 1024;
 
-/** Upper bound for `CARD_ATTACHMENT_MAX_MB` and legacy `MAX_FILE_SIZE` (1 GiB). */
+/** Upper bound for `CARD_ATTACHMENT_MAX_MB` and legacy `MAX_FILE_SIZE` (4 GiB). */
 export const CARD_ATTACHMENT_MAX_MB_CEILING = 4000;
 
 export type CardAttachmentLimitsEnv = {

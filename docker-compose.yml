@@ -117,7 +117,7 @@ services:
       retries: 3
 
   minio-setup:
-    image: minio/mc:RELEASE.2025-08-13T23-30-25Z
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: kanboard-minio-setup
     depends_on:
       - minio

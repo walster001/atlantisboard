@@ -26,7 +26,7 @@ openssl rand -base64 48
 
 ## Staging artifact workflow
 
-`staging.yml` runs **after** a successful **CI** push to `main`/`master` (`workflow_run`) and builds the release zip only — it does not re-run lint/typecheck/test (avoids duplicate verify jobs on every push).
+**Staging** (`staging.yml`) is **manual** (`workflow_dispatch`): maintainers run it from Actions when they want a staging zip. It builds the release bundle only (uses `release-bundle.sh --no-checks`) and does not re-run CI — ensure **CI** is green on the selected branch/ref first.
 
 ## npm publish (production) — OIDC trusted publisher, not `NPM_TOKEN`
 

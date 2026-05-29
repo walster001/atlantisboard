@@ -1,0 +1,68 @@
+{% assign dl = site.data.download %}
+{% if dl == nil or dl.github == nil %}
+  <p class="download-packages__empty">Package information is temporarily unavailable. See <a href="{{ site.github.repository_url }}/releases" rel="noopener noreferrer">GitHub Releases</a>.</p>
+{% else %}
+  {% assign gh = dl.github %}
+  {% assign npm = dl.npm %}
+  <p class="download-packages__meta">
+    Latest release <strong>{{ gh.tag }}</strong>
+    {% if gh.published_at %}
+      · published {{ gh.published_at | date: "%-d %B %Y" }}
+    {% endif %}
+  </p>
+
+  <div class="download-packages__grid">
+    {% for asset in gh.assets %}
+      {% if asset.kind == "full" %}
+        <article class="download-package download-package--featured">
+          <p class="download-package__label">Recommended</p>
+          <h3 class="download-package__title">GitHub release (installer included)</h3>
+          <p class="download-package__desc">
+            Full package with the interactive setup wizard (<code>atlantisboard-setup</code>). Best for most Linux servers.
+          </p>
+          <dl class="download-package__facts">
+            <div><dt>File</dt><dd><code>{{ asset.name }}</code></dd></div>
+            <div><dt>Size</dt><dd>{{ asset.size_human }}</dd></div>
+            <div><dt>Version</dt><dd>{{ gh.version }}</dd></div>
+          </dl>
+          <a class="btn btn--primary" href="{{ asset.url }}" rel="noopener noreferrer">Download {{ asset.name }}</a>
+        </article>
+      {% elsif asset.kind == "runtime" %}
+        <article class="download-package">
+          <h3 class="download-package__title">Runtime bundle</h3>
+          <p class="download-package__desc">
+            Slim archive without the setup wizard — for advanced installs where you configure <code>.env</code> yourself.
+          </p>
+          <dl class="download-package__facts">
+            <div><dt>File</dt><dd><code>{{ asset.name }}</code></dd></div>
+            <div><dt>Size</dt><dd>{{ asset.size_human }}</dd></div>
+          </dl>
+          <a class="btn btn--ghost" href="{{ asset.url }}" rel="noopener noreferrer">Download {{ asset.name }}</a>
+        </article>
+      {% endif %}
+    {% endfor %}
+
+    {% if npm %}
+      <article class="download-package">
+        <h3 class="download-package__title">npm package</h3>
+        <p class="download-package__desc">
+          Install from the public registry on a Linux host with <a href="https://bun.sh" rel="noopener noreferrer">Bun</a> and <strong>whiptail</strong>.
+        </p>
+        <dl class="download-package__facts">
+          <div><dt>Package</dt><dd><code>{{ npm.name }}@{{ npm.version }}</code></dd></div>
+        </dl>
+        <pre class="download-package__command"><code>{{ npm.install_command }}</code></pre>
+        <div class="download-package__actions">
+          <a class="btn btn--primary" href="{{ npm.registry_url }}" rel="noopener noreferrer">View on npm</a>
+          <a class="btn btn--ghost" href="{{ '/wiki/npm-install/' | relative_url }}">npm install guide</a>
+        </div>
+      </article>
+    {% endif %}
+  </div>
+
+  <p class="download-packages__footer">
+    <a href="{{ gh.html_url }}" rel="noopener noreferrer">Release notes on GitHub</a>
+    ·
+    <a href="{{ site.github.repository_url }}/releases" rel="noopener noreferrer">All releases</a>
+  </p>
+{% endif %}

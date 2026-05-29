@@ -17,7 +17,7 @@ permalink: /about/
   <p>
     Documentation and deep dives live in the repository
     <a href="{{ site.github.repository_url }}/tree/{{ site.wiki_branch }}/{{ site.wiki_path }}" rel="noopener noreferrer">wiki folder on GitHub</a>.
-    Ready-to-run builds are published on the
-    <a href="{{ site.github.repository_url }}/releases" rel="noopener noreferrer">releases</a> page.
+    Ready-to-run builds are on the
+    <a href="{{ '/download/' | relative_url }}">download page</a> (GitHub Releases and npm).
   </p>
 </div>

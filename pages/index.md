@@ -9,7 +9,7 @@ title: Home
       Atlantisboard combines the best of open-source kanban. Workspaces, Boards, Fine-Grained Permissions, Themeing/Customisation and more.
     </p>
     <div class="hero__actions">
-      <a class="btn btn--primary" href="{{ site.github.repository_url }}/releases" rel="noopener noreferrer">Download</a>
+      <a class="btn btn--primary" href="{{ '/download/' | relative_url }}">Download</a>
       <a class="btn btn--ghost" href="{{ '/about/' | relative_url }}">About</a>
     </div>
   </div>

@@ -60,7 +60,11 @@
                 <a class="site-nav__link{% if page.url contains '/wiki' %} site-nav__link--active{% endif %}" href="{{ '/wiki/' | relative_url }}">Wiki</a>
               </li>
               <li>
-                <a class="site-nav__link site-nav__link--external" href="{{ releases_url }}" rel="noopener noreferrer">Download</a>
+                <a
+                  class="site-nav__link{% if page.url contains '/download' %} site-nav__link--active{% endif %}"
+                  href="{{ '/download/' | relative_url }}"
+                  >Download</a
+                >
               </li>
             </ul>
           </nav>

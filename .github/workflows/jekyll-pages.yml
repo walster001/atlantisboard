@@ -8,6 +8,7 @@ on:
     paths:
       - "pages/**"
       - ".github/workflows/jekyll-pages.yml"
+      - ".github/scripts/fetch-download-data.sh"
   workflow_dispatch:
 
 permissions:
@@ -30,6 +31,10 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Fetch download package metadata
+        run: |
+          chmod +x .github/scripts/fetch-download-data.sh
+          .github/scripts/fetch-download-data.sh
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:

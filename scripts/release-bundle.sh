@@ -9,6 +9,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 NO_CHECKS=false
+SKIP_BUILD=false
 UPLOAD_GITHUB=false
 TAG=""
 FAT_ZIP=false
@@ -17,13 +18,17 @@ usage() {
   cat <<'EOF'
 Usage: scripts/release-bundle.sh [options]
 
-  Builds: bun install --frozen-lockfile → build:client → build → release/kanboard-<version>.zip
+  Builds runtime-only zip: dist/, public/, package.json, bun.lock, README, DEPLOYMENT
+  Output: release/atlantisboard-<version>-runtime.zip
+
+  For the Whiptail installer zip, use ./scripts/release-installer-zip.sh after build-npm-package.sh.
 
 Options:
   --no-checks       Skip lint, typecheck, and tests
-  --upload-github   After building, publish the zip to GitHub Releases (requires gh CLI)
+  --skip-build        Skip bun install and build (use when build-npm-package.sh already ran)
+  --upload-github   After building, publish the runtime zip to GitHub Releases (requires gh CLI)
   --tag <ref>       Release tag (e.g. v1.2.3). Required with --upload-github unless RELEASE_TAG is set
-  --fat-zip         Include production node_modules in the zip (larger; air-gapped friendly)
+  --fat-zip         Include production node_modules in the runtime zip (air-gapped friendly)
 
 Environment:
   RELEASE_UPLOAD_GITHUB=1   Same as --upload-github
@@ -40,6 +45,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-checks)
       NO_CHECKS=true
+      shift
+      ;;
+    --skip-build)
+      SKIP_BUILD=true
       shift
       ;;
     --upload-github)
@@ -98,31 +107,39 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-ZIP_NAME="atlantisboard-${VERSION}.zip"
+ZIP_NAME="atlantisboard-${VERSION}-runtime.zip"
 ZIP_PATH="release/${ZIP_NAME}"
 
-echo "==> Release bundle for kanboard ${VERSION}"
+echo "==> Runtime-only release zip for kanboard ${VERSION}"
 echo "==> Project root: ${PROJECT_ROOT}"
 
-echo "==> bun install --frozen-lockfile"
-bun install --frozen-lockfile
+if [[ "$SKIP_BUILD" != true ]]; then
+  echo "==> bun install --frozen-lockfile"
+  bun install --frozen-lockfile
 
-if [[ "$NO_CHECKS" != true ]]; then
-  echo "==> lint"
-  bun run lint
-  echo "==> typecheck"
-  bun run typecheck
-  echo "==> test"
-  bun test
+  if [[ "$NO_CHECKS" != true ]]; then
+    echo "==> lint"
+    bun run lint
+    echo "==> typecheck"
+    bun run typecheck
+    echo "==> test"
+    bun test
+  else
+    echo "==> skipping lint, typecheck, test (--no-checks)"
+  fi
+
+  echo "==> build:client"
+  bun run build:client
+
+  echo "==> build (server + client bundle + workers)"
+  bun run build
 else
-  echo "==> skipping lint, typecheck, test (--no-checks)"
+  echo "==> skipping build (--skip-build)"
+  if [[ ! -f dist/server/index.js ]]; then
+    echo "error: dist/server/index.js missing — run build-npm-package.sh or omit --skip-build" >&2
+    exit 1
+  fi
 fi
-
-echo "==> build:client"
-bun run build:client
-
-echo "==> build (server + client bundle + workers)"
-bun run build
 
 mkdir -p release
 
@@ -132,7 +149,7 @@ if [[ "$FAT_ZIP" == true ]]; then
     rm -rf "${STAGE:-}"
   }
   trap cleanup_stage EXIT
-  echo "==> staging fat zip (with production dependencies)"
+  echo "==> staging fat runtime zip (with production node_modules)"
   rm -f "$ZIP_PATH"
   cp -a dist public package.json bun.lock README.md DEPLOYMENT.md "$STAGE/"
   (cd "$STAGE" && bun install --frozen-lockfile --production)
@@ -140,7 +157,7 @@ if [[ "$FAT_ZIP" == true ]]; then
   trap - EXIT
   cleanup_stage
 else
-  echo "==> slim zip (extract then run: bun install --production)"
+  echo "==> slim runtime zip (manual .env + bun install --production; no Whiptail installer)"
   rm -f "$ZIP_PATH"
   zip -qr "$ZIP_PATH" dist public package.json bun.lock README.md DEPLOYMENT.md
 fi

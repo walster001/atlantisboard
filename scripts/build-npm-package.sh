@@ -54,9 +54,35 @@ cp .env.example "${PKG_DIR}/.env.example"
 cp DEPLOYMENT.md "${PKG_DIR}/DEPLOYMENT.md"
 cp README.md "${PKG_DIR}/README.md"
 
+echo "==> Sync Docker full-stack assets"
+mkdir -p "${PKG_DIR}/install/docker/mongodb" "${PKG_DIR}/install/docker/minio"
+cp docker/mongodb/init-app-user.js "${PKG_DIR}/install/docker/mongodb/"
+cp docker/mongodb/replica-init.sh "${PKG_DIR}/install/docker/mongodb/replica-init-auth.sh"
+cp docker/minio/prod-setup.sh docker/minio/app-readwrite-policy.json "${PKG_DIR}/install/docker/minio/"
+chmod +x "${PKG_DIR}/install/docker/mongodb/replica-init-auth.sh" \
+  "${PKG_DIR}/install/docker/minio/prod-setup.sh" 2>/dev/null || true
+
 cp -f "${PKG_DIR}/install/setup.sh" "${PKG_DIR}/install/bin/setup.sh"
 chmod +x "${PKG_DIR}/install/setup.sh" "${PKG_DIR}/install/bin/setup.sh" "${PKG_DIR}/install/bin/atlantisboard.js" 2>/dev/null || true
 chmod +x "${PKG_DIR}/install/docker/mongodb/replica-init.sh" 2>/dev/null || true
+
+echo "==> Root launchers for GitHub zip extract (same tree as npm publish)"
+cat > "${PKG_DIR}/atlantisboard-setup" <<'EOF'
+#!/usr/bin/env bash
+# Run the Whiptail installer from an extracted release zip (Linux).
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export ATLANTISBOARD_PACKAGE_ROOT="$ROOT"
+exec bash "${ROOT}/install/setup.sh" "$@"
+EOF
+cat > "${PKG_DIR}/atlantisboard" <<'EOF'
+#!/usr/bin/env bash
+# CLI wrapper when running from an extracted release zip.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec node "${ROOT}/install/bin/atlantisboard.js" "$@"
+EOF
+chmod +x "${PKG_DIR}/atlantisboard-setup" "${PKG_DIR}/atlantisboard"
 
 echo "==> Package ready at ${PKG_DIR}"
 echo "    Dry run: (cd packages/atlantisboard && npm pack)"

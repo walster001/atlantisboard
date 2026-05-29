@@ -55,8 +55,8 @@ Fork, branch, commit, push, and open a pull request. Run typecheck and tests as 
 ## Releases (maintainers)
 
 1. Update version in root `package.json` and add a `## [x.y.z]` section to [CHANGELOG.md](CHANGELOG.md). **The version must not already exist on npm** (the workflow checks before building).
-2. Merge to `main` and confirm **CI** is green. Run **Staging** (Actions → workflow_dispatch) on the target ref to upload a zip artifact.
-3. Run **Deploy to Production** (Actions → workflow_dispatch): set **version** if it differs from `package.json`, confirm CHANGELOG, publish to npm (`atlantisboard`), create GitHub Release with notes.
+2. Merge to `main` and confirm **CI** is green. Run **Staging** (Actions → workflow_dispatch) on the target ref — uploads **installer** (`atlantisboard-<version>.zip`) and **runtime-only** (`atlantisboard-<version>-runtime.zip`) artifacts.
+3. Run **Deploy to Production** (Actions → workflow_dispatch): set **version** if it differs from `package.json`, confirm CHANGELOG, publish to npm (`atlantisboard`), create GitHub Release with both zips and notes.
 
 **GitHub secrets:** See [.github/SECRETS.md](.github/SECRETS.md) — repository `CI_*` secrets for tests; npm publish uses **OIDC trusted publishing** (configure on npmjs.com, no `NPM_TOKEN`).
 
@@ -64,7 +64,8 @@ Local dry run:
 
 ```bash
 ./scripts/build-npm-package.sh
-./scripts/release-bundle.sh
+./scripts/release-installer-zip.sh
+./scripts/release-bundle.sh --skip-build
 (cd packages/atlantisboard && npm pack)
 ```
 

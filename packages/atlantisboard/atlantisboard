@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# CLI wrapper when running from an extracted release zip.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec node "${ROOT}/install/bin/atlantisboard.js" "$@"

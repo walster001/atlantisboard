@@ -1,0 +1,163 @@
+# Production full-stack Compose for atlantisboard-setup (app + MongoDB + Redis + MinIO).
+# Build context is the install directory (parent of install/docker/).
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: atlantisboard-mongodb-full
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGODB_DB_NAME:-kanboard}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USER:?Set MONGODB_ROOT_USER in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:?Set MONGODB_ROOT_PASSWORD in .env}
+      MONGODB_APP_USER: ${MONGODB_APP_USER:-kanboard_app}
+      MONGODB_APP_PASSWORD: ${MONGODB_APP_PASSWORD:?Set MONGODB_APP_PASSWORD in .env}
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+    volumes:
+      - mongo-data-full:/data/db
+      - mongo-config-full:/data/configdb
+      - ./mongodb/init-app-user.js:/docker-entrypoint-initdb.d/init-app-user.js:ro
+    networks:
+      - atlantisboard-full
+    healthcheck:
+      test: >
+        sh -c "
+        mongosh \"mongodb://$${MONGO_INITDB_ROOT_USERNAME}:$${MONGO_INITDB_ROOT_PASSWORD}@localhost:27017/admin\" --quiet --eval \"db.adminCommand('ping')\"
+        "
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mongodb-init:
+    image: mongo:8.0
+    container_name: atlantisboard-mongodb-init-full
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: 'no'
+    environment:
+      MONGODB_ROOT_USER: ${MONGODB_ROOT_USER}
+      MONGODB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+      MONGODB_HOST: mongodb
+      MONGODB_REPLICA_MEMBER_HOST: mongodb:27017
+    volumes:
+      - ./mongodb/replica-init-auth.sh:/replica-init.sh:ro
+    entrypoint: ['bash', '/replica-init.sh']
+    networks:
+      - atlantisboard-full
+
+  redis:
+    image: redis:7-alpine
+    container_name: atlantisboard-redis-full
+    restart: unless-stopped
+    command: >
+      sh -c "
+      if [ -n \"$${REDIS_PASSWORD}\" ]; then
+        redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\"
+      else
+        echo 'REDIS_PASSWORD is required' >&2;
+        exit 1;
+      fi
+      "
+    volumes:
+      - redis-data-full:/data
+    networks:
+      - atlantisboard-full
+    healthcheck:
+      test: >
+        sh -c "redis-cli -a \"$${REDIS_PASSWORD}\" ping"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: atlantisboard-minio-full
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_ACCESS_KEY:-${MINIO_ACCESS_KEY:?Set MINIO_ACCESS_KEY in .env}}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_SECRET_KEY:-${MINIO_SECRET_KEY:?Set MINIO_SECRET_KEY in .env}}
+    command: server /data --console-address "127.0.0.1:9001"
+    volumes:
+      - minio-data-full:/data
+    networks:
+      - atlantisboard-full
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio-setup:
+    image: minio/mc:latest
+    container_name: atlantisboard-minio-setup-full
+    depends_on:
+      - minio
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_ROOT_ACCESS_KEY: ${MINIO_ROOT_ACCESS_KEY:-}
+      MINIO_ROOT_SECRET_KEY: ${MINIO_ROOT_SECRET_KEY:-}
+    volumes:
+      - ./minio/prod-setup.sh:/setup.sh:ro
+      - ./minio/app-readwrite-policy.json:/policy/app-readwrite-policy.json:ro
+    entrypoint: ['/bin/sh', '/setup.sh']
+    networks:
+      - atlantisboard-full
+
+  app:
+    build:
+      context: ..
+      dockerfile: install/docker/Dockerfile
+    container_name: atlantisboard-app-full
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      MONGODB_URI: ${MONGODB_URI:?Set MONGODB_URI in .env}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: ${MINIO_PORT:-9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      ENABLE_CRON_JOBS_IN_MAIN: ${ENABLE_CRON_JOBS_IN_MAIN:-true}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      mongodb-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-setup:
+        condition: service_completed_successfully
+    networks:
+      - atlantisboard-full
+    healthcheck:
+      test: ['CMD', 'bun', 'run', '-e', "fetch('http://localhost:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  mongo-data-full:
+  mongo-config-full:
+  redis-data-full:
+  minio-data-full:
+
+networks:
+  atlantisboard-full:
+    driver: bridge

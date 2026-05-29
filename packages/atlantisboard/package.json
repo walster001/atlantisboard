@@ -37,7 +37,9 @@
     "DEPLOYMENT.md",
     "README.md",
     "install",
-    ".npmignore"
+    ".npmignore",
+    "atlantisboard",
+    "atlantisboard-setup"
   ],
   "scripts": {
     "postinstall": "node install/postinstall.js",

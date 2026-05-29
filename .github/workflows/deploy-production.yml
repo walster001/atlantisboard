@@ -101,10 +101,11 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: Build npm package and release zip
+      - name: Build npm package and release zips
         run: |
           ./scripts/build-npm-package.sh
-          ./scripts/release-bundle.sh --no-checks
+          ./scripts/release-installer-zip.sh
+          ./scripts/release-bundle.sh --no-checks --skip-build
 
       - name: Create git tag
         run: |
@@ -128,14 +129,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.ver.outputs.tag }}"
-          ZIP="release/atlantisboard-${{ steps.ver.outputs.version }}.zip"
+          INSTALLER_ZIP="release/atlantisboard-${{ steps.ver.outputs.version }}.zip"
+          RUNTIME_ZIP="release/atlantisboard-${{ steps.ver.outputs.version }}-runtime.zip"
+          for f in "$INSTALLER_ZIP" "$RUNTIME_ZIP"; do
+            if [[ ! -f "$f" ]]; then
+              echo "::error::Missing release asset: $f"
+              exit 1
+            fi
+          done
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$ZIP" --clobber
+            gh release upload "$TAG" "$INSTALLER_ZIP" "$RUNTIME_ZIP" --clobber
           else
-            gh release create "$TAG" "$ZIP" \
+            gh release create "$TAG" "$INSTALLER_ZIP" "$RUNTIME_ZIP" \
               --title "Release ${{ steps.ver.outputs.version }}" \
               --notes-file /tmp/release-notes.md
-          fi
-          if [[ -f packages/atlantisboard/atlantisboard-*.tgz ]]; then
-            gh release upload "$TAG" packages/atlantisboard/atlantisboard-*.tgz --clobber || true
           fi

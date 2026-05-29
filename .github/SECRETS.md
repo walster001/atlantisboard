@@ -26,7 +26,12 @@ openssl rand -base64 48
 
 ## Staging artifact workflow
 
-**Staging** (`staging.yml`) is **manual** (`workflow_dispatch`): maintainers run it from Actions when they want a staging zip. It builds the release bundle only (uses `release-bundle.sh --no-checks`) and does not re-run CI — ensure **CI** is green on the selected branch/ref first.
+**Staging** (`staging.yml`) is **manual** (`workflow_dispatch`): maintainers run it from Actions when they want release-shaped artifacts. It runs `build-npm-package.sh`, then:
+
+- `release-installer-zip.sh` → `atlantisboard-<version>.zip` (Whiptail wizard + full-stack Docker)
+- `release-bundle.sh --no-checks --skip-build` → `atlantisboard-<version>-runtime.zip` (manual install only)
+
+Ensure **CI** is green on the selected branch/ref first. Staging does not re-run the full verify job.
 
 ## npm publish (production) — OIDC trusted publisher, not `NPM_TOKEN`
 

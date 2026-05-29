@@ -1,114 +1,169 @@
 {
   "sections": [
     {
-      "id": "server",
-      "title": "Server",
+      "id": "welcome_secrets",
+      "title": "Security",
+      "intro": "Strong random secrets will be generated automatically.\n\nYou do not need to enter JWT, session, database, or storage passwords — they are created for you in the background.",
       "fields": [
         {
-          "key": "NODE_ENV",
-          "label": "Node environment",
-          "description": "Use production for live deployments.",
-          "default": "production",
-          "secret": false
+          "key": "JWT_SECRET",
+          "auto_generate": true
         },
         {
-          "key": "PORT",
-          "label": "HTTP port",
-          "description": "Port the application listens on.",
-          "default": "3000",
-          "secret": false
+          "key": "SESSION_SECRET",
+          "auto_generate": true
         },
         {
-          "key": "HOST",
-          "label": "Bind address",
-          "description": "0.0.0.0 listens on all interfaces.",
-          "default": "0.0.0.0",
-          "secret": false
+          "key": "CSRF_SECRET",
+          "auto_generate": true
         },
         {
-          "key": "APP_URL",
-          "label": "Public app URL",
-          "description": "Base URL users open in the browser (e.g. https://boards.example.com).",
-          "default": "http://localhost:3000",
-          "secret": false
+          "key": "ENCRYPTION_KEY",
+          "auto_generate": true
         },
         {
-          "key": "CORS_ORIGIN",
-          "label": "CORS allowed origins",
-          "description": "Comma-separated browser origins allowed to call the API.",
-          "default": "http://localhost:3000",
-          "secret": false
+          "key": "MEDIA_SIGN_SECRET",
+          "auto_generate": true
         },
         {
-          "key": "TRUST_PROXY_HOPS",
-          "label": "Trusted proxy hops",
-          "description": "Set to 1 when behind nginx or Caddy.",
-          "default": "1",
-          "secret": false
+          "key": "REDIS_PASSWORD",
+          "auto_generate": true,
+          "applies_to": ["docker", "fullstack"]
+        },
+        {
+          "key": "MINIO_SECRET_KEY",
+          "auto_generate": true,
+          "generate_type": "secret",
+          "applies_to": ["docker", "fullstack"]
+        },
+        {
+          "key": "MINIO_ACCESS_KEY",
+          "auto_generate": true,
+          "generate_type": "minio_key",
+          "applies_to": ["docker", "fullstack"]
+        },
+        {
+          "key": "MONGODB_ROOT_PASSWORD",
+          "auto_generate": true,
+          "applies_to": ["fullstack"]
+        },
+        {
+          "key": "MONGODB_APP_PASSWORD",
+          "auto_generate": true,
+          "applies_to": ["fullstack"]
+        },
+        {
+          "key": "MINIO_ROOT_SECRET_KEY",
+          "auto_generate": true,
+          "applies_to": ["fullstack"]
+        },
+        {
+          "key": "MINIO_ROOT_ACCESS_KEY",
+          "auto_generate": true,
+          "generate_type": "minio_key",
+          "applies_to": ["fullstack"]
         }
       ]
     },
     {
-      "id": "secrets",
-      "title": "Security secrets",
+      "id": "server",
+      "title": "Web server",
+      "intro": "These settings control how users reach Atlantisboard in their browser.",
       "fields": [
         {
-          "key": "JWT_SECRET",
-          "label": "JWT secret",
-          "description": "Signing key for JWTs. Auto-generated if left empty.",
-          "default": "",
-          "secret": true,
-          "generate": "openssl rand -base64 48"
+          "key": "PORT",
+          "label": "Application port",
+          "description": "Port the app listens on (e.g. 3000). Open this port in your firewall or point your reverse proxy here.",
+          "default": "3000",
+          "secret": false,
+          "validation": "port"
         },
         {
-          "key": "SESSION_SECRET",
-          "label": "Session secret",
-          "description": "Express session signing secret.",
-          "default": "",
-          "secret": true,
-          "generate": "openssl rand -base64 48"
+          "key": "HOST",
+          "label": "Bind address",
+          "description": "Use 0.0.0.0 to accept connections on all network interfaces.",
+          "default": "0.0.0.0",
+          "secret": false,
+          "validation": "host",
+          "hide_for": ["fullstack"]
         },
         {
-          "key": "CSRF_SECRET",
-          "label": "CSRF secret",
-          "description": "CSRF token signing secret (required in production).",
-          "default": "",
-          "secret": true,
-          "generate": "openssl rand -base64 48"
+          "key": "APP_URL",
+          "label": "Public site URL",
+          "description": "The URL people type in the browser (e.g. https://boards.example.com). Use http://localhost:3000 for local testing.",
+          "default": "http://localhost:3000",
+          "secret": false,
+          "validation": "url"
         },
         {
-          "key": "ENCRYPTION_KEY",
-          "label": "Encryption key",
-          "description": "AES-256-GCM key for stored credentials.",
-          "default": "",
-          "secret": true,
-          "generate": "openssl rand -base64 48"
+          "key": "CORS_ORIGIN",
+          "label": "Allowed browser origins",
+          "description": "Usually the same as your public site URL. Separate multiple origins with commas.",
+          "default": "http://localhost:3000",
+          "secret": false,
+          "validation": "cors"
         },
         {
-          "key": "MEDIA_SIGN_SECRET",
-          "label": "Media signing secret",
-          "description": "HMAC secret for signed asset URLs (must differ from JWT).",
+          "key": "TRUST_PROXY_HOPS",
+          "label": "Reverse proxy hops",
+          "description": "Set to 1 when Nginx or Caddy sits in front of the app. Use 0 if there is no reverse proxy.",
+          "default": "1",
+          "secret": false,
+          "validation": "proxy_hops"
+        }
+      ]
+    },
+    {
+      "id": "google_oauth",
+      "title": "Google sign-in (optional)",
+      "intro": "To enable Sign in with Google, create OAuth credentials in Google Cloud Console.\n\nLeave every field blank to skip Google sign-in — you can add it later in Admin settings.",
+      "fields": [
+        {
+          "key": "GOOGLE_CLIENT_ID",
+          "label": "Google OAuth Client ID",
+          "description": "From Google Cloud → APIs & Services → Credentials → OAuth 2.0 Client IDs.",
+          "default": "",
+          "secret": false,
+          "optional": true,
+          "validation": "google_client_id"
+        },
+        {
+          "key": "GOOGLE_CLIENT_SECRET",
+          "label": "Google OAuth Client Secret",
+          "description": "The secret shown next to your OAuth client in Google Cloud.",
           "default": "",
           "secret": true,
-          "generate": "openssl rand -base64 48"
+          "optional": true
+        },
+        {
+          "key": "GOOGLE_OAUTH_BROWSER_ORIGIN",
+          "label": "Google OAuth browser origin",
+          "description": "Must match an authorized redirect origin in Google Cloud (e.g. https://boards.example.com).",
+          "default": "",
+          "secret": false,
+          "optional": true,
+          "validation": "url"
         }
       ]
     },
     {
       "id": "mongodb",
-      "title": "MongoDB",
+      "title": "MongoDB database",
+      "intro": "Connect to your existing MongoDB server. The URI must include replicaSet= for real-time collaboration.",
+      "applies_to": ["manual"],
       "fields": [
         {
           "key": "MONGODB_URI",
-          "label": "MongoDB URI",
-          "description": "Must include replicaSet= for change streams.",
+          "label": "MongoDB connection string",
+          "description": "Example: mongodb://user:pass@db.example.com:27017/kanboard?replicaSet=rs0",
           "default": "mongodb://localhost:27017/kanboard?replicaSet=rs0",
-          "secret": false
+          "secret": false,
+          "validation": "mongodb_uri"
         },
         {
           "key": "MONGODB_DB_NAME",
           "label": "Database name",
-          "description": "MongoDB database name.",
+          "description": "MongoDB database name for Atlantisboard data.",
           "default": "kanboard",
           "secret": false
         }
@@ -116,88 +171,131 @@
     },
     {
       "id": "redis",
-      "title": "Redis",
+      "title": "Redis cache",
+      "intro": "Redis stores sessions and rate-limit counters.",
+      "applies_to": ["manual"],
       "fields": [
         {
           "key": "REDIS_HOST",
-          "label": "Redis host",
-          "description": "Use redis when using bundled Docker Compose dependencies.",
+          "label": "Redis hostname",
+          "description": "Hostname or IP of your Redis server.",
           "default": "localhost",
-          "secret": false
+          "secret": false,
+          "validation": "host"
         },
         {
           "key": "REDIS_PORT",
           "label": "Redis port",
-          "description": "Redis TCP port.",
+          "description": "Usually 6379.",
           "default": "6379",
-          "secret": false
+          "secret": false,
+          "validation": "port"
         },
         {
           "key": "REDIS_PASSWORD",
           "label": "Redis password",
-          "description": "Required in production.",
+          "description": "Must match the password configured on your Redis server.",
           "default": "",
-          "secret": true
+          "secret": true,
+          "optional": true
         }
       ]
     },
     {
       "id": "minio",
-      "title": "MinIO (object storage)",
+      "title": "File storage (MinIO / S3)",
+      "intro": "MinIO (or S3-compatible storage) holds attachments, backups, and branding files.",
+      "applies_to": ["manual"],
       "fields": [
         {
           "key": "MINIO_ENDPOINT",
-          "label": "MinIO endpoint",
-          "description": "Hostname only (not URL).",
+          "label": "Storage hostname",
+          "description": "Hostname only — not a full URL (e.g. minio.example.com or localhost).",
           "default": "localhost",
-          "secret": false
+          "secret": false,
+          "validation": "host"
         },
         {
           "key": "MINIO_PORT",
-          "label": "MinIO port",
-          "description": "S3 API port.",
+          "label": "Storage port",
+          "description": "S3 API port (usually 9000).",
           "default": "9000",
-          "secret": false
+          "secret": false,
+          "validation": "port"
         },
         {
           "key": "MINIO_ACCESS_KEY",
-          "label": "MinIO access key",
-          "description": "Application access key.",
+          "label": "Storage access key",
+          "description": "S3/MinIO access key for the application.",
           "default": "minioadmin",
           "secret": false
         },
         {
           "key": "MINIO_SECRET_KEY",
-          "label": "MinIO secret key",
-          "description": "Application secret key.",
+          "label": "Storage secret key",
+          "description": "S3/MinIO secret key for the application.",
           "default": "",
           "secret": true
         },
         {
           "key": "MINIO_USE_SSL",
-          "label": "MinIO TLS",
-          "description": "true or false.",
+          "label": "Use TLS for storage",
+          "description": "Enter true if storage uses HTTPS/TLS, otherwise false.",
           "default": "false",
-          "secret": false
+          "secret": false,
+          "validation": "boolean"
         }
       ]
     },
     {
       "id": "worker",
-      "title": "Background jobs",
+      "title": "Background jobs & backups",
+      "intro": "Scheduled backups and background tasks can run in a separate worker process.",
+      "applies_to": ["manual", "docker"],
       "fields": [
         {
           "key": "ENABLE_CRON_JOBS_IN_MAIN",
-          "label": "Run cron in main process",
-          "description": "true = single process; false = use atlantisboard-worker systemd unit.",
+          "label": "Run background jobs in main app",
+          "description": "Enter false to use a separate worker service (recommended). Enter true for a single process.",
           "default": "false",
-          "secret": false
+          "secret": false,
+          "validation": "boolean"
         },
         {
           "key": "BACKUP_LOCATION",
-          "label": "Backup directory",
-          "description": "Absolute path for admin backup ZIP files.",
+          "label": "Backup folder",
+          "description": "Absolute path where admin backup ZIP files are stored.",
           "default": "/var/backups/atlantisboard",
+          "secret": false,
+          "validation": "path_absolute"
+        }
+      ]
+    },
+    {
+      "id": "fullstack_data",
+      "title": "Full stack storage",
+      "intro": "Docker will store database and file data in named volumes.\n\nMongoDB and MinIO credentials were generated automatically.",
+      "applies_to": ["fullstack"],
+      "fields": [
+        {
+          "key": "MONGODB_ROOT_USER",
+          "label": "MongoDB admin username",
+          "description": "Internal MongoDB root user (auto-generated password).",
+          "default": "kanboard_root",
+          "secret": false
+        },
+        {
+          "key": "MONGODB_APP_USER",
+          "label": "MongoDB app username",
+          "description": "Application database user (auto-generated password).",
+          "default": "kanboard_app",
+          "secret": false
+        },
+        {
+          "key": "MONGODB_DB_NAME",
+          "label": "Database name",
+          "description": "MongoDB database name.",
+          "default": "kanboard",
           "secret": false
         }
       ]

@@ -10,15 +10,28 @@ _proxy_sed_escape() {
 }
 
 _prompt_proxy_field() {
-  local key="$1" label="$2" desc="$3" default="$4" secret="$5"
-  local current="${PROXY_VALUES[$key]:-$default}"
-  local prompt_text="${label}\n\n${desc}"
-  if [[ "$secret" == "true" ]]; then
-    current="$(whiptail --passwordbox "$prompt_text" 12 70 "$current" 3>&2 1>&2)" || return 1
-  else
-    current="$(whiptail --inputbox "$prompt_text" 12 70 "$current" 3>&2 1>&2)" || return 1
-  fi
-  PROXY_VALUES["$key"]="$current"
+  local key="$1" label="$2" desc="$3" default="$4" secret="$5" optional="${6:-false}" vtype="${7:-}"
+  local current prompt_text err_msg valid=false
+
+  while [[ "$valid" != true ]]; do
+    current="${PROXY_VALUES[$key]:-$default}"
+    prompt_text="${label}\n\n${desc}"
+    if [[ "$optional" == "true" ]]; then
+      prompt_text="${prompt_text}\n\n(Optional — leave blank to skip.)"
+    fi
+    if [[ "$secret" == "true" ]]; then
+      current="$(whiptail --passwordbox "$prompt_text" 14 78 "$current" 3>&2 1>&2)" || return 1
+    else
+      current="$(whiptail --inputbox "$prompt_text" 14 78 "$current" 3>&2 1>&2)" || return 1
+    fi
+    if atl_validate_value "$current" "$vtype" "$optional"; then
+      PROXY_VALUES["$key"]="$current"
+      valid=true
+    else
+      err_msg="$(atl_validation_message "$vtype")"
+      whiptail --title "Invalid input" --msgbox "${label}\n\n${err_msg}" 12 70 || true
+    fi
+  done
 }
 
 _prompt_proxy_fields_for() {
@@ -44,11 +57,13 @@ _prompt_proxy_fields_for() {
       label="$(jq -r '.label' <<<"$field")"
       desc="$(jq -r '.description' <<<"$field")"
       default="$(jq -r '.default' <<<"$field")"
-      secret="$(jq -r '.secret' <<<"$field")"
+      secret="$(jq -r '.secret // false' <<<"$field")"
+      optional="$(jq -r '.optional // false' <<<"$field")"
+      vtype="$(jq -r '.validation // empty' <<<"$field")"
       if [[ "$default" == *"DOMAIN_PLACEHOLDER"* ]]; then
         default="${default//DOMAIN_PLACEHOLDER/${PROXY_VALUES[PROXY_DOMAIN]:-boards.example.com}}"
       fi
-      _prompt_proxy_field "$key" "$label" "$desc" "$default" "$secret" || return 1
+      _prompt_proxy_field "$key" "$label" "$desc" "$default" "$secret" "$optional" "$vtype" || return 1
     done
   done < <(jq -c '.sections[]' "$REVERSE_PROXY_FIELDS")
 

@@ -7,73 +7,83 @@
       "fields": [
         {
           "key": "PROXY_DOMAIN",
-          "label": "Public domain name",
-          "description": "DNS must point to this server (e.g. boards.example.com). Used for HTTPS and APP_URL.",
+          "label": "Your public domain name",
+          "description": "The address users type in the browser (e.g. boards.example.com).\n\nDNS must already point to this server.",
           "default": "",
-          "secret": false
+          "secret": false,
+          "validation": "domain"
         },
         {
           "key": "PROXY_BACKEND_HOST",
-          "label": "Atlantisboard backend host",
-          "description": "Where the app listens (usually 127.0.0.1 on the same host).",
+          "label": "Atlantisboard server address",
+          "description": "Where the app runs on this machine. Use 127.0.0.1 when the app is on this server.",
           "default": "127.0.0.1",
-          "secret": false
+          "secret": false,
+          "validation": "host"
         },
         {
           "key": "PROXY_BACKEND_PORT",
-          "label": "Atlantisboard backend port",
-          "description": "Must match PORT in your .env file.",
+          "label": "Atlantisboard port",
+          "description": "Must match the application port you chose earlier.",
           "default": "3000",
-          "secret": false
+          "secret": false,
+          "validation": "port"
         },
         {
           "key": "PROXY_MAX_BODY_MB",
-          "label": "Max upload size (MB)",
-          "description": "Request body limit at the proxy (match card attachment limits).",
+          "label": "Maximum upload size (MB)",
+          "description": "Large file upload limit at the web server. Match your card attachment size limit.",
           "default": "100",
-          "secret": false
+          "secret": false,
+          "validation": "port"
         },
         {
           "key": "PROXY_ACME_EMAIL",
-          "label": "ACME / Let's Encrypt email",
-          "description": "Optional. Used by Caddy and certbot for certificate expiry notices.",
+          "label": "Let's Encrypt notification email",
+          "description": "Optional. Certificate expiry notices from Let's Encrypt.",
           "default": "",
-          "secret": false
+          "secret": false,
+          "optional": true,
+          "validation": "email"
         }
       ]
     },
     {
       "id": "nginx_tls",
-      "title": "Nginx TLS paths",
+      "title": "Nginx HTTPS certificates",
       "applies_to": ["nginx"],
       "fields": [
         {
           "key": "NGINX_SSL_CERT",
-          "label": "SSL certificate path",
-          "description": "fullchain.pem from Let's Encrypt or your CA.",
+          "label": "SSL certificate file",
+          "description": "Path to fullchain.pem (Let's Encrypt or your CA).\n\nLeave default if you plan to run certbot next.",
           "default": "/etc/letsencrypt/live/DOMAIN_PLACEHOLDER/fullchain.pem",
-          "secret": false
+          "secret": false,
+          "validation": "path_absolute"
         },
         {
           "key": "NGINX_SSL_KEY",
-          "label": "SSL private key path",
-          "description": "privkey.pem from Let's Encrypt or your CA.",
+          "label": "SSL private key file",
+          "description": "Path to privkey.pem.",
           "default": "/etc/letsencrypt/live/DOMAIN_PLACEHOLDER/privkey.pem",
-          "secret": false
+          "secret": false,
+          "validation": "path_absolute"
         },
         {
           "key": "NGINX_SSL_OPTIONS",
-          "label": "Certbot SSL options include",
-          "description": "Leave default if you use certbot on Debian/Ubuntu.",
+          "label": "Certbot SSL options file",
+          "description": "Standard certbot include on Debian/Ubuntu.",
           "default": "/etc/letsencrypt/options-ssl-nginx.conf",
-          "secret": false
+          "secret": false,
+          "validation": "path_absolute"
         },
         {
           "key": "NGINX_SSL_DHPARAM",
-          "label": "DH parameters path",
-          "description": "ssl-dhparams.pem from certbot (optional on modern TLS).",
+          "label": "DH parameters file",
+          "description": "Optional on modern TLS. certbot ssl-dhparams.pem path.",
           "default": "/etc/letsencrypt/ssl-dhparams.pem",
-          "secret": false
+          "secret": false,
+          "validation": "path_absolute"
         }
       ]
     },
@@ -84,10 +94,11 @@
       "fields": [
         {
           "key": "CADDY_LOG_FILE",
-          "label": "Access log file",
-          "description": "Directory must exist and be writable by caddy user.",
+          "label": "Access log file path",
+          "description": "Caddy writes access logs here. Parent directory must exist.",
           "default": "/var/log/caddy/atlantisboard.log",
-          "secret": false
+          "secret": false,
+          "validation": "path_absolute"
         }
       ]
     }

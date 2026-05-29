@@ -1,6 +1,6 @@
 name: Staging
 
-# Build release zip on demand (Actions → Staging → Run workflow). Run after CI is green on the target ref.
+# Build installer + runtime zips on demand (Actions → Staging → Run workflow). Run after CI is green on the target ref.
 on:
   workflow_dispatch:
 
@@ -22,12 +22,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.5"
-      - run: bun install --frozen-lockfile
-      - name: Build release zip
-        run: ./scripts/release-bundle.sh --no-checks
-      - name: Upload staging artifact
+      - name: Build npm package tree and release zips
+        run: |
+          ./scripts/build-npm-package.sh
+          ./scripts/release-installer-zip.sh
+          ./scripts/release-bundle.sh --no-checks --skip-build
+      - name: Upload staging artifacts
         uses: actions/upload-artifact@v4
         with:
           name: atlantisboard-staging-${{ github.sha }}
-          path: release/atlantisboard-*.zip
+          path: |
+            release/atlantisboard-*.zip
           retention-days: 30

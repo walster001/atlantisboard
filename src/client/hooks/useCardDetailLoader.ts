@@ -2,17 +2,39 @@ import { useEffect, useState, useRef } from 'react';
 import { liveQuery } from 'dexie';
 import { db, type CardDB } from '../store/database.js';
 import { api } from '../utils/api.js';
+import { capMapSize } from '../utils/capMapSize.js';
 import { normalizeCardFromApi } from '../utils/transform.js';
 
+const MAX_CARD_DETAIL_WARM_CACHE = 96;
 const cardDetailWarmCache = new Map<string, CardDB>();
 const inFlightPrefetches = new Map<string, Promise<void>>();
+
+function setCardDetailWarmCache(cardId: string, card: CardDB): void {
+  if (cardDetailWarmCache.has(cardId)) {
+    cardDetailWarmCache.delete(cardId);
+  }
+  cardDetailWarmCache.set(cardId, card);
+  capMapSize(cardDetailWarmCache, MAX_CARD_DETAIL_WARM_CACHE);
+}
+
+export function clearCardDetailWarmCacheForBoard(boardId: string): void {
+  const bid = boardId.trim();
+  if (bid === '') {
+    return;
+  }
+  for (const [cardId, card] of cardDetailWarmCache) {
+    if (card.boardId === bid) {
+      cardDetailWarmCache.delete(cardId);
+    }
+  }
+}
 
 export function prefetchCardDetail(cardId: string, seed?: CardDB): void {
   if (cardId.trim() === '') {
     return;
   }
   if (seed != null && seed.id === cardId) {
-    cardDetailWarmCache.set(cardId, seed);
+    setCardDetailWarmCache(cardId, seed);
   }
   if (inFlightPrefetches.has(cardId)) {
     return;
@@ -22,7 +44,7 @@ export function prefetchCardDetail(cardId: string, seed?: CardDB): void {
       const response = await api.getCard(cardId);
       const raw = (response as { card: unknown }).card;
       const normalized = normalizeCardFromApi(raw, cardId);
-      cardDetailWarmCache.set(cardId, normalized);
+      setCardDetailWarmCache(cardId, normalized);
       try {
         await db.cards.put(normalized);
       } catch {

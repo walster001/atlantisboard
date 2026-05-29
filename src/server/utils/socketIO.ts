@@ -1,4 +1,6 @@
 import type { Server as SocketIOServer } from 'socket.io';
+import crypto from 'node:crypto';
+import { capMapSize } from './capMapSize.js';
 
 let ioInstance: SocketIOServer | null = null;
 type JsonLike = null | boolean | number | string | JsonLike[] | { [key: string]: JsonLike };
@@ -37,6 +39,40 @@ const DEFAULT_BATCH_WINDOW_MS = 80;
 const MIN_REALTIME_BATCH_WINDOW_MS = 10;
 const MAX_REALTIME_BATCH_WINDOW_MS = 60_000;
 const dedupeTtlMs = 1500;
+const MAX_DEDUPE_CACHE_ENTRIES = 4096;
+const MAX_BATCH_PAYLOADS_PER_KEY = 64;
+const DEDUPE_SWEEP_INTERVAL_MS = 30_000;
+
+let dedupeSweepTimer: ReturnType<typeof setInterval> | null = null;
+
+function fingerprintPayloadForDedupe(payload: unknown): string {
+  const normalized = normalizePayloadForKey(payload);
+  if (normalized.length <= 256) {
+    return normalized;
+  }
+  return crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 32);
+}
+
+function sweepExpiredDedupeEntries(now: number = Date.now()): void {
+  for (const [key, expiresAt] of dedupeCache) {
+    if (expiresAt <= now) {
+      dedupeCache.delete(key);
+    }
+  }
+  capMapSize(dedupeCache, MAX_DEDUPE_CACHE_ENTRIES);
+}
+
+function ensureDedupeSweepTimer(): void {
+  if (dedupeSweepTimer != null) {
+    return;
+  }
+  dedupeSweepTimer = setInterval(() => {
+    sweepExpiredDedupeEntries();
+  }, DEDUPE_SWEEP_INTERVAL_MS);
+  if (typeof dedupeSweepTimer === 'object' && 'unref' in dedupeSweepTimer) {
+    dedupeSweepTimer.unref();
+  }
+}
 
 function readEnvBoolean(key: string, fallback: boolean): boolean {
   const raw = process.env[key]?.trim().toLowerCase();
@@ -92,6 +128,7 @@ const batchableEvents = new Set(
  */
 export function setSocketIOInstance(io: SocketIOServer): void {
   ioInstance = io;
+  ensureDedupeSweepTimer();
 }
 
 /**
@@ -150,17 +187,14 @@ function shouldDedupeEmit(target: EmitTarget, room: string, event: string, paylo
     return false;
   }
   const now = Date.now();
-  for (const [key, expiresAt] of dedupeCache) {
-    if (expiresAt <= now) {
-      dedupeCache.delete(key);
-    }
-  }
-  const key = `${target}|${room}|${event}|${normalizePayloadForKey(payload)}`;
+  sweepExpiredDedupeEntries(now);
+  const key = `${target}|${room}|${event}|${fingerprintPayloadForDedupe(payload)}`;
   const expiresAt = dedupeCache.get(key);
   if (expiresAt != null && expiresAt > now) {
     return true;
   }
   dedupeCache.set(key, now + dedupeTtlMs);
+  capMapSize(dedupeCache, MAX_DEDUPE_CACHE_ENTRIES);
   return false;
 }
 
@@ -177,10 +211,14 @@ function emitToRoom(room: string, target: EmitTarget, event: string, data: unkno
 
 function flushBatch(key: string): void {
   const state = batchStates.get(key);
-  if (!state || ioInstance == null) {
+  if (state == null) {
     return;
   }
   batchStates.delete(key);
+  clearTimeout(state.timer);
+  if (ioInstance == null) {
+    return;
+  }
   const latestPayload = state.payloads[state.payloads.length - 1];
   const batchPayload = {
     batchSize: state.payloads.length,
@@ -205,6 +243,9 @@ function emitToRooms(rooms: string[], target: EmitTarget, event: string, data: u
     const key = `${event}|${uniqueRooms.join(',')}`;
     const existing = batchStates.get(key);
     if (existing != null) {
+      if (existing.payloads.length >= MAX_BATCH_PAYLOADS_PER_KEY) {
+        existing.payloads.shift();
+      }
       existing.payloads.push(data);
       return;
     }
@@ -239,15 +280,30 @@ export function getSocketTelemetrySnapshot(): ReadonlyArray<TelemetryEntry> {
 export function resetRealtimeTelemetryForTests(): void {
   telemetryBuffer.length = 0;
   dedupeCache.clear();
+  clearAllPendingBatchStates();
+}
+
+/** Clears pending batch timers and dedupe state (shutdown / test isolation). */
+export function clearAllPendingBatchStates(): void {
   for (const state of batchStates.values()) {
     clearTimeout(state.timer);
   }
   batchStates.clear();
 }
 
+export function stopRealtimeEmitMaintenance(): void {
+  if (dedupeSweepTimer != null) {
+    clearInterval(dedupeSweepTimer);
+    dedupeSweepTimer = null;
+  }
+  clearAllPendingBatchStates();
+  dedupeCache.clear();
+}
+
 /** Clears the Socket.io instance and pending batch timers (test isolation). */
 export function resetSocketIOForTests(): void {
-  resetRealtimeTelemetryForTests();
+  stopRealtimeEmitMaintenance();
+  telemetryBuffer.length = 0;
   ioInstance = null;
 }
 

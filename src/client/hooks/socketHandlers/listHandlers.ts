@@ -30,6 +30,11 @@ function bumpListBulkPositionRev(boardId: string): void {
   listBulkPositionRevByBoard.set(boardId, getListBulkPositionRev(boardId) + 1);
 }
 
+export function resetListBulkPositionRevisions(): void {
+  listBulkPositionRevByBoard.clear();
+  pendingListUpdatedByBoard.clear();
+}
+
 function discardPendingListUpdates(boardId: string): void {
   pendingListUpdatedByBoard.delete(boardId);
 }

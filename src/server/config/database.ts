@@ -14,35 +14,46 @@ const connectionOptions: mongoose.ConnectOptions = {
 };
 
 let isConnected = false;
+let connectionListenersRegistered = false;
+
+function registerConnectionListenersOnce(): void {
+  if (connectionListenersRegistered) {
+    return;
+  }
+  connectionListenersRegistered = true;
+
+  mongoose.connection.on('connected', () => {
+    logger.info('MongoDB connected');
+    isConnected = true;
+  });
+
+  mongoose.connection.on('error', (err) => {
+    logger.error({ err }, 'MongoDB connection error');
+    isConnected = false;
+  });
+
+  mongoose.connection.on('disconnected', () => {
+    logger.warn('MongoDB disconnected');
+    isConnected = false;
+  });
+
+  mongoose.connection.on('reconnected', () => {
+    logger.info('MongoDB reconnected');
+    isConnected = true;
+  });
+}
 
 export async function connectDatabase(): Promise<void> {
-  if (isConnected) {
+  registerConnectionListenersOnce();
+
+  if (isConnected && mongoose.connection.readyState === 1) {
     logger.info('Database already connected');
     return;
   }
 
   try {
-    mongoose.connection.on('connected', () => {
-      logger.info('MongoDB connected');
-      isConnected = true;
-    });
-
-    mongoose.connection.on('error', (err) => {
-      logger.error({ err }, 'MongoDB connection error');
-      isConnected = false;
-    });
-
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('MongoDB disconnected');
-      isConnected = false;
-    });
-
-    mongoose.connection.on('reconnected', () => {
-      logger.info('MongoDB reconnected');
-      isConnected = true;
-    });
-
     await mongoose.connect(MONGODB_URI, connectionOptions);
+    isConnected = true;
     logger.info('Database connection established');
   } catch (error) {
     logger.error({ error }, 'Failed to connect to database');
@@ -51,7 +62,8 @@ export async function connectDatabase(): Promise<void> {
 }
 
 export async function disconnectDatabase(): Promise<void> {
-  if (!isConnected) {
+  if (mongoose.connection.readyState === 0) {
+    isConnected = false;
     return;
   }
 
@@ -76,4 +88,3 @@ export async function checkDatabaseHealth(): Promise<boolean> {
     return false;
   }
 }
-

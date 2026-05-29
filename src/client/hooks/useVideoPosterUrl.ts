@@ -95,6 +95,12 @@ export function useVideoPosterUrl(
       if (storedPosterPath !== '') {
         try {
           objectUrl = await fetchImageBlobUrl(storedPosterPath);
+          if (cancelled) {
+            if (objectUrl != null) {
+              URL.revokeObjectURL(objectUrl);
+            }
+            return;
+          }
           setUrl(objectUrl);
           return;
         } catch {

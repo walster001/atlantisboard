@@ -282,6 +282,23 @@ async function shutdown(): Promise<void> {
 
   stopMetricsCollection();
 
+  const { stopRealtimeEmitMaintenance } = await import('./utils/socketIO.js');
+  stopRealtimeEmitMaintenance();
+
+  const { disconnectDatabase } = await import('./config/database.js');
+  await disconnectDatabase().catch((error) => {
+    logger.error({ error }, 'Error disconnecting MongoDB');
+  });
+
+  await new Promise<void>((resolve) => {
+    io.close(() => {
+      logger.info('Socket.io server closed');
+      resolve();
+    });
+  }).catch((error) => {
+    logger.error({ error }, 'Error closing Socket.io');
+  });
+
   // Close HTTP server
   httpServer.close(() => {
     logger.info('HTTP server closed');

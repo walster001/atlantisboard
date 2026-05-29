@@ -250,6 +250,10 @@ let lastAttachmentRun = 0;
 let lastMemberAuditRetentionRun = 0;
 let lastScheduledBackupCheckRun = 0;
 export function scheduleCronJobs(): void {
+  if (intervalIds.length > 0) {
+    logger.warn('Cron jobs already scheduled; skipping duplicate scheduleCronJobs() call');
+    return;
+  }
   // Activity log cleanup - weekly (every Monday at 2 AM)
   // Check every 5 minutes instead of every minute to reduce CPU usage
   const activityLogInterval = setInterval(() => {

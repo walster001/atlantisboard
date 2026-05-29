@@ -1,3 +1,4 @@
+import { capMapSize } from '../../utils/capMapSize.js';
 import { db, type WorkspaceDB } from '../../store/database.js';
 import { normalizeCardFromApi } from '../../utils/transform.js';
 import {
@@ -22,6 +23,9 @@ export function deferSocketWork(fn: () => void): void {
 }
 
 const cardSocketApplyChains = new Map<string, Promise<unknown>>();
+const MAX_CARD_SOCKET_APPLY_CHAINS = 512;
+const MAX_CARD_EVENT_TS_ENTRIES = 2048;
+const MAX_LIST_ORDER_EVENT_TS_ENTRIES = 512;
 
 /**
  * Serialize async Dexie/runtime updates per card so overlapping `card:updated` handlers
@@ -37,6 +41,7 @@ export function enqueueCardSocketApply<T = void>(cardId: string, task: () => Pro
     task().catch(() => undefined as T),
   ) as Promise<T>;
   cardSocketApplyChains.set(id, next);
+  capMapSize(cardSocketApplyChains, MAX_CARD_SOCKET_APPLY_CHAINS);
   void next.finally(() => {
     if (cardSocketApplyChains.get(id) === next) {
       cardSocketApplyChains.delete(id);
@@ -188,6 +193,7 @@ export function shouldApplyCardEvent(cardId: string, serverTs: unknown): boolean
     return false;
   }
   lastCardEventTsById.set(id, serverTs);
+  capMapSize(lastCardEventTsById, MAX_CARD_EVENT_TS_ENTRIES);
   return true;
 }
 
@@ -204,6 +210,7 @@ export function shouldApplyListOrderEvent(boardId: string, listId: string, serve
     return false;
   }
   lastListOrderEventTsByKey.set(key, serverTs);
+  capMapSize(lastListOrderEventTsByKey, MAX_LIST_ORDER_EVENT_TS_ENTRIES);
   return true;
 }
 
@@ -227,6 +234,7 @@ export function resetRealtimeCachesForReconnect(): void {
   clearCardSocketDedupeCache();
   lastCardEventTsById.clear();
   lastListOrderEventTsByKey.clear();
+  cardSocketApplyChains.clear();
 }
 
 export function buildInvitesChangedPayload(data: {

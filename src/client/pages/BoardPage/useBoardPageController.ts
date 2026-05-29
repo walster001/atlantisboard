@@ -3,6 +3,7 @@ import type { SetURLSearchParams } from 'react-router-dom';
 import { useSocket } from '../../hooks/useSocket.js';
 import type { BoardDB, BoardSettingsLivePatch, CardDB } from '../../store/database.js';
 import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
+import { releaseBoardClientResources } from '../../utils/boardMemoryRelease.js';
 import { bootstrapBoardRuntimeFromApi, resyncBoardRuntimeFromApi } from '../../store/boardBootstrap.js';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
 import { primeCardDetailWindow } from '../../components/card/BoardCardDetailOverlay.js';
@@ -151,6 +152,7 @@ export function useBoardPageController({
     return () => {
       ac.abort();
       isMountedRef.current = false;
+      releaseBoardClientResources(boardId);
       useBoardRuntimeStore.getState().clear();
     };
   }, [boardId, loadData]);

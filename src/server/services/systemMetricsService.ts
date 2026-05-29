@@ -474,6 +474,7 @@ const ADMIN_MONITOR_ROOM = 'admin:monitor';
 
 const sampleBuffer: MetricsHistoryEntry[] = [];
 let sampleTickCount = 0;
+let snapshotInFlight = false;
 let collectionTimer: ReturnType<typeof setInterval> | undefined;
 
 function collectSample(): void {
@@ -524,16 +525,26 @@ function emitSampleToSubscribers(entry: MetricsHistoryEntry): void {
   if (room == null || room.size === 0) {
     return;
   }
+  if (snapshotInFlight) {
+    io.to(ADMIN_MONITOR_ROOM).emit('admin:monitor:stats', { snapshot: null, entry, isTrendTick: false });
+    return;
+  }
   sampleTickCount += 1;
   const isTrendTick = sampleTickCount >= TREND_EMIT_EVERY;
   if (isTrendTick) {
     sampleTickCount = 0;
   }
-  void getAdminSystemMetricsSnapshot().then((snapshot) => {
-    io.to(ADMIN_MONITOR_ROOM).emit('admin:monitor:stats', { snapshot, entry, isTrendTick });
-  }).catch(() => {
-    io.to(ADMIN_MONITOR_ROOM).emit('admin:monitor:stats', { snapshot: null, entry, isTrendTick });
-  });
+  snapshotInFlight = true;
+  void getAdminSystemMetricsSnapshot()
+    .then((snapshot) => {
+      io.to(ADMIN_MONITOR_ROOM).emit('admin:monitor:stats', { snapshot, entry, isTrendTick });
+    })
+    .catch(() => {
+      io.to(ADMIN_MONITOR_ROOM).emit('admin:monitor:stats', { snapshot: null, entry, isTrendTick });
+    })
+    .finally(() => {
+      snapshotInFlight = false;
+    });
 }
 
 /**

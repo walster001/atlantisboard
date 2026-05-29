@@ -10,6 +10,7 @@ export interface AttachmentStreamUrlEntry {
 }
 
 const REFRESH_BEFORE_EXPIRY_MS = 60_000;
+const MAX_ATTACHMENT_STREAM_CACHE_ENTRIES = 128;
 
 interface CacheEntry extends AttachmentStreamUrlEntry {
   refreshTimerId: ReturnType<typeof setTimeout> | null;
@@ -17,6 +18,21 @@ interface CacheEntry extends AttachmentStreamUrlEntry {
 
 const memoryCache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<AttachmentStreamUrlEntry>>();
+
+function evictAttachmentStreamCacheEntry(attachmentId: string): void {
+  const prior = memoryCache.get(attachmentId);
+  if (prior?.refreshTimerId != null) {
+    clearTimeout(prior.refreshTimerId);
+  }
+  memoryCache.delete(attachmentId);
+}
+
+export function clearAttachmentStreamCache(): void {
+  for (const attachmentId of memoryCache.keys()) {
+    evictAttachmentStreamCacheEntry(attachmentId);
+  }
+  inflight.clear();
+}
 
 function msUntilRefresh(expiresAt: string): number {
   const expiryMs = Date.parse(expiresAt);
@@ -47,15 +63,19 @@ async function fetchStreamUrl(attachmentId: string): Promise<AttachmentStreamUrl
 }
 
 function scheduleCacheRefresh(attachmentId: string, entry: AttachmentStreamUrlEntry): void {
-  const prior = memoryCache.get(attachmentId);
-  if (prior?.refreshTimerId != null) {
-    clearTimeout(prior.refreshTimerId);
-  }
+  evictAttachmentStreamCacheEntry(attachmentId);
   const refreshTimerId = setTimeout(() => {
-    memoryCache.delete(attachmentId);
+    evictAttachmentStreamCacheEntry(attachmentId);
     void ensureAttachmentStreamUrl(attachmentId).catch(() => {});
   }, msUntilRefresh(entry.expiresAt));
   memoryCache.set(attachmentId, { ...entry, refreshTimerId });
+  while (memoryCache.size > MAX_ATTACHMENT_STREAM_CACHE_ENTRIES) {
+    const first = memoryCache.keys().next().value;
+    if (first === undefined) {
+      break;
+    }
+    evictAttachmentStreamCacheEntry(first);
+  }
 }
 
 /**

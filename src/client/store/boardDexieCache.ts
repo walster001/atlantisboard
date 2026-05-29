@@ -56,6 +56,19 @@ export async function persistDexieBoardPut(board: BoardDB): Promise<void> {
   }
 }
 
+/** Drops cached card rows for a board when leaving the board view (limits IndexedDB growth). */
+export async function purgeDexieBoardCards(boardId: string): Promise<void> {
+  const bid = boardId.trim();
+  if (bid === '') {
+    return;
+  }
+  try {
+    await db.cards.where('boardId').equals(bid).delete();
+  } catch {
+    /* noop */
+  }
+}
+
 export async function persistDexieCardsBulk(cards: readonly CardDB[]): Promise<void> {
   if (cards.length === 0) {
     return;

@@ -36,6 +36,10 @@ export function initializeOfflineSync(): void {
       logger.error({ error }, 'Error syncing pending actions on initialization');
     });
   }
+
+  void cleanupOfflineActions().catch((error) => {
+    logger.error({ error }, 'Error cleaning up offline actions on initialization');
+  });
 }
 
 /**
@@ -159,6 +163,8 @@ export async function syncPendingActions(): Promise<void> {
       });
     }
   }
+
+  await cleanupOfflineActions();
 }
 
 /**

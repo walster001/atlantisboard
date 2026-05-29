@@ -9,6 +9,7 @@ import {
   resetRealtimeCachesForReconnect,
   resyncWorkspaceSocketRoomsFromDexie,
 } from './socketHandlers/state.js';
+import { resetListBulkPositionRevisions } from './socketHandlers/listHandlers.js';
 
 /** Multiple routes mount `useSocket`; handlers must attach exactly once per socket. */
 let globalRealtimeHandlerRefCount = 0;
@@ -18,6 +19,7 @@ function onSocketIoReconnect(): void {
   const socket = reconnectListenerSocket;
   if (socket != null && globalRealtimeHandlerRefCount > 0) {
     resetRealtimeCachesForReconnect();
+    resetListBulkPositionRevisions();
     detachGlobalRealtimeHandlers(socket);
     attachGlobalRealtimeHandlers(socket);
   }

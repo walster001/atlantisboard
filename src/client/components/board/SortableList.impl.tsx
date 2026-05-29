@@ -356,9 +356,11 @@ function SortableListInner({
           boardName={board.name}
           workspaceId={board.workspaceId}
           onClose={() => setDuplicateListModalOpen(false)}
-          onSuccess={() => {
+          onSuccess={(payload) => {
+            if (payload.targetBoardId !== boardId) {
+              void onKanbanCardsReload?.();
+            }
             onListUpdated?.();
-            void onKanbanCardsReload?.();
           }}
         />
       ) : null}
@@ -371,8 +373,10 @@ function SortableListInner({
           boardName={board.name}
           workspaceId={board.workspaceId}
           onClose={() => setDuplicateCardTarget(null)}
-          onSuccess={() => {
-            void onKanbanCardsReload?.();
+          onSuccess={(appliedToCurrentBoard) => {
+            if (!appliedToCurrentBoard) {
+              void onKanbanCardsReload?.();
+            }
           }}
         />
       ) : null}

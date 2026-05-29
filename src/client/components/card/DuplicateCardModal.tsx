@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Modal, Button, Stack, Group } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { KB_IOS_MODAL_HEADER_SAFE_CLASS } from '../../constants/iosModalSafeArea.js';
 import { api } from '../../utils/api.js';
+import { applyDuplicateCardToRuntime } from '../../utils/applyDuplicationToRuntime.js';
+import { runDuplicationWithProgressNotification } from '../../utils/duplicationProgressNotifications.js';
 import { DuplicateTargetBoardListPicker } from '../board/DuplicateTargetBoardListPicker.js';
 
 interface DuplicateCardModalProps {
@@ -12,7 +13,7 @@ interface DuplicateCardModalProps {
   readonly boardName: string;
   readonly workspaceId: string | undefined;
   readonly onClose: () => void;
-  readonly onSuccess: () => void;
+  readonly onSuccess: (appliedToCurrentBoard: boolean) => void;
 }
 
 export function DuplicateCardModal({
@@ -36,20 +37,18 @@ export function DuplicateCardModal({
 
     setLoading(true);
     try {
-      await api.duplicateCard(cardId, targetListId);
-      onSuccess();
+      const result = await runDuplicationWithProgressNotification({
+        kind: 'card',
+        label: 'Copying card and attachments…',
+        task: () => api.duplicateCard(cardId, targetListId),
+        successMessage: 'The card was copied to the selected list.',
+      });
+      const applied =
+        targetBoardId === boardId && applyDuplicateCardToRuntime(boardId, result.card) != null;
+      onSuccess(applied);
       onClose();
-      notifications.show({
-        color: 'green',
-        title: 'Card duplicated',
-        message: 'The card was copied to the selected list.',
-      });
-    } catch (error) {
-      notifications.show({
-        color: 'red',
-        title: 'Could not duplicate card',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
+    } catch {
+      /* notification shown */
     } finally {
       setLoading(false);
     }
@@ -88,7 +87,7 @@ export function DuplicateCardModal({
               disabled={loading || targetListId.trim() === ''}
               loading={loading}
             >
-              {loading ? 'Duplicating…' : 'Duplicate card'}
+              Duplicate card
             </Button>
           </Group>
         </Stack>

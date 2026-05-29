@@ -10,7 +10,9 @@ import {
   resolveAttachmentDeliveryKind,
   type AttachmentDeliveryKind,
 } from '../config/attachmentDelivery.js';
+import { CopyConditions } from 'minio';
 import { getMinIOClient, getMinIOPublicPresignClient, initializeMinIOBuckets } from '../config/minio.js';
+import { runWithConcurrency } from '../utils/asyncConcurrency.js';
 import { invalidateAttachmentLocationCache } from './attachmentCache.js';
 import { Card, type ICardAttachment } from '../models/Card.js';
 import type { Types } from 'mongoose';
@@ -434,78 +436,165 @@ export async function getAttachmentUrl(attachmentUrl: string, attachmentId: stri
   return buildAttachmentProxyUrl(attachmentId);
 }
 
-async function readStreamIntoBuffer(stream: Readable, maxBytes: number): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of stream) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
-    total += buf.length;
-    if (total > maxBytes) {
-      throw new Error(`Attachment exceeds maximum size of ${maxBytes} bytes while duplicating card`);
-    }
-    chunks.push(buf);
-  }
-  return Buffer.concat(chunks);
+const DUPLICATE_ATTACHMENT_COPY_CONCURRENCY = 12;
+
+function attachmentExtensionFromName(name: string): string {
+  const extMatch = /\.([^.]+)$/.exec(name.trim());
+  return extMatch?.[1] ?? 'bin';
 }
+
+function clonePlaceholderAttachmentRow(att: ICardAttachment, newId: string): ICardAttachment {
+  return {
+    id: newId,
+    name: att.name,
+    url: typeof att.url === 'string' ? att.url : '',
+    isPlaceholder: true,
+    ...(typeof att.originalFileName === 'string' && att.originalFileName.trim() !== ''
+      ? { originalFileName: att.originalFileName }
+      : {}),
+    type: att.type,
+    size: att.size,
+    uploadedAt: new Date(),
+    uploadedBy: att.uploadedBy,
+  };
+}
+
+function clonedStorageAttachmentRow(
+  att: ICardAttachment,
+  newId: string,
+  destObjectName: string,
+): ICardAttachment {
+  return {
+    id: newId,
+    name: att.name,
+    url: destObjectName,
+    ...(typeof att.originalFileName === 'string' && att.originalFileName.trim() !== ''
+      ? { originalFileName: att.originalFileName }
+      : {}),
+    type: att.type,
+    size: att.size,
+    uploadedAt: new Date(),
+    uploadedBy: att.uploadedBy,
+  };
+}
+
+async function copyCardAttachmentObject(args: {
+  readonly srcObject: string;
+  readonly destObjectName: string;
+  readonly newCardId: string;
+  readonly att: ICardAttachment;
+}): Promise<void> {
+  const { srcObject, destObjectName, newCardId, att } = args;
+  const client = getMinIOClient();
+  const conditions = new CopyConditions();
+  await client.copyObject(
+    BUCKET_NAME,
+    destObjectName,
+    `/${BUCKET_NAME}/${srcObject}`,
+    conditions,
+    {
+      'Content-Type': att.type,
+      'X-Card-Id': newCardId,
+      'X-Uploaded-By': String(att.uploadedBy),
+      'X-File-Name': encodeURIComponent(att.name),
+    },
+  );
+}
+
+type StorageAttachmentCopyJob = {
+  readonly att: ICardAttachment;
+  readonly newId: string;
+  readonly srcObject: string;
+  readonly destObjectName: string;
+};
 
 /**
  * Deep-copies each attachment into MinIO under `newCardId/<newAttachmentId>.<ext>` and returns
- * new embedded attachment rows (presigned URLs). Placeholders are copied with new ids only.
+ * new embedded attachment rows. Uses server-side copy when possible; placeholders get new ids only.
  */
 export async function duplicateCardAttachmentsForNewCard(args: {
   readonly sourceAttachments: readonly ICardAttachment[];
   readonly newCardId: string;
 }): Promise<ICardAttachment[]> {
   const { sourceAttachments, newCardId } = args;
-  const client = getMinIOClient();
-  const maxBytes = getCardAttachmentMaxBytes();
-  const out: ICardAttachment[] = [];
-
-  for (const att of sourceAttachments) {
-    const newId = crypto.randomUUID();
-    if (isPlaceholderCardAttachment(att)) {
-      out.push({
-        id: newId,
-        name: att.name,
-        url: typeof att.url === 'string' ? att.url : '',
-        isPlaceholder: true,
-        ...(typeof att.originalFileName === 'string' && att.originalFileName.trim() !== ''
-          ? { originalFileName: att.originalFileName }
-          : {}),
-        type: att.type,
-        size: att.size,
-        uploadedAt: new Date(),
-        uploadedBy: att.uploadedBy,
-      });
-      continue;
-    }
-
-    const srcObject = extractObjectNameFromAttachmentUrl(att.url);
-    const extMatch = /\.([^.]+)$/.exec(att.name.trim());
-    const ext = extMatch?.[1] ?? 'bin';
-    const destObjectName = `${newCardId}/${newId}.${ext}`;
-    const stream = await client.getObject(BUCKET_NAME, srcObject);
-    const buf = await readStreamIntoBuffer(stream as Readable, maxBytes);
-    await client.putObject(BUCKET_NAME, destObjectName, buf, buf.length, {
-      'Content-Type': att.type,
-      'X-Card-Id': newCardId,
-      'X-Uploaded-By': String(att.uploadedBy),
-      'X-File-Name': encodeURIComponent(att.name),
-    });
-    out.push({
-      id: newId,
-      name: att.name,
-      url: destObjectName,
-      ...(typeof att.originalFileName === 'string' && att.originalFileName.trim() !== ''
-        ? { originalFileName: att.originalFileName }
-        : {}),
-      type: att.type,
-      size: att.size,
-      uploadedAt: new Date(),
-      uploadedBy: att.uploadedBy,
-    });
+  if (sourceAttachments.length === 0) {
+    return [];
   }
 
+  const out: ICardAttachment[] = new Array(sourceAttachments.length);
+  const copyJobs: StorageAttachmentCopyJob[] = [];
+
+  for (let i = 0; i < sourceAttachments.length; i += 1) {
+    const att = sourceAttachments[i]!;
+    const newId = crypto.randomUUID();
+    if (isPlaceholderCardAttachment(att)) {
+      out[i] = clonePlaceholderAttachmentRow(att, newId);
+      continue;
+    }
+    const srcObject = extractObjectNameFromAttachmentUrl(att.url);
+    const ext = attachmentExtensionFromName(att.name);
+    const destObjectName = `${newCardId}/${newId}.${ext}`;
+    copyJobs.push({ att, newId, srcObject, destObjectName });
+    out[i] = clonedStorageAttachmentRow(att, newId, destObjectName);
+  }
+
+  await runWithConcurrency(copyJobs, DUPLICATE_ATTACHMENT_COPY_CONCURRENCY, async (job) => {
+    await copyCardAttachmentObject({
+      srcObject: job.srcObject,
+      destObjectName: job.destObjectName,
+      newCardId,
+      att: job.att,
+    });
+  });
+
   return out;
+}
+
+/**
+ * Duplicates attachments for many cards in one MinIO copy pool (faster than per-card sequential work).
+ */
+export async function duplicateCardAttachmentsForManyCards(
+  items: ReadonlyArray<{
+    readonly sourceAttachments: readonly ICardAttachment[];
+    readonly newCardId: string;
+  }>,
+): Promise<ICardAttachment[][]> {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const results: ICardAttachment[][] = items.map(() => []);
+  const copyJobs: Array<StorageAttachmentCopyJob & { readonly newCardId: string }> = [];
+
+  for (let cardIndex = 0; cardIndex < items.length; cardIndex += 1) {
+    const item = items[cardIndex]!;
+    const { sourceAttachments, newCardId } = item;
+    const rows: ICardAttachment[] = new Array(sourceAttachments.length);
+    for (let i = 0; i < sourceAttachments.length; i += 1) {
+      const att = sourceAttachments[i]!;
+      const newId = crypto.randomUUID();
+      if (isPlaceholderCardAttachment(att)) {
+        rows[i] = clonePlaceholderAttachmentRow(att, newId);
+        continue;
+      }
+      const srcObject = extractObjectNameFromAttachmentUrl(att.url);
+      const ext = attachmentExtensionFromName(att.name);
+      const destObjectName = `${newCardId}/${newId}.${ext}`;
+      copyJobs.push({ att, newId, srcObject, destObjectName, newCardId });
+      rows[i] = clonedStorageAttachmentRow(att, newId, destObjectName);
+    }
+    results[cardIndex] = rows;
+  }
+
+  await runWithConcurrency(copyJobs, DUPLICATE_ATTACHMENT_COPY_CONCURRENCY, async (job) => {
+    await copyCardAttachmentObject({
+      srcObject: job.srcObject,
+      destObjectName: job.destObjectName,
+      newCardId: job.newCardId,
+      att: job.att,
+    });
+  });
+
+  return results;
 }
 

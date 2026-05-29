@@ -53,7 +53,7 @@ interface BoardCardDetailOverlayProps {
   initialCard?: CardDB;
   boardSettings?: BoardDB['settings'];
   onClose: () => void;
-  onCardDuplicated?: () => void;
+  onCardDuplicated?: (appliedToCurrentBoard: boolean) => void;
   onCardDeleted?: () => void;
   /** Keeps Kanban list tiles in sync when the card is edited in this modal. */
   onCardUpdated?: (card: CardDB) => void;

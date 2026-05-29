@@ -185,8 +185,8 @@ router.post('/:id/duplicate', async (req, res, next) => {
       });
       return;
     }
-    const list = await duplicateList(req.params.id, targetBoardId, authReq.user.id);
-    res.status(201).json({ list });
+    const { list, cards } = await duplicateList(req.params.id, targetBoardId, authReq.user.id);
+    res.status(201).json({ list, cards });
   } catch (error) {
     if (error instanceof Error && error.message.includes('permissions')) {
       res.status(403).json({

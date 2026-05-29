@@ -12,7 +12,7 @@ interface CardDetailViewProps {
   boardSettings?: BoardDB['settings'];
   listId: string;
   onClose: () => void;
-  onCardDuplicated?: () => void;
+  onCardDuplicated?: (appliedToCurrentBoard: boolean) => void;
   /** Called after the card is removed from the API and local DB (e.g. refresh Kanban). */
   onCardDeleted?: () => void;
   /** Merges successful edits into Kanban list state (and Dexie) so tiles stay current. */

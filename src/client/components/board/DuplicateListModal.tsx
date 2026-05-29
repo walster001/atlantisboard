@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Button, Stack, Group, Text, Select, Loader } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { KB_IOS_MODAL_HEADER_SAFE_CLASS } from '../../constants/iosModalSafeArea.js';
 import { api } from '../../utils/api.js';
+import {
+  applyDuplicateListToRuntime,
+  type DuplicateListApplyPayload,
+} from '../../utils/applyDuplicationToRuntime.js';
+import { runDuplicationWithProgressNotification } from '../../utils/duplicationProgressNotifications.js';
 
 interface BoardOption {
   readonly id: string;
@@ -16,7 +20,7 @@ interface DuplicateListModalProps {
   readonly boardName: string;
   readonly workspaceId: string | undefined;
   readonly onClose: () => void;
-  readonly onSuccess: () => void;
+  readonly onSuccess: (payload: DuplicateListApplyPayload) => void;
 }
 
 export function DuplicateListModal({
@@ -83,20 +87,22 @@ export function DuplicateListModal({
     }
     setLoading(true);
     try {
-      await api.duplicateList(listId, targetBoardId);
-      onSuccess();
+      const result = await runDuplicationWithProgressNotification({
+        kind: 'list',
+        label: `Copying "${listName}" and its cards…`,
+        task: () => api.duplicateList(listId, targetBoardId),
+        successMessage: `"${listName}" was duplicated.`,
+      });
+      const payload: DuplicateListApplyPayload = {
+        list: result.list,
+        cards: result.cards ?? [],
+        targetBoardId,
+      };
+      applyDuplicateListToRuntime(boardId, payload);
+      onSuccess(payload);
       onClose();
-      notifications.show({
-        color: 'green',
-        title: 'List duplicated',
-        message: `"${listName}" was duplicated.`,
-      });
-    } catch (error) {
-      notifications.show({
-        color: 'red',
-        title: 'Could not duplicate list',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
+    } catch {
+      /* notification shown */
     } finally {
       setLoading(false);
     }

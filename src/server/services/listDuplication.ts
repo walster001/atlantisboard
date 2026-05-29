@@ -1,29 +1,25 @@
 import type { Document } from 'mongoose';
 import { List, type IList } from '../models/List.js';
-import { Card } from '../models/Card.js';
+import { Card, type ICard } from '../models/Card.js';
 import { Board } from '../models/Board.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { hasPermission } from '../utils/permissions.js';
 import { createList, updateList } from './listService.js';
-import { duplicateCard } from './cardService/cardDuplication.js';
+import { duplicateCardsBatch } from './cardService/cardDuplication.js';
 import { compareCardListOrder } from '../../shared/utils/cardListPos.js';
 import { LIST_NAME_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 import { getBoardListCardLimits } from './cardService/types.js';
 
-function duplicateListName(sourceName: string): string {
-  const suffix = ' (Copy)';
-  const trimmed = sourceName.trim();
-  if (trimmed.length + suffix.length <= LIST_NAME_MAX_LENGTH) {
-    return `${trimmed}${suffix}`;
-  }
-  return `${trimmed.slice(0, LIST_NAME_MAX_LENGTH - suffix.length)}${suffix}`;
+export interface DuplicateListResult {
+  readonly list: Document & IList;
+  readonly cards: readonly (Document & ICard)[];
 }
 
 export async function duplicateList(
   sourceListId: string,
   targetBoardId: string,
   userId: string,
-): Promise<Document & IList> {
+): Promise<DuplicateListResult> {
   const sourceList = await List.findById(sourceListId);
   if (sourceList == null) {
     throw new Error('List not found');
@@ -58,10 +54,12 @@ export async function duplicateList(
     }
   }
 
+  const listName = sourceList.name.trim().slice(0, LIST_NAME_MAX_LENGTH);
+
   const newList = await createList(
     {
       boardId: targetBoardId,
-      name: duplicateListName(sourceList.name),
+      name: listName,
     },
     userId,
   );
@@ -91,20 +89,17 @@ export async function duplicateList(
     throw new Error(`Target list cannot exceed maximum card limit of ${max}`);
   }
 
+  const cardsToCopy =
+    enforce && sortedSourceCards.length > max ? sortedSourceCards.slice(0, max) : sortedSourceCards;
+
   const newListId = newList._id.toString();
-  for (let i = sortedSourceCards.length - 1; i >= 0; i -= 1) {
-    const card = sortedSourceCards[i];
-    if (card == null) {
-      continue;
-    }
-    if (enforce) {
-      const cardCount = await Card.countDocuments({ listId: newListId });
-      if (cardCount >= max) {
-        break;
-      }
-    }
-    await duplicateCard(card._id.toString(), newListId, userId, { skipSourcePermissionCheck: true });
-  }
+
+  const createdCards = await duplicateCardsBatch(cardsToCopy, newListId, userId, {
+    skipSourcePermissionCheck: true,
+    skipAudit: true,
+    skipActivities: true,
+    sourceBoardIdForSocket: sourceBoardId,
+  });
 
   logAuditEvent({
     userId,
@@ -114,7 +109,7 @@ export async function duplicateList(
     metadata: {
       duplicatedListId: newListId,
       targetBoardId,
-      cardCount: sortedSourceCards.length,
+      cardCount: cardsToCopy.length,
     },
     timestamp: new Date(),
   });
@@ -123,5 +118,5 @@ export async function duplicateList(
   if (refreshed == null) {
     throw new Error('Duplicated list not found after create');
   }
-  return refreshed;
+  return { list: refreshed, cards: createdCards };
 }

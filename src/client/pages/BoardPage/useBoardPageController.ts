@@ -42,7 +42,7 @@ export interface BoardPageController {
   readonly handleThemeLivePatch: (patch: { themeSettings: BoardThemeSettings; background?: string }) => void;
   readonly handleOpenCard: (card: CardDB) => void;
   readonly handleCloseCardOverlay: () => void;
-  readonly handleCardOverlayDuplicated: () => void;
+  readonly handleCardOverlayDuplicated: (appliedToCurrentBoard: boolean) => void;
   readonly handleCardOverlayDeleted: () => void;
   readonly handleCardOverlayUpdated: (card: CardDB) => void;
 }
@@ -212,7 +212,10 @@ export function useBoardPageController({
       { replace: true },
     );
   }, [setSearchParams]);
-  const handleCardOverlayDuplicated = useCallback(() => {
+  const handleCardOverlayDuplicated = useCallback((appliedToCurrentBoard: boolean) => {
+    if (appliedToCurrentBoard) {
+      return;
+    }
     const id = board?.id;
     if (id != null) {
       void resyncBoardRuntimeFromApi(id);

@@ -41,7 +41,7 @@ interface CardDetailViewModalProps {
   readonly boardId: string;
   readonly listId: string;
   readonly onClose: () => void;
-  readonly onCardDuplicated?: () => void;
+  readonly onCardDuplicated?: (appliedToCurrentBoard: boolean) => void;
 }
 
 export function CardDetailViewModal({
@@ -382,7 +382,7 @@ export function CardDetailViewModal({
           boardName={controller.boardName}
           workspaceId={controller.boardWorkspaceId ?? undefined}
           onClose={() => controller.setShowDuplicateModal(false)}
-          onSuccess={() => onCardDuplicated?.()}
+          onSuccess={(appliedToCurrentBoard) => onCardDuplicated?.(appliedToCurrentBoard)}
         />
       ) : null}
       </EmojiPickerScrollShardContext.Provider>

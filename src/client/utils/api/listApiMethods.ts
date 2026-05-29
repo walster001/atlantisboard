@@ -11,7 +11,10 @@ export interface ListApiMethods {
     listIds: string[];
   }): Promise<{ message: string; boardId: string; orderedListIds: string[] }>;
   moveList(listId: string, position: number): Promise<{ list: unknown }>;
-  duplicateList(listId: string, targetBoardId: string): Promise<{ list: unknown }>;
+  duplicateList(
+    listId: string,
+    targetBoardId: string,
+  ): Promise<{ list: unknown; cards: readonly unknown[] }>;
 }
 
 export const listApiMethods: ListApiMethods = {
@@ -55,6 +58,6 @@ export const listApiMethods: ListApiMethods = {
 
   async duplicateList(this: ApiClient, listId, targetBoardId) {
     const response = await this.client.post(`/lists/${listId}/duplicate`, { targetBoardId });
-    return response.data as { list: unknown };
+    return response.data as { list: unknown; cards: readonly unknown[] };
   },
 };

@@ -74,6 +74,38 @@ export function mediaRefMatchesAttachment(
   return srcTail !== '' && attachmentTail !== '' && srcTail === attachmentTail;
 }
 
+function addAttachmentIdFromMediaSrc(ids: Set<string>, src: string): void {
+  const id = extractAttachmentIdFromMediaSrc(src);
+  if (id !== null && id.trim() !== '') {
+    ids.add(id);
+  }
+}
+
+function collectMediaAttachmentRefsFromAttrs(
+  attrs: Record<string, unknown>,
+  attachments: ReadonlyArray<AttachmentLike>,
+  referenced: Set<string>,
+): void {
+  const src = typeof attrs.src === 'string' ? attrs.src : '';
+  if (src !== '') {
+    for (const attachment of attachments) {
+      if (mediaRefMatchesAttachment(src, attachment.id, attachment.url)) {
+        referenced.add(attachment.id);
+        break;
+      }
+    }
+  }
+  const poster = typeof attrs.poster === 'string' ? attrs.poster : '';
+  if (poster !== '') {
+    for (const attachment of attachments) {
+      if (mediaRefMatchesAttachment(poster, attachment.id, attachment.url)) {
+        referenced.add(attachment.id);
+        break;
+      }
+    }
+  }
+}
+
 function walkCollectAttachmentIds(node: unknown, ids: Set<string>): void {
   if (!isRecord(node) || typeof node.type !== 'string') {
     return;
@@ -81,10 +113,12 @@ function walkCollectAttachmentIds(node: unknown, ids: Set<string>): void {
   const type = node.type;
   if (type === 'image' || type === 'imageResize' || type === 'video') {
     const attrs = node.attrs;
-    if (isRecord(attrs) && typeof attrs.src === 'string') {
-      const id = extractAttachmentIdFromMediaSrc(attrs.src);
-      if (id !== null && id.trim() !== '') {
-        ids.add(id);
+    if (isRecord(attrs)) {
+      if (typeof attrs.src === 'string') {
+        addAttachmentIdFromMediaSrc(ids, attrs.src);
+      }
+      if (type === 'video' && typeof attrs.poster === 'string') {
+        addAttachmentIdFromMediaSrc(ids, attrs.poster);
       }
     }
   }
@@ -144,14 +178,8 @@ export function collectReferencedAttachmentIdsFromDescriptionJson(
     const type = node.type;
     if (type === 'image' || type === 'imageResize' || type === 'video') {
       const attrs = node.attrs;
-      const src = isRecord(attrs) && typeof attrs.src === 'string' ? attrs.src : '';
-      if (src !== '') {
-        for (const attachment of attachments) {
-          if (mediaRefMatchesAttachment(src, attachment.id, attachment.url)) {
-            referenced.add(attachment.id);
-            break;
-          }
-        }
+      if (isRecord(attrs)) {
+        collectMediaAttachmentRefsFromAttrs(attrs, attachments, referenced);
       }
     }
     if (Array.isArray(node.content)) {
@@ -195,9 +223,19 @@ export function stripAttachmentFromDescriptionJsonString(
     const type = node.type;
     if (type === 'image' || type === 'imageResize' || type === 'video') {
       const attrs = node.attrs;
-      const src = isRecord(attrs) && typeof attrs.src === 'string' ? attrs.src : '';
+      if (!isRecord(attrs)) {
+        return node;
+      }
+      const src = typeof attrs.src === 'string' ? attrs.src : '';
       if (mediaRefMatchesAttachment(src, attachmentId, attachmentUrl)) {
         return null;
+      }
+      if (type === 'video') {
+        const poster = typeof attrs.poster === 'string' ? attrs.poster : '';
+        if (poster !== '' && mediaRefMatchesAttachment(poster, attachmentId, attachmentUrl)) {
+          const { poster: _removed, ...restAttrs } = attrs;
+          return { ...node, attrs: restAttrs };
+        }
       }
       return node;
     }
@@ -294,6 +332,9 @@ export function remapAttachmentRefsInDescriptionJsonString(
       const attrs = { ...node.attrs } as Record<string, unknown>;
       if (typeof attrs.src === 'string' && attrs.src.trim() !== '') {
         attrs.src = remapMediaSrcForDuplicate(attrs.src, sourceAttachments, newAttachments);
+      }
+      if (type === 'video' && typeof attrs.poster === 'string' && attrs.poster.trim() !== '') {
+        attrs.poster = remapMediaSrcForDuplicate(attrs.poster, sourceAttachments, newAttachments);
       }
       return { ...node, attrs };
     }

@@ -1,24 +1,28 @@
-import { Router, type Request, type RequestHandler } from 'express';
+import { Router, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 import { requireAuth } from '../middleware/auth.js';
-import { attachmentStreamRateLimiter, fileUploadRateLimiter } from '../middleware/rateLimit.js';
+import {
+  attachmentStreamRateLimiter,
+  attachmentUrlMintRateLimiter,
+  fileUploadRateLimiter,
+} from '../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../../shared/types/express.js';
 import { CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES } from '../constants/uploads.js';
 import {
   MAX_CARD_ATTACHMENT_BYTES,
   uploadCardAttachment,
   deleteCardAttachment,
-  getAttachmentUrl,
-  getAttachmentObjectMeta,
+  buildAttachmentStreamUrl,
   openAttachmentReadStream,
   type CardAttachmentUploadPayload,
 } from '../services/attachmentService.js';
-import { isPlaceholderCardAttachment } from '../../shared/cardAttachmentPlaceholder.js';
+import { resolveAttachmentForUser } from '../services/attachmentAccessService.js';
 import { Card } from '../models/Card.js';
 import { hasPermission } from '../utils/permissions.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 
@@ -304,71 +308,62 @@ router.delete('/cards/:cardId/attachments/:attachmentId', async (req, res, next)
   }
 });
 
+function sendAttachmentAccessFailure(
+  res: Response,
+  failure: { readonly status: 404 | 403; readonly code: string; readonly message: string },
+): void {
+  res.status(failure.status).json({
+    error: {
+      message: failure.message,
+      code: failure.code,
+      statusCode: failure.status,
+    },
+  });
+}
+
 /**
- * Get attachment download URL
+ * Mint stream URL (presigned MinIO or API proxy fallback)
  * GET /api/v1/attachments/:attachmentId/url
  */
-router.get('/attachments/:attachmentId/url', async (req, res, next) => {
-  try {
-    const authReq = req as AuthenticatedRequest;
-    const { attachmentId } = req.params;
+router.get(
+  '/attachments/:attachmentId/url',
+  attachmentUrlMintRateLimiter,
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const { attachmentId } = req.params;
 
-    // Find card with this attachment
-    const card = await Card.findOne({ 'attachments.id': attachmentId });
-    if (!card) {
-      res.status(404).json({
-        error: {
-          message: 'Attachment not found',
-          code: 'NOT_FOUND',
-          statusCode: 404,
+      const resolved = await resolveAttachmentForUser(attachmentId, authReq.user);
+      if ('status' in resolved) {
+        sendAttachmentAccessFailure(res, resolved);
+        return;
+      }
+
+      const stream = await buildAttachmentStreamUrl(attachmentId, resolved.objectMeta);
+
+      logger.info(
+        {
+          event: 'attachment.url_mint',
+          attachmentId,
+          delivery: stream.delivery,
+          contentType: resolved.objectMeta.contentType,
+          size: resolved.objectMeta.size,
+          userId: authReq.user.id,
         },
+        'Attachment stream URL minted',
+      );
+
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      res.json({
+        url: stream.url,
+        expiresAt: stream.expiresAt,
+        delivery: stream.delivery,
       });
-      return;
+    } catch (error) {
+      next(error);
     }
-
-    // Any board member may request a download URL (upload/delete remain permission-gated).
-    const allowed = await hasPermission(authReq.user, card.boardId.toString(), 'boards.view');
-    if (!allowed) {
-      res.status(403).json({
-        error: {
-          message: 'Access denied',
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-
-    const attachment = card.attachments.find((att) => att.id === attachmentId);
-    if (!attachment) {
-      res.status(404).json({
-        error: {
-          message: 'Attachment not found',
-          code: 'NOT_FOUND',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-
-    if (isPlaceholderCardAttachment(attachment)) {
-      res.status(404).json({
-        error: {
-          message: 'No file has been uploaded for this attachment yet',
-          code: 'ATTACHMENT_PLACEHOLDER',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-
-    const url = await getAttachmentUrl(attachment.url, attachmentId);
-
-    res.json({ url });
-  } catch (error) {
-    next(error);
-  }
-});
+  },
+);
 
 /**
  * Stream attachment content through API (authenticated)
@@ -379,55 +374,13 @@ router.get('/attachments/:attachmentId/file', attachmentStreamRateLimiter, async
     const authReq = req as AuthenticatedRequest;
     const { attachmentId } = req.params;
 
-    const card = await Card.findOne({ 'attachments.id': attachmentId });
-    if (!card) {
-      res.status(404).json({
-        error: {
-          message: 'Attachment not found',
-          code: 'NOT_FOUND',
-          statusCode: 404,
-        },
-      });
+    const resolved = await resolveAttachmentForUser(attachmentId, authReq.user);
+    if ('status' in resolved) {
+      sendAttachmentAccessFailure(res, resolved);
       return;
     }
 
-    // Stream/download is allowed for any board member (same baseline as `boards.view`); upload/delete stay gated.
-    const allowed = await hasPermission(authReq.user, card.boardId.toString(), 'boards.view');
-    if (!allowed) {
-      res.status(403).json({
-        error: {
-          message: 'Access denied',
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-
-    const attachment = card.attachments.find((att) => att.id === attachmentId);
-    if (!attachment) {
-      res.status(404).json({
-        error: {
-          message: 'Attachment not found',
-          code: 'NOT_FOUND',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-
-    if (isPlaceholderCardAttachment(attachment)) {
-      res.status(404).json({
-        error: {
-          message: 'No file has been uploaded for this attachment yet',
-          code: 'ATTACHMENT_PLACEHOLDER',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-
-    const meta = await getAttachmentObjectMeta(attachment.url);
+    const meta = resolved.objectMeta;
     const rangeHeader = req.headers.range;
     const rangeRaw = Array.isArray(rangeHeader) ? rangeHeader[0] : rangeHeader;
     const parsed = parseSingleHttpBytesRange(
@@ -445,6 +398,18 @@ router.get('/attachments/:attachmentId/file', attachmentStreamRateLimiter, async
       res.end();
       return;
     }
+
+    logger.info(
+      {
+        event: 'attachment.proxy_stream',
+        attachmentId,
+        rangeKind: parsed.kind,
+        contentType: meta.contentType,
+        size: meta.size,
+        userId: authReq.user.id,
+      },
+      'Attachment proxy stream',
+    );
 
     if (parsed.kind === 'full') {
       res.status(200);

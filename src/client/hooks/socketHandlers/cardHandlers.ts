@@ -66,13 +66,16 @@ export function registerCardHandlers(socket: Socket): void {
       }
       enqueueCardSocketApply(data.cardId, async () => {
         try {
-          const incoming = normalizeCardFromApi(data.data, data.cardId);
           const existingDexie = await db.cards.get(data.cardId);
           const existingRuntime =
             runtimeActiveBoardId() === data.boardId
               ? useBoardRuntimeStore.getState().cardsById[data.cardId]
               : undefined;
           const existing = existingRuntime ?? existingDexie ?? undefined;
+          const incoming = normalizeCardFromApi(data.data, data.cardId, {
+            ...(existing?.listId !== undefined ? { listId: existing.listId } : {}),
+            ...(existing?.boardId !== undefined ? { boardId: existing.boardId } : {}),
+          });
           const merged = mergeDexieCardIfSnapshot(data.data, existing, incoming);
           if (isRedundantCardSocketPayload(data.cardId, merged)) {
             return;
@@ -96,13 +99,16 @@ export function registerCardHandlers(socket: Socket): void {
       }
       enqueueCardSocketApply(data.cardId, async () => {
         try {
-          const incoming = normalizeCardFromApi(data.data, data.cardId);
           const existingDexie = await db.cards.get(data.cardId);
           const existingRuntime =
             runtimeActiveBoardId() === data.boardId
               ? useBoardRuntimeStore.getState().cardsById[data.cardId]
               : undefined;
           const existing = existingRuntime ?? existingDexie ?? undefined;
+          const incoming = normalizeCardFromApi(data.data, data.cardId, {
+            ...(existing?.listId !== undefined ? { listId: existing.listId } : {}),
+            ...(existing?.boardId !== undefined ? { boardId: existing.boardId } : {}),
+          });
           if (shouldSkipStaleDetailSocketCard(data.data, existing, incoming)) {
             return;
           }
@@ -158,12 +164,18 @@ export function registerCardHandlers(socket: Socket): void {
             }
             const patched: Record<string, unknown> = { ...existing };
             for (const [key, value] of Object.entries(data.changedFields)) {
+              if (key === 'attachments' && !Array.isArray(value)) {
+                continue;
+              }
               patched[key] = value;
             }
             for (const key of data.removedFields) {
               delete patched[key];
             }
-            const normalized = normalizeCardFromApi(patched, data.cardId);
+            const normalized = normalizeCardFromApi(patched, data.cardId, {
+              listId: existing.listId,
+              boardId: existing.boardId,
+            });
             if (isRedundantCardSocketPayload(data.cardId, normalized)) {
               return;
             }

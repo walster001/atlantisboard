@@ -45,14 +45,21 @@ export interface WekanButtonsPreflight {
 
 export interface InlineButtonIconReplacement {
   readonly iconSrc: string;
-  /** data URL (image/*;base64,...) captured during import preflight. */
-  readonly replacementDataUrl: string;
+  /** data URL (image/*;base64,...) captured during import preflight when replacing the icon. */
+  readonly replacementDataUrl?: string;
+}
+
+/** Board-wide legacy inline-button colour overrides applied to every imported button. */
+export interface InlineButtonImportColorOverrides {
+  readonly textColor?: string;
+  readonly bgColor?: string;
 }
 
 export interface ImportPreflightPayload {
   readonly userDecisions: readonly ImportUserDecision[];
   readonly unmappedUserPolicy: UnmappedUserPolicy;
   readonly inlineButtonIconReplacements?: readonly InlineButtonIconReplacement[];
+  readonly inlineButtonImportColorOverrides?: InlineButtonImportColorOverrides;
 }
 
 export interface ImportPreflightResult {

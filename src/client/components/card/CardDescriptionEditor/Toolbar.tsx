@@ -9,6 +9,7 @@ import {
   parseCssColorToRgbTriplet,
 } from '../cardDetailSectionUi.js';
 import { api } from '../../../utils/api.js';
+import { captureVideoPosterBlobFromFile } from '../../../utils/captureVideoPoster.js';
 import { prefetchEmojiMartModules } from './emojiMartPicker.js';
 import {
   EDITOR_TEXT_COLOR_FALLBACK,
@@ -205,7 +206,25 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
       setVideoUploadBusy(true);
       const src = await uploadAttachmentAndGetUrl(file);
       if (typeof src === 'string' && src.trim() !== '') {
-        editor.chain().focus().setVideo({ src }).run();
+        let poster: string | null = null;
+        try {
+          const posterBlob = await captureVideoPosterBlobFromFile(file);
+          const baseName = file.name.replace(/\.[^.]+$/, '') || 'video';
+          const posterFile = new File([posterBlob], `${baseName}-poster.jpg`, {
+            type: 'image/jpeg',
+          });
+          const posterUrl = await uploadAttachmentAndGetUrl(posterFile);
+          if (typeof posterUrl === 'string' && posterUrl.trim() !== '') {
+            poster = posterUrl;
+          }
+        } catch {
+          /* Poster is optional; video still inserts without it */
+        }
+        editor
+          .chain()
+          .focus()
+          .setVideo(poster != null ? { src, poster } : { src })
+          .run();
       }
       setVideoUploadBusy(false);
     };

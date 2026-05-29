@@ -25,6 +25,7 @@ import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_NAME_MAX_LENGTH, LIST_NAME_MAX_LENG
 import type { ImportPreflightPayloadParsed } from '../../../../shared/import/importPreflightSchema.js';
 import { normalizeImportedColour } from './helpers.js';
 import { buildLocalizedInlineIconMap, extractLegacyInlineButtonCandidates, sanitizeImportedDescriptionText, sanitizeImportedPlainText } from './description.js';
+import { buildWekanInlineButtonReplacementMap } from './inlineButtonReplacements.js';
 import { normalizeWekanExport } from './normalization.js';
 import { buildWekanCardInsertPlainObject, groupWekanRowsByCardId, WEKAN_CARD_INSERT_BATCH } from './cardPersistence.js';
 import type { WekanCardInsertContext } from './types.js';
@@ -38,10 +39,21 @@ export async function executeWekanImportJob(params: {
 }): Promise<void> {
   const { jsonData, userId, jobId, defaultUncolouredCardColour, preflight } = params;
   const data = normalizeWekanExport(jsonData);
-  const replacementByIconSrc = new Map(
-    (preflight?.inlineButtonIconReplacements ?? []).map((r) => [r.iconSrc.trim(), r.replacementDataUrl]),
+  const { replacementByIconSrc, skipLocalizationIconSrcs } = await buildWekanInlineButtonReplacementMap(
+    preflight?.inlineButtonIconReplacements,
   );
-  const localizedByIconSrc = await buildLocalizedInlineIconMap(extractLegacyInlineButtonCandidates(data.cards));
+  const inlineButtonImportColorOverrides = {
+    ...(preflight?.inlineButtonImportColorOverrides?.textColor != null
+      ? { textColor: preflight.inlineButtonImportColorOverrides.textColor }
+      : {}),
+    ...(preflight?.inlineButtonImportColorOverrides?.bgColor != null
+      ? { bgColor: preflight.inlineButtonImportColorOverrides.bgColor }
+      : {}),
+  };
+  const localizedByIconSrc = await buildLocalizedInlineIconMap(
+    extractLegacyInlineButtonCandidates(data.cards),
+    skipLocalizationIconSrcs,
+  );
 
   if (data.boards.length === 0) {
     throw new Error('Wekan import: no boards found in file.');
@@ -237,6 +249,7 @@ export async function executeWekanImportJob(params: {
     attachmentsByCardId,
     replacementByIconSrc,
     localizedByIconSrc,
+    inlineButtonImportColorOverrides,
     defaultUncolouredCardColour,
     userId,
   };

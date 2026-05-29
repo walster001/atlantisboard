@@ -78,6 +78,13 @@ function normalizeImportedInlineColor(value: string | undefined): string | null 
   return raw.slice(0, 80);
 }
 
+/** Colors parsed from legacy Wekan inline-button HTML (for import UI defaults). */
+export function extractWekanLegacyInlineButtonColorsFromHtml(
+  fullHtml: string,
+): { textColor?: string; bgColor?: string } {
+  return extractInlineButtonColorsFromLegacySpan(fullHtml);
+}
+
 function extractInlineButtonColorsFromLegacySpan(fullHtml: string): { textColor?: string; bgColor?: string } {
   const spanDecls = extractInlineStyleDeclarationsFromTag(fullHtml, 'span');
   const anchorDecls = extractInlineStyleDeclarationsFromTag(fullHtml, 'a');
@@ -142,11 +149,21 @@ function pushMarkdownOrPlainAsBlocks(raw: string, nodes: Array<Record<string, un
   nodes.push(...plainTextParagraphNodes(raw));
 }
 
+export interface WekanInlineButtonImportReplacement {
+  readonly iconUrl?: string;
+}
+
+export interface WekanInlineButtonImportColorOverrides {
+  readonly textColor?: string;
+  readonly bgColor?: string;
+}
+
 function buildWekanDescriptionDocNodes(
   description: string,
-  replacementByIconSrc: ReadonlyMap<string, string>,
+  replacementByIconSrc: ReadonlyMap<string, WekanInlineButtonImportReplacement>,
   localizedByIconSrc: ReadonlyMap<string, string>,
   plainTextSegmentsOnly: boolean,
+  globalColorOverrides: WekanInlineButtonImportColorOverrides = {},
 ): Array<Record<string, unknown>> {
   const input = decodeWekanHtmlEntities(description);
   const nodes: Array<Record<string, unknown>> = [];
@@ -196,7 +213,13 @@ function buildWekanDescriptionDocNodes(
       const attrs = {
         ...inlineButton.attrs,
         ...colors,
-        ...(replacement != null ? { iconSrc: replacement } : localized != null ? { iconSrc: localized } : {}),
+        ...(globalColorOverrides.textColor != null ? { textColor: globalColorOverrides.textColor } : {}),
+        ...(globalColorOverrides.bgColor != null ? { bgColor: globalColorOverrides.bgColor } : {}),
+        ...(replacement?.iconUrl != null
+          ? { iconSrc: replacement.iconUrl }
+          : localized != null
+            ? { iconSrc: localized }
+            : {}),
       };
       nodes.push({
         type: (inlineButton as InlineButtonDocNode).type,
@@ -217,13 +240,20 @@ function buildWekanDescriptionDocNodes(
  */
 export function wekanLegacyHtmlToCardDescriptionJson(
   description: string,
-  replacementByIconSrc: ReadonlyMap<string, string> = new Map(),
+  replacementByIconSrc: ReadonlyMap<string, WekanInlineButtonImportReplacement> = new Map(),
   localizedByIconSrc: ReadonlyMap<string, string> = new Map(),
+  globalColorOverrides: WekanInlineButtonImportColorOverrides = {},
 ): string {
   if (description.trim() === '') {
     return '';
   }
-  let nodes = buildWekanDescriptionDocNodes(description, replacementByIconSrc, localizedByIconSrc, false);
+  let nodes = buildWekanDescriptionDocNodes(
+    description,
+    replacementByIconSrc,
+    localizedByIconSrc,
+    false,
+    globalColorOverrides,
+  );
   if (nodes.length === 0) {
     return plainTextToCardDescriptionJson(description) ?? '';
   }
@@ -233,7 +263,13 @@ export function wekanLegacyHtmlToCardDescriptionJson(
   });
   let json = JSON.stringify(doc);
   if (json.length > CARD_DESCRIPTION_JSON_MAX_LENGTH || !isValidCardDescriptionDoc(doc)) {
-    nodes = buildWekanDescriptionDocNodes(description, replacementByIconSrc, localizedByIconSrc, true);
+    nodes = buildWekanDescriptionDocNodes(
+      description,
+      replacementByIconSrc,
+      localizedByIconSrc,
+      true,
+      globalColorOverrides,
+    );
     doc = applyUtf8EmojiToTwemojiInCardDescriptionDoc({
       type: 'doc',
       content: nodes as JSONContent[],

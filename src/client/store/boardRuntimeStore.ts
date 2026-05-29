@@ -403,19 +403,35 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
     }
     set((s) => {
       const prev = s.cardsById[card.id];
-      const cardsById = { ...s.cardsById, [card.id]: card };
+      const resolvedCard =
+        prev != null
+          ? {
+              ...card,
+              ...(card.listId.trim() === '' && prev.listId.trim() !== '' ? { listId: prev.listId } : {}),
+              ...(card.boardId.trim() === '' && prev.boardId.trim() !== '' ? { boardId: prev.boardId } : {}),
+            }
+          : card;
+      const cardsById = { ...s.cardsById, [resolvedCard.id]: resolvedCard };
       const cardIdsByListId = { ...s.cardIdsByListId };
-      if (prev != null && prev.listId !== card.listId) {
-        const fromIds = removeCardIdFromList(cardIdsByListId[prev.listId] ?? [], card.id);
+      if (prev != null && prev.listId !== resolvedCard.listId) {
+        const fromIds = removeCardIdFromList(cardIdsByListId[prev.listId] ?? [], resolvedCard.id);
         cardIdsByListId[prev.listId] = fromIds;
-        const toIds = insertCardIdByPosition(cardIdsByListId[card.listId] ?? [], card.id, card.position);
-        cardIdsByListId[card.listId] = toIds;
+        const toIds = insertCardIdByPosition(
+          cardIdsByListId[resolvedCard.listId] ?? [],
+          resolvedCard.id,
+          resolvedCard.position,
+        );
+        cardIdsByListId[resolvedCard.listId] = toIds;
         normalizeListCardPositions(cardsById, prev.listId, fromIds);
-        normalizeListCardPositions(cardsById, card.listId, toIds);
+        normalizeListCardPositions(cardsById, resolvedCard.listId, toIds);
       } else {
-        const nextIds = insertCardIdByPosition(cardIdsByListId[card.listId] ?? [], card.id, card.position);
-        cardIdsByListId[card.listId] = nextIds;
-        normalizeListCardPositions(cardsById, card.listId, nextIds);
+        const nextIds = insertCardIdByPosition(
+          cardIdsByListId[resolvedCard.listId] ?? [],
+          resolvedCard.id,
+          resolvedCard.position,
+        );
+        cardIdsByListId[resolvedCard.listId] = nextIds;
+        normalizeListCardPositions(cardsById, resolvedCard.listId, nextIds);
       }
       return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
     });

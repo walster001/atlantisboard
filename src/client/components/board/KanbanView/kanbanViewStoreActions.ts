@@ -17,9 +17,24 @@ export async function reloadBoardCardsIfAlive(
 }
 
 export function patchCardInRuntime(updated: CardDB): void {
-  const found = useBoardRuntimeStore.getState().cardsById[updated.id];
+  if (updated.id.trim() === '') {
+    return;
+  }
+  const state = useBoardRuntimeStore.getState();
+  const found = state.cardsById[updated.id];
   if (found == null) {
-    void resyncBoardRuntimeFromApi(updated.boardId);
+    if (
+      updated.listId.trim() !== '' &&
+      updated.boardId.trim() !== '' &&
+      state.activeBoardId === updated.boardId
+    ) {
+      useBoardRuntimeStore.getState().upsertCard(updated);
+      return;
+    }
+    const boardId = updated.boardId.trim() !== '' ? updated.boardId : (state.activeBoardId ?? '');
+    if (boardId !== '') {
+      void resyncBoardRuntimeFromApi(boardId);
+    }
     return;
   }
   useBoardRuntimeStore.getState().upsertCard(updated);

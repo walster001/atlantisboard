@@ -191,17 +191,52 @@
 }
 
 /* Shared with attachment fullscreen preview — keep in sync with AttachmentSection */
-video.card-desc-video-player {
+.card-desc-video-player-shell {
+  position: relative;
   display: block;
+  width: 100%;
   max-width: 100%;
   border-radius: var(--mantine-radius-sm);
+  overflow: hidden;
 }
 
-.card-desc-tiptap-editor .ProseMirror video,
-.card-desc-tiptap-read video {
+.card-desc-video-poster-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  background: var(--mantine-color-dark-8, #141517);
+}
+
+video.card-desc-video-player {
+  position: relative;
+  z-index: 0;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
   max-width: 100%;
-  max-height: 480px;
+  height: auto;
+  border-radius: var(--mantine-radius-sm);
+  background: transparent;
+  vertical-align: top;
+}
+
+/* Readonly + editor: full width of description column (no max-height — that shrinks width and leaves side gaps). */
+.card-desc-tiptap-read video.card-desc-video-player,
+.card-desc-tiptap-editor .ProseMirror video.card-desc-video-player {
+  margin: 0;
+}
+
+.card-desc-tiptap-editor .ProseMirror video:not(.card-desc-video-player) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
   margin: 0.5rem 0;
   border-radius: var(--mantine-radius-sm);
 }
@@ -249,6 +284,15 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   flex-direction: column;
   gap: 0.65rem;
   min-width: 0;
+}
+
+.card-desc-tiptap-read--detail video.card-desc-video-player {
+  align-self: stretch;
+}
+
+.card-desc-video-node-view {
+  margin: 0;
+  max-width: 100%;
 }
 
 .card-desc-tiptap-read:not(.card-desc-tiptap-read--detail) > * + * {

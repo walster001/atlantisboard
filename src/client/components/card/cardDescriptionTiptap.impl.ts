@@ -1,4 +1,5 @@
 import { generateText, type Extensions, type JSONContent } from '@tiptap/core';
+import { ReactNodeViewRenderer } from '@tiptap/react';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { Color } from '@tiptap/extension-color';
 import Image from '@tiptap/extension-image';
@@ -16,6 +17,7 @@ import {
 } from './cardDescriptionBlockLineHeight.js';
 import { TwemojiEmoji } from './tiptapTwemojiExtension.js';
 import { TiptapInlineButton } from './tiptapInlineButtonExtension.js';
+import { CardDescriptionVideoNodeView } from './CardDescriptionVideoNodeView.js';
 import { TiptapVideo } from './tiptapVideoExtension.js';
 import {
   countHardBreaksInJson,
@@ -32,6 +34,30 @@ export const emptyCardDescriptionJson: JSONContent = {
 };
 
 let cachedExtensionsReadonly: Extensions | undefined;
+let cachedVideoEditorExtension: Extensions[number] | undefined;
+
+function getTiptapVideoExtension(options: { readonly editorNodeView: boolean }): Extensions[number] {
+  const configured = TiptapVideo.configure({
+    HTMLAttributes: {
+      controls: true,
+      playsinline: true,
+      preload: 'metadata',
+      class: 'card-desc-video-player',
+    },
+  });
+  if (!options.editorNodeView) {
+    return configured;
+  }
+  if (cachedVideoEditorExtension) {
+    return cachedVideoEditorExtension;
+  }
+  cachedVideoEditorExtension = configured.extend({
+    addNodeView() {
+      return ReactNodeViewRenderer(CardDescriptionVideoNodeView);
+    },
+  });
+  return cachedVideoEditorExtension;
+}
 
 /** Extensions for static render, plain-text preview, and validation parity (no placeholder / no limit UI). */
 export function getCardDescriptionExtensions(): Extensions {
@@ -66,14 +92,7 @@ export function getCardDescriptionExtensions(): Extensions {
       minWidth: 80,
       maxWidth: 1400,
     }),
-    TiptapVideo.configure({
-      HTMLAttributes: {
-        controls: true,
-        playsinline: true,
-        preload: 'metadata',
-        class: 'card-desc-video-player',
-      },
-    }),
+    getTiptapVideoExtension({ editorNodeView: false }),
     TiptapInlineButton.configure({
       inline: false,
       minWidth: 80,
@@ -87,8 +106,10 @@ export function getCardDescriptionExtensions(): Extensions {
 
 /** Editor extensions: schema + placeholder. */
 export function getCardDescriptionEditorExtensions(placeholder: string): Extensions {
+  const base = getCardDescriptionExtensions().filter((ext) => ext.name !== 'video');
   return [
-    ...getCardDescriptionExtensions(),
+    ...base,
+    getTiptapVideoExtension({ editorNodeView: true }),
     Placeholder.configure({ placeholder }),
   ];
 }

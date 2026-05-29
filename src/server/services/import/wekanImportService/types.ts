@@ -1,3 +1,8 @@
+import type {
+  WekanInlineButtonImportColorOverrides,
+  WekanInlineButtonImportReplacement,
+} from '../../../../shared/import/wekanLegacyInlineHtml.js';
+
 export interface WekanBoard {
   _id: string;
   title: string;
@@ -121,8 +126,9 @@ export interface WekanCardInsertContext {
   readonly checklistsByCardId: ReadonlyMap<string, WekanChecklist[]>;
   readonly commentsByCardId: ReadonlyMap<string, WekanComment[]>;
   readonly attachmentsByCardId: ReadonlyMap<string, WekanAttachment[]>;
-  readonly replacementByIconSrc: ReadonlyMap<string, string>;
+  readonly replacementByIconSrc: ReadonlyMap<string, WekanInlineButtonImportReplacement>;
   readonly localizedByIconSrc: ReadonlyMap<string, string>;
+  readonly inlineButtonImportColorOverrides: WekanInlineButtonImportColorOverrides;
   readonly defaultUncolouredCardColour: string | undefined;
   readonly userId: string;
 }

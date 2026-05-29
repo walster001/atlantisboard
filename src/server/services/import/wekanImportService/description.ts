@@ -6,6 +6,8 @@ import {
   hasLegacyWekanInlineButtonHtml,
   LEGACY_WEKAN_INLINE_BUTTON_RES,
   wekanLegacyHtmlToCardDescriptionJson,
+  type WekanInlineButtonImportColorOverrides,
+  type WekanInlineButtonImportReplacement,
 } from '../../../../shared/import/wekanLegacyInlineHtml.js';
 
 export function sanitizeImportedPlainText(value: string): string {
@@ -25,10 +27,16 @@ export function sanitizeImportedDescriptionText(value: string): string {
 
 export function wekanDescriptionToCardJson(
   description: string,
-  replacementByIconSrc: ReadonlyMap<string, string>,
+  replacementByIconSrc: ReadonlyMap<string, WekanInlineButtonImportReplacement>,
   localizedByIconSrc: ReadonlyMap<string, string>,
+  globalColorOverrides: WekanInlineButtonImportColorOverrides = {},
 ): string {
-  return wekanLegacyHtmlToCardDescriptionJson(description, replacementByIconSrc, localizedByIconSrc);
+  return wekanLegacyHtmlToCardDescriptionJson(
+    description,
+    replacementByIconSrc,
+    localizedByIconSrc,
+    globalColorOverrides,
+  );
 }
 
 function inferImageMimeFromUrl(url: string): string {
@@ -61,9 +69,12 @@ function resolveFetchableIconUrl(iconSrc: string): string | null {
 
 export async function buildLocalizedInlineIconMap(
   buttons: readonly { iconSrc: string }[],
+  skipIconSrcs: ReadonlySet<string> = new Set(),
 ): Promise<Map<string, string>> {
   const localizedByIconSrc = new Map<string, string>();
-  const uniqueIconSources = [...new Set(buttons.map((b) => b.iconSrc.trim()).filter((s) => s !== ''))];
+  const uniqueIconSources = [
+    ...new Set(buttons.map((b) => b.iconSrc.trim()).filter((s) => s !== '' && !skipIconSrcs.has(s))),
+  ];
   for (const iconSrc of uniqueIconSources) {
     const fetchable = resolveFetchableIconUrl(iconSrc);
     if (fetchable == null) {

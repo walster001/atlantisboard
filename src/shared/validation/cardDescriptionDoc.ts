@@ -364,6 +364,14 @@ function validateNode(node: unknown, depth: number): boolean {
     if (!validateMediaSrc(attrs.src)) {
       return false;
     }
+    if (type === 'video') {
+      const poster = attrs.poster;
+      if (poster !== undefined && poster !== null && poster !== '') {
+        if (typeof poster !== 'string' || !validateMediaSrc(poster)) {
+          return false;
+        }
+      }
+    }
     if (!isAbsentOrEmptyLeafContent(node.content)) {
       return false;
     }

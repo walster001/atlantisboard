@@ -103,6 +103,7 @@ export function buildWekanCardInsertPlainObject(
       wekanCard.description,
       ctx.replacementByIconSrc,
       ctx.localizedByIconSrc,
+      ctx.inlineButtonImportColorOverrides,
     );
     description = descStr !== '' ? descStr : undefined;
     if (description != null && description !== '') {

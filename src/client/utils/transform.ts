@@ -27,6 +27,10 @@ export function extractMongoStringId(value: unknown): string {
     if (typeof o.$oid === 'string' && o.$oid.trim().length > 0) {
       return o.$oid.trim();
     }
+    const fromNestedId = extractMongoStringId(o._id);
+    if (fromNestedId !== '') {
+      return fromNestedId;
+    }
     const toString = (value as { toString?: () => string }).toString;
     if (typeof toString === 'function') {
       const s = toString.call(value);
@@ -411,8 +415,9 @@ export function transformCard(card: unknown): CardDB {
     };
   });
 
-  // Transform attachments
-  const attachments = (c.attachments || []).map((attachment) => {
+  // Transform attachments (socket patches may send a non-array top-level `attachments` value)
+  const attachmentsSource = Array.isArray(c.attachments) ? c.attachments : [];
+  const attachments = attachmentsSource.map((attachment) => {
     const attachmentId = extractMongoStringId(attachment.id) || extractMongoStringId(attachment._id);
     const uploadedBy = extractMongoStringId(attachment.uploadedBy);
     return {
@@ -533,13 +538,23 @@ export function isCardDetailPayload(raw: unknown): boolean {
  * Kanban/list summaries overwrite Dexie via `bulkPut` with sparse rows. Merge preserves
  * detail fields already loaded until a full detail payload arrives.
  */
+function preserveCardPlacementFields(existing: CardDB, incoming: CardDB): CardDB {
+  if (incoming.listId.trim() === '' && existing.listId.trim() !== '') {
+    return { ...incoming, listId: existing.listId };
+  }
+  if (incoming.boardId.trim() === '' && existing.boardId.trim() !== '') {
+    return { ...incoming, boardId: existing.boardId };
+  }
+  return incoming;
+}
+
 export function mergeDexieCardIfSnapshot(
   raw: unknown,
   existing: CardDB | undefined,
   incoming: CardDB,
 ): CardDB {
   if (existing == null || isCardDetailPayload(raw)) {
-    return incoming;
+    return existing != null ? preserveCardPlacementFields(existing, incoming) : incoming;
   }
   return {
     ...existing,
@@ -553,8 +568,18 @@ export function mergeDexieCardIfSnapshot(
   };
 }
 
+/** Preserves kanban placement when API/socket payloads omit or corrupt list/board ids. */
+export interface CardPlacementFallback {
+  readonly listId?: string;
+  readonly boardId?: string;
+}
+
 /** Normalize GET /cards/:id (and similar) responses for UI + Dexie. */
-export function normalizeCardFromApi(raw: unknown, fallbackId?: string): CardDB {
+export function normalizeCardFromApi(
+  raw: unknown,
+  fallbackId?: string,
+  placementFallback?: CardPlacementFallback,
+): CardDB {
   const cardData = transformCard(raw);
   const resolvedId =
     extractMongoStringId(cardData.id) ||
@@ -563,5 +588,13 @@ export function normalizeCardFromApi(raw: unknown, fallbackId?: string): CardDB 
   if (!resolvedId) {
     throw new Error('Card response missing id');
   }
-  return { ...cardData, id: resolvedId };
+  const listId =
+    cardData.listId.trim() !== ''
+      ? cardData.listId
+      : (placementFallback?.listId?.trim() ?? '');
+  const boardId =
+    cardData.boardId.trim() !== ''
+      ? cardData.boardId
+      : (placementFallback?.boardId?.trim() ?? '');
+  return { ...cardData, id: resolvedId, listId, boardId };
 }

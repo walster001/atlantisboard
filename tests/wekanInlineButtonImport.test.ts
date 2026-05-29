@@ -43,5 +43,24 @@ describe('Wekan inlineButton import', () => {
     expect(isValidCardDescriptionDoc(parsed)).toBe(true);
     expect(JSON.stringify(parsed)).toContain('inlineButton');
   });
+
+  it('applies board-wide colour overrides on import', () => {
+    const iconSrc = '/cdn/storage/atlattachments/x/original/x.png';
+    const html =
+      `<span style="border-radius:5px; background-color:#1D2125; padding:4px; position:relative; display:inline-flex;">` +
+      `<img align="center" style="padding-right:5px;" src="${iconSrc}" width="12" height="16">` +
+      `<a style="text-decoration:none; color:#579DFF;" href="http://www.camhqinfo.com/">camhqinfo.com</a>` +
+      `</span>`;
+    const json = wekanDescriptionToCardJson(html, new Map(), new Map(), {
+      textColor: '#FF0000',
+      bgColor: '#00FF00',
+    });
+    const parsed = JSON.parse(json) as {
+      content?: Array<{ type?: string; attrs?: { textColor?: string; bgColor?: string } }>;
+    };
+    const button = parsed.content?.find((n) => n.type === 'inlineButton');
+    expect(button?.attrs?.textColor).toBe('#FF0000');
+    expect(button?.attrs?.bgColor).toBe('#00FF00');
+  });
 });
 

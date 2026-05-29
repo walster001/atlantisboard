@@ -16,7 +16,8 @@ import {
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import { IconPaperclip, IconTrash, IconUpload, IconX } from '@tabler/icons-react';
+import { IconPaperclip, IconPlayerPlay, IconTrash, IconUpload, IconX } from '@tabler/icons-react';
+import { useAttachmentStreamUrl } from '../../hooks/useAttachmentStreamUrl.js';
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
 import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
@@ -56,6 +57,9 @@ export function AttachmentSection({
   const [error, setError] = useState<string | null>(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const [linkPreviewAttachmentId, setLinkPreviewAttachmentId] = useState<string | null>(null);
+  const [linkPreviewStreamUrl, setLinkPreviewStreamUrl] = useState('');
+  const [linkPreviewStreamLoading, setLinkPreviewStreamLoading] = useState(false);
+  const { ensureStreamUrl } = useAttachmentStreamUrl();
   const [linkPreviewImageSize, setLinkPreviewImageSize] = useState<{
     readonly width: number;
     readonly height: number;
@@ -254,10 +258,10 @@ export function AttachmentSection({
     return '📎';
   };
 
-  const resolvedUrls = useMemo(() => {
+  const listImageUrls = useMemo(() => {
     const next: Record<string, string> = {};
     for (const attachment of card.attachments ?? []) {
-      if (!isPlaceholderCardAttachment(attachment)) {
+      if (!isPlaceholderCardAttachment(attachment) && attachment.type.startsWith('image/')) {
         next[attachment.id] = api.getAttachmentFileUrl(attachment.id);
       }
     }
@@ -268,10 +272,7 @@ export function AttachmentSection({
     linkPreviewAttachmentId == null
       ? null
       : card.attachments.find((att) => att.id === linkPreviewAttachmentId) ?? null;
-  const linkPreviewUrl =
-    linkPreviewAttachment == null || isPlaceholderCardAttachment(linkPreviewAttachment)
-      ? ''
-      : (resolvedUrls[linkPreviewAttachment.id] ?? api.resolveAttachmentUrl(linkPreviewAttachment.url));
+  const linkPreviewUrl = linkPreviewStreamUrl;
   const isLinkPreviewImage =
     linkPreviewAttachment != null && linkPreviewAttachment.type.startsWith('image/');
   const isLinkPreviewVideo =
@@ -282,14 +283,42 @@ export function AttachmentSection({
   useEffect(() => {
     setLinkPreviewImageSize(null);
     if (linkPreviewAttachmentId == null) {
+      setLinkPreviewStreamUrl('');
+      setLinkPreviewStreamLoading(false);
       return;
     }
     const att = card.attachments.find((a) => a.id === linkPreviewAttachmentId);
     if (att == null || isPlaceholderCardAttachment(att)) {
       setLinkPreviewAttachmentId(null);
       setLinkPreviewImageSize(null);
+      setLinkPreviewStreamUrl('');
+      return;
     }
-  }, [card.attachments, linkPreviewAttachmentId]);
+
+    let cancelled = false;
+    setLinkPreviewStreamLoading(true);
+    setLinkPreviewStreamUrl('');
+    void ensureStreamUrl(linkPreviewAttachmentId)
+      .then((entry) => {
+        if (!cancelled) {
+          setLinkPreviewStreamUrl(entry.url);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLinkPreviewStreamUrl(api.getAttachmentFileUrl(linkPreviewAttachmentId));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLinkPreviewStreamLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [card.attachments, ensureStreamUrl, linkPreviewAttachmentId]);
 
   useEffect(() => {
     if (!isLinkPreviewImage || linkPreviewUrl.trim() === '') {
@@ -407,7 +436,7 @@ export function AttachmentSection({
                       </Text>
                     ) : (
                     <Image
-                      src={resolvedUrls[attachment.id] ?? api.resolveAttachmentUrl(attachment.url)}
+                      src={listImageUrls[attachment.id] ?? api.resolveAttachmentUrl(attachment.url)}
                       alt={attachment.name}
                       width={160}
                       height={96}
@@ -436,26 +465,12 @@ export function AttachmentSection({
                         No preview — file not in storage
                       </Text>
                     ) : (
-                    <video
-                      src={resolvedUrls[attachment.id] ?? api.resolveAttachmentUrl(attachment.url)}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      controls={false}
-                      disablePictureInPicture
-                      tabIndex={-1}
-                      aria-hidden
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                      }}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        display: 'block',
-                        pointerEvents: 'none',
-                      }}
-                    />
+                      <IconPlayerPlay
+                        size={36}
+                        stroke={1.5}
+                        color="var(--mantine-color-gray-4)"
+                        aria-hidden
+                      />
                     )}
                   </Box>
                 ) : (
@@ -481,7 +496,7 @@ export function AttachmentSection({
                     </Text>
                   ) : (
                   <Anchor
-                    href={resolvedUrls[attachment.id] ?? api.resolveAttachmentUrl(attachment.url)}
+                    href="#"
                     fw={500}
                     onClick={(event) => {
                       event.preventDefault();
@@ -650,7 +665,11 @@ export function AttachmentSection({
             >
               <IconX size={16} aria-hidden />
             </UnstyledButton>
-            {isLinkPreviewImage ? (
+            {linkPreviewStreamLoading ? (
+              <Text size="sm" c="dimmed">
+                Loading preview…
+              </Text>
+            ) : isLinkPreviewImage && linkPreviewUrl.trim() !== '' ? (
               <Box
                 component="img"
                 src={linkPreviewUrl}
@@ -665,7 +684,7 @@ export function AttachmentSection({
                   display: 'block',
                 }}
               />
-            ) : isLinkPreviewVideo ? (
+            ) : isLinkPreviewVideo && linkPreviewUrl.trim() !== '' ? (
               <Box
                 style={{
                   position: 'absolute',
@@ -685,12 +704,12 @@ export function AttachmentSection({
                   className="card-desc-video-player card-desc-video-player--modal-fullscreen"
                   controls
                   playsInline
-                  preload="metadata"
+                  preload="none"
                   src={linkPreviewUrl}
                   title={linkPreviewAttachment.name}
                 />
               </Box>
-            ) : isLinkPreviewPdf ? (
+            ) : isLinkPreviewPdf && linkPreviewUrl.trim() !== '' ? (
               <Box style={{ width: '100%', height: '86vh' }}>
                 <iframe
                   src={linkPreviewUrl}

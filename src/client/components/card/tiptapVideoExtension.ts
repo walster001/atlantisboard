@@ -2,6 +2,7 @@ import { mergeAttributes, Node } from '@tiptap/core';
 
 export interface VideoAttributes {
   src: string;
+  poster?: string | null;
 }
 
 declare module '@tiptap/core' {
@@ -28,10 +29,31 @@ export const TiptapVideo = Node.create({
       src: {
         default: null,
       },
+      poster: {
+        default: null,
+      },
     };
   },
   parseHTML() {
-    return [{ tag: 'video[src]:not([src^="data:"])' }];
+    return [
+      {
+        tag: 'video[src]:not([src^="data:"])',
+        getAttrs: (element) => {
+          if (!(element instanceof HTMLElement)) {
+            return false;
+          }
+          const src = element.getAttribute('src');
+          if (src == null || src.startsWith('data:')) {
+            return false;
+          }
+          const poster = element.getAttribute('poster');
+          return {
+            src,
+            ...(poster != null && poster !== '' ? { poster } : {}),
+          };
+        },
+      },
+    ];
   },
   renderHTML({ HTMLAttributes }) {
     return ['video', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)];

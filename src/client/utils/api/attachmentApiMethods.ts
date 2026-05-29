@@ -1,10 +1,18 @@
 import type { ApiClient } from '../api.js';
 import { API_BASE_URL } from './shared.js';
 
+export type AttachmentDeliveryKind = 'signed' | 'proxy';
+
+export interface AttachmentStreamUrlResponse {
+  readonly url: string;
+  readonly expiresAt: string;
+  readonly delivery: AttachmentDeliveryKind;
+}
+
 export interface AttachmentApiMethods {
   uploadCardAttachment(cardId: string, file: File, onProgress?: (progress: number) => void): Promise<{ attachment: unknown }>;
   deleteCardAttachment(cardId: string, attachmentId: string): Promise<void>;
-  getAttachmentUrl(attachmentId: string): Promise<{ url: string }>;
+  getAttachmentUrl(attachmentId: string): Promise<AttachmentStreamUrlResponse>;
   getAttachmentFileUrl(attachmentId: string): string;
   resolveAttachmentUrl(rawUrl: string): string;
 }
@@ -32,7 +40,7 @@ export const attachmentApiMethods: AttachmentApiMethods = {
 
   async getAttachmentUrl(this: ApiClient, attachmentId) {
     const response = await this.client.get(`/attachments/${attachmentId}/url`);
-    return response.data as { url: string };
+    return response.data as AttachmentStreamUrlResponse;
   },
 
   getAttachmentFileUrl(this: ApiClient, attachmentId) {

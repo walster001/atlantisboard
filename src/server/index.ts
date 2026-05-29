@@ -20,6 +20,10 @@ import { initializeRoleDefinitions } from './services/roleService.js';
 import { initializeBoardThemes } from './services/boardThemeService.js';
 import { dropLegacyUnusedCollections } from './services/startupMigrations.js';
 import { migrateLegacyCardDescriptionHtmlBatch } from './services/migrateLegacyCardDescriptionHtmlJob.js';
+import {
+  getMinioPublicOrigin,
+  isSignedAttachmentDeliveryEnabled,
+} from './config/attachmentDelivery.js';
 import { assertProductionCorsConfig, expressCorsOptions } from './config/cors.js';
 import { assertProductionSecrets } from './utils/productionSecrets.js';
 import { attachCspNonce, getCspNonceFromResponse } from './middleware/cspNonce.js';
@@ -77,6 +81,10 @@ app.use(attachCspNonce);
 // Security middleware — relaxed in dev; strict CSP/HSTS in production
 const isProduction = process.env.NODE_ENV === 'production';
 const appOrigin = (process.env.APP_URL ?? process.env.CORS_ORIGIN ?? '').replace(/\/$/, '');
+const minioPublicOrigin =
+  isSignedAttachmentDeliveryEnabled() ? getMinioPublicOrigin() : null;
+const cspMediaAndConnectExtras =
+  minioPublicOrigin != null && minioPublicOrigin !== '' ? [minioPublicOrigin] : [];
 
 function cspNonceDirective(_req: IncomingMessage, res: ServerResponse): string {
   return `'nonce-${getCspNonceFromResponse(res as express.Response)}'`;
@@ -94,11 +102,16 @@ app.use(
             connectSrc: [
               "'self'",
               ...(appOrigin !== '' ? [appOrigin] : []),
+              ...cspMediaAndConnectExtras,
               'wss:',
             ],
             fontSrc: ["'self'", 'data:'],
             objectSrc: ["'none'"],
-            mediaSrc: ["'self'", ...(appOrigin !== '' ? [appOrigin] : [])],
+            mediaSrc: [
+              "'self'",
+              ...(appOrigin !== '' ? [appOrigin] : []),
+              ...cspMediaAndConnectExtras,
+            ],
             frameSrc: ["'none'"],
             upgradeInsecureRequests: [],
           },

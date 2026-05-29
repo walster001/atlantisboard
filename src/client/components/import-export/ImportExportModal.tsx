@@ -32,6 +32,7 @@ import {
   type ImportPreflightPayload,
   type ImportPreflightResult,
   type InlineButtonIconReplacement,
+  type InlineButtonImportColorOverrides,
 } from '../../../shared/import/importPreflight.js';
 import { ImportUserManagementTab } from './ImportUserManagementTab.js';
 import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
@@ -394,6 +395,8 @@ export function ImportExportModal({
   const [preflight, setPreflight] = useState<ImportPreflightResult | null>(null);
   const [preflightBusy, setPreflightBusy] = useState(false);
   const [inlineButtonReplacements, setInlineButtonReplacements] = useState<InlineButtonIconReplacement[]>([]);
+  const [inlineButtonColorOverrides, setInlineButtonColorOverrides] =
+    useState<InlineButtonImportColorOverrides>({});
   const [importUsersAsPlaceholders, setImportUsersAsPlaceholders] = useState(false);
   const [exportColumns, setExportColumns] = useState<string[]>([
     'title',
@@ -440,6 +443,7 @@ export function ImportExportModal({
   const resetPreflightState = useCallback((): void => {
     setPreflight(null);
     setInlineButtonReplacements([]);
+    setInlineButtonColorOverrides({});
     setImportUsersAsPlaceholders(false);
   }, []);
 
@@ -485,6 +489,7 @@ export function ImportExportModal({
         nextImportType === 'wekan' ? buildWekanImportPreflight(parsed) : buildTrelloImportPreflight(parsed);
       setPreflight(result);
       setInlineButtonReplacements([]);
+      setInlineButtonColorOverrides({});
 
       const hasButtons = nextImportType === 'wekan' && (result.wekanButtons?.buttons.length ?? 0) > 0;
       if (hasButtons) {
@@ -520,7 +525,13 @@ export function ImportExportModal({
             userDecisions: [],
             unmappedUserPolicy: importUsersAsPlaceholders ? 'create_placeholders' : 'discard_unmapped',
             ...(nextImportType === 'wekan'
-              ? { inlineButtonIconReplacements: inlineButtonReplacements }
+              ? {
+                  inlineButtonIconReplacements: inlineButtonReplacements,
+                  ...(inlineButtonColorOverrides.textColor != null ||
+                  inlineButtonColorOverrides.bgColor != null
+                    ? { inlineButtonImportColorOverrides: inlineButtonColorOverrides }
+                    : {}),
+                }
               : {}),
           }
         : undefined;
@@ -921,6 +932,8 @@ export function ImportExportModal({
                 buttons={wekanButtons}
                 replacements={inlineButtonReplacements}
                 onChangeReplacements={(next) => setInlineButtonReplacements([...next])}
+                colorOverrides={inlineButtonColorOverrides}
+                onChangeColorOverrides={setInlineButtonColorOverrides}
               />
             </Suspense>
             </Box>

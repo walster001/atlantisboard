@@ -9,8 +9,9 @@ import { isBlockedSvgUpload } from '../utils/sanitizeHtml.js';
 const BUCKET = MINIO_BUCKET_IMPORT_INLINE;
 const MAX_BYTES = 5 * 1024 * 1024;
 
+/** Matches stored import-inline URLs (with or without the `/api/v1` prefix). */
 const IMPORT_INLINE_OBJECT_STEM_RE =
-  /\/api\/v1\/import-inline\/([a-f0-9-]{36}\.(?:png|jpg|jpeg|webp|svg|ico))\b/gi;
+  /(?:\/api\/v1)?\/import-inline\/([a-f0-9-]{36}\.(?:png|jpg|jpeg|webp|svg|ico))\b/gi;
 
 const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.ico']);
 
@@ -67,6 +68,16 @@ function isMinioNotFound(err: unknown): boolean {
   return code === 'NotFound' || code === 'NoSuchKey';
 }
 
+function addImportInlineObjectStem(stem: string | undefined, into: Set<string>): void {
+  if (stem == null || stem === '') {
+    return;
+  }
+  if (!/^[a-f0-9-]{36}\.(png|jpg|jpeg|webp|svg|ico)$/i.test(stem)) {
+    return;
+  }
+  into.add(stem);
+}
+
 export function collectImportInlineObjectNamesFromText(
   text: string | undefined | null,
   into: Set<string>
@@ -75,10 +86,7 @@ export function collectImportInlineObjectNamesFromText(
     return;
   }
   for (const match of text.matchAll(IMPORT_INLINE_OBJECT_STEM_RE)) {
-    const stem = match[1];
-    if (stem != null && stem !== '') {
-      into.add(stem);
-    }
+    addImportInlineObjectStem(match[1], into);
   }
 }
 

@@ -4,7 +4,14 @@ import {
   stripAttachmentFromDescriptionJsonString,
 } from '../../shared/cardDescriptionAttachmentRefs.js';
 import { MINIO_BUCKET_CARD_ATTACHMENTS } from '../../shared/constants/minioBuckets.js';
-import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
+import {
+  getAttachmentDeliveryMode,
+  getAttachmentSignedUrlTtlSec,
+  resolveAttachmentDeliveryKind,
+  type AttachmentDeliveryKind,
+} from '../config/attachmentDelivery.js';
+import { getMinIOClient, getMinIOPublicPresignClient, initializeMinIOBuckets } from '../config/minio.js';
+import { invalidateAttachmentLocationCache } from './attachmentCache.js';
 import { Card, type ICardAttachment } from '../models/Card.js';
 import type { Types } from 'mongoose';
 import { logger } from '../utils/logger.js';
@@ -37,6 +44,12 @@ export interface AttachmentObjectMeta {
   readonly objectName: string;
   readonly contentType: string;
   readonly size: number;
+}
+
+export interface AttachmentStreamUrlResponse {
+  readonly url: string;
+  readonly expiresAt: string;
+  readonly delivery: AttachmentDeliveryKind;
 }
 
 /** Stat + metadata only (no stream). Use with `openAttachmentReadStream` for ranged responses. */
@@ -345,6 +358,8 @@ export async function deleteCardAttachment(
       await client.removeObject(BUCKET_NAME, objectName);
     }
 
+    await invalidateAttachmentLocationCache(attachmentId);
+
     // Remove from card
     card.attachments = card.attachments.filter((att) => att.id !== attachmentId);
     const coverRaw = typeof card.cover === 'string' ? card.cover : '';
@@ -369,6 +384,44 @@ export async function deleteCardAttachment(
     logger.error({ error, cardId, attachmentId }, 'Error deleting attachment');
     throw error;
   }
+}
+
+/**
+ * Mint a short-lived presigned GET URL (browser uses MinIO host from MINIO_PUBLIC_*).
+ */
+export async function mintAttachmentReadUrl(
+  objectName: string,
+  ttlSec: number,
+): Promise<{ readonly url: string; readonly expiresAt: string }> {
+  const client = getMinIOPublicPresignClient();
+  const url = await client.presignedGetObject(BUCKET_NAME, objectName, ttlSec);
+  const expiresAt = new Date(Date.now() + ttlSec * 1000).toISOString();
+  return { url, expiresAt };
+}
+
+/**
+ * Resolve stream URL for an attachment: presigned MinIO (signed/hybrid) or API proxy fallback.
+ */
+export async function buildAttachmentStreamUrl(
+  attachmentId: string,
+  objectMeta: AttachmentObjectMeta,
+): Promise<AttachmentStreamUrlResponse> {
+  const mode = getAttachmentDeliveryMode();
+  const delivery = resolveAttachmentDeliveryKind({
+    mode,
+    contentType: objectMeta.contentType,
+    size: objectMeta.size,
+  });
+  const ttlSec = getAttachmentSignedUrlTtlSec();
+  if (delivery === 'signed') {
+    const minted = await mintAttachmentReadUrl(objectMeta.objectName, ttlSec);
+    return { ...minted, delivery: 'signed' };
+  }
+  return {
+    url: buildAttachmentProxyUrl(attachmentId),
+    expiresAt: new Date(Date.now() + ttlSec * 1000).toISOString(),
+    delivery: 'proxy',
+  };
 }
 
 /**

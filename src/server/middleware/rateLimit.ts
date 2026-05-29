@@ -96,24 +96,66 @@ function getClientIp(req: Request): string {
   return 'unknown';
 }
 
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseWindowMsFromMinutes(raw: string | undefined, fallbackMinutes: number): number {
+  const minutes = parsePositiveInt(raw, fallbackMinutes);
+  return minutes * 60 * 1000;
+}
+
+function defaultMaxForType(
+  type: 'auth' | 'file' | 'api' | 'attachment_stream' | 'attachment_url_mint' | 'board_background',
+): number {
+  switch (type) {
+    case 'auth':
+      return parsePositiveInt(process.env.RATE_LIMIT_AUTH_ATTEMPTS, 900);
+    case 'file':
+      return parsePositiveInt(process.env.RATE_LIMIT_FILE_UPLOADS, 10);
+    case 'attachment_stream':
+      return parsePositiveInt(process.env.RATE_LIMIT_ATTACHMENT_STREAM_MAX, 600);
+    case 'attachment_url_mint':
+      return parsePositiveInt(process.env.RATE_LIMIT_ATTACHMENT_URL_MINT_MAX, 90);
+    case 'board_background':
+      return 300;
+    default:
+      return parsePositiveInt(process.env.RATE_LIMIT_GENERAL_API, 1000);
+  }
+}
+
+function defaultWindowMsForType(
+  type: 'auth' | 'file' | 'api' | 'attachment_stream' | 'attachment_url_mint' | 'board_background',
+): number {
+  switch (type) {
+    case 'auth':
+      return parseWindowMsFromMinutes(process.env.RATE_LIMIT_AUTH_WINDOW, 1);
+    case 'file':
+      return parseWindowMsFromMinutes(process.env.RATE_LIMIT_FILE_UPLOAD_WINDOW, 1);
+    case 'attachment_stream':
+      return parseWindowMsFromMinutes(process.env.RATE_LIMIT_ATTACHMENT_STREAM_WINDOW, 1);
+    case 'attachment_url_mint':
+      return parseWindowMsFromMinutes(process.env.RATE_LIMIT_ATTACHMENT_URL_MINT_WINDOW, 1);
+    default:
+      return parseWindowMsFromMinutes(process.env.RATE_LIMIT_GENERAL_API_WINDOW, 1);
+  }
+}
+
 // Rate limit configuration helper (can be enhanced to read from AdminConfig)
 
 export function createRateLimiter(
-  type: 'auth' | 'file' | 'api' | 'attachment_stream' | 'board_background',
-  options?: { windowMs?: number; max?: number }
+  type:
+    | 'auth'
+    | 'file'
+    | 'api'
+    | 'attachment_stream'
+    | 'attachment_url_mint'
+    | 'board_background',
+  options?: { windowMs?: number; max?: number },
 ) {
-  const maxRequests =
-    options?.max ??
-    (type === 'auth'
-      ? 900
-      : type === 'file'
-        ? 10
-        : type === 'attachment_stream'
-          ? 600
-          : type === 'board_background'
-            ? 300
-            : 1000);
-  const windowMs = options?.windowMs ?? 60000;
+  const maxRequests = options?.max ?? defaultMaxForType(type);
+  const windowMs = options?.windowMs ?? defaultWindowMsForType(type);
 
   // Create unique store instance for each limiter type (TTL aligned with windowMs — no unbounded keys)
   const store = new RedisStore(redis, `ratelimit:${type}`, windowMs);
@@ -135,11 +177,12 @@ export function createRateLimiter(
       const authReq = req as OptionalAuthRequest;
       logger.warn(
         {
-          type,
+          event: 'rate_limit.exceeded',
+          limiter: type,
           ip: getClientIp(req),
           userId: authReq.user?.id,
         },
-        'Rate limit exceeded'
+        'Rate limit exceeded',
       );
       res.status(429).json({
         error: {
@@ -197,6 +240,8 @@ export const fileUploadRateLimiter = createRateLimiter('file');
 export const apiRateLimiter = createRateLimiter('api');
 /** Throttles authenticated attachment/media GETs (video playback can fan out many requests per client). */
 export const attachmentStreamRateLimiter = createRateLimiter('attachment_stream');
+/** Throttles presigned URL minting (low frequency; distinct from byte streaming). */
+export const attachmentUrlMintRateLimiter = createRateLimiter('attachment_url_mint');
 /** Board background CDN-style GET is public; limit by caller IP + optional user key. */
 export const boardBackgroundDownloadRateLimiter = createRateLimiter('board_background');
 

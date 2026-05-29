@@ -8,6 +8,7 @@ import {
   parseCardDescriptionJson,
 } from './cardDescriptionTiptap.js';
 import { renderCardDescriptionTwemojiStaticNode } from './twemojiStaticNodeRender.js';
+import { renderCardDescriptionVideoStaticNode } from './cardDescriptionVideoStaticNode.js';
 import './cardDescriptionTiptap.css';
 
 export interface CardDescriptionReadonlyProps {
@@ -46,6 +47,7 @@ function CardDescriptionReadonlyInner({ valueJson, valueHtml }: CardDescriptionR
       options: {
         nodeMapping: {
           twemojiEmoji: renderCardDescriptionTwemojiStaticNode,
+          video: renderCardDescriptionVideoStaticNode,
         },
       },
     });

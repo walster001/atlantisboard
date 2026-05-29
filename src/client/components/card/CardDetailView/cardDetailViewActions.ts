@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios';
 import { notifications } from '@mantine/notifications';
 import {
   cardCoverReferencesAttachment,
+  collectAttachmentIdsFromDescriptionJson,
   collectReferencedAttachmentIdsFromDescriptionJson,
   stripAttachmentFromDescriptionJsonString,
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
@@ -98,7 +99,10 @@ export async function runBeforeDeleteAttachment({
     ...(isCover ? { cover: '' } : {}),
   });
   try {
-    const normalized = normalizeCardFromApi((response as { card: unknown }).card, currentCard.id);
+    const normalized = normalizeCardFromApi((response as { card: unknown }).card, currentCard.id, {
+      listId: currentCard.listId,
+      boardId: currentCard.boardId,
+    });
     const editor = descriptionEditorRef.current;
     if (editor != null && !editor.isDestroyed) {
       editor.commands.setContent(parseCardDescriptionJson(descriptionPayload));
@@ -122,16 +126,22 @@ export async function runDescriptionUpdate({
   const doc = parseCardDescriptionJson(serialized.jsonString);
   const isEmpty = isCardDescriptionEmpty(doc);
   const descriptionPayload = isEmpty ? '' : serialized.jsonString;
-  const previousAttachmentIds = collectReferencedAttachmentIdsFromDescriptionJson(
-    card.description ?? '',
-    card.attachments,
-  );
-  const nextAttachmentIds = collectReferencedAttachmentIdsFromDescriptionJson(
-    isEmpty ? '' : serialized.jsonString,
-    card.attachments,
-  );
-  const attachmentIdsRemovedFromDescription = [...previousAttachmentIds].filter((id) => !nextAttachmentIds.has(id));
+  const previousAttachmentIds = new Set<string>([
+    ...collectAttachmentIdsFromDescriptionJson(card.description ?? ''),
+    ...collectReferencedAttachmentIdsFromDescriptionJson(card.description ?? '', card.attachments),
+  ]);
   const response = await api.updateCard(card.id, { description: descriptionPayload });
+
+  let normalized = normalizeCardFromApi((response as { card: unknown }).card, card.id, {
+    listId: card.listId,
+    boardId: card.boardId,
+  });
+  const descriptionForNextRefs = isEmpty ? '' : serialized.jsonString;
+  const nextAttachmentIds = new Set<string>([
+    ...collectAttachmentIdsFromDescriptionJson(descriptionForNextRefs),
+    ...collectReferencedAttachmentIdsFromDescriptionJson(descriptionForNextRefs, normalized.attachments),
+  ]);
+  const attachmentIdsRemovedFromDescription = [...previousAttachmentIds].filter((id) => !nextAttachmentIds.has(id));
 
   for (const attachmentId of attachmentIdsRemovedFromDescription) {
     try {
@@ -141,11 +151,13 @@ export async function runDescriptionUpdate({
     }
   }
 
-  let normalized = normalizeCardFromApi((response as { card: unknown }).card, card.id);
   if (attachmentIdsRemovedFromDescription.length > 0) {
     try {
       const refresh = await api.getCard(card.id);
-      normalized = normalizeCardFromApi((refresh as { card: unknown }).card, card.id);
+      normalized = normalizeCardFromApi((refresh as { card: unknown }).card, card.id, {
+        listId: card.listId,
+        boardId: card.boardId,
+      });
     } catch (error) {
       console.error('Failed to refresh card after attachment cleanup:', error);
     }

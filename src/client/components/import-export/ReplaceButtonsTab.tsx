@@ -1,8 +1,11 @@
-import { memo, useCallback, useMemo, useRef } from 'react';
+import { memo, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Alert,
+  Box,
   Button,
+  ColorInput,
   Group,
+  Modal,
   Paper,
   Stack,
   Text,
@@ -11,15 +14,35 @@ import {
 import { IconPhotoOff } from '@tabler/icons-react';
 import type {
   InlineButtonIconReplacement,
+  InlineButtonImportColorOverrides,
   WekanLegacyInlineButtonCandidate,
 } from '../../../shared/import/importPreflight.js';
+import { extractWekanLegacyInlineButtonColorsFromHtml } from '../../../shared/import/wekanLegacyInlineHtml.js';
 import { readImageAsDataUrl } from '../../utils/readImageAsDataUrl.js';
+import { BoardColourPickerPanel } from '../board/BoardColourPickerPanel.js';
+import {
+  BOARD_PRESET_COLOURS,
+  normalizePresetHex,
+} from '../../constants/boardPresetColors.js';
+import { loginBrandingColorInputProps } from '../../constants/loginBrandingColorInputProps.js';
+import {
+  KB_IOS_MODAL_HEADER_SAFE_CLASS,
+  modalStylesFullscreenSafeBody,
+} from '../../constants/iosModalSafeArea.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 
 interface ReplaceButtonsTabProps {
   readonly buttons: readonly WekanLegacyInlineButtonCandidate[];
   readonly replacements: readonly InlineButtonIconReplacement[];
   readonly onChangeReplacements: (next: readonly InlineButtonIconReplacement[]) => void;
+  readonly colorOverrides: InlineButtonImportColorOverrides;
+  readonly onChangeColorOverrides: (next: InlineButtonImportColorOverrides) => void;
 }
+
+type ColourField = 'textColor' | 'bgColor';
+
+const DEFAULT_PREVIEW_TEXT = '#579DFF';
+const DEFAULT_PREVIEW_BG = '#1D2125';
 
 function uniqueByIconSrc(
   buttons: readonly WekanLegacyInlineButtonCandidate[],
@@ -37,13 +60,72 @@ function uniqueByIconSrc(
   return out;
 }
 
+function resolveImportDefaultLabel(
+  buttons: readonly WekanLegacyInlineButtonCandidate[],
+  field: ColourField,
+): string {
+  const values = new Set<string>();
+  for (const button of buttons) {
+    const value = extractWekanLegacyInlineButtonColorsFromHtml(button.originalHtml)[field];
+    if (value != null && value.trim() !== '') {
+      values.add(value.trim());
+    }
+  }
+  if (values.size === 1) {
+    return [...values][0] ?? 'Use import default';
+  }
+  if (values.size > 1) {
+    return 'Varies by button';
+  }
+  return 'Use import default';
+}
+
+function upsertReplacement(
+  replacements: readonly InlineButtonIconReplacement[],
+  iconSrc: string,
+  replacementDataUrl: string,
+): readonly InlineButtonIconReplacement[] {
+  const filtered = replacements.filter((r) => r.iconSrc !== iconSrc);
+  const trimmed = replacementDataUrl.trim();
+  if (trimmed === '') {
+    return filtered;
+  }
+  return [...filtered, { iconSrc, replacementDataUrl: trimmed }];
+}
+
+function noColourSwatch(): ReactNode {
+  return (
+    <Box
+      aria-hidden
+      style={{
+        width: 'var(--ci-preview-size)',
+        height: 'var(--ci-preview-size)',
+        borderRadius: 'var(--mantine-radius-sm)',
+        border: '1px solid var(--mantine-color-gray-4)',
+        background: 'repeating-linear-gradient(45deg, #f1f3f5 0 4px, #e9ecef 4px 8px)',
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
 export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
   buttons,
   replacements,
   onChangeReplacements,
+  colorOverrides,
+  onChangeColorOverrides,
 }: ReplaceButtonsTabProps) {
   const uniqueButtons = useMemo(() => uniqueByIconSrc(buttons), [buttons]);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const responsiveTier = useResponsiveTier();
+  const colourModalFullScreen = responsiveTier === 'mobile';
+
+  const [colourModalField, setColourModalField] = useState<ColourField | null>(null);
+  const [pickerDraftHex, setPickerDraftHex] = useState(() =>
+    normalizePresetHex(DEFAULT_PREVIEW_TEXT, BOARD_PRESET_COLOURS),
+  );
+  const [pickerDraftUseImportDefault, setPickerDraftUseImportDefault] = useState(true);
 
   const replacementByIcon = useMemo(() => {
     const map = new Map<string, InlineButtonIconReplacement>();
@@ -53,15 +135,66 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
     return map;
   }, [replacements]);
 
-  const handlePick = useCallback(async (iconSrc: string, file: File): Promise<void> => {
-    const dataUrl = await readImageAsDataUrl(file);
+  const textImportDefaultLabel = useMemo(
+    () => resolveImportDefaultLabel(uniqueButtons, 'textColor'),
+    [uniqueButtons],
+  );
+  const bgImportDefaultLabel = useMemo(
+    () => resolveImportDefaultLabel(uniqueButtons, 'bgColor'),
+    [uniqueButtons],
+  );
 
-    const filtered = replacements.filter((r) => r.iconSrc !== iconSrc);
-    onChangeReplacements([
-      ...filtered,
-      { iconSrc, replacementDataUrl: dataUrl },
-    ]);
-  }, [onChangeReplacements, replacements]);
+  const openColourModal = useCallback(
+    (field: ColourField): void => {
+      const current = colorOverrides[field]?.trim() ?? '';
+      const importFallback =
+        field === 'textColor' ? DEFAULT_PREVIEW_TEXT : DEFAULT_PREVIEW_BG;
+      setPickerDraftHex(
+        normalizePresetHex(current || importFallback, BOARD_PRESET_COLOURS),
+      );
+      setPickerDraftUseImportDefault(current === '');
+      setColourModalField(field);
+    },
+    [colorOverrides],
+  );
+
+  const handlePick = useCallback(
+    async (iconSrc: string, file: File): Promise<void> => {
+      const dataUrl = await readImageAsDataUrl(file);
+      onChangeReplacements(upsertReplacement(replacements, iconSrc, dataUrl));
+    },
+    [onChangeReplacements, replacements],
+  );
+
+  const saveColourModal = useCallback((): void => {
+    if (colourModalField == null) {
+      return;
+    }
+    const textColor =
+      colourModalField === 'textColor'
+        ? pickerDraftUseImportDefault
+          ? undefined
+          : pickerDraftHex.trim()
+        : colorOverrides.textColor?.trim();
+    const bgColor =
+      colourModalField === 'bgColor'
+        ? pickerDraftUseImportDefault
+          ? undefined
+          : pickerDraftHex.trim()
+        : colorOverrides.bgColor?.trim();
+    const next: InlineButtonImportColorOverrides = {
+      ...(textColor != null && textColor !== '' ? { textColor } : {}),
+      ...(bgColor != null && bgColor !== '' ? { bgColor } : {}),
+    };
+    onChangeColorOverrides(next);
+    setColourModalField(null);
+  }, [
+    colorOverrides,
+    colourModalField,
+    onChangeColorOverrides,
+    pickerDraftHex,
+    pickerDraftUseImportDefault,
+  ]);
 
   if (uniqueButtons.length === 0) {
     return (
@@ -71,15 +204,75 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
     );
   }
 
+  const colourModalTitle =
+    colourModalField === 'textColor'
+      ? 'Text colour for all imported buttons'
+      : colourModalField === 'bgColor'
+        ? 'Background colour for all imported buttons'
+        : '';
+
   return (
     <Stack gap="md">
       <Alert color="blue" radius="md">
         Found {uniqueButtons.length} unique legacy inline button icon reference(s). Upload replacement icons
-        now so imported inline buttons use valid image sources.
+        per button below. Text and background colours apply to every legacy button on this import; leave them
+        unset to keep each button&apos;s Wekan styles.
       </Alert>
+
+      <Paper withBorder radius="md" p="md">
+        <Stack gap="sm">
+          <Text size="sm" fw={600}>
+            Button colours (all buttons)
+          </Text>
+          <Group grow align="flex-end" wrap="wrap">
+            <ColorInput
+              label="Text colour"
+              placeholder={textImportDefaultLabel}
+              disallowInput
+              fixOnBlur={false}
+              {...loginBrandingColorInputProps}
+              withEyeDropper
+              popoverProps={{ opened: false }}
+              value={colorOverrides.textColor?.trim() ?? ''}
+              onChange={() => undefined}
+              leftSection={
+                colorOverrides.textColor == null || colorOverrides.textColor.trim() === ''
+                  ? noColourSwatch()
+                  : undefined
+              }
+              onClick={() => openColourModal('textColor')}
+              styles={{ input: { cursor: 'pointer' } }}
+            />
+            <ColorInput
+              label="Background colour"
+              placeholder={bgImportDefaultLabel}
+              disallowInput
+              fixOnBlur={false}
+              {...loginBrandingColorInputProps}
+              withEyeDropper
+              popoverProps={{ opened: false }}
+              value={colorOverrides.bgColor?.trim() ?? ''}
+              onChange={() => undefined}
+              leftSection={
+                colorOverrides.bgColor == null || colorOverrides.bgColor.trim() === ''
+                  ? noColourSwatch()
+                  : undefined
+              }
+              onClick={() => openColourModal('bgColor')}
+              styles={{ input: { cursor: 'pointer' } }}
+            />
+          </Group>
+        </Stack>
+      </Paper>
 
       {uniqueButtons.map((button) => {
         const replacement = replacementByIcon.get(button.iconSrc);
+        const importColors = extractWekanLegacyInlineButtonColorsFromHtml(button.originalHtml);
+        const previewTextColor =
+          colorOverrides.textColor?.trim() || importColors.textColor || DEFAULT_PREVIEW_TEXT;
+        const previewBgColor =
+          colorOverrides.bgColor?.trim() || importColors.bgColor || DEFAULT_PREVIEW_BG;
+
         return (
           <Paper key={button.iconSrc} withBorder radius="md" p="md">
             <Stack gap="xs">
@@ -94,6 +287,12 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
                   rel="noopener noreferrer"
                   size="xs"
                   variant="light"
+                  styles={{
+                    root: {
+                      color: previewTextColor,
+                      backgroundColor: previewBgColor,
+                    },
+                  }}
                   leftSection={
                     replacement?.replacementDataUrl ? (
                       <img
@@ -120,6 +319,14 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
                   {button.iconSrc}
                 </Text>
               </Text>
+              {importColors.textColor != null || importColors.bgColor != null ? (
+                <Text size="xs" c="dimmed">
+                  Import colours:{' '}
+                  {importColors.textColor != null ? `text ${importColors.textColor}` : ''}
+                  {importColors.textColor != null && importColors.bgColor != null ? ', ' : ''}
+                  {importColors.bgColor != null ? `background ${importColors.bgColor}` : ''}
+                </Text>
+              ) : null}
               {button.cardTitle ? (
                 <Text size="xs" c="dimmed">
                   Example card: {button.cardTitle}
@@ -147,17 +354,52 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
                     fileRefs.current[button.iconSrc]?.click();
                   }}
                 >
-                  {replacement ? 'Change icon' : 'Upload replacement icon'}
+                  {replacement?.replacementDataUrl ? 'Change icon' : 'Upload replacement icon'}
                 </Button>
-                <Text size="xs" c={replacement ? 'green' : 'dimmed'}>
-                  {replacement ? 'Uploaded' : 'Not uploaded'}
+                <Text size="xs" c={replacement?.replacementDataUrl ? 'green' : 'dimmed'}>
+                  {replacement?.replacementDataUrl ? 'Uploaded' : 'Not uploaded'}
                 </Text>
               </Group>
             </Stack>
           </Paper>
         );
       })}
+
+      <Modal
+        opened={colourModalField != null}
+        onClose={() => setColourModalField(null)}
+        title={colourModalTitle}
+        centered={!colourModalFullScreen}
+        size="lg"
+        fullScreen={colourModalFullScreen}
+        classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
+        styles={modalStylesFullscreenSafeBody(colourModalFullScreen)}
+        radius="md"
+        zIndex={520}
+        overlayProps={{ backgroundOpacity: 0.45 }}
+        padding="lg"
+      >
+        <Stack gap="md">
+          <BoardColourPickerPanel
+            value={pickerDraftHex}
+            onChange={(hex) => {
+              setPickerDraftHex(hex);
+              setPickerDraftUseImportDefault(false);
+            }}
+            onClearColor={() => setPickerDraftUseImportDefault(true)}
+            noColorSelected={pickerDraftUseImportDefault}
+            sectionLabel=""
+          />
+          <Group justify="flex-end" gap="sm" mt="md">
+            <Button variant="default" radius="md" onClick={() => setColourModalField(null)}>
+              Cancel
+            </Button>
+            <Button radius="md" onClick={saveColourModal}>
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 });
-

@@ -314,12 +314,18 @@ async function flushPendingCardPatchedEvents(): Promise<void> {
             }
             const patched: Record<string, unknown> = { ...existing };
             for (const [key, value] of Object.entries(event.changedFields)) {
+              if (key === 'attachments' && !Array.isArray(value)) {
+                continue;
+              }
               patched[key] = value;
             }
             for (const key of event.removedFields) {
               delete patched[key];
             }
-            const normalized = normalizeCardFromApi(patched, event.cardId);
+            const normalized = normalizeCardFromApi(patched, event.cardId, {
+              listId: existing.listId,
+              boardId: existing.boardId,
+            });
             if (isRedundantCardSocketPayload(event.cardId, normalized)) {
               return null;
             }

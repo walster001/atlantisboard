@@ -4,30 +4,33 @@
 set -euo pipefail
 
 atl_apply_theme() {
-  # Blue / white / aqua palette inspired by Atlantis Leadership branding.
+  # Atlantis Leadership palette: blue background, white body text, cyan accent on focus.
+  # label= is required for whiptail --msgbox body text (without it, distro defaults = unreadable).
+  unset NEWT_COLORS_FILE
   export NEWT_COLORS='
-root=,white,blue
-window=white,blue
-border=,white,blue
-title=,white,blue
-textbox=,white,blue
-button=,white,blue
-actbutton=,black,cyan
-compactbutton=,white,blue
-actcompactbutton=,black,cyan
-entry=,white,blue
-actentry=,black,cyan
-listbox=,white,blue
-actlistbox=,black,cyan
-actsellistbox=,black,cyan
-sellslistbox=,white,blue
-checkbox=,white,blue
-actcheckbox=,black,cyan
-shadow=,black,black
-helpline=,cyan,blue
-roottext=,white,blue
-disentry=,white,blue
-actdisentry=,black,cyan
+root=,blue
+window=,blue
+border=white,blue
+shadow=,black
+title=white,blue
+roottext=white,blue
+label=white,blue
+textbox=white,blue
+acttextbox=white,blue
+helpline=white,blue
+button=white,blue
+actbutton=black,cyan
+compactbutton=white,blue
+actcompactbutton=black,cyan
+entry=white,blue
+actentry=black,cyan
+disentry=,blue
+listbox=white,blue
+actlistbox=black,cyan
+sellslistbox=white,blue
+actsellistbox=black,cyan
+checkbox=white,blue
+actcheckbox=black,cyan
 '
 }
 
@@ -47,8 +50,17 @@ atl_require_cmd() {
   fi
 }
 
+atl_sanitize_input() {
+  local val="$1"
+  val="${val//$'\r'/}"
+  val="${val#"${val%%[![:space:]]*}"}"
+  val="${val%"${val##*[![:space:]]}"}"
+  printf '%s' "$val"
+}
+
 atl_validate_value() {
   local val="$1" vtype="${2:-}" optional="${3:-false}"
+  val="$(atl_sanitize_input "$val")"
 
   if [[ -z "$val" ]]; then
     [[ "$optional" == "true" ]] && return 0
@@ -90,7 +102,7 @@ atl_validate_value() {
       [[ "$val" =~ ^mongodb(\+srv)?:// ]]
       ;;
     install_dir)
-      [[ "$val" == /* ]] && [[ "$val" != "/" ]] && [[ ! "$val" =~ [[:space:]] ]]
+      [[ "$val" == /* ]] && [[ "$val" != "/" ]]
       ;;
     google_client_id)
       [[ "$val" =~ \.apps\.googleusercontent\.com$ ]]
@@ -167,6 +179,7 @@ atl_prompt_validated() {
     else
       current="$(whiptail --inputbox "$prompt_text" 14 78 "$current" 3>&2 1>&2)" || return 1
     fi
+    current="$(atl_sanitize_input "$current")"
 
     if atl_validate_value "$current" "$vtype" "$optional"; then
       ENV_VALUES["$key"]="$current"
@@ -295,13 +308,17 @@ atl_prompt_install_dir() {
     current="$(whiptail --title "Install location" --inputbox \
       "Where should Atlantisboard be installed?\n\nUse an absolute path. Default: ${default}" \
       12 78 "$default" 3>&2 1>&2)" || exit 1
+    current="$(atl_sanitize_input "$current")"
     current="${current%/}"
+    if [[ -z "$current" ]]; then
+      current="$default"
+    fi
     if atl_validate_value "$current" "install_dir" "false"; then
       INSTALL_DIR="$current"
       valid=true
     else
       err_msg="$(atl_validation_message install_dir)"
-      whiptail --title "Invalid path" --msgbox "$err_msg" 10 70 || true
+      whiptail --title "Invalid path" --msgbox "${err_msg}\n\nYou entered: ${current:-(empty)}" 12 70 || true
     fi
   done
 }

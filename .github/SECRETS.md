@@ -31,6 +31,8 @@ openssl rand -base64 48
 - `release-installer-zip.sh` → `atlantisboard-<version>.zip` (Whiptail wizard + full-stack Docker)
 - `release-bundle.sh --no-checks --skip-build` → `atlantisboard-<version>-runtime.zip` (manual install only)
 
+Workflow uploads **two separate artifacts** (`atlantisboard-<version>-installer` and `atlantisboard-<version>-runtime`), each containing one zip — not a single artifact with both zips nested inside.
+
 Ensure **CI** is green on the selected branch/ref first. Staging does not re-run the full verify job.
 
 ## npm publish (production) — OIDC trusted publisher, not `NPM_TOKEN`

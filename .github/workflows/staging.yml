@@ -1,6 +1,7 @@
 name: Staging
 
 # Build installer + runtime zips on demand (Actions → Staging → Run workflow). Run after CI is green on the target ref.
+# Uploads two separate workflow artifacts (installer zip and runtime zip), not one bundle containing both.
 on:
   workflow_dispatch:
 
@@ -27,10 +28,18 @@ jobs:
           ./scripts/build-npm-package.sh
           ./scripts/release-installer-zip.sh
           ./scripts/release-bundle.sh --no-checks --skip-build
-      - name: Upload staging artifacts
+      - name: Resolve release version
+        id: ver
+        run: echo "version=$(bun -e 'console.log((await Bun.file("package.json").json()).version)')" >> "$GITHUB_OUTPUT"
+      - name: Upload installer zip artifact
         uses: actions/upload-artifact@v4
         with:
-          name: atlantisboard-staging-${{ github.sha }}
-          path: |
-            release/atlantisboard-*.zip
+          name: atlantisboard-${{ steps.ver.outputs.version }}-installer
+          path: release/atlantisboard-${{ steps.ver.outputs.version }}.zip
+          retention-days: 30
+      - name: Upload runtime zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlantisboard-${{ steps.ver.outputs.version }}-runtime
+          path: release/atlantisboard-${{ steps.ver.outputs.version }}-runtime.zip
           retention-days: 30

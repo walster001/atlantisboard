@@ -13,7 +13,7 @@ export function useDateField(isoDate: Date | string | null | undefined): DateFie
   const timeKey = isoDate != null ? new Date(isoDate).getTime() : 0;
   const localFromCard = useMemo(
     () => (isoDate != null ? toDatetimeLocalValue(new Date(isoDate)) : ''),
-    [timeKey, isoDate],
+    [isoDate],
   );
   const [override, setOverride] = useState<string | null>(null);
   const value = override ?? localFromCard;

@@ -271,5 +271,5 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
       stopAutoScroll();
       cleanupMonitor();
     };
-  }, [kanbanDropCtxRef, setDraggingCardId, setDraggingListId, setListDropIndicatorIfChanged]);
+  }, [carouselEdgeBumpRef, kanbanDropCtxRef, setDraggingCardId, setDraggingListId, setListDropIndicatorIfChanged]);
 }

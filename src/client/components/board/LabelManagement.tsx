@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import {
   Modal,
   TextInput,
@@ -43,20 +43,7 @@ export function LabelManagement({ boardId, layout = 'default' }: LabelManagement
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingLabel, setEditingLabel] = useState<Label | null>(null);
 
-  useEffect(() => {
-    loadLabels();
-  }, [boardId]);
-
-  useEffect(() => {
-    return subscribeSocketBoardLabelsChanged(({ boardId: changedId }) => {
-      if (changedId !== boardId) {
-        return;
-      }
-      void loadLabels();
-    });
-  }, [boardId]);
-
-  const loadLabels = async () => {
+  const loadLabels = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.getBoardLabels(boardId);
@@ -66,7 +53,20 @@ export function LabelManagement({ boardId, layout = 'default' }: LabelManagement
     } finally {
       setLoading(false);
     }
-  };
+  }, [boardId]);
+
+  useEffect(() => {
+    void loadLabels();
+  }, [loadLabels]);
+
+  useEffect(() => {
+    return subscribeSocketBoardLabelsChanged(({ boardId: changedId }) => {
+      if (changedId !== boardId) {
+        return;
+      }
+      void loadLabels();
+    });
+  }, [boardId, loadLabels]);
 
   const handleDelete = (labelId: string) => {
     modals.openConfirmModal({

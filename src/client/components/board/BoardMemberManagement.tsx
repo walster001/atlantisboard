@@ -805,9 +805,9 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
   boardRef.current = board;
 
   const owner = board?.ownerId ? extractUser(board.ownerId) : null;
-  const members = board?.members ?? [];
 
   const sortedMemberPanelRows = useMemo((): MemberPanelRow[] => {
+    const members = board?.members ?? [];
     const rows: MemberPanelRow[] = [];
     if (owner !== null && owner.importPlaceholder !== true) {
       rows.push({ kind: 'owner', user: owner });
@@ -825,7 +825,7 @@ export function BoardMemberManagement({ boardId }: BoardMemberManagementProps) {
       return compareUserRowsByDisplayName(ua, ub);
     });
     return rows;
-  }, [owner, members]);
+  }, [board?.members, owner]);
 
   const filteredMemberPanelRows = useMemo((): MemberPanelRow[] => {
     if (memberRoleFilter == null) {

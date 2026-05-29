@@ -144,7 +144,7 @@ export function AssigneeSection({ card, boardId, canEdit = true, onCardUpdate }:
       }
       return { adds, removes };
     });
-  }, [assigneeMembershipKey]);
+  }, [assigneeMembershipKey, card.assignees]);
 
   const sortedMembers = useMemo(
     () => [...boardMembers].sort(compareMembersByDisplayName),
@@ -171,7 +171,7 @@ export function AssigneeSection({ card, boardId, canEdit = true, onCardUpdate }:
       s.add(id);
     }
     return [...s];
-  }, [assigneeMembershipKey, assigneePending]);
+  }, [assigneePending, card.assignees]);
 
   const handleToggleAssignee = async (userId: string) => {
     if (!canEdit) {

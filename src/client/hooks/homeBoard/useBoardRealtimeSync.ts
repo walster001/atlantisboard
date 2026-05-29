@@ -90,7 +90,7 @@ export function useBoardRealtimeSync(options: UseBoardRealtimeSyncOptions): {
       unsubWsCreated();
       unsubWsDeleted();
     };
-  }, []);
+  }, [isMountedRef]);
 
   return {
     allBoards,

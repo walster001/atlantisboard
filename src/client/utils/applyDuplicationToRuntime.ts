@@ -1,4 +1,4 @@
-import type { CardDB, ListDB } from '../store/database.js';
+import type { CardDB } from '../store/database.js';
 import { useBoardRuntimeStore } from '../store/boardRuntimeStore.js';
 import { persistDexieCardPut, persistDexieListPut } from '../store/boardDexieCache.js';
 import { normalizeCardFromApi, transformList } from './transform.js';

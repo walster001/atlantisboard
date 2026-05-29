@@ -166,16 +166,7 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
       }
       return { adds, removes };
     });
-  }, [labelIdsMembershipKey]);
-
-  const cardLabelsContentKey = useMemo(
-    () =>
-      [...card.labels]
-        .map((l) => `${l.id}\t${l.name}\t${l.color}`)
-        .sort((a, b) => a.localeCompare(b))
-        .join('\n'),
-    [card.labels],
-  );
+  }, [card.labels, labelIdsMembershipKey]);
 
   const displayCardLabels = useMemo((): CardDB['labels'] => {
     const list: CardDB['labels'] = card.labels.filter((l) => !labelPending.removes.has(l.id));
@@ -191,7 +182,7 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
       }
     }
     return list;
-  }, [cardLabelsContentKey, labelPending, labels]);
+  }, [card.labels, labelPending, labels]);
 
   const handleToggleLabel = async (labelId: string) => {
     if (!canEdit) {

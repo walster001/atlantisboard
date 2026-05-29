@@ -144,7 +144,7 @@ export function AppBrandingProvider({ children }: { readonly children: ReactNode
       return;
     }
     link.href = resolveBrowserTabFaviconHref(branding);
-  }, [loginBrandingReady, branding.faviconEnabled, branding.faviconUrl]);
+  }, [loginBrandingReady, branding]);
 
   const value = useMemo(
     (): AppBrandingContextValue => ({

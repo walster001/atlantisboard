@@ -79,7 +79,7 @@ export function ChecklistSection({ card, canEdit = true, onCardUpdate }: Checkli
       }
       return next.size === prev.size ? prev : next;
     });
-  }, [checklistCompletionSignature]);
+  }, [checklistCompletionSignature, card]);
 
   const [checklistRename, setChecklistRename] = useState<{ checklistId: string; draft: string } | null>(
     null,
@@ -380,7 +380,7 @@ export function ChecklistSection({ card, canEdit = true, onCardUpdate }: Checkli
         }
       });
     }
-  }, [itemRename?.itemId]);
+  }, [itemRename]);
 
   return (
     <Stack gap="xs">

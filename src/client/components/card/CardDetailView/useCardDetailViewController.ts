@@ -184,8 +184,9 @@ export function useCardDetailViewController({
   }, [initialCard, isEditing, isEditingDescription]);
 
   useEffect(() => {
+    const pendingMedia = pendingDescriptionMediaRef.current;
     return () => {
-      discardPendingDescriptionMedia(pendingDescriptionMediaRef.current);
+      discardPendingDescriptionMedia(pendingMedia);
     };
   }, []);
 

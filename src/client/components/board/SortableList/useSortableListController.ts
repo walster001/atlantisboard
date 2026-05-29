@@ -14,7 +14,6 @@ import { useBoardRuntimeStore } from '../../../store/boardRuntimeStore.js';
 import { useBoardInteractionStore } from '../boardInteractionStore.js';
 import {
   getBoardListColumnWidthChrome,
-  getBoardListColumnWidthPx,
 } from '../../../utils/boardListColumnWidth.js';
 import {
   boardShowsDueDateOnCards,
@@ -278,8 +277,7 @@ export function useSortableListController(props: SortableListProps): SortableLis
     setRenameCardLoading,
   });
 
-  const listColumnWidthPx = getBoardListColumnWidthPx(board);
-  const widthChrome = useMemo(() => getBoardListColumnWidthChrome(board), [listColumnWidthPx, board]);
+  const widthChrome = useMemo(() => getBoardListColumnWidthChrome(board), [board]);
   const listSourceDrag = draggingListId === list.id;
   const columnClassName = `${widthChrome.columnClassName}${
     listSourceDrag ? ' board-column--list-dragging-source' : ''

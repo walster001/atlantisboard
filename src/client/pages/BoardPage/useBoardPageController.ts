@@ -236,7 +236,7 @@ export function useBoardPageController({
     overlayCardId != null && overlayInitialCard?.id === overlayCardId ? overlayInitialCard : undefined;
   const boardThemeStyle = useMemo(
     () => (board != null ? getBoardPageThemeStyle(board) : undefined),
-    [board?.themeSettings, board?.background],
+    [board],
   );
 
   return {

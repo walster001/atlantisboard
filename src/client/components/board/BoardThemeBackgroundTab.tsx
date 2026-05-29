@@ -265,7 +265,7 @@ export function BoardThemeBackgroundTab({
     ).catch(() => {
       setError('Failed to save app-wide custom theme copy');
     });
-  }, [appCustomThemes, canManageCustomThemes]);
+  }, [appCustomThemes, canManageCustomThemes, refreshUser]);
 
   const handleDeleteCustomTheme = useCallback((theme: BoardThemeDefinition) => {
     if (!canManageCustomThemes) {

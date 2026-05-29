@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useMantineColorScheme } from '@mantine/core';
 import { themes, type ThemeColors } from '../config/themes.js';
 
@@ -33,19 +33,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>(getEffectiveTheme(theme));
 
-  const applyEffectiveToDocument = (effective: 'light' | 'dark'): void => {
-    setEffectiveTheme(effective);
-    setColorScheme(effective);
-    const root = document.documentElement;
-    root.setAttribute('data-theme', effective);
-    root.classList.remove('light', 'dark');
-    root.classList.add(effective);
-  };
+  const applyEffectiveToDocument = useCallback(
+    (effective: 'light' | 'dark'): void => {
+      setEffectiveTheme(effective);
+      setColorScheme(effective);
+      const root = document.documentElement;
+      root.setAttribute('data-theme', effective);
+      root.classList.remove('light', 'dark');
+      root.classList.add(effective);
+    },
+    [setColorScheme],
+  );
 
   // Apply theme to document
   useEffect(() => {
     applyEffectiveToDocument(getEffectiveTheme(theme));
-  }, [theme, setColorScheme]);
+  }, [theme, applyEffectiveToDocument]);
 
   // Listen for system theme changes when theme is 'auto'
   useEffect(() => {
@@ -74,7 +77,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
 
     return undefined;
-  }, [theme]);
+  }, [theme, applyEffectiveToDocument]);
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);

@@ -211,7 +211,7 @@ export function useKanbanViewController({
 
   const listColumnChrome = useMemo(
     () => getBoardListColumnWidthChrome(board),
-    [board.settings.listColumnWidthPx],
+    [board],
   );
 
   const closeAddListComposer = useCallback((): void => {
@@ -293,7 +293,7 @@ export function useKanbanViewController({
     return () => {
       root.classList.remove('board-page--kanban-dragging');
     };
-  }, [draggingCardId, draggingListId]);
+  }, [columnsGroupRef, draggingCardId, draggingListId]);
 
   return {
     assigneeDirectory,

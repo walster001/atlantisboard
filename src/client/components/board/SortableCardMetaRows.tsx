@@ -12,7 +12,6 @@ interface KanbanLabelRowProps {
 }
 
 export function KanbanLabelRow({ labels }: KanbanLabelRowProps) {
-  const key = useMemo(() => labels.map((l) => `${l.id}:${l.color}:${l.name}`).join('|'), [labels]);
   return useMemo(() => {
     if (labels.length === 0) {
       return null;
@@ -40,7 +39,7 @@ export function KanbanLabelRow({ labels }: KanbanLabelRowProps) {
         ))}
       </Group>
     );
-  }, [key, labels]);
+  }, [labels]);
 }
 
 interface KanbanAssigneeRowProps {
@@ -49,7 +48,6 @@ interface KanbanAssigneeRowProps {
 }
 
 export function KanbanAssigneeRow({ assignees, assigneeDirectory }: KanbanAssigneeRowProps) {
-  const key = useMemo(() => assignees.map(String).join('\0'), [assignees]);
   return useMemo(() => {
     if (assignees.length === 0) {
       return null;
@@ -93,7 +91,7 @@ export function KanbanAssigneeRow({ assignees, assigneeDirectory }: KanbanAssign
         {useOverflowAvatar ? <Avatar size={APP_USER_AVATAR_SIZE}>{`+${overflowCount}`}</Avatar> : null}
       </Group>
     );
-  }, [key, assignees, assigneeDirectory]);
+  }, [assignees, assigneeDirectory]);
 }
 
 interface KanbanDateBadgesRowProps {

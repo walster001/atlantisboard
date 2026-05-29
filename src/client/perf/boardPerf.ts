@@ -4,6 +4,14 @@
  */
 import { env } from '../config/env.js';
 
+function boardPerfDebug(message: string): void {
+  /* eslint-disable no-console -- gated dev perf instrumentation */
+  if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+    console.debug(message);
+  }
+  /* eslint-enable no-console */
+}
+
 export function markBoardBootstrapStart(): () => void {
   if (typeof performance === 'undefined' || typeof performance.now !== 'function') {
     return () => {
@@ -13,9 +21,7 @@ export function markBoardBootstrapStart(): () => void {
   const t0 = performance.now();
   return () => {
     const ms = performance.now() - t0;
-    if (typeof console !== 'undefined' && console.debug) {
-      console.debug(`[board-perf] bootstrap ${ms.toFixed(1)}ms`);
-    }
+    boardPerfDebug(`[board-perf] bootstrap ${ms.toFixed(1)}ms`);
   };
 }
 
@@ -33,11 +39,9 @@ export function logBoardRealtimePatchFlush(metric: RealtimePatchMetric): void {
   if (!canLogBoardPerf()) {
     return;
   }
-  if (typeof console !== 'undefined' && console.debug) {
-    console.debug(
-      `[board-perf] realtime.patch.flush cards=${metric.patchedCardCount} queue=${metric.queueDepth} ms=${metric.flushMs.toFixed(1)}`,
-    );
-  }
+  boardPerfDebug(
+    `[board-perf] realtime.patch.flush cards=${metric.patchedCardCount} queue=${metric.queueDepth} ms=${metric.flushMs.toFixed(1)}`,
+  );
 }
 
 type AssigneeDirectoryMetric = {
@@ -51,9 +55,7 @@ export function logAssigneeDirectoryMetric(metric: AssigneeDirectoryMetric): voi
   if (!canLogBoardPerf()) {
     return;
   }
-  if (typeof console !== 'undefined' && console.debug) {
-    console.debug(
-      `[board-perf] assignee.directory phase=${metric.phase} board=${metric.boardId} users=${metric.userCount} ms=${metric.ms.toFixed(1)}`,
-    );
-  }
+  boardPerfDebug(
+    `[board-perf] assignee.directory phase=${metric.phase} board=${metric.boardId} users=${metric.userCount} ms=${metric.ms.toFixed(1)}`,
+  );
 }

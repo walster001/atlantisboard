@@ -138,7 +138,7 @@ function SortableCardInner({
 
   const coverRenderUrl = useMemo(
     () => resolveCardCoverRenderUrl(card),
-    [card.attachments, card.cover],
+    [card],
   );
   const hasCover = coverRenderUrl != null && coverRenderUrl !== '';
 

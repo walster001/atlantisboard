@@ -665,7 +665,7 @@ export function useHomePagePointerDrag(
       cancelRaf();
       sessionRef.current = null;
     };
-  }, [layoutReady, refs.listRootRef, touchReorderRequiresLongPress]);
+  }, [actionsRef, layoutReady, modelsRef, touchReorderRequiresLongPress]);
 
   return { suppressBoardClickRef, floatPreview, draggingBoardId, boardLongPressUi, boardDropIndicator };
 }

@@ -10,7 +10,7 @@ import {
   resolveAttachmentDeliveryKind,
   type AttachmentDeliveryKind,
 } from '../config/attachmentDelivery.js';
-import { CopyConditions } from 'minio';
+import { CopyDestinationOptions, CopySourceOptions } from 'minio';
 import { getMinIOClient, getMinIOPublicPresignClient, initializeMinIOBuckets } from '../config/minio.js';
 import { runWithConcurrency } from '../utils/asyncConcurrency.js';
 import { invalidateAttachmentLocationCache } from './attachmentCache.js';
@@ -94,6 +94,21 @@ export type CardAttachmentUploadPayload =
 
 function cardAttachmentPayloadBytes(file: CardAttachmentUploadPayload): number {
   return file.kind === 'memory' ? file.buffer.length : file.size;
+}
+
+async function readStreamIntoBuffer(stream: Readable, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of stream) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+    total += buf.length;
+    if (total > maxBytes) {
+      stream.destroy();
+      throw new Error(`Stream exceeds maximum size of ${maxBytes} bytes`);
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks);
 }
 
 // Ensure buckets exist on module load
@@ -486,19 +501,24 @@ async function copyCardAttachmentObject(args: {
 }): Promise<void> {
   const { srcObject, destObjectName, newCardId, att } = args;
   const client = getMinIOClient();
-  const conditions = new CopyConditions();
-  await client.copyObject(
-    BUCKET_NAME,
-    destObjectName,
-    `/${BUCKET_NAME}/${srcObject}`,
-    conditions,
-    {
+  const source = new CopySourceOptions({
+    Bucket: BUCKET_NAME,
+    Object: srcObject,
+  });
+  const dest = new CopyDestinationOptions({
+    Bucket: BUCKET_NAME,
+    Object: destObjectName,
+    MetadataDirective: 'REPLACE',
+    Headers: {
       'Content-Type': att.type,
+    },
+    UserMetadata: {
       'X-Card-Id': newCardId,
       'X-Uploaded-By': String(att.uploadedBy),
       'X-File-Name': encodeURIComponent(att.name),
     },
-  );
+  });
+  await client.copyObject(source, dest);
 }
 
 type StorageAttachmentCopyJob = {

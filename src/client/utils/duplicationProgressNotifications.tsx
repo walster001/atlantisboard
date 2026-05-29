@@ -1,5 +1,4 @@
 import type { ReactElement } from 'react';
-import { Progress, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { LONG_TASK_NOTIFICATION_POSITION, renderStartupProgressMessage } from './longTaskProgressNotifications.js';
 

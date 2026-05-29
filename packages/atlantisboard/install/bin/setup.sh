@@ -161,4 +161,9 @@ if whiptail --title "systemd" --yesno "Install systemd units for atlantisboard a
   [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]] && sudo systemctl restart atlantisboard-worker.service || true
 fi
 
-whiptail --title "Complete" --msgbox "Installation finished.\n\nInstall dir: ${INSTALL_DIR}\nOpen: ${ENV_VALUES[APP_URL]:-http://localhost:3000}\n\nSee DEPLOYMENT.md and docs/wiki/npm-install.md" 14 70
+# shellcheck source=reverse-proxy.sh
+source "${PKG_ROOT}/install/reverse-proxy.sh"
+run_reverse_proxy_wizard
+
+PUBLIC_URL="${ENV_VALUES[APP_URL]:-http://localhost:3000}"
+whiptail --title "Complete" --msgbox "Installation finished.\n\nInstall dir: ${INSTALL_DIR}\nOpen: ${PUBLIC_URL}\n\nSee DEPLOYMENT.md and docs/wiki/npm-install.md" 14 70

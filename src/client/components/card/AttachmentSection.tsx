@@ -5,7 +5,6 @@ import {
   Button,
   Alert,
   Group,
-  Progress,
   Anchor,
   ActionIcon,
   Box,
@@ -26,6 +25,13 @@ import {
   getClientCardAttachmentMaxBytes,
 } from '../../utils/uploadLimits.js';
 import { normalizeCardFromApi } from '../../utils/transform.js';
+import {
+  beginAttachmentUploadNotification,
+  completeAttachmentUploadNotification,
+  failAttachmentUploadNotification,
+  updateAttachmentUploadNotification,
+} from '../../utils/attachmentUploadNotifications.js';
+import { CardDescriptionVideoPlayer } from './CardDescriptionVideoPlayer.js';
 import {
   CARD_DETAIL_SECTION_ICON_COLOR,
   cardDetailEmptyStateProps,
@@ -53,7 +59,6 @@ export function AttachmentSection({
   onBeforeDeleteAttachment,
 }: AttachmentSectionProps) {
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const [linkPreviewAttachmentId, setLinkPreviewAttachmentId] = useState<string | null>(null);
@@ -182,32 +187,37 @@ export function AttachmentSection({
 
     setError(null);
     setUploading(true);
-    setUploadProgress(0);
 
     try {
-      // Upload all selected files
-      for (const file of Array.from(files)) {
+      const fileList = Array.from(files);
+      for (let index = 0; index < fileList.length; index += 1) {
+        const file = fileList[index]!;
         const uploadFile = await maybeCompressImage(file);
+        const label =
+          fileList.length > 1
+            ? `${uploadFile.name} (${index + 1}/${fileList.length})`
+            : uploadFile.name;
+        beginAttachmentUploadNotification(label);
         await api.uploadCardAttachment(card.id, uploadFile, (progress: number) => {
-          setUploadProgress(progress);
+          updateAttachmentUploadNotification(label, progress);
         });
+        completeAttachmentUploadNotification(uploadFile.name);
       }
 
       // Reload card to get updated attachments
       const response = await api.getCard(card.id);
       const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
       onCardUpdate(updatedCard);
-
-      setUploadProgress(0);
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
+        failAttachmentUploadNotification(err.message);
       } else {
         setError('Failed to upload file');
+        failAttachmentUploadNotification('Failed to upload file');
       }
     } finally {
       setUploading(false);
-      setUploadProgress(0);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -280,6 +290,10 @@ export function AttachmentSection({
   const isLinkPreviewPdf =
     linkPreviewAttachment != null && linkPreviewAttachment.type === 'application/pdf';
 
+  const openAttachmentPreview = (attachmentId: string): void => {
+    setLinkPreviewAttachmentId(attachmentId);
+  };
+
   useEffect(() => {
     setLinkPreviewImageSize(null);
     if (linkPreviewAttachmentId == null) {
@@ -292,6 +306,12 @@ export function AttachmentSection({
       setLinkPreviewAttachmentId(null);
       setLinkPreviewImageSize(null);
       setLinkPreviewStreamUrl('');
+      return;
+    }
+
+    if (att.type.startsWith('video/')) {
+      setLinkPreviewStreamUrl('');
+      setLinkPreviewStreamLoading(false);
       return;
     }
 
@@ -373,7 +393,7 @@ export function AttachmentSection({
               onClick={() => (fileInputRef.current as HTMLInputElement)?.click()}
               disabled={uploading}
             >
-              {uploading ? `Uploading... ${uploadProgress}%` : 'Add'}
+              {uploading ? 'Uploading…' : 'Add'}
             </Button>
           </>
         ) : null}
@@ -383,10 +403,6 @@ export function AttachmentSection({
         <Alert color="red">
           {error}
         </Alert>
-      )}
-
-      {uploading && (
-        <Progress value={uploadProgress} size="sm" radius="xl" />
       )}
 
       {card.attachments && card.attachments.length > 0 ? (
@@ -416,7 +432,15 @@ export function AttachmentSection({
             >
               <Group gap="md" style={{ flex: 1, minWidth: 0, alignItems: 'flex-start' }} wrap="nowrap">
                 {attachment.type.startsWith('image/') ? (
-                  <Box
+                  <UnstyledButton
+                    type="button"
+                    aria-label={`Preview ${attachment.name}`}
+                    disabled={isPh}
+                    onClick={() => {
+                      if (!isPh) {
+                        openAttachmentPreview(attachment.id);
+                      }
+                    }}
                     style={{
                       width: 160,
                       minWidth: 160,
@@ -428,6 +452,8 @@ export function AttachmentSection({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      padding: 0,
+                      cursor: isPh ? 'default' : 'pointer',
                     }}
                   >
                     {isPh ? (
@@ -444,9 +470,17 @@ export function AttachmentSection({
                       style={{ objectFit: 'cover' }}
                     />
                     )}
-                  </Box>
+                  </UnstyledButton>
                 ) : attachment.type.startsWith('video/') ? (
-                  <Box
+                  <UnstyledButton
+                    type="button"
+                    aria-label={`Preview ${attachment.name}`}
+                    disabled={isPh}
+                    onClick={() => {
+                      if (!isPh) {
+                        openAttachmentPreview(attachment.id);
+                      }
+                    }}
                     style={{
                       width: 160,
                       minWidth: 160,
@@ -458,6 +492,8 @@ export function AttachmentSection({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      padding: 0,
+                      cursor: isPh ? 'default' : 'pointer',
                     }}
                   >
                     {isPh ? (
@@ -472,7 +508,7 @@ export function AttachmentSection({
                         aria-hidden
                       />
                     )}
-                  </Box>
+                  </UnstyledButton>
                 ) : (
                   <Box
                     style={{
@@ -500,7 +536,7 @@ export function AttachmentSection({
                     fw={500}
                     onClick={(event) => {
                       event.preventDefault();
-                      setLinkPreviewAttachmentId(attachment.id);
+                      openAttachmentPreview(attachment.id);
                     }}
                     style={displayNameStyle}
                   >
@@ -684,7 +720,7 @@ export function AttachmentSection({
                   display: 'block',
                 }}
               />
-            ) : isLinkPreviewVideo && linkPreviewUrl.trim() !== '' ? (
+            ) : isLinkPreviewVideo && linkPreviewAttachment != null ? (
               <Box
                 style={{
                   position: 'absolute',
@@ -699,13 +735,10 @@ export function AttachmentSection({
                   boxSizing: 'border-box',
                 }}
               >
-                <video
+                <CardDescriptionVideoPlayer
                   key={linkPreviewAttachment.id}
+                  src={api.getAttachmentFileUrl(linkPreviewAttachment.id)}
                   className="card-desc-video-player card-desc-video-player--modal-fullscreen"
-                  controls
-                  playsInline
-                  preload="none"
-                  src={linkPreviewUrl}
                   title={linkPreviewAttachment.name}
                 />
               </Box>

@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extractAttachmentIdFromMediaSrc } from '../../../shared/cardDescriptionAttachmentRefs.js';
-import { useVideoPosterUrl } from '../../hooks/useVideoPosterUrl.js';
 import { api } from '../../utils/api.js';
 import { ensureAttachmentStreamUrl } from '../../utils/attachmentStreamUrlClient.js';
 
 export interface CardDescriptionVideoPlayerProps {
   readonly src: string;
-  readonly poster?: string | undefined;
   readonly className?: string;
   readonly title?: string;
 }
@@ -46,23 +44,19 @@ function initialPlaybackSrc(storedSrc: string): string {
 }
 
 /**
- * Embedded card-description video with poster preview and stream URL resolution.
+ * Embedded card-description / attachment-preview video with stream URL resolution and proxy fallback.
  */
 export function CardDescriptionVideoPlayer({
   src,
-  poster,
   className,
   title,
 }: CardDescriptionVideoPlayerProps) {
   const attachmentId = useMemo(() => extractAttachmentIdFromMediaSrc(src), [src]);
   const proxySrc = useMemo(() => initialPlaybackSrc(src), [src]);
   const [playbackSrc, setPlaybackSrc] = useState(proxySrc);
-  const [hidePosterOverlay, setHidePosterOverlay] = useState(false);
-  const posterUrl = useVideoPosterUrl(proxySrc, poster);
 
   useEffect(() => {
     setPlaybackSrc(proxySrc);
-    setHidePosterOverlay(false);
   }, [proxySrc]);
 
   useEffect(() => {
@@ -72,10 +66,12 @@ export function CardDescriptionVideoPlayer({
     let cancelled = false;
     void ensureAttachmentStreamUrl(attachmentId)
       .then((entry) => {
-        if (cancelled || entry.delivery !== 'signed' || entry.url.trim() === '') {
+        if (cancelled || entry.url.trim() === '') {
           return;
         }
-        setPlaybackSrc(entry.url);
+        if (entry.delivery === 'signed') {
+          setPlaybackSrc(entry.url);
+        }
       })
       .catch(() => {
         /* Keep proxy URL */
@@ -95,31 +91,15 @@ export function CardDescriptionVideoPlayer({
     return null;
   }
 
-  const showPosterOverlay = posterUrl != null && !hidePosterOverlay;
-
   return (
-    <div className="card-desc-video-player-shell">
-      {showPosterOverlay ? (
-        <img
-          src={posterUrl}
-          alt=""
-          className="card-desc-video-poster-overlay"
-          aria-hidden
-          draggable={false}
-        />
-      ) : null}
-      <video
-        className={className}
-        controls
-        playsInline
-        preload="metadata"
-        src={playbackSrc}
-        title={title}
-        onPlay={() => {
-          setHidePosterOverlay(true);
-        }}
-        onError={handleVideoError}
-      />
-    </div>
+    <video
+      className={className}
+      controls
+      playsInline
+      preload="metadata"
+      src={playbackSrc}
+      title={title}
+      onError={handleVideoError}
+    />
   );
 }

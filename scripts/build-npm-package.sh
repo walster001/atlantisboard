@@ -28,12 +28,19 @@ bun run build:client
 echo "==> build"
 bun run build
 
-echo "==> Sync version to packages/atlantisboard/package.json"
+echo "==> Sync version and production dependencies to packages/atlantisboard/package.json"
 bun -e "
 const root = await Bun.file('package.json').json();
 const pkgPath = 'packages/atlantisboard/package.json';
 const pkg = await Bun.file(pkgPath).json();
 pkg.version = root.version;
+pkg.dependencies = root.dependencies;
+pkg.devDependencies = {};
+if (root.overrides) {
+  pkg.overrides = root.overrides;
+} else {
+  delete pkg.overrides;
+}
 await Bun.write(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 "
 
@@ -41,6 +48,7 @@ echo "==> Copy runtime files into package"
 rm -rf "${PKG_DIR}/dist" "${PKG_DIR}/public" "${PKG_DIR}/node_modules"
 cp -a dist "${PKG_DIR}/dist"
 cp -a public "${PKG_DIR}/public"
+find "${PKG_DIR}/dist" -name '*.tsbuildinfo' -delete 2>/dev/null || true
 cp bun.lock "${PKG_DIR}/bun.lock"
 cp .env.example "${PKG_DIR}/.env.example"
 cp DEPLOYMENT.md "${PKG_DIR}/DEPLOYMENT.md"

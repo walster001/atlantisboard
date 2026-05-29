@@ -1,7 +1,6 @@
 import { useEditorState } from '@tiptap/react';
 import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
-import { notifications } from '@mantine/notifications';
 import { BOARD_PRESET_COLOURS, normalizePresetHex } from '../../../constants/boardPresetColors.js';
 import {
   CARD_DETAIL_MODAL_BACKGROUND_RGB,
@@ -9,7 +8,12 @@ import {
   parseCssColorToRgbTriplet,
 } from '../cardDetailSectionUi.js';
 import { api } from '../../../utils/api.js';
-import { captureVideoPosterBlobFromFile } from '../../../utils/captureVideoPoster.js';
+import {
+  beginAttachmentUploadNotification,
+  completeAttachmentUploadNotification,
+  failAttachmentUploadNotification,
+  updateAttachmentUploadNotification,
+} from '../../../utils/attachmentUploadNotifications.js';
 import { prefetchEmojiMartModules } from './emojiMartPicker.js';
 import {
   EDITOR_TEXT_COLOR_FALLBACK,
@@ -151,19 +155,20 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
   const isMediaUploadBusy = imageUploadBusy || videoUploadBusy;
 
   const uploadAttachmentAndGetUrl = async (file: File): Promise<string | null> => {
+    const label = file.name.trim() !== '' ? file.name : 'Attachment';
+    beginAttachmentUploadNotification(label);
     try {
-      const response = await api.uploadCardAttachment(cardId, file);
+      const response = await api.uploadCardAttachment(cardId, file, (progress) => {
+        updateAttachmentUploadNotification(label, progress);
+      });
       const attachmentId = (response as { attachment?: { id?: unknown } }).attachment?.id;
       if (typeof attachmentId !== 'string' || attachmentId.trim() === '') {
         throw new Error('Upload succeeded but attachment id was missing.');
       }
+      completeAttachmentUploadNotification(label);
       return api.getAttachmentFileUrl(attachmentId);
     } catch (error) {
-      notifications.show({
-        color: 'red',
-        title: 'Upload failed',
-        message: error instanceof Error ? error.message : 'Could not upload file.',
-      });
+      failAttachmentUploadNotification(error instanceof Error ? error.message : 'Could not upload file.');
       return null;
     }
   };
@@ -206,25 +211,7 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
       setVideoUploadBusy(true);
       const src = await uploadAttachmentAndGetUrl(file);
       if (typeof src === 'string' && src.trim() !== '') {
-        let poster: string | null = null;
-        try {
-          const posterBlob = await captureVideoPosterBlobFromFile(file);
-          const baseName = file.name.replace(/\.[^.]+$/, '') || 'video';
-          const posterFile = new File([posterBlob], `${baseName}-poster.jpg`, {
-            type: 'image/jpeg',
-          });
-          const posterUrl = await uploadAttachmentAndGetUrl(posterFile);
-          if (typeof posterUrl === 'string' && posterUrl.trim() !== '') {
-            poster = posterUrl;
-          }
-        } catch {
-          /* Poster is optional; video still inserts without it */
-        }
-        editor
-          .chain()
-          .focus()
-          .setVideo(poster != null ? { src, poster } : { src })
-          .run();
+        editor.chain().focus().setVideo({ src }).run();
       }
       setVideoUploadBusy(false);
     };

@@ -39,8 +39,19 @@ atl_generate_secret() {
 }
 
 atl_generate_minio_key() {
-  # MinIO access keys: alphanumeric, 16 chars.
-  openssl rand -hex 8
+  # MinIO access keys: 32 hex chars (productionSecrets MIN_SECRET_LENGTH=32).
+  openssl rand -hex 16
+}
+
+atl_url_encode() {
+  local length="${#1}" i c
+  for (( i=0; i<length; i++ )); do
+    c="${1:i:1}"
+    case "$c" in
+      [a-zA-Z0-9.~_-]) printf '%s' "$c" ;;
+      *) printf '%%%02X' "'$c" ;;
+    esac
+  done
 }
 
 atl_require_cmd() {
@@ -48,6 +59,312 @@ atl_require_cmd() {
     whiptail --title "Missing prerequisite" --msgbox "Required command not found: $1\n\nInstall it and run atlantisboard-setup again." 12 60
     exit 1
   fi
+}
+
+atl_get_install_user() {
+  logname 2>/dev/null || echo "${SUDO_USER:-${USER:-root}}"
+}
+
+atl_cmd_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+atl_sudo_works() {
+  if sudo -n true 2>/dev/null; then
+    return 0
+  fi
+  sudo -v >/dev/null 2>&1
+}
+
+atl_port_listening() {
+  local port="$1"
+  if atl_cmd_exists ss; then
+    ss -tlnH "( sport = :${port} )" 2>/dev/null | grep -q .
+    return
+  fi
+  if atl_cmd_exists nc; then
+    nc -z localhost "$port" >/dev/null 2>&1
+    return
+  fi
+  return 2
+}
+
+atl_install_parent_writable() {
+  local dir="$1"
+  local parent
+  parent="$(dirname "$dir")"
+  while [[ "$parent" != "/" && ! -d "$parent" ]]; do
+    parent="$(dirname "$parent")"
+  done
+  [[ -w "$parent" ]] || sudo test -w "$parent" 2>/dev/null
+}
+
+atl_preflight_fail() {
+  local message="$1"
+  whiptail --title "Preflight check failed" --msgbox \
+    "Some prerequisites are missing or failed:\n\n${message}\n\nFix these issues and run atlantisboard-setup again." \
+    22 78
+  exit 1
+}
+
+atl_preflight_check() {
+  local mode="$1"
+  local -a lines=()
+  local line
+
+  for cmd in whiptail openssl jq rsync bash; do
+    if ! atl_cmd_exists "$cmd"; then
+      case "$cmd" in
+        whiptail) line="whiptail — install: sudo apt install whiptail (Debian/Ubuntu) or sudo dnf install newt (Fedora)" ;;
+        openssl) line="openssl — install: sudo apt install openssl or sudo dnf install openssl" ;;
+        jq) line="jq — install: sudo apt install jq or sudo dnf install jq" ;;
+        rsync) line="rsync — install: sudo apt install rsync or sudo dnf install rsync" ;;
+        bash) line="bash — install a POSIX shell with bash" ;;
+        *) line="$cmd — install via your package manager" ;;
+      esac
+      lines+=("$line")
+    fi
+  done
+
+  if ! atl_sudo_works; then
+    lines+=("sudo — your user must be able to run sudo (try: sudo -v)")
+  fi
+
+  if ! atl_install_parent_writable "$INSTALL_DIR"; then
+    lines+=("Install directory parent not writable — choose another path or fix permissions for $(dirname "$INSTALL_DIR")")
+  fi
+
+  local app_port="${ENV_VALUES[PORT]:-3000}"
+  local port_status=0
+  atl_port_listening "$app_port" || port_status=$?
+  if [[ $port_status -eq 0 ]]; then
+    lines+=("Port ${app_port} is already in use — stop the service using it or choose another PORT later")
+  elif [[ $port_status -eq 2 ]]; then
+    lines+=("Cannot check port ${app_port} — install ss (iproute2) or nc (netcat)")
+  fi
+
+  case "$mode" in
+    docker | fullstack)
+      if ! atl_cmd_exists docker; then
+        lines+=("docker — install Docker Engine: https://docs.docker.com/engine/install/")
+      elif ! docker compose version >/dev/null 2>&1; then
+        lines+=("docker compose v2 — install the Docker Compose plugin (docker compose version)")
+      else
+        local skip_dep_ports=false
+        if atl_docker_existing_stack_detected "$mode"; then
+          skip_dep_ports=true
+        fi
+        if [[ "$skip_dep_ports" != true ]]; then
+          for dep_port in 27017 6379 9000; do
+            port_status=0
+            atl_port_listening "$dep_port" || port_status=$?
+            if [[ $port_status -eq 0 ]]; then
+              lines+=("Port ${dep_port} is already in use — required for MongoDB, Redis, or MinIO containers")
+            elif [[ $port_status -eq 2 ]]; then
+              lines+=("Cannot check port ${dep_port} — install ss (iproute2) or nc (netcat)")
+            fi
+          done
+        fi
+      fi
+      ;;
+  esac
+
+  case "$mode" in
+    docker | manual)
+      if ! atl_cmd_exists bun; then
+        if ! atl_cmd_exists curl; then
+          lines+=("bun — not found; install Bun (https://bun.sh) or install curl to fetch the Bun installer")
+        elif ! curl -fsSL --connect-timeout 10 --max-time 20 https://bun.sh/install -o /dev/null 2>/dev/null; then
+          lines+=("bun — not found and https://bun.sh is unreachable — install Bun manually or fix network access")
+        fi
+      fi
+      ;;
+  esac
+
+  if [[ ${#lines[@]} -gt 0 ]]; then
+    atl_preflight_fail "$(printf '%s\n\n' "${lines[@]}")"
+  fi
+}
+
+atl_require_systemctl() {
+  if ! atl_cmd_exists systemctl; then
+    whiptail --title "systemd unavailable" --msgbox \
+      "systemctl was not found on this system.\n\nAutomatic startup via systemd is only supported on Linux systems with systemd.\n\nSkip systemd setup and start Atlantisboard manually." \
+      14 72
+    return 1
+  fi
+  return 0
+}
+
+atl_ensure_bun() {
+  if [[ -x /usr/local/bin/bun ]]; then
+    printf '%s' /usr/local/bin/bun
+    return 0
+  fi
+  if atl_cmd_exists bun; then
+    local existing
+    existing="$(command -v bun)"
+    if [[ "$existing" != /usr/local/bin/bun ]]; then
+      sudo install -d /usr/local/bin
+      sudo ln -sf "$existing" /usr/local/bin/bun
+    fi
+    printf '%s' /usr/local/bin/bun
+    return 0
+  fi
+  if whiptail --title "Install Bun?" --yesno \
+    "Bun is required but was not found.\n\nInstall Bun to /usr/local/bin so the atlantisboard systemd user can run it (ProtectHome=true)?" \
+    12 72; then
+    whiptail --title "Installing Bun" --infobox "Downloading and installing Bun to /usr/local ...\n\nPlease wait." 8 60
+    sudo mkdir -p /usr/local/bin
+    curl -fsSL https://bun.sh/install | sudo env BUN_INSTALL=/usr/local bash
+    if [[ ! -x /usr/local/bin/bun ]]; then
+      whiptail --title "Bun install failed" --msgbox \
+        "Bun installation did not produce /usr/local/bin/bun.\n\nInstall manually: https://bun.sh" \
+        12 70
+      exit 1
+    fi
+    printf '%s' /usr/local/bin/bun
+    return 0
+  fi
+  whiptail --title "Bun required" --msgbox "Bun is required for this installation mode." 8 60
+  exit 1
+}
+
+atl_docker_existing_stack_detected() {
+  local mode="$1"
+  local -a containers=()
+  case "$mode" in
+    docker)
+      containers=(atlantisboard-mongodb-deps atlantisboard-redis-deps atlantisboard-minio-deps)
+      ;;
+    fullstack)
+      containers=(atlantisboard-mongodb-full atlantisboard-redis-full atlantisboard-minio-full atlantisboard-app-full)
+      ;;
+    *) return 1 ;;
+  esac
+
+  local name
+  for name in "${containers[@]}"; do
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
+      return 0
+    fi
+  done
+
+  if docker volume ls --format '{{.Name}}' 2>/dev/null | grep -qE '(^|_)(mongo-data|redis-data|minio-data)(-full)?$'; then
+    return 0
+  fi
+  return 1
+}
+
+atl_warn_docker_volume_desync() {
+  local mode="$1"
+  local prior_env="${2:-}"
+  local -a desync_keys=()
+
+  atl_docker_existing_stack_detected "$mode" || return 0
+
+  if [[ -n "$prior_env" && -f "$prior_env" ]]; then
+    local key old_val new_val
+    for key in REDIS_PASSWORD MONGODB_APP_PASSWORD MONGODB_ROOT_PASSWORD MINIO_SECRET_KEY MINIO_ACCESS_KEY MINIO_ROOT_SECRET_KEY MINIO_ROOT_ACCESS_KEY; do
+      [[ -n "${ENV_VALUES[$key]:-}" ]] || continue
+      old_val="$(grep -E "^${key}=" "$prior_env" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+      new_val="${ENV_VALUES[$key]}"
+      if [[ -n "$old_val" && "$old_val" != "$new_val" ]]; then
+        desync_keys+=("$key")
+      fi
+    done
+  fi
+
+  local extra=""
+  if [[ ${#desync_keys[@]} -gt 0 ]]; then
+    extra="\n\nThese .env values changed since the last install:"
+    local k
+    for k in "${desync_keys[@]}"; do
+      extra+="\n• ${k}"
+    done
+  fi
+
+  if ! whiptail --title "Existing Docker data" --yesno \
+    "Existing Docker containers or volumes were found for this stack.\n\nNew secrets in .env may not match passwords already stored in those volumes (Redis, MongoDB, MinIO). Continuing often causes authentication failures.${extra}\n\nTo reset data: install/docker/reset-docker-data.sh ${mode}\n\nContinue anyway?" \
+    18 78; then
+    exit 1
+  fi
+}
+
+atl_wait_for_docker_deps() {
+  local mode="$1"
+  local timeout="${2:-120}"
+  local start now elapsed
+  start="$(date +%s)"
+
+  whiptail --title "Starting dependencies" --infobox \
+    "Waiting for MongoDB replica set, Redis, and MinIO to become ready...\n\nThis can take up to ${timeout} seconds on first run." \
+    10 70
+
+  while true; do
+    now="$(date +%s)"
+    elapsed=$((now - start))
+    if (( elapsed >= timeout )); then
+      whiptail --title "Dependency timeout" --msgbox \
+        "Timed out after ${timeout}s waiting for Docker dependencies.\n\nCheck container logs, e.g.:\n  cd ${INSTALL_DIR}/install/docker && docker compose ps" \
+        14 72
+      exit 1
+    fi
+
+    local mongo_ok=false redis_ok=false minio_ok=false
+
+    case "$mode" in
+      docker)
+        if [[ -n "${ENV_VALUES[MONGODB_URI]:-}" ]] && command -v mongosh >/dev/null 2>&1; then
+          if mongosh "${ENV_VALUES[MONGODB_URI]}" --quiet --eval \
+            'try { quit(rs.status().ok === 1 ? 0 : 1) } catch (e) { quit(1) }' >/dev/null 2>&1; then
+            mongo_ok=true
+          fi
+        elif docker exec atlantisboard-mongodb-deps mongosh --quiet \
+          -u "${ENV_VALUES[MONGODB_ROOT_USER]}" -p "${ENV_VALUES[MONGODB_ROOT_PASSWORD]}" \
+          --authenticationDatabase admin \
+          --eval "try { quit(rs.status().ok === 1 ? 0 : 1) } catch (e) { quit(1) }" >/dev/null 2>&1; then
+          mongo_ok=true
+        fi
+        if docker exec atlantisboard-redis-deps redis-cli -a "${ENV_VALUES[REDIS_PASSWORD]}" ping 2>/dev/null | grep -q PONG; then
+          redis_ok=true
+        fi
+        if curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null 2>&1; then
+          minio_ok=true
+        fi
+        ;;
+      fullstack)
+        if docker exec atlantisboard-mongodb-full mongosh --quiet \
+          -u "${ENV_VALUES[MONGODB_ROOT_USER]}" -p "${ENV_VALUES[MONGODB_ROOT_PASSWORD]}" \
+          --authenticationDatabase admin \
+          --eval "try { quit(rs.status().ok === 1 ? 0 : 1) } catch (e) { quit(1) }" >/dev/null 2>&1; then
+          mongo_ok=true
+        fi
+        if docker exec atlantisboard-redis-full redis-cli -a "${ENV_VALUES[REDIS_PASSWORD]}" ping 2>/dev/null | grep -q PONG; then
+          redis_ok=true
+        fi
+        if docker exec atlantisboard-minio-full curl -sf http://localhost:9000/minio/health/live >/dev/null 2>&1; then
+          minio_ok=true
+        fi
+        ;;
+    esac
+
+    if [[ "$mongo_ok" == true && "$redis_ok" == true && "$minio_ok" == true ]]; then
+      return 0
+    fi
+    sleep 2
+  done
+}
+
+atl_systemctl_restart_or_fail() {
+  local unit="$1"
+  if sudo systemctl restart "$unit"; then
+    return 0
+  fi
+  whiptail --title "Service start failed" --msgbox \
+    "Failed to start ${unit}.\n\nInspect logs with:\n  sudo journalctl -u ${unit} -n 50 --no-pager\n\nFix the issue and run:\n  sudo systemctl restart ${unit}" \
+    16 78
+  exit 1
 }
 
 atl_sanitize_input() {
@@ -110,6 +427,10 @@ atl_validate_value() {
     proxy_hops)
       [[ "$val" =~ ^[0-9]+$ ]] && (( val >= 0 && val <= 10 ))
       ;;
+    max_body_mb | positive_int)
+      [[ "$val" =~ ^[0-9]+$ ]] || return 1
+      (( val >= 1 && val <= 10240 ))
+      ;;
     email)
       [[ "$val" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]
       ;;
@@ -133,6 +454,7 @@ atl_validation_message() {
     install_dir) echo "Enter an absolute install path (e.g. /opt/atlantisboard)." ;;
     google_client_id) echo "Paste your Google OAuth Client ID (*.apps.googleusercontent.com)." ;;
     proxy_hops) echo "Enter a number from 0 to 10 (use 1 behind Nginx or Caddy)." ;;
+    max_body_mb | positive_int) echo "Enter a whole number from 1 to 10240 (megabytes)." ;;
     email) echo "Enter a valid email address." ;;
     *) echo "That value is not valid. Please try again." ;;
   esac
@@ -254,13 +576,209 @@ atl_prompt_env_fields() {
   done < <(jq -c '.sections[]' "$ENV_FIELDS")
 }
 
+atl_build_mongodb_uri() {
+  local user="$1" pass="$2" host="$3" db="${4:-kanboard}"
+  local enc_user enc_pass
+  enc_user="$(atl_url_encode "$user")"
+  enc_pass="$(atl_url_encode "$pass")"
+  printf 'mongodb://%s:%s@%s:27017/%s?authSource=%s&replicaSet=rs0' \
+    "$enc_user" "$enc_pass" "$host" "$db" "$db"
+}
+
+atl_apply_pompelmi_defaults() {
+  local mode="$1"
+  ENV_VALUES["POMPELMI_SKIP_SCAN"]="false"
+  case "$mode" in
+    fullstack)
+      ENV_VALUES["POMPELMI_CLAMD_HOST"]="clamav"
+      ENV_VALUES["POMPELMI_CLAMD_PORT"]="3310"
+      ;;
+    docker)
+      ENV_VALUES["POMPELMI_CLAMD_HOST"]="127.0.0.1"
+      ENV_VALUES["POMPELMI_CLAMD_PORT"]="3310"
+      ;;
+    manual)
+      ENV_VALUES["POMPELMI_CLAMD_HOST"]="${ENV_VALUES[POMPELMI_CLAMD_HOST]:-127.0.0.1}"
+      ENV_VALUES["POMPELMI_CLAMD_PORT"]="${ENV_VALUES[POMPELMI_CLAMD_PORT]:-3310}"
+      ;;
+  esac
+}
+
+atl_sync_cors_with_app_url() {
+  local app_url="${ENV_VALUES[APP_URL]:-}"
+  local cors="${ENV_VALUES[CORS_ORIGIN]:-}"
+  [[ -n "$app_url" ]] || return 0
+  if [[ -z "$cors" ]]; then
+    ENV_VALUES["CORS_ORIGIN"]="$app_url"
+    return 0
+  fi
+  if [[ "$cors" != "$app_url" ]]; then
+    if whiptail --title "CORS origin" --yesno \
+      "CORS_ORIGIN (${cors}) differs from your public site URL (${app_url}).\n\nSet CORS_ORIGIN to match APP_URL?" \
+      12 72; then
+      ENV_VALUES["CORS_ORIGIN"]="$app_url"
+    fi
+  fi
+}
+
+atl_url_origin() {
+  local url
+  url="$(atl_sanitize_input "$1")"
+  [[ -z "$url" ]] && return 1
+  url="${url%%\#*}"
+  url="${url%%\?*}"
+  if [[ "$url" =~ ^(https?://[^/]+) ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+atl_validate_google_oauth_config() {
+  [[ -n "${ENV_VALUES[GOOGLE_CLIENT_ID]:-}" ]] || return 0
+
+  local app_origin oauth_origin
+  app_origin="$(atl_url_origin "${ENV_VALUES[APP_URL]:-}")" || app_origin=""
+
+  if [[ -z "${ENV_VALUES[GOOGLE_OAUTH_BROWSER_ORIGIN]:-}" ]]; then
+    if [[ -n "$app_origin" ]]; then
+      ENV_VALUES["GOOGLE_OAUTH_BROWSER_ORIGIN"]="$app_origin"
+    fi
+  fi
+
+  while true; do
+    oauth_origin="$(atl_url_origin "${ENV_VALUES[GOOGLE_OAUTH_BROWSER_ORIGIN]:-}")" || oauth_origin=""
+    if [[ -z "$oauth_origin" ]]; then
+      whiptail --title "Google sign-in" --msgbox \
+        "Google OAuth browser origin is required when a Client ID is set.\n\nEnter the origin users open in the browser (e.g. https://boards.example.com)." \
+        12 72 || true
+      atl_prompt_validated "GOOGLE_OAUTH_BROWSER_ORIGIN" \
+        "Google OAuth browser origin" \
+        "Must match an authorized redirect origin in Google Cloud Console." \
+        "${app_origin:-https://boards.example.com}" "false" "false" "url" || exit 1
+      continue
+    fi
+    ENV_VALUES["GOOGLE_OAUTH_BROWSER_ORIGIN"]="$oauth_origin"
+    if [[ -n "$app_origin" && "$oauth_origin" != "$app_origin" ]]; then
+      whiptail --title "Google sign-in" --msgbox \
+        "Google OAuth browser origin must match your public site URL origin.\n\nAPP_URL origin: ${app_origin}\nOAuth origin: ${oauth_origin}\n\nUpdate one of them so they match." \
+        14 72 || true
+      atl_prompt_validated "GOOGLE_OAUTH_BROWSER_ORIGIN" \
+        "Google OAuth browser origin" \
+        "Use the same scheme and host as APP_URL (path is stripped automatically)." \
+        "$app_origin" "false" "false" "url" || exit 1
+      continue
+    fi
+    break
+  done
+}
+
+atl_tcp_reachable() {
+  local host="$1" port="$2"
+  if command -v nc >/dev/null 2>&1; then
+    nc -z -w 3 "$host" "$port" 2>/dev/null
+    return $?
+  fi
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 3 bash -c "echo >/dev/tcp/${host}/${port}" 2>/dev/null
+    return $?
+  fi
+  bash -c "echo >/dev/tcp/${host}/${port}" 2>/dev/null
+}
+
+atl_mongodb_host_port() {
+  local uri="$1" rest hostport host port
+  uri="$(atl_sanitize_input "$uri")"
+  [[ "$uri" =~ ^mongodb(\+srv)?:// ]] || return 1
+  if [[ "$uri" == mongodb+srv://* ]]; then
+    return 2
+  fi
+  rest="${uri#mongodb://}"
+  if [[ "$rest" == *@* ]]; then
+    rest="${rest#*@}"
+  fi
+  hostport="${rest%%/*}"
+  hostport="${hostport%%\?*}"
+  if [[ "$hostport" == *:* ]]; then
+    host="${hostport%%:*}"
+    port="${hostport#*:}"
+  else
+    host="$hostport"
+    port="27017"
+  fi
+  [[ -n "$host" && -n "$port" ]] || return 1
+  printf '%s %s' "$host" "$port"
+}
+
+atl_preflight_manual_services() {
+  local warnings=() redis_host redis_port minio_host minio_port mongo_host mongo_port mongo_rc
+
+  redis_host="${ENV_VALUES[REDIS_HOST]:-localhost}"
+  redis_port="${ENV_VALUES[REDIS_PORT]:-6379}"
+  if ! atl_tcp_reachable "$redis_host" "$redis_port"; then
+    warnings+=("Redis: cannot reach ${redis_host}:${redis_port}")
+  fi
+
+  minio_host="${ENV_VALUES[MINIO_ENDPOINT]:-localhost}"
+  minio_port="${ENV_VALUES[MINIO_PORT]:-9000}"
+  if ! atl_tcp_reachable "$minio_host" "$minio_port"; then
+    warnings+=("MinIO/S3: cannot reach ${minio_host}:${minio_port}")
+  elif command -v curl >/dev/null 2>&1; then
+    if ! curl -fsS --max-time 5 "http://${minio_host}:${minio_port}/minio/health/live" >/dev/null 2>&1; then
+      warnings+=("MinIO/S3: TCP open at ${minio_host}:${minio_port} but health check failed")
+    fi
+  fi
+
+  if [[ -n "${ENV_VALUES[MONGODB_URI]:-}" ]]; then
+    if command -v mongosh >/dev/null 2>&1; then
+      if ! mongosh "${ENV_VALUES[MONGODB_URI]}" --eval 'db.runCommand({ ping: 1 })' --quiet >/dev/null 2>&1; then
+        warnings+=("MongoDB: mongosh ping failed for MONGODB_URI")
+      fi
+    else
+      mongo_rc=0
+      read -r mongo_host mongo_port < <(atl_mongodb_host_port "${ENV_VALUES[MONGODB_URI]}") || mongo_rc=$?
+      if [[ "$mongo_rc" -eq 2 ]]; then
+        warnings+=("MongoDB: mongodb+srv URI — install mongosh to verify connectivity")
+      elif [[ "$mongo_rc" -ne 0 ]]; then
+        warnings+=("MongoDB: could not parse host/port from MONGODB_URI")
+      elif ! atl_tcp_reachable "$mongo_host" "$mongo_port"; then
+        warnings+=("MongoDB: cannot reach ${mongo_host}:${mongo_port}")
+      fi
+    fi
+  fi
+
+  if ((${#warnings[@]} == 0)); then
+    whiptail --title "Connectivity check" --msgbox \
+      "Manual dependency checks passed (Redis, MinIO, MongoDB)." 8 60 || true
+    return 0
+  fi
+
+  local msg="Could not verify one or more external services:\n\n"
+  local w
+  for w in "${warnings[@]}"; do
+    msg+="- ${w}\n"
+  done
+  msg+="\nFix networking/firewall/credentials, or continue anyway if services are still starting."
+
+  if whiptail --title "Connectivity check" --yesno "$msg" 18 78; then
+    return 0
+  fi
+  exit 1
+}
+
 atl_apply_mode_defaults() {
   local mode="$1"
   case "$mode" in
     docker)
       ENV_VALUES["REDIS_HOST"]="localhost"
       ENV_VALUES["MINIO_ENDPOINT"]="localhost"
-      ENV_VALUES["MONGODB_URI"]="mongodb://localhost:27017/kanboard?replicaSet=rs0"
+      ENV_VALUES["MONGODB_ROOT_USER"]="${ENV_VALUES[MONGODB_ROOT_USER]:-kanboard_root}"
+      ENV_VALUES["MONGODB_APP_USER"]="${ENV_VALUES[MONGODB_APP_USER]:-kanboard_app}"
+      ENV_VALUES["MONGODB_URI"]="$(atl_build_mongodb_uri \
+        "${ENV_VALUES[MONGODB_APP_USER]}" \
+        "${ENV_VALUES[MONGODB_APP_PASSWORD]}" \
+        "localhost" \
+        "${ENV_VALUES[MONGODB_DB_NAME]:-kanboard}")"
       ;;
     fullstack)
       ENV_VALUES["REDIS_HOST"]="redis"
@@ -269,25 +787,60 @@ atl_apply_mode_defaults() {
       ENV_VALUES["ENABLE_CRON_JOBS_IN_MAIN"]="true"
       ENV_VALUES["MONGODB_ROOT_USER"]="${ENV_VALUES[MONGODB_ROOT_USER]:-kanboard_root}"
       ENV_VALUES["MONGODB_APP_USER"]="${ENV_VALUES[MONGODB_APP_USER]:-kanboard_app}"
-      ENV_VALUES["MONGODB_URI"]="mongodb://${ENV_VALUES[MONGODB_APP_USER]}:${ENV_VALUES[MONGODB_APP_PASSWORD]}@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0"
+      ENV_VALUES["MONGODB_URI"]="$(atl_build_mongodb_uri \
+        "${ENV_VALUES[MONGODB_APP_USER]}" \
+        "${ENV_VALUES[MONGODB_APP_PASSWORD]}" \
+        "mongodb" \
+        "${ENV_VALUES[MONGODB_DB_NAME]:-kanboard}")"
       ENV_VALUES["MINIO_ROOT_ACCESS_KEY"]="${ENV_VALUES[MINIO_ROOT_ACCESS_KEY]:-${ENV_VALUES[MINIO_ACCESS_KEY]}}"
       ENV_VALUES["MINIO_ROOT_SECRET_KEY"]="${ENV_VALUES[MINIO_ROOT_SECRET_KEY]:-${ENV_VALUES[MINIO_SECRET_KEY]}}"
       ;;
   esac
+  atl_apply_pompelmi_defaults "$mode"
   ENV_VALUES["NODE_ENV"]="${ENV_VALUES[NODE_ENV]:-production}"
 }
 
 atl_write_env_file() {
   local env_file="$1"
-  local key val
+  local -A merged=()
+  local key line tmp
+
+  if [[ -f "$env_file" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+        merged["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+      fi
+    done < "$env_file"
+  fi
+
   for key in "${!ENV_VALUES[@]}"; do
-    val="${ENV_VALUES[$key]}"
-    if grep -q "^${key}=" "$env_file" 2>/dev/null; then
-      sudo sed -i "s|^${key}=.*|${key}=${val}|" "$env_file"
-    else
-      echo "${key}=${val}" | sudo tee -a "$env_file" >/dev/null
-    fi
+    merged["$key"]="${ENV_VALUES[$key]}"
   done
+
+  tmp="$(mktemp)"
+  if [[ -f "$env_file" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)= ]]; then
+        key="${BASH_REMATCH[1]}"
+        if [[ -v merged[$key] ]]; then
+          printf '%s=%s\n' "$key" "${merged[$key]}"
+          unset "merged[$key]"
+        else
+          printf '%s\n' "$line"
+        fi
+      else
+        printf '%s\n' "$line"
+      fi
+    done < "$env_file" > "$tmp"
+  else
+    : > "$tmp"
+  fi
+
+  for key in "${!merged[@]}"; do
+    printf '%s=%s\n' "$key" "${merged[$key]}"
+  done >> "$tmp"
+
+  sudo mv "$tmp" "$env_file"
   sudo chmod 600 "$env_file"
 }
 

@@ -50,6 +50,8 @@ sleep 1
 
 atl_prompt_env_fields "$MODE"
 
+atl_sync_cors_with_app_url
+
 # Google OAuth: if Client ID set, secret is required.
 while [[ -n "${ENV_VALUES[GOOGLE_CLIENT_ID]:-}" && -z "${ENV_VALUES[GOOGLE_CLIENT_SECRET]:-}" ]]; do
   whiptail --title "Google sign-in" --msgbox \
@@ -61,7 +63,13 @@ while [[ -n "${ENV_VALUES[GOOGLE_CLIENT_ID]:-}" && -z "${ENV_VALUES[GOOGLE_CLIEN
     "" "true" "false" "" || exit 1
 done
 
+atl_validate_google_oauth_config
+
 atl_apply_mode_defaults "$MODE"
+
+if [[ "$MODE" == "manual" ]]; then
+  atl_preflight_manual_services
+fi
 
 sudo mkdir -p "$INSTALL_DIR"
 echo "==> Copying package to ${INSTALL_DIR}"
@@ -98,20 +106,21 @@ if [[ "$MODE" == "docker" || "$MODE" == "fullstack" ]]; then
 fi
 
 if [[ "$MODE" == "docker" ]]; then
+  atl_warn_docker_volume_desync "$MODE" "${PRIOR_ENV:-}"
   whiptail --title "Starting dependencies" --infobox "Starting MongoDB, Redis, and MinIO containers..." 8 60
   atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.deps.yml up -d
-  whiptail --title "MongoDB replica set" --msgbox \
-    "Dependency containers are starting.\n\nMongoDB replica set rs0 is initialized automatically by mongodb-init.\n\nThis may take up to a minute on first run." \
-    12 70 || true
+  atl_wait_for_docker_deps "$MODE"
 fi
 
 if [[ "$MODE" == "fullstack" ]]; then
+  atl_warn_docker_volume_desync "$MODE" "${PRIOR_ENV:-}"
   whiptail --title "Building full stack" --infobox \
     "Building the Atlantisboard image and starting all containers.\n\nThis can take several minutes on first run." \
     10 70
   atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.fullstack.yml up -d --build
+  atl_wait_for_docker_deps "$MODE"
   whiptail --title "Full stack started" --msgbox \
-    "All services are starting in Docker.\n\n• App: port ${ENV_VALUES[PORT]:-3000}\n• MongoDB, Redis, and MinIO run in the background\n\nUse: docker compose -f ${INSTALL_DIR}/install/docker/docker-compose.fullstack.yml ps" \
+    "All services are running in Docker.\n\n• App: port ${ENV_VALUES[PORT]:-3000}\n• MongoDB, Redis, and MinIO are ready\n\nUse: docker compose -f ${INSTALL_DIR}/install/docker/docker-compose.fullstack.yml ps" \
     14 72 || true
 fi
 

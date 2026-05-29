@@ -34,23 +34,23 @@
           "key": "MINIO_SECRET_KEY",
           "auto_generate": true,
           "generate_type": "secret",
-          "applies_to": ["docker", "fullstack"]
+          "applies_to": ["docker", "fullstack", "manual"]
         },
         {
           "key": "MINIO_ACCESS_KEY",
           "auto_generate": true,
           "generate_type": "minio_key",
-          "applies_to": ["docker", "fullstack"]
+          "applies_to": ["docker", "fullstack", "manual"]
         },
         {
           "key": "MONGODB_ROOT_PASSWORD",
           "auto_generate": true,
-          "applies_to": ["fullstack"]
+          "applies_to": ["fullstack", "docker"]
         },
         {
           "key": "MONGODB_APP_PASSWORD",
           "auto_generate": true,
-          "applies_to": ["fullstack"]
+          "applies_to": ["fullstack", "docker"]
         },
         {
           "key": "MINIO_ROOT_SECRET_KEY",
@@ -107,7 +107,7 @@
           "key": "TRUST_PROXY_HOPS",
           "label": "Reverse proxy hops",
           "description": "Set to 1 when Nginx or Caddy sits in front of the app. Use 0 if there is no reverse proxy.",
-          "default": "1",
+          "default": "0",
           "secret": false,
           "validation": "proxy_hops"
         }
@@ -196,15 +196,14 @@
           "label": "Redis password",
           "description": "Must match the password configured on your Redis server.",
           "default": "",
-          "secret": true,
-          "optional": true
+          "secret": true
         }
       ]
     },
     {
       "id": "minio",
       "title": "File storage (MinIO / S3)",
-      "intro": "MinIO (or S3-compatible storage) holds attachments, backups, and branding files.",
+      "intro": "MinIO (or S3-compatible storage) holds attachments, backups, and branding files.\n\nAccess credentials were generated automatically in the Security step.",
       "applies_to": ["manual"],
       "fields": [
         {
@@ -222,20 +221,6 @@
           "default": "9000",
           "secret": false,
           "validation": "port"
-        },
-        {
-          "key": "MINIO_ACCESS_KEY",
-          "label": "Storage access key",
-          "description": "S3/MinIO access key for the application.",
-          "default": "minioadmin",
-          "secret": false
-        },
-        {
-          "key": "MINIO_SECRET_KEY",
-          "label": "Storage secret key",
-          "description": "S3/MinIO secret key for the application.",
-          "default": "",
-          "secret": true
         },
         {
           "key": "MINIO_USE_SSL",
@@ -273,9 +258,9 @@
     },
     {
       "id": "fullstack_data",
-      "title": "Full stack storage",
-      "intro": "Docker will store database and file data in named volumes.\n\nMongoDB and MinIO credentials were generated automatically.",
-      "applies_to": ["fullstack"],
+      "title": "Docker storage",
+      "intro": "Docker will store database and file data in named volumes.\n\nMongoDB and MinIO credentials were generated automatically.\n\nReinstalling with new secrets requires removing old volumes (see install/docker/reset-docker-data.sh).",
+      "applies_to": ["fullstack", "docker"],
       "fields": [
         {
           "key": "MONGODB_ROOT_USER",

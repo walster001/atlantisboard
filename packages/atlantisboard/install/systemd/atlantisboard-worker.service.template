@@ -1,6 +1,8 @@
 [Unit]
 Description=Atlantisboard Background Worker
-After=network.target mongod.service redis-server.service atlantisboard.service
+# Same Docker-backed dependencies as the main app; start after the app unit.
+After=network-online.target docker.service atlantisboard.service
+Wants=docker.service
 
 [Service]
 Type=simple
@@ -15,6 +17,7 @@ StandardOutput=journal
 StandardError=journal
 
 NoNewPrivileges=true
+# Runtime file writes use BACKUP_LOCATION only; install dir stays read-only under systemd.
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=@BACKUP_DIR@

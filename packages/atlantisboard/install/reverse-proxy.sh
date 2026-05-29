@@ -24,6 +24,7 @@ _prompt_proxy_field() {
     else
       current="$(whiptail --inputbox "$prompt_text" 14 78 "$current" 3>&2 1>&2)" || return 1
     fi
+    current="$(atl_sanitize_input "$current")"
     if atl_validate_value "$current" "$vtype" "$optional"; then
       PROXY_VALUES["$key"]="$current"
       valid=true
@@ -78,23 +79,19 @@ _prompt_proxy_fields_for() {
 _sync_env_public_url() {
   local domain="${PROXY_VALUES[PROXY_DOMAIN]}"
   local public_url="https://${domain}"
+  # Keep CORS aligned with the public site URL users open in the browser.
   ENV_VALUES["APP_URL"]="$public_url"
   ENV_VALUES["CORS_ORIGIN"]="$public_url"
   ENV_VALUES["TRUST_PROXY_HOPS"]="1"
-  for key in APP_URL CORS_ORIGIN TRUST_PROXY_HOPS; do
-    val="${ENV_VALUES[$key]}"
-    if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
-      sudo sed -i "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
-    else
-      echo "${key}=${val}" | sudo tee -a "$ENV_FILE" >/dev/null
-    fi
-  done
+  atl_write_env_file "$ENV_FILE"
 }
 
 _install_apt_packages() {
   local pkgs=("$@")
   if ! command -v apt-get >/dev/null 2>&1; then
-    whiptail --title "Package install" --msgbox "Automatic install needs apt-get (Debian/Ubuntu).\n\nInstall manually:\n${pkgs[*]}\n\nThen re-run atlantisboard-setup or copy configs from ${INSTALL_DIR}/install/" 12 70
+    whiptail --title "Package install" --msgbox \
+      "Automatic package install requires apt-get (Debian/Ubuntu).\n\nOn RHEL, Fedora, and other distros install these packages yourself, then copy configs from ${INSTALL_DIR}/install/ (nginx/ or caddy/).\n\nSee DEPLOYMENT.md (Manual install) and docs/wiki/reverse-proxy.md for Nginx/Caddy setup.\n\nPackages: ${pkgs[*]}" \
+      16 78
     return 1
   fi
   whiptail --title "Installing packages" --infobox "Installing: ${pkgs[*]} ..." 8 70
@@ -156,13 +153,6 @@ _configure_nginx() {
   if [[ "$use_https_tpl" == false ]]; then
     if ! whiptail --title "Let's Encrypt" --yesno "Run certbot --nginx for ${domain} now?\n\nRequires port 80 reachable from the internet." 12 70; then
       return 0
-    fi
-    if ! command -v certbot >/dev/null 2>&1; then
-      if whiptail --title "certbot" --yesno "Install certbot and python3-certbot-nginx?" 10 70; then
-        _install_apt_packages certbot python3-certbot-nginx || return 0
-      else
-        return 0
-      fi
     fi
     if ! command -v certbot >/dev/null 2>&1; then
       if whiptail --title "certbot" --yesno "Install certbot and python3-certbot-nginx?" 10 70; then

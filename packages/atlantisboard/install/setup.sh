@@ -23,11 +23,12 @@ if [[ "$(uname -s)" != "Linux" ]]; then
   exit 1
 fi
 
-atl_apply_theme
+if ! command -v whiptail >/dev/null 2>&1; then
+  echo "atlantisboard-setup requires whiptail. Install whiptail (Debian/Ubuntu: sudo apt install whiptail) and retry."
+  exit 1
+fi
 
-atl_require_cmd whiptail
-atl_require_cmd openssl
-atl_require_cmd jq
+atl_apply_theme
 
 whiptail --title "Welcome to Atlantisboard" --msgbox \
   "This wizard will guide you through installing Atlantisboard.\n\n• Secrets are generated automatically\n• Each step validates your input\n• You can add Google sign-in later if you skip it\n\nPress OK to continue." \
@@ -43,6 +44,9 @@ MODE="$(whiptail --title "Installation type" --menu \
 atl_prompt_install_dir "$INSTALL_DIR"
 
 declare -A ENV_VALUES
+ENV_VALUES["PORT"]="3000"
+
+atl_preflight_check "$MODE"
 
 whiptail --title "Generating secrets" --infobox "Creating secure random passwords and signing keys...\n\nPlease wait." 8 60
 atl_auto_generate_secrets "$MODE"
@@ -63,14 +67,23 @@ done
 
 atl_apply_mode_defaults "$MODE"
 
+INSTALL_USER="$(atl_get_install_user)"
+PRIOR_ENV=""
+ENV_FILE="${INSTALL_DIR}/.env"
+
+if [[ -f "$ENV_FILE" ]]; then
+  PRIOR_ENV="$(mktemp)"
+  sudo cp "$ENV_FILE" "$PRIOR_ENV"
+  sudo chmod 644 "$PRIOR_ENV"
+fi
+
 sudo mkdir -p "$INSTALL_DIR"
 echo "==> Copying package to ${INSTALL_DIR}"
 sudo rsync -a --delete \
   --exclude node_modules \
   "${PKG_ROOT}/" "${INSTALL_DIR}/"
 
-ENV_FILE="${INSTALL_DIR}/.env"
-if [[ -f "${PKG_ROOT}/.env.example" ]]; then
+if [[ -f "${PKG_ROOT}/.env.example" && ! -f "$ENV_FILE" ]]; then
   sudo cp "${PKG_ROOT}/.env.example" "$ENV_FILE"
 fi
 
@@ -78,42 +91,33 @@ atl_write_env_file "$ENV_FILE"
 
 BUN_BIN=""
 if [[ "$MODE" != "fullstack" ]]; then
-  if ! command -v bun >/dev/null 2>&1; then
-    if whiptail --title "Install Bun?" --yesno \
-      "Bun is required to run Atlantisboard on this server but was not found.\n\nInstall Bun now using the official script?" \
-      12 72; then
-      curl -fsSL https://bun.sh/install | bash
-      export PATH="$HOME/.bun/bin:$PATH"
-    fi
-  fi
-  atl_require_cmd bun
-  BUN_BIN="$(command -v bun)"
+  sudo chown -R "${INSTALL_USER}:${INSTALL_USER}" "$INSTALL_DIR"
+  BUN_BIN="$(atl_ensure_bun)"
 
   echo "==> Installing production dependencies"
-  (cd "$INSTALL_DIR" && sudo -u "$(logname 2>/dev/null || echo root)" env PATH="$PATH" bun install --frozen-lockfile --production)
-fi
-
-if [[ "$MODE" == "docker" || "$MODE" == "fullstack" ]]; then
-  atl_require_cmd docker
+  (cd "$INSTALL_DIR" && sudo -u "$INSTALL_USER" env PATH="/usr/local/bin:${PATH}" "$BUN_BIN" install --frozen-lockfile --production)
 fi
 
 if [[ "$MODE" == "docker" ]]; then
+  atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
   whiptail --title "Starting dependencies" --infobox "Starting MongoDB, Redis, and MinIO containers..." 8 60
   atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.deps.yml up -d
-  whiptail --title "MongoDB replica set" --msgbox \
-    "Dependency containers are starting.\n\nMongoDB replica set rs0 is initialized automatically by mongodb-init.\n\nThis may take up to a minute on first run." \
-    12 70 || true
+  atl_wait_for_docker_deps "$MODE"
 fi
 
 if [[ "$MODE" == "fullstack" ]]; then
+  atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
   whiptail --title "Building full stack" --infobox \
     "Building the Atlantisboard image and starting all containers.\n\nThis can take several minutes on first run." \
     10 70
   atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.fullstack.yml up -d --build
+  atl_wait_for_docker_deps "$MODE"
   whiptail --title "Full stack started" --msgbox \
-    "All services are starting in Docker.\n\n• App: port ${ENV_VALUES[PORT]:-3000}\n• MongoDB, Redis, and MinIO run in the background\n\nUse: docker compose -f ${INSTALL_DIR}/install/docker/docker-compose.fullstack.yml ps" \
+    "All services are running in Docker.\n\n• App: port ${ENV_VALUES[PORT]:-3000}\n• MongoDB, Redis, and MinIO are ready\n\nUse: docker compose -f ${INSTALL_DIR}/install/docker/docker-compose.fullstack.yml ps" \
     14 72 || true
 fi
+
+rm -f "$PRIOR_ENV"
 
 BACKUP_DIR="${ENV_VALUES[BACKUP_LOCATION]:-/var/backups/atlantisboard}"
 if [[ "$MODE" != "fullstack" ]]; then
@@ -122,31 +126,39 @@ fi
 
 if [[ "$MODE" != "fullstack" ]] && whiptail --title "systemd services" --yesno \
   "Install systemd services so Atlantisboard starts automatically on boot?" 10 72; then
-  atl_require_cmd systemctl
-  if ! id atlantisboard >/dev/null 2>&1; then
-    sudo useradd --system --create-home --shell /usr/sbin/nologin atlantisboard || true
+  if atl_require_systemctl; then
+    if ! id atlantisboard >/dev/null 2>&1; then
+      sudo useradd --system --create-home --shell /usr/sbin/nologin atlantisboard || true
+    fi
+    sudo chown -R atlantisboard:atlantisboard "$INSTALL_DIR" "$BACKUP_DIR"
+
+    render_unit() {
+      local src="$1" dest="$2"
+      sudo sed \
+        -e "s|@INSTALL_DIR@|${INSTALL_DIR}|g" \
+        -e "s|@BUN_BIN@|${BUN_BIN}|g" \
+        -e "s|@BACKUP_DIR@|${BACKUP_DIR}|g" \
+        "$src" | sudo tee "$dest" >/dev/null
+    }
+
+    render_unit "${PKG_ROOT}/install/systemd/atlantisboard.service.template" /etc/systemd/system/atlantisboard.service
+    if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
+      render_unit "${PKG_ROOT}/install/systemd/atlantisboard-worker.service.template" /etc/systemd/system/atlantisboard-worker.service
+    fi
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable atlantisboard.service
+    [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]] && sudo systemctl enable atlantisboard-worker.service
+
+    if [[ "$MODE" == "docker" ]]; then
+      atl_wait_for_docker_deps "$MODE" 30
+    fi
+
+    atl_systemctl_restart_or_fail atlantisboard.service
+    if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
+      atl_systemctl_restart_or_fail atlantisboard-worker.service
+    fi
   fi
-  sudo chown -R atlantisboard:atlantisboard "$INSTALL_DIR" "$BACKUP_DIR"
-
-  render_unit() {
-    local src="$1" dest="$2"
-    sudo sed \
-      -e "s|@INSTALL_DIR@|${INSTALL_DIR}|g" \
-      -e "s|@BUN_BIN@|${BUN_BIN}|g" \
-      -e "s|@BACKUP_DIR@|${BACKUP_DIR}|g" \
-      "$src" | sudo tee "$dest" >/dev/null
-  }
-
-  render_unit "${PKG_ROOT}/install/systemd/atlantisboard.service.template" /etc/systemd/system/atlantisboard.service
-  if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
-    render_unit "${PKG_ROOT}/install/systemd/atlantisboard-worker.service.template" /etc/systemd/system/atlantisboard-worker.service
-  fi
-
-  sudo systemctl daemon-reload
-  sudo systemctl enable atlantisboard.service
-  [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]] && sudo systemctl enable atlantisboard-worker.service
-  sudo systemctl restart atlantisboard.service || true
-  [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]] && sudo systemctl restart atlantisboard-worker.service || true
 fi
 
 # shellcheck source=reverse-proxy.sh

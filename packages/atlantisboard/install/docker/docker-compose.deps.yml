@@ -1,19 +1,32 @@
 # Dependency stack for atlantisboard-setup (Docker mode). Run the app via systemd on the host.
+#
+# VOLUME RESET (reinstall / new secrets):
+#   cd install/docker && docker compose --env-file ../../.env -f docker-compose.deps.yml down -v
+# Or run: install/docker/reset-docker-data.sh deps
+# Named volumes (mongo-data, redis-data, minio-data) keep old passwords after reinstall unless removed.
 services:
   mongodb:
     image: mongo:8.0
     container_name: atlantisboard-mongodb-deps
     restart: unless-stopped
     environment:
-      MONGO_INITDB_DATABASE: kanboard
+      MONGO_INITDB_DATABASE: ${MONGODB_DB_NAME:-kanboard}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USER:?Set MONGODB_ROOT_USER in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:?Set MONGODB_ROOT_PASSWORD in .env}
+      MONGODB_APP_USER: ${MONGODB_APP_USER:-kanboard_app}
+      MONGODB_APP_PASSWORD: ${MONGODB_APP_PASSWORD:?Set MONGODB_APP_PASSWORD in .env}
     command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
     volumes:
       - mongo-data:/data/db
-      - ./mongodb/replica-init.sh:/replica-init.sh:ro
+      - mongo-config:/data/configdb
+      - ./mongodb/init-app-user.js:/docker-entrypoint-initdb.d/init-app-user.js:ro
     ports:
-      - '27017:27017'
+      - '127.0.0.1:27017:27017'
     healthcheck:
-      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      test: >
+        sh -c "
+        mongosh \"mongodb://$${MONGO_INITDB_ROOT_USERNAME}:$${MONGO_INITDB_ROOT_PASSWORD}@localhost:27017/admin\" --quiet --eval \"db.adminCommand('ping')\"
+        "
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,15 +34,19 @@ services:
 
   mongodb-init:
     image: mongo:8.0
+    container_name: atlantisboard-mongodb-init-deps
     depends_on:
       mongodb:
         condition: service_healthy
     restart: 'no'
     environment:
-      MONGODB_HOST: mongodb:27017
-      MONGODB_REPLICA_MEMBER_HOST: mongodb:27017
+      MONGODB_ROOT_USER: ${MONGODB_ROOT_USER}
+      MONGODB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+      MONGODB_HOST: mongodb
+      # Host app uses localhost:27017; member must match published bind address.
+      MONGODB_REPLICA_MEMBER_HOST: 127.0.0.1:27017
     volumes:
-      - ./mongodb/replica-init.sh:/replica-init.sh:ro
+      - ./mongodb/replica-init-auth.sh:/replica-init.sh:ro
     entrypoint: ['bash', '/replica-init.sh']
 
   redis:
@@ -41,17 +58,19 @@ services:
       if [ -n \"$${REDIS_PASSWORD}\" ]; then
         redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\"
       else
-        redis-server --appendonly yes
+        echo 'REDIS_PASSWORD is required' >&2;
+        exit 1;
       fi
       "
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     volumes:
       - redis-data:/data
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379'
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: >
+        sh -c "redis-cli -a \"$${REDIS_PASSWORD}\" ping"
       interval: 10s
       timeout: 5s
       retries: 5
@@ -61,15 +80,52 @@ services:
     container_name: atlantisboard-minio-deps
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?Set MINIO_ACCESS_KEY in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?Set MINIO_SECRET_KEY in .env}
     command: server /data --console-address "127.0.0.1:9001"
     volumes:
       - minio-data:/data
     ports:
-      - '9000:9000'
+      - '127.0.0.1:9000:9000'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio-setup:
+    image: minio/mc:latest
+    container_name: atlantisboard-minio-setup-deps
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: 'no'
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    volumes:
+      - ./minio/prod-setup.sh:/setup.sh:ro
+      - ./minio/app-readwrite-policy.json:/policy/app-readwrite-policy.json:ro
+    entrypoint: ['/bin/sh', '/setup.sh']
+
+  clamav:
+    image: clamav/clamav:1.4
+    container_name: atlantisboard-clamav-deps
+    restart: unless-stopped
+    volumes:
+      - clamav-db:/var/lib/clamav
+    ports:
+      - '127.0.0.1:3310:3310'
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/clamdcheck.sh']
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
 
 volumes:
   mongo-data:
+  mongo-config:
   redis-data:
   minio-data:
+  clamav-db:

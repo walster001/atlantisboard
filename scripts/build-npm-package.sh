@@ -60,7 +60,8 @@ cp docker/mongodb/init-app-user.js "${PKG_DIR}/install/docker/mongodb/"
 cp docker/mongodb/replica-init.sh "${PKG_DIR}/install/docker/mongodb/replica-init-auth.sh"
 cp docker/minio/prod-setup.sh docker/minio/app-readwrite-policy.json "${PKG_DIR}/install/docker/minio/"
 chmod +x "${PKG_DIR}/install/docker/mongodb/replica-init-auth.sh" \
-  "${PKG_DIR}/install/docker/minio/prod-setup.sh" 2>/dev/null || true
+  "${PKG_DIR}/install/docker/minio/prod-setup.sh" \
+  "${PKG_DIR}/install/docker/reset-docker-data.sh" 2>/dev/null || true
 
 cp -f "${PKG_DIR}/install/setup.sh" "${PKG_DIR}/install/bin/setup.sh"
 chmod +x "${PKG_DIR}/install/setup.sh" "${PKG_DIR}/install/bin/setup.sh" "${PKG_DIR}/install/bin/atlantisboard.js" 2>/dev/null || true

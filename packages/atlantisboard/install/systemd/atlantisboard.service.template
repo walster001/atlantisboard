@@ -1,7 +1,8 @@
 [Unit]
 Description=Atlantisboard Application
-After=network.target mongod.service redis-server.service
-Wants=mongod.service redis-server.service
+# Dependency containers (MongoDB, Redis, MinIO) must be running before the app starts.
+After=network-online.target docker.service
+Wants=docker.service
 
 [Service]
 Type=simple
@@ -16,6 +17,7 @@ StandardOutput=journal
 StandardError=journal
 
 NoNewPrivileges=true
+# Runtime file writes use BACKUP_LOCATION only; install dir stays read-only under systemd.
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=@BACKUP_DIR@

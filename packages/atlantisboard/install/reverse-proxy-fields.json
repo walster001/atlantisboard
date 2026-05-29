@@ -35,7 +35,7 @@
           "description": "Large file upload limit at the web server. Match your card attachment size limit.",
           "default": "100",
           "secret": false,
-          "validation": "port"
+          "validation": "max_body_mb"
         },
         {
           "key": "PROXY_ACME_EMAIL",

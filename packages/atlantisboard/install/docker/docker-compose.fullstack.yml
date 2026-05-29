@@ -1,5 +1,9 @@
-# Production full-stack Compose for atlantisboard-setup (app + MongoDB + Redis + MinIO).
+# Production full-stack Compose for atlantisboard-setup (app + MongoDB + Redis + MinIO + ClamAV).
 # Build context is the install directory (parent of install/docker/).
+#
+# VOLUME RESET (reinstall / new secrets):
+#   cd install/docker && docker compose --env-file ../../.env -f docker-compose.fullstack.yml down -v
+# Or run: install/docker/reset-docker-data.sh fullstack
 services:
   mongodb:
     image: mongo:8.0
@@ -63,6 +67,8 @@ services:
         exit 1;
       fi
       "
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     volumes:
       - redis-data-full:/data
     networks:
@@ -96,7 +102,9 @@ services:
     image: minio/mc:latest
     container_name: atlantisboard-minio-setup-full
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
+    restart: 'no'
     environment:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
@@ -108,6 +116,21 @@ services:
     entrypoint: ['/bin/sh', '/setup.sh']
     networks:
       - atlantisboard-full
+
+  clamav:
+    image: clamav/clamav:1.4
+    container_name: atlantisboard-clamav-full
+    restart: unless-stopped
+    volumes:
+      - clamav-db-full:/var/lib/clamav
+    networks:
+      - atlantisboard-full
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/clamdcheck.sh']
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
 
   app:
     build:
@@ -132,6 +155,10 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
       ENABLE_CRON_JOBS_IN_MAIN: ${ENABLE_CRON_JOBS_IN_MAIN:-true}
+      POMPELMI_SKIP_SCAN: ${POMPELMI_SKIP_SCAN:-false}
+      POMPELMI_CLAMD_HOST: ${POMPELMI_CLAMD_HOST:-clamav}
+      POMPELMI_CLAMD_PORT: ${POMPELMI_CLAMD_PORT:-3310}
+      POMPELMI_FAIL_OPEN: ${POMPELMI_FAIL_OPEN:-false}
     depends_on:
       mongodb:
         condition: service_healthy
@@ -143,6 +170,8 @@ services:
         condition: service_healthy
       minio-setup:
         condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
     networks:
       - atlantisboard-full
     healthcheck:
@@ -157,6 +186,7 @@ volumes:
   mongo-config-full:
   redis-data-full:
   minio-data-full:
+  clamav-db-full:
 
 networks:
   atlantisboard-full:

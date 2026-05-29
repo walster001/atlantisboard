@@ -93,6 +93,27 @@ function upsertReplacement(
   return [...filtered, { iconSrc, replacementDataUrl: trimmed }];
 }
 
+function isImportDefaultHexLabel(label: string): boolean {
+  const trimmed = label.trim();
+  return trimmed.startsWith('#') && trimmed.length <= 80;
+}
+
+function colourPreviewSwatch(hex: string): ReactNode {
+  return (
+    <Box
+      aria-hidden
+      style={{
+        width: 'var(--ci-preview-size)',
+        height: 'var(--ci-preview-size)',
+        borderRadius: '50%',
+        border: '1px solid var(--mantine-color-gray-4)',
+        backgroundColor: hex,
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
 function noColourSwatch(): ReactNode {
   return (
     <Box
@@ -100,13 +121,27 @@ function noColourSwatch(): ReactNode {
       style={{
         width: 'var(--ci-preview-size)',
         height: 'var(--ci-preview-size)',
-        borderRadius: 'var(--mantine-radius-sm)',
+        borderRadius: '50%',
         border: '1px solid var(--mantine-color-gray-4)',
         background: 'repeating-linear-gradient(45deg, #f1f3f5 0 4px, #e9ecef 4px 8px)',
         flexShrink: 0,
       }}
     />
   );
+}
+
+function resolveColourInputDisplay(
+  override: string | undefined,
+  importDefaultLabel: string,
+): { readonly value: string; readonly leftSection: ReactNode } {
+  const trimmedOverride = override?.trim() ?? '';
+  if (trimmedOverride !== '') {
+    return { value: trimmedOverride, leftSection: colourPreviewSwatch(trimmedOverride) };
+  }
+  if (isImportDefaultHexLabel(importDefaultLabel)) {
+    return { value: '', leftSection: colourPreviewSwatch(importDefaultLabel.trim()) };
+  }
+  return { value: '', leftSection: noColourSwatch() };
 }
 
 export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
@@ -142,6 +177,14 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
   const bgImportDefaultLabel = useMemo(
     () => resolveImportDefaultLabel(uniqueButtons, 'bgColor'),
     [uniqueButtons],
+  );
+  const textColourInputDisplay = useMemo(
+    () => resolveColourInputDisplay(colorOverrides.textColor, textImportDefaultLabel),
+    [colorOverrides.textColor, textImportDefaultLabel],
+  );
+  const bgColourInputDisplay = useMemo(
+    () => resolveColourInputDisplay(colorOverrides.bgColor, bgImportDefaultLabel),
+    [colorOverrides.bgColor, bgImportDefaultLabel],
   );
 
   const openColourModal = useCallback(
@@ -233,13 +276,9 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
               {...loginBrandingColorInputProps}
               withEyeDropper
               popoverProps={{ opened: false }}
-              value={colorOverrides.textColor?.trim() ?? ''}
+              value={textColourInputDisplay.value}
               onChange={() => undefined}
-              leftSection={
-                colorOverrides.textColor == null || colorOverrides.textColor.trim() === ''
-                  ? noColourSwatch()
-                  : undefined
-              }
+              leftSection={textColourInputDisplay.leftSection}
               onClick={() => openColourModal('textColor')}
               styles={{ input: { cursor: 'pointer' } }}
             />
@@ -251,13 +290,9 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
               {...loginBrandingColorInputProps}
               withEyeDropper
               popoverProps={{ opened: false }}
-              value={colorOverrides.bgColor?.trim() ?? ''}
+              value={bgColourInputDisplay.value}
               onChange={() => undefined}
-              leftSection={
-                colorOverrides.bgColor == null || colorOverrides.bgColor.trim() === ''
-                  ? noColourSwatch()
-                  : undefined
-              }
+              leftSection={bgColourInputDisplay.leftSection}
               onClick={() => openColourModal('bgColor')}
               styles={{ input: { cursor: 'pointer' } }}
             />

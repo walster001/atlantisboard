@@ -135,6 +135,8 @@ export async function runDescriptionUpdate({
   let normalized = normalizeCardFromApi((response as { card: unknown }).card, card.id, {
     listId: card.listId,
     boardId: card.boardId,
+    position: card.position,
+    ...(typeof card.pos === 'number' && Number.isFinite(card.pos) ? { pos: card.pos } : {}),
   });
   const descriptionForNextRefs = isEmpty ? '' : serialized.jsonString;
   const nextAttachmentIds = new Set<string>([
@@ -157,6 +159,8 @@ export async function runDescriptionUpdate({
       normalized = normalizeCardFromApi((refresh as { card: unknown }).card, card.id, {
         listId: card.listId,
         boardId: card.boardId,
+        position: card.position,
+        ...(typeof card.pos === 'number' && Number.isFinite(card.pos) ? { pos: card.pos } : {}),
       });
     } catch (error) {
       console.error('Failed to refresh card after attachment cleanup:', error);

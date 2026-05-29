@@ -14,6 +14,7 @@ function sampleBoard(): BoardDB {
       allowComments: true,
       allowAttachments: true,
       cardCoverImages: true,
+      showReminders: true,
     },
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -116,5 +117,45 @@ describe('boardRuntimeStore', () => {
     expect(s.listsById.l1?.position).toBe(1);
     expect(s.listsById.l1?.pos).toBe(2500);
     expect(s.orderedListIds).toEqual(['l2', 'l1']);
+  });
+
+  it('upsertCard keeps kanban index when API returns stale integer position', () => {
+    const l1 = sampleList('l1', 0);
+    const cards: CardDB[] = [
+      { ...sampleCard('c0', 'l1', 0), pos: 1000 },
+      { ...sampleCard('c1', 'l1', 1), pos: 2000 },
+      { ...sampleCard('c2', 'l1', 2), pos: 3000 },
+      { ...sampleCard('c3', 'l1', 3), pos: 4000 },
+      { ...sampleCard('c4', 'l1', 4), pos: 5000 },
+      { ...sampleCard('c5', 'l1', 5), pos: 6000 },
+      { ...sampleCard('c6', 'l1', 6), pos: 7000 },
+      { ...sampleCard('c7', 'l1', 7), pos: 8000 },
+      { ...sampleCard('c8', 'l1', 8), pos: 9000 },
+    ];
+    useBoardRuntimeStore.getState().hydrateFromSnapshot({
+      boardId: 'b1',
+      board: sampleBoard(),
+      lists: [l1],
+      cardsByList: new Map([['l1', cards]]),
+    });
+    useBoardRuntimeStore.getState().applyCardsReorderedInList('l1', [
+      'c0',
+      'c1',
+      'c2',
+      'c3',
+      'c5',
+      'c6',
+      'c7',
+      'c8',
+      'c4',
+    ]);
+    const detailSavePayload: CardDB = {
+      ...useBoardRuntimeStore.getState().cardsById.c4!,
+      description: '{"type":"doc","content":[]}',
+      position: 4,
+    };
+    useBoardRuntimeStore.getState().upsertCard(detailSavePayload);
+    const ids = useBoardRuntimeStore.getState().cardIdsByListId.l1 ?? [];
+    expect(ids.indexOf('c4')).toBe(8);
   });
 });

@@ -425,13 +425,17 @@ export const useBoardRuntimeStore = create<BoardRuntimeStore>((set, get) => ({
         normalizeListCardPositions(cardsById, prev.listId, fromIds);
         normalizeListCardPositions(cardsById, resolvedCard.listId, toIds);
       } else {
-        const nextIds = insertCardIdByPosition(
-          cardIdsByListId[resolvedCard.listId] ?? [],
-          resolvedCard.id,
-          resolvedCard.position,
-        );
-        cardIdsByListId[resolvedCard.listId] = nextIds;
-        normalizeListCardPositions(cardsById, resolvedCard.listId, nextIds);
+        const listId = resolvedCard.listId;
+        const prevIds = cardIdsByListId[listId] ?? [];
+        const currentIndex = prevIds.indexOf(resolvedCard.id);
+        // Column order is owned by DnD / `cards:positions-batch-updated` / `applyCardsReorderedInList`.
+        // Detail saves return integer `position` that can lag fractional `pos` ordering.
+        const nextIds =
+          currentIndex >= 0
+            ? [...prevIds]
+            : insertCardIdByPosition(prevIds, resolvedCard.id, resolvedCard.position);
+        cardIdsByListId[listId] = nextIds;
+        normalizeListCardPositions(cardsById, listId, nextIds);
       }
       return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
     });

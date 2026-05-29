@@ -572,6 +572,8 @@ export function mergeDexieCardIfSnapshot(
 export interface CardPlacementFallback {
   readonly listId?: string;
   readonly boardId?: string;
+  readonly position?: number;
+  readonly pos?: number;
 }
 
 /** Normalize GET /cards/:id (and similar) responses for UI + Dexie. */
@@ -596,5 +598,20 @@ export function normalizeCardFromApi(
     cardData.boardId.trim() !== ''
       ? cardData.boardId
       : (placementFallback?.boardId?.trim() ?? '');
-  return { ...cardData, id: resolvedId, listId, boardId };
+  const position =
+    typeof placementFallback?.position === 'number' && !Number.isNaN(placementFallback.position)
+      ? placementFallback.position
+      : cardData.position;
+  const pos =
+    typeof placementFallback?.pos === 'number' && Number.isFinite(placementFallback.pos)
+      ? placementFallback.pos
+      : cardData.pos;
+  return {
+    ...cardData,
+    id: resolvedId,
+    listId,
+    boardId,
+    position,
+    ...(pos !== undefined ? { pos } : {}),
+  };
 }

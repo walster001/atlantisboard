@@ -27,6 +27,9 @@ function initialPlaybackSrc(storedSrc: string): string {
   if (trimmed === '') {
     return '';
   }
+  if (trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
   const attachmentId = extractAttachmentIdFromMediaSrc(trimmed);
   if (attachmentId != null) {
     return attachmentProxyPath(attachmentId);

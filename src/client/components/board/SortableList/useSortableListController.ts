@@ -52,6 +52,10 @@ interface SortableListController {
   readonly renameCardTitle: string;
   readonly setRenameCardTitle: Dispatch<SetStateAction<string>>;
   readonly renameCardLoading: boolean;
+  readonly duplicateListModalOpen: boolean;
+  readonly setDuplicateListModalOpen: Dispatch<SetStateAction<boolean>>;
+  readonly duplicateCardTarget: CardDB | null;
+  readonly setDuplicateCardTarget: Dispatch<SetStateAction<CardDB | null>>;
   readonly listTitleDragRef: MutableRefObject<HTMLDivElement | null>;
   readonly listColumnDropRef: MutableRefObject<HTMLDivElement | null>;
   readonly cardMenuFloatingTargetRef: MutableRefObject<HTMLButtonElement | null>;
@@ -115,6 +119,8 @@ export function useSortableListController(props: SortableListProps): SortableLis
   const [renameModalCardId, setRenameModalCardId] = useState<string | null>(null);
   const [renameCardTitle, setRenameCardTitle] = useState('');
   const [renameCardLoading, setRenameCardLoading] = useState(false);
+  const [duplicateListModalOpen, setDuplicateListModalOpen] = useState(false);
+  const [duplicateCardTarget, setDuplicateCardTarget] = useState<CardDB | null>(null);
   const listTitleDragRef = useRef<HTMLDivElement | null>(null);
   const listColumnDropRef = useRef<HTMLDivElement | null>(null);
   const listDndCleanupRef = useRef<(() => void) | null>(null);
@@ -332,6 +338,10 @@ export function useSortableListController(props: SortableListProps): SortableLis
     renameCardTitle,
     setRenameCardTitle,
     renameCardLoading,
+    duplicateListModalOpen,
+    setDuplicateListModalOpen,
+    duplicateCardTarget,
+    setDuplicateCardTarget,
     listTitleDragRef,
     listColumnDropRef,
     cardMenuFloatingTargetRef,

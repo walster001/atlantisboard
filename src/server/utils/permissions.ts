@@ -148,6 +148,7 @@ const BUILTIN_ROLE_PERMISSION_FALLBACKS: Readonly<Record<UserRole, readonly stri
     'lists.update',
     'lists.reorder',
     'lists.delete',
+    'lists.duplicate',
     'cards.create',
     'cards.update',
     'cards.dates.start.edit',

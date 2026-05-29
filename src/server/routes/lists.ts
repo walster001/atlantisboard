@@ -13,6 +13,7 @@ import {
   reorderLists,
   moveList,
 } from '../services/listService.js';
+import { duplicateList } from '../services/listDuplication.js';
 
 const router = Router();
 
@@ -161,6 +162,48 @@ router.get('/board/:boardId', async (req, res, next) => {
           message: error.message,
           code: 'FORBIDDEN',
           statusCode: 403,
+        },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.post('/:id/duplicate', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const targetBoardId =
+      typeof req.body?.targetBoardId === 'string' ? req.body.targetBoardId.trim() : '';
+    if (targetBoardId === '') {
+      res.status(400).json({
+        error: {
+          message: 'targetBoardId is required',
+          code: 'VALIDATION_ERROR',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+    const list = await duplicateList(req.params.id, targetBoardId, authReq.user.id);
+    res.status(201).json({ list });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('permissions')) {
+      res.status(403).json({
+        error: {
+          message: error.message,
+          code: 'FORBIDDEN',
+          statusCode: 403,
+        },
+      });
+      return;
+    }
+    if (error instanceof Error && error.message.includes('not found')) {
+      res.status(404).json({
+        error: {
+          message: error.message,
+          code: 'NOT_FOUND',
+          statusCode: 404,
         },
       });
       return;

@@ -64,6 +64,7 @@ export const PERMISSION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'lists.update': 'Update a column (list).',
   'lists.delete': 'Delete a column (list).',
   'lists.reorder': 'Reorder columns (lists).',
+  'lists.duplicate': 'Duplicate a column (list) and its cards.',
   'cards.create': 'Create a card.',
   'cards.list': 'List cards.',
   'cards.view': 'View a card.',

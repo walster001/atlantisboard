@@ -12,9 +12,15 @@ export function buildKanbanBoardEditCaps(
   const c = (k: BoardPermissionKey) => set.has(k);
   return {
     canAddList: permissionsLoaded && c('lists.create'),
-    canListMenu: permissionsLoaded && (c('lists.update') || c('lists.delete')),
+    canListMenu:
+      permissionsLoaded &&
+      (c('lists.update') || c('lists.delete') || c('lists.duplicate')),
+    canDuplicateList: permissionsLoaded && c('lists.duplicate'),
     canAddCard: permissionsLoaded && c('cards.create'),
-    canCardKanbanMenu: permissionsLoaded && (c('cards.update') || c('cards.delete')),
+    canCardKanbanMenu:
+      permissionsLoaded &&
+      (c('cards.update') || c('cards.delete') || c('cards.duplicate')),
+    canDuplicateCard: permissionsLoaded && c('cards.duplicate'),
     canDragKanbanCards: permissionsLoaded && (c('cards.move') || c('cards.reorder')),
     canReorderLists: permissionsLoaded && c('lists.reorder'),
   };

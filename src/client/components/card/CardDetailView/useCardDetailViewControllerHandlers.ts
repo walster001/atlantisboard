@@ -6,6 +6,10 @@ import { CARD_TITLE_MAX_LENGTH } from '../../../constants/cardFieldLimits.js';
 import { db, type CardDB } from '../../../store/database.js';
 import { api } from '../../../utils/api.js';
 import { normalizeCardFromApi } from '../../../utils/transform.js';
+import {
+  discardPendingDescriptionMedia,
+  type DescriptionPendingMediaRegistry,
+} from '../../../utils/descriptionPendingMedia.js';
 import type { DateFieldController } from './cardDetailDateField.js';
 import {
   buildDescriptionErrorMessage,
@@ -22,6 +26,7 @@ interface UseCardDetailViewControllerHandlersArgs {
   readonly card: CardDB;
   readonly cardRef: MutableRefObject<CardDB>;
   readonly descriptionEditorRef: MutableRefObject<Editor | null>;
+  readonly pendingDescriptionMediaRef: MutableRefObject<DescriptionPendingMediaRegistry>;
   readonly title: string;
   readonly due: DateFieldController;
   readonly start: DateFieldController;
@@ -38,6 +43,7 @@ interface UseCardDetailViewControllerHandlersArgs {
 interface CardDetailViewControllerHandlers {
   readonly handleUpdateTitle: () => Promise<void>;
   readonly handleUpdateDescription: () => Promise<void>;
+  readonly handleCancelDescriptionEdit: () => void;
   readonly onBeforeDeleteAttachment: (attachmentId: string) => Promise<void>;
   readonly handleSaveDueDate: () => Promise<void>;
   readonly handleClearDueDate: () => Promise<void>;
@@ -62,6 +68,7 @@ export function useCardDetailViewControllerHandlers({
   card,
   cardRef,
   descriptionEditorRef,
+  pendingDescriptionMediaRef,
   title,
   due,
   start,
@@ -128,6 +135,11 @@ export function useCardDetailViewControllerHandlers({
     [cardRef, descriptionEditorRef, syncCardToBoardAndDexie],
   );
 
+  const handleCancelDescriptionEdit = useCallback(() => {
+    discardPendingDescriptionMedia(pendingDescriptionMediaRef.current);
+    setIsEditingDescription(false);
+  }, [pendingDescriptionMediaRef, setIsEditingDescription]);
+
   const handleUpdateDescription = useCallback(async () => {
     const editor = descriptionEditorRef.current;
     setLoading(true);
@@ -137,6 +149,7 @@ export function useCardDetailViewControllerHandlers({
         editor,
         syncCardToBoardAndDexie,
         notifyNormalizeFailure,
+        pendingDescriptionMedia: pendingDescriptionMediaRef.current,
       });
       if (!result.ok) {
         notifications.show({
@@ -157,7 +170,7 @@ export function useCardDetailViewControllerHandlers({
     } finally {
       setLoading(false);
     }
-  }, [card, descriptionEditorRef, setIsEditingDescription, setLoading, syncCardToBoardAndDexie]);
+  }, [card, descriptionEditorRef, pendingDescriptionMediaRef, setIsEditingDescription, setLoading, syncCardToBoardAndDexie]);
 
   const saveDate = useCallback(
     async (kind: DateKind, value: string, close: () => void, label: string): Promise<void> => {
@@ -285,6 +298,7 @@ export function useCardDetailViewControllerHandlers({
   return {
     handleUpdateTitle,
     handleUpdateDescription,
+    handleCancelDescriptionEdit,
     onBeforeDeleteAttachment,
     handleSaveDueDate,
     handleClearDueDate,

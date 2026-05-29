@@ -1,5 +1,6 @@
 import { EditorContent, useEditor } from '@tiptap/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react';
+import type { DescriptionPendingMediaRegistry } from '../../utils/descriptionPendingMedia.js';
 import type { Editor } from '@tiptap/core';
 import { CARD_DESCRIPTION_TEXT_MAX_LENGTH } from '../../../shared/constants/cardDescription.js';
 import {
@@ -21,6 +22,7 @@ export interface CardDescriptionEditorProps {
   onEditorReady?: (editor: Editor | null) => void;
   onJsonByteLengthChange?: (length: number) => void;
   onTextLengthChange?: (length: number) => void;
+  pendingDescriptionMediaRef: MutableRefObject<DescriptionPendingMediaRegistry>;
 }
 
 export function CardDescriptionEditor({
@@ -31,6 +33,7 @@ export function CardDescriptionEditor({
   onEditorReady,
   onJsonByteLengthChange,
   onTextLengthChange,
+  pendingDescriptionMediaRef,
 }: CardDescriptionEditorProps) {
   const [inlineButtonEditPos, setInlineButtonEditPos] = useState<number | null>(null);
   const closeInlineButtonModal = useCallback(() => {
@@ -119,7 +122,10 @@ export function CardDescriptionEditor({
       className="card-desc-tiptap-editor"
       style={{ minHeight: minHeightPx }}
     >
-      <CardDescriptionEditorToolbar editor={editor} cardId={cardId} />
+      <CardDescriptionEditorToolbar
+        editor={editor}
+        pendingDescriptionMediaRef={pendingDescriptionMediaRef}
+      />
       <EditorContent editor={editor} />
       <CardDescriptionInlineButtonEditModal
         key={inlineButtonEditPos ?? 'inline-button-closed'}

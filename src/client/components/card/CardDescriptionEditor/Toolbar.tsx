@@ -1,5 +1,5 @@
 import { useEditorState } from '@tiptap/react';
-import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { Editor } from '@tiptap/core';
 import { BOARD_PRESET_COLOURS, normalizePresetHex } from '../../../constants/boardPresetColors.js';
 import {
@@ -7,13 +7,10 @@ import {
   CARD_DETAIL_SECTION_HEADING_RGB,
   parseCssColorToRgbTriplet,
 } from '../cardDetailSectionUi.js';
-import { api } from '../../../utils/api.js';
 import {
-  beginAttachmentUploadNotification,
-  completeAttachmentUploadNotification,
-  failAttachmentUploadNotification,
-  updateAttachmentUploadNotification,
-} from '../../../utils/attachmentUploadNotifications.js';
+  registerPendingDescriptionMediaFile,
+  type DescriptionPendingMediaRegistry,
+} from '../../../utils/descriptionPendingMedia.js';
 import { prefetchEmojiMartModules } from './emojiMartPicker.js';
 import {
   EDITOR_TEXT_COLOR_FALLBACK,
@@ -23,7 +20,7 @@ import { ToolbarContent } from './ToolbarContent.js';
 
 interface CardDescriptionEditorToolbarProps {
   readonly editor: Editor;
-  readonly cardId: string;
+  readonly pendingDescriptionMediaRef: MutableRefObject<DescriptionPendingMediaRegistry>;
 }
 
 export interface ToolbarUiState {
@@ -51,14 +48,12 @@ export interface ToolbarUiState {
 
 export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorToolbar({
   editor,
-  cardId,
+  pendingDescriptionMediaRef,
 }: CardDescriptionEditorToolbarProps) {
   const isMobile = useResponsiveTier() === 'mobile';
   const [colorPopoverOpen, setColorPopoverOpen] = useState(false);
   const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
   const [textColorPickerValue, setTextColorPickerValue] = useState(EDITOR_TEXT_COLOR_FALLBACK);
-  const [imageUploadBusy, setImageUploadBusy] = useState(false);
-  const [videoUploadBusy, setVideoUploadBusy] = useState(false);
 
   const emojiRgbProbeBgRef = useRef<HTMLSpanElement>(null);
   const emojiRgbProbeFgRef = useRef<HTMLSpanElement>(null);
@@ -152,49 +147,24 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
     }
   };
 
-  const isMediaUploadBusy = imageUploadBusy || videoUploadBusy;
-
-  const uploadAttachmentAndGetUrl = async (file: File): Promise<string | null> => {
-    const label = file.name.trim() !== '' ? file.name : 'Attachment';
-    beginAttachmentUploadNotification(label);
-    try {
-      const response = await api.uploadCardAttachment(cardId, file, (progress) => {
-        updateAttachmentUploadNotification(label, progress);
-      });
-      const attachmentId = (response as { attachment?: { id?: unknown } }).attachment?.id;
-      if (typeof attachmentId !== 'string' || attachmentId.trim() === '') {
-        throw new Error('Upload succeeded but attachment id was missing.');
-      }
-      completeAttachmentUploadNotification(label);
-      return api.getAttachmentFileUrl(attachmentId);
-    } catch (error) {
-      failAttachmentUploadNotification(error instanceof Error ? error.message : 'Could not upload file.');
-      return null;
-    }
-  };
-
   const handleInsertImage = (): void => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.onchange = async () => {
+    input.onchange = () => {
       const file = input.files?.[0];
       if (file == null) {
         return;
       }
-      setImageUploadBusy(true);
-      const src = await uploadAttachmentAndGetUrl(file);
-      if (typeof src === 'string' && src.trim() !== '') {
-        editor
-          .chain()
-          .focus()
-          .insertContent({
-            type: 'imageResize',
-            attrs: { src, alt: file.name },
-          })
-          .run();
-      }
-      setImageUploadBusy(false);
+      const src = registerPendingDescriptionMediaFile(pendingDescriptionMediaRef.current, file);
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: 'imageResize',
+          attrs: { src, alt: file.name },
+        })
+        .run();
     };
     input.click();
   };
@@ -203,17 +173,13 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'video/*';
-    input.onchange = async () => {
+    input.onchange = () => {
       const file = input.files?.[0];
       if (file == null) {
         return;
       }
-      setVideoUploadBusy(true);
-      const src = await uploadAttachmentAndGetUrl(file);
-      if (typeof src === 'string' && src.trim() !== '') {
-        editor.chain().focus().setVideo({ src }).run();
-      }
-      setVideoUploadBusy(false);
+      const src = registerPendingDescriptionMediaFile(pendingDescriptionMediaRef.current, file);
+      editor.chain().focus().setVideo({ src }).run();
     };
     input.click();
   };
@@ -238,7 +204,7 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
       colorPopoverOpen={colorPopoverOpen}
       emojiPopoverOpen={emojiPopoverOpen}
       textColorPickerValue={textColorPickerValue}
-      isMediaUploadBusy={isMediaUploadBusy}
+      isMediaUploadBusy={false}
       emojiMartRgbBackground={emojiMartRgbBackground}
       emojiMartRgbColor={emojiMartRgbColor}
       emojiRgbProbeBgRef={emojiRgbProbeBgRef}

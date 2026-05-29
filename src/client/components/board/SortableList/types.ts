@@ -52,8 +52,10 @@ export function sortableListPropsEqual(
     prev.onKanbanCardsReload === next.onKanbanCardsReload &&
     prev.kanbanCaps.canAddList === next.kanbanCaps.canAddList &&
     prev.kanbanCaps.canListMenu === next.kanbanCaps.canListMenu &&
+    prev.kanbanCaps.canDuplicateList === next.kanbanCaps.canDuplicateList &&
     prev.kanbanCaps.canAddCard === next.kanbanCaps.canAddCard &&
     prev.kanbanCaps.canCardKanbanMenu === next.kanbanCaps.canCardKanbanMenu &&
+    prev.kanbanCaps.canDuplicateCard === next.kanbanCaps.canDuplicateCard &&
     prev.kanbanCaps.canDragKanbanCards === next.kanbanCaps.canDragKanbanCards &&
     prev.kanbanCaps.canReorderLists === next.kanbanCaps.canReorderLists &&
     (prev.kanbanCardTouchDragRequiresLongPress ?? false) === (next.kanbanCardTouchDragRequiresLongPress ?? false)

@@ -30,6 +30,7 @@ const permissionProbeKeys = [
   'lists.update',
   'lists.delete',
   'lists.reorder',
+  'lists.duplicate',
   'comments.create',
   'comments.delete',
   'cards.create',

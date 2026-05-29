@@ -9,6 +9,17 @@ import {
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
 import type { CardDB } from '../../../store/database.js';
 import { api } from '../../../utils/api.js';
+import {
+  beginAttachmentUploadNotification,
+  completeAttachmentUploadNotification,
+  failAttachmentUploadNotification,
+  updateAttachmentUploadNotification,
+} from '../../../utils/attachmentUploadNotifications.js';
+import {
+  discardPendingDescriptionMedia,
+  flushPendingDescriptionMediaInJson,
+  type DescriptionPendingMediaRegistry,
+} from '../../../utils/descriptionPendingMedia.js';
 import { normalizeCardFromApi } from '../../../utils/transform.js';
 import { serializeCardDescriptionEditor } from '../cardDescriptionEditorSerialize.js';
 import { isCardDescriptionEmpty, parseCardDescriptionJson } from '../cardDescriptionTiptap.js';
@@ -23,6 +34,7 @@ interface SharedCardActionArgs {
 
 interface DescriptionUpdateArgs extends SharedCardActionArgs {
   readonly editor: Editor | null;
+  readonly pendingDescriptionMedia: DescriptionPendingMediaRegistry;
 }
 
 interface DeleteAttachmentPreflightArgs {
@@ -118,6 +130,7 @@ export async function runDescriptionUpdate({
   editor,
   syncCardToBoardAndDexie,
   notifyNormalizeFailure,
+  pendingDescriptionMedia,
 }: DescriptionUpdateArgs): Promise<{ ok: boolean; reason?: string }> {
   const serialized = serializeCardDescriptionEditor(editor);
   if (!serialized.ok) {
@@ -125,7 +138,41 @@ export async function runDescriptionUpdate({
   }
   const doc = parseCardDescriptionJson(serialized.jsonString);
   const isEmpty = isCardDescriptionEmpty(doc);
-  const descriptionPayload = isEmpty ? '' : serialized.jsonString;
+  let descriptionPayload = isEmpty ? '' : serialized.jsonString;
+
+  if (!isEmpty && pendingDescriptionMedia.size > 0) {
+    try {
+      descriptionPayload = await flushPendingDescriptionMediaInJson(
+        serialized.jsonString,
+        pendingDescriptionMedia,
+        async (file, onProgress) => {
+          const label = file.name.trim() !== '' ? file.name : 'Attachment';
+          beginAttachmentUploadNotification(label);
+          try {
+            const response = await api.uploadCardAttachment(card.id, file, (progress) => {
+              updateAttachmentUploadNotification(label, progress);
+              onProgress?.(progress);
+            });
+            const attachmentId = (response as { attachment?: { id?: unknown } }).attachment?.id;
+            if (typeof attachmentId !== 'string' || attachmentId.trim() === '') {
+              throw new Error('Upload succeeded but attachment id was missing.');
+            }
+            completeAttachmentUploadNotification(label);
+            return api.getAttachmentFileUrl(attachmentId);
+          } catch (error) {
+            failAttachmentUploadNotification(
+              error instanceof Error ? error.message : 'Could not upload file.',
+            );
+            throw error;
+          }
+        },
+      );
+    } catch {
+      return { ok: false, reason: 'Could not upload description media.' };
+    }
+  }
+
+  discardPendingDescriptionMedia(pendingDescriptionMedia);
   const previousAttachmentIds = new Set<string>([
     ...collectAttachmentIdsFromDescriptionJson(card.description ?? ''),
     ...collectReferencedAttachmentIdsFromDescriptionJson(card.description ?? '', card.attachments),
@@ -138,7 +185,7 @@ export async function runDescriptionUpdate({
     position: card.position,
     ...(typeof card.pos === 'number' && Number.isFinite(card.pos) ? { pos: card.pos } : {}),
   });
-  const descriptionForNextRefs = isEmpty ? '' : serialized.jsonString;
+  const descriptionForNextRefs = isEmpty ? '' : descriptionPayload;
   const nextAttachmentIds = new Set<string>([
     ...collectAttachmentIdsFromDescriptionJson(descriptionForNextRefs),
     ...collectReferencedAttachmentIdsFromDescriptionJson(descriptionForNextRefs, normalized.attachments),

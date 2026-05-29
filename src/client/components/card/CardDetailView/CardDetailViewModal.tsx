@@ -221,6 +221,7 @@ export function CardDetailViewModal({
                             placeholder="Add a description…"
                             minHeightPx={280}
                             onEditorReady={controller.onDescriptionEditorReady}
+                            pendingDescriptionMediaRef={controller.pendingDescriptionMediaRef}
                           />
                         </Suspense>
                         <Group justify="flex-start" gap="xs" p="xs" style={{ backgroundColor: 'var(--mantine-color-gray-1)' }}>
@@ -236,7 +237,7 @@ export function CardDetailViewModal({
                           <Button
                             size="sm"
                             variant="subtle"
-                            onClick={() => controller.setIsEditingDescription(false)}
+                            onClick={controller.handleCancelDescriptionEdit}
                             disabled={controller.loading}
                           >
                             Cancel
@@ -378,6 +379,8 @@ export function CardDetailViewModal({
           cardId={controller.card.id}
           currentListId={listId}
           boardId={boardId}
+          boardName={controller.boardName}
+          workspaceId={controller.boardWorkspaceId ?? undefined}
           onClose={() => controller.setShowDuplicateModal(false)}
           onSuccess={() => onCardDuplicated?.()}
         />

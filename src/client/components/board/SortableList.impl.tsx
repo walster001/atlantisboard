@@ -6,6 +6,8 @@ import { BoardInlineCardComposer } from './BoardInlineCardComposer.js';
 import { sortableListPropsEqual, type SortableListProps } from './SortableList/types.js';
 import { useSortableListController } from './SortableList/useSortableListController.js';
 import { SortableListDialogs } from './SortableList/SortableListDialogs.js';
+import { DuplicateListModal } from './DuplicateListModal.js';
+import { DuplicateCardModal } from '../card/DuplicateCardModal.js';
 import './boardView.css';
 
 function SortableListInner({
@@ -67,6 +69,10 @@ function SortableListInner({
     handleRemoveColorFromAllInList,
     handleRenameCardSave,
     openDeleteCardForId,
+    duplicateListModalOpen,
+    setDuplicateListModalOpen,
+    duplicateCardTarget,
+    setDuplicateCardTarget,
     columnClassName,
     cardMenuTargetCard,
     showListCardCount,
@@ -168,6 +174,15 @@ function SortableListInner({
                   >
                     Rename list
                   </Menu.Item>
+                  {kanbanCaps.canDuplicateList ? (
+                    <Menu.Item
+                      onClick={() => {
+                        setDuplicateListModalOpen(true);
+                      }}
+                    >
+                      Duplicate list
+                    </Menu.Item>
+                  ) : null}
                   <Menu.Item
                     onClick={() => {
                       setListColorModalNonce((n) => n + 1);
@@ -255,6 +270,19 @@ function SortableListInner({
             >
               Rename card
             </Menu.Item>
+            {kanbanCaps.canDuplicateCard ? (
+              <Menu.Item
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (cardMenuTargetCard != null) {
+                    setDuplicateCardTarget(cardMenuTargetCard);
+                  }
+                  closeCardMenu();
+                }}
+              >
+                Duplicate card
+              </Menu.Item>
+            ) : null}
             <Menu.Divider />
             <Menu.Item
               color="red"
@@ -319,6 +347,35 @@ function SortableListInner({
         renameCardLoading={renameCardLoading}
         handleRenameCardSave={handleRenameCardSave}
       />
+
+      {duplicateListModalOpen ? (
+        <DuplicateListModal
+          listId={list.id}
+          listName={list.name}
+          boardId={boardId}
+          boardName={board.name}
+          workspaceId={board.workspaceId}
+          onClose={() => setDuplicateListModalOpen(false)}
+          onSuccess={() => {
+            onListUpdated?.();
+            void onKanbanCardsReload?.();
+          }}
+        />
+      ) : null}
+
+      {duplicateCardTarget != null ? (
+        <DuplicateCardModal
+          cardId={duplicateCardTarget.id}
+          currentListId={list.id}
+          boardId={boardId}
+          boardName={board.name}
+          workspaceId={board.workspaceId}
+          onClose={() => setDuplicateCardTarget(null)}
+          onSuccess={() => {
+            void onKanbanCardsReload?.();
+          }}
+        />
+      ) : null}
     </Box>
   );
 }

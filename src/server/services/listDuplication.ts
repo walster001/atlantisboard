@@ -1,0 +1,127 @@
+import type { Document } from 'mongoose';
+import { List, type IList } from '../models/List.js';
+import { Card } from '../models/Card.js';
+import { Board } from '../models/Board.js';
+import { logAuditEvent } from '../utils/auditLogger.js';
+import { hasPermission } from '../utils/permissions.js';
+import { createList, updateList } from './listService.js';
+import { duplicateCard } from './cardService/cardDuplication.js';
+import { compareCardListOrder } from '../../shared/utils/cardListPos.js';
+import { LIST_NAME_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
+import { getBoardListCardLimits } from './cardService/types.js';
+
+function duplicateListName(sourceName: string): string {
+  const suffix = ' (Copy)';
+  const trimmed = sourceName.trim();
+  if (trimmed.length + suffix.length <= LIST_NAME_MAX_LENGTH) {
+    return `${trimmed}${suffix}`;
+  }
+  return `${trimmed.slice(0, LIST_NAME_MAX_LENGTH - suffix.length)}${suffix}`;
+}
+
+export async function duplicateList(
+  sourceListId: string,
+  targetBoardId: string,
+  userId: string,
+): Promise<Document & IList> {
+  const sourceList = await List.findById(sourceListId);
+  if (sourceList == null) {
+    throw new Error('List not found');
+  }
+
+  const sourceBoardId = sourceList.boardId.toString();
+  const sourceBoard = await Board.findById(sourceBoardId);
+  if (sourceBoard == null) {
+    throw new Error('Board not found');
+  }
+
+  if (sourceBoard.ownerId.toString() !== userId) {
+    const allowed = await hasPermission({ id: userId }, sourceBoardId, 'lists.duplicate');
+    if (!allowed) {
+      throw new Error('Insufficient permissions to duplicate list');
+    }
+  }
+
+  const targetBoard = await Board.findById(targetBoardId);
+  if (targetBoard == null) {
+    throw new Error('Target board not found');
+  }
+
+  if (targetBoard.ownerId.toString() !== userId) {
+    const canViewTarget = await hasPermission({ id: userId }, targetBoardId, 'boards.view');
+    if (!canViewTarget) {
+      throw new Error('Insufficient permissions to view target board');
+    }
+    const canCreateList = await hasPermission({ id: userId }, targetBoardId, 'lists.create');
+    if (!canCreateList) {
+      throw new Error('Insufficient permissions to create list on target board');
+    }
+  }
+
+  const newList = await createList(
+    {
+      boardId: targetBoardId,
+      name: duplicateListName(sourceList.name),
+    },
+    userId,
+  );
+
+  if (typeof sourceList.color === 'string' && sourceList.color.trim() !== '') {
+    await updateList(newList._id.toString(), { color: sourceList.color }, userId);
+  }
+
+  const sourceCards = await Card.find({ listId: sourceListId }).lean();
+  const sortedSourceCards = [...sourceCards].sort((a, b) =>
+    compareCardListOrder(
+      {
+        ...(typeof a.pos === 'number' && Number.isFinite(a.pos) ? { pos: a.pos } : {}),
+        position: a.position,
+        id: a._id.toString(),
+      },
+      {
+        ...(typeof b.pos === 'number' && Number.isFinite(b.pos) ? { pos: b.pos } : {}),
+        position: b.position,
+        id: b._id.toString(),
+      },
+    ),
+  );
+
+  const { max, enforce } = getBoardListCardLimits(targetBoard);
+  if (enforce && sortedSourceCards.length > max) {
+    throw new Error(`Target list cannot exceed maximum card limit of ${max}`);
+  }
+
+  const newListId = newList._id.toString();
+  for (let i = sortedSourceCards.length - 1; i >= 0; i -= 1) {
+    const card = sortedSourceCards[i];
+    if (card == null) {
+      continue;
+    }
+    if (enforce) {
+      const cardCount = await Card.countDocuments({ listId: newListId });
+      if (cardCount >= max) {
+        break;
+      }
+    }
+    await duplicateCard(card._id.toString(), newListId, userId, { skipSourcePermissionCheck: true });
+  }
+
+  logAuditEvent({
+    userId,
+    action: 'list.duplicate',
+    resourceType: 'list',
+    resourceId: sourceListId,
+    metadata: {
+      duplicatedListId: newListId,
+      targetBoardId,
+      cardCount: sortedSourceCards.length,
+    },
+    timestamp: new Date(),
+  });
+
+  const refreshed = await List.findById(newListId);
+  if (refreshed == null) {
+    throw new Error('Duplicated list not found after create');
+  }
+  return refreshed;
+}

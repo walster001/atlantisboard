@@ -45,8 +45,10 @@ describe('theme permission role seeds', () => {
     const admin = permissionsFor('admin');
 
     expect(manager).not.toContain('cards.duplicate');
+    expect(manager).not.toContain('lists.duplicate');
     expect(manager).not.toContain('invites.view');
     expect(admin).toContain('cards.duplicate');
+    expect(admin).toContain('lists.duplicate');
     expect(admin).toContain('invites.view');
   });
 

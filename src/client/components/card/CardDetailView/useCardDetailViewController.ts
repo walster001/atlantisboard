@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import type { Editor } from '@tiptap/core';
 import {
   boardShowsDueDateOnCards,
@@ -9,7 +9,12 @@ import {
 import { useBoardPermissions } from '../../../hooks/useBoardPermissions.js';
 import { useResponsiveTier } from '../../../hooks/useResponsiveTier.js';
 import { db, type BoardDB, type CardDB } from '../../../store/database.js';
+import { useBoardRuntimeStore } from '../../../store/boardRuntimeStore.js';
 import { CARD_DETAIL_MODAL_STYLES, shouldAcceptIncomingCard } from './helpers.js';
+import {
+  discardPendingDescriptionMedia,
+  type DescriptionPendingMediaRegistry,
+} from '../../../utils/descriptionPendingMedia.js';
 import { isCardDescriptionEmpty, parseCardDescriptionJson } from '../cardDescriptionTiptap.js';
 import { type DateFieldController, useDateField } from './cardDetailDateField.js';
 import { useCardDetailViewControllerHandlers } from './useCardDetailViewControllerHandlers.js';
@@ -54,6 +59,8 @@ export interface CardDetailViewController {
   readonly canEditEndDate: boolean;
   readonly canDeleteCard: boolean;
   readonly canDuplicateCard: boolean;
+  readonly boardName: string;
+  readonly boardWorkspaceId: string | null | undefined;
   readonly canCreateComments: boolean;
   readonly canDeleteOthersComments: boolean;
   readonly due: DateFieldController;
@@ -66,6 +73,7 @@ export interface CardDetailViewController {
   readonly handleUpdateTitle: () => Promise<void>;
   readonly onDescriptionEditorReady: (editor: Editor | null) => void;
   readonly handleUpdateDescription: () => Promise<void>;
+  readonly handleCancelDescriptionEdit: () => void;
   readonly onBeforeDeleteAttachment: (attachmentId: string) => Promise<void>;
   readonly handleSaveDueDate: () => Promise<void>;
   readonly handleClearDueDate: () => Promise<void>;
@@ -76,6 +84,7 @@ export interface CardDetailViewController {
   readonly handleCopyCardLink: () => Promise<void>;
   readonly handleDeleteCard: () => void;
   readonly syncCardToBoardAndDexie: (card: CardDB) => void;
+  readonly pendingDescriptionMediaRef: MutableRefObject<DescriptionPendingMediaRegistry>;
 }
 
 export function useCardDetailViewController({
@@ -96,6 +105,7 @@ export function useCardDetailViewController({
   const [loading, setLoading] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const descriptionEditorRef = useRef<Editor | null>(null);
+  const pendingDescriptionMediaRef = useRef<DescriptionPendingMediaRegistry>(new Map());
   const cardRef = useRef(card);
   cardRef.current = card;
 
@@ -120,6 +130,7 @@ export function useCardDetailViewController({
   const canEditEndDate = boardPermsLoaded && can('cards.dates.end.edit');
   const canDeleteCard = boardPermsLoaded && can('cards.delete');
   const canDuplicateCard = boardPermsLoaded && can('cards.duplicate');
+  const boardName = useBoardRuntimeStore((state) => state.board?.name ?? 'This board');
   const canCreateComments = boardPermsLoaded && can('comments.create');
   const canDeleteOthersComments = boardPermsLoaded && can('comments.delete');
 
@@ -172,12 +183,19 @@ export function useCardDetailViewController({
     }
   }, [initialCard, isEditing, isEditingDescription]);
 
+  useEffect(() => {
+    return () => {
+      discardPendingDescriptionMedia(pendingDescriptionMediaRef.current);
+    };
+  }, []);
+
   const onDescriptionEditorReady = useCallback((editor: Editor | null) => {
     descriptionEditorRef.current = editor;
   }, []);
   const {
     handleUpdateTitle,
     handleUpdateDescription,
+    handleCancelDescriptionEdit,
     onBeforeDeleteAttachment,
     handleSaveDueDate,
     handleClearDueDate,
@@ -192,6 +210,7 @@ export function useCardDetailViewController({
     card,
     cardRef,
     descriptionEditorRef,
+    pendingDescriptionMediaRef,
     title,
     due,
     start,
@@ -230,6 +249,8 @@ export function useCardDetailViewController({
     canEditEndDate,
     canDeleteCard,
     canDuplicateCard,
+    boardName,
+    boardWorkspaceId,
     canCreateComments,
     canDeleteOthersComments,
     due,
@@ -242,6 +263,7 @@ export function useCardDetailViewController({
     handleUpdateTitle,
     onDescriptionEditorReady,
     handleUpdateDescription,
+    handleCancelDescriptionEdit,
     onBeforeDeleteAttachment,
     handleSaveDueDate,
     handleClearDueDate,
@@ -252,5 +274,6 @@ export function useCardDetailViewController({
     handleCopyCardLink,
     handleDeleteCard,
     syncCardToBoardAndDexie,
+    pendingDescriptionMediaRef,
   };
 }

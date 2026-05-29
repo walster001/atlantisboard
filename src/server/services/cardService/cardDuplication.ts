@@ -142,10 +142,16 @@ async function computeInsertPosAtTopOfList(listId: string): Promise<number> {
   return newPos;
 }
 
+export interface DuplicateCardOptions {
+  /** Used when duplicating cards as part of `lists.duplicate` (permission already checked). */
+  readonly skipSourcePermissionCheck?: boolean;
+}
+
 export async function duplicateCard(
   cardId: string,
   targetListId: string,
   userId: string,
+  options: DuplicateCardOptions = {},
 ): Promise<(Document & ICard) | null> {
   const sourceCard = await Card.findById(cardId);
   if (!sourceCard) {
@@ -158,20 +164,32 @@ export async function duplicateCard(
     throw new Error('Board not found');
   }
 
-  if (board.ownerId.toString() !== userId) {
+  if (!options.skipSourcePermissionCheck && board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, sourceCard.boardId.toString(), 'cards.duplicate');
     if (!allowed) {
       throw new Error('Insufficient permissions to duplicate card');
     }
   }
 
-  // Verify target list exists
   const targetList = await List.findById(targetListId);
   if (!targetList) {
     throw new Error('Target list not found');
   }
 
-  const { max, enforce } = getBoardListCardLimits(board);
+  const targetBoardId = targetList.boardId.toString();
+  const targetBoard = await Board.findById(targetBoardId);
+  if (targetBoard == null) {
+    throw new Error('Target board not found');
+  }
+
+  if (targetBoard.ownerId.toString() !== userId) {
+    const canViewTarget = await hasPermission({ id: userId }, targetBoardId, 'boards.view');
+    if (!canViewTarget) {
+      throw new Error('Insufficient permissions to view target board');
+    }
+  }
+
+  const { max, enforce } = getBoardListCardLimits(targetBoard);
   if (enforce) {
     const cardCount = await Card.countDocuments({ listId: targetListId });
     if (cardCount >= max) {
@@ -186,7 +204,7 @@ export async function duplicateCard(
   // Create duplicate (top of target list; attachments copied in MinIO after `_id` exists)
   const duplicate = new Card({
     listId: targetListId,
-    boardId: sourceCard.boardId,
+    boardId: targetBoardId,
     title: `${sourceCard.title} (Copy)`.slice(0, CARD_TITLE_MAX_LENGTH),
     description: sourceCard.description,
     descriptionHtml: sourceCard.descriptionHtml,
@@ -258,17 +276,21 @@ export async function duplicateCard(
     return null;
   }
 
-  const boardId = sourceCard.boardId.toString();
+  const sourceBoardId = sourceCard.boardId.toString();
   const serverTs = Date.now();
 
-  emitToBoard(boardId, 'card:duplicated', {
-    originalCardId: cardId,
-    duplicatedCardId: refreshed._id.toString(),
-    targetListId,
-    boardId,
-    data: refreshed.toObject(),
-    serverTs,
-  });
+  const emitBoardIds = sourceBoardId === targetBoardId ? [targetBoardId] : [sourceBoardId, targetBoardId];
+
+  for (const emitBoardId of emitBoardIds) {
+    emitToBoard(emitBoardId, 'card:duplicated', {
+      originalCardId: cardId,
+      duplicatedCardId: refreshed._id.toString(),
+      targetListId,
+      boardId: targetBoardId,
+      data: refreshed.toObject(),
+      serverTs,
+    });
+  }
 
   const buildListPayload = async (lid: string) => {
     const rows = sortCardRowsByPos(
@@ -280,8 +302,8 @@ export async function duplicateCard(
       orderedPos: rows.map((r) => rowNumericPos(r)),
     };
   };
-  emitToBoard(boardId, 'cards:positions-batch-updated', {
-    boardId,
+  emitToBoard(targetBoardId, 'cards:positions-batch-updated', {
+    boardId: targetBoardId,
     fromListId: sourceCard.listId.toString(),
     toListId: targetListId,
     movedCardId: refreshed._id.toString(),
@@ -295,12 +317,12 @@ export async function duplicateCard(
     action: 'card.duplicate',
     resourceType: 'card',
     resourceId: cardId,
-    metadata: { duplicatedCardId: refreshed._id.toString(), targetListId },
+    metadata: { duplicatedCardId: refreshed._id.toString(), targetListId, targetBoardId },
     timestamp: new Date(),
   });
 
   createActivity({
-    boardId,
+    boardId: targetBoardId,
     cardId: refreshed._id.toString(),
     userId,
     type: 'card.created',

@@ -1,69 +1,50 @@
-import { useState, useEffect } from 'react';
-import { Modal, Select, Button, Stack, Group, Loader } from '@mantine/core';
+import { useState } from 'react';
+import { Modal, Button, Stack, Group } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { KB_IOS_MODAL_HEADER_SAFE_CLASS } from '../../constants/iosModalSafeArea.js';
 import { api } from '../../utils/api.js';
-
-interface List {
-  _id: string;
-  name: string;
-  boardId: string;
-}
+import { DuplicateTargetBoardListPicker } from '../board/DuplicateTargetBoardListPicker.js';
 
 interface DuplicateCardModalProps {
-  cardId: string;
-  currentListId: string;
-  boardId: string;
-  onClose: () => void;
-  onSuccess: () => void;
+  readonly cardId: string;
+  readonly currentListId: string;
+  readonly boardId: string;
+  readonly boardName: string;
+  readonly workspaceId: string | undefined;
+  readonly onClose: () => void;
+  readonly onSuccess: () => void;
 }
 
 export function DuplicateCardModal({
   cardId,
   currentListId,
   boardId,
+  boardName,
+  workspaceId,
   onClose,
   onSuccess,
-}: DuplicateCardModalProps) {
-  const [lists, setLists] = useState<List[]>([]);
-  const [targetListId, setTargetListId] = useState<string>('');
+}: DuplicateCardModalProps): React.ReactElement {
+  const [targetBoardId, setTargetBoardId] = useState(boardId);
+  const [targetListId, setTargetListId] = useState(currentListId);
   const [loading, setLoading] = useState(false);
-  const [fetchingLists, setFetchingLists] = useState(true);
 
-  useEffect(() => {
-    const loadLists = async () => {
-      try {
-        setFetchingLists(true);
-        const response = await api.getListsByBoard(boardId);
-        const boardLists = (response as { lists: List[] }).lists;
-        setLists(boardLists);
-        // Set default to current list if available
-        if (currentListId && boardLists.find((l) => l._id === currentListId)) {
-          setTargetListId(currentListId);
-        } else if (boardLists.length > 0) {
-          setTargetListId(boardLists[0]._id);
-        }
-      } catch (error) {
-        console.error('Error loading lists:', error);
-      } finally {
-        setFetchingLists(false);
-      }
-    };
-
-    loadLists();
-  }, [boardId, currentListId]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    if (!targetListId) return;
+    if (targetListId.trim() === '') {
+      return;
+    }
 
     setLoading(true);
     try {
       await api.duplicateCard(cardId, targetListId);
       onSuccess();
       onClose();
+      notifications.show({
+        color: 'green',
+        title: 'Card duplicated',
+        message: 'The card was copied to the selected list.',
+      });
     } catch (error) {
-      console.error('Error duplicating card:', error);
       notifications.show({
         color: 'red',
         title: 'Could not duplicate card',
@@ -76,44 +57,38 @@ export function DuplicateCardModal({
 
   return (
     <Modal
-      opened={true}
+      opened
       onClose={onClose}
-      title="Duplicate Card"
+      title="Duplicate card"
       centered
       classNames={{ header: KB_IOS_MODAL_HEADER_SAFE_CLASS }}
     >
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={(e) => void handleSubmit(e)}>
         <Stack gap="md">
-          {fetchingLists ? (
-            <Loader />
-          ) : (
-            <Select
-              label="Target List"
-              value={targetListId}
-              onChange={(value) => setTargetListId(value || '')}
-              data={lists.map((list) => ({ value: list._id, label: list.name }))}
-              required
-              disabled={loading}
-              description="The card will be duplicated to the selected list with all its properties (labels, checklists, comments, assignees, due dates)"
-            />
-          )}
+          <DuplicateTargetBoardListPicker
+            workspaceId={workspaceId}
+            currentBoardId={boardId}
+            currentBoardName={boardName}
+            currentListId={currentListId}
+            targetBoardId={targetBoardId}
+            onTargetBoardIdChange={setTargetBoardId}
+            targetListId={targetListId}
+            onTargetListIdChange={setTargetListId}
+            disabled={loading}
+            listDescription="The card will be duplicated with labels, checklists, comments, assignees, and due dates."
+          />
 
           <Group justify="flex-end" mt="md">
-            <Button
-              type="button"
-              variant="subtle"
-              onClick={onClose}
-              disabled={loading}
-            >
+            <Button type="button" variant="subtle" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
             <Button
               type="submit"
               color="blue"
-              disabled={loading || !targetListId || fetchingLists}
+              disabled={loading || targetListId.trim() === ''}
               loading={loading}
             >
-              {loading ? 'Duplicating...' : 'Duplicate Card'}
+              {loading ? 'Duplicating…' : 'Duplicate card'}
             </Button>
           </Group>
         </Stack>
@@ -121,4 +96,3 @@ export function DuplicateCardModal({
     </Modal>
   );
 }
-

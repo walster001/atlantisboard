@@ -8,8 +8,10 @@ import { subscribeSocketBoardUpdated } from '../utils/socketRealtimeBridge.js';
 export interface KanbanBoardEditCaps {
   readonly canAddList: boolean;
   readonly canListMenu: boolean;
+  readonly canDuplicateList: boolean;
   readonly canAddCard: boolean;
   readonly canCardKanbanMenu: boolean;
+  readonly canDuplicateCard: boolean;
   /** Card body drag: reorder within list and/or move between lists. */
   readonly canDragKanbanCards: boolean;
   /** List column reorder drag from title row. */
@@ -36,6 +38,7 @@ export type BoardPermissionKey =
   | 'lists.update'
   | 'lists.delete'
   | 'lists.reorder'
+  | 'lists.duplicate'
   | 'comments.create'
   | 'comments.delete'
   | 'cards.create'

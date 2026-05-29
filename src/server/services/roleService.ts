@@ -74,6 +74,7 @@ export const BUILTIN_ROLE_SEEDS: readonly BuiltInRoleSeed[] = [
       'lists.update',
       'lists.reorder',
       'lists.delete',
+      'lists.duplicate',
       'cards.create',
       'cards.update',
       'cards.dates.start.edit',
@@ -209,7 +210,7 @@ async function seedRoleDefinitions(): Promise<void> {
     {
       $addToSet: {
         permissions: {
-          $each: ['comments.delete', 'cards.duplicate'],
+          $each: ['comments.delete', 'cards.duplicate', 'lists.duplicate'],
         },
       },
     },

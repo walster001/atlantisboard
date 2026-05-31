@@ -1,11 +1,11 @@
 /// <reference types="bun-types" />
 import { describe, expect, it } from 'bun:test';
-import { BUILTIN_ROLE_SEEDS } from '../src/server/services/roleService.js';
+import { BUILTIN_ROLE_SEEDS, permissionsForBuiltinRole } from '../src/shared/permissions/catalog.js';
 
 function permissionsFor(roleKey: 'admin' | 'manager' | 'viewer'): readonly string[] {
   const role = BUILTIN_ROLE_SEEDS.find((entry) => entry.key === roleKey);
   expect(role).toBeDefined();
-  return role?.permissions ?? [];
+  return permissionsForBuiltinRole(roleKey);
 }
 
 describe('theme permission role seeds', () => {

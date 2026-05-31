@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { liveQuery } from 'dexie';
 import { db, type CardDB } from '../store/database.js';
 import { api } from '../utils/api.js';
-import { capMapSize } from '../utils/capMapSize.js';
+import { capMapSize } from '../../shared/utils/capMapSize.js';
 import { normalizeCardFromApi } from '../utils/transform.js';
 
 const MAX_CARD_DETAIL_WARM_CACHE = 96;
@@ -42,7 +42,7 @@ export function prefetchCardDetail(cardId: string, seed?: CardDB): void {
   const p = (async (): Promise<void> => {
     try {
       const response = await api.getCard(cardId);
-      const raw = (response as { card: unknown }).card;
+      const raw = response.card;
       const normalized = normalizeCardFromApi(raw, cardId);
       setCardDetailWarmCache(cardId, normalized);
       try {
@@ -151,7 +151,7 @@ export function useCardDetailLoader(cardId: string | null, initialCard?: CardDB)
         if (loadGenerationRef.current !== loadGeneration) {
           return;
         }
-        const raw = (response as { card: unknown }).card;
+        const raw = response.card;
         let forDexie: CardDB;
         try {
           forDexie = normalizeCardFromApi(raw, cardId);

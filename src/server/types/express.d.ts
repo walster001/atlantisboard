@@ -1,5 +1,5 @@
 /**
- * Express Request/Response type extensions
+ * Express Request/Response type extensions (server-only).
  *
  * Passport augments Express.Request with `user?: Express.User | undefined`.
  * We define Express.User so route handlers align with JWT `requireAuth` payload.

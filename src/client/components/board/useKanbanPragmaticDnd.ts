@@ -221,11 +221,11 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
               }
               if (targetListId === activeListId) {
                 const movePayload = await api.moveCard(activeId, activeListId, insertIndex);
-                const moved = normalizeCardFromApi((movePayload as { card: unknown }).card, activeId);
+                const moved = normalizeCardFromApi(movePayload.card, activeId);
                 await persistDexieCardPut(moved);
               } else {
                 const movePayload = await api.moveCard(activeId, targetListId, insertIndex);
-                const moved = normalizeCardFromApi((movePayload as { card: unknown }).card, activeId);
+                const moved = normalizeCardFromApi(movePayload.card, activeId);
                 await persistDexieCardPut(moved);
               }
             } catch {

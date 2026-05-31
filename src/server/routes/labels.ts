@@ -2,7 +2,7 @@ import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
-import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../types/express.js';
 import {
   createLabel,
   getBoardLabels,

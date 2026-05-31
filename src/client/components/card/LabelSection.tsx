@@ -203,7 +203,7 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
       }
 
       const response = await api.getCard(card.id);
-      const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+      const updatedCard = normalizeCardFromApi(response.card, card.id);
       onCardUpdate(updatedCard);
     } catch (error) {
       console.error('Error toggling label:', error);

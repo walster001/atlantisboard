@@ -52,7 +52,7 @@ export function ReminderSection({ card, canEdit = true, onCardUpdate }: Reminder
         try {
           await api.deleteCardReminder(card.id, reminderId);
           const response = await api.getCard(card.id);
-          const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+          const updatedCard = normalizeCardFromApi(response.card, card.id);
           onCardUpdate(updatedCard);
         } catch (error) {
           console.error('Error deleting reminder:', error);
@@ -76,7 +76,7 @@ export function ReminderSection({ card, canEdit = true, onCardUpdate }: Reminder
     try {
       await api.dismissCardReminder(card.id, reminderId);
       const response = await api.getCard(card.id);
-      const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+      const updatedCard = normalizeCardFromApi(response.card, card.id);
       onCardUpdate(updatedCard);
     } catch (error) {
       console.error('Error dismissing reminder:', error);
@@ -124,7 +124,7 @@ export function ReminderSection({ card, canEdit = true, onCardUpdate }: Reminder
 
   const handleReminderSaved = async () => {
     const response = await api.getCard(card.id);
-    const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+    const updatedCard = normalizeCardFromApi(response.card, card.id);
     onCardUpdate(updatedCard);
     setShowReminderModal(false);
     setEditingReminder(null);

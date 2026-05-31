@@ -1,5 +1,5 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { authRoutes } from './auth.js';
+import { authRoutes } from './auth/index.js';
 import { adminRoutes } from './admin.js';
 import { workspaceRoutes } from './workspaces.js';
 import { boardRoutes } from './boards.js';

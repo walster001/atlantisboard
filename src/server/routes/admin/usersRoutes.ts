@@ -4,7 +4,7 @@ import {
   accountCapabilitiesFromFlags,
   isAccountCapabilityKey,
 } from '../../../shared/accountCapabilities.js';
-import type { AuthenticatedRequest } from '../../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../../types/express.js';
 import { Activity } from '../../models/Activity.js';
 import { BackupJob } from '../../models/BackupJob.js';
 import { Board } from '../../models/Board.js';

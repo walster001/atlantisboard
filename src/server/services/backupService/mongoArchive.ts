@@ -14,8 +14,8 @@ import {
   getMongoCursorBatchSize,
   getMongoExportConcurrency,
   getMongoInsertBatchSize,
-  runWithConcurrency,
 } from './runtime.js';
+import { runWithConcurrency } from '../../../shared/utils/runWithConcurrency.js';
 
 /**
  * Exports each collection as a mongodump-style BSON stream: repeated

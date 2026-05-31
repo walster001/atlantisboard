@@ -5,7 +5,8 @@ import { CARD_TITLE_MAX_LENGTH } from '../../shared/constants/entityTextLimits.j
 import { isValidCardDescriptionJsonString } from '../../shared/validation/cardDescriptionDoc.js';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
-import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import { mapServiceErrorToHttp } from '../utils/mapServiceErrorToHttp.js';
+import type { AuthenticatedRequest } from '../types/express.js';
 import {
   createCard,
   getCardById,
@@ -29,6 +30,35 @@ const router = Router();
 
 router.use(requireAuth as RequestHandler);
 router.use(apiRateLimiter);
+
+function respondCardZodError(res: import('express').Response, error: unknown): boolean {
+  if (error instanceof z.ZodError) {
+    res.status(400).json({
+      error: {
+        message: 'Validation failed',
+        code: 'VALIDATION_ERROR',
+        statusCode: 400,
+        details: error.issues,
+      },
+    });
+    return true;
+  }
+  return false;
+}
+
+function handleCardRouteError(
+  res: import('express').Response,
+  error: unknown,
+  next: (error: unknown) => void,
+): void {
+  if (respondCardZodError(res, error)) {
+    return;
+  }
+  if (mapServiceErrorToHttp(res, error)) {
+    return;
+  }
+  next(error);
+}
 
 const optionalCardDescriptionSchema = z
   .string()
@@ -79,40 +109,7 @@ router.post('/', async (req, res, next) => {
 
     res.status(201).json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error) {
-      if (error.message.includes('permissions')) {
-        res.status(403).json({
-          error: {
-            message: error.message,
-            code: 'FORBIDDEN',
-            statusCode: 403,
-          },
-        });
-        return;
-      }
-      if (error.message.includes('List not found') || error.message.includes('Board not found')) {
-        res.status(404).json({
-          error: {
-            message: error.message,
-            code: 'NOT_FOUND',
-            statusCode: 404,
-          },
-        });
-        return;
-      }
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -138,40 +135,7 @@ router.get('/list/:listId', async (req, res, next) => {
     const cards = await getCardsByList(req.params.listId, authReq.user.id, options);
     res.json({ cards });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error) {
-      if (error.message.includes('permissions')) {
-        res.status(403).json({
-          error: {
-            message: error.message,
-            code: 'FORBIDDEN',
-            statusCode: 403,
-          },
-        });
-        return;
-      }
-      if (error.message.includes('List not found')) {
-        res.status(404).json({
-          error: {
-            message: error.message,
-            code: 'NOT_FOUND',
-            statusCode: 404,
-          },
-        });
-        return;
-      }
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -202,28 +166,7 @@ router.put('/reorder', async (req, res, next) => {
       deprecatedForInteractiveDnD: true,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && (error.message.includes('not found') || error.message.includes('permissions'))) {
-      res.status(400).json({
-        error: {
-          message: error.message,
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -246,28 +189,7 @@ router.get('/:id', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -319,40 +241,7 @@ router.put('/:id', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error) {
-      if (error.message.includes('permissions')) {
-        res.status(403).json({
-          error: {
-            message: error.message,
-            code: 'FORBIDDEN',
-            statusCode: 403,
-          },
-        });
-        return;
-      }
-      if (error.message.includes('List not found')) {
-        res.status(404).json({
-          error: {
-            message: error.message,
-            code: 'NOT_FOUND',
-            statusCode: 404,
-          },
-        });
-        return;
-      }
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -387,17 +276,7 @@ router.put('/:id/move', async (req, res, next) => {
 
     res.json({ card });
   } catch (error) {
-    if (error instanceof Error && (error.message.includes('not found') || error.message.includes('permissions') || error.message.includes('limit'))) {
-      res.status(400).json({
-        error: {
-          message: error.message,
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -413,17 +292,7 @@ router.delete('/:id', async (req, res, next) => {
       message: deleted ? 'Card deleted successfully' : 'Card was already deleted',
     });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -455,17 +324,7 @@ router.post('/:id/duplicate', async (req, res, next) => {
     }
     res.status(201).json({ card: duplicate });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -497,17 +356,7 @@ router.post('/:id/assignees', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -528,17 +377,7 @@ router.delete('/:id/assignees/:userId', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -571,30 +410,7 @@ router.post('/:id/reminders', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error) {
-      if (error.message.includes('permissions') || error.message.includes('Maximum') || error.message.includes('due date')) {
-        res.status(400).json({
-          error: {
-            message: error.message,
-            code: error.message.includes('permissions') ? 'FORBIDDEN' : 'VALIDATION_ERROR',
-            statusCode: error.message.includes('permissions') ? 403 : 400,
-          },
-        });
-        return;
-      }
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -628,28 +444,7 @@ router.put('/:id/reminders/:reminderId', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && (error.message.includes('permissions') || error.message.includes('not found'))) {
-      res.status(error.message.includes('permissions') ? 403 : 404).json({
-        error: {
-          message: error.message,
-          code: error.message.includes('permissions') ? 'FORBIDDEN' : 'NOT_FOUND',
-          statusCode: error.message.includes('permissions') ? 403 : 404,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -670,17 +465,7 @@ router.delete('/:id/reminders/:reminderId', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof Error && (error.message.includes('permissions') || error.message.includes('not found'))) {
-      res.status(error.message.includes('permissions') ? 403 : 404).json({
-        error: {
-          message: error.message,
-          code: error.message.includes('permissions') ? 'FORBIDDEN' : 'NOT_FOUND',
-          statusCode: error.message.includes('permissions') ? 403 : 404,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 
@@ -701,17 +486,7 @@ router.put('/:id/reminders/:reminderId/dismiss', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('not found')) {
-      res.status(404).json({
-        error: {
-          message: error.message,
-          code: 'NOT_FOUND',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleCardRouteError(res, error, next);
   }
 });
 

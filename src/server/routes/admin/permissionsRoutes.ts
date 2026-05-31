@@ -1,5 +1,5 @@
 import type { Router } from 'express';
-import type { AuthenticatedRequest } from '../../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../../types/express.js';
 import { PermissionSet } from '../../models/PermissionSet.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 

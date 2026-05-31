@@ -1,5 +1,5 @@
-import { capMapSize } from '../../utils/capMapSize.js';
-import { db, type WorkspaceDB } from '../../store/database.js';
+import { capMapSize } from '../../../shared/utils/capMapSize.js';
+import { db, type CardDB, type WorkspaceDB } from '../../store/database.js';
 import { normalizeCardFromApi } from '../../utils/transform.js';
 import {
   emitSocketCardUpdated,
@@ -67,6 +67,11 @@ export function applyFlatFieldPatch<T extends object>(
 
 let localUserIdCache: string | null = null;
 let localUserIdLoadPromise: Promise<string> | null = null;
+
+export function resetLocalUserIdCache(): void {
+  localUserIdCache = null;
+  localUserIdLoadPromise = null;
+}
 
 export async function getLocalUserId(): Promise<string> {
   if (localUserIdCache != null) {
@@ -231,6 +236,7 @@ export function markCardEventTs(cardIds: readonly string[], serverTs: unknown): 
 }
 
 export function resetRealtimeCachesForReconnect(): void {
+  resetLocalUserIdCache();
   clearCardSocketDedupeCache();
   lastCardEventTsById.clear();
   lastListOrderEventTsByKey.clear();
@@ -254,6 +260,36 @@ type PendingCardPatchEvent = {
   readonly removedFields: readonly string[];
   readonly serverTs?: number;
 };
+
+/** Apply a partial card patch to an existing card row; returns null when redundant or missing. */
+export function applyCardPatch(
+  existing: CardDB | undefined,
+  cardId: string,
+  changedFields: Readonly<Record<string, unknown>>,
+  removedFields: readonly string[],
+): ReturnType<typeof normalizeCardFromApi> | null {
+  if (existing == null) {
+    return null;
+  }
+  const patched: Record<string, unknown> = { ...existing };
+  for (const [key, value] of Object.entries(changedFields)) {
+    if (key === 'attachments' && !Array.isArray(value)) {
+      continue;
+    }
+    patched[key] = value;
+  }
+  for (const key of removedFields) {
+    delete patched[key];
+  }
+  const normalized = normalizeCardFromApi(patched, cardId, {
+    listId: existing.listId,
+    boardId: existing.boardId,
+  });
+  if (isRedundantCardSocketPayload(cardId, normalized)) {
+    return null;
+  }
+  return normalized;
+}
 
 const pendingCardPatchedEvents = new Map<string, PendingCardPatchEvent>();
 let cardPatchFlushQueued = false;
@@ -317,27 +353,7 @@ async function flushPendingCardPatchedEvents(): Promise<void> {
             const existingRuntime =
               runtimeActive ? useBoardRuntimeStore.getState().cardsById[event.cardId] : undefined;
             const existing = existingRuntime ?? existingDexie;
-            if (existing == null) {
-              return null;
-            }
-            const patched: Record<string, unknown> = { ...existing };
-            for (const [key, value] of Object.entries(event.changedFields)) {
-              if (key === 'attachments' && !Array.isArray(value)) {
-                continue;
-              }
-              patched[key] = value;
-            }
-            for (const key of event.removedFields) {
-              delete patched[key];
-            }
-            const normalized = normalizeCardFromApi(patched, event.cardId, {
-              listId: existing.listId,
-              boardId: existing.boardId,
-            });
-            if (isRedundantCardSocketPayload(event.cardId, normalized)) {
-              return null;
-            }
-            return normalized;
+            return applyCardPatch(existing, event.cardId, event.changedFields, event.removedFields);
           }),
         ),
       );

@@ -1,6 +1,6 @@
 import { type Router } from 'express';
 import { z } from 'zod';
-import type { AuthenticatedRequest } from '../../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../../types/express.js';
 import { bulkUpdateListColorsForBoard } from '../../services/listService.js';
 import { bulkUpdateCardColorsForBoard } from '../../services/cardService.js';
 import { bulkCardColorBodySchema, bulkListColorBodySchema } from './schemas.js';

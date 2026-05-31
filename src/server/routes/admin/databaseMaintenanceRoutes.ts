@@ -1,6 +1,6 @@
 import type { Router } from 'express';
 import { z } from 'zod';
-import type { AuthenticatedRequest } from '../../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../../types/express.js';
 import { DATABASE_CLEANUP_CATEGORY_IDS } from '../../../shared/types/adminDatabaseMaintenance.js';
 import {
   getDatabaseMaintenanceSnapshot,

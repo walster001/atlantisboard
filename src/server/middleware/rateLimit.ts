@@ -2,7 +2,7 @@ import rateLimit, { type Store as RateLimitStore } from 'express-rate-limit';
 import type { Request, Response } from 'express';
 import { redis } from '../config/redis.js';
 import { logger } from '../utils/logger.js';
-import type { OptionalAuthRequest } from '../../shared/types/express.js';
+import type { OptionalAuthRequest } from '../types/express.js';
 
 // Redis store for rate limiting
 interface ClientRateLimitInfo {

@@ -1,287 +1,39 @@
 import {
   InviteLink,
   type IInviteLink,
-  type InviteType,
-  type InviteLinkType,
-} from '../models/InviteLink.js';
-import { Workspace } from '../models/Workspace.js';
-import { Board } from '../models/Board.js';
-import { User } from '../models/User.js';
-import { logger } from '../utils/logger.js';
-import { logAuditEvent } from '../utils/auditLogger.js';
-import { createActivity } from './activityService.js';
-import { hasPermission, getUserWorkspaceRole } from '../utils/permissions.js';
+} from '../../models/InviteLink.js';
+import { Workspace } from '../../models/Workspace.js';
+import { Board } from '../../models/Board.js';
+import { User } from '../../models/User.js';
+import { logger } from '../../utils/logger.js';
+import { logAuditEvent } from '../../utils/auditLogger.js';
+import { createActivity } from '../activityService.js';
+import { hasPermission, getUserWorkspaceRole } from '../../utils/permissions.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import type { Document } from 'mongoose';
-import { RoleDefinition } from '../models/RoleDefinition.js';
 import {
   canAssignByBoardMemberRoleUpdateMode,
   getRoleHierarchyLevel,
-  isBuiltInRoleKey,
-  isValidCustomRoleKey,
-  type BoardMemberRoleUpdateModeKey,
-} from './roleService.js';
-import { emitBoardUpdatedRealtime } from './boardService.js';
-import { emitWorkspaceHomeSnapshotToUserById } from './workspaceService.js';
-import { emitToBoard, emitToUser, emitToWorkspace } from '../utils/socketIO.js';
-
-function uniqueUserIds(ids: readonly string[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const id of ids) {
-    const trimmed = id.trim();
-    if (trimmed !== '' && !seen.has(trimmed)) {
-      seen.add(trimmed);
-      out.push(trimmed);
-    }
-  }
-  return out;
-}
-
-async function getInviteAudienceUserIds(invite: Document & IInviteLink): Promise<string[]> {
-  const workspaceId = invite.workspaceId?.toString();
-  const boardId = invite.boardId?.toString();
-
-  if (boardId) {
-    const board = await Board.findById(boardId).select('ownerId members.userId').lean();
-    if (!board) {
-      return uniqueUserIds([invite.createdBy.toString()]);
-    }
-    const memberIds = (board.members ?? []).map((m) => String(m.userId));
-    return uniqueUserIds([String(board.ownerId), ...memberIds, invite.createdBy.toString()]);
-  }
-
-  if (workspaceId) {
-    const workspace = await Workspace.findById(workspaceId).select('ownerId members.userId').lean();
-    if (!workspace) {
-      return uniqueUserIds([invite.createdBy.toString()]);
-    }
-    const memberIds = (workspace.members ?? []).map((m) => String(m.userId));
-    return uniqueUserIds([String(workspace.ownerId), ...memberIds, invite.createdBy.toString()]);
-  }
-
-  return uniqueUserIds([invite.createdBy.toString()]);
-}
-
-function emitInviteCreatedRealtime(invite: Document & IInviteLink): void {
-  const inviteId = invite._id.toString();
-  const serverTs = Date.now();
-  const data = invite.toObject() as Record<string, unknown>;
-  const workspaceId = invite.workspaceId?.toString();
-  const boardId = invite.boardId?.toString();
-  if (workspaceId) {
-    emitToWorkspace(workspaceId, 'invite:created', {
-      inviteId,
-      workspaceId,
-      boardId,
-      data,
-      serverTs,
-    });
-  }
-  if (boardId) {
-    emitToBoard(boardId, 'invite:created', { inviteId, boardId, data, serverTs });
-  }
-  void getInviteAudienceUserIds(invite)
-    .then((userIds) => {
-      for (const uid of userIds) {
-        emitToUser(uid, 'invite:created', { inviteId, workspaceId, boardId, data, serverTs });
-      }
-    })
-    .catch(() => undefined);
-}
-
-function emitInviteUpdatedRealtime(invite: Document & IInviteLink): void {
-  const inviteId = invite._id.toString();
-  const serverTs = Date.now();
-  const data = invite.toObject() as Record<string, unknown>;
-  const workspaceId = invite.workspaceId?.toString();
-  const boardId = invite.boardId?.toString();
-  if (workspaceId) {
-    emitToWorkspace(workspaceId, 'invite:updated', {
-      inviteId,
-      workspaceId,
-      boardId,
-      data,
-      serverTs,
-    });
-  }
-  if (boardId) {
-    emitToBoard(boardId, 'invite:updated', { inviteId, boardId, data, serverTs });
-  }
-  void getInviteAudienceUserIds(invite)
-    .then((userIds) => {
-      for (const uid of userIds) {
-        emitToUser(uid, 'invite:updated', { inviteId, workspaceId, boardId, data, serverTs });
-      }
-    })
-    .catch(() => undefined);
-}
-
-function emitInviteDeletedRealtime(invite: Document & IInviteLink): void {
-  const inviteId = invite._id.toString();
-  const serverTs = Date.now();
-  const workspaceId = invite.workspaceId?.toString();
-  const boardId = invite.boardId?.toString();
-  if (workspaceId) {
-    emitToWorkspace(workspaceId, 'invite:deleted', {
-      inviteId,
-      workspaceId,
-      boardId,
-      serverTs,
-    });
-  }
-  if (boardId) {
-    emitToBoard(boardId, 'invite:deleted', { inviteId, boardId, serverTs });
-  }
-  void getInviteAudienceUserIds(invite)
-    .then((userIds) => {
-      for (const uid of userIds) {
-        emitToUser(uid, 'invite:deleted', { inviteId, workspaceId, boardId, serverTs });
-      }
-    })
-    .catch(() => undefined);
-}
-
-async function addUserToAllBoardsInWorkspace(params: {
-  workspaceId: string;
-  user: Document & { _id: mongoose.Types.ObjectId; displayName?: string | null };
-  roleKey: string;
-}): Promise<void> {
-  const { workspaceId, user, roleKey } = params;
-  const boards = await Board.find({ workspaceId }).select('_id ownerId members').lean();
-  if (boards.length === 0) return;
-
-  const boardsToTouch = boards
-    .filter((b) => String(b.ownerId) !== String(user._id))
-    .filter(
-      (b) =>
-        !((b.members as Array<{ userId: unknown }>).some((m) => String(m.userId) === String(user._id))),
-    );
-
-  const bulk = boardsToTouch.map((b) => ({
-    updateOne: {
-      filter: { _id: b._id },
-      update: {
-        $push: {
-          members: {
-            userId: user._id,
-            roleKey,
-            addedAt: new Date(),
-          },
-        },
-      },
-    },
-  }));
-
-  if (bulk.length > 0) {
-    await Board.bulkWrite(bulk);
-    for (const b of boardsToTouch) {
-      const full = await Board.findById(b._id);
-      if (full) {
-        emitBoardUpdatedRealtime(full);
-      }
-    }
-  }
-}
-
-export interface CreateInviteInput {
-  workspaceId?: string;
-  boardId?: string;
-  type: InviteType;
-  inviteType: InviteLinkType;
-  /** Backward compatible: if roleKey is omitted, fallback to this coarse role. */
-  role?: 'admin' | 'manager' | 'viewer';
-  roleKey?: string;
-  createdBy: string;
-}
-
-async function validateRoleKeyForInvite(roleKey: string): Promise<void> {
-  if (isBuiltInRoleKey(roleKey)) {
-    return;
-  }
-  if (!isValidCustomRoleKey(roleKey)) {
-    throw new Error('Invalid roleKey');
-  }
-  const exists = await RoleDefinition.findOne({ key: roleKey }).select('_id').lean();
-  if (!exists) {
-    throw new Error('Unknown roleKey');
-  }
-}
-
-function resolveWorkspaceRoleKeyForUser(
-  workspace: Document & { ownerId: mongoose.Types.ObjectId; members: Array<{ userId: unknown; roleKey: string }> },
-  userId: string,
-): string | null {
-  if (workspace.ownerId.toString() === userId) {
-    return 'admin';
-  }
-  const member = workspace.members.find((m) => String(m.userId) === userId);
-  if (member == null || member.roleKey.trim() === '') {
-    return null;
-  }
-  return member.roleKey.trim();
-}
-
-async function resolveBoardRoleKeyForUser(
-  board: Document & { ownerId: mongoose.Types.ObjectId; workspaceId?: mongoose.Types.ObjectId | null; members: Array<{ userId: unknown; roleKey: string }> },
-  userId: string,
-): Promise<string | null> {
-  if (board.ownerId.toString() === userId) {
-    return 'admin';
-  }
-  const boardMember = board.members.find((m) => String(m.userId) === userId);
-  if (boardMember != null && boardMember.roleKey.trim() !== '') {
-    return boardMember.roleKey.trim();
-  }
-  if (board.workspaceId == null) {
-    return null;
-  }
-  const workspace = await Workspace.findById(board.workspaceId).select('ownerId members').lean();
-  if (!workspace) {
-    return null;
-  }
-  if (String(workspace.ownerId) === userId) {
-    return 'admin';
-  }
-  const wsMember = (workspace.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
-    (m) => String(m.userId) === userId,
-  );
-  return typeof wsMember?.roleKey === 'string' && wsMember.roleKey.trim() !== ''
-    ? wsMember.roleKey.trim()
-    : null;
-}
-
-async function resolveBoardRoleUpdateModeForActor(
-  userId: string,
-  boardId: string,
-): Promise<BoardMemberRoleUpdateModeKey | null> {
-  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.any')) {
-    return 'boards.members.role.update.any';
-  }
-  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.samehigher')) {
-    return 'boards.members.role.update.samehigher';
-  }
-  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.samelower')) {
-    return 'boards.members.role.update.samelower';
-  }
-  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.higher')) {
-    return 'boards.members.role.update.higher';
-  }
-  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.lower')) {
-    return 'boards.members.role.update.lower';
-  }
-  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update.same')) {
-    return 'boards.members.role.update.same';
-  }
-  if (await hasPermission({ id: userId }, boardId, 'boards.members.role.update')) {
-    return 'boards.members.role.update.samelower';
-  }
-  return null;
-}
+} from '../roleService.js';
+import { emitBoardUpdatedRealtime } from '../boardService.js';
+import { emitWorkspaceHomeSnapshotToUserById } from '../workspaceService.js';
+import { emitToUser } from '../../utils/socketIO.js';
+import {
+  resolveBoardRoleKeyForUser,
+  resolveBoardRoleUpdateModeForActor,
+  resolveWorkspaceRoleKeyForUser,
+  validateRoleKeyForInvite,
+  type CreateInviteInput,
+} from './typesAndHelpers.js';
+import {
+  addUserToAllBoardsInWorkspace,
+  emitInviteCreatedRealtime,
+  emitInviteDeletedRealtime,
+  emitInviteUpdatedRealtime,
+} from './realtime.js';
 
 export async function createInviteLink(input: CreateInviteInput): Promise<Document & IInviteLink> {
-  // Validate that either workspaceId or boardId is provided based on type
   if (input.type === 'workspace' && !input.workspaceId) {
     throw new Error('Workspace ID is required for workspace invites');
   }
@@ -289,7 +41,6 @@ export async function createInviteLink(input: CreateInviteInput): Promise<Docume
     throw new Error('Board ID is required for board invites');
   }
 
-  // Check permissions - only admins can create invites
   if (input.type === 'workspace' && input.workspaceId) {
     const workspace = await Workspace.findById(input.workspaceId);
     if (!workspace) {
@@ -393,12 +144,10 @@ export async function createInviteLink(input: CreateInviteInput): Promise<Docume
     }
   }
 
-  // Generate cryptographically secure UUID v4 token (32 characters)
   const token = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
 
-  // Set expiry for one-time invites (1 day)
-  const expiresAt = input.inviteType === 'one-time' 
-    ? new Date(Date.now() + 24 * 60 * 60 * 1000) 
+  const expiresAt = input.inviteType === 'one-time'
+    ? new Date(Date.now() + 24 * 60 * 60 * 1000)
     : undefined;
 
   const inviteLink = new InviteLink({
@@ -427,12 +176,12 @@ export async function createInviteLink(input: CreateInviteInput): Promise<Docume
   });
 
   logger.info(
-    { 
-      inviteId: inviteLink._id.toString(), 
+    {
+      inviteId: inviteLink._id.toString(),
       type: input.type,
-      inviteType: input.inviteType 
+      inviteType: input.inviteType,
     },
-    'Invite link created'
+    'Invite link created',
   );
 
   return inviteLink;
@@ -440,17 +189,15 @@ export async function createInviteLink(input: CreateInviteInput): Promise<Docume
 
 export async function acceptInviteLink(token: string, userId: string): Promise<void> {
   const inviteLink = await InviteLink.findOne({ token });
-  
+
   if (!inviteLink) {
     throw new Error('Invalid invite link');
   }
 
-  // Check if invite is expired (one-time invites)
   if (inviteLink.expiresAt && inviteLink.expiresAt < new Date()) {
     throw new Error('Invite link has expired');
   }
 
-  // Check if one-time invite has already been used
   if (inviteLink.inviteType === 'one-time' && inviteLink.usedCount > 0) {
     throw new Error('Invite link has already been used');
   }
@@ -469,10 +216,9 @@ export async function acceptInviteLink(token: string, userId: string): Promise<v
     const effectiveRoleKey = inviteLink.roleKey.trim();
     await validateRoleKeyForInvite(effectiveRoleKey);
 
-    // Check if user is already a member
     const isMember = workspace.members.some((m) => m.userId.toString() === userId) ||
                      workspace.ownerId.toString() === userId;
-    
+
     if (!isMember) {
       workspace.members.push({
         userId: user._id,
@@ -501,7 +247,6 @@ export async function acceptInviteLink(token: string, userId: string): Promise<v
       });
     }
 
-    // Workspace invites apply to all boards in the workspace.
     await addUserToAllBoardsInWorkspace({
       workspaceId: inviteLink.workspaceId.toString(),
       user,
@@ -513,10 +258,9 @@ export async function acceptInviteLink(token: string, userId: string): Promise<v
       throw new Error('Board not found');
     }
 
-    // Check if user is already a board member
     const isBoardMember = board.members.some((m) => m.userId.toString() === userId) ||
                           board.ownerId.toString() === userId;
-    
+
     if (!isBoardMember) {
       const effectiveRoleKey = inviteLink.roleKey.trim();
       await validateRoleKeyForInvite(effectiveRoleKey);
@@ -566,33 +310,31 @@ export async function acceptInviteLink(token: string, userId: string): Promise<v
     }
   }
 
-  // Increment used count and disable one-time invites
   inviteLink.usedCount += 1;
   inviteLink.lastUsedAt = new Date();
-  
-  // For one-time invites, set expiry to now to effectively disable it
+
   if (inviteLink.inviteType === 'one-time') {
     inviteLink.expiresAt = new Date();
   }
-  
+
   await inviteLink.save();
 
   emitInviteUpdatedRealtime(inviteLink);
 
   logger.info(
-    { 
+    {
       inviteId: inviteLink._id.toString(),
       userId,
-      type: inviteLink.type 
+      type: inviteLink.type,
     },
-    'Invite link accepted'
+    'Invite link accepted',
   );
 }
 
 export async function getInviteLinks(
   workspaceId?: string,
   boardId?: string,
-  userId?: string
+  userId?: string,
 ): Promise<(Document & IInviteLink)[]> {
   const query: {
     workspaceId?: mongoose.Types.ObjectId;
@@ -620,9 +362,6 @@ export async function getInviteLinks(
     }
   }
 
-  // Show only active links in invite lists:
-  // - recurring links are always active
-  // - one-time links are active only if unused and unexpired
   const now = new Date();
   query.$or = [
     { inviteType: 'recurring' },
@@ -644,7 +383,6 @@ export async function deleteInviteLink(inviteId: string, userId: string): Promis
     return false;
   }
 
-  // Check permissions - only creator or admin can delete
   if (inviteLink.createdBy.toString() !== userId) {
     if (inviteLink.type === 'workspace' && inviteLink.workspaceId) {
       const workspace = await Workspace.findById(inviteLink.workspaceId);
@@ -680,4 +418,3 @@ export async function deleteInviteLink(inviteId: string, userId: string): Promis
   logger.info({ inviteId }, 'Invite link deleted');
   return true;
 }
-

@@ -1,45 +1,16 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import { isAxiosError } from 'axios';
+import { useEffect, useState } from 'react';
 import {
-  Modal,
-  Tabs,
-  Button,
   Alert,
-  Stack,
-  Select,
-  FileInput,
-  Checkbox,
+  Button,
   Group,
+  Modal,
+  Stack,
+  Tabs,
   Text,
-  Loader,
   ThemeIcon,
-  Box,
-  Paper,
-  ColorInput,
-  Progress,
 } from '@mantine/core';
-import { IconUpload, IconFileText } from '@tabler/icons-react';
-import { notifications } from '@mantine/notifications';
-import { api } from '../../utils/api.js';
-import {
-  LONG_TASK_NOTIFICATION_POSITION,
-  renderStartupProgressMessage,
-  wait,
-} from '../../utils/longTaskProgressNotifications.js';
-import {
-  buildTrelloImportPreflight,
-  buildWekanImportPreflight,
-  type ImportPreflightPayload,
-  type ImportPreflightResult,
-  type InlineButtonIconReplacement,
-  type InlineButtonImportColorOverrides,
-} from '../../../shared/import/importPreflight.js';
-import { ImportUserManagementTab } from './ImportUserManagementTab.js';
-import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
-import { assertAtlantisboardExportShape } from '../../../shared/import/atlantisboardNormalize.js';
-import {
-  hasBoardExportFormatPermission,
-} from '../../../shared/export/boardExportPermissions.js';
+import { IconUpload } from '@tabler/icons-react';
+import { hasBoardExportFormatPermission } from '../../../shared/export/boardExportPermissions.js';
 import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import {
@@ -47,316 +18,18 @@ import {
   modalStylesFullscreenSafeBody,
 } from '../../constants/iosModalSafeArea.js';
 import { BoardColourPickerPanel } from '../board/BoardColourPickerPanel.js';
-import {
-  BOARD_PRESET_COLOURS,
-  normalizePresetHex,
-} from '../../constants/boardPresetColors.js';
-import { loginBrandingColorInputProps } from '../../constants/loginBrandingColorInputProps.js';
-
-const ReplaceButtonsTab = lazy(async () => {
-  const m = await import('./ReplaceButtonsTab.js');
-  return { default: m.ReplaceButtonsTab };
-});
+import { useImportWizard } from './useImportWizard.js';
+import { ImportTab } from './ImportTab.js';
+import { ExportTab } from './ExportTab.js';
 
 interface ImportExportModalProps {
   boardId?: string;
   workspaceId?: string;
   onClose: () => void;
-  /** Called after a successful import, before the modal closes (e.g. refresh homepage data). */
   onImportComplete?: () => void | Promise<void>;
 }
 
-type ImportType = 'trello' | 'wekan' | 'csv' | 'atlantisboard' | null;
 type TabType = 'import' | 'replace-buttons' | 'user-management' | 'export';
-
-interface ImportJobClientView {
-  status: string;
-  type: ImportJobServerType;
-  progress: number;
-  totalItems: number;
-  processedItems: number;
-  currentPhase?: string;
-  importErrors?: { item: string; error: string }[];
-  result?: Record<string, unknown>;
-}
-
-type ImportJobServerType = 'trello' | 'wekan' | 'csv' | 'atlantisboard';
-
-function parseImportJob(job: unknown): ImportJobClientView | null {
-  if (job == null || typeof job !== 'object') {
-    return null;
-  }
-  const j = job as Record<string, unknown>;
-  const status = j.status;
-  if (typeof status !== 'string') {
-    return null;
-  }
-  const typeRaw = j.type;
-  const type: ImportJobServerType =
-    typeRaw === 'trello' || typeRaw === 'wekan' || typeRaw === 'csv' || typeRaw === 'atlantisboard'
-      ? typeRaw
-      : 'csv';
-  const progress = typeof j.progress === 'number' ? j.progress : 0;
-  const totalItems = typeof j.totalItems === 'number' ? j.totalItems : 0;
-  const processedItems = typeof j.processedItems === 'number' ? j.processedItems : 0;
-  const currentPhase = typeof j.currentPhase === 'string' ? j.currentPhase : undefined;
-  const importErrors = Array.isArray(j.importErrors) ? (j.importErrors as { item: string; error: string }[]) : [];
-  const result = j.result != null && typeof j.result === 'object' ? (j.result as Record<string, unknown>) : undefined;
-  return {
-    status,
-    type,
-    progress,
-    totalItems,
-    processedItems,
-    importErrors,
-    ...(currentPhase !== undefined ? { currentPhase } : {}),
-    ...(result !== undefined ? { result } : {}),
-  };
-}
-
-function importPhaseDisplayLabel(phase: string | undefined): string {
-  if (phase == null || phase.length === 0) {
-    return 'Starting import…';
-  }
-  switch (phase) {
-    case 'boards':
-      return 'Importing boards…';
-    case 'labels':
-      return 'Importing boards and labels…';
-    case 'lists':
-      return 'Importing lists…';
-    case 'cards':
-      return 'Importing cards…';
-    case 'done':
-      return 'Finishing…';
-    default:
-      return `Importing (${phase})…`;
-  }
-}
-
-function buildImportSuccessMessage(
-  importType: ImportType,
-  jobType: ImportJobServerType,
-  result: Record<string, unknown> | undefined,
-): string {
-  const source: ImportType = importType ?? jobType;
-  if (source === 'trello') {
-    const boardName =
-      result != null &&
-      typeof result.boardName === 'string' &&
-      result.boardName.trim().length > 0
-        ? result.boardName.trim()
-        : 'your board';
-    const listCount = typeof result?.listCount === 'number' ? result.listCount : 0;
-    const cardCount = typeof result?.cardCount === 'number' ? result.cardCount : 0;
-    return `Successfully imported ${boardName} with ${listCount} list${listCount === 1 ? '' : 's'} and ${cardCount} card${cardCount === 1 ? '' : 's'}.`;
-  }
-  if (source === 'wekan') {
-    const boardName =
-      result != null &&
-      typeof result.boardName === 'string' &&
-      result.boardName.trim().length > 0
-        ? result.boardName.trim()
-        : 'your board';
-    const listCount = typeof result?.listCount === 'number' ? result.listCount : 0;
-    const cardCount = typeof result?.cardCount === 'number' ? result.cardCount : 0;
-    return `Successfully imported ${boardName} with ${listCount} list${listCount === 1 ? '' : 's'} and ${cardCount} card${cardCount === 1 ? '' : 's'}.`;
-  }
-  if (source === 'atlantisboard') {
-    const boardName =
-      result != null &&
-      typeof result.boardName === 'string' &&
-      result.boardName.trim().length > 0
-        ? result.boardName.trim()
-        : 'your board';
-    const listCount = typeof result?.listCount === 'number' ? result.listCount : 0;
-    const cardCount = typeof result?.cardCount === 'number' ? result.cardCount : 0;
-    return `Successfully imported ${boardName} with ${listCount} list${listCount === 1 ? '' : 's'} and ${cardCount} card${cardCount === 1 ? '' : 's'}.`;
-  }
-  if (source === 'csv') {
-    const msg = result != null && typeof result.message === 'string' ? result.message : undefined;
-    return msg ?? 'Import completed.';
-  }
-  return 'Import completed.';
-}
-
-const IMPORT_PROGRESS_NOTIFICATION_ID = 'import-export-progress';
-
-function renderImportProgressNotificationMessage(job: ImportJobClientView): ReactElement {
-  const percent = Math.min(100, Math.max(0, Number.isFinite(job.progress) ? job.progress : 0));
-  const processed = Math.max(0, Number.isFinite(job.processedItems) ? job.processedItems : 0);
-  const total = Math.max(0, Number.isFinite(job.totalItems) ? job.totalItems : 0);
-  const phaseLabel = importPhaseDisplayLabel(job.currentPhase);
-  return (
-    <Stack gap={6}>
-      <Text size="sm">{phaseLabel}</Text>
-      <Progress value={percent} radius="md" size="sm" />
-      <Text size="xs" c="dimmed">
-        {processed}/{total} processed{job.currentPhase != null && job.currentPhase !== '' ? ` • phase: ${job.currentPhase}` : ''}
-      </Text>
-    </Stack>
-  );
-}
-
-async function pollImportJobWithNotifications(
-  jobId: string,
-  importType: ImportType,
-  onImportComplete?: () => void | Promise<void>,
-): Promise<void> {
-  const startedAt = Date.now();
-  const timeoutMs = 15 * 60 * 1000;
-  while (Date.now() - startedAt < timeoutMs) {
-    try {
-      const response = await api.getImportJobStatus(jobId);
-      const job = parseImportJob((response as { job: unknown }).job);
-      if (job == null) {
-        notifications.update({
-          id: IMPORT_PROGRESS_NOTIFICATION_ID,
-          color: 'red',
-          title: 'Import status error',
-          message: 'Invalid import job response.',
-          loading: false,
-          autoClose: false,
-          withCloseButton: true,
-      position: LONG_TASK_NOTIFICATION_POSITION,
-    });
-    return;
-  }
-  if (job.status === 'completed') {
-        try {
-          await onImportComplete?.();
-        } catch (completeErr) {
-          console.error('onImportComplete failed:', completeErr);
-        }
-        notifications.update({
-          id: IMPORT_PROGRESS_NOTIFICATION_ID,
-          color: 'green',
-          title: 'Import complete',
-          message: buildImportSuccessMessage(importType, job.type, job.result),
-          loading: false,
-          autoClose: 7000,
-          withCloseButton: true,
-          position: LONG_TASK_NOTIFICATION_POSITION,
-        });
-        return;
-      }
-      if (job.status === 'failed') {
-        const errors = job.importErrors ?? [];
-        notifications.update({
-          id: IMPORT_PROGRESS_NOTIFICATION_ID,
-          color: 'red',
-          title: 'Import failed',
-          message:
-            errors.length > 0
-              ? `Import failed with ${errors.length} error${errors.length === 1 ? '' : 's'}.`
-              : 'Import failed before completion.',
-          loading: false,
-          autoClose: false,
-          withCloseButton: true,
-          position: LONG_TASK_NOTIFICATION_POSITION,
-        });
-        return;
-      }
-      notifications.update({
-        id: IMPORT_PROGRESS_NOTIFICATION_ID,
-        color: 'blue',
-        title: 'Import in progress',
-        message: renderImportProgressNotificationMessage(job),
-        loading: true,
-        autoClose: false,
-        withCloseButton: false,
-        position: LONG_TASK_NOTIFICATION_POSITION,
-      });
-    } catch {
-      notifications.update({
-        id: IMPORT_PROGRESS_NOTIFICATION_ID,
-        color: 'red',
-        title: 'Import status error',
-        message: 'Failed to check import status.',
-        loading: false,
-        autoClose: false,
-        withCloseButton: true,
-        position: LONG_TASK_NOTIFICATION_POSITION,
-      });
-      return;
-    }
-    await wait(2000);
-  }
-  notifications.update({
-    id: IMPORT_PROGRESS_NOTIFICATION_ID,
-    color: 'orange',
-    title: 'Import delayed',
-    message: 'Import is taking longer than expected. Please check back later.',
-    loading: false,
-    autoClose: false,
-    withCloseButton: true,
-    position: LONG_TASK_NOTIFICATION_POSITION,
-  });
-}
-
-function ImportMappingCallout({ importType }: { importType: ImportType }) {
-  if (!importType) {
-    return null;
-  }
-
-  const lines: { text: string; emphasis?: boolean }[] =
-    importType === 'wekan'
-      ? [
-          { text: 'Wekan Boards → KanBoard Boards' },
-          { text: 'Wekan Lists → KanBoard Columns' },
-          { text: 'Wekan Cards → KanBoard Cards' },
-          { text: 'Wekan Labels → KanBoard Labels' },
-          { text: 'Wekan Checklists → KanBoard Subtasks' },
-          { text: 'Members, attachments, comments are imported with preflight mapping', emphasis: true },
-        ]
-      : importType === 'trello'
-        ? [
-            { text: 'Trello Boards → KanBoard Workspaces / Boards' },
-            { text: 'Trello Lists → KanBoard Columns' },
-            { text: 'Trello Cards → KanBoard Cards' },
-            { text: 'Trello Labels → KanBoard Labels' },
-            { text: 'Trello Checklists → KanBoard Subtasks' },
-            { text: 'Members, attachments, comments are imported with preflight mapping', emphasis: true },
-          ]
-        : importType === 'atlantisboard'
-          ? [
-              { text: 'Atlantisboard export → restored board in this workspace' },
-              { text: 'Lists, cards, labels, checklists, and comments are preserved' },
-              { text: 'Inline attachment data URLs are re-uploaded to storage', emphasis: true },
-              { text: 'Users are mapped when they still exist; otherwise the importer is used', emphasis: true },
-            ]
-          : [
-              { text: 'CSV / TSV rows → KanBoard Cards (this board)' },
-              { text: 'Columns are mapped during import configuration' },
-              { text: 'Attachments and rich metadata are not imported', emphasis: true },
-            ];
-
-  return (
-    <Paper p="md" radius="md" bg="gray.0" withBorder>
-      <Text fw={700} size="sm" mb="sm">
-        Import Mapping:
-      </Text>
-      <Box component="ul" style={{ margin: 0, paddingLeft: '1.25rem' }}>
-        {lines.map((line) => (
-          <Box
-            component="li"
-            key={line.text}
-            mb={4}
-            style={{ listStyleType: 'disc' }}
-          >
-            <Text
-              component="span"
-              size="sm"
-              c={line.emphasis ? 'orange.7' : 'dark.7'}
-            >
-              {line.text}
-            </Text>
-          </Box>
-        ))}
-      </Box>
-    </Paper>
-  );
-}
 
 export function ImportExportModal({
   boardId,
@@ -364,49 +37,8 @@ export function ImportExportModal({
   onClose,
   onImportComplete,
 }: ImportExportModalProps) {
-  const PANEL_SCROLL_AREA_STYLE = {
-    flex: '1 1 0%',
-    minHeight: 0,
-    overflowY: 'auto',
-    overflowX: 'hidden',
-    paddingRight: 4,
-  } as const;
-  const PANEL_FOOTER_STYLE = {
-    borderTop: '1px solid var(--mantine-color-gray-3)',
-    paddingTop: 'var(--mantine-spacing-sm)',
-    marginTop: 'var(--mantine-spacing-sm)',
-    backgroundColor: 'var(--mantine-color-body)',
-    flexShrink: 0,
-  } as const;
-  const [activeTab, setActiveTab] = useState<TabType>('import');
-  const [importType, setImportType] = useState<ImportType>('wekan');
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [importDefaultHex, setImportDefaultHex] = useState(() =>
-    normalizePresetHex('#3b82f6', BOARD_PRESET_COLOURS),
-  );
-  const [importDefaultUseTheme, setImportDefaultUseTheme] = useState(true);
-  const [defaultCardColourModalOpen, setDefaultCardColourModalOpen] = useState(false);
-  const [pickerDraftHex, setPickerDraftHex] = useState(() =>
-    normalizePresetHex('#3b82f6', BOARD_PRESET_COLOURS),
-  );
-  const [pickerDraftUseTheme, setPickerDraftUseTheme] = useState(true);
-  const [preflight, setPreflight] = useState<ImportPreflightResult | null>(null);
-  const [preflightBusy, setPreflightBusy] = useState(false);
-  const [inlineButtonReplacements, setInlineButtonReplacements] = useState<InlineButtonIconReplacement[]>([]);
-  const [inlineButtonColorOverrides, setInlineButtonColorOverrides] =
-    useState<InlineButtonImportColorOverrides>({});
-  const [importUsersAsPlaceholders, setImportUsersAsPlaceholders] = useState(false);
-  const [exportColumns, setExportColumns] = useState<string[]>([
-    'title',
-    'description',
-    'list',
-    'labels',
-    'assignees',
-    'dueDate',
-  ]);
-  const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
+  const [modalTab, setModalTab] = useState<TabType>('import');
+  const wizard = useImportWizard({ boardId, workspaceId, onClose, onImportComplete });
 
   const responsiveTier = useResponsiveTier();
   const isMobile = responsiveTier === 'mobile';
@@ -416,286 +48,17 @@ export function ImportExportModal({
   const showExportTab = boardId != null && boardPermissionsLoaded && (canExportAtlantisboardJson || canExportCsv);
 
   useEffect(() => {
-    if (!showExportTab) {
-      return;
+    if (modalTab === 'export' && !showExportTab) {
+      setModalTab('import');
     }
-    if (exportFormat === 'json' && !canExportAtlantisboardJson && canExportCsv) {
-      setExportFormat('csv');
-    } else if (exportFormat === 'csv' && !canExportCsv && canExportAtlantisboardJson) {
-      setExportFormat('json');
-    }
-  }, [showExportTab, exportFormat, canExportAtlantisboardJson, canExportCsv]);
-
-  const wekanButtons = useMemo(() => (importType === 'wekan' ? preflight?.wekanButtons?.buttons ?? [] : []), [importType, preflight]);
-  const needsReplaceButtons = importType === 'wekan' && wekanButtons.length > 0;
-  const showUserManagementTab = importType === 'trello' || importType === 'wekan';
-  const showDefaultCardColourPicker = importType !== 'atlantisboard';
-
-  const unresolvedButtonsCount = useMemo(() => {
-    if (!needsReplaceButtons) {
-      return 0;
-    }
-    const uniqueIconCount = new Set(wekanButtons.map((b) => b.iconSrc)).size;
-    const replacedIconCount = new Set(inlineButtonReplacements.map((r) => r.iconSrc)).size;
-    return Math.max(0, uniqueIconCount - replacedIconCount);
-  }, [inlineButtonReplacements, needsReplaceButtons, wekanButtons]);
-
-  const resetPreflightState = useCallback((): void => {
-    setPreflight(null);
-    setInlineButtonReplacements([]);
-    setInlineButtonColorOverrides({});
-    setImportUsersAsPlaceholders(false);
-  }, []);
-
-  const runPreflightForFile = useCallback(async (nextFile: File, nextImportType: ImportType): Promise<void> => {
-    if (nextImportType === 'atlantisboard') {
-      setPreflightBusy(true);
-      try {
-        setError(null);
-        const rawText = await nextFile.text();
-        const parsed = JSON.parse(rawText) as unknown;
-        assertAtlantisboardExportShape(parsed);
-        resetPreflightState();
-        setActiveTab('import');
-      } catch (err) {
-        console.error('Atlantisboard import JSON validation failed:', err);
-        const msg = err instanceof Error ? err.message : 'Could not validate import file.';
-        setError(msg);
-        resetPreflightState();
-      } finally {
-        setPreflightBusy(false);
-      }
-      return;
-    }
-    if (nextImportType !== 'wekan' && nextImportType !== 'trello') {
-      resetPreflightState();
-      return;
-    }
-    setPreflightBusy(true);
-    try {
-      setError(null);
-      const rawText = await nextFile.text();
-      const parsed = JSON.parse(rawText) as unknown;
-      try {
-        assertImportJsonMatchesSource(parsed, nextImportType);
-      } catch (shapeErr) {
-        console.error('Import JSON shape check failed:', shapeErr);
-        const msg = shapeErr instanceof Error ? shapeErr.message : 'Could not validate import file.';
-        setError(msg);
-        resetPreflightState();
-        return;
-      }
-      const result =
-        nextImportType === 'wekan' ? buildWekanImportPreflight(parsed) : buildTrelloImportPreflight(parsed);
-      setPreflight(result);
-      setInlineButtonReplacements([]);
-      setInlineButtonColorOverrides({});
-
-      const hasButtons = nextImportType === 'wekan' && (result.wekanButtons?.buttons.length ?? 0) > 0;
-      if (hasButtons) {
-        setActiveTab('replace-buttons');
-      } else if (nextImportType === 'trello' || nextImportType === 'wekan') {
-        setActiveTab('user-management');
-      } else {
-        setActiveTab('import');
-      }
-    } catch (err) {
-      console.error('Preflight parsing failed:', err);
-      setPreflight(null);
-      setInlineButtonReplacements([]);
-      setError('Could not read import preflight data from this file.');
-    } finally {
-      setPreflightBusy(false);
-    }
-  }, [resetPreflightState]);
-
-  const handleImport = async () => {
-    if (!file || !importType) return;
-
-    const nextImportType = importType;
-    const nextFile = file;
-    const nextWorkspaceId = workspaceId;
-    const nextBoardId = boardId;
-    const nextDefaultUncolouredCardColour = importDefaultUseTheme
-      ? undefined
-      : importDefaultHex.trim();
-    const nextPreflightPayload: ImportPreflightPayload | undefined =
-      nextImportType === 'trello' || nextImportType === 'wekan'
-        ? {
-            userDecisions: [],
-            unmappedUserPolicy: importUsersAsPlaceholders ? 'create_placeholders' : 'discard_unmapped',
-            ...(nextImportType === 'wekan'
-              ? {
-                  inlineButtonIconReplacements: inlineButtonReplacements,
-                  ...(inlineButtonColorOverrides.textColor != null ||
-                  inlineButtonColorOverrides.bgColor != null
-                    ? { inlineButtonImportColorOverrides: inlineButtonColorOverrides }
-                    : {}),
-                }
-              : {}),
-          }
-        : undefined;
-
-    onClose();
-
-    notifications.show({
-      id: IMPORT_PROGRESS_NOTIFICATION_ID,
-      color: 'blue',
-      title: 'Import starting',
-      message: renderStartupProgressMessage('Preparing import request…', 2),
-      loading: true,
-      autoClose: false,
-      withCloseButton: false,
-      position: LONG_TASK_NOTIFICATION_POSITION,
-    });
-
-    void (async () => {
-      try {
-        let result: { message: string; jobId: string };
-        await wait(0);
-
-        if (nextImportType === 'trello' || nextImportType === 'wekan' || nextImportType === 'atlantisboard') {
-          notifications.update({
-            id: IMPORT_PROGRESS_NOTIFICATION_ID,
-            color: 'blue',
-            title: 'Import starting',
-            message: renderStartupProgressMessage('Parsing import file…', 12),
-            loading: true,
-            autoClose: false,
-            withCloseButton: false,
-            position: LONG_TASK_NOTIFICATION_POSITION,
-          });
-          const rawText = await nextFile.text();
-          let parsed: unknown;
-          try {
-            parsed = JSON.parse(rawText) as unknown;
-          } catch {
-            throw new Error('Invalid JSON in import file.');
-          }
-          if (nextImportType === 'atlantisboard') {
-            assertAtlantisboardExportShape(parsed);
-          } else {
-            assertImportJsonMatchesSource(parsed, nextImportType);
-          }
-        }
-
-        if (nextImportType === 'trello') {
-          result = await api.importTrello(
-            nextFile,
-            nextWorkspaceId,
-            nextDefaultUncolouredCardColour,
-            nextPreflightPayload,
-          );
-        } else if (nextImportType === 'wekan') {
-          result = await api.importWekan(
-            nextFile,
-            nextDefaultUncolouredCardColour,
-            nextPreflightPayload,
-          );
-        } else if (nextImportType === 'csv') {
-          if (!nextBoardId) {
-            throw new Error('Board ID is required for CSV import');
-          }
-          result = await api.importCSV(
-            nextFile,
-            nextBoardId,
-            undefined,
-            nextDefaultUncolouredCardColour,
-          );
-        } else if (nextImportType === 'atlantisboard') {
-          result = await api.importAtlantisboard(nextFile, nextWorkspaceId);
-        } else {
-          throw new Error('Invalid import type');
-        }
-
-        notifications.update({
-          id: IMPORT_PROGRESS_NOTIFICATION_ID,
-          color: 'blue',
-          title: 'Import started',
-          message: renderStartupProgressMessage('Import job created. Polling progress…', 20),
-          loading: true,
-          autoClose: false,
-          withCloseButton: false,
-          position: LONG_TASK_NOTIFICATION_POSITION,
-        });
-        await pollImportJobWithNotifications(result.jobId, nextImportType, onImportComplete);
-      } catch (err) {
-        let message = 'Import failed to start.';
-        if (isAxiosError(err)) {
-          const data = err.response?.data as { error?: { message?: string } } | undefined;
-          message = data?.error?.message ?? err.message;
-        } else if (err instanceof Error) {
-          message = err.message;
-        }
-        notifications.update({
-          id: IMPORT_PROGRESS_NOTIFICATION_ID,
-          color: 'red',
-          title: 'Import start failed',
-          message,
-          loading: false,
-          autoClose: false,
-          withCloseButton: true,
-          position: LONG_TASK_NOTIFICATION_POSITION,
-        });
-      }
-    })();
-  };
-
-  const handleExport = async () => {
-    setError(null);
-
-    if (!boardId) {
-      setError('Board ID is required for export');
-      return;
-    }
-
-    if (exportFormat === 'json' && !canExportAtlantisboardJson) {
-      setError('You do not have permission to export this board as JSON.');
-      return;
-    }
-    if (exportFormat === 'csv' && !canExportCsv) {
-      setError('You do not have permission to export this board as CSV.');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      if (exportFormat === 'json') {
-        await api.exportBoardAsJSON(boardId);
-      } else {
-        await api.exportBoardAsCSV(boardId, exportColumns);
-      }
-      setLoading(false);
-      notifications.show({
-        color: 'blue',
-        title: 'Export started',
-        message: 'Your file will download shortly.',
-      });
-      onClose();
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Export failed');
-      }
-      setLoading(false);
-    }
-  };
-
-  const fileLabel =
-    importType === 'wekan'
-      ? 'Wekan Export File'
-      : importType === 'trello'
-        ? 'Trello Export File'
-        : importType === 'atlantisboard'
-          ? 'Atlantisboard Export File'
-          : importType === 'csv'
-            ? 'CSV / TSV File'
-            : 'Export File';
+  }, [modalTab, showExportTab]);
 
   const modalTitle =
-    activeTab === 'import' ? (
+    modalTab === 'export' ? (
+      <Text fw={700} size="lg">
+        Export
+      </Text>
+    ) : (
       <Group gap="sm" wrap="nowrap" align="flex-start">
         <ThemeIcon size={44} variant="light" color="gray" radius="md">
           <IconUpload size={22} stroke={1.5} />
@@ -709,10 +72,6 @@ export function ImportExportModal({
           </Text>
         </Stack>
       </Group>
-    ) : (
-      <Text fw={700} size="lg">
-        Export
-      </Text>
     );
 
   return (
@@ -739,8 +98,14 @@ export function ImportExportModal({
       overlayProps={{ backgroundOpacity: 0.45 }}
     >
       <Tabs
-        value={activeTab}
-        onChange={(value) => setActiveTab((value || 'import') as TabType)}
+        value={modalTab}
+        onChange={(value) => {
+          const next = (value || 'import') as TabType;
+          setModalTab(next);
+          if (next === 'import' || next === 'replace-buttons' || next === 'user-management') {
+            wizard.setActiveTab(next);
+          }
+        }}
         keepMounted={false}
         style={{
           display: 'flex',
@@ -753,333 +118,57 @@ export function ImportExportModal({
       >
         <Tabs.List mb="md">
           <Tabs.Tab value="import">Import</Tabs.Tab>
-          {needsReplaceButtons ? <Tabs.Tab value="replace-buttons">Replace Buttons</Tabs.Tab> : null}
-          {showUserManagementTab && file != null ? (
+          {wizard.needsReplaceButtons ? <Tabs.Tab value="replace-buttons">Replace Buttons</Tabs.Tab> : null}
+          {wizard.showUserManagementTab && wizard.file != null ? (
             <Tabs.Tab value="user-management">User Management</Tabs.Tab>
           ) : null}
           {showExportTab ? <Tabs.Tab value="export">Export</Tabs.Tab> : null}
         </Tabs.List>
 
-        {error ? (
+        {wizard.error && modalTab !== 'export' ? (
           <Alert color="red" mb="md" radius="md">
-            {error}
+            {wizard.error}
           </Alert>
         ) : null}
 
-        <Tabs.Panel value="import" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Stack gap="lg" style={{ minHeight: 0, flex: 1 }}>
-            <Box style={PANEL_SCROLL_AREA_STYLE}>
-            <Select
-              label="Import Source"
-              placeholder="Select import source…"
-              value={importType ?? ''}
-              onChange={(value) => {
-                setImportType((value as ImportType) || null);
-                setFile(null);
-                resetPreflightState();
-                setActiveTab('import');
-              }}
-              data={[
-                { value: 'wekan', label: 'Wekan JSON' },
-                { value: 'trello', label: 'Trello JSON' },
-                { value: 'atlantisboard', label: 'Atlantisboard JSON' },
-                ...(boardId ? [{ value: 'csv', label: 'CSV / TSV' }] : []),
-              ]}
-              disabled={loading}
-              leftSection={<IconFileText size={18} stroke={1.5} />}
-              radius="md"
-            />
-
-            {importType ? (
-              <>
-                <FileInput
-                  label={fileLabel}
-                  accept={importType === 'csv' ? '.csv,.tsv' : '.json'}
-                  placeholder="No file chosen"
-                  onChange={(f) => {
-                    setFile(f);
-                    setError(null);
-                    if (f != null) {
-                      void runPreflightForFile(f, importType);
-                    } else {
-                      resetPreflightState();
-                    }
-                  }}
-                  disabled={loading}
-                  radius="md"
-                />
-
-                {showDefaultCardColourPicker ? (
-                <Box>
-                  <ColorInput
-                    label="Default colour for uncoloured cards"
-                    placeholder="No default colour"
-                    disallowInput
-                    fixOnBlur={false}
-                    {...loginBrandingColorInputProps}
-                    withEyeDropper
-                    popoverProps={{ opened: false }}
-                    value={importDefaultUseTheme ? '' : importDefaultHex}
-                    onChange={(next) => {
-                      const t = next.trim();
-                      if (t.length === 0) {
-                        setImportDefaultUseTheme(true);
-                        return;
-                      }
-                      setImportDefaultHex(normalizePresetHex(t, BOARD_PRESET_COLOURS));
-                      setImportDefaultUseTheme(false);
-                    }}
-                    leftSection={
-                      importDefaultUseTheme ? (
-                        <Box
-                          aria-hidden
-                          style={{
-                            width: 'var(--ci-preview-size)',
-                            height: 'var(--ci-preview-size)',
-                            borderRadius: 'var(--mantine-radius-sm)',
-                            border: '1px solid var(--mantine-color-gray-4)',
-                            background:
-                              'repeating-linear-gradient(45deg, #f1f3f5 0 4px, #e9ecef 4px 8px)',
-                            flexShrink: 0,
-                          }}
-                        />
-                      ) : undefined
-                    }
-                    onClick={() => {
-                      if (loading) return;
-                      setPickerDraftHex(
-                        normalizePresetHex(importDefaultHex || '#3b82f6', BOARD_PRESET_COLOURS),
-                      );
-                      setPickerDraftUseTheme(importDefaultUseTheme);
-                      setDefaultCardColourModalOpen(true);
-                    }}
-                    disabled={loading}
-                    styles={{ input: { cursor: loading ? 'not-allowed' : 'pointer' } }}
-                  />
-                </Box>
-                ) : null}
-
-                {(importType === 'trello' || importType === 'atlantisboard') && workspaceId ? (
-                  <Alert color="blue" radius="md">
-                    Will import to workspace: {workspaceId}
-                  </Alert>
-                ) : null}
-
-                {importType === 'csv' ? (
-                  <Alert color="blue" radius="md">
-                    CSV will be imported to the current board
-                  </Alert>
-                ) : null}
-
-                <ImportMappingCallout importType={importType} />
-
-                {preflightBusy ? (
-                  <Alert color="blue" radius="md">
-                    Analysing import file…
-                  </Alert>
-                ) : null}
-                {!preflightBusy && needsReplaceButtons ? (
-                  <Alert color="orange" radius="md">
-                    Found legacy Wekan inline buttons. Use the <strong>Replace Buttons</strong> tab to upload
-                    replacement icons before import.
-                  </Alert>
-                ) : null}
-              </>
-            ) : null}
-
-            </Box>
-            <Group justify="flex-end" gap="sm" style={PANEL_FOOTER_STYLE}>
-              <Button
-                variant="default"
-                radius="md"
-                onClick={onClose}
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-              <Button
-                color="blue"
-                radius="md"
-                onClick={() => {
-                  if (needsReplaceButtons) {
-                    setActiveTab('replace-buttons');
-                    return;
-                  }
-                  if (showUserManagementTab && file != null) {
-                    setActiveTab('user-management');
-                    return;
-                  }
-                  void handleImport();
-                }}
-                disabled={!file || !importType || loading || preflightBusy}
-                loading={loading}
-              >
-                {needsReplaceButtons
-                  ? 'Continue preflight'
-                  : showUserManagementTab && file != null
-                    ? 'Continue'
-                    : 'Import'}
-              </Button>
-            </Group>
-          </Stack>
+        <Tabs.Panel
+          value="import"
+          style={{ display: modalTab === 'import' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
+        >
+          <ImportTab wizard={wizard} onClose={onClose} />
         </Tabs.Panel>
 
-        <Tabs.Panel value="replace-buttons" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Stack gap="md" style={{ minHeight: 0, flex: 1 }}>
-            <Box style={PANEL_SCROLL_AREA_STYLE}>
-            <Suspense fallback={<Loader size="sm" />}>
-              <ReplaceButtonsTab
-                buttons={wekanButtons}
-                replacements={inlineButtonReplacements}
-                onChangeReplacements={(next) => setInlineButtonReplacements([...next])}
-                colorOverrides={inlineButtonColorOverrides}
-                onChangeColorOverrides={setInlineButtonColorOverrides}
-              />
-            </Suspense>
-            </Box>
-            <Group justify="flex-end" gap="sm" style={PANEL_FOOTER_STYLE}>
-              <Button
-                variant="default"
-                radius="md"
-                onClick={() => setActiveTab('import')}
-                disabled={loading}
-              >
-                Back to Import
-              </Button>
-              <Button
-                color="blue"
-                radius="md"
-                onClick={() => {
-                  if (showUserManagementTab) {
-                    setActiveTab('user-management');
-                    return;
-                  }
-                  void handleImport();
-                }}
-                disabled={!file || !importType || loading}
-              >
-                {unresolvedButtonsCount > 0
-                  ? `Continue (${unresolvedButtonsCount} icon source${unresolvedButtonsCount === 1 ? '' : 's'} unchanged)`
-                  : 'Continue'}
-              </Button>
-            </Group>
-          </Stack>
-        </Tabs.Panel>
+        {wizard.needsReplaceButtons ? (
+          <Tabs.Panel
+            value="replace-buttons"
+            style={{ display: modalTab === 'replace-buttons' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
+          >
+            <ImportTab wizard={{ ...wizard, activeTab: 'replace-buttons' }} onClose={onClose} />
+          </Tabs.Panel>
+        ) : null}
 
-        <Tabs.Panel value="user-management" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Stack gap="md" style={{ minHeight: 0, flex: 1 }}>
-            <Box style={PANEL_SCROLL_AREA_STYLE}>
-              <ImportUserManagementTab
-                preflight={preflight}
-                importUsersAsPlaceholders={importUsersAsPlaceholders}
-                onImportUsersAsPlaceholdersChange={setImportUsersAsPlaceholders}
-              />
-            </Box>
-            <Group justify="flex-end" gap="sm" style={PANEL_FOOTER_STYLE}>
-              <Button
-                variant="default"
-                radius="md"
-                onClick={() => {
-                  if (needsReplaceButtons) {
-                    setActiveTab('replace-buttons');
-                  } else {
-                    setActiveTab('import');
-                  }
-                }}
-                disabled={loading}
-              >
-                Back
-              </Button>
-              <Button
-                color="blue"
-                radius="md"
-                onClick={() => {
-                  void handleImport();
-                }}
-                disabled={!file || !importType || loading}
-                loading={loading}
-              >
-                Import
-              </Button>
-            </Group>
-          </Stack>
-        </Tabs.Panel>
+        {wizard.showUserManagementTab && wizard.file != null ? (
+          <Tabs.Panel
+            value="user-management"
+            style={{ display: modalTab === 'user-management' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
+          >
+            <ImportTab wizard={{ ...wizard, activeTab: 'user-management' }} onClose={onClose} />
+          </Tabs.Panel>
+        ) : null}
 
-        <Tabs.Panel value="export" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Stack gap="md" style={{ minHeight: 0, flex: 1 }}>
-            <Box style={PANEL_SCROLL_AREA_STYLE}>
-            <Select
-              label="Export Format"
-              value={exportFormat}
-              onChange={(value) => setExportFormat((value || 'json') as 'json' | 'csv')}
-              data={[
-                ...(canExportAtlantisboardJson
-                  ? [{ value: 'json', label: 'JSON (Complete board data)' }]
-                  : []),
-                ...(canExportCsv
-                  ? [{ value: 'csv', label: 'CSV (Cards only, configurable columns)' }]
-                  : []),
-              ]}
-              disabled={loading}
-              radius="md"
-            />
-
-            {exportFormat === 'csv' ? (
-              <Stack gap="xs">
-                <Text size="sm" fw={600}>
-                  Select Columns to Export
-                </Text>
-                {[
-                  'title',
-                  'description',
-                  'list',
-                  'labels',
-                  'assignees',
-                  'dueDate',
-                  'startDate',
-                  'completed',
-                  'createdAt',
-                  'updatedAt',
-                ].map((col) => (
-                  <Checkbox
-                    key={col}
-                    label={col.charAt(0).toUpperCase() + col.slice(1)}
-                    checked={exportColumns.includes(col)}
-                    onChange={(e) => {
-                      if (e.currentTarget.checked) {
-                        setExportColumns([...exportColumns, col]);
-                      } else {
-                        setExportColumns(exportColumns.filter((c) => c !== col));
-                      }
-                    }}
-                    disabled={loading}
-                  />
-                ))}
-              </Stack>
-            ) : null}
-
-            </Box>
-            <Group justify="flex-end" gap="sm" style={PANEL_FOOTER_STYLE}>
-              <Button variant="default" radius="md" onClick={onClose} disabled={loading}>
-                Cancel
-              </Button>
-              <Button
-                color="blue"
-                radius="md"
-                onClick={() => void handleExport()}
-                disabled={loading || (exportFormat === 'csv' && exportColumns.length === 0)}
-                loading={loading}
-              >
-                Export
-              </Button>
-            </Group>
-          </Stack>
-        </Tabs.Panel>
+        {showExportTab && boardId != null ? (
+          <Tabs.Panel
+            value="export"
+            style={{ display: modalTab === 'export' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
+          >
+            <ExportTab boardId={boardId} onClose={onClose} />
+          </Tabs.Panel>
+        ) : null}
       </Tabs>
 
       <Modal
-        opened={defaultCardColourModalOpen}
-        onClose={() => setDefaultCardColourModalOpen(false)}
+        opened={wizard.defaultCardColourModalOpen}
+        onClose={() => wizard.setDefaultCardColourModalOpen(false)}
         title="Default colour for uncoloured cards"
         centered={!isMobile}
         size="lg"
@@ -1093,24 +182,24 @@ export function ImportExportModal({
       >
         <Stack gap="md">
           <BoardColourPickerPanel
-            value={pickerDraftHex}
+            value={wizard.pickerDraftHex}
             onChange={(hex) => {
-              setPickerDraftHex(hex);
-              setPickerDraftUseTheme(false);
+              wizard.setPickerDraftHex(hex);
+              wizard.setPickerDraftUseTheme(false);
             }}
-            onClearColor={() => setPickerDraftUseTheme(true)}
-            noColorSelected={pickerDraftUseTheme}
+            onClearColor={() => wizard.setPickerDraftUseTheme(true)}
+            noColorSelected={wizard.pickerDraftUseTheme}
           />
           <Group justify="flex-end" gap="sm" mt="md">
-            <Button variant="default" radius="md" onClick={() => setDefaultCardColourModalOpen(false)}>
+            <Button variant="default" radius="md" onClick={() => wizard.setDefaultCardColourModalOpen(false)}>
               Cancel
             </Button>
             <Button
               radius="md"
               onClick={() => {
-                setImportDefaultHex(pickerDraftHex);
-                setImportDefaultUseTheme(pickerDraftUseTheme);
-                setDefaultCardColourModalOpen(false);
+                wizard.setImportDefaultHex(wizard.pickerDraftHex);
+                wizard.setImportDefaultUseTheme(wizard.pickerDraftUseTheme);
+                wizard.setDefaultCardColourModalOpen(false);
               }}
             >
               Save

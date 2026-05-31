@@ -1,30 +1,23 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useState, type ReactElement } from 'react';
 import {
   ActionIcon,
-  Alert,
   Box,
   Button,
-  Card,
   Divider,
-  Grid,
   Group,
   ScrollArea,
-  Select,
   Stack,
-  Switch,
   Tabs,
   Text,
-  TextInput,
   Title,
-  Tooltip,
 } from '@mantine/core';
 import { IconArrowLeft, IconLock, IconPlus } from '@tabler/icons-react';
 import { useResponsiveTier } from '../../../hooks/useResponsiveTier.js';
 import { AppAdminMemberManagement } from '../AppAdminMemberManagement.js';
 import { categoryIcon, categoryLabel, categoryStatusColor } from './categoryMeta.js';
-import { MEMBERS_ROLE_UPDATE_MODE_OPTIONS, PERMISSION_DESCRIPTIONS } from './permissionsCatalog.js';
-import { BUILTIN_ROLE_DESCRIPTIONS, BUILTIN_ROLE_ORDER } from './roleDefinitions.js';
-import { TriStateCategoryToggle } from './TriStateCategoryToggle.js';
+import { MobilePermissionsRow } from './MobilePermissionsRow.js';
+import { PermissionMatrix } from './PermissionMatrix.js';
+import { RoleEditorForm } from './RoleEditorForm.js';
 import type { AppAdminRow, CategoryStatus, PermissionCategoryKey, RoleRow } from './types.js';
 
 interface RolesPermissionsTabContentProps {
@@ -60,22 +53,6 @@ interface RolesPermissionsTabContentProps {
 }
 
 type MobilePermissionsNav = 'roles' | 'app-admins' | 'categories' | 'permissions';
-
-function MobilePermissionsRow(props: {
-  readonly onClick: () => void;
-  readonly children: ReactNode;
-  readonly rightSection?: ReactNode;
-}): ReactElement {
-  const { onClick, children, rightSection } = props;
-  return (
-    <button type="button" className="roles-permissions-tab__mobile-row" onClick={onClick}>
-      <span className="roles-permissions-tab__mobile-row-label">{children}</span>
-      {rightSection != null ? (
-        <span className="roles-permissions-tab__mobile-row-trailing">{rightSection}</span>
-      ) : null}
-    </button>
-  );
-}
 
 export function RolesPermissionsTabContent({
   activeTab,
@@ -179,184 +156,18 @@ export function RolesPermissionsTabContent({
     </Box>
   );
 
-  const renderActiveRoleHeader = (): ReactElement | null => {
-    if (!activeRole) {
-      return null;
-    }
-    return (
-      <Stack gap="sm" style={{ flexShrink: 0 }}>
-        <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
-          <Box style={{ minWidth: 0, flex: 1 }}>
-            <Group gap="xs" align="center" wrap="wrap">
-              <Title order={4}>{activeRole.displayName}</Title>
-              {activeRole.isBuiltIn ? (
-                <Text size="sm" c="dimmed" fw={600}>
-                  Read-only
-                </Text>
-              ) : activeIsDirty ? (
-                <Text size="sm" c="orange" fw={600}>
-                  Unsaved changes
-                </Text>
-              ) : (
-                <Text size="sm" c="green" fw={600}>
-                  Editable
-                </Text>
-              )}
-            </Group>
-            {(activeRole.description ??
-              (activeRole.isBuiltIn && activeRole.key in BUILTIN_ROLE_DESCRIPTIONS
-                ? BUILTIN_ROLE_DESCRIPTIONS[activeRole.key as (typeof BUILTIN_ROLE_ORDER)[number]]
-                : undefined)) ? (
-              <Text size="sm" mt={6}>
-                {activeRole.description ??
-                  (activeRole.isBuiltIn && activeRole.key in BUILTIN_ROLE_DESCRIPTIONS
-                    ? BUILTIN_ROLE_DESCRIPTIONS[activeRole.key as (typeof BUILTIN_ROLE_ORDER)[number]]
-                    : '')}
-              </Text>
-            ) : null}
-            <Tooltip
-              label="Higher hierarchy number means higher role level. Users cannot assign or promote to roles above their allowed hierarchy/mode."
-              multiline
-              maw={420}
-              openDelay={150}
-              position="bottom-start"
-            >
-              <Box mt={10}>
-                <TextInput
-                  size="sm"
-                  label="Hierarchy"
-                  value={String(draftHierarchyLevels[activeRole.key] ?? activeRole.hierarchyLevel)}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  onChange={(event) => {
-                    const next = parseHierarchy(event.currentTarget.value, activeRole.hierarchyLevel);
-                    setHierarchyDraft(activeRole.key, next);
-                  }}
-                />
-              </Box>
-            </Tooltip>
-          </Box>
-        </Group>
-        <Group gap="xs" wrap="wrap">
-          <Button
-            size="sm"
-            onClick={() => void saveActiveRole()}
-            disabled={!activeIsDirty}
-            loading={savingKey === activeRole.key}
-          >
-            Save changes
-          </Button>
-          {!activeRole.isBuiltIn ? (
-            <Button
-              size="sm"
-              color="red"
-              variant="light"
-              onClick={() => void deleteActiveRole()}
-              loading={savingKey === activeRole.key}
-            >
-              Delete role
-            </Button>
-          ) : null}
-        </Group>
-      </Stack>
-    );
-  };
-
-  const renderPermissionToggles = (): ReactElement => {
-    if (!activeRole) {
-      return <Text c="dimmed">Select a role.</Text>;
-    }
-    if (allPermissionStrings.length === 0) {
-      return (
-        <Alert color="yellow" title="Permissions">
-          No permissions found.
-        </Alert>
-      );
-    }
-    return (
-      <Stack gap="xs">
-        <Card withBorder radius="md" p="sm">
-          <Group justify="space-between" align="center" wrap="nowrap">
-            <Box style={{ minWidth: 0 }}>
-              <Text fw={700} size="sm" lineClamp={1}>
-                {categoryLabel(activeCategory)}
-              </Text>
-              <Text size="xs" c="dimmed" lineClamp={2}>
-                Toggle all permissions in this category.
-              </Text>
-            </Box>
-            <TriStateCategoryToggle
-              status={categoryStatuses.get(activeCategory) ?? 'none'}
-              disabled={activeRole.isBuiltIn}
-              onToggleAllOn={() => setAllPermissionsForActiveCategory(true)}
-              onToggleAllOff={() => setAllPermissionsForActiveCategory(false)}
-            />
-          </Group>
-        </Card>
-        {activeCategory === 'members' ? (
-          <Card withBorder radius="md" p="sm">
-            <Stack gap="sm">
-              <Box style={{ minWidth: 0 }}>
-                <Text fw={600} size="sm" lineClamp={1}>
-                  Board member role update mode
-                </Text>
-                <Text size="xs" c="dimmed" lineClamp={2}>
-                  Choose exactly one hierarchy rule for board member role updates.
-                </Text>
-              </Box>
-              <Select
-                size="sm"
-                data={[...MEMBERS_ROLE_UPDATE_MODE_OPTIONS]}
-                value={activeMemberRoleUpdateMode}
-                onChange={(value) => setMemberRoleUpdateMode(activeRole.key, value)}
-                disabled={activeRole.isBuiltIn || !activeEnabledSet.has('boards.members.role.update')}
-                allowDeselect={false}
-              />
-              <Switch
-                size="md"
-                label="Enable role update mode"
-                checked={activeMemberRoleUpdateMode != null}
-                disabled={activeRole.isBuiltIn}
-                onChange={(event) => {
-                  if (event.currentTarget.checked) {
-                    const fallback =
-                      activeMemberRoleUpdateMode ?? MEMBERS_ROLE_UPDATE_MODE_OPTIONS[0]?.value ?? null;
-                    setMemberRoleUpdateMode(activeRole.key, fallback);
-                  } else {
-                    setMemberRoleUpdateMode(activeRole.key, null);
-                  }
-                }}
-                aria-label="Toggle board member role update mode"
-                withThumbIndicator={false}
-              />
-            </Stack>
-          </Card>
-        ) : null}
-        {(permissionKeysByCategory.get(activeCategory) ?? []).map((permission) => (
-          <Card key={permission} withBorder radius="md" p="sm">
-            <Group justify="space-between" align="center" wrap="nowrap">
-              <Box style={{ minWidth: 0 }}>
-                <Text fw={600} size="sm" lineClamp={1}>
-                  {permission}
-                </Text>
-                <Text size="xs" c="dimmed" lineClamp={3}>
-                  {PERMISSION_DESCRIPTIONS[permission] ?? 'No description available.'}
-                </Text>
-              </Box>
-              <Switch
-                size="md"
-                checked={activeEnabledSet.has(permission)}
-                disabled={activeRole.isBuiltIn}
-                onChange={() => togglePermission(activeRole.key, permission)}
-                aria-label={`Toggle ${permission}`}
-                withThumbIndicator={false}
-              />
-            </Group>
-          </Card>
-        ))}
-      </Stack>
-    );
-  };
+  const permissionMatrixProps = {
+    activeRole,
+    activeCategory,
+    categoryStatuses,
+    allPermissionStrings,
+    permissionKeysByCategory,
+    activeEnabledSet,
+    activeMemberRoleUpdateMode,
+    setMemberRoleUpdateMode,
+    setAllPermissionsForActiveCategory,
+    togglePermission,
+  } as const;
 
   if (isMobile) {
     return (
@@ -451,7 +262,21 @@ export function RolesPermissionsTabContent({
 
           {mobileNav === 'categories' ? (
             <Box className="roles-permissions-tab__mobile-categories-panel">
-              <Box className="roles-permissions-tab__mobile-categories-header">{renderActiveRoleHeader()}</Box>
+              <Box className="roles-permissions-tab__mobile-categories-header">
+                {activeRole != null ? (
+                  <RoleEditorForm
+                    activeRole={activeRole}
+                    activeIsDirty={activeIsDirty}
+                    draftHierarchyLevels={draftHierarchyLevels}
+                    setHierarchyDraft={setHierarchyDraft}
+                    parseHierarchy={parseHierarchy}
+                    saveActiveRole={saveActiveRole}
+                    deleteActiveRole={deleteActiveRole}
+                    savingKey={savingKey}
+                    layout="stack"
+                  />
+                ) : null}
+              </Box>
               <ScrollArea
                 className="roles-permissions-tab__mobile-categories-scroll"
                 type="auto"
@@ -499,7 +324,7 @@ export function RolesPermissionsTabContent({
               offsetScrollbars
               style={{ flex: 1, minHeight: 0 }}
             >
-              {renderPermissionToggles()}
+              <PermissionMatrix {...permissionMatrixProps} layout="stack" />
             </ScrollArea>
           ) : null}
         </Box>
@@ -632,164 +457,21 @@ export function RolesPermissionsTabContent({
               </Stack>
             </Box>
             <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              {activeRole ? (
+              {activeRole != null ? (
                 <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
-                  <Group justify="space-between" align="center" wrap="nowrap">
-                    <Box style={{ minWidth: 0 }}>
-                      <Group gap="xs" align="center" wrap="nowrap">
-                        <Title order={4} style={{ whiteSpace: 'nowrap' }}>{activeRole.displayName}</Title>
-                        {activeRole.isBuiltIn ? (
-                          <Text size="sm" c="dimmed" fw={600}>Read-only</Text>
-                        ) : activeIsDirty ? (
-                          <Text size="sm" c="orange" fw={600}>Unsaved changes</Text>
-                        ) : (
-                          <Text size="sm" c="green" fw={600}>Editable</Text>
-                        )}
-                      </Group>
-                      {(activeRole.description ??
-                        (activeRole.isBuiltIn && activeRole.key in BUILTIN_ROLE_DESCRIPTIONS
-                          ? BUILTIN_ROLE_DESCRIPTIONS[activeRole.key as (typeof BUILTIN_ROLE_ORDER)[number]]
-                          : undefined)) ? (
-                        <Text size="sm" mt={6}>
-                          {activeRole.description ??
-                            (activeRole.isBuiltIn && activeRole.key in BUILTIN_ROLE_DESCRIPTIONS
-                              ? BUILTIN_ROLE_DESCRIPTIONS[activeRole.key as (typeof BUILTIN_ROLE_ORDER)[number]]
-                              : '')}
-                        </Text>
-                      ) : null}
-                      <Tooltip
-                        label="Higher hierarchy number means higher role level. Users cannot assign or promote to roles above their allowed hierarchy/mode."
-                        multiline
-                        maw={420}
-                        openDelay={150}
-                        position="bottom-start"
-                      >
-                        <Box mt={10} maw={220}>
-                          <TextInput
-                            size="sm"
-                            label="Hierarchy"
-                            value={String(draftHierarchyLevels[activeRole.key] ?? activeRole.hierarchyLevel)}
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            onChange={(event) => {
-                              const next = parseHierarchy(event.currentTarget.value, activeRole.hierarchyLevel);
-                              setHierarchyDraft(activeRole.key, next);
-                            }}
-                          />
-                        </Box>
-                      </Tooltip>
-                    </Box>
-                    <Group gap="xs" wrap="nowrap">
-                      <Button
-                        size="sm"
-                        onClick={() => void saveActiveRole()}
-                        disabled={!activeIsDirty}
-                        loading={savingKey === activeRole.key}
-                      >
-                        Save changes
-                      </Button>
-                      {!activeRole.isBuiltIn ? (
-                        <Button
-                          size="sm"
-                          color="red"
-                          variant="light"
-                          onClick={() => void deleteActiveRole()}
-                          loading={savingKey === activeRole.key}
-                        >
-                          Delete role
-                        </Button>
-                      ) : null}
-                    </Group>
-                  </Group>
+                  <RoleEditorForm
+                    activeRole={activeRole}
+                    activeIsDirty={activeIsDirty}
+                    draftHierarchyLevels={draftHierarchyLevels}
+                    setHierarchyDraft={setHierarchyDraft}
+                    parseHierarchy={parseHierarchy}
+                    saveActiveRole={saveActiveRole}
+                    deleteActiveRole={deleteActiveRole}
+                    savingKey={savingKey}
+                    layout="toolbar"
+                  />
                   <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
-                    {allPermissionStrings.length === 0 ? (
-                      <Alert color="yellow" title="Permissions">
-                        No permissions found.
-                      </Alert>
-                    ) : (
-                      <Grid gutter="xs" pr="sm">
-                        <Grid.Col span={12}>
-                          <Card withBorder radius="md" p="sm">
-                            <Group justify="space-between" align="center" wrap="nowrap">
-                              <Box style={{ minWidth: 0 }}>
-                                <Text fw={700} size="sm" lineClamp={1}>{categoryLabel(activeCategory)}</Text>
-                                <Text size="xs" c="dimmed" lineClamp={2}>
-                                  Toggle all permissions in this category.
-                                </Text>
-                              </Box>
-                              <TriStateCategoryToggle
-                                status={categoryStatuses.get(activeCategory) ?? 'none'}
-                                disabled={!activeRole || activeRole.isBuiltIn}
-                                onToggleAllOn={() => setAllPermissionsForActiveCategory(true)}
-                                onToggleAllOff={() => setAllPermissionsForActiveCategory(false)}
-                              />
-                            </Group>
-                          </Card>
-                        </Grid.Col>
-                        {activeCategory === 'members' ? (
-                          <Grid.Col span={12}>
-                            <Card withBorder radius="md" p="sm">
-                              <Group justify="space-between" align="center" wrap="nowrap">
-                                <Box style={{ minWidth: 0 }}>
-                                  <Text fw={600} size="sm" lineClamp={1}>Board member role update mode</Text>
-                                  <Text size="xs" c="dimmed" lineClamp={2}>
-                                    Choose exactly one hierarchy rule for board member role updates.
-                                  </Text>
-                                </Box>
-                                <Group gap="sm" wrap="nowrap" align="center">
-                                  <Select
-                                    size="xs"
-                                    w={280}
-                                    data={[...MEMBERS_ROLE_UPDATE_MODE_OPTIONS]}
-                                    value={activeMemberRoleUpdateMode}
-                                    onChange={(value) => setMemberRoleUpdateMode(activeRole.key, value)}
-                                    disabled={activeRole.isBuiltIn || !activeEnabledSet.has('boards.members.role.update')}
-                                    allowDeselect={false}
-                                  />
-                                  <Switch
-                                    size="md"
-                                    checked={activeMemberRoleUpdateMode != null}
-                                    disabled={activeRole.isBuiltIn}
-                                    onChange={(event) => {
-                                      if (event.currentTarget.checked) {
-                                        const fallback = activeMemberRoleUpdateMode ?? MEMBERS_ROLE_UPDATE_MODE_OPTIONS[0]?.value ?? null;
-                                        setMemberRoleUpdateMode(activeRole.key, fallback);
-                                      } else {
-                                        setMemberRoleUpdateMode(activeRole.key, null);
-                                      }
-                                    }}
-                                    aria-label="Toggle board member role update mode"
-                                    withThumbIndicator={false}
-                                  />
-                                </Group>
-                              </Group>
-                            </Card>
-                          </Grid.Col>
-                        ) : null}
-                        {(permissionKeysByCategory.get(activeCategory) ?? []).map((permission) => (
-                          <Grid.Col key={permission} span={{ base: 12, md: 6 }}>
-                            <Card withBorder radius="md" p="sm">
-                              <Group justify="space-between" align="center" wrap="nowrap">
-                                <Box style={{ minWidth: 0 }}>
-                                  <Text fw={600} size="sm" lineClamp={1}>{permission}</Text>
-                                  <Text size="xs" c="dimmed" lineClamp={2}>
-                                    {PERMISSION_DESCRIPTIONS[permission] ?? 'No description available.'}
-                                  </Text>
-                                </Box>
-                                <Switch
-                                  size="md"
-                                  checked={activeEnabledSet.has(permission)}
-                                  disabled={activeRole.isBuiltIn}
-                                  onChange={() => togglePermission(activeRole.key, permission)}
-                                  aria-label={`Toggle ${permission}`}
-                                  withThumbIndicator={false}
-                                />
-                              </Group>
-                            </Card>
-                          </Grid.Col>
-                        ))}
-                      </Grid>
-                    )}
+                    <PermissionMatrix {...permissionMatrixProps} layout="grid" />
                   </ScrollArea>
                 </Stack>
               ) : (

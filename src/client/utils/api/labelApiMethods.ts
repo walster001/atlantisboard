@@ -1,12 +1,13 @@
 import type { ApiClient } from '../api.js';
+import { parseCardApiResponse, type CardApiResponse } from './cardApiMethods.js';
 
 export interface LabelApiMethods {
   getBoardLabels(boardId: string): Promise<{ labels: unknown[] }>;
   createLabel(boardId: string, data: { name: string; color: string }): Promise<{ label: unknown }>;
   updateLabel(boardId: string, labelId: string, data: { name?: string; color?: string }): Promise<{ label: unknown }>;
   deleteLabel(boardId: string, labelId: string): Promise<void>;
-  assignLabelToCard(cardId: string, labelId: string): Promise<{ card: unknown }>;
-  removeLabelFromCard(cardId: string, labelId: string): Promise<{ card: unknown }>;
+  assignLabelToCard(cardId: string, labelId: string): Promise<CardApiResponse>;
+  removeLabelFromCard(cardId: string, labelId: string): Promise<CardApiResponse>;
 }
 
 export const labelApiMethods: LabelApiMethods = {
@@ -31,11 +32,11 @@ export const labelApiMethods: LabelApiMethods = {
 
   async assignLabelToCard(this: ApiClient, cardId, labelId) {
     const response = await this.client.post(`/cards/${cardId}/labels/${labelId}`);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async removeLabelFromCard(this: ApiClient, cardId, labelId) {
     const response = await this.client.delete(`/cards/${cardId}/labels/${labelId}`);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 };

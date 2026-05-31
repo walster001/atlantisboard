@@ -191,7 +191,7 @@ export function useSortableListActions({
     async (cardId: string, hex: string): Promise<void> => {
       try {
         const response = await api.updateCard(cardId, { color: hex });
-        const updated = normalizeCardFromApi((response as { card: unknown }).card, cardId);
+        const updated = normalizeCardFromApi(response.card, cardId);
         onCardUpdatedOnBoard(updated);
         setColourModalCardId(null);
       } catch (error: unknown) {
@@ -292,7 +292,7 @@ export function useSortableListActions({
     setRenameCardLoading(true);
     try {
       const response = await api.updateCard(renameTargetCard.id, { title: next });
-      const updated = normalizeCardFromApi((response as { card: unknown }).card, renameTargetCard.id);
+      const updated = normalizeCardFromApi(response.card, renameTargetCard.id);
       onCardUpdatedOnBoard(updated);
       setRenameModalCardId(null);
     } catch (error: unknown) {

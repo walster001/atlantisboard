@@ -11,46 +11,51 @@ function listNumericPos(row: ListDB): number {
 }
 
 /** Align `position` and optimistic `pos` with array index (until server confirms). */
-export function withRenumberedPositions(list: CardDB[]): CardDB[] {
+export function withRenumberedPositions(list: readonly CardDB[]): CardDB[] {
   return list.map((c, i) => ({ ...c, position: i, pos: spreadPosForIndex(i) }));
 }
 
-/** Pure optimistic move: update only the two affected lists so memoized columns keep stable references. */
+/** Pure optimistic move: update only affected lists so memoized columns keep stable references. */
 export function moveCardBetweenListsInMap(
-  prev: Map<string, CardDB[]>,
+  prev: ReadonlyMap<string, readonly CardDB[]>,
   cardId: string,
   fromListId: string,
   toListId: string,
   insertIndex: number,
 ): Map<string, CardDB[]> {
-  if (fromListId === toListId) {
-    return prev;
-  }
   const fromList = prev.get(fromListId);
   if (!fromList) {
-    return prev;
+    return prev instanceof Map ? prev : cloneCardMap(prev);
   }
   const card = fromList.find((c) => c.id === cardId);
   if (card == null) {
-    return prev;
+    return prev instanceof Map ? prev : cloneCardMap(prev);
   }
 
-  const next = new Map(prev);
-  const newFrom = withRenumberedPositions(fromList.filter((c) => c.id !== cardId));
-
-  const toList = prev.get(toListId) || [];
+  const next = cloneCardMap(prev);
+  const fromWithout = fromList.filter((c) => c.id !== cardId);
+  const toList = fromListId === toListId ? fromWithout : (prev.get(toListId) ?? []);
   const toWithout = toList.filter((c) => c.id !== cardId);
   const clamped = Math.max(0, Math.min(insertIndex, toWithout.length));
-  const moved: CardDB = { ...card, listId: toListId };
-  const newTo = withRenumberedPositions([
+  const moved: CardDB = fromListId === toListId ? card : { ...card, listId: toListId };
+  const nextTo = withRenumberedPositions([
     ...toWithout.slice(0, clamped),
     moved,
     ...toWithout.slice(clamped),
   ]);
 
-  next.set(fromListId, newFrom);
-  next.set(toListId, newTo);
+  if (fromListId === toListId) {
+    next.set(fromListId, nextTo);
+    return next;
+  }
+
+  next.set(fromListId, withRenumberedPositions(fromWithout));
+  next.set(toListId, nextTo);
   return next;
+}
+
+function cloneCardMap(prev: ReadonlyMap<string, readonly CardDB[]>): Map<string, CardDB[]> {
+  return new Map([...prev.entries()].map(([listId, cards]) => [listId, [...cards]]));
 }
 
 /** Move active list to the index slot of the hovered column (Trello-style in a single drag). */

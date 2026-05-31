@@ -1,6 +1,8 @@
 import type { CardDB } from '../../store/database.js';
 import { readKanbanListBodyDropData, readKanbanListColumnDropData } from '../../dnd/pragmatic/kanbanData.js';
 
+export { moveCardBetweenListsInMap } from '../../store/kanbanDragPure.js';
+
 export interface ResolvedCardDrop {
   readonly listId: string;
   readonly anchorCardId: string | null;
@@ -19,41 +21,6 @@ export function fallbackDropForDraggedCard(
     anchorCardId: withoutActive[withoutActive.length - 1]?.id ?? null,
     columnIntent: withoutActive.length === 0 ? 'empty-column' : 'append-end',
   };
-}
-
-function withRenumberedPositions(list: readonly CardDB[]): CardDB[] {
-  return list.map((row, i) => ({ ...row, position: i }));
-}
-
-export function moveCardBetweenListsInMap(
-  prev: ReadonlyMap<string, readonly CardDB[]>,
-  cardId: string,
-  fromListId: string,
-  toListId: string,
-  insertIndex: number,
-): Map<string, CardDB[]> {
-  const from = [...(prev.get(fromListId) ?? [])];
-  const to = fromListId === toListId ? from : [...(prev.get(toListId) ?? [])];
-  const active = from.find((c) => c.id === cardId);
-  const cloned = new Map<string, CardDB[]>(
-    [...prev.entries()].map(([listId, listCards]) => [listId, [...listCards]]),
-  );
-  if (active == null) {
-    return cloned;
-  }
-  const next = cloned;
-  const fromWithout = from.filter((c) => c.id !== cardId);
-  const moved: CardDB = fromListId === toListId ? active : { ...active, listId: toListId };
-  const toWithout = to.filter((c) => c.id !== cardId);
-  const clamped = Math.max(0, Math.min(insertIndex, toWithout.length));
-  const nextTo = [...toWithout.slice(0, clamped), moved, ...toWithout.slice(clamped)];
-  if (fromListId === toListId) {
-    next.set(fromListId, withRenumberedPositions(nextTo));
-    return next;
-  }
-  next.set(fromListId, withRenumberedPositions(fromWithout));
-  next.set(toListId, withRenumberedPositions(nextTo));
-  return next;
 }
 
 function sortedCardsForList(

@@ -37,29 +37,7 @@ import {
   sanitizeBoardImportPlaceholderStoredEmails,
 } from './services/importPlaceholderUserService.js';
 
-// Connect to database on startup
-connectDatabase()
-  .then(() => migrateLegacyUserPlaceholdersToBoardCollection())
-  .then(() => repairWekanEmailStoredInImportUsername())
-  .then(() => sanitizeBoardImportPlaceholderStoredEmails())
-  .then(() => dropLegacyUnusedCollections())
-  .then(() => migrateLegacyCardDescriptionHtmlBatch())
-  .then(() => initializeBoardThemes())
-  .catch((err) => {
-    logger.error({ err }, 'Failed to connect to database or run startup migrations');
-    process.exit(1);
-  });
-
-// MinIO bucket init (non-fatal when object storage is unavailable, e.g. CI without MinIO)
-initializeMinIOBuckets().catch((err) => {
-  logger.error({ err }, 'Failed to initialize MinIO buckets');
-});
-
-// Initialize VAPID keys for push notifications
 import { initializeVapid } from './config/vapid.js';
-initializeVapid().catch((err) => {
-  logger.error({ err }, 'Failed to initialize VAPID keys');
-});
 
 assertProductionSecrets();
 assertProductionCorsConfig();
@@ -232,6 +210,12 @@ async function bootstrap(): Promise<void> {
   try {
     await connectSessionRedis();
     await connectDatabase();
+    await migrateLegacyUserPlaceholdersToBoardCollection();
+    await repairWekanEmailStoredInImportUsername();
+    await sanitizeBoardImportPlaceholderStoredEmails();
+    await dropLegacyUnusedCollections();
+    await migrateLegacyCardDescriptionHtmlBatch();
+    await initializeBoardThemes();
     await initializeAdminConfig();
     await initializeRoleDefinitions();
     await configureGoogleStrategy();
@@ -240,6 +224,15 @@ async function bootstrap(): Promise<void> {
     process.exit(1);
     return;
   }
+
+  // Non-fatal when object storage is unavailable (e.g. CI without MinIO)
+  initializeMinIOBuckets().catch((err) => {
+    logger.error({ err }, 'Failed to initialize MinIO buckets');
+  });
+
+  initializeVapid().catch((err) => {
+    logger.error({ err }, 'Failed to initialize VAPID keys');
+  });
 
   httpServer.listen(PORT, HOST, () => {
     logger.info(`Server running on http://${HOST}:${PORT}`);

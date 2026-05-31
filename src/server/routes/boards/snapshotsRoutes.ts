@@ -1,6 +1,6 @@
 import { type Router } from 'express';
 import { z } from 'zod';
-import type { AuthenticatedRequest } from '../../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../../types/express.js';
 import { getBoardKanbanSnapshotForUser } from '../../services/boardService.js';
 import { getCardDescriptionFieldsBatchForBoard } from '../../services/cardService.js';
 import { boardSnapshotQuerySchema, cardDescriptionsBatchBodySchema } from './schemas.js';

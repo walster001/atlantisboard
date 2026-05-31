@@ -3,7 +3,10 @@
  * so oversized bodies cannot bypass one layer.
  */
 
-import { resolveCardAttachmentMaxBytes } from '../../shared/constants/uploadLimits.js';
+import {
+  resolveBoardImportMaxBytes,
+  resolveCardAttachmentMaxBytes,
+} from '../../shared/constants/uploadLimits.js';
 
 /**
  * Multipart requests with `Content-Length` above this use multer disk storage so the file is
@@ -25,8 +28,5 @@ export function getCardAttachmentMaxBytes(): number {
  * Must match multer `limits.fileSize` on import routes.
  */
 export function getBoardImportUploadMaxBytes(): number {
-  const parsed = Number.parseInt(process.env.BOARD_IMPORT_MAX_MB ?? '35', 10);
-  const mb = Number.isFinite(parsed) ? parsed : 35;
-  const clamped = Math.min(250, Math.max(5, mb));
-  return clamped * 1024 * 1024;
+  return resolveBoardImportMaxBytes({ BOARD_IMPORT_MAX_MB: process.env.BOARD_IMPORT_MAX_MB });
 }

@@ -25,6 +25,14 @@ export interface TestAuthToken {
   user: TestUser;
 }
 
+export async function connectTestDatabase(): Promise<void> {
+  await mongoose.connect(process.env.MONGODB_TEST_URI!);
+}
+
+export async function disconnectTestDatabase(): Promise<void> {
+  await mongoose.disconnect();
+}
+
 export async function clearTestDatabase(): Promise<void> {
   await waitForServer();
   const { readyState, collections } = mongoose.connection;

@@ -18,6 +18,7 @@ import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
 import { spreadPosForIndex } from '../../../shared/utils/cardListPos.js';
 import { env } from '../../config/env.js';
 import {
+  applyCardPatch,
   deferSocketWork,
   enqueueCardSocketApply,
   markCardEventTs,
@@ -159,24 +160,13 @@ export function registerCardHandlers(socket: Socket): void {
                 ? useBoardRuntimeStore.getState().cardsById[data.cardId]
                 : undefined;
             const existing = existingRuntime ?? existingDexie;
-            if (!existing) {
-              return;
-            }
-            const patched: Record<string, unknown> = { ...existing };
-            for (const [key, value] of Object.entries(data.changedFields)) {
-              if (key === 'attachments' && !Array.isArray(value)) {
-                continue;
-              }
-              patched[key] = value;
-            }
-            for (const key of data.removedFields) {
-              delete patched[key];
-            }
-            const normalized = normalizeCardFromApi(patched, data.cardId, {
-              listId: existing.listId,
-              boardId: existing.boardId,
-            });
-            if (isRedundantCardSocketPayload(data.cardId, normalized)) {
+            const normalized = applyCardPatch(
+              existing,
+              data.cardId,
+              data.changedFields,
+              data.removedFields,
+            );
+            if (normalized == null) {
               return;
             }
             if (runtimeActiveBoardId() === data.boardId) {
@@ -220,9 +210,7 @@ export function registerCardHandlers(socket: Socket): void {
               return;
             }
             if (runtimeActiveBoardId() === data.boardId) {
-              for (const card of nextCards) {
-                useBoardRuntimeStore.getState().upsertCard(card);
-              }
+              useBoardRuntimeStore.getState().upsertCards(nextCards);
               useBoardRuntimeStore.getState().applyCardsReorderedInList(data.listId, orderedIds);
             }
             await db.cards.bulkPut(nextCards);
@@ -284,9 +272,7 @@ export function registerCardHandlers(socket: Socket): void {
               })
               .filter((card): card is NonNullable<typeof card> => card != null);
             if (runtimeActiveBoardId() === data.boardId) {
-              for (const card of nextCards) {
-                useBoardRuntimeStore.getState().upsertCard(card);
-              }
+              useBoardRuntimeStore.getState().upsertCards(nextCards);
               useBoardRuntimeStore.getState().applyCardsReorderedInList(
                 entry.listId,
                 orderedIds,

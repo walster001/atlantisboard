@@ -1,7 +1,7 @@
 import { Router, type RequestHandler } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
-import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../types/express.js';
 import { BOARD_MEMBER_AUDIT_ACTIVITY_TYPES } from '../../shared/constants/boardMemberAuditActivities.js';
 import { Activity } from '../models/Activity.js';
 import { hasPermission } from '../utils/permissions.js';

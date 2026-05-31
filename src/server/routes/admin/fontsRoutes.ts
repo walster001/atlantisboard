@@ -2,7 +2,7 @@ import type { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { fileUploadRateLimiter } from '../../middleware/rateLimit.js';
-import type { AuthenticatedRequest } from '../../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../../types/express.js';
 import { getAdminConfig, updateAdminConfig } from '../../services/adminService.js';
 import {
   deleteCustomFont,

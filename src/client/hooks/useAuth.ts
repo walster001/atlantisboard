@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, isPublicPath } from '../utils/api.js';
 import { usesHttpOnlyAuth } from '../config/env.js';
 import { socketClient } from '../utils/socket.js';
+import { resetLocalUserIdCache } from './socketHandlers/state.js';
 import { db, type UserDB } from '../store/database.js';
 import type { BoardThemeDefinition } from '../../shared/boardTheme.js';
 
@@ -160,6 +161,7 @@ export function useAuth() {
       console.error('Error logging out:', error);
     }
     socketClient.disconnect();
+    resetLocalUserIdCache();
     await db.users.clear();
     setAuthState({ user: null, loading: false, authenticated: false });
   }, []);

@@ -1,67 +1,31 @@
-import { useCallback, type MutableRefObject } from 'react';
-import type { Editor } from '@tiptap/core';
+import { useCallback } from 'react';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { CARD_TITLE_MAX_LENGTH } from '../../../constants/cardFieldLimits.js';
-import { db, type CardDB } from '../../../store/database.js';
+import { db } from '../../../store/database.js';
 import { api } from '../../../utils/api.js';
+import { discardPendingDescriptionMedia } from '../../../utils/descriptionPendingMedia.js';
 import { normalizeCardFromApi } from '../../../utils/transform.js';
+import { runBeforeDeleteAttachment } from './cardDetailAttachmentHandlers.js';
 import {
-  discardPendingDescriptionMedia,
-  type DescriptionPendingMediaRegistry,
-} from '../../../utils/descriptionPendingMedia.js';
-import type { DateFieldController } from './cardDetailDateField.js';
+  notifyCardUpdateNormalizeFailure,
+  runClearDateField,
+  runSaveDateField,
+} from './cardDetailDateFieldHandlers.js';
 import {
   buildDescriptionErrorMessage,
-  runBeforeDeleteAttachment,
-  runClearDateField,
   runDescriptionUpdate,
-  runSaveDateField,
-} from './cardDetailViewActions.js';
+} from './cardDetailDescriptionHandlers.js';
+import type {
+  CardDetailViewControllerHandlers,
+  DateFieldKind,
+  UseCardDetailViewControllerHandlersArgs,
+} from './cardDetailViewHandlerTypes.js';
 
-type DateKind = 'dueDate' | 'startDate' | 'endDate';
-
-interface UseCardDetailViewControllerHandlersArgs {
-  readonly boardId: string;
-  readonly card: CardDB;
-  readonly cardRef: MutableRefObject<CardDB>;
-  readonly descriptionEditorRef: MutableRefObject<Editor | null>;
-  readonly pendingDescriptionMediaRef: MutableRefObject<DescriptionPendingMediaRegistry>;
-  readonly title: string;
-  readonly due: DateFieldController;
-  readonly start: DateFieldController;
-  readonly end: DateFieldController;
-  readonly onClose: () => void;
-  readonly onCardDeleted: (() => void) | undefined;
-  readonly syncCardToBoardAndDexie: (card: CardDB) => void;
-  readonly setTitle: (value: string) => void;
-  readonly setIsEditing: (value: boolean) => void;
-  readonly setIsEditingDescription: (value: boolean) => void;
-  readonly setLoading: (value: boolean) => void;
-}
-
-interface CardDetailViewControllerHandlers {
-  readonly handleUpdateTitle: () => Promise<void>;
-  readonly handleUpdateDescription: () => Promise<void>;
-  readonly handleCancelDescriptionEdit: () => void;
-  readonly onBeforeDeleteAttachment: (attachmentId: string) => Promise<void>;
-  readonly handleSaveDueDate: () => Promise<void>;
-  readonly handleClearDueDate: () => Promise<void>;
-  readonly handleSaveStartDate: () => Promise<void>;
-  readonly handleClearStartDate: () => Promise<void>;
-  readonly handleSaveEndDate: () => Promise<void>;
-  readonly handleClearEndDate: () => Promise<void>;
-  readonly handleCopyCardLink: () => Promise<void>;
-  readonly handleDeleteCard: () => void;
-}
-
-function notifyNormalizeFailure(): void {
-  notifications.show({
-    color: 'red',
-    title: 'Update failed',
-    message: 'Could not read updated card from server.',
-  });
-}
+export type {
+  CardDetailViewControllerHandlers,
+  UseCardDetailViewControllerHandlersArgs,
+} from './cardDetailViewHandlerTypes.js';
 
 export function useCardDetailViewControllerHandlers({
   boardId,
@@ -109,9 +73,9 @@ export function useCardDetailViewControllerHandlers({
     try {
       const response = await api.updateCard(card.id, { title: next });
       try {
-        syncCardToBoardAndDexie(normalizeCardFromApi((response as { card: unknown }).card, card.id));
+        syncCardToBoardAndDexie(normalizeCardFromApi(response.card, card.id));
       } catch {
-        notifyNormalizeFailure();
+        notifyCardUpdateNormalizeFailure();
       }
       setIsEditing(false);
     } catch (error) {
@@ -129,7 +93,7 @@ export function useCardDetailViewControllerHandlers({
         descriptionEditorRef,
         attachmentId,
         syncCardToBoardAndDexie,
-        notifyNormalizeFailure,
+        notifyNormalizeFailure: notifyCardUpdateNormalizeFailure,
       });
     },
     [cardRef, descriptionEditorRef, syncCardToBoardAndDexie],
@@ -148,7 +112,7 @@ export function useCardDetailViewControllerHandlers({
         card,
         editor,
         syncCardToBoardAndDexie,
-        notifyNormalizeFailure,
+        notifyNormalizeFailure: notifyCardUpdateNormalizeFailure,
         pendingDescriptionMedia: pendingDescriptionMediaRef.current,
       });
       if (!result.ok) {
@@ -173,7 +137,7 @@ export function useCardDetailViewControllerHandlers({
   }, [card, descriptionEditorRef, pendingDescriptionMediaRef, setIsEditingDescription, setLoading, syncCardToBoardAndDexie]);
 
   const saveDate = useCallback(
-    async (kind: DateKind, value: string, close: () => void, label: string): Promise<void> => {
+    async (kind: DateFieldKind, value: string, close: () => void, label: string): Promise<void> => {
       setLoading(true);
       try {
         await runSaveDateField({
@@ -183,7 +147,7 @@ export function useCardDetailViewControllerHandlers({
           close,
           label,
           syncCardToBoardAndDexie,
-          notifyNormalizeFailure,
+          notifyNormalizeFailure: notifyCardUpdateNormalizeFailure,
         });
       } catch (error) {
         console.error(`Error updating ${label.toLowerCase()}:`, error);
@@ -200,7 +164,7 @@ export function useCardDetailViewControllerHandlers({
   );
 
   const clearDate = useCallback(
-    async (kind: DateKind, close: () => void, label: string): Promise<void> => {
+    async (kind: DateFieldKind, close: () => void, label: string): Promise<void> => {
       setLoading(true);
       try {
         await runClearDateField({
@@ -208,7 +172,7 @@ export function useCardDetailViewControllerHandlers({
           kind,
           close,
           syncCardToBoardAndDexie,
-          notifyNormalizeFailure,
+          notifyNormalizeFailure: notifyCardUpdateNormalizeFailure,
         });
       } catch (error) {
         console.error(`Error clearing ${label.toLowerCase()}:`, error);

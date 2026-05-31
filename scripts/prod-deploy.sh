@@ -62,88 +62,25 @@ set +u
 source "$PROJECT_ROOT/.env" 2>/dev/null || true
 set -u
 
-# Validate critical production variables
-CRITICAL_VARS=("JWT_SECRET" "SESSION_SECRET" "CSRF_SECRET" "ENCRYPTION_KEY" "MEDIA_SIGN_SECRET")
-INSECURE_SECRET_PATTERNS=(
-  "change-this-to-a-secure-random-string-in-production"
-  "change-this-secret-in-production"
-  "your-secret-key-change-in-production"
-  "change-this-session-secret-in-production"
-  "your-session-secret-change-in-production"
-  "change-this-csrf-secret-in-production"
-  "change-this-media-sign-secret-in-production"
-)
-MIN_SECRET_LENGTH=32
-MISSING_VARS=()
-
-is_insecure_secret() {
-  local value="$1"
-  if [ -z "$value" ]; then
-    return 0
-  fi
-  if [ "${#value}" -lt "$MIN_SECRET_LENGTH" ]; then
-    return 0
-  fi
-  for pattern in "${INSECURE_SECRET_PATTERNS[@]}"; do
-    if [ "$value" = "$pattern" ]; then
-      return 0
-    fi
-  done
-  return 1
+# Validate production secrets via canonical TypeScript validator (after .env is loaded)
+if ! NODE_ENV=production bun -e "
+import { assertProductionSecrets } from './src/server/utils/productionSecrets.ts';
+try {
+  assertProductionSecrets();
+} catch (err) {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
 }
-
-for var in "${CRITICAL_VARS[@]}"; do
-  var_value=$(grep "^${var}=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
-  if is_insecure_secret "$var_value"; then
-    MISSING_VARS+=("$var")
-  fi
-done
-
-# Require non-default MinIO and Redis credentials in production
-MINIO_ACCESS_KEY_VALUE=$(grep "^MINIO_ACCESS_KEY=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
-MINIO_SECRET_KEY_VALUE=$(grep "^MINIO_SECRET_KEY=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
-REDIS_PASSWORD_VALUE=$(grep "^REDIS_PASSWORD=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
-
-if [ -z "$MINIO_ACCESS_KEY_VALUE" ] || [ "$MINIO_ACCESS_KEY_VALUE" = "minioadmin" ]; then
-  MISSING_VARS+=("MINIO_ACCESS_KEY")
-fi
-if [ -z "$MINIO_SECRET_KEY_VALUE" ] || [ "$MINIO_SECRET_KEY_VALUE" = "minioadmin" ]; then
-  MISSING_VARS+=("MINIO_SECRET_KEY")
-fi
-if [ -z "$REDIS_PASSWORD_VALUE" ] || [ "${#REDIS_PASSWORD_VALUE}" -lt "$MIN_SECRET_LENGTH" ]; then
-  MISSING_VARS+=("REDIS_PASSWORD")
-fi
-
-MONGODB_URI_VALUE=$(grep "^MONGODB_URI=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
-if [ -z "$MONGODB_URI_VALUE" ] || ! echo "$MONGODB_URI_VALUE" | grep -q '@'; then
-  MISSING_VARS+=("MONGODB_URI (must include username:password@)")
-fi
-if [ -n "$MONGODB_URI_VALUE" ] && ! echo "$MONGODB_URI_VALUE" | grep -q 'replicaSet='; then
-  MISSING_VARS+=("MONGODB_URI (must include replicaSet=)")
-fi
-
-MEDIA_SIGN_VALUE=$(grep "^MEDIA_SIGN_SECRET=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
-JWT_SECRET_VALUE=$(grep "^JWT_SECRET=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
-if [ -n "$MEDIA_SIGN_VALUE" ] && [ -n "$JWT_SECRET_VALUE" ] && [ "$MEDIA_SIGN_VALUE" = "$JWT_SECRET_VALUE" ]; then
-  MISSING_VARS+=("MEDIA_SIGN_SECRET (must differ from JWT_SECRET)")
-fi
-
-POMPELMI_SKIP_VALUE=$(grep "^POMPELMI_SKIP_SCAN=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
-if [ "$POMPELMI_SKIP_VALUE" = "true" ]; then
-  MISSING_VARS+=("POMPELMI_SKIP_SCAN (must not be true in production)")
+"; then
+  echo -e "${RED}Production secret validation failed. Fix .env before deploying.${NC}"
+  exit 1
 fi
 
 CORS_ORIGIN_VALUE=$(grep "^CORS_ORIGIN=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- || echo "")
 if [ -z "$CORS_ORIGIN_VALUE" ] || echo "$CORS_ORIGIN_VALUE" | grep -q '\*'; then
-  MISSING_VARS+=("CORS_ORIGIN")
-fi
-
-if [ ${#MISSING_VARS[@]} -gt 0 ]; then
   echo -e "${RED}Critical production variables are missing or invalid:${NC}"
-  for var in "${MISSING_VARS[@]}"; do
-    echo -e "  ${RED}- $var${NC}"
-  done
-  echo -e "${RED}Please set secure values for these variables in .env before deploying to production${NC}"
+  echo -e "  ${RED}- CORS_ORIGIN${NC}"
+  echo -e "${RED}Please set a non-wildcard CORS_ORIGIN in .env before deploying to production${NC}"
   exit 1
 fi
 

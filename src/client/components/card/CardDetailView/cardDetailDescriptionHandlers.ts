@@ -1,13 +1,8 @@
-import type { Editor } from '@tiptap/core';
 import { isAxiosError } from 'axios';
-import { notifications } from '@mantine/notifications';
 import {
-  cardCoverReferencesAttachment,
   collectAttachmentIdsFromDescriptionJson,
   collectReferencedAttachmentIdsFromDescriptionJson,
-  stripAttachmentFromDescriptionJsonString,
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
-import type { CardDB } from '../../../store/database.js';
 import { api } from '../../../utils/api.js';
 import {
   beginAttachmentUploadNotification,
@@ -18,112 +13,11 @@ import {
 import {
   discardPendingDescriptionMedia,
   flushPendingDescriptionMediaInJson,
-  type DescriptionPendingMediaRegistry,
 } from '../../../utils/descriptionPendingMedia.js';
 import { normalizeCardFromApi } from '../../../utils/transform.js';
 import { serializeCardDescriptionEditor } from '../cardDescriptionEditorSerialize.js';
 import { isCardDescriptionEmpty, parseCardDescriptionJson } from '../cardDescriptionTiptap.js';
-
-type DateFieldKind = 'dueDate' | 'startDate' | 'endDate';
-
-interface SharedCardActionArgs {
-  readonly card: CardDB;
-  readonly syncCardToBoardAndDexie: (card: CardDB) => void;
-  readonly notifyNormalizeFailure: () => void;
-}
-
-interface DescriptionUpdateArgs extends SharedCardActionArgs {
-  readonly editor: Editor | null;
-  readonly pendingDescriptionMedia: DescriptionPendingMediaRegistry;
-}
-
-interface DeleteAttachmentPreflightArgs {
-  readonly cardRef: { current: CardDB };
-  readonly descriptionEditorRef: { current: Editor | null };
-  readonly attachmentId: string;
-  readonly syncCardToBoardAndDexie: (card: CardDB) => void;
-  readonly notifyNormalizeFailure: () => void;
-}
-
-interface SaveDateFieldArgs extends SharedCardActionArgs {
-  readonly kind: DateFieldKind;
-  readonly value: string;
-  readonly close: () => void;
-  readonly label: string;
-}
-
-interface ClearDateFieldArgs extends SharedCardActionArgs {
-  readonly kind: DateFieldKind;
-  readonly close: () => void;
-}
-
-export async function runBeforeDeleteAttachment({
-  cardRef,
-  descriptionEditorRef,
-  attachmentId,
-  syncCardToBoardAndDexie,
-  notifyNormalizeFailure,
-}: DeleteAttachmentPreflightArgs): Promise<void> {
-  const currentCard = cardRef.current;
-  const attachment = currentCard.attachments.find((item) => item.id === attachmentId);
-  if (attachment == null) {
-    return;
-  }
-  const referencedInSavedDescription = collectReferencedAttachmentIdsFromDescriptionJson(
-    currentCard.description ?? '',
-    currentCard.attachments,
-  ).has(attachmentId);
-  const referencedInLiveEditor = (() => {
-    const editor = descriptionEditorRef.current;
-    if (editor == null || editor.isDestroyed) {
-      return false;
-    }
-    const serialized = serializeCardDescriptionEditor(editor);
-    if (!serialized.ok) {
-      return false;
-    }
-    return collectReferencedAttachmentIdsFromDescriptionJson(serialized.jsonString, currentCard.attachments).has(
-      attachmentId,
-    );
-  })();
-  const isCover = cardCoverReferencesAttachment(currentCard.cover, attachmentId, attachment.url);
-  if (!referencedInSavedDescription && !referencedInLiveEditor && !isCover) {
-    return;
-  }
-
-  const rawJsonForStrip = (() => {
-    const editor = descriptionEditorRef.current;
-    if (editor != null && !editor.isDestroyed) {
-      const serialized = serializeCardDescriptionEditor(editor);
-      if (serialized.ok) {
-        return serialized.jsonString;
-      }
-    }
-    return currentCard.description ?? '';
-  })();
-
-  const stripped = stripAttachmentFromDescriptionJsonString(rawJsonForStrip, attachmentId, attachment.url);
-  const doc = parseCardDescriptionJson(stripped);
-  const descriptionPayload = isCardDescriptionEmpty(doc) ? '' : stripped;
-
-  const response = await api.updateCard(currentCard.id, {
-    description: descriptionPayload,
-    ...(isCover ? { cover: '' } : {}),
-  });
-  try {
-    const normalized = normalizeCardFromApi((response as { card: unknown }).card, currentCard.id, {
-      listId: currentCard.listId,
-      boardId: currentCard.boardId,
-    });
-    const editor = descriptionEditorRef.current;
-    if (editor != null && !editor.isDestroyed) {
-      editor.commands.setContent(parseCardDescriptionJson(descriptionPayload));
-    }
-    syncCardToBoardAndDexie(normalized);
-  } catch {
-    notifyNormalizeFailure();
-  }
-}
+import type { DescriptionUpdateArgs } from './cardDetailViewHandlerTypes.js';
 
 export async function runDescriptionUpdate({
   card,
@@ -179,7 +73,7 @@ export async function runDescriptionUpdate({
   ]);
   const response = await api.updateCard(card.id, { description: descriptionPayload });
 
-  let normalized = normalizeCardFromApi((response as { card: unknown }).card, card.id, {
+  let normalized = normalizeCardFromApi(response.card, card.id, {
     listId: card.listId,
     boardId: card.boardId,
     position: card.position,
@@ -203,7 +97,7 @@ export async function runDescriptionUpdate({
   if (attachmentIdsRemovedFromDescription.length > 0) {
     try {
       const refresh = await api.getCard(card.id);
-      normalized = normalizeCardFromApi((refresh as { card: unknown }).card, card.id, {
+      normalized = normalizeCardFromApi(refresh.card, card.id, {
         listId: card.listId,
         boardId: card.boardId,
         position: card.position,
@@ -245,47 +139,4 @@ export function buildDescriptionErrorMessage(error: unknown): string {
     }
   }
   return message;
-}
-
-export async function runSaveDateField({
-  card,
-  kind,
-  value,
-  close,
-  label,
-  syncCardToBoardAndDexie,
-  notifyNormalizeFailure,
-}: SaveDateFieldArgs): Promise<void> {
-  if (!value.trim()) {
-    notifications.show({ color: 'yellow', title: label, message: 'Choose a date and time.' });
-    return;
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    notifications.show({ color: 'red', title: 'Invalid date', message: 'Could not read that date.' });
-    return;
-  }
-  const response = await api.updateCard(card.id, { [kind]: parsed.toISOString() });
-  try {
-    syncCardToBoardAndDexie(normalizeCardFromApi((response as { card: unknown }).card, card.id));
-  } catch {
-    notifyNormalizeFailure();
-  }
-  close();
-}
-
-export async function runClearDateField({
-  card,
-  kind,
-  close,
-  syncCardToBoardAndDexie,
-  notifyNormalizeFailure,
-}: ClearDateFieldArgs): Promise<void> {
-  const response = await api.updateCard(card.id, { [kind]: null });
-  try {
-    syncCardToBoardAndDexie(normalizeCardFromApi((response as { card: unknown }).card, card.id));
-  } catch {
-    notifyNormalizeFailure();
-  }
-  close();
 }

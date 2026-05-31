@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  BOARD_IMPORT_DEFAULT_MB,
+  BOARD_IMPORT_MAX_MB_CEILING,
+  BOARD_IMPORT_MIN_MB,
   CARD_ATTACHMENT_DEFAULT_MB,
   CARD_ATTACHMENT_MAX_MB_CEILING,
   formatCardAttachmentMaxMb,
+  resolveBoardImportMaxBytes,
   resolveCardAttachmentMaxBytes,
 } from '../src/shared/constants/uploadLimits.js';
 
@@ -50,5 +54,31 @@ describe('formatCardAttachmentMaxMb', () => {
   test('rounds bytes to MB label', () => {
     expect(formatCardAttachmentMaxMb(1048576000)).toBe(1000);
     expect(formatCardAttachmentMaxMb(mbToBytes(CARD_ATTACHMENT_DEFAULT_MB))).toBe(1024);
+  });
+});
+
+describe('resolveBoardImportMaxBytes', () => {
+  test('defaults to 35 MB when env is empty', () => {
+    expect(resolveBoardImportMaxBytes({})).toBe(mbToBytes(BOARD_IMPORT_DEFAULT_MB));
+    expect(BOARD_IMPORT_DEFAULT_MB).toBe(35);
+  });
+
+  test('uses BOARD_IMPORT_MAX_MB when set', () => {
+    expect(resolveBoardImportMaxBytes({ BOARD_IMPORT_MAX_MB: '100' })).toBe(mbToBytes(100));
+  });
+
+  test('clamps MB to 5–250 range', () => {
+    expect(resolveBoardImportMaxBytes({ BOARD_IMPORT_MAX_MB: '1' })).toBe(mbToBytes(BOARD_IMPORT_MIN_MB));
+    expect(BOARD_IMPORT_MIN_MB).toBe(5);
+    expect(resolveBoardImportMaxBytes({ BOARD_IMPORT_MAX_MB: '9999' })).toBe(
+      mbToBytes(BOARD_IMPORT_MAX_MB_CEILING),
+    );
+    expect(BOARD_IMPORT_MAX_MB_CEILING).toBe(250);
+  });
+
+  test('falls back to default for invalid env', () => {
+    expect(resolveBoardImportMaxBytes({ BOARD_IMPORT_MAX_MB: 'not-a-number' })).toBe(
+      mbToBytes(BOARD_IMPORT_DEFAULT_MB),
+    );
   });
 });

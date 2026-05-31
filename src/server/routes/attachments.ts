@@ -9,7 +9,7 @@ import {
   attachmentUrlMintRateLimiter,
   fileUploadRateLimiter,
 } from '../middleware/rateLimit.js';
-import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../types/express.js';
 import { CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES } from '../constants/uploads.js';
 import {
   MAX_CARD_ATTACHMENT_BYTES,

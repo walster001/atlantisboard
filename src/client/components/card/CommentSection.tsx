@@ -226,7 +226,7 @@ export function CommentSection({
           cardId: card.id,
           text: trimmedText,
         });
-        const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+        const updatedCard = normalizeCardFromApi(response.card, card.id);
         onCardUpdate(updatedCard);
         return true;
       } catch (error) {
@@ -256,7 +256,7 @@ export function CommentSection({
           try {
             await api.deleteComment(commentId, card.id);
             const response = await api.getCard(card.id);
-            const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+            const updatedCard = normalizeCardFromApi(response.card, card.id);
             onCardUpdate(updatedCard);
           } catch (error) {
             console.error('Error deleting comment:', error);

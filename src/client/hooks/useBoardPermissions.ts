@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { BoardPermissionKey } from '../../shared/permissions/catalog.js';
 import { api } from '../utils/api.js';
 import { socketClient } from '../utils/socket.js';
 import { db } from '../store/database.js';
 import { subscribeSocketBoardUpdated } from '../utils/socketRealtimeBridge.js';
+
+export type { BoardPermissionKey };
 
 /** Derived on the board page from allowed permission keys — gates Kanban list/card chrome. */
 export interface KanbanBoardEditCaps {
@@ -17,43 +20,6 @@ export interface KanbanBoardEditCaps {
   /** List column reorder drag from title row. */
   readonly canReorderLists: boolean;
 }
-
-export type BoardPermissionKey =
-  | 'boards.view'
-  | 'boards.update'
-  | 'boards.settings.update'
-  | 'boards.themes.changetheme'
-  | 'boards.themes.customtheme'
-  | 'boards.members.view'
-  | 'boards.members.add'
-  | 'boards.members.remove'
-  | 'boards.members.role.update'
-  | 'invites.create'
-  | 'invites.view'
-  | 'invites.delete'
-  | 'labels.create'
-  | 'labels.update'
-  | 'labels.delete'
-  | 'lists.create'
-  | 'lists.update'
-  | 'lists.delete'
-  | 'lists.reorder'
-  | 'lists.duplicate'
-  | 'comments.create'
-  | 'comments.delete'
-  | 'cards.create'
-  | 'cards.update'
-  | 'cards.delete'
-  | 'cards.duplicate'
-  | 'cards.move'
-  | 'cards.reorder'
-  | 'cards.dates.start.edit'
-  | 'cards.dates.due.edit'
-  | 'cards.dates.end.edit'
-  | 'export.board.csv'
-  | 'export.board.trello'
-  | 'export.board.wekan'
-  | 'export.board.atlantisboard';
 
 export function useBoardPermissions(
   boardId: string | undefined,

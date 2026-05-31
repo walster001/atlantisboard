@@ -39,3 +39,27 @@ export function resolveCardAttachmentMaxBytes(env: CardAttachmentLimitsEnv): num
 export function formatCardAttachmentMaxMb(maxBytes: number): number {
   return Math.round(maxBytes / (1024 * 1024));
 }
+
+/** Default board import cap when env is unset (MB). */
+export const BOARD_IMPORT_DEFAULT_MB = 35;
+
+/** Lower bound for `BOARD_IMPORT_MAX_MB`. */
+export const BOARD_IMPORT_MIN_MB = 5;
+
+/** Upper bound for `BOARD_IMPORT_MAX_MB`. */
+export const BOARD_IMPORT_MAX_MB_CEILING = 250;
+
+export type BoardImportLimitsEnv = {
+  readonly BOARD_IMPORT_MAX_MB?: string | undefined;
+};
+
+/**
+ * Resolve max board import file size in bytes from environment.
+ * Clamped to 5–250 MB; default 35 MB.
+ */
+export function resolveBoardImportMaxBytes(env: BoardImportLimitsEnv): number {
+  const parsed = Number.parseInt(env.BOARD_IMPORT_MAX_MB ?? String(BOARD_IMPORT_DEFAULT_MB), 10);
+  const mb = Number.isFinite(parsed) ? parsed : BOARD_IMPORT_DEFAULT_MB;
+  const clamped = Math.min(BOARD_IMPORT_MAX_MB_CEILING, Math.max(BOARD_IMPORT_MIN_MB, mb));
+  return clamped * 1024 * 1024;
+}

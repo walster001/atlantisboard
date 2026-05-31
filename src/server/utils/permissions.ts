@@ -5,6 +5,8 @@
 import { Workspace } from '../models/Workspace.js';
 import { Board } from '../models/Board.js';
 import { userHasAccountCapability } from '../services/accountCapabilitiesService.js';
+import { extractMongoStringId } from '../../shared/mongoId.js';
+import { BUILTIN_ROLE_SEEDS } from '../../shared/permissions/catalog.js';
 import { RoleDefinition } from '../models/index.js';
 import { logger } from './logger.js';
 
@@ -28,150 +30,17 @@ export interface PermissionContext {
  * ObjectIds). Matches workspace HTTP access checks in `workspaceService`.
  */
 function normalizeWorkspaceUserRef(ref: unknown): string {
-  if (ref == null) {
-    return '';
-  }
-  if (typeof ref === 'string') {
-    return ref.trim();
-  }
-  if (typeof ref === 'number' && Number.isFinite(ref)) {
-    return String(ref);
-  }
-  if (typeof ref === 'object' && ref !== null) {
-    const o = ref as Record<string, unknown>;
-    if (o._id != null) {
-      return typeof o._id === 'string' ? o._id : String(o._id);
-    }
-    if (typeof o.id === 'string' && o.id.trim() !== '') {
-      return o.id;
-    }
-  }
-  if (typeof ref === 'object' && ref !== null && 'toString' in ref) {
-    const s = (ref as { toString: () => string }).toString();
-    if (typeof s === 'string' && s !== '' && s !== '[object Object]') {
-      return s;
-    }
-  }
-  return '';
+  return extractMongoStringId(ref);
 }
 
 /**
- * Built-in role permission sets.
- *
- * IMPORTANT: This should preserve *current behavior*, not desired future behavior.
- * For actions that are owner-only today (e.g. deleting boards), enforcement is handled
- * as a hard rule in hasPermission() even if a role includes the key.
+ * Fallback permission set for a built-in role when RoleDefinition records are unavailable (e.g. early boot).
+ * Derived from `BUILTIN_ROLE_SEEDS` — single source of truth in roleService.
  */
-// Fallbacks used if RoleDefinition records are unavailable (e.g. early boot).
-const BUILTIN_ROLE_PERMISSION_FALLBACKS: Readonly<Record<UserRole, readonly string[]>> = {
-  viewer: [
-    'workspaces.view',
-    'boards.view',
-    'lists.view',
-    'cards.view',
-    'export.board.csv',
-    'export.board.trello',
-    'export.board.wekan',
-    'export.board.atlantisboard',
-    'invites.accept',
-    'labels.view',
-  ],
-  manager: [
-    'workspaces.view',
-    'boards.view',
-    'lists.view',
-    'cards.view',
-    'export.board.csv',
-    'export.board.trello',
-    'export.board.wekan',
-    'export.board.atlantisboard',
-    'invites.accept',
-    'labels.view',
-    'boards.members.view',
-    'boards.members.add',
-    'boards.members.remove',
-    'boards.members.role.update.lower',
-    'boards.settings.open',
-    'lists.create',
-    'lists.update',
-    'lists.reorder',
-    'cards.create',
-    'cards.update',
-    'cards.move',
-    'cards.reorder',
-    'attachments.upload',
-    'attachments.delete',
-    'checklists.create',
-    'checklists.update',
-    'checklists.delete',
-    'checklists.items.create',
-    'checklists.items.update',
-    'checklists.items.delete',
-    'comments.create',
-    'import.trello',
-    'import.wekan',
-  ],
-  admin: [
-    'workspaces.view',
-    'workspaces.update',
-    'workspaces.members.view',
-    'workspaces.members.add',
-    'workspaces.members.remove',
-    'workspaces.members.role.update',
-    'boards.view',
-    'lists.view',
-    'cards.view',
-    'export.board.csv',
-    'export.board.trello',
-    'export.board.wekan',
-    'export.board.atlantisboard',
-    'invites.accept',
-    'labels.view',
-    'boards.members.view',
-    'boards.members.add',
-    'boards.members.remove',
-    'boards.members.role.update',
-    'boards.members.role.update.any',
-    'boards.settings.open',
-    'labels.create',
-    'labels.update',
-    'labels.delete',
-    'invites.create',
-    'invites.view',
-    'invites.delete',
-    'boards.update',
-    'boards.settings.update',
-    'boards.themes.changetheme',
-    'boards.themes.customtheme',
-    'boards.create',
-    'lists.create',
-    'lists.update',
-    'lists.reorder',
-    'lists.delete',
-    'lists.duplicate',
-    'cards.create',
-    'cards.update',
-    'cards.dates.start.edit',
-    'cards.dates.due.edit',
-    'cards.dates.end.edit',
-    'cards.delete',
-    'cards.move',
-    'cards.reorder',
-    'cards.duplicate',
-    'attachments.upload',
-    'attachments.delete',
-    'checklists.create',
-    'checklists.update',
-    'checklists.delete',
-    'checklists.items.create',
-    'checklists.items.update',
-    'checklists.items.delete',
-    'comments.create',
-    'comments.delete',
-    'import.trello',
-    'import.wekan',
-  ],
-} as const;
+function getBuiltinRolePermissionFallback(role: UserRole): readonly string[] {
+  const seed = BUILTIN_ROLE_SEEDS.find((entry) => entry.key === role);
+  return seed?.permissions ?? [];
+}
 
 /**
  * True when the user's role in at least one workspace they belong to grants `permissionKey`
@@ -189,7 +58,7 @@ export async function userHasPermissionInAnyWorkspace(
 
   for (const workspace of workspaces) {
     const workspaceId = String(workspace._id);
-    if (await hasPermission(userId, workspaceId, permissionKey, 'workspace')) {
+    if (await hasWorkspacePermission(userId, workspaceId, permissionKey)) {
       return true;
     }
   }
@@ -260,14 +129,48 @@ async function getBuiltInPermissions(role: UserRole): Promise<readonly string[]>
       .select('permissions')
       .lean()
       .catch(() => null);
-    const perms = Array.isArray(def?.permissions) ? def.permissions : BUILTIN_ROLE_PERMISSION_FALLBACKS[r];
+    const perms = Array.isArray(def?.permissions) ? def.permissions : getBuiltinRolePermissionFallback(r);
     // Backward-compat: rename old permission key → new key.
     const normalized = perms.map((p) => (p === 'ui.boards.settings.open' ? 'boards.settings.open' : p));
     byRole.set(r, normalized);
   }
 
   builtInPermissionsCache = { loadedAtMs: now, byRole };
-  return byRole.get(role) ?? BUILTIN_ROLE_PERMISSION_FALLBACKS[role];
+  return byRole.get(role) ?? getBuiltinRolePermissionFallback(role);
+}
+
+export async function hasWorkspacePermission(
+  userId: string,
+  workspaceId: string,
+  permissionKey: string,
+): Promise<boolean> {
+  try {
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return false;
+    }
+    if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
+      return true;
+    }
+    const member = workspace.members.find((m) => normalizeWorkspaceUserRef(m.userId) === userId);
+    if (!member) {
+      return false;
+    }
+    const rawKey =
+      typeof member.roleKey === 'string' && member.roleKey.trim() !== ''
+        ? member.roleKey.trim()
+        : 'viewer';
+    const roleKey = (rawKey === 'member' ? 'viewer' : rawKey) as RoleKey;
+    const perms = await getPermissionsForRoleKey(roleKey);
+    const normalizedPermission = normalizeListPermissionKey(permissionKey);
+    if (isImplicitlyGrantedResourceViewPermission(normalizedPermission)) {
+      return true;
+    }
+    return perms.includes(normalizedPermission) || perms.includes(permissionKey);
+  } catch (error) {
+    logger.error({ error, userId, workspaceId, permissionKey }, 'Error checking workspace permission');
+    return false;
+  }
 }
 
 const APP_ADMIN_KEYS: readonly string[] = [
@@ -428,24 +331,7 @@ export async function hasPermission(
       const resourceType = d;
 
       if (resourceType === 'workspace') {
-        const workspace = await Workspace.findById(resourceId);
-        if (!workspace) return false;
-        if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
-          return true;
-        }
-        const member = workspace.members.find((m) => normalizeWorkspaceUserRef(m.userId) === userId);
-        if (!member) return false;
-        const rawKey =
-          typeof member.roleKey === 'string' && member.roleKey.trim() !== ''
-            ? member.roleKey.trim()
-            : 'viewer';
-        const roleKey = (rawKey === 'member' ? 'viewer' : rawKey) as RoleKey;
-        const perms = await getPermissionsForRoleKey(roleKey);
-        const normalizedPermission = normalizeListPermissionKey(permission);
-        if (isImplicitlyGrantedResourceViewPermission(normalizedPermission)) {
-          return true;
-        }
-        return perms.includes(normalizedPermission) || perms.includes(permission);
+        return hasWorkspacePermission(userId, resourceId, permission);
       }
       if (resourceType === 'board') {
         // Map to canonical when possible: treat `permission` as permissionKey and `resourceId` as boardId.
@@ -469,7 +355,7 @@ export async function userCanReorganizeWorkspaceHomeBoardBucket(
   userId: string,
   workspaceId: string,
 ): Promise<boolean> {
-  if (await hasPermission(userId, workspaceId, 'workspaces.update', 'workspace')) {
+  if (await hasWorkspacePermission(userId, workspaceId, 'workspaces.update')) {
     return true;
   }
   const workspace = await Workspace.findById(workspaceId).select('ownerId members').lean();

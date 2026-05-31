@@ -200,7 +200,7 @@ export function AssigneeSection({ card, boardId, canEdit = true, onCardUpdate }:
       }
 
       const response = await api.getCard(card.id);
-      const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+      const updatedCard = normalizeCardFromApi(response.card, card.id);
       onCardUpdate(updatedCard);
     } catch (error) {
       console.error('Error toggling assignee:', error);

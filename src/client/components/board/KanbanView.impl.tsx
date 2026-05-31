@@ -1,130 +1,34 @@
 import {
   useCallback,
-  useLayoutEffect,
   useMemo,
   useRef,
-  useState,
-  memo,
   type MutableRefObject,
 } from 'react';
 import { Box, Button, Group } from '@mantine/core';
-import type { Swiper as SwiperClass } from 'swiper';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import 'swiper/css';
-import type { CardDB, BoardDB, ListDB } from '../../store/database.js';
+import type { CardDB, BoardDB } from '../../store/database.js';
 import { useShallow } from 'zustand/react/shallow';
 import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
 import { BoardInlineListComposer } from './BoardInlineListComposer.js';
 import type { KanbanBoardEditCaps } from '../../hooks/useBoardPermissions.js';
-import type { CardDropIndicatorTarget } from './VirtualizedCardList.js';
 import {
   KanbanListColumn,
   KANBAN_ADD_LIST_BUTTON_STYLES,
   LIST_HORIZONTAL_GAP_PX,
-  type ListDropIndicatorTarget,
 } from './KanbanView/helpers.js';
+import { KanbanMobileCarousel } from './KanbanView/KanbanMobileCarousel.js';
 import { useKanbanViewController } from './KanbanView/useKanbanViewController.js';
 import type { ResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import './boardView.css';
 
-const MOBILE_CAROUSEL_EDGE_PX = 52;
-const MOBILE_CAROUSEL_EDGE_HOVER_MS = 320;
-const MOBILE_CAROUSEL_EDGE_REPEAT_MS = 520;
-
-/** Swiper: lower threshold / longSwipesRatio = less horizontal travel to change columns. */
-const MOBILE_CAROUSEL_SWIPER_THRESHOLD_PX = 4;
-const MOBILE_CAROUSEL_SWIPER_TOUCH_RATIO = 1.2;
-const MOBILE_CAROUSEL_SWIPER_LONG_SWIPES_RATIO = 0.34;
-
 interface KanbanViewProps {
-  /** Supplied by `BoardPage` so this view does not subscribe separately to `s.board`. */
   board: BoardDB;
   onOpenCard: (card: CardDB) => void;
-  /**
-   * Assigned to the same patch used for socket `card:updated` so the card detail overlay can
-   * refresh list tiles (description, due date, assignees, cover, labels) without waiting for sockets.
-   */
   boardCardPatchRef?: MutableRefObject<((card: CardDB) => void) | null>;
-  /** List/card menus and add-list/add-card — hidden until loaded, then from granular board keys. */
   kanbanCaps: KanbanBoardEditCaps;
-  /** `mobile`: Swiper carousel; `tablet` / `desktop`: horizontal columns + windowing. */
   responsiveTier: ResponsiveTier;
 }
 
 export type { KanbanBoardEditCaps };
-
-type MobileKanbanSlideInnerProps = {
-  readonly shouldMount: boolean;
-  readonly list: ListDB | null;
-  readonly board: BoardDB;
-  readonly assigneeDirectory: ReturnType<typeof import('../../hooks/useBoardAssigneeDirectory.js').useBoardAssigneeDirectory>;
-  readonly draggingCardId: string | null;
-  readonly draggingListId: string | null;
-  readonly cardListMaxBodyPx: number;
-  readonly suppressCardOpenClickRef: MutableRefObject<boolean>;
-  readonly cardDropIndicator: CardDropIndicatorTarget | null;
-  readonly listDropIndicator: ListDropIndicatorTarget | null;
-  readonly kanbanCaps: KanbanBoardEditCaps;
-  readonly onOpenCard: (card: CardDB) => void;
-  readonly onCardCreated: (listId: string, card: CardDB) => void;
-  readonly onListUpdated: () => Promise<void>;
-  readonly onCardUpdatedOnBoard: (card: CardDB) => void;
-  readonly onCardDeletedFromBoard: (cardId: string) => void;
-  readonly onKanbanCardsReload: () => void;
-};
-
-const MobileKanbanSlide = memo(function MobileKanbanSlide({
-  shouldMount,
-  list,
-  board,
-  assigneeDirectory,
-  draggingCardId,
-  draggingListId,
-  cardListMaxBodyPx,
-  suppressCardOpenClickRef,
-  cardDropIndicator,
-  listDropIndicator,
-  kanbanCaps,
-  onOpenCard,
-  onCardCreated,
-  onListUpdated,
-  onCardUpdatedOnBoard,
-  onCardDeletedFromBoard,
-  onKanbanCardsReload,
-}: MobileKanbanSlideInnerProps) {
-  return (
-    <Box className="board-page__mobile-carousel-slide">
-      {shouldMount && list != null ? (
-        <KanbanListColumn
-          list={list}
-          board={board}
-          assigneeDirectory={assigneeDirectory}
-          draggingCardId={draggingCardId}
-          draggingListId={draggingListId}
-          boardId={board.id}
-          cardListMaxBodyPx={cardListMaxBodyPx}
-          suppressCardOpenClickRef={suppressCardOpenClickRef}
-          cardDropIndicator={cardDropIndicator != null && cardDropIndicator.listId === list.id ? cardDropIndicator : null}
-          listReorderTarget={
-            draggingListId != null &&
-            listDropIndicator != null &&
-            listDropIndicator.overListId === list.id
-          }
-          onCardCreated={onCardCreated}
-          onListUpdated={onListUpdated}
-          onOpenCard={onOpenCard}
-          onCardUpdatedOnBoard={onCardUpdatedOnBoard}
-          onCardDeletedFromBoard={onCardDeletedFromBoard}
-          onKanbanCardsReload={onKanbanCardsReload}
-          kanbanCaps={kanbanCaps}
-          kanbanCardTouchDragRequiresLongPress
-        />
-      ) : (
-        <Box aria-hidden style={{ minHeight: 280 }} />
-      )}
-    </Box>
-  );
-});
 
 export function KanbanView({
   board,
@@ -169,172 +73,8 @@ export function KanbanView({
     ...(boardCardPatchRef != null ? { boardCardPatchRef } : {}),
   });
 
-  const [activeIndex, setActiveIndex] = useState(0);
-  const carouselHostRef = useRef<HTMLDivElement | null>(null);
-  const bindMobileCarouselHostRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      carouselHostRef.current = node;
-      setColumnsGroupRef(node);
-    },
-    [setColumnsGroupRef],
-  );
-  const swiperRef = useRef<SwiperClass | null>(null);
-  const hoverDirRef = useRef<'prev' | 'next' | null>(null);
-  const hoverTimerRef = useRef<number | null>(null);
-  const edgeRepeatTimerRef = useRef<number | null>(null);
-
-  const totalMobileLists = mountedLists.length;
-
-  const mobileShowAddListSlide = isSwipeKanban && kanbanCaps.canAddList;
-  const totalMobileSlides = totalMobileLists + (mobileShowAddListSlide ? 1 : 0);
-
-  const carouselLayout = useMemo((): { readonly slidesPerView: 1; readonly maxActiveIndex: number } => {
-    const total = totalMobileSlides;
-    if (total === 0) {
-      return { slidesPerView: 1, maxActiveIndex: 0 };
-    }
-    return { slidesPerView: 1, maxActiveIndex: Math.max(0, total - 1) };
-  }, [totalMobileSlides]);
-
-  const prevSlideCountRef = useRef(totalMobileSlides);
-
-  useLayoutEffect(() => {
-    if (!isSwipeKanban) {
-      prevSlideCountRef.current = totalMobileSlides;
-      return;
-    }
-    if (totalMobileSlides === 0) {
-      prevSlideCountRef.current = totalMobileSlides;
-      if (activeIndex !== 0) {
-        setActiveIndex(0);
-      }
-      return;
-    }
-    if (activeIndex > carouselLayout.maxActiveIndex) {
-      setActiveIndex(carouselLayout.maxActiveIndex);
-    }
-    if (prevSlideCountRef.current !== totalMobileSlides) {
-      prevSlideCountRef.current = totalMobileSlides;
-      const sw = swiperRef.current;
-      if (sw != null) {
-        sw.update();
-        if (sw.activeIndex !== activeIndex) {
-          sw.slideTo(activeIndex, 0);
-        }
-      }
-    }
-  }, [isSwipeKanban, totalMobileSlides, activeIndex, carouselLayout.maxActiveIndex]);
-
-  const clearHoverTimer = (): void => {
-    if (hoverTimerRef.current != null) {
-      window.clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-  };
-
-  const clearEdgeRepeatTimer = (): void => {
-    if (edgeRepeatTimerRef.current != null) {
-      window.clearInterval(edgeRepeatTimerRef.current);
-      edgeRepeatTimerRef.current = null;
-    }
-  };
-
-  const slideCarousel = useCallback((dir: 'prev' | 'next'): void => {
-    const sw = swiperRef.current;
-    if (sw == null) {
-      return;
-    }
-    if (dir === 'prev') {
-      sw.slidePrev();
-    } else {
-      sw.slideNext();
-    }
-  }, []);
-
-  const bumpCarouselAtPointer = useCallback(
-    (clientX: number): void => {
-      if (!isSwipeKanban || draggingCardId == null || totalMobileLists <= 1) {
-        return;
-      }
-      const host = carouselHostRef.current;
-      if (host == null) {
-        return;
-      }
-      const r = host.getBoundingClientRect();
-      const leftEdge = r.left + MOBILE_CAROUSEL_EDGE_PX;
-      const rightEdge = r.right - MOBILE_CAROUSEL_EDGE_PX;
-      const dir = clientX <= leftEdge ? 'prev' : clientX >= rightEdge ? 'next' : null;
-
-      if (dir == null) {
-        clearHoverTimer();
-        clearEdgeRepeatTimer();
-        hoverDirRef.current = null;
-        return;
-      }
-      if (
-        hoverDirRef.current === dir &&
-        (hoverTimerRef.current != null || edgeRepeatTimerRef.current != null)
-      ) {
-        return;
-      }
-
-      clearHoverTimer();
-      clearEdgeRepeatTimer();
-      hoverDirRef.current = dir;
-      hoverTimerRef.current = window.setTimeout(() => {
-        hoverTimerRef.current = null;
-        slideCarousel(dir);
-        edgeRepeatTimerRef.current = window.setInterval(() => {
-          slideCarousel(dir);
-        }, MOBILE_CAROUSEL_EDGE_REPEAT_MS);
-      }, MOBILE_CAROUSEL_EDGE_HOVER_MS);
-    },
-    [isSwipeKanban, draggingCardId, totalMobileLists, slideCarousel],
-  );
-
-  useLayoutEffect(() => {
-    carouselEdgeBumpRef.current = bumpCarouselAtPointer;
-    return () => {
-      carouselEdgeBumpRef.current = null;
-    };
-  }, [bumpCarouselAtPointer]);
-
-  useLayoutEffect(() => {
-    if (!isSwipeKanban || draggingCardId == null) {
-      clearHoverTimer();
-      clearEdgeRepeatTimer();
-      hoverDirRef.current = null;
-      return;
-    }
-
-    const onPointerMove = (ev: PointerEvent): void => {
-      bumpCarouselAtPointer(ev.clientX);
-    };
-    const onTouchMove = (ev: TouchEvent): void => {
-      const touch = ev.touches[0];
-      if (touch != null) {
-        bumpCarouselAtPointer(touch.clientX);
-      }
-    };
-
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    window.addEventListener('touchmove', onTouchMove, { passive: true });
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('touchmove', onTouchMove);
-      clearHoverTimer();
-      clearEdgeRepeatTimer();
-      hoverDirRef.current = null;
-    };
-  }, [isSwipeKanban, draggingCardId, bumpCarouselAtPointer]);
-
   const cardIdsByListId = useBoardRuntimeStore(useShallow((s) => s.cardIdsByListId));
 
-  /**
-   * Only the list that currently *contains* the dragged card should receive a non-null
-   * `draggingCardId` prop — others keep `null` so memoized columns do not re-render on every
-   * drag start/move/drop (global state alone would change every column's props).
-   */
   const draggingCardIdScopedByListId = useMemo((): ReadonlyMap<string, string | null> | null => {
     if (draggingCardId == null) {
       return null;
@@ -363,126 +103,35 @@ export function KanbanView({
     [draggingCardIdScopedByListId],
   );
 
-  const mobileHandleListCreated = useCallback(
-    (response?: { list: unknown }) => {
-      closeAddListComposer();
-      handleListCreated(response);
-    },
-    [closeAddListComposer, handleListCreated],
-  );
-
-  const mobileIndicators = useMemo(() => {
-    if (!isSwipeKanban || totalMobileSlides <= 1) {
-      return null;
-    }
-    return (
-      <Box className="board-page__mobile-carousel-indicators" aria-label="Lists">
-        {Array.from({ length: totalMobileSlides }).map((_, idx) => (
-          <button
-            key={idx}
-            type="button"
-            className={
-              idx === activeIndex
-                ? 'board-page__mobile-carousel-dot board-page__mobile-carousel-dot--active'
-                : 'board-page__mobile-carousel-dot'
-            }
-            aria-label={idx < totalMobileLists ? `Go to list ${idx + 1}` : 'New list'}
-            onClick={() => {
-              swiperRef.current?.slideTo(idx);
-            }}
-          />
-        ))}
-      </Box>
-    );
-  }, [isSwipeKanban, totalMobileSlides, totalMobileLists, activeIndex]);
-
   if (isSwipeKanban) {
     return (
-      <Box
-        ref={bindMobileCarouselHostRef}
-        className="board-page__mobile-carousel"
-        onClickCapture={handleColumnsClickCapture}
-      >
-        {mobileIndicators}
-        {totalMobileSlides === 0 ? (
-          <Box aria-hidden style={{ minHeight: 280 }} />
-        ) : (
-          <Swiper
-            className="board-page__mobile-carousel-inner board-page__mobile-carousel-swiper"
-            slidesPerView={carouselLayout.slidesPerView}
-            spaceBetween={LIST_HORIZONTAL_GAP_PX}
-            grabCursor={draggingCardId == null}
-            allowTouchMove={draggingCardId == null && totalMobileSlides > 1}
-            touchRatio={MOBILE_CAROUSEL_SWIPER_TOUCH_RATIO}
-            threshold={MOBILE_CAROUSEL_SWIPER_THRESHOLD_PX}
-            longSwipesRatio={MOBILE_CAROUSEL_SWIPER_LONG_SWIPES_RATIO}
-            speed={220}
-            touchAngle={30}
-            touchStartPreventDefault={false}
-            onSwiper={(swiper) => {
-              swiperRef.current = swiper;
-            }}
-            onSlideChange={(swiper) => {
-              setActiveIndex(swiper.activeIndex);
-            }}
-          >
-            {mountedLists.map((list) => (
-              <SwiperSlide key={list.id} className="board-page__mobile-carousel-slide-outer">
-                <MobileKanbanSlide
-                  shouldMount
-                  list={list}
-                  board={board}
-                  assigneeDirectory={assigneeDirectory}
-                  draggingCardId={draggingCardIdPropForListId(list.id)}
-                  draggingListId={draggingListId}
-                  cardListMaxBodyPx={cardListMaxBodyPx}
-                  suppressCardOpenClickRef={suppressCardOpenClickRef}
-                  cardDropIndicator={cardDropIndicator}
-                  listDropIndicator={listDropIndicator}
-                  kanbanCaps={kanbanCaps}
-                  onOpenCard={onOpenCard}
-                  onCardCreated={handleCardCreated}
-                  onListUpdated={handleListUpdated}
-                  onCardUpdatedOnBoard={patchCardInBoardState}
-                  onCardDeletedFromBoard={removeCardFromBoardState}
-                  onKanbanCardsReload={handleKanbanCardsReload}
-                />
-              </SwiperSlide>
-            ))}
-            {mobileShowAddListSlide ? (
-              <SwiperSlide key="__add-list" className="board-page__mobile-carousel-slide-outer">
-                <Box className="board-page__mobile-carousel-slide board-page__mobile-add-list-slide">
-                  {addListComposerOpen ? (
-                    <Box className="board-page__mobile-add-list-composer">
-                      <BoardInlineListComposer
-                        boardId={board.id}
-                        getNextPosition={getNextListPosition}
-                        onListCreated={mobileHandleListCreated}
-                        onCancel={closeAddListComposer}
-                      />
-                    </Box>
-                  ) : (
-                    <Button
-                      variant="default"
-                      className="board-page__add-list"
-                      justify="flex-start"
-                      leftSection={
-                        <span className="board-page__add-list-icon" aria-hidden>
-                          +
-                        </span>
-                      }
-                      styles={KANBAN_ADD_LIST_BUTTON_STYLES}
-                      onClick={openAddListComposer}
-                    >
-                      Add another list
-                    </Button>
-                  )}
-                </Box>
-              </SwiperSlide>
-            ) : null}
-          </Swiper>
-        )}
-      </Box>
+      <KanbanMobileCarousel
+        board={board}
+        mountedLists={mountedLists}
+        kanbanCaps={kanbanCaps}
+        assigneeDirectory={assigneeDirectory}
+        draggingCardId={draggingCardId}
+        draggingListId={draggingListId}
+        cardListMaxBodyPx={cardListMaxBodyPx}
+        suppressCardOpenClickRef={suppressCardOpenClickRef}
+        cardDropIndicator={cardDropIndicator}
+        listDropIndicator={listDropIndicator}
+        addListComposerOpen={addListComposerOpen}
+        carouselEdgeBumpRef={carouselEdgeBumpRef}
+        setColumnsGroupRef={setColumnsGroupRef}
+        handleColumnsClickCapture={handleColumnsClickCapture}
+        getNextListPosition={getNextListPosition}
+        closeAddListComposer={closeAddListComposer}
+        openAddListComposer={openAddListComposer}
+        onOpenCard={onOpenCard}
+        onCardCreated={handleCardCreated}
+        onListUpdated={handleListUpdated}
+        onCardUpdatedOnBoard={patchCardInBoardState}
+        onCardDeletedFromBoard={removeCardFromBoardState}
+        onKanbanCardsReload={handleKanbanCardsReload}
+        onListCreated={handleListCreated}
+        draggingCardIdPropForListId={draggingCardIdPropForListId}
+      />
     );
   }
 
@@ -495,76 +144,73 @@ export function KanbanView({
       align="flex-start"
       onClickCapture={handleColumnsClickCapture}
     >
-        {leftSpacerPx > 0 ? (
-          <Box aria-hidden style={{ width: leftSpacerPx, minWidth: leftSpacerPx, height: 1, flexShrink: 0 }} />
-        ) : null}
-        {mountedLists.map((list) => (
-          <KanbanListColumn
-            key={list.id}
-            list={list}
-            board={board}
-            assigneeDirectory={assigneeDirectory}
-            draggingCardId={draggingCardIdPropForListId(list.id)}
-            draggingListId={draggingListId}
-            boardId={board.id}
-            cardListMaxBodyPx={cardListMaxBodyPx}
-            suppressCardOpenClickRef={suppressCardOpenClickRef}
-            cardDropIndicator={
-              cardDropIndicator != null && cardDropIndicator.listId === list.id
-                ? cardDropIndicator
-                : null
-            }
-            listReorderTarget={
-              draggingListId != null &&
-              listDropIndicator != null &&
-              listDropIndicator.overListId === list.id
-            }
-            onCardCreated={handleCardCreated}
-            onListUpdated={handleListUpdated}
-            onOpenCard={onOpenCard}
-            onCardUpdatedOnBoard={patchCardInBoardState}
-            onCardDeletedFromBoard={removeCardFromBoardState}
-            onKanbanCardsReload={handleKanbanCardsReload}
-            kanbanCaps={kanbanCaps}
-          />
-        ))}
+      {leftSpacerPx > 0 ? (
+        <Box aria-hidden style={{ width: leftSpacerPx, minWidth: leftSpacerPx, height: 1, flexShrink: 0 }} />
+      ) : null}
+      {mountedLists.map((list) => (
+        <KanbanListColumn
+          key={list.id}
+          list={list}
+          board={board}
+          assigneeDirectory={assigneeDirectory}
+          draggingCardId={draggingCardIdPropForListId(list.id)}
+          draggingListId={draggingListId}
+          boardId={board.id}
+          cardListMaxBodyPx={cardListMaxBodyPx}
+          suppressCardOpenClickRef={suppressCardOpenClickRef}
+          cardDropIndicator={
+            cardDropIndicator != null && cardDropIndicator.listId === list.id
+              ? cardDropIndicator
+              : null
+          }
+          listReorderTarget={
+            draggingListId != null &&
+            listDropIndicator != null &&
+            listDropIndicator.overListId === list.id
+          }
+          onCardCreated={handleCardCreated}
+          onListUpdated={handleListUpdated}
+          onOpenCard={onOpenCard}
+          onCardUpdatedOnBoard={patchCardInBoardState}
+          onCardDeletedFromBoard={removeCardFromBoardState}
+          onKanbanCardsReload={handleKanbanCardsReload}
+          kanbanCaps={kanbanCaps}
+        />
+      ))}
 
-        {kanbanCaps.canAddList && visibleEnd >= totalListCount ? (
-          <Box
-            className={listColumnChrome.trackClassName}
-            style={listColumnChrome.trackStyle}
-          >
-            {addListComposerOpen ? (
-              <BoardInlineListComposer
-                boardId={board.id}
-                getNextPosition={getNextListPosition}
-                onListCreated={handleListCreated}
-                onCancel={closeAddListComposer}
-              />
-            ) : (
-              <Button
-                variant="default"
-                className="board-page__add-list"
-                justify="flex-start"
-                leftSection={
-                  <span className="board-page__add-list-icon" aria-hidden>
-                    +
-                  </span>
-                }
-                styles={KANBAN_ADD_LIST_BUTTON_STYLES}
-                onClick={openAddListComposer}
-              >
-                Add another list
-              </Button>
-            )}
-          </Box>
-        ) : null}
-        {rightSpacerPx > 0 ? (
-          <Box
-            aria-hidden
-            style={{ width: rightSpacerPx, minWidth: rightSpacerPx, height: 1, flexShrink: 0 }}
-          />
-        ) : null}
+      {kanbanCaps.canAddList && visibleEnd >= totalListCount ? (
+        <Box className={listColumnChrome.trackClassName} style={listColumnChrome.trackStyle}>
+          {addListComposerOpen ? (
+            <BoardInlineListComposer
+              boardId={board.id}
+              getNextPosition={getNextListPosition}
+              onListCreated={handleListCreated}
+              onCancel={closeAddListComposer}
+            />
+          ) : (
+            <Button
+              variant="default"
+              className="board-page__add-list"
+              justify="flex-start"
+              leftSection={
+                <span className="board-page__add-list-icon" aria-hidden>
+                  +
+                </span>
+              }
+              styles={KANBAN_ADD_LIST_BUTTON_STYLES}
+              onClick={openAddListComposer}
+            >
+              Add another list
+            </Button>
+          )}
+        </Box>
+      ) : null}
+      {rightSpacerPx > 0 ? (
+        <Box
+          aria-hidden
+          style={{ width: rightSpacerPx, minWidth: rightSpacerPx, height: 1, flexShrink: 0 }}
+        />
+      ) : null}
     </Group>
   );
 }

@@ -1,4 +1,5 @@
 import { Activity } from '../models/Activity.js';
+import { Board } from '../models/Board.js';
 import { ImportJob } from '../models/ImportJob.js';
 import { BackupJob } from '../models/BackupJob.js';
 import { Card } from '../models/Card.js';
@@ -19,8 +20,25 @@ export async function cleanupActivityLogs(): Promise<void> {
   logger.info('Starting activity log cleanup job');
 
   try {
-    // Get all workspaces with their retention periods
-    const workspaces = await Workspace.find({});
+    const [workspaces, boards] = await Promise.all([
+      Workspace.find({}).select('_id activityLogRetentionDays'),
+      Board.find({}).select('_id workspaceId'),
+    ]);
+
+    const boardIdsByWorkspace = new Map<string, typeof boards[number]['_id'][]>();
+    for (const board of boards) {
+      if (board.workspaceId == null) {
+        continue;
+      }
+      const workspaceKey = board.workspaceId.toString();
+      const existing = boardIdsByWorkspace.get(workspaceKey);
+      if (existing) {
+        existing.push(board._id);
+      } else {
+        boardIdsByWorkspace.set(workspaceKey, [board._id]);
+      }
+    }
+
     let cleanedCount = 0;
 
     for (const workspace of workspaces) {
@@ -29,13 +47,11 @@ export async function cleanupActivityLogs(): Promise<void> {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-      // Get all boards in workspace
-      const { Board } = await import('../models/Board.js');
-      const boards = await Board.find({ workspaceId: workspace._id }).select('_id');
+      const boardIds = boardIdsByWorkspace.get(workspace._id.toString()) ?? [];
+      if (boardIds.length === 0) {
+        continue;
+      }
 
-      const boardIds = boards.map((b) => b._id);
-
-      // Delete old activities for this workspace's boards
       const result = await Activity.deleteMany({
         boardId: { $in: boardIds },
         createdAt: { $lt: cutoffDate },

@@ -1,6 +1,6 @@
 import type { Server as SocketIOServer } from 'socket.io';
 import crypto from 'node:crypto';
-import { capMapSize } from './capMapSize.js';
+import { capMapSize } from '../../shared/utils/capMapSize.js';
 
 let ioInstance: SocketIOServer | null = null;
 type JsonLike = null | boolean | number | string | JsonLike[] | { [key: string]: JsonLike };

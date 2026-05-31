@@ -7,8 +7,8 @@ import { logger } from '../../utils/logger.js';
 import {
   getMinioBucketMirrorConcurrency,
   getMinioObjectTransferConcurrency,
-  runWithConcurrency,
 } from './runtime.js';
+import { runWithConcurrency } from '../../../shared/utils/runWithConcurrency.js';
 
 export type MinioArchiveMethod = 'sdk-stream-v1' | 'mc-mirror-v1';
 export type MinioObjectMetadataMap = Record<string, Record<string, Record<string, string>>>;

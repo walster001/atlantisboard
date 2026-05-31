@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
-import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../types/express.js';
 import { BackupJob } from '../models/BackupJob.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import {

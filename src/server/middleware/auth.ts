@@ -5,7 +5,12 @@ import { User } from '../models/User.js';
 import { logger } from '../utils/logger.js';
 import { AUTH_COOKIE_NAME, isProductionAuthMode } from '../utils/authCookie.js';
 import { verifySignedAssetUrl } from '../utils/signedAssetUrl.js';
-import type { AuthenticatedRequest, OptionalAuthRequest } from '../../shared/types/express.js';
+import type { AuthenticatedRequest, OptionalAuthRequest } from '../types/express.js';
+
+function isLikelyJwt(value: string): boolean {
+  const token = value.trim();
+  return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
+}
 
 export async function requireAuth(
   req: Request,
@@ -132,7 +137,7 @@ export async function requireAppAdmin(
   try {
     const authReq = req as AuthenticatedRequest;
 
-    if (!authReq.user || !authReq.user.id) {
+    if (!authReq.user?.id) {
       res.status(401).json({
         error: {
           message: 'Authentication required',
@@ -143,19 +148,7 @@ export async function requireAppAdmin(
       return;
     }
 
-    const user = await User.findById(authReq.user.id).select('isAppAdmin');
-    if (!user) {
-      res.status(401).json({
-        error: {
-          message: 'User not found',
-          code: 'USER_NOT_FOUND',
-          statusCode: 401,
-        },
-      });
-      return;
-    }
-
-    if (!user.isAppAdmin) {
+    if (!authReq.user.isAppAdmin) {
       logger.warn(
         { userId: authReq.user.id, ip: req.ip },
         'Non-admin user attempted to access admin route'
@@ -170,7 +163,6 @@ export async function requireAppAdmin(
       return;
     }
 
-    authReq.user.isAppAdmin = true;
     next();
   } catch (error) {
     logger.error({ error }, 'Error in requireAppAdmin middleware');
@@ -196,11 +188,6 @@ export async function blocklistTokenFromRequest(req: Request): Promise<void> {
 }
 
 function extractToken(req: Request): string | null {
-  const isLikelyJwt = (value: string): boolean => {
-    const token = value.trim();
-    return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
-  };
-
   const authHeader = req.headers['authorization'];
   if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
     const bearerToken = authHeader.substring(7).trim();
@@ -230,9 +217,6 @@ export function extractTokenFromHandshake(
   authorizationHeader: unknown,
   cookieHeader: unknown,
 ): string | null {
-  const isLikelyJwt = (value: string): boolean =>
-    /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value.trim());
-
   if (typeof authToken === 'string' && isLikelyJwt(authToken)) {
     return authToken.trim();
   }

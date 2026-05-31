@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { LIST_NAME_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
-import type { AuthenticatedRequest } from '../../shared/types/express.js';
+import { parseOrThrow, respondZodValidationError } from '../utils/zodValidation.js';
+import { mapServiceErrorToHttp } from '../utils/mapServiceErrorToHttp.js';
+import type { AuthenticatedRequest } from '../types/express.js';
 import {
   createList,
   getListById,
@@ -36,37 +38,26 @@ const moveListSchema = z.object({
   position: z.number().int().min(0),
 });
 
+function handleRouteError(res: Parameters<typeof mapServiceErrorToHttp>[0], error: unknown, next: (error: unknown) => void): void {
+  if (mapServiceErrorToHttp(res, error)) {
+    return;
+  }
+  next(error);
+}
+
 // Create list
 router.post('/', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = createListSchema.parse(req.body);
+    const validated = parseOrThrow(createListSchema, req.body);
     const list = await createList(validated, authReq.user.id);
 
     res.status(201).json({ list });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
+    if (respondZodValidationError(res, error)) {
       return;
     }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleRouteError(res, error, next);
   }
 });
 
@@ -92,17 +83,7 @@ router.post('/reorder', async (req, res, next) => {
       orderedListIds: [...listIds].map((id: unknown) => String(id)),
     });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleRouteError(res, error, next);
   }
 });
 
@@ -110,7 +91,7 @@ router.post('/reorder', async (req, res, next) => {
 router.put('/:id/move', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const { position } = moveListSchema.parse(req.body);
+    const { position } = parseOrThrow(moveListSchema, req.body);
     const list = await moveList(req.params.id, position, authReq.user.id);
     if (!list) {
       res.status(404).json({
@@ -124,28 +105,10 @@ router.put('/:id/move', async (req, res, next) => {
     }
     res.json({ list });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
+    if (respondZodValidationError(res, error)) {
       return;
     }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleRouteError(res, error, next);
   }
 });
 
@@ -156,17 +119,7 @@ router.get('/board/:boardId', async (req, res, next) => {
     const lists = await getListsByBoard(req.params.boardId, authReq.user.id);
     res.json({ lists });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleRouteError(res, error, next);
   }
 });
 
@@ -188,27 +141,7 @@ router.post('/:id/duplicate', async (req, res, next) => {
     const { list, cards } = await duplicateList(req.params.id, targetBoardId, authReq.user.id);
     res.status(201).json({ list, cards });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('not found')) {
-      res.status(404).json({
-        error: {
-          message: error.message,
-          code: 'NOT_FOUND',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleRouteError(res, error, next);
   }
 });
 
@@ -229,17 +162,7 @@ router.get('/:id', async (req, res, next) => {
     }
     res.json({ list });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleRouteError(res, error, next);
   }
 });
 
@@ -247,7 +170,7 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = updateListSchema.parse(req.body);
+    const validated = parseOrThrow(updateListSchema, req.body);
     const list = await updateList(req.params.id, validated, authReq.user.id);
     if (!list) {
       res.status(404).json({
@@ -261,28 +184,10 @@ router.put('/:id', async (req, res, next) => {
     }
     res.json({ list });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
+    if (respondZodValidationError(res, error)) {
       return;
     }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleRouteError(res, error, next);
   }
 });
 
@@ -298,19 +203,8 @@ router.delete('/:id', async (req, res, next) => {
       message: deleted ? 'List deleted successfully' : 'List was already deleted',
     });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleRouteError(res, error, next);
   }
 });
 
 export { router as listRoutes };
-

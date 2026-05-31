@@ -1,4 +1,15 @@
 import type { ApiClient } from '../api.js';
+import { z } from 'zod';
+
+export const cardApiResponseSchema = z.object({
+  card: z.unknown(),
+});
+
+export type CardApiResponse = z.infer<typeof cardApiResponseSchema>;
+
+export function parseCardApiResponse(data: unknown): CardApiResponse {
+  return cardApiResponseSchema.parse(data);
+}
 
 export interface CardApiMethods {
   getCardsByList(
@@ -21,14 +32,14 @@ export interface CardApiMethods {
   ): Promise<{ cards: ReadonlyArray<{ id: string; description: string; descriptionHtml?: string }> }>;
   patchBoardListsBulkColor(boardId: string, body: { color: string }): Promise<{ updatedCount: number }>;
   patchBoardCardsBulkColor(boardId: string, body: { color: string; listId?: string }): Promise<{ updatedCount: number }>;
-  getCard(id: string): Promise<{ card: unknown }>;
+  getCard(id: string): Promise<CardApiResponse>;
   createCard(data: {
     listId: string;
     boardId: string;
     title: string;
     description?: string;
     position?: number;
-  }): Promise<{ card: unknown }>;
+  }): Promise<CardApiResponse>;
   updateCard(id: string, data: {
     title?: string;
     description?: string;
@@ -40,9 +51,9 @@ export interface CardApiMethods {
     startDate?: string | null;
     endDate?: string | null;
     completed?: boolean;
-  }): Promise<{ card: unknown }>;
+  }): Promise<CardApiResponse>;
   deleteCard(id: string): Promise<{ cardId: string; removed: boolean; message: string }>;
-  moveCard(cardId: string, listId: string, position: number): Promise<{ card: unknown }>;
+  moveCard(cardId: string, listId: string, position: number): Promise<CardApiResponse>;
   reorderCards(
     listId: string,
     cardIds: string[],
@@ -53,17 +64,17 @@ export interface CardApiMethods {
     mode: 'bulk_reflow';
     deprecatedForInteractiveDnD: boolean;
   }>;
-  duplicateCard(id: string, targetListId: string): Promise<{ card: unknown }>;
-  addCardAssignee(cardId: string, userId: string): Promise<{ card: unknown }>;
-  removeCardAssignee(cardId: string, userId: string): Promise<{ card: unknown }>;
-  addCardReminder(cardId: string, data: { triggerAt: string; repeatFrequency?: string }): Promise<{ card: unknown }>;
+  duplicateCard(id: string, targetListId: string): Promise<CardApiResponse>;
+  addCardAssignee(cardId: string, userId: string): Promise<CardApiResponse>;
+  removeCardAssignee(cardId: string, userId: string): Promise<CardApiResponse>;
+  addCardReminder(cardId: string, data: { triggerAt: string; repeatFrequency?: string }): Promise<CardApiResponse>;
   updateCardReminder(
     cardId: string,
     reminderId: string,
     data: { triggerAt?: string; repeatFrequency?: string },
-  ): Promise<{ card: unknown }>;
-  deleteCardReminder(cardId: string, reminderId: string): Promise<{ card: unknown }>;
-  dismissCardReminder(cardId: string, reminderId: string): Promise<{ card: unknown }>;
+  ): Promise<CardApiResponse>;
+  deleteCardReminder(cardId: string, reminderId: string): Promise<CardApiResponse>;
+  dismissCardReminder(cardId: string, reminderId: string): Promise<CardApiResponse>;
 }
 
 export const cardApiMethods: CardApiMethods = {
@@ -116,17 +127,17 @@ export const cardApiMethods: CardApiMethods = {
 
   async getCard(this: ApiClient, id) {
     const response = await this.client.get(`/cards/${id}`);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async createCard(this: ApiClient, data) {
     const response = await this.client.post('/cards', data);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async updateCard(this: ApiClient, id, data) {
     const response = await this.client.put(`/cards/${id}`, data);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async deleteCard(this: ApiClient, id) {
@@ -136,7 +147,7 @@ export const cardApiMethods: CardApiMethods = {
 
   async moveCard(this: ApiClient, cardId, listId, position) {
     const response = await this.client.put(`/cards/${cardId}/move`, { listId, position });
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async reorderCards(this: ApiClient, listId, cardIds) {
@@ -152,36 +163,36 @@ export const cardApiMethods: CardApiMethods = {
 
   async duplicateCard(this: ApiClient, id, targetListId) {
     const response = await this.client.post(`/cards/${id}/duplicate`, { targetListId });
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async addCardAssignee(this: ApiClient, cardId, userId) {
     const response = await this.client.post(`/cards/${cardId}/assignees`, { userId });
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async removeCardAssignee(this: ApiClient, cardId, userId) {
     const response = await this.client.delete(`/cards/${cardId}/assignees/${userId}`);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async addCardReminder(this: ApiClient, cardId, data) {
     const response = await this.client.post(`/cards/${cardId}/reminders`, data);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async updateCardReminder(this: ApiClient, cardId, reminderId, data) {
     const response = await this.client.put(`/cards/${cardId}/reminders/${reminderId}`, data);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async deleteCardReminder(this: ApiClient, cardId, reminderId) {
     const response = await this.client.delete(`/cards/${cardId}/reminders/${reminderId}`);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 
   async dismissCardReminder(this: ApiClient, cardId, reminderId) {
     const response = await this.client.put(`/cards/${cardId}/reminders/${reminderId}/dismiss`);
-    return response.data as { card: unknown };
+    return parseCardApiResponse(response.data);
   },
 };

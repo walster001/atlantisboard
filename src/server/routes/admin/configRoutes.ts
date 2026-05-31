@@ -14,7 +14,8 @@ import {
   type TestMySQLInput,
 } from '../../services/mysqlService.js';
 import { sendTestEmail } from '../../services/emailService.js';
-import type { AuthenticatedRequest } from '../../../shared/types/express.js';
+import type { AuthenticatedRequest } from '../../types/express.js';
+import { parseOrThrow, respondZodValidationError } from '../../utils/zodValidation.js';
 
 const testExternalMysqlSavedSchema = z.object({
   useSavedCredentials: z.literal(true),
@@ -82,7 +83,7 @@ export function registerConfigRoutes(router: Router): void {
           verificationQuery,
         };
       } else {
-        const parsed = testExternalMysqlInlineSchema.parse(body);
+        const parsed = parseOrThrow(testExternalMysqlInlineSchema, body);
         let password = parsed.password ?? '';
 
         if (password === '') {
@@ -121,15 +122,7 @@ export function registerConfigRoutes(router: Router): void {
 
       res.json(result);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            errors: error.issues,
-          },
-        });
+      if (respondZodValidationError(res, error)) {
         return;
       }
       next(error);
@@ -165,19 +158,11 @@ export function registerConfigRoutes(router: Router): void {
 
   router.post('/email/test', async (req, res, next) => {
     try {
-      const { recipientEmail } = testSmtpEmailSchema.parse(req.body);
+      const { recipientEmail } = parseOrThrow(testSmtpEmailSchema, req.body);
       const result = await sendTestEmail(recipientEmail);
       res.json(result);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            errors: error.issues,
-          },
-        });
+      if (respondZodValidationError(res, error)) {
         return;
       }
       next(error);

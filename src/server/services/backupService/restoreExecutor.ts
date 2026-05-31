@@ -20,7 +20,8 @@ import {
 } from './backupShared.js';
 import { type MinioObjectMetadataMap, buildPutObjectMetadata, restoreMinioBucketsWithMcMirror } from './minioIo.js';
 import { restoreMongoFromDir } from './mongoArchive.js';
-import { getMinioObjectTransferConcurrency, runWithConcurrency } from './runtime.js';
+import { getMinioObjectTransferConcurrency } from './runtime.js';
+import { runWithConcurrency } from '../../../shared/utils/runWithConcurrency.js';
 
 async function readManifest(extractRoot: string): Promise<ParsedBackupManifest> {
   const raw = await readFile(join(extractRoot, 'manifest.json'), 'utf8');

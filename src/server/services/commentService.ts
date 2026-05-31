@@ -4,6 +4,7 @@ import { logAuditEvent } from '../utils/auditLogger.js';
 import { hasPermission } from '../utils/permissions.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
 import type { Document } from 'mongoose';
+import { Types } from 'mongoose';
 import type { ICardComment } from '../models/Card.js';
 
 export interface CreateCommentInput {
@@ -30,7 +31,7 @@ export async function createComment(input: CreateCommentInput, userId: string): 
   const commentId = crypto.randomUUID();
   const comment: ICardComment = {
     id: commentId,
-    userId: userId as unknown as typeof card._id,
+    userId: new Types.ObjectId(userId),
     text: input.text,
     createdAt: new Date(),
     updatedAt: new Date(),

@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, beforeAll } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import { describeDbIntegration } from '../helpers/integrationEnv.js';
-import { ensureTestServer } from '../helpers/testServer.js';
+import { beforeAllEnsureTestServer } from '../helpers/integrationHooks.js';
 import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import {
   createMockUser,
@@ -18,9 +18,7 @@ function triggerAtBeforeDue(dueDate: Date, daysBefore: number): string {
 }
 
 describeDbIntegration('Reminders', () => {
-  beforeAll(async () => {
-    await ensureTestServer();
-  });
+  beforeAllEnsureTestServer();
   let authToken: string;
   let userId: string;
   let boardId: string;

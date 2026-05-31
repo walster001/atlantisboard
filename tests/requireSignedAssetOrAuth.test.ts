@@ -5,6 +5,7 @@ import { requireSignedAssetOrAuth } from '../src/server/middleware/auth.js';
 import { connectTestDatabase, clearTestDatabase, getAuthToken } from './helpers/testHelpers.js';
 import { User } from '../src/server/models/User.js';
 import { describeMongoTest } from './helpers/integrationEnv.js';
+import { INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationHooks.js';
 import { ensureTestServer } from './helpers/testServer.js';
 
 type MockResponse = Response & { statusCode: number; body: unknown };
@@ -37,7 +38,7 @@ describeMongoTest('requireSignedAssetOrAuth', () => {
       await connectTestDatabase();
     }
     await clearTestDatabase({ waitForHttp: false });
-  });
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   afterAll(async () => {
     if (mongoose.connection.readyState === 1) {

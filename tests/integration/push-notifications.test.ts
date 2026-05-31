@@ -1,15 +1,13 @@
-import { describe, it, expect, beforeEach, beforeAll } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import { describeDbIntegration } from '../helpers/integrationEnv.js';
-import { ensureTestServer } from '../helpers/testServer.js';
+import { beforeAllEnsureTestServer } from '../helpers/integrationHooks.js';
 import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import { createMockUser } from '../helpers/mockData.js';
 import { User } from '../../src/server/models/User.js';
 import { getVapidPublicKey } from '../../src/server/config/vapid.js';
 
 describeDbIntegration('Push Notifications', () => {
-  beforeAll(async () => {
-    await ensureTestServer();
-  });
+  beforeAllEnsureTestServer();
   let authToken: string;
   let userId: string;
 

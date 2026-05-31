@@ -1,24 +1,21 @@
 import { beforeAll, expect, it } from 'bun:test';
 import { describeHttpIntegration } from './helpers/integrationEnv.js';
+import { beforeAllEnsureTestServer } from './helpers/integrationHooks.js';
 import { ensureTestServer } from './helpers/testServer.js';
-import { apiInject } from './helpers/integrationHttp.js';
+import { apiInject, waitForServer } from './helpers/integrationHttp.js';
 
 function getBaseUrl(): string {
   return process.env.TEST_BASE_URL ?? 'http://127.0.0.1:3000';
 }
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
-  const baseUrl = getBaseUrl();
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    try {
-      return await fetch(`${baseUrl}${path}`, init);
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    }
+  if (process.env.ATLBOARD_TEST_SERVER_READY !== '1') {
+    await ensureTestServer();
+  } else {
+    await waitForServer();
   }
-  throw lastError instanceof Error ? lastError : new Error('Request failed');
+  const baseUrl = getBaseUrl();
+  return fetch(`${baseUrl}${path}`, init);
 }
 
 /** Bun fetch does not persist cookies; forward Set-Cookie for session-bound CSRF tests. */
@@ -38,9 +35,7 @@ function cookieHeaderFromResponse(response: Response): string | undefined {
 }
 
 describeHttpIntegration('API Health Check', () => {
-  beforeAll(async () => {
-    await ensureTestServer();
-  });
+  beforeAllEnsureTestServer();
 
   it('should return health status', async () => {
     const response = await request('/health', { method: 'GET' });
@@ -52,9 +47,7 @@ describeHttpIntegration('API Health Check', () => {
 });
 
 describeHttpIntegration('Authentication API', () => {
-  beforeAll(async () => {
-    await ensureTestServer();
-  });
+  beforeAllEnsureTestServer();
 
   it('should reject unauthenticated requests', async () => {
     const response = await request('/api/v1/workspaces', { method: 'GET' });
@@ -78,9 +71,7 @@ describeHttpIntegration('Authentication API', () => {
 });
 
 describeHttpIntegration('Workspace API', () => {
-  beforeAll(async () => {
-    await ensureTestServer();
-  });
+  beforeAllEnsureTestServer();
 
   it('should require authentication', async () => {
     const response = await request('/api/v1/workspaces', { method: 'GET' });
@@ -89,9 +80,7 @@ describeHttpIntegration('Workspace API', () => {
 });
 
 describeHttpIntegration('CSRF protection', () => {
-  beforeAll(async () => {
-    await ensureTestServer();
-  });
+  beforeAllEnsureTestServer();
 
   it('should reject mutating requests without CSRF token', async () => {
     const response = await request('/api/v1/workspaces', {

@@ -55,6 +55,11 @@ export async function waitForServer(
   if (process.env.ATLBOARD_TEST_SERVER_READY === '1' && baseUrl === undefined) {
     return;
   }
+  if (process.env.ATLBOARD_TEST_SERVER_READY !== '1' && baseUrl === undefined) {
+    const { ensureTestServer } = await import('./testServer.js');
+    await ensureTestServer();
+    return;
+  }
   const target = baseUrl ?? getBaseUrl();
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {

@@ -156,11 +156,23 @@ export async function assertDbIntegrationReachable(): Promise<boolean> {
     return false;
   }
   const mongoUri = resolveTestMongoUri();
-  const [mongoOk, redisOk] = await Promise.all([
-    mongoUri ? probeMongoReachable(mongoUri) : Promise.resolve(false),
-    probeRedisReachable(),
-  ]);
-  if (!mongoOk || !redisOk) {
+  const maxAttempts = isCiTestRun() ? 8 : 1;
+  const delayMs = isCiTestRun() ? 2_000 : 0;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const [mongoOk, redisOk] = await Promise.all([
+      mongoUri ? probeMongoReachable(mongoUri) : Promise.resolve(false),
+      probeRedisReachable(),
+    ]);
+    if (mongoOk && redisOk) {
+      return true;
+    }
+    if (attempt < maxAttempts) {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, delayMs);
+      });
+      continue;
+    }
     const parts: string[] = [];
     if (!mongoOk) {
       parts.push(`MongoDB not reachable at ${mongoUri ?? '(no URI)'}`);
@@ -169,6 +181,7 @@ export async function assertDbIntegrationReachable(): Promise<boolean> {
       parts.push('Redis not reachable (check REDIS_HOST/REDIS_URL)');
     }
     console.warn(`tests: DB integration deps unavailable — ${parts.join('; ')}. ${DB_INTEGRATION_ENV_DOCS}`);
+    return false;
   }
-  return mongoOk && redisOk;
+  return false;
 }

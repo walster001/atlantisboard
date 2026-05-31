@@ -1,3 +1,4 @@
+import { isCiTestRun } from './integrationEnv.js';
 import { waitForServer } from './integrationHttp.js';
 
 let ensurePromise: Promise<string> | null = null;
@@ -23,32 +24,39 @@ export async function ensureTestServer(): Promise<string> {
     return ensurePromise;
   }
 
-  ensurePromise = (async () => {
-    const configured = process.env.TEST_BASE_URL?.replace(/\/$/, '');
-    if (configured && (await probeHealth(configured))) {
-      process.env.ATLBOARD_TEST_SERVER_READY = '1';
-      return configured;
-    }
-
-    const allowDefaultPortReuse = process.env.NODE_ENV !== 'test';
-    if (allowDefaultPortReuse) {
-      const defaultPort = Number(process.env.PORT) || 3000;
-      const defaultUrl = `http://127.0.0.1:${defaultPort}`;
-      if (await probeHealth(defaultUrl)) {
-        process.env.TEST_BASE_URL = defaultUrl;
+  ensurePromise = (async (): Promise<string> => {
+    try {
+      const configured = process.env.TEST_BASE_URL?.replace(/\/$/, '');
+      if (configured && (await probeHealth(configured))) {
         process.env.ATLBOARD_TEST_SERVER_READY = '1';
-        return defaultUrl;
+        return configured;
       }
-    }
 
-    process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';
-    const { startHttpServer } = await import('../../src/server/index.js');
-    const port = await startHttpServer({ port: 0, host: '127.0.0.1' });
-    const baseUrl = `http://127.0.0.1:${port}`;
-    process.env.TEST_BASE_URL = baseUrl;
-    await waitForServer(24, 125, baseUrl);
-    process.env.ATLBOARD_TEST_SERVER_READY = '1';
-    return baseUrl;
+      const allowDefaultPortReuse = process.env.NODE_ENV !== 'test';
+      if (allowDefaultPortReuse) {
+        const defaultPort = Number(process.env.PORT) || 3000;
+        const defaultUrl = `http://127.0.0.1:${defaultPort}`;
+        if (await probeHealth(defaultUrl)) {
+          process.env.TEST_BASE_URL = defaultUrl;
+          process.env.ATLBOARD_TEST_SERVER_READY = '1';
+          return defaultUrl;
+        }
+      }
+
+      process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';
+      const { startHttpServer } = await import('../../src/server/index.js');
+      const port = await startHttpServer({ port: 0, host: '127.0.0.1' });
+      const baseUrl = `http://127.0.0.1:${port}`;
+      process.env.TEST_BASE_URL = baseUrl;
+      const waitAttempts = isCiTestRun() ? 80 : 24;
+      const waitDelayMs = isCiTestRun() ? 250 : 125;
+      await waitForServer(waitAttempts, waitDelayMs, baseUrl);
+      process.env.ATLBOARD_TEST_SERVER_READY = '1';
+      return baseUrl;
+    } catch (error) {
+      ensurePromise = null;
+      throw error;
+    }
   })();
 
   return ensurePromise;

@@ -1,6 +1,6 @@
 import { beforeAll, expect, it } from 'bun:test';
 import { describeHttpIntegration } from './helpers/integrationEnv.js';
-import { ensureTestServer } from './helpers/testServer.js';
+import { beforeAllEnsureTestServer } from './helpers/integrationHooks.js';
 import { apiInject, resetIntegrationHttpSession } from './helpers/integrationHttp.js';
 
 type AuthPair = { token: string; userId: string };
@@ -52,9 +52,7 @@ function auth(token: string): Record<string, string> {
 }
 
 describeHttpIntegration('Permissions: private board isolation', () => {
-  beforeAll(async () => {
-    await ensureTestServer();
-  });
+  beforeAllEnsureTestServer();
 
   it('denies non-members from reading lists/cards/labels and modifying card labels', async () => {
     const nonce = Date.now();

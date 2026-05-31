@@ -69,6 +69,6 @@ Mutating routes use `apiInject` (`tests/helpers/integrationHttp.ts`) for CSRF to
 
 Env set for the test job: `MONGODB_URI`, `MONGODB_TEST_URI` (replica-set URI), `REDIS_HOST`, `REDIS_URL`, `NODE_ENV=test`.
 
-Test command: `bun test --timeout 120000 --max-concurrency 1` (avoids Bun’s 5s default hook timeout during server bootstrap and prevents parallel files from clearing the same database).
+Test command: `bun test --timeout 120000 --max-concurrency 1` (serial files; per-test timeout 120s). Integration `beforeAll` hooks use `INTEGRATION_HOOK_TIMEOUT_MS` (60s local / 120s CI) so server bootstrap is not cut off by Bun’s default 5s hook limit.
 
 MinIO is **not** required for CI tests (bucket init is skipped in test).

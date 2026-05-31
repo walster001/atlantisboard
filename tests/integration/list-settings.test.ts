@@ -1,13 +1,11 @@
-import { it, expect, beforeEach, beforeAll } from 'bun:test';
+import { it, expect, beforeEach } from 'bun:test';
 import { describeDbIntegration } from '../helpers/integrationEnv.js';
-import { ensureTestServer } from '../helpers/testServer.js';
+import { beforeAllEnsureTestServer } from '../helpers/integrationHooks.js';
 import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import { createMockUser, createMockBoardForUser, createMockList } from '../helpers/mockData.js';
 
 describeDbIntegration('Board-wide list card limits', () => {
-  beforeAll(async () => {
-    await ensureTestServer();
-  });
+  beforeAllEnsureTestServer();
 
   let authToken: string;
   let boardId: string;

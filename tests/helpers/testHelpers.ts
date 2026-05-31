@@ -7,10 +7,10 @@ import { createMockUser } from './mockData.js';
 import {
   apiInject,
   resetIntegrationHttpSession,
-  waitForServer,
   type ApiInjectOptions,
   type ApiInjectResponse,
 } from './integrationHttp.js';
+import { ensureTestServer } from './testServer.js';
 import { DB_INTEGRATION_ENV_DOCS, isCiTestRun, resolveTestMongoUri } from './integrationEnv.js';
 
 export interface TestUser {
@@ -52,7 +52,7 @@ export async function disconnectTestDatabase(): Promise<void> {
 
 export async function clearTestDatabase(options?: { waitForHttp?: boolean }): Promise<void> {
   if (options?.waitForHttp === true) {
-    await waitForServer();
+    await ensureTestServer();
   }
   const { readyState, collections } = mongoose.connection;
   if (readyState !== 1) {
@@ -70,9 +70,7 @@ export async function getAuthToken(
   password: string = 'TestPassword123!',
 ): Promise<TestAuthToken> {
   resetIntegrationHttpSession();
-  if (process.env.ATLBOARD_TEST_SERVER_READY !== '1') {
-    await waitForServer();
-  }
+  await ensureTestServer();
 
   let user = await User.findOne({ email });
   if (!user) {

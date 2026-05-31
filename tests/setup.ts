@@ -6,7 +6,7 @@ import {
   isCiTestRun,
 } from './helpers/integrationEnv.js';
 import { INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationHooks.js';
-import { connectTestDatabase, disconnectTestDatabase, clearTestDatabase } from './helpers/testHelpers.js';
+import { connectTestDatabase, clearTestDatabase } from './helpers/testHelpers.js';
 import { ensureTestServer } from './helpers/testServer.js';
 
 beforeAll(async () => {
@@ -34,6 +34,5 @@ afterAll(async () => {
     return;
   }
   await clearTestDatabase({ waitForHttp: false });
-  await disconnectTestDatabase();
-  delete process.env.ATLBOARD_TEST_SERVER_READY;
+  // Bun may invoke preload afterAll once per test file; keep mongoose + HTTP server alive.
 }, INTEGRATION_HOOK_TIMEOUT_MS);

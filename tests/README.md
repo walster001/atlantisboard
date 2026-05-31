@@ -40,8 +40,7 @@ Files under `tests/*.test.ts` that do not import `ensureTestServer` — no exter
 
 Use `describeDbIntegration` / `describeHttpIntegration` from `tests/helpers/integrationEnv.ts`. Require **`MONGODB_TEST_URI` + Redis**. The shared harness in `tests/helpers/testServer.ts`:
 
-1. Probes `TEST_BASE_URL` or `http://127.0.0.1:3000` (reuse dev server if healthy).
-2. Otherwise starts the Express app once on an ephemeral port via `startHttpServer({ port: 0 })`.
+1. Starts the Express app once on an ephemeral port via `startHttpServer({ port: 0 })` on the CI runner (never assumes `:3000` when `NODE_ENV=test`).
 
 Mutating routes use `apiInject` (`tests/helpers/integrationHttp.ts`) for CSRF token + session cookies.
 

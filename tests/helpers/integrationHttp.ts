@@ -3,11 +3,10 @@
  * Express has no app.inject(); api.test.ts uses fetch — this adds CSRF + cookie handling for mutating routes.
  */
 
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+import { isCiTestRun } from './integrationEnv.js';
+import { resolveTestServerBaseUrl } from './testServer.js';
 
-function getBaseUrl(): string {
-  return process.env.TEST_BASE_URL ?? 'http://127.0.0.1:3000';
-}
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 let sessionCookie = '';
 let csrfToken = '';
@@ -52,19 +51,11 @@ export async function waitForServer(
   delayMs = 125,
   baseUrl?: string,
 ): Promise<void> {
-  if (process.env.ATLBOARD_TEST_SERVER_READY === '1' && baseUrl === undefined) {
-    return;
-  }
-  if (process.env.ATLBOARD_TEST_SERVER_READY !== '1' && baseUrl === undefined) {
-    const { ensureTestServer } = await import('./testServer.js');
-    await ensureTestServer();
-    return;
-  }
-  const target = baseUrl ?? getBaseUrl();
+  const resolvedBaseUrl = baseUrl ?? (await resolveTestServerBaseUrl());
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      const response = await fetch(`${target}/health`, {
+      const response = await fetch(`${resolvedBaseUrl}/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(HEALTH_FETCH_TIMEOUT_MS),
       });
@@ -76,15 +67,17 @@ export async function waitForServer(
     }
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
-  throw lastError instanceof Error ? lastError : new Error(`Server did not become ready at ${target}`);
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Server did not become ready at ${resolvedBaseUrl}`);
 }
 
-async function refreshCsrfToken(): Promise<void> {
+async function refreshCsrfToken(baseUrl: string): Promise<void> {
   const init: RequestInit = { method: 'GET' };
   if (sessionCookie) {
     init.headers = { cookie: sessionCookie };
   }
-  const response = await fetch(`${getBaseUrl()}/api/v1/csrf/token`, init);
+  const response = await fetch(`${baseUrl}/api/v1/csrf/token`, init);
   mergeSetCookies(response);
   if (!response.ok) {
     throw new Error(`Failed to fetch CSRF token: HTTP ${response.status}`);
@@ -109,13 +102,11 @@ export type ApiInjectResponse = {
  * Issue an HTTP request to the app under test (Fastify-style inject replacement).
  */
 export async function apiInject(options: ApiInjectOptions): Promise<ApiInjectResponse> {
-  if (process.env.ATLBOARD_TEST_SERVER_READY !== '1') {
-    await waitForServer();
-  }
+  const baseUrl = await resolveTestServerBaseUrl();
 
   const method = options.method.toUpperCase();
   if (!SAFE_METHODS.has(method)) {
-    await refreshCsrfToken();
+    await refreshCsrfToken(baseUrl);
   }
 
   const headers: Record<string, string> = {
@@ -136,7 +127,7 @@ export async function apiInject(options: ApiInjectOptions): Promise<ApiInjectRes
   if (options.payload !== undefined) {
     fetchInit.body = JSON.stringify(options.payload);
   }
-  const response = await fetch(`${getBaseUrl()}${path}`, fetchInit);
+  const response = await fetch(`${baseUrl}${path}`, fetchInit);
 
   mergeSetCookies(response);
   const body = await response.text();
@@ -145,4 +136,12 @@ export async function apiInject(options: ApiInjectOptions): Promise<ApiInjectRes
     statusCode: response.status,
     body,
   };
+}
+
+/** Dev-only fallback when reusing a local server outside NODE_ENV=test. */
+export function getDevFallbackBaseUrl(): string {
+  if (process.env.NODE_ENV === 'test' || isCiTestRun()) {
+    throw new Error('Integration test server URL is unset. Call ensureTestServer() first.');
+  }
+  return process.env.TEST_BASE_URL ?? 'http://127.0.0.1:3000';
 }

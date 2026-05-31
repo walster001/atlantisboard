@@ -1,20 +1,11 @@
-import { beforeAll, expect, it } from 'bun:test';
+import { expect, it } from 'bun:test';
 import { describeHttpIntegration } from './helpers/integrationEnv.js';
 import { beforeAllEnsureTestServer } from './helpers/integrationHooks.js';
-import { ensureTestServer } from './helpers/testServer.js';
-import { apiInject, waitForServer } from './helpers/integrationHttp.js';
-
-function getBaseUrl(): string {
-  return process.env.TEST_BASE_URL ?? 'http://127.0.0.1:3000';
-}
+import { resolveTestServerBaseUrl } from './helpers/testServer.js';
+import { apiInject } from './helpers/integrationHttp.js';
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
-  if (process.env.ATLBOARD_TEST_SERVER_READY !== '1') {
-    await ensureTestServer();
-  } else {
-    await waitForServer();
-  }
-  const baseUrl = getBaseUrl();
+  const baseUrl = await resolveTestServerBaseUrl();
   return fetch(`${baseUrl}${path}`, init);
 }
 

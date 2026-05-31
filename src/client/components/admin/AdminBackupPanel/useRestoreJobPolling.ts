@@ -34,7 +34,7 @@ export function useRestoreJobPolling({
     const poll = async (): Promise<void> => {
       try {
         const response = await api.getAdminBackupJob(restoreJobId);
-        const job = parseBackupJob((response as { job: unknown }).job);
+        const job = parseBackupJob(response.job);
         if (job == null || cancelled) {
           return;
         }

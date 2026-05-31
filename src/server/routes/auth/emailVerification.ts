@@ -8,6 +8,8 @@ import { sendVerificationEmail } from '../../services/emailService.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { attachCustomBoardThemesToPreferences } from '../../services/boardThemeService.js';
 import { authRateLimiter, sendAuthSuccess } from './_helpers.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
 
 const router = Router();
 
@@ -79,7 +81,7 @@ router.get('/verify-email', authRateLimiter, async (req, res, next) => {
 router.post('/resend-verification', authRateLimiter, async (req, res, next) => {
   try {
     const schema = z.object({ email: z.string().email() });
-    const { email } = schema.parse(req.body);
+    const { email } = parseOrThrow(schema, req.body);
     const emailNorm = email.toLowerCase().trim();
 
     const user = await User.findOne({ email: emailNorm });
@@ -100,17 +102,7 @@ router.post('/resend-verification', authRateLimiter, async (req, res, next) => {
 
     res.json({ message: 'If that email is registered and unverified, a new verification link has been sent.' });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Valid email address is required',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 

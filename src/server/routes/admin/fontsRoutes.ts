@@ -9,6 +9,7 @@ import {
   resolveFontFamilyValueForObjectKey,
   uploadCustomFont,
 } from '../../services/fontService.js';
+import { mapServiceErrorToHttp } from '../../utils/mapServiceErrorToHttp.js';
 
 const fontUpload = multer({
   storage: multer.memoryStorage(),
@@ -53,15 +54,7 @@ export function registerFontsRoutes(router: Router): void {
         );
         res.status(201).json({ font });
       } catch (error) {
-        if (error instanceof z.ZodError) {
-          res.status(400).json({
-            error: {
-              message: 'Validation failed',
-              code: 'VALIDATION_ERROR',
-              statusCode: 400,
-              errors: error.issues,
-            },
-          });
+        if (mapServiceErrorToHttp(res, error)) {
           return;
         }
         if (error instanceof Error) {

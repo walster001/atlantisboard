@@ -1,5 +1,57 @@
+import { z } from 'zod';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
 import type { ApiClient } from '../api.js';
+
+export const boardApiResponseSchema = z.object({
+  board: z.unknown(),
+});
+
+export type BoardApiResponse = z.infer<typeof boardApiResponseSchema>;
+
+export function parseBoardApiResponse(data: unknown): BoardApiResponse {
+  return boardApiResponseSchema.parse(data);
+}
+
+export const boardsListApiResponseSchema = z.object({
+  boards: z.array(z.unknown()).optional(),
+  hasMore: z.boolean().optional(),
+});
+
+export type BoardsListApiResponse = z.infer<typeof boardsListApiResponseSchema>;
+
+export function parseBoardsListApiResponse(data: unknown): BoardsListApiResponse {
+  return boardsListApiResponseSchema.parse(data);
+}
+
+export interface BoardSummaryOption {
+  readonly id: string;
+  readonly name: string;
+}
+
+export function mapBoardSummariesToOptions(boards: readonly unknown[]): readonly BoardSummaryOption[] {
+  return boards.flatMap((row): readonly BoardSummaryOption[] => {
+    if (row == null || typeof row !== 'object') {
+      return [];
+    }
+    const record = row as Record<string, unknown>;
+    const rawId = record._id ?? record.id;
+    const id = typeof rawId === 'string' ? rawId.trim() : '';
+    const rawName = record.name;
+    const name = (typeof rawName === 'string' ? rawName.trim() : '') || 'Untitled board';
+    return id !== '' ? [{ id, name }] : [];
+  });
+}
+
+export const boardBackgroundUploadResponseSchema = z.object({
+  url: z.string(),
+  board: z.unknown(),
+});
+
+export type BoardBackgroundUploadResponse = z.infer<typeof boardBackgroundUploadResponseSchema>;
+
+export function parseBoardBackgroundUploadResponse(data: unknown): BoardBackgroundUploadResponse {
+  return boardBackgroundUploadResponseSchema.parse(data);
+}
 
 export interface BoardApiMethods {
   getBoards(options?: {
@@ -9,15 +61,15 @@ export interface BoardApiMethods {
     cacheBust?: boolean;
     skip?: number;
     limit?: number;
-  }): Promise<{ boards: unknown[]; hasMore?: boolean }>;
+  }): Promise<BoardsListApiResponse>;
   getBoardsByWorkspace(
     workspaceId: string,
     options?: { view?: 'summary' | 'detail'; skip?: number; limit?: number }
-  ): Promise<{ boards: unknown[]; hasMore?: boolean }>;
+  ): Promise<BoardsListApiResponse>;
   getBoard(
     id: string,
     requestConfig?: { signal?: AbortSignal; view?: 'summary' | 'detail' }
-  ): Promise<{ board: unknown }>;
+  ): Promise<BoardApiResponse>;
   getMyBoardPermissions(boardId: string): Promise<{ boardId: string; permissions: string[]; serverTs: number }>;
   createBoard(data: {
     workspaceId: string;
@@ -26,7 +78,7 @@ export interface BoardApiMethods {
     background?: string;
     themeSettings?: BoardThemeSettings;
     visibility?: 'private' | 'workspace' | 'public';
-  }): Promise<{ board: unknown }>;
+  }): Promise<BoardApiResponse>;
   updateBoard(id: string, data: {
     name?: string;
     description?: string;
@@ -56,7 +108,7 @@ export interface BoardApiMethods {
       listColumnWidthPx?: number;
       memberActivityLogRetentionDays?: number | null;
     };
-  }): Promise<{ board: unknown }>;
+  }): Promise<BoardApiResponse>;
   uploadBoardBackgroundImage(
     boardId: string,
     file: File,
@@ -65,13 +117,13 @@ export interface BoardApiMethods {
       backgroundFocalX?: number;
       backgroundFocalY?: number;
     },
-  ): Promise<{ url: string; board: unknown }>;
-  deleteBoardBackgroundImage(boardId: string): Promise<{ board: unknown }>;
+  ): Promise<BoardBackgroundUploadResponse>;
+  deleteBoardBackgroundImage(boardId: string): Promise<BoardApiResponse>;
   reorderHomeBoards(payload: { workspaceId: string; orderedBoardIds: readonly string[] }): Promise<{ message: string }>;
   deleteBoard(id: string): Promise<void>;
-  addBoardMember(boardId: string, userId: string, roleKey: string): Promise<{ board: unknown }>;
+  addBoardMember(boardId: string, userId: string, roleKey: string): Promise<BoardApiResponse>;
   removeBoardMember(boardId: string, userId: string): Promise<void>;
-  updateBoardMemberRole(boardId: string, userId: string, roleKey: string): Promise<{ board: unknown }>;
+  updateBoardMemberRole(boardId: string, userId: string, roleKey: string): Promise<BoardApiResponse>;
   getBoardAssignableRoles(boardId: string): Promise<{
     roles: Array<{ key: string; displayName: string; isBuiltIn: boolean }>;
   }>;
@@ -98,7 +150,7 @@ export const boardApiMethods: BoardApiMethods = {
     if (options?.cacheBust === true) params.set('_', String(Date.now()));
     const suffix = params.toString();
     const response = await this.client.get(`/boards${suffix === '' ? '' : `?${suffix}`}`);
-    return response.data as { boards: unknown[]; hasMore?: boolean };
+    return parseBoardsListApiResponse(response.data);
   },
 
   async getBoardsByWorkspace(this: ApiClient, workspaceId, options) {
@@ -108,7 +160,7 @@ export const boardApiMethods: BoardApiMethods = {
     if (options?.limit !== undefined) params.set('limit', String(options.limit));
     const suffix = params.toString();
     const response = await this.client.get(`/boards/workspace/${workspaceId}${suffix === '' ? '' : `?${suffix}`}`);
-    return response.data as { boards: unknown[]; hasMore?: boolean };
+    return parseBoardsListApiResponse(response.data);
   },
 
   async getBoard(this: ApiClient, id, requestConfig) {
@@ -119,7 +171,7 @@ export const boardApiMethods: BoardApiMethods = {
       `/boards/${id}${qs === '' ? '' : `?${qs}`}`,
       requestConfig?.signal !== undefined ? { signal: requestConfig.signal } : undefined,
     );
-    return response.data as { board: unknown };
+    return parseBoardApiResponse(response.data);
   },
 
   async getMyBoardPermissions(this: ApiClient, boardId) {
@@ -129,12 +181,12 @@ export const boardApiMethods: BoardApiMethods = {
 
   async createBoard(this: ApiClient, data) {
     const response = await this.client.post('/boards', data);
-    return response.data as { board: unknown };
+    return parseBoardApiResponse(response.data);
   },
 
   async updateBoard(this: ApiClient, id, data) {
     const response = await this.client.put(`/boards/${id}`, data);
-    return response.data as { board: unknown };
+    return parseBoardApiResponse(response.data);
   },
 
   async uploadBoardBackgroundImage(this: ApiClient, boardId, file, options) {
@@ -147,15 +199,15 @@ export const boardApiMethods: BoardApiMethods = {
     if (options?.backgroundFocalY != null && Number.isFinite(options.backgroundFocalY)) {
       form.append('backgroundFocalY', String(options.backgroundFocalY));
     }
-    const response = await this.client.post<{ url: string; board: unknown }>(`/boards/${boardId}/background-image`, form, {
+    const response = await this.client.post(`/boards/${boardId}/background-image`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response.data;
+    return parseBoardBackgroundUploadResponse(response.data);
   },
 
   async deleteBoardBackgroundImage(this: ApiClient, boardId) {
-    const response = await this.client.delete<{ board: unknown }>(`/boards/${boardId}/background-image`);
-    return response.data;
+    const response = await this.client.delete(`/boards/${boardId}/background-image`);
+    return parseBoardApiResponse(response.data);
   },
 
   async reorderHomeBoards(this: ApiClient, payload) {
@@ -169,7 +221,7 @@ export const boardApiMethods: BoardApiMethods = {
 
   async addBoardMember(this: ApiClient, boardId, userId, roleKey) {
     const response = await this.client.post(`/boards/${boardId}/members`, { userId, roleKey });
-    return response.data as { board: unknown };
+    return parseBoardApiResponse(response.data);
   },
 
   async removeBoardMember(this: ApiClient, boardId, userId) {
@@ -178,7 +230,7 @@ export const boardApiMethods: BoardApiMethods = {
 
   async updateBoardMemberRole(this: ApiClient, boardId, userId, roleKey) {
     const response = await this.client.put(`/boards/${boardId}/members/${userId}/role`, { roleKey });
-    return response.data as { board: unknown };
+    return parseBoardApiResponse(response.data);
   },
 
   async getBoardAssignableRoles(this: ApiClient, boardId) {

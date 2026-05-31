@@ -1,10 +1,21 @@
+import { z } from 'zod';
 import type { AdminBackupListItem } from '../../../shared/types/adminBackup.js';
 import type { ApiClient } from '../api.js';
+
+export const adminBackupJobResponseSchema = z.object({
+  job: z.unknown(),
+});
+
+export type AdminBackupJobResponse = z.infer<typeof adminBackupJobResponseSchema>;
+
+export function parseAdminBackupJobResponse(data: unknown): AdminBackupJobResponse {
+  return adminBackupJobResponseSchema.parse(data);
+}
 
 export interface AdminBackupApiMethods {
   listAdminBackups(): Promise<{ backups: AdminBackupListItem[] }>;
   startAdminBackup(input: { filename: string }): Promise<{ message: string; jobId: string; reusedExisting: boolean }>;
-  getAdminBackupJob(jobId: string): Promise<{ job: unknown }>;
+  getAdminBackupJob(jobId: string): Promise<AdminBackupJobResponse>;
   cancelAdminBackupJob(jobId: string): Promise<{ message: string }>;
   deleteAdminBackup(folderId: string): Promise<void>;
   restoreAdminBackup(
@@ -29,8 +40,8 @@ export const adminBackupApiMethods: AdminBackupApiMethods = {
   },
 
   async getAdminBackupJob(this: ApiClient, jobId) {
-    const response = await this.client.get<{ job: unknown }>(`/admin/backup/jobs/${encodeURIComponent(jobId)}`);
-    return response.data;
+    const response = await this.client.get(`/admin/backup/jobs/${encodeURIComponent(jobId)}`);
+    return parseAdminBackupJobResponse(response.data);
   },
 
   async cancelAdminBackupJob(this: ApiClient, jobId) {

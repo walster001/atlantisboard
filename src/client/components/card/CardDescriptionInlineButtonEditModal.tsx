@@ -14,6 +14,7 @@ import {
 import { IconExternalLink, IconTrash, IconUpload } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
+import { requireUploadedAttachmentId } from '../../utils/api/attachmentApiMethods.js';
 import { DEFAULT_INLINE_BUTTON_ATTRS } from './tiptapInlineButtonExtension.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import {
@@ -130,10 +131,7 @@ export function CardDescriptionInlineButtonEditModal({
       setIconUploadBusy(true);
       try {
         const response = await api.uploadCardAttachment(cardId, file);
-        const attachmentId = (response as { attachment?: { id?: unknown } }).attachment?.id;
-        if (typeof attachmentId !== 'string' || attachmentId.trim() === '') {
-          throw new Error('Upload succeeded but attachment id was missing.');
-        }
+        const attachmentId = requireUploadedAttachmentId(response);
         setIconSrc(api.getAttachmentFileUrl(attachmentId));
       } catch (error) {
         notifications.show({

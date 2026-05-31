@@ -1,4 +1,11 @@
-export type DomainErrorCode = 'FORBIDDEN' | 'NOT_FOUND' | 'VALIDATION_ERROR';
+export type DomainErrorCode =
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'VALIDATION_ERROR'
+  | 'CONFLICT'
+  | 'BAD_REQUEST'
+  | 'INVALID_INVITE'
+  | 'INVALID_REORDER';
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;
@@ -33,5 +40,22 @@ export class ValidationError extends DomainError {
     super(message, 'VALIDATION_ERROR', 400);
     this.name = 'ValidationError';
     this.details = details;
+  }
+}
+
+export class ConflictError extends DomainError {
+  constructor(message: string) {
+    super(message, 'CONFLICT', 409);
+    this.name = 'ConflictError';
+  }
+}
+
+export class BadRequestError extends DomainError {
+  constructor(
+    message: string,
+    code: 'BAD_REQUEST' | 'INVALID_INVITE' | 'INVALID_REORDER' = 'BAD_REQUEST',
+  ) {
+    super(message, code, 400);
+    this.name = 'BadRequestError';
   }
 }

@@ -1,26 +1,9 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { useAuth } from '../hooks/useAuth.js';
-import type { BoardThemeDefinition } from '../../shared/boardTheme.js';
+import type { ClientAuthUser } from '../utils/api/authApiMethods.js';
 
 interface AuthContextType {
-  user: {
-    id: string;
-    email: string;
-    username: string;
-    displayName: string;
-    profilePicture?: string;
-    isAppAdmin?: boolean;
-    preferences: {
-      theme: 'light' | 'dark' | 'auto';
-      notifications: boolean;
-      language: string;
-      notificationPreferences: Record<string, unknown>;
-      homeWorkspaceOrder?: string[];
-      homeBoardOrderByWorkspace?: Record<string, string[]>;
-      customBoardThemes?: BoardThemeDefinition[];
-    };
-    emailVerified: boolean;
-  } | null;
+  user: ClientAuthUser | null;
   loading: boolean;
   authenticated: boolean;
   login: (email: string, password: string) => Promise<void>;

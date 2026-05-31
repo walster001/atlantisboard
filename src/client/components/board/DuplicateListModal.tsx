@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, Button, Stack, Group, Text, Select, Loader } from '@mantine/core';
 import { KB_IOS_MODAL_HEADER_SAFE_CLASS } from '../../constants/iosModalSafeArea.js';
 import { api } from '../../utils/api.js';
+import { mapBoardSummariesToOptions } from '../../utils/api/boardApiMethods.js';
 import {
   applyDuplicateListToRuntime,
   type DuplicateListApplyPayload,
@@ -44,15 +45,7 @@ export function DuplicateListModal({
       try {
         if (workspaceId != null && workspaceId.trim() !== '') {
           const response = await api.getBoardsByWorkspace(workspaceId);
-          const rows = (response as { boards?: Array<{ _id?: string; id?: string; name?: string }> })
-            .boards ?? [];
-          const options = rows
-            .map((row) => {
-              const id = (row._id ?? row.id ?? '').trim();
-              const name = (row.name ?? '').trim() || 'Untitled board';
-              return id !== '' ? { id, name } : null;
-            })
-            .filter((row): row is BoardOption => row != null);
+          const options = mapBoardSummariesToOptions(response.boards ?? []);
           if (!cancelled) {
             setBoards(options);
           }

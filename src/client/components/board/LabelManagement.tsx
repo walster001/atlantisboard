@@ -31,6 +31,27 @@ interface Label {
   isPredefined?: boolean;
 }
 
+function parseManagementLabels(raw: readonly unknown[]): Label[] {
+  return raw.flatMap((entry): Label[] => {
+    if (entry == null || typeof entry !== 'object') {
+      return [];
+    }
+    const row = entry as Record<string, unknown>;
+    const rawId = row._id ?? row.id;
+    const _id = typeof rawId === 'string' ? rawId : '';
+    const name = typeof row.name === 'string' ? row.name : '';
+    const color = typeof row.color === 'string' ? row.color : '';
+    if (_id === '' || name === '' || color === '') {
+      return [];
+    }
+    const label: Label = { _id, name, color };
+    if (typeof row.isPredefined === 'boolean') {
+      label.isPredefined = row.isPredefined;
+    }
+    return [label];
+  });
+}
+
 interface LabelManagementProps {
   boardId: string;
   /** Rich header + rows styled like board settings reference */
@@ -47,7 +68,7 @@ export function LabelManagement({ boardId, layout = 'default' }: LabelManagement
     try {
       setLoading(true);
       const response = await api.getBoardLabels(boardId);
-      setLabels((response as { labels: Label[] }).labels);
+      setLabels(parseManagementLabels(response.labels));
     } catch (error) {
       console.error('Error loading labels:', error);
     } finally {

@@ -11,6 +11,8 @@ import {
   startBackupJob,
   startRestoreJob,
 } from '../services/backupService.js';
+import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
+import { parseOrThrow } from '../utils/zodValidation.js';
 
 const router = Router();
 
@@ -35,7 +37,7 @@ router.post('/run', async (req, res, next) => {
     const bodySchema = z.object({
       filename: z.string().trim().min(1).max(240),
     });
-    const body = bodySchema.parse(req.body);
+    const body = parseOrThrow(bodySchema, req.body);
     const { jobId, reusedExisting } = await startBackupJob({
       userId: authReq.user.id,
       ipAddress: req.ip || undefined,
@@ -47,18 +49,7 @@ router.post('/run', async (req, res, next) => {
       reusedExisting,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          errors: error.issues,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -137,7 +128,7 @@ router.post('/jobs/:jobId/cancel', async (req, res, next) => {
 router.delete('/:folderId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const folderId = backupFolderIdSchema.parse(req.params.folderId);
+    const folderId = parseOrThrow(backupFolderIdSchema, req.params.folderId);
     await deleteBackupFolder(folderId);
     logAuditEvent({
       userId: authReq.user.id,
@@ -149,18 +140,7 @@ router.delete('/:folderId', async (req, res, next) => {
     });
     res.status(204).end();
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          errors: error.issues,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -171,8 +151,8 @@ const restoreBodySchema = z.object({
 router.post('/:folderId/restore', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const folderId = backupFolderIdSchema.parse(req.params.folderId);
-    const body = restoreBodySchema.parse(req.body);
+    const folderId = parseOrThrow(backupFolderIdSchema, req.params.folderId);
+    const body = parseOrThrow(restoreBodySchema, req.body);
     if (body.confirmFolder !== folderId) {
       res.status(400).json({
         error: {
@@ -194,18 +174,7 @@ router.post('/:folderId/restore', async (req, res, next) => {
       reusedExisting,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          errors: error.issues,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 

@@ -1,4 +1,4 @@
-import { type Document } from 'mongoose';
+import { Types, type Document } from 'mongoose';
 import { Card, type ICard } from '../../models/Card.js';
 import { List } from '../../models/List.js';
 import { Board } from '../../models/Board.js';
@@ -105,7 +105,7 @@ export async function moveCard(
     newPos = insertPosBetween(before, after);
   }
 
-  card.listId = targetListId as unknown as typeof card.boardId;
+  card.listId = new Types.ObjectId(targetListId);
   card.set('pos', newPos);
   card.markModified('pos');
   await card.save();

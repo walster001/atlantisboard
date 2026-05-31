@@ -1,4 +1,4 @@
-import { type Document } from 'mongoose';
+import { Types, type Document } from 'mongoose';
 import { Card, type ICard } from '../../models/Card.js';
 import { Board } from '../../models/Board.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
@@ -28,8 +28,9 @@ export async function addCardAssignee(
     }
   }
 
-  if (!card.assignees.includes(assigneeId as unknown as typeof card.createdBy)) {
-    card.assignees.push(assigneeId as unknown as typeof card.createdBy);
+  const assigneeObjectId = new Types.ObjectId(assigneeId);
+  if (!card.assignees.some((id) => id.equals(assigneeObjectId))) {
+    card.assignees.push(assigneeObjectId);
     await card.save();
     emitCardUpdatedRealtime(card);
   }

@@ -1,30 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, isPublicPath } from '../utils/api.js';
+import { parseClientAuthUser, toUserDbPreferences, type ClientAuthUser } from '../utils/api/authApiMethods.js';
 import { usesHttpOnlyAuth } from '../config/env.js';
 import { socketClient } from '../utils/socket.js';
 import { resetLocalUserIdCache } from './socketHandlers/state.js';
 import { db, type UserDB } from '../store/database.js';
-import type { BoardThemeDefinition } from '../../shared/boardTheme.js';
 
-interface User {
-  id: string;
-  email: string;
-  username: string;
-  displayName: string;
-  profilePicture?: string;
-  /** Present when server includes it (login /me / register). */
-  isAppAdmin?: boolean;
-  preferences: {
-    theme: 'light' | 'dark' | 'auto';
-    notifications: boolean;
-    language: string;
-    notificationPreferences: Record<string, unknown>;
-    homeWorkspaceOrder?: string[];
-    homeBoardOrderByWorkspace?: Record<string, string[]>;
-    customBoardThemes?: BoardThemeDefinition[];
-  };
-  emailVerified: boolean;
-}
+type User = ClientAuthUser;
 
 interface AuthState {
   user: User | null;
@@ -54,7 +36,7 @@ export function useAuth() {
       }
 
       const response = await api.getCurrentUser();
-      const user = (response as { user: User }).user;
+      const user = parseClientAuthUser(response.user);
 
       if (!user || !user.id) {
         throw new Error('Invalid user data received');
@@ -66,7 +48,7 @@ export function useAuth() {
         email: user.email,
         username: user.username,
         displayName: user.displayName,
-        preferences: user.preferences,
+        preferences: toUserDbPreferences(user.preferences),
         emailVerified: user.emailVerified,
         lastSyncAt: new Date(),
       };
@@ -121,7 +103,7 @@ export function useAuth() {
 
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     const response = await api.login(email, password);
-    const user = (response as { user: User }).user;
+    const user = parseClientAuthUser(response.user);
 
     // Save to IndexedDB
     const userDB: UserDB = {
@@ -129,7 +111,7 @@ export function useAuth() {
       email: user.email,
       username: user.username,
       displayName: user.displayName,
-      preferences: user.preferences,
+      preferences: toUserDbPreferences(user.preferences),
       emailVerified: user.emailVerified,
       lastSyncAt: new Date(),
     };

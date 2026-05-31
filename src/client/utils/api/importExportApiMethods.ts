@@ -1,6 +1,17 @@
+import { z } from 'zod';
 import type { BoardExportFormat } from '../../../shared/export/boardExportFormats.js';
 import type { ApiClient } from '../api.js';
 import { downloadBlob, parseContentDispositionFilename } from '../downloadBlob.js';
+
+export const importJobStatusResponseSchema = z.object({
+  job: z.unknown(),
+});
+
+export type ImportJobStatusResponse = z.infer<typeof importJobStatusResponseSchema>;
+
+export function parseImportJobStatusResponse(data: unknown): ImportJobStatusResponse {
+  return importJobStatusResponseSchema.parse(data);
+}
 
 export interface ImportExportApiMethods {
   importTrello(
@@ -24,7 +35,7 @@ export interface ImportExportApiMethods {
     file: File,
     workspaceId?: string,
   ): Promise<{ message: string; jobId: string }>;
-  getImportJobStatus(jobId: string): Promise<{ job: unknown }>;
+  getImportJobStatus(jobId: string): Promise<ImportJobStatusResponse>;
   exportBoard(boardId: string, format: BoardExportFormat): Promise<string>;
   exportBoardAsJSON(boardId: string): Promise<void>;
   exportBoardAsCSV(boardId: string, columns?: string[]): Promise<void>;
@@ -91,7 +102,7 @@ export const importExportApiMethods: ImportExportApiMethods = {
 
   async getImportJobStatus(this: ApiClient, jobId) {
     const response = await this.client.get(`/import/jobs/${jobId}`);
-    return response.data as { job: unknown };
+    return parseImportJobStatusResponse(response.data);
   },
 
   async exportBoard(this: ApiClient, boardId, format) {

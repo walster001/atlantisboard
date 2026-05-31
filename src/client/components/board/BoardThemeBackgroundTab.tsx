@@ -16,7 +16,7 @@ interface BoardThemeBackgroundTabProps {
   mobileLayout?: boolean;
 }
 
-export function BoardThemeBackgroundTab({
+function BoardThemeBackgroundTabInner({
   boardId,
   canChangeTheme,
   canManageCustomThemes,
@@ -174,4 +174,9 @@ export function BoardThemeBackgroundTab({
       />
     </Box>
   );
+}
+
+/** Remounts theme state when switching boards (§1.2 — avoid reset-via-effect). */
+export function BoardThemeBackgroundTab(props: BoardThemeBackgroundTabProps) {
+  return <BoardThemeBackgroundTabInner key={props.boardId} {...props} />;
 }

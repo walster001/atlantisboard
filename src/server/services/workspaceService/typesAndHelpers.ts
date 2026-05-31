@@ -75,6 +75,18 @@ export function workspaceActorRoleKey(workspace: Document & IWorkspace, userId: 
   return member.roleKey;
 }
 
+export function buildWorkspaceRealtimePayload(workspace: Document & IWorkspace): {
+  workspaceId: string;
+  data: Record<string, unknown>;
+  serverTs: number;
+} {
+  return {
+    workspaceId: workspace._id.toString(),
+    data: workspace.toObject() as Record<string, unknown>,
+    serverTs: Date.now(),
+  };
+}
+
 export function toWorkspaceSummary(workspace: Document & IWorkspace): WorkspaceSummaryDTO {
   return {
     id: workspace._id.toString(),

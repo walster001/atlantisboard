@@ -279,5 +279,29 @@ export async function requireSignedAssetOrAuth(
     });
     return false;
   }
+
+  const user = await User.findById(payload.userId).select('+failedLoginAttempts +lockedUntil isAppAdmin');
+  if (!user) {
+    res.status(401).json({
+      error: {
+        message: 'User not found',
+        code: 'USER_NOT_FOUND',
+        statusCode: 401,
+      },
+    });
+    return false;
+  }
+
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    res.status(403).json({
+      error: {
+        message: 'Account is locked',
+        code: 'ACCOUNT_LOCKED',
+        statusCode: 403,
+      },
+    });
+    return false;
+  }
+
   return true;
 }

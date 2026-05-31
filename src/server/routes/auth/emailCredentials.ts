@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
-import { z } from 'zod';
 import { User } from '../../models/User.js';
 import { AdminConfig } from '../../models/AdminConfig.js';
 import { hashPassword, verifyPassword, validatePassword } from '../../utils/password.js';
@@ -21,6 +20,8 @@ import {
   registerSchema,
   sendAuthSuccess,
 } from './_helpers.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
 
 const router = Router();
 
@@ -33,7 +34,7 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
       return;
     }
 
-    const validated = registerSchema.parse(req.body);
+    const validated = parseOrThrow(registerSchema, req.body);
 
     const passwordValidation = validatePassword(validated.password);
     if (!passwordValidation.valid) {
@@ -198,18 +199,7 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
       });
       return;
     }
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          errors: error.issues,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -219,7 +209,7 @@ router.post('/login', authRateLimiter, loginIpRateLimiter, async (req, res, next
       return;
     }
 
-    const validated = loginSchema.parse(req.body);
+    const validated = parseOrThrow(loginSchema, req.body);
 
     const user = await User.findOne({ email: validated.email }).select('+passwordHash +failedLoginAttempts +lockedUntil');
 
@@ -351,18 +341,7 @@ router.post('/login', authRateLimiter, loginIpRateLimiter, async (req, res, next
       emailVerified: user.emailVerified,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          errors: error.issues,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 

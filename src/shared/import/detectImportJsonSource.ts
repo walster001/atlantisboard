@@ -73,6 +73,13 @@ function sampleBoard(o: Record<string, unknown>): Record<string, unknown> | null
   return null;
 }
 
+export class ImportJsonUnrecognizedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ImportJsonUnrecognizedError';
+  }
+}
+
 export class ImportJsonSourceMismatchError extends Error {
   readonly expected: 'trello' | 'wekan';
   readonly detected: 'trello' | 'wekan';
@@ -92,7 +99,7 @@ export class ImportJsonSourceMismatchError extends Error {
 export function detectImportJsonSource(raw: unknown): 'trello' | 'wekan' {
   const o = unwrapImportJsonRoot(raw);
   if (o == null) {
-    throw new Error('Import file must contain a JSON object.');
+    throw new ImportJsonUnrecognizedError('Import file must contain a JSON object.');
   }
 
   const format = str(o._format)?.toLowerCase() ?? '';
@@ -150,7 +157,7 @@ export function detectImportJsonSource(raw: unknown): 'trello' | 'wekan' {
     return 'trello';
   }
 
-  throw new Error(
+  throw new ImportJsonUnrecognizedError(
     'Could not tell if this file is Trello or Wekan JSON. Open it in a text editor: Trello exports use fields like "id", "idBoard", and "idList"; Wekan exports use "_id", "boardId", and "listId".',
   );
 }

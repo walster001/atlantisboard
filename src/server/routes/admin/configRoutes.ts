@@ -15,7 +15,8 @@ import {
 } from '../../services/mysqlService.js';
 import { sendTestEmail } from '../../services/emailService.js';
 import type { AuthenticatedRequest } from '../../types/express.js';
-import { parseOrThrow, respondZodValidationError } from '../../utils/zodValidation.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 
 const testExternalMysqlSavedSchema = z.object({
   useSavedCredentials: z.literal(true),
@@ -122,10 +123,7 @@ export function registerConfigRoutes(router: Router): void {
 
       res.json(result);
     } catch (error) {
-      if (respondZodValidationError(res, error)) {
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
@@ -138,17 +136,7 @@ export function registerConfigRoutes(router: Router): void {
       );
       res.json({ config: sanitizeAdminConfigForClient(config) });
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
-        res.status(404).json({
-          error: {
-            message: error.message,
-            code: 'NOT_FOUND',
-            statusCode: 404,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
@@ -162,10 +150,7 @@ export function registerConfigRoutes(router: Router): void {
       const result = await sendTestEmail(recipientEmail);
       res.json(result);
     } catch (error) {
-      if (respondZodValidationError(res, error)) {
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 }

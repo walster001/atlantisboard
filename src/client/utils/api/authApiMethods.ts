@@ -1,7 +1,131 @@
+import { z } from 'zod';
+import type { BoardThemeDefinition } from '../../../shared/boardTheme.js';
 import { type PublicLoginBranding } from '../../../shared/types/loginBranding.js';
 import { type PublicAppBranding } from '../../../shared/types/appBranding.js';
 import { type PublicLoginOptions } from '../../../shared/types/loginOptions.js';
 import { type ApiClient } from '../api.js';
+
+export const authUserResponseSchema = z.object({
+  user: z.unknown(),
+});
+
+export type AuthUserResponse = z.infer<typeof authUserResponseSchema>;
+
+export function parseAuthUserResponse(data: unknown): AuthUserResponse {
+  return authUserResponseSchema.parse(data);
+}
+
+export const loginResponseSchema = z.object({
+  token: z.string().optional(),
+  user: z.unknown(),
+});
+
+export type LoginResponse = z.infer<typeof loginResponseSchema>;
+
+export function parseLoginResponse(data: unknown): LoginResponse {
+  return loginResponseSchema.parse(data);
+}
+
+export const clientAuthUserSchema = z.object({
+  id: z.string().min(1),
+  email: z.string(),
+  username: z.string(),
+  displayName: z.string(),
+  profilePicture: z.string().optional(),
+  isAppAdmin: z.boolean().optional(),
+  preferences: z.object({
+    theme: z.enum(['light', 'dark', 'auto']),
+    notifications: z.boolean(),
+    language: z.string(),
+    notificationPreferences: z.record(z.string(), z.unknown()),
+    homeWorkspaceOrder: z.array(z.string()).optional(),
+    homeBoardOrderByWorkspace: z.record(z.string(), z.array(z.string())).optional(),
+    customBoardThemes: z.array(z.unknown()).optional(),
+  }),
+  emailVerified: z.boolean(),
+});
+
+export interface ClientAuthUser {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  profilePicture?: string;
+  isAppAdmin?: boolean;
+  preferences: {
+    theme: 'light' | 'dark' | 'auto';
+    notifications: boolean;
+    language: string;
+    notificationPreferences: Record<string, unknown>;
+    homeWorkspaceOrder?: string[];
+    homeBoardOrderByWorkspace?: Record<string, string[]>;
+    customBoardThemes?: BoardThemeDefinition[];
+  };
+  emailVerified: boolean;
+}
+
+export function parseClientAuthUser(user: unknown): ClientAuthUser {
+  const parsed = clientAuthUserSchema.parse(user);
+  const result: ClientAuthUser = {
+    id: parsed.id,
+    email: parsed.email,
+    username: parsed.username,
+    displayName: parsed.displayName,
+    preferences: {
+      theme: parsed.preferences.theme,
+      notifications: parsed.preferences.notifications,
+      language: parsed.preferences.language,
+      notificationPreferences: parsed.preferences.notificationPreferences,
+    },
+    emailVerified: parsed.emailVerified,
+  };
+  if (parsed.profilePicture !== undefined) {
+    result.profilePicture = parsed.profilePicture;
+  }
+  if (parsed.isAppAdmin !== undefined) {
+    result.isAppAdmin = parsed.isAppAdmin;
+  }
+  if (parsed.preferences.homeWorkspaceOrder !== undefined) {
+    result.preferences.homeWorkspaceOrder = parsed.preferences.homeWorkspaceOrder;
+  }
+  if (parsed.preferences.homeBoardOrderByWorkspace !== undefined) {
+    result.preferences.homeBoardOrderByWorkspace = parsed.preferences.homeBoardOrderByWorkspace;
+  }
+  if (parsed.preferences.customBoardThemes !== undefined) {
+    result.preferences.customBoardThemes = parsed.preferences.customBoardThemes as BoardThemeDefinition[];
+  }
+  return result;
+}
+
+export function toUserDbPreferences(preferences: ClientAuthUser['preferences']): {
+  theme: 'light' | 'dark' | 'auto';
+  notifications: boolean;
+  language: string;
+  notificationPreferences: Record<string, unknown>;
+  homeWorkspaceOrder?: string[];
+  homeBoardOrderByWorkspace?: Record<string, string[]>;
+} {
+  const base: {
+    theme: 'light' | 'dark' | 'auto';
+    notifications: boolean;
+    language: string;
+    notificationPreferences: Record<string, unknown>;
+    homeWorkspaceOrder?: string[];
+    homeBoardOrderByWorkspace?: Record<string, string[]>;
+  } = {
+    theme: preferences.theme,
+    notifications: preferences.notifications,
+    language: preferences.language,
+    notificationPreferences: preferences.notificationPreferences,
+  };
+  if (preferences.homeWorkspaceOrder !== undefined) {
+    base.homeWorkspaceOrder = preferences.homeWorkspaceOrder;
+  }
+  if (preferences.homeBoardOrderByWorkspace !== undefined) {
+    base.homeBoardOrderByWorkspace = preferences.homeBoardOrderByWorkspace;
+  }
+  return base;
+}
 
 export interface AuthApiMethods {
   register(data: {
@@ -10,10 +134,10 @@ export interface AuthApiMethods {
     password: string;
     displayName: string;
   }): Promise<unknown>;
-  login(email: string, password: string): Promise<{ token?: string; user: unknown }>;
-  oauthExchange(): Promise<{ user: unknown }>;
+  login(email: string, password: string): Promise<LoginResponse>;
+  oauthExchange(): Promise<AuthUserResponse>;
   logout(): Promise<void>;
-  getCurrentUser(): Promise<unknown>;
+  getCurrentUser(): Promise<AuthUserResponse>;
   forgotPassword(email: string): Promise<void>;
   resetPassword(token: string, password: string): Promise<void>;
   verifyEmail(token: string): Promise<unknown>;
@@ -40,7 +164,7 @@ export const authApiMethods: AuthApiMethods = {
     return response.data;
   },
 
-  async oauthExchange(this: ApiClient): Promise<{ user: unknown }> {
+  async oauthExchange(this: ApiClient): Promise<AuthUserResponse> {
     const response = await this.client.post('/auth/oauth/exchange');
     const data = response.data;
     if (data != null && typeof data === 'object' && 'token' in data) {
@@ -49,7 +173,7 @@ export const authApiMethods: AuthApiMethods = {
         this.setToken(token);
       }
     }
-    return data as { user: unknown };
+    return parseAuthUserResponse(data);
   },
 
   async login(this: ApiClient, email, password) {
@@ -63,7 +187,7 @@ export const authApiMethods: AuthApiMethods = {
         this.setToken(token);
       }
     }
-    return data as { token?: string; user: unknown };
+    return parseLoginResponse(data);
   },
 
   async logout(this: ApiClient) {
@@ -73,7 +197,7 @@ export const authApiMethods: AuthApiMethods = {
 
   async getCurrentUser(this: ApiClient) {
     const response = await this.client.get('/auth/me');
-    return response.data;
+    return parseAuthUserResponse(response.data);
   },
 
   async forgotPassword(this: ApiClient, email) {

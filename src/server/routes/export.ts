@@ -1,6 +1,7 @@
 import { Router, type RequestHandler } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
+import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import {
   BOARD_EXPORT_FORMAT_EXTENSIONS,
@@ -16,30 +17,6 @@ const router = Router();
 
 router.use(requireAuth as RequestHandler);
 router.use(apiRateLimiter);
-
-function handleExportError(error: unknown, res: import('express').Response, next: (error: unknown) => void): void {
-  if (error instanceof Error && error.message.includes('not found')) {
-    res.status(404).json({
-      error: {
-        message: error.message,
-        code: 'NOT_FOUND',
-        statusCode: 404,
-      },
-    });
-    return;
-  }
-  if (error instanceof Error && error.message.includes('Access denied')) {
-    res.status(403).json({
-      error: {
-        message: error.message,
-        code: 'FORBIDDEN',
-        statusCode: 403,
-      },
-    });
-    return;
-  }
-  next(error);
-}
 
 async function sendJsonBoardExport(
   req: import('express').Request,
@@ -59,7 +36,7 @@ async function sendJsonBoardExport(
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.json(payload);
   } catch (error) {
-    handleExportError(error, res, next);
+    handleApiRouteError(res, error, next);
   }
 }
 
@@ -80,7 +57,7 @@ async function sendCsvBoardExport(
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (error) {
-    handleExportError(error, res, next);
+    handleApiRouteError(res, error, next);
   }
 }
 

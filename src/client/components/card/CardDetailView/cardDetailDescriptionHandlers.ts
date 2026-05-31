@@ -4,6 +4,7 @@ import {
   collectReferencedAttachmentIdsFromDescriptionJson,
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
 import { api } from '../../../utils/api.js';
+import { requireUploadedAttachmentId } from '../../../utils/api/attachmentApiMethods.js';
 import {
   beginAttachmentUploadNotification,
   completeAttachmentUploadNotification,
@@ -47,10 +48,7 @@ export async function runDescriptionUpdate({
               updateAttachmentUploadNotification(label, progress);
               onProgress?.(progress);
             });
-            const attachmentId = (response as { attachment?: { id?: unknown } }).attachment?.id;
-            if (typeof attachmentId !== 'string' || attachmentId.trim() === '') {
-              throw new Error('Upload succeeded but attachment id was missing.');
-            }
+            const attachmentId = requireUploadedAttachmentId(response);
             completeAttachmentUploadNotification(label);
             return api.getAttachmentFileUrl(attachmentId);
           } catch (error) {

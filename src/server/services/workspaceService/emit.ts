@@ -27,7 +27,7 @@ export function emitWorkspaceHomeSnapshotToUser(
     : toBoardOnlyWorkspaceSummary(workspace);
   emitToUser(userId, 'workspace:updated', {
     workspaceId,
-    data: summary as unknown as Record<string, unknown>,
+    data: { ...summary },
     serverTs: Date.now(),
   });
 }

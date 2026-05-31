@@ -19,6 +19,8 @@ import {
   loadSystemThemeCatalog,
   replaceUserCustomThemes,
 } from '../../services/boardThemeService.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import { normalizeBoardThemeSettings } from '../../../shared/boardTheme.js';
 
 const router = Router();
@@ -243,7 +245,7 @@ router.put('/me', apiRateLimiter, requireAuth as RequestHandler, async (req, res
     const authReq = req as AuthenticatedRequest;
 
     // Validate request body
-    const validated = updateUserProfileSchema.parse(req.body);
+    const validated = parseOrThrow(updateUserProfileSchema, req.body);
 
     // Find user
     const user = await User.findById(authReq.user.id);
@@ -280,19 +282,7 @@ router.put('/me', apiRateLimiter, requireAuth as RequestHandler, async (req, res
       },
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -342,7 +332,7 @@ router.get('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, asy
 router.put('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = updatePreferencesSchema.parse(req.body);
+    const validated = parseOrThrow(updatePreferencesSchema, req.body);
 
     const user = await User.findById(authReq.user.id);
     if (!user) {
@@ -417,19 +407,7 @@ router.put('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, asy
       },
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 

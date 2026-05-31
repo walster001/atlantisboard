@@ -1,6 +1,7 @@
 import { type Router } from 'express';
-import { z } from 'zod';
 import type { AuthenticatedRequest } from '../../types/express.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import {
   createBoard,
   deleteBoard,
@@ -16,7 +17,7 @@ export function registerBoardCollectionRoutes(router: Router): void {
   router.post('/', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const validated = createBoardSchema.parse(req.body);
+      const validated = parseOrThrow(createBoardSchema, req.body);
       const board = await createBoard({
         ...validated,
         ownerId: authReq.user.id,
@@ -24,28 +25,7 @@ export function registerBoardCollectionRoutes(router: Router): void {
 
       res.status(201).json({ board });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            details: error.issues,
-          },
-        });
-        return;
-      }
-      if (error instanceof Error && error.message.includes('permissions')) {
-        res.status(403).json({
-          error: {
-            message: error.message,
-            code: 'FORBIDDEN',
-            statusCode: 403,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
@@ -53,7 +33,7 @@ export function registerBoardCollectionRoutes(router: Router): void {
     try {
       const authReq = req as AuthenticatedRequest;
       const workspaceId = req.query.workspaceId as string | undefined;
-      const query = boardViewQuerySchema.parse(req.query);
+      const query = parseOrThrow(boardViewQuerySchema, req.query);
       const options =
         query.view === undefined && query.skip === undefined && query.limit === undefined
           ? undefined
@@ -70,25 +50,14 @@ export function registerBoardCollectionRoutes(router: Router): void {
         ...(query.limit !== undefined ? { hasMore } : {}),
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            details: error.issues,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
   router.get('/workspace/:workspaceId', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const query = boardViewQuerySchema.parse(req.query);
+      const query = parseOrThrow(boardViewQuerySchema, req.query);
       const options =
         query.view === undefined && query.skip === undefined && query.limit === undefined
           ? undefined
@@ -105,18 +74,7 @@ export function registerBoardCollectionRoutes(router: Router): void {
         ...(query.limit !== undefined ? { hasMore } : {}),
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            details: error.issues,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 }
@@ -125,7 +83,7 @@ export function registerBoardItemReadUpdateRoutes(router: Router): void {
   router.get('/:id', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const query = boardViewQuerySchema.parse(req.query);
+      const query = parseOrThrow(boardViewQuerySchema, req.query);
       const options = query.view !== undefined ? { view: query.view } : undefined;
       const board = await getBoardById(req.params.id, authReq.user.id, options);
       if (!board) {
@@ -141,25 +99,14 @@ export function registerBoardItemReadUpdateRoutes(router: Router): void {
       const responseBoard = query.view === 'summary' ? selectFields([board], query.fields)[0] : board;
       res.json({ board: responseBoard });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            details: error.issues,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
   router.put('/:id', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const validated = updateBoardSchema.parse(req.body);
+      const validated = parseOrThrow(updateBoardSchema, req.body);
       const board = await updateBoard(req.params.id, validated, authReq.user.id);
       if (!board) {
         res.status(404).json({
@@ -173,28 +120,7 @@ export function registerBoardItemReadUpdateRoutes(router: Router): void {
       }
       res.json({ board });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            details: error.issues,
-          },
-        });
-        return;
-      }
-      if (error instanceof Error && error.message.includes('permissions')) {
-        res.status(403).json({
-          error: {
-            message: error.message,
-            code: 'FORBIDDEN',
-            statusCode: 403,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 }
@@ -216,17 +142,7 @@ export function registerBoardDeleteRoute(router: Router): void {
       }
       res.json({ message: 'Board deleted successfully' });
     } catch (error) {
-      if (error instanceof Error && error.message.includes('owner')) {
-        res.status(403).json({
-          error: {
-            message: error.message,
-            code: 'FORBIDDEN',
-            statusCode: 403,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 }

@@ -2,6 +2,8 @@ import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
+import { parseOrThrow } from '../utils/zodValidation.js';
+import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import {
   createComment,
@@ -27,33 +29,12 @@ const updateCommentSchema = z.object({
 router.post('/comments', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = createCommentSchema.parse(req.body);
+    const validated = parseOrThrow(createCommentSchema, req.body);
     const card = await createComment(validated, authReq.user.id);
 
     res.status(201).json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -61,7 +42,7 @@ router.post('/comments', async (req, res, next) => {
 router.put('/comments/:commentId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = updateCommentSchema.parse(req.body);
+    const validated = parseOrThrow(updateCommentSchema, req.body);
     const { cardId } = req.body;
     if (!cardId || typeof cardId !== 'string') {
       res.status(400).json({
@@ -86,28 +67,7 @@ router.put('/comments/:commentId', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -139,19 +99,8 @@ router.delete('/comments/:commentId', async (req, res, next) => {
     }
     res.json({ message: 'Comment deleted successfully' });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
 export { router as commentRoutes };
-

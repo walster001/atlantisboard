@@ -4,6 +4,8 @@ import { User } from '../../models/User.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { apiRateLimiter } from '../../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../../types/express.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import { getVapidPublicKey } from '../../config/vapid.js';
 
 const router = Router();
@@ -30,7 +32,7 @@ router.get('/vapid-public-key', apiRateLimiter, async (_req, res, next) => {
 router.post('/me/push-subscription', apiRateLimiter, requireAuth as RequestHandler, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = pushSubscriptionSchema.parse(req.body);
+    const validated = parseOrThrow(pushSubscriptionSchema, req.body);
     const user = await User.findById(authReq.user.id).select('+pushSubscription');
     if (!user) {
       res.status(404).json({
@@ -42,18 +44,7 @@ router.post('/me/push-subscription', apiRateLimiter, requireAuth as RequestHandl
     await user.save();
     res.json({ message: 'Push subscription registered successfully' });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 

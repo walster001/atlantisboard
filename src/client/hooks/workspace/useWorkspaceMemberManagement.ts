@@ -2,10 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import {
   compareUserRowsByDisplayName,
-  isSearchRequestCancelled,
-  MEMBER_DIRECTORY_PAGE_LIMIT,
-  sortDirectoryUserRows,
 } from '../../hooks/members/memberDirectoryUtils.js';
+import { useMemberDirectorySearch } from '../../hooks/members/useMemberDirectorySearch.js';
 import { api } from '../../utils/api.js';
 import { subscribeSocketWorkspaceUpdated } from '../../utils/socketRealtimeBridge.js';
 import { builtinRoleSelectOptions } from '../../../shared/permissions/catalog.js';
@@ -36,12 +34,6 @@ export function useWorkspaceMemberManagement({
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [owner, setOwner] = useState<UserRow | null>(null);
   const [members, setMembers] = useState<WorkspaceMemberRow[]>([]);
-
-  const [directoryQuery, setDirectoryQuery] = useState('');
-  const [directoryUsers, setDirectoryUsers] = useState<UserRow[]>([]);
-  const [directoryLoading, setDirectoryLoading] = useState(false);
-  const [directoryLoadingMore, setDirectoryLoadingMore] = useState(false);
-  const [directoryNextCursor, setDirectoryNextCursor] = useState<string | undefined>(undefined);
   const [addRoles, setAddRoles] = useState<Record<string, WorkspaceRoleKey>>({});
   const [roleOptions, setRoleOptions] = useState<
     ReadonlyArray<{ value: WorkspaceRoleKey; label: string }>
@@ -51,8 +43,62 @@ export function useWorkspaceMemberManagement({
 
   const ownerIdRef = useRef<string | undefined>(undefined);
   const membersRef = useRef<WorkspaceMemberRow[]>([]);
-  const directoryPagingLockRef = useRef(false);
   membersRef.current = members;
+
+  const [directoryRefreshKey, setDirectoryRefreshKey] = useState(0);
+
+  const handleDirectoryUsersLoaded = useCallback(
+    (users: readonly UserRow[], context: { readonly append: boolean; readonly query: string }) => {
+      if (context.append) {
+        setAddRoles((prev) => {
+          const next: Record<string, WorkspaceRoleKey> = { ...prev };
+          for (const user of users) {
+            if (next[user._id] === undefined) {
+              next[user._id] = 'viewer';
+            }
+          }
+          return next;
+        });
+        return;
+      }
+      if (context.query.trim() === '') {
+        setAddRoles((prev) => {
+          const next: Record<string, WorkspaceRoleKey> = { ...prev };
+          for (const user of users) {
+            if (next[user._id] === undefined) {
+              next[user._id] = 'viewer';
+            }
+          }
+          return next;
+        });
+        return;
+      }
+      setAddRoles((prev) => {
+        const next: Record<string, WorkspaceRoleKey> = {};
+        for (const user of users) {
+          next[user._id] = prev[user._id] ?? 'viewer';
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const {
+    directoryQuery,
+    setDirectoryQuery,
+    directoryUsers,
+    setDirectoryUsers,
+    directoryLoading,
+    directoryLoadingMore,
+    handleDirectoryEndReached,
+  } = useMemberDirectorySearch<UserRow>({
+    scope: 'workspace',
+    scopeId: workspaceId,
+    refreshKey: directoryRefreshKey,
+    mapUsers: (users) => users as UserRow[],
+    onUsersLoaded: handleDirectoryUsersLoaded,
+  });
 
   const loadWorkspaceMembers = useCallback(
     async (opts?: { readonly quiet?: boolean }) => {
@@ -62,7 +108,7 @@ export function useWorkspaceMemberManagement({
           setWorkspaceLoading(true);
         }
         const response = await api.getWorkspace(workspaceId);
-        const workspace = (response as { workspace: unknown }).workspace;
+        const workspace = response.workspace;
         const { owner: ownerRow, members: nextMembers, ownerIdStr } =
           workspacePayloadToMemberState(workspace);
         ownerIdRef.current = ownerIdStr;
@@ -86,7 +132,6 @@ export function useWorkspaceMemberManagement({
 
   const loadWorkspaceMembersRef = useRef(loadWorkspaceMembers);
   loadWorkspaceMembersRef.current = loadWorkspaceMembers;
-  const [directoryRefreshKey, setDirectoryRefreshKey] = useState(0);
 
   useEffect(() => {
     void loadWorkspaceMembers();
@@ -129,150 +174,6 @@ export function useWorkspaceMemberManagement({
     };
   }, [workspaceId]);
 
-  useEffect(() => {
-    if (!workspaceId) {
-      return undefined;
-    }
-
-    const controller = new AbortController();
-    const q = directoryQuery.trim();
-
-    const run = async (): Promise<void> => {
-      setDirectoryLoading(true);
-      setDirectoryNextCursor(undefined);
-      try {
-        if (q === '') {
-          const response = await api.getWorkspaceMemberCandidates(workspaceId, {
-            limit: MEMBER_DIRECTORY_PAGE_LIMIT,
-            signal: controller.signal,
-          });
-          if (controller.signal.aborted) {
-            return;
-          }
-          const users = (response.users as UserRow[]) || [];
-          setDirectoryUsers(sortDirectoryUserRows(users));
-          setDirectoryNextCursor(
-            response.nextCursor !== undefined && response.nextCursor !== ''
-              ? response.nextCursor
-              : undefined,
-          );
-          setAddRoles((prev) => {
-            const next: Record<string, WorkspaceRoleKey> = { ...prev };
-            for (const u of users) {
-              if (next[u._id] === undefined) {
-                next[u._id] = 'viewer';
-              }
-            }
-            return next;
-          });
-        } else {
-          const response = await api.searchUsers(q, {
-            workspaceId,
-            limit: MEMBER_DIRECTORY_PAGE_LIMIT,
-            signal: controller.signal,
-          });
-          if (controller.signal.aborted) {
-            return;
-          }
-          const users = (response.users as UserRow[]) || [];
-          setDirectoryUsers(sortDirectoryUserRows(users));
-          setDirectoryNextCursor(
-            response.nextCursor !== undefined && response.nextCursor !== ''
-              ? response.nextCursor
-              : undefined,
-          );
-          setAddRoles((prev) => {
-            const next: Record<string, WorkspaceRoleKey> = {};
-            for (const u of users) {
-              next[u._id] = prev[u._id] ?? 'viewer';
-            }
-            return next;
-          });
-        }
-      } catch (error) {
-        if (isSearchRequestCancelled(error)) {
-          return;
-        }
-        console.error('Error loading user directory:', error);
-        notifications.show({
-          color: 'red',
-          title: 'Could not load users',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
-        if (!controller.signal.aborted) {
-          setDirectoryUsers([]);
-          setDirectoryNextCursor(undefined);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setDirectoryLoading(false);
-        }
-      }
-    };
-
-    void run();
-    return () => controller.abort();
-  }, [workspaceId, directoryQuery, directoryRefreshKey]);
-
-  const handleDirectoryEndReached = useCallback(() => {
-    if (
-      directoryNextCursor === undefined ||
-      directoryLoading ||
-      directoryLoadingMore ||
-      directoryPagingLockRef.current
-    ) {
-      return;
-    }
-
-    directoryPagingLockRef.current = true;
-    setDirectoryLoadingMore(true);
-    const querySnapshot = directoryQuery.trim();
-    const cursorSnapshot = directoryNextCursor;
-
-    void (async () => {
-      try {
-        const response =
-          querySnapshot === ''
-            ? await api.getWorkspaceMemberCandidates(workspaceId, {
-                limit: MEMBER_DIRECTORY_PAGE_LIMIT,
-                cursor: cursorSnapshot,
-              })
-            : await api.searchUsers(querySnapshot, {
-                workspaceId,
-                limit: MEMBER_DIRECTORY_PAGE_LIMIT,
-                cursor: cursorSnapshot,
-              });
-        const users = (response.users as UserRow[]) || [];
-        setDirectoryUsers((prev) => {
-          const seen = new Set(prev.map((u) => u._id));
-          const merged = [...prev];
-          for (const u of users) {
-            if (!seen.has(u._id)) {
-              seen.add(u._id);
-              merged.push(u);
-            }
-          }
-          return sortDirectoryUserRows(merged);
-        });
-        setDirectoryNextCursor(
-          response.nextCursor !== undefined && response.nextCursor !== '' ? response.nextCursor : undefined,
-        );
-        setAddRoles((prev) => {
-          const next = { ...prev };
-          for (const u of users) {
-            if (next[u._id] === undefined) next[u._id] = 'viewer';
-          }
-          return next;
-        });
-      } catch (error) {
-        console.error('Error loading more users:', error);
-      } finally {
-        directoryPagingLockRef.current = false;
-        setDirectoryLoadingMore(false);
-      }
-    })();
-  }, [directoryNextCursor, directoryLoading, directoryLoadingMore, directoryQuery, workspaceId]);
-
   const filteredMembers = useMemo(() => {
     if (memberFilterQuery.trim() === '') return members;
     return members.filter((m) => memberMatchesQuery(m, memberFilterQuery));
@@ -309,9 +210,7 @@ export function useWorkspaceMemberManagement({
       }
       try {
         const roleKey = addRoles[userId] ?? 'viewer';
-        const res = (await api.addWorkspaceMember(workspaceId, userId, roleKey)) as {
-          workspace?: unknown;
-        };
+        const res = await api.addWorkspaceMember(workspaceId, userId, roleKey);
         if (res.workspace !== undefined) {
           applyWorkspaceFromMutationResponse(res.workspace);
         } else {
@@ -370,9 +269,7 @@ export function useWorkspaceMemberManagement({
         return;
       }
       try {
-        const res = (await api.updateWorkspaceMemberRole(workspaceId, userId, roleKey)) as {
-          workspace?: unknown;
-        };
+        const res = await api.updateWorkspaceMemberRole(workspaceId, userId, roleKey);
         if (res.workspace !== undefined) {
           applyWorkspaceFromMutationResponse(res.workspace);
         } else {

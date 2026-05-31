@@ -22,6 +22,7 @@ import {
 import { resolveAttachmentForUser } from '../services/attachmentAccessService.js';
 import { Card } from '../models/Card.js';
 import { hasPermission } from '../utils/permissions.js';
+import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -216,29 +217,7 @@ router.post('/cards/:cardId/attachments', fileUploadRateLimiter, cardAttachmentM
 
     res.status(201).json({ attachment: result });
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes('exceeds maximum')) {
-        res.status(400).json({
-          error: {
-            message: error.message,
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-          },
-        });
-        return;
-      }
-      if (error.message.includes('malware') || error.message.includes('security scan')) {
-        res.status(400).json({
-          error: {
-            message: error.message,
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-          },
-        });
-        return;
-      }
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   } finally {
     if (tempPath !== undefined) {
       await unlink(tempPath).catch(() => {});
@@ -294,17 +273,7 @@ router.delete('/cards/:cardId/attachments/:attachmentId', async (req, res, next)
 
     res.json({ message: 'Attachment deleted successfully' });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('not found')) {
-      res.status(404).json({
-        error: {
-          message: error.message,
-          code: 'NOT_FOUND',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 

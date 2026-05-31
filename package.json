@@ -22,6 +22,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
     "typecheck": "tsc --noEmit",
     "typecheck:ci": "tsc --noEmit -p tsconfig.typecheck.json",
+    "check:src-line-counts": "./scripts/check-src-line-counts.sh",
     "release:bundle": "./scripts/release-bundle.sh",
     "build:npm-package": "./scripts/build-npm-package.sh",
     "db:drop-activity-legacy-indexes": "bun run scripts/drop-activity-legacy-indexes.ts"

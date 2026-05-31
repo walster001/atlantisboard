@@ -38,7 +38,7 @@ export async function fetchBoardsForWorkspaceReorder(workspaceId: string): Promi
       skip,
       limit: REORDER_BOARD_PAGE_SIZE,
     });
-    const raw = boardsResponse.boards;
+    const raw = boardsResponse.boards ?? [];
     acc.push(...raw.map((board) => transformBoard(board)));
     if (boardsResponse.hasMore !== true || raw.length < REORDER_BOARD_PAGE_SIZE) {
       break;

@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import type { AuthenticatedRequest } from '../../types/express.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import { importCSV } from '../../services/import/csvImportService.js';
 import {
   assertImportDisplayAllowed,
@@ -18,7 +19,7 @@ router.post('/csv', importUpload.single('file'), async (req, res, next) => {
     if (!(await assertImportDisplayAllowed(res, authReq.user.id, authReq.user.isAppAdmin))) {
       return;
     }
-    const validated = importCSVSchema.parse(req.body);
+    const validated = parseOrThrow(importCSVSchema, req.body);
 
     const canImportToBoard = await userCanImportCsvToBoard(
       authReq.user.id,
@@ -61,18 +62,7 @@ router.post('/csv', importUpload.single('file'), async (req, res, next) => {
       jobId,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 

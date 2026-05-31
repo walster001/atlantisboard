@@ -4,7 +4,14 @@ import {
   ForbiddenError,
   NotFoundError,
   ValidationError,
+  ConflictError,
+  BadRequestError,
 } from '../../shared/errors/domainErrors.js';
+import {
+  ImportJsonSourceMismatchError,
+  ImportJsonUnrecognizedError,
+} from '../../shared/import/detectImportJsonSource.js';
+import { respondZodValidationError } from './zodValidation.js';
 
 export interface ServiceErrorBody {
   readonly error: {
@@ -31,14 +38,73 @@ function domainErrorBody(error: DomainError): ServiceErrorBody {
 /** Map legacy service throws that still use message substring checks. */
 function mapLegacyServiceError(error: Error): ServiceErrorBody | null {
   const message = error.message;
-  if (message.includes('permissions')) {
+
+  if (
+    message.includes('Invalid invite') ||
+    message.includes('expired') ||
+    message.includes('already been used')
+  ) {
+    return domainErrorBody(new BadRequestError(message, 'INVALID_INVITE'));
+  }
+  if (message.includes('Invalid board order')) {
+    return domainErrorBody(new BadRequestError(message, 'INVALID_REORDER'));
+  }
+  if (message === 'List not found on board') {
+    return domainErrorBody(new BadRequestError(message, 'BAD_REQUEST'));
+  }
+  if (message.includes('already')) {
+    return domainErrorBody(new ConflictError(message));
+  }
+  if (
+    message.includes('Access denied') ||
+    message.includes('permissions') ||
+    message.includes('Only board admins') ||
+    message.includes('Only admins') ||
+    message.includes('Cannot remove') ||
+    message.includes('Cannot change') ||
+    message.includes('owner') ||
+    message.includes('Role update exceeds') ||
+    message.includes('Cannot assign')
+  ) {
     return domainErrorBody(new ForbiddenError(message));
   }
   if (message.includes('not found') || message.includes('Not found')) {
     return domainErrorBody(new NotFoundError(message));
   }
-  if (message.includes('Validation') || message.includes('Invalid') || message.includes('Maximum')) {
+  if (
+    message.includes('exceeds maximum') ||
+    message.includes('Maximum') ||
+    message.includes('malware') ||
+    message.includes('security scan') ||
+    message.includes('Validation') ||
+    message.includes('Invalid role hierarchy')
+  ) {
     return domainErrorBody(new ValidationError(message));
+  }
+  if (message.includes('Invalid')) {
+    return domainErrorBody(new ValidationError(message));
+  }
+  return null;
+}
+
+function mapImportJsonError(error: unknown): ServiceErrorBody | null {
+  if (error instanceof ImportJsonSourceMismatchError) {
+    return {
+      error: {
+        message: error.message,
+        code: 'IMPORT_WRONG_JSON_SOURCE',
+        statusCode: 400,
+      },
+    };
+  }
+  if (error instanceof ImportJsonUnrecognizedError) {
+    return {
+      error: {
+        message: error.message,
+        code: 'IMPORT_JSON_UNRECOGNIZED',
+        statusCode: 400,
+      },
+    };
   }
   return null;
 }
@@ -48,6 +114,11 @@ function mapLegacyServiceError(error: Error): ServiceErrorBody | null {
  * Returns true when a response was sent.
  */
 export function mapServiceErrorToHttp(res: Response, error: unknown): boolean {
+  const importJson = mapImportJsonError(error);
+  if (importJson != null) {
+    res.status(importJson.error.statusCode).json(importJson);
+    return true;
+  }
   if (error instanceof DomainError) {
     res.status(error.statusCode).json(domainErrorBody(error));
     return true;
@@ -62,4 +133,25 @@ export function mapServiceErrorToHttp(res: Response, error: unknown): boolean {
   return false;
 }
 
-export { ForbiddenError, NotFoundError, ValidationError };
+/** Standard route catch: Zod validation, then domain/legacy service errors, then `next`. */
+export function handleApiRouteError(
+  res: Response,
+  error: unknown,
+  next: (error: unknown) => void,
+): void {
+  if (respondZodValidationError(res, error)) {
+    return;
+  }
+  if (mapServiceErrorToHttp(res, error)) {
+    return;
+  }
+  next(error);
+}
+
+export {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+  ConflictError,
+  BadRequestError,
+};

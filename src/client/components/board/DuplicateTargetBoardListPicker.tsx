@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader, Select, Stack } from '@mantine/core';
 import { api } from '../../utils/api.js';
+import { mapBoardSummariesToOptions } from '../../utils/api/boardApiMethods.js';
+import { mapListSummariesToOptions } from '../../utils/api/listApiMethods.js';
 
 interface BoardOption {
   readonly id: string;
@@ -51,15 +53,7 @@ export function DuplicateTargetBoardListPicker({
       try {
         if (workspaceId != null && workspaceId.trim() !== '') {
           const response = await api.getBoardsByWorkspace(workspaceId);
-          const rows = (response as { boards?: Array<{ _id?: string; id?: string; name?: string }> })
-            .boards ?? [];
-          const options = rows
-            .map((row) => {
-              const id = (row._id ?? row.id ?? '').trim();
-              const name = (row.name ?? '').trim() || 'Untitled board';
-              return id !== '' ? { id, name } : null;
-            })
-            .filter((row): row is BoardOption => row != null);
+          const options = mapBoardSummariesToOptions(response.boards ?? []);
           if (!cancelled) {
             setBoards(options);
           }
@@ -91,13 +85,7 @@ export function DuplicateTargetBoardListPicker({
       setLoadingLists(true);
       try {
         const response = await api.getListsByBoard(targetBoardId);
-        const boardLists = (response as { lists: Array<{ _id?: string; id?: string; name: string }> }).lists;
-        const options = boardLists
-          .map((list) => {
-            const id = (list._id ?? list.id ?? '').trim();
-            return id !== '' ? { id, name: list.name } : null;
-          })
-          .filter((row): row is ListOption => row != null);
+        const options = mapListSummariesToOptions(response.lists);
         if (!cancelled) {
           setLists(options);
           const preferred =

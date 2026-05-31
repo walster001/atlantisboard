@@ -206,7 +206,7 @@ export async function pollImportJobWithNotifications(
   while (Date.now() - startedAt < timeoutMs) {
     try {
       const response = await api.getImportJobStatus(jobId);
-      const job = parseImportJob((response as { job: unknown }).job);
+      const job = parseImportJob(response.job);
       if (job == null) {
         notifications.update({
           id: IMPORT_PROGRESS_NOTIFICATION_ID,

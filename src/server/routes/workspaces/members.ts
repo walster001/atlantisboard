@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { z } from 'zod';
+import { parseOrThrow } from '../../utils/zodValidation.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import type { AuthenticatedRequest } from '../../types/express.js';
 import {
   addWorkspaceMember,
@@ -164,7 +165,7 @@ router.get('/:id/roles', async (req, res, next) => {
 router.post('/:id/members', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = addMemberSchema.parse(req.body);
+    const validated = parseOrThrow(addMemberSchema, req.body);
     const roleKeyCandidate =
       typeof validated.roleKey === 'string' && validated.roleKey.trim() !== ''
         ? validated.roleKey.trim()
@@ -209,30 +210,7 @@ router.post('/:id/members', async (req, res, next) => {
     }
     res.json({ workspace });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error) {
-      if (error.message.includes('permissions') || error.message.includes('already')) {
-        res.status(400).json({
-          error: {
-            message: error.message,
-            code: error.message.includes('permissions') ? 'FORBIDDEN' : 'CONFLICT',
-            statusCode: error.message.includes('permissions') ? 403 : 409,
-          },
-        });
-        return;
-      }
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -253,17 +231,7 @@ router.delete('/:id/members/:memberId', async (req, res, next) => {
     }
     res.json({ workspace });
   } catch (error) {
-    if (error instanceof Error && (error.message.includes('permissions') || error.message.includes('owner'))) {
-      res.status(400).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -329,17 +297,7 @@ router.put('/:id/members/:memberId/role', async (req, res, next) => {
     }
     res.json({ workspace });
   } catch (error) {
-    if (error instanceof Error && (error.message.includes('permissions') || error.message.includes('owner'))) {
-      res.status(400).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 

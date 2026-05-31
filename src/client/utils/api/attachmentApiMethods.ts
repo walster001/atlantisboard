@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { ApiClient } from '../api.js';
 import { API_BASE_URL } from './shared.js';
 
@@ -9,8 +10,29 @@ export interface AttachmentStreamUrlResponse {
   readonly delivery: AttachmentDeliveryKind;
 }
 
+export const attachmentUploadResponseSchema = z.object({
+  attachment: z.unknown().optional(),
+});
+
+export type AttachmentUploadResponse = z.infer<typeof attachmentUploadResponseSchema>;
+
+export function parseAttachmentUploadResponse(data: unknown): AttachmentUploadResponse {
+  return attachmentUploadResponseSchema.parse(data);
+}
+
+export function requireUploadedAttachmentId(response: AttachmentUploadResponse): string {
+  if (response.attachment == null || typeof response.attachment !== 'object') {
+    throw new Error('Upload succeeded but attachment id was missing.');
+  }
+  const id = (response.attachment as { id?: unknown }).id;
+  if (typeof id !== 'string' || id.trim() === '') {
+    throw new Error('Upload succeeded but attachment id was missing.');
+  }
+  return id;
+}
+
 export interface AttachmentApiMethods {
-  uploadCardAttachment(cardId: string, file: File, onProgress?: (progress: number) => void): Promise<{ attachment: unknown }>;
+  uploadCardAttachment(cardId: string, file: File, onProgress?: (progress: number) => void): Promise<AttachmentUploadResponse>;
   deleteCardAttachment(cardId: string, attachmentId: string): Promise<void>;
   getAttachmentUrl(attachmentId: string): Promise<AttachmentStreamUrlResponse>;
   getAttachmentFileUrl(attachmentId: string): string;
@@ -31,7 +53,7 @@ export const attachmentApiMethods: AttachmentApiMethods = {
         }
       },
     });
-    return response.data as { attachment: unknown };
+    return parseAttachmentUploadResponse(response.data);
   },
 
   async deleteCardAttachment(this: ApiClient, cardId, attachmentId) {

@@ -1,4 +1,4 @@
-import { type Document } from 'mongoose';
+import { Types, type Document } from 'mongoose';
 import { Board, type IBoard } from '../../models/Board.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { createActivity } from '../activityService.js';
@@ -74,7 +74,7 @@ export async function addBoardMember(
   }
 
   board.members.push({
-    userId: userId as unknown as typeof board.ownerId,
+    userId: new Types.ObjectId(userId),
     roleKey,
     addedAt: new Date(),
   });

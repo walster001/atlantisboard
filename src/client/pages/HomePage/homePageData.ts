@@ -38,7 +38,7 @@ export async function loadAllHomeBoardSummaries(): Promise<BoardDB[]> {
       skip,
       limit: HOME_BOARDS_PAGE_SIZE,
     });
-    const rawBoards = boardsResponse.boards;
+    const rawBoards = boardsResponse.boards ?? [];
     acc.push(...rawBoards.map((board) => transformBoard(board)));
     if (boardsResponse.hasMore !== true || rawBoards.length < HOME_BOARDS_PAGE_SIZE) {
       break;

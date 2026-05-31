@@ -130,20 +130,18 @@ export async function importCSV(
     // Validate rows
     const validatedRows: z.infer<typeof csvRowSchema>[] = [];
     for (let i = 0; i < normalizedRows.length; i++) {
-      try {
-        const validated = csvRowSchema.parse(normalizedRows[i]);
-        validatedRows.push(validated);
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          const errorMsg = `Row ${i + 2}: ${error.issues.map((issue) => issue.message).join(', ')}`;
-          logger.warn({ row: i + 2, errors: error.issues }, 'CSV row validation failed');
-          await ImportJob.findByIdAndUpdate(jobId, {
-            $push: {
-              importErrors: { message: errorMsg, row: i + 2 },
-            },
-          });
-        }
+      const parsed = csvRowSchema.safeParse(normalizedRows[i]);
+      if (!parsed.success) {
+        const errorMsg = `Row ${i + 2}: ${parsed.error.issues.map((issue) => issue.message).join(', ')}`;
+        logger.warn({ row: i + 2, errors: parsed.error.issues }, 'CSV row validation failed');
+        await ImportJob.findByIdAndUpdate(jobId, {
+          $push: {
+            importErrors: { message: errorMsg, row: i + 2 },
+          },
+        });
+        continue;
       }
+      validatedRows.push(parsed.data);
     }
 
     if (validatedRows.length === 0) {

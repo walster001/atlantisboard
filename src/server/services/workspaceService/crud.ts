@@ -14,6 +14,7 @@ import {
   toBoardOnlyWorkspaceSummary,
   toWorkspaceSummary,
   workspaceRefUserId,
+  buildWorkspaceRealtimePayload,
 } from './typesAndHelpers.js';
 export async function createWorkspace(input: CreateWorkspaceInput): Promise<Document & IWorkspace> {
   const workspace = new Workspace({
@@ -26,11 +27,7 @@ export async function createWorkspace(input: CreateWorkspaceInput): Promise<Docu
   await workspace.save();
 
   const wsId = workspace._id.toString();
-  const wsPayload = {
-    workspaceId: wsId,
-    data: workspace.toObject() as unknown as Record<string, unknown>,
-    serverTs: Date.now(),
-  };
+  const wsPayload = buildWorkspaceRealtimePayload(workspace);
   emitToWorkspace(wsId, 'workspace:created', wsPayload);
   emitToUser(input.ownerId, 'workspace:created', wsPayload);
 
@@ -211,11 +208,7 @@ export async function updateWorkspace(
 
   await workspace.save();
 
-  emitToWorkspace(workspaceId, 'workspace:updated', {
-    workspaceId,
-    data: workspace.toObject() as unknown as Record<string, unknown>,
-    serverTs: Date.now(),
-  });
+  emitToWorkspace(workspaceId, 'workspace:updated', buildWorkspaceRealtimePayload(workspace));
   void import('./emit.js').then(({ emitWorkspaceUpdatedToBoardScopedUsers }) =>
     emitWorkspaceUpdatedToBoardScopedUsers(workspace),
   );

@@ -19,19 +19,22 @@ interface Label {
 }
 
 /** API returns `_id`; normalize so toggles use real ObjectIds, not `undefined` in URLs. */
-function normalizeBoardLabelList(
-  raw: ReadonlyArray<{ id?: unknown; _id?: unknown; name: string; color: string; isPredefined?: boolean }>,
-): Label[] {
-  return raw
-    .map((l): Label => {
-      const id = extractMongoStringId(l.id) || extractMongoStringId(l._id);
-      const out: Label = { id, name: l.name, color: l.color };
-      if (l.isPredefined !== undefined) {
-        out.isPredefined = l.isPredefined;
-      }
-      return out;
-    })
-    .filter((l) => l.id.length > 0);
+function normalizeBoardLabelList(raw: readonly unknown[]): Label[] {
+  return raw.flatMap((entry): Label[] => {
+    if (entry == null || typeof entry !== 'object') {
+      return [];
+    }
+    const l = entry as { id?: unknown; _id?: unknown; name?: unknown; color?: unknown; isPredefined?: unknown };
+    if (typeof l.name !== 'string' || typeof l.color !== 'string') {
+      return [];
+    }
+    const id = extractMongoStringId(l.id) || extractMongoStringId(l._id);
+    const out: Label = { id, name: l.name, color: l.color };
+    if (typeof l.isPredefined === 'boolean') {
+      out.isPredefined = l.isPredefined;
+    }
+    return id.length > 0 ? [out] : [];
+  });
 }
 
 interface LabelSectionProps {
@@ -88,18 +91,7 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
     const loadLabels = async () => {
       try {
         const response = await api.getBoardLabels(boardId);
-        const boardLabels = (
-          response as {
-            labels: ReadonlyArray<{
-              id?: unknown;
-              _id?: unknown;
-              name: string;
-              color: string;
-              isPredefined?: boolean;
-            }>;
-          }
-        ).labels;
-        setLabels(normalizeBoardLabelList(boardLabels));
+        setLabels(normalizeBoardLabelList(response.labels));
       } catch (error) {
         console.error('Error loading labels:', error);
       }
@@ -116,18 +108,7 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
       void (async () => {
         try {
           const response = await api.getBoardLabels(boardId);
-          const boardLabels = (
-            response as {
-              labels: ReadonlyArray<{
-                id?: unknown;
-                _id?: unknown;
-                name: string;
-                color: string;
-                isPredefined?: boolean;
-              }>;
-            }
-          ).labels;
-          setLabels(normalizeBoardLabelList(boardLabels));
+          setLabels(normalizeBoardLabelList(response.labels));
         } catch (error) {
           console.error('Error loading labels:', error);
         }

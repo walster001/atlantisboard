@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import type { AuthenticatedRequest } from '../../types/express.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import { importTrello } from '../../services/import/trelloImportService.js';
 import { hasWorkspacePermission } from '../../utils/permissions.js';
 import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
@@ -22,7 +23,7 @@ router.post('/trello', importUpload.single('file'), async (req, res, next) => {
     if (!(await assertImportDisplayAllowed(res, authReq.user.id, authReq.user.isAppAdmin))) {
       return;
     }
-    const validated = importTrelloSchema.parse(req.body);
+    const validated = parseOrThrow(importTrelloSchema, req.body);
     if (typeof validated.workspaceId === 'string' && validated.workspaceId.trim() !== '') {
       const allowed =
         authReq.user.isAppAdmin === true ||
@@ -84,17 +85,6 @@ router.post('/trello', importUpload.single('file'), async (req, res, next) => {
       jobId,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
     if (error instanceof SyntaxError) {
       res.status(400).json({
         error: {
@@ -115,7 +105,10 @@ router.post('/trello', importUpload.single('file'), async (req, res, next) => {
       });
       return;
     }
-    next(error);
+    if (respondIfImportJsonShapeError(res, error)) {
+      return;
+    }
+    handleApiRouteError(res, error, next);
   }
 });
 

@@ -58,7 +58,7 @@ export function useSortableListActions({
     setRenameSaving(true);
     try {
       const response = await api.updateList(list.id, { name: trimmed });
-      await applyListFromApi(response as { list: unknown });
+      await applyListFromApi(response);
       setRenameModalOpen(false);
       notifications.show({
         title: 'List renamed',
@@ -79,7 +79,7 @@ export function useSortableListActions({
   const handleSaveColor = useCallback(
     async (hex: string): Promise<void> => {
       const response = await api.updateList(list.id, { color: hex });
-      await applyListFromApi(response as { list: unknown });
+      await applyListFromApi(response);
       notifications.show({
         title: 'Colour saved',
         message: hex.trim().length === 0 ? 'List colour reset to theme default.' : 'List colour updated.',

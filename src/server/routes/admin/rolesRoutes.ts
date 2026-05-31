@@ -7,6 +7,8 @@ import {
   isValidCustomRoleKey,
 } from '../../services/roleService.js';
 import { emitPermissionsUpdated } from './helpers.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
 
 const roleKeySchema = z.string().trim().min(1).max(80);
 const roleHierarchyLevelSchema = z.number().int().min(0).max(1_000_000);
@@ -38,7 +40,7 @@ export function registerRolesRoutes(router: Router): void {
 
   router.post('/roles', async (req, res, next) => {
     try {
-      const body = createRoleSchema.parse(req.body);
+      const body = parseOrThrow(createRoleSchema, req.body);
       if (isBuiltInRoleKey(body.key)) {
         res.status(400).json({
           error: {
@@ -100,25 +102,14 @@ export function registerRolesRoutes(router: Router): void {
       });
       res.status(201).json({ role: created });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            errors: error.issues,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
   router.put('/roles/:roleKey', async (req, res, next) => {
     try {
-      const roleKey = roleKeySchema.parse(req.params.roleKey);
-      const patch = updateRoleSchema.parse(req.body);
+      const roleKey = parseOrThrow(roleKeySchema, req.params.roleKey);
+      const patch = parseOrThrow(updateRoleSchema, req.body);
       const role = await RoleDefinition.findOne({ key: roleKey });
       if (!role) {
         res
@@ -169,24 +160,13 @@ export function registerRolesRoutes(router: Router): void {
       });
       res.json({ role });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            errors: error.issues,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
   router.delete('/roles/:roleKey', async (req, res, next) => {
     try {
-      const roleKey = roleKeySchema.parse(req.params.roleKey);
+      const roleKey = parseOrThrow(roleKeySchema, req.params.roleKey);
       const role = await RoleDefinition.findOne({ key: roleKey });
       if (!role) {
         res
@@ -212,18 +192,7 @@ export function registerRolesRoutes(router: Router): void {
       });
       res.status(204).end();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            errors: error.issues,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 }

@@ -120,7 +120,7 @@ export function BoardSettingsCardSettingsPanel({
           showCardDescriptionPreview: settings.showCardDescriptionPreview,
         },
       });
-      const next = transformBoard((response as { board: unknown }).board);
+      const next = transformBoard(response.board);
       await db.boards.put(next);
       setBoard(next);
       onSettingsLivePatch?.({

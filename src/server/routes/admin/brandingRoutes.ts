@@ -7,6 +7,7 @@ import {
   uploadBrandingAsset,
   type BrandingUploadKind,
 } from '../../services/brandingService.js';
+import { mapServiceErrorToHttp } from '../../utils/mapServiceErrorToHttp.js';
 
 const brandingUpload = multer({
   storage: multer.memoryStorage(),
@@ -85,15 +86,7 @@ export function registerBrandingRoutes(router: Router): void {
       await deleteBrandingObjectByPublicUrl(url);
       res.status(204).end();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            errors: error.issues,
-          },
-        });
+      if (mapServiceErrorToHttp(res, error)) {
         return;
       }
       if (error instanceof Error && error.message === 'Invalid branding asset URL') {

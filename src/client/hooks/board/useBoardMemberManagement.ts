@@ -4,11 +4,7 @@ import { api } from '../../utils/api.js';
 import { subscribeSocketBoardUpdated } from '../../utils/socketRealtimeBridge.js';
 import { useBoardPermissions } from '../useBoardPermissions.js';
 import { useResponsiveTier } from '../useResponsiveTier.js';
-import {
-  isSearchRequestCancelled,
-  MEMBER_DIRECTORY_PAGE_LIMIT,
-  sortDirectoryUserRows,
-} from '../members/memberDirectoryUtils.js';
+import { useMemberDirectorySearch } from '../members/useMemberDirectorySearch.js';
 import { type RoleKey } from '../../../shared/permissions/catalog.js';
 import {
   BUILTIN_ROLE_OPTIONS,
@@ -45,14 +41,8 @@ export function useBoardMemberManagement(boardId: string) {
   const [membersNextCursor, setMembersNextCursor] = useState<string | undefined>(undefined);
   const membersNextCursorRef = useRef<string | undefined>(undefined);
   membersNextCursorRef.current = membersNextCursor;
-  /** Committed query: API runs only after Enter (or initial mount). */
-  const [directoryQuery, setDirectoryQuery] = useState('');
-  const [directoryUsers, setDirectoryUsers] = useState<UserRow[]>([]);
-  const [directoryLoading, setDirectoryLoading] = useState(false);
-  const [directoryLoadingMore, setDirectoryLoadingMore] = useState(false);
   const [discardPlaceholdersOpen, setDiscardPlaceholdersOpen] = useState(false);
   const [discardingPlaceholders, setDiscardingPlaceholders] = useState(false);
-  const [directoryNextCursor, setDirectoryNextCursor] = useState<string | undefined>(undefined);
   const [addRoles, setAddRoles] = useState<Record<string, RoleKey>>({});
   const [roleOptions, setRoleOptions] = useState<Array<{ value: RoleKey; label: string }>>(
     () => [...BUILTIN_ROLE_OPTIONS],
@@ -63,15 +53,51 @@ export function useBoardMemberManagement(boardId: string) {
   const [membersLoadingMore, setMembersLoadingMore] = useState(false);
 
   const addRolesRef = useRef(addRoles);
-  const directoryUsersRef = useRef(directoryUsers);
-  const directoryQueryRef = useRef(directoryQuery);
-  const boardIdRef = useRef(boardId);
-  const directoryPagingLockRef = useRef(false);
   const membersPagingLockRef = useRef(false);
   addRolesRef.current = addRoles;
-  directoryUsersRef.current = directoryUsers;
-  directoryQueryRef.current = directoryQuery;
-  boardIdRef.current = boardId;
+
+  const [directoryRefreshKey, setDirectoryRefreshKey] = useState(0);
+
+  const handleDirectoryUsersLoaded = useCallback(
+    (users: readonly UserRow[], context: { readonly append: boolean; readonly query: string }) => {
+      if (context.append) {
+        setAddRoles((prev) => {
+          const next: Record<string, RoleKey> = { ...prev };
+          for (const user of users) {
+            if (next[user._id] === undefined) {
+              next[user._id] = 'viewer';
+            }
+          }
+          return next;
+        });
+        return;
+      }
+      setAddRoles((prev) => {
+        const next: Record<string, RoleKey> = {};
+        for (const user of users) {
+          next[user._id] = prev[user._id] ?? 'viewer';
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const {
+    directoryQuery,
+    setDirectoryQuery,
+    directoryUsers,
+    setDirectoryUsers,
+    directoryUsersRef,
+    directoryLoading,
+    handleDirectoryEndReached,
+  } = useMemberDirectorySearch<UserRow>({
+    scope: 'board',
+    scopeId: boardId,
+    refreshKey: directoryRefreshKey,
+    mapUsers: (users) => users as UserRow[],
+    onUsersLoaded: handleDirectoryUsersLoaded,
+  });
 
   const loadBoard = useCallback(async (cursor?: string, opts?: { readonly quiet?: boolean }) => {
     const quiet = opts?.quiet === true;
@@ -112,7 +138,6 @@ export function useBoardMemberManagement(boardId: string) {
 
   const loadBoardRef = useRef(loadBoard);
   loadBoardRef.current = loadBoard;
-  const [directoryRefreshKey, setDirectoryRefreshKey] = useState(0);
 
   useEffect(() => {
     void loadBoard();
@@ -175,139 +200,6 @@ export function useBoardMemberManagement(boardId: string) {
       cancelled = true;
     };
   }, [boardId]);
-
-  useEffect(() => {
-    if (!boardId) {
-      return undefined;
-    }
-
-    const controller = new AbortController();
-
-    const run = async () => {
-      setDirectoryLoading(true);
-      setDirectoryNextCursor(undefined);
-      try {
-        const response = await api.searchUsers(directoryQuery, {
-          boardId,
-          limit: MEMBER_DIRECTORY_PAGE_LIMIT,
-          signal: controller.signal,
-        });
-        if (controller.signal.aborted) {
-          return;
-        }
-        const users = (response.users as UserRow[]) || [];
-        setDirectoryUsers(sortDirectoryUserRows(users));
-        setDirectoryNextCursor(
-          response.nextCursor !== undefined && response.nextCursor !== ''
-            ? response.nextCursor
-            : undefined,
-        );
-        setAddRoles((prev) => {
-          const next: Record<string, RoleKey> = {};
-          for (const u of users) {
-            next[u._id] = prev[u._id] ?? 'viewer';
-          }
-          return next;
-        });
-      } catch (error) {
-        if (isSearchRequestCancelled(error)) {
-          return;
-        }
-        console.error('Error loading user directory:', error);
-        notifications.show({
-          color: 'red',
-          title: 'Could not load users',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
-        if (!controller.signal.aborted) {
-          setDirectoryUsers([]);
-          setDirectoryNextCursor(undefined);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setDirectoryLoading(false);
-        }
-      }
-    };
-
-    void run();
-
-    return () => {
-      controller.abort();
-    };
-  }, [boardId, directoryQuery, directoryRefreshKey]);
-
-  const handleDirectoryEndReached = useCallback(() => {
-    if (
-      directoryNextCursor === undefined ||
-      directoryLoading ||
-      directoryLoadingMore ||
-      directoryPagingLockRef.current
-    ) {
-      return;
-    }
-    directoryPagingLockRef.current = true;
-    setDirectoryLoadingMore(true);
-    const querySnapshot = directoryQueryRef.current;
-    const boardIdSnapshot = boardId;
-    const cursorSnapshot = directoryNextCursor;
-    void (async () => {
-      try {
-        const response = await api.searchUsers(querySnapshot, {
-          boardId: boardIdSnapshot,
-          limit: MEMBER_DIRECTORY_PAGE_LIMIT,
-          cursor: cursorSnapshot,
-        });
-        if (
-          boardIdRef.current !== boardIdSnapshot ||
-          directoryQueryRef.current !== querySnapshot
-        ) {
-          return;
-        }
-        const newUsers = (response.users as UserRow[]) ?? [];
-        setDirectoryUsers((prev) => {
-          const seen = new Set(prev.map((u) => u._id));
-          const merged = [...prev];
-          for (const u of newUsers) {
-            if (!seen.has(u._id)) {
-              seen.add(u._id);
-              merged.push(u);
-            }
-          }
-          return sortDirectoryUserRows(merged);
-        });
-        setAddRoles((prev) => {
-          const next: Record<string, RoleKey> = { ...prev };
-          for (const u of newUsers) {
-            if (next[u._id] === undefined) {
-              next[u._id] = 'viewer';
-            }
-          }
-          return next;
-        });
-        setDirectoryNextCursor(
-          response.nextCursor !== undefined && response.nextCursor !== ''
-            ? response.nextCursor
-            : undefined,
-        );
-      } catch (error) {
-        console.error('Error loading more directory users:', error);
-        notifications.show({
-          color: 'red',
-          title: 'Could not load more users',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
-      } finally {
-        directoryPagingLockRef.current = false;
-        setDirectoryLoadingMore(false);
-      }
-    })();
-  }, [
-    boardId,
-    directoryLoading,
-    directoryLoadingMore,
-    directoryNextCursor,
-  ]);
 
   const boardRef = useRef(board);
   boardRef.current = board;

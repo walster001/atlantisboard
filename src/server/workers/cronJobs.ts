@@ -187,17 +187,24 @@ export async function cleanupOrphanedAttachments(): Promise<void> {
 export async function checkReminders(): Promise<void> {
   logger.info('Starting reminder delivery check');
 
+  const REMINDER_BATCH_SIZE = 100;
+
   try {
     const now = new Date();
-    
-    // Find cards with due dates that need reminders
-    const cardsWithReminders = await Card.find({
+
+    const cursor = Card.find({
       'reminders.0': { $exists: true },
       completed: false,
-    }).select('_id boardId title reminders dueDate');
+    })
+      .select('_id reminders dueDate')
+      .cursor({ batchSize: REMINDER_BATCH_SIZE });
 
-    for (const card of cardsWithReminders) {
+    const bulkOps: Parameters<typeof Card.bulkWrite>[0] = [];
+
+    for await (const card of cursor) {
       if (!card.reminders || card.reminders.length === 0) continue;
+
+      let cardChanged = false;
 
       for (const reminder of card.reminders) {
         // Skip if already sent and not repeating
@@ -208,6 +215,7 @@ export async function checkReminders(): Promise<void> {
 
         // Check if reminder should trigger
         if (reminder.triggerAt <= now) {
+          cardChanged = true;
           reminder.sent = true;
           reminder.sentAt = new Date();
 
@@ -220,10 +228,26 @@ export async function checkReminders(): Promise<void> {
               reminder.sent = false; // Reset for next trigger
             }
           }
-
-          await card.save();
         }
       }
+
+      if (cardChanged) {
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: card._id },
+            update: { $set: { reminders: card.reminders } },
+          },
+        });
+      }
+
+      if (bulkOps.length >= REMINDER_BATCH_SIZE) {
+        await Card.bulkWrite(bulkOps);
+        bulkOps.length = 0;
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      await Card.bulkWrite(bulkOps);
     }
 
     logger.info('Reminder delivery check completed');

@@ -1,4 +1,4 @@
-import { type Document } from 'mongoose';
+import { Types, type Document } from 'mongoose';
 import { Card, type ICard } from '../../models/Card.js';
 import { List } from '../../models/List.js';
 import { Board } from '../../models/Board.js';
@@ -183,7 +183,7 @@ export async function updateCard(
       throw new Error('List not found');
     }
     assertListOnBoard(targetList.boardId, boardIdStr);
-    card.listId = input.listId as unknown as typeof card.listId;
+    card.listId = new Types.ObjectId(input.listId);
   }
   if (input.position !== undefined) card.position = input.position;
   if (input.color !== undefined) card.color = input.color;

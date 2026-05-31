@@ -12,6 +12,7 @@ import {
 import { importPreflightPayloadSchema } from '../../../shared/import/importPreflightSchema.js';
 import {
   ImportJsonSourceMismatchError,
+  ImportJsonUnrecognizedError,
 } from '../../../shared/import/detectImportJsonSource.js';
 
 export const importUploadMaxBytes = getBoardImportUploadMaxBytes();
@@ -68,10 +69,7 @@ export function respondIfImportJsonShapeError(res: Response, error: unknown): bo
     });
     return true;
   }
-  if (
-    error instanceof Error &&
-    (error.message.includes('Could not tell') || error.message.includes('must contain a JSON object'))
-  ) {
+  if (error instanceof ImportJsonUnrecognizedError) {
     res.status(400).json({
       error: {
         message: error.message,

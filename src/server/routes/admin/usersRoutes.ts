@@ -27,6 +27,8 @@ import {
   removeTargetUserFromBoardMemberships,
   removeTargetUserFromWorkspaceMemberships,
 } from './helpers.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
 
 const objectIdParamSchema = z.string().trim().regex(/^[a-fA-F0-9]{24}$/);
 
@@ -154,7 +156,7 @@ export function registerUsersRoutes(router: Router): void {
   router.patch('/users/account-capabilities', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const { updates } = accountCapabilitiesUpdateSchema.parse(req.body);
+      const { updates } = parseOrThrow(accountCapabilitiesUpdateSchema, req.body);
       const affectedUserIds: string[] = [];
 
       for (const update of updates) {
@@ -208,25 +210,14 @@ export function registerUsersRoutes(router: Router): void {
 
       res.json({ updatedCount: affectedUserIds.length, affectedUserIds });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            errors: error.issues,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
   router.delete('/users/:id', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const id = objectIdParamSchema.parse(req.params.id);
+      const id = parseOrThrow(objectIdParamSchema, req.params.id);
       if (id === authReq.user.id) {
         res.status(403).json({
           error: {
@@ -360,18 +351,7 @@ export function registerUsersRoutes(router: Router): void {
         },
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            errors: error.issues,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 }

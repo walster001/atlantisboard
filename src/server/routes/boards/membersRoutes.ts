@@ -1,6 +1,7 @@
 import { type Router } from 'express';
-import { z } from 'zod';
 import type { AuthenticatedRequest } from '../../types/express.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
+import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import { User } from '../../models/User.js';
 import { RoleDefinition } from '../../models/RoleDefinition.js';
 import {
@@ -17,7 +18,7 @@ export function registerMembersListRoute(router: Router): void {
   router.get('/:id/members', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const query = boardMembersQuerySchema.parse(req.query);
+      const query = parseOrThrow(boardMembersQuerySchema, req.query);
       const options: {
         q?: string;
         sort?: 'displayName:asc' | 'displayName:desc' | 'email:asc' | 'email:desc';
@@ -41,18 +42,7 @@ export function registerMembersListRoute(router: Router): void {
       }
       res.json(result);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          error: {
-            message: 'Validation failed',
-            code: 'VALIDATION_ERROR',
-            statusCode: 400,
-            details: error.issues,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 }
@@ -121,17 +111,7 @@ export function registerMemberManagementRoutes(router: Router): void {
       }
       res.json({ board });
     } catch (error) {
-      if (error instanceof Error && (error.message.includes('permissions') || error.message.includes('already'))) {
-        res.status(400).json({
-          error: {
-            message: error.message,
-            code: error.message.includes('permissions') ? 'FORBIDDEN' : 'CONFLICT',
-            statusCode: error.message.includes('permissions') ? 403 : 409,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
@@ -161,17 +141,7 @@ export function registerMemberManagementRoutes(router: Router): void {
       }
       res.json({ board });
     } catch (error) {
-      if (error instanceof Error && (error.message.includes('permissions') || error.message.includes('owner'))) {
-        res.status(400).json({
-          error: {
-            message: error.message,
-            code: 'FORBIDDEN',
-            statusCode: 403,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
@@ -242,22 +212,7 @@ export function registerMemberManagementRoutes(router: Router): void {
       }
       res.json({ board });
     } catch (error) {
-      if (
-        error instanceof Error &&
-        (error.message.includes('permissions') ||
-          error.message.includes('owner') ||
-          error.message.includes('not found'))
-      ) {
-        res.status(400).json({
-          error: {
-            message: error.message,
-            code: 'FORBIDDEN',
-            statusCode: 403,
-          },
-        });
-        return;
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 
@@ -267,21 +222,7 @@ export function registerMemberManagementRoutes(router: Router): void {
       const result = await discardAllUnmappedPlaceholdersOnBoard(req.params.id, authReq.user.id);
       res.json(result);
     } catch (error) {
-      if (error instanceof Error) {
-        if (error.message === 'Board not found') {
-          res.status(404).json({
-            error: { message: error.message, code: 'NOT_FOUND', statusCode: 404 },
-          });
-          return;
-        }
-        if (error.message.includes('permissions')) {
-          res.status(403).json({
-            error: { message: error.message, code: 'FORBIDDEN', statusCode: 403 },
-          });
-          return;
-        }
-      }
-      next(error);
+      handleApiRouteError(res, error, next);
     }
   });
 }

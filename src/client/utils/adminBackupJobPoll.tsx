@@ -148,7 +148,7 @@ export async function pollAdminBackupJobWithNotifications(
   while (Date.now() - startedAt < timeoutMs) {
     try {
       const response = await api.getAdminBackupJob(jobId);
-      const job = parseBackupJob((response as { job: unknown }).job);
+      const job = parseBackupJob(response.job);
       if (job == null) {
         notifications.update({
           id: notificationId,

@@ -2,6 +2,8 @@ import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
+import { parseOrThrow } from '../utils/zodValidation.js';
+import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import {
   createLabel,
@@ -39,17 +41,7 @@ router.get('/boards/:boardId/labels', async (req, res, next) => {
     const labels = await getBoardLabels(req.params.boardId, authReq.user.id);
     res.json({ labels });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -57,7 +49,7 @@ router.get('/boards/:boardId/labels', async (req, res, next) => {
 router.post('/boards/:boardId/labels', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = createLabelSchema.parse(req.body);
+    const validated = parseOrThrow(createLabelSchema, req.body);
     const labelInput: {
       boardId: string;
       name: string;
@@ -75,28 +67,7 @@ router.post('/boards/:boardId/labels', async (req, res, next) => {
 
     res.status(201).json({ label });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -104,7 +75,7 @@ router.post('/boards/:boardId/labels', async (req, res, next) => {
 router.put('/boards/:boardId/labels/:labelId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = updateLabelSchema.parse(req.body);
+    const validated = parseOrThrow(updateLabelSchema, req.body);
     const updateInput: { name?: string; color?: string } = {};
     if (validated.name !== undefined) {
       updateInput.name = validated.name;
@@ -135,28 +106,7 @@ router.put('/boards/:boardId/labels/:labelId', async (req, res, next) => {
       });
       return;
     }
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -187,17 +137,7 @@ router.delete('/boards/:boardId/labels/:labelId', async (req, res, next) => {
       });
       return;
     }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -228,17 +168,7 @@ router.post('/cards/:cardId/labels/:labelId', async (req, res, next) => {
       });
       return;
     }
-    if (error instanceof Error && error.message.includes('not found')) {
-      res.status(404).json({
-        error: {
-          message: error.message,
-          code: 'NOT_FOUND',
-          statusCode: 404,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
@@ -269,9 +199,8 @@ router.delete('/cards/:cardId/labels/:labelId', async (req, res, next) => {
       });
       return;
     }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
 export { router as labelRoutes };
-

@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
+import { mapServiceErrorToHttp } from '../utils/mapServiceErrorToHttp.js';
 import { logger } from '../utils/logger.js';
+import { respondZodValidationError } from '../utils/zodValidation.js';
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -12,12 +14,24 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
+  if (res.headersSent) {
+    return;
+  }
+
   // Log error for debugging (server-side only)
   logger.error({
     err,
     message: err.message,
     stack: err.stack,
   });
+
+  // Mirror handleApiRouteError for routes that pass through via next(error)
+  if (respondZodValidationError(res, err)) {
+    return;
+  }
+  if (mapServiceErrorToHttp(res, err)) {
+    return;
+  }
 
   // Don't expose sensitive error information to clients
   const statusCode =

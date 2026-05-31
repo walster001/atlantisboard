@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { LIST_NAME_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
-import { parseOrThrow, respondZodValidationError } from '../utils/zodValidation.js';
-import { mapServiceErrorToHttp } from '../utils/mapServiceErrorToHttp.js';
+import { parseOrThrow } from '../utils/zodValidation.js';
+import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import {
   createList,
@@ -38,11 +38,8 @@ const moveListSchema = z.object({
   position: z.number().int().min(0),
 });
 
-function handleRouteError(res: Parameters<typeof mapServiceErrorToHttp>[0], error: unknown, next: (error: unknown) => void): void {
-  if (mapServiceErrorToHttp(res, error)) {
-    return;
-  }
-  next(error);
+function handleRouteError(res: Parameters<typeof handleApiRouteError>[0], error: unknown, next: (error: unknown) => void): void {
+  handleApiRouteError(res, error, next);
 }
 
 // Create list
@@ -54,9 +51,6 @@ router.post('/', async (req, res, next) => {
 
     res.status(201).json({ list });
   } catch (error) {
-    if (respondZodValidationError(res, error)) {
-      return;
-    }
     handleRouteError(res, error, next);
   }
 });
@@ -105,9 +99,6 @@ router.put('/:id/move', async (req, res, next) => {
     }
     res.json({ list });
   } catch (error) {
-    if (respondZodValidationError(res, error)) {
-      return;
-    }
     handleRouteError(res, error, next);
   }
 });
@@ -184,9 +175,6 @@ router.put('/:id', async (req, res, next) => {
     }
     res.json({ list });
   } catch (error) {
-    if (respondZodValidationError(res, error)) {
-      return;
-    }
     handleRouteError(res, error, next);
   }
 });

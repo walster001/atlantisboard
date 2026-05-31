@@ -1,4 +1,4 @@
-import type { Document } from 'mongoose';
+import { Types, type Document } from 'mongoose';
 import { Workspace, type IWorkspace } from '../../models/Workspace.js';
 import { Board } from '../../models/Board.js';
 import { User } from '../../models/User.js';
@@ -15,6 +15,7 @@ import {
   type AddMemberInput,
   populateWorkspaceMemberListFields,
   workspaceActorRoleKey,
+  buildWorkspaceRealtimePayload,
 } from './typesAndHelpers.js';
 import {
   emitWorkspaceHomeAccessRefreshForUser,
@@ -56,18 +57,14 @@ export async function addWorkspaceMember(
   }
 
   workspace.members.push({
-    userId: input.userId as unknown as typeof workspace.ownerId,
+    userId: new Types.ObjectId(input.userId),
     roleKey: input.roleKey,
     joinedAt: new Date(),
   });
 
   await workspace.save();
 
-  emitToWorkspace(workspaceId, 'workspace:updated', {
-    workspaceId,
-    data: workspace.toObject() as unknown as Record<string, unknown>,
-    serverTs: Date.now(),
-  });
+  emitToWorkspace(workspaceId, 'workspace:updated', buildWorkspaceRealtimePayload(workspace));
   emitWorkspaceHomeSnapshotToUser(workspace, input.userId);
   void import('../boardService.js')
     .then(({ emitWorkspaceBoardSummariesToUserForHome }) =>
@@ -122,11 +119,7 @@ export async function removeWorkspaceMember(
 
   await workspace.save();
 
-  emitToWorkspace(workspaceId, 'workspace:updated', {
-    workspaceId,
-    data: workspace.toObject() as unknown as Record<string, unknown>,
-    serverTs: Date.now(),
-  });
+  emitToWorkspace(workspaceId, 'workspace:updated', buildWorkspaceRealtimePayload(workspace));
   void emitWorkspaceHomeAccessRefreshForUser(workspaceId, memberUserId);
   void import('../boardService.js')
     .then(({ emitBoardsHiddenOnHomeAfterWorkspaceRemoval }) =>
@@ -203,11 +196,7 @@ export async function updateWorkspaceMemberRole(
   member.roleKey = roleKey;
   await workspace.save();
 
-  emitToWorkspace(workspaceId, 'workspace:updated', {
-    workspaceId,
-    data: workspace.toObject() as unknown as Record<string, unknown>,
-    serverTs: Date.now(),
-  });
+  emitToWorkspace(workspaceId, 'workspace:updated', buildWorkspaceRealtimePayload(workspace));
   emitWorkspaceHomeSnapshotToUser(workspace, memberUserId);
 
   emitToUser(memberUserId, 'permissions.updated', {

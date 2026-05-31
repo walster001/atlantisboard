@@ -9057,13 +9057,62 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   }
 }
 
-/* src/client/pages/HomePage.css */
+/* src/client/pages/HomePage.layout.css */
 .home-page {
   --home-page-content-max-width: 85rem;
   background-color: var(--mantine-color-body);
   min-height: 100vh;
 }
 
+.home-page__main {
+  max-width: var(--home-page-content-max-width);
+  background-color: var(--mantine-color-body);
+  width: 100%;
+  min-height: calc(100vh - 65px);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1rem;
+}
+
+.home-page__title {
+  color: var(--mantine-color-dark-7);
+  letter-spacing: -.02em;
+  font-size: clamp(1.875rem, 2.5vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.home-page__actions {
+  flex-shrink: 0;
+}
+
+.home-page__import-btn {
+  border-color: var(--mantine-color-gray-4);
+  white-space: nowrap;
+  background-color: #fff;
+}
+
+.home-page__new-workspace-btn {
+  white-space: nowrap;
+}
+
+.home-page__loading {
+  display: flex;
+  background-color: var(--mantine-color-body);
+  justify-content: center;
+  align-items:  center;
+  min-height: 100vh;
+}
+
+.home-page__icon-plus {
+  font-size: 1.125rem;
+}
+
+.home-page__list-root {
+  width: 100%;
+}
+
+/* src/client/pages/HomePage.nav.css */
 .home-page__nav {
   border-bottom: 1px solid var(--mantine-color-gray-2);
   padding-left: var(--mantine-spacing-md);
@@ -9113,38 +9162,7 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   font-weight: 500;
 }
 
-.home-page__main {
-  max-width: var(--home-page-content-max-width);
-  background-color: var(--mantine-color-body);
-  width: 100%;
-  min-height: calc(100vh - 65px);
-  margin-left: auto;
-  margin-right: auto;
-  padding: 1rem;
-}
-
-.home-page__title {
-  color: var(--mantine-color-dark-7);
-  letter-spacing: -.02em;
-  font-size: clamp(1.875rem, 2.5vw, 2.25rem);
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.home-page__actions {
-  flex-shrink: 0;
-}
-
-.home-page__import-btn {
-  border-color: var(--mantine-color-gray-4);
-  white-space: nowrap;
-  background-color: #fff;
-}
-
-.home-page__new-workspace-btn {
-  white-space: nowrap;
-}
-
+/* src/client/pages/HomePage.workspace.css */
 .home-page__workspace-row {
   align-items:  flex-start;
 }
@@ -9174,6 +9192,32 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   flex-shrink: 0;
 }
 
+.home-page__workspace-insert-line {
+  background: var(--mantine-color-blue-5);
+  border-radius: 2px;
+  width: 100%;
+  height: 3px;
+  margin: .25rem 0;
+}
+
+.home-page__workspace-drag-handle {
+  display: inline-flex;
+  cursor: grab;
+  color: var(--mantine-color-gray-6);
+  border-radius: var(--mantine-radius-sm, 4px);
+  touch-action: none;
+  flex-shrink: 0;
+  justify-content: center;
+  align-items:  center;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.home-page__workspace-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* src/client/pages/HomePage.boardCards.css */
 .home-page__board-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -9250,24 +9294,18 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   align-items: stretch;
 }
 
-.home-page__loading {
-  display: flex;
-  background-color: var(--mantine-color-body);
-  justify-content: center;
-  align-items:  center;
-  min-height: 100vh;
+.home-page__board-drop-indicator {
+  background: var(--mantine-color-blue-5);
+  grid-column: 1 / -1;
+  border-radius: 2px;
+  width: 100%;
+  min-height: 4px;
+  transition: opacity .12s;
 }
 
-.home-page__icon-plus {
-  font-size: 1.125rem;
-}
-
+/* src/client/pages/HomePage.drag.css */
 .home-page--dragging {
   cursor: grabbing;
-}
-
-.home-page__list-root {
-  width: 100%;
 }
 
 .home-page__drag-float-host {
@@ -9290,31 +9328,6 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   font-weight: 600;
 }
 
-.home-page__workspace-insert-line {
-  background: var(--mantine-color-blue-5);
-  border-radius: 2px;
-  width: 100%;
-  height: 3px;
-  margin: .25rem 0;
-}
-
-.home-page__workspace-drag-handle {
-  display: inline-flex;
-  cursor: grab;
-  color: var(--mantine-color-gray-6);
-  border-radius: var(--mantine-radius-sm, 4px);
-  touch-action: none;
-  flex-shrink: 0;
-  justify-content: center;
-  align-items:  center;
-  min-width: 32px;
-  min-height: 32px;
-}
-
-.home-page__workspace-drag-handle:active {
-  cursor: grabbing;
-}
-
 .home-page__board-card[data-home-board-draggable="1"] {
   cursor: grab;
   touch-action: pan-y;
@@ -9328,15 +9341,7 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   opacity: .45;
 }
 
-.home-page__board-drop-indicator {
-  background: var(--mantine-color-blue-5);
-  grid-column: 1 / -1;
-  border-radius: 2px;
-  width: 100%;
-  min-height: 4px;
-  transition: opacity .12s;
-}
-
+/* src/client/pages/HomePage.responsive.css */
 @media (max-width: 1199px) {
   .home-page {
     --home-page-content-max-width: 100%;
@@ -9488,6 +9493,9 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   flex: 1;
   min-height: 0;
 }
+
+/* src/client/pages/HomePage.css */
+
 
 /* src/client/components/UserMenu.css */
 .user-menu__trigger {
@@ -9838,7 +9846,7 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   margin: 0 .12em;
 }
 
-/* src/client/components/card/cardDescriptionTiptap.css */
+/* src/client/components/card/cardDescriptionTiptap.editor.css */
 .card-desc-tiptap-editor .ProseMirror {
   padding: 0 var(--mantine-spacing-md) var(--mantine-spacing-sm);
   outline: none;
@@ -9972,6 +9980,19 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   cursor: grab;
 }
 
+.card-desc-tiptap-editor .ProseMirror p.is-editor-empty:first-child:before {
+  color: var(--mantine-color-placeholder);
+  content: attr(data-placeholder);
+  float: left;
+  pointer-events: none;
+  height: 0;
+}
+
+.card-desc-tiptap-editor .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+/* src/client/components/card/cardDescriptionTiptap.media.css */
 .card-desc-inline-button-wrapper, .card-desc-inline-button-container, .card-desc-tiptap-read .card-desc-inline-button, .card-desc-tiptap-editor .ProseMirror .card-desc-inline-button {
   max-width: 100%;
 }
@@ -10052,6 +10073,12 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   flex-shrink: 0;
 }
 
+.card-desc-video-node-view {
+  max-width: 100%;
+  margin: 0;
+}
+
+/* src/client/components/card/cardDescriptionTiptap.read.css */
 .card-desc-tiptap-read {
   font-size: var(--mantine-font-size-sm);
   white-space: pre-wrap;
@@ -10068,11 +10095,6 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
 .card-desc-tiptap-read--detail video.card-desc-video-player {
   align-self: stretch;
-}
-
-.card-desc-video-node-view {
-  max-width: 100%;
-  margin: 0;
 }
 
 .card-desc-tiptap-read:not(.card-desc-tiptap-read--detail) > * + *, .card-desc-tiptap-read blockquote > * + * {
@@ -10093,18 +10115,11 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   text-decoration: underline;
 }
 
-.card-desc-tiptap-editor .ProseMirror p.is-editor-empty:first-child:before {
-  color: var(--mantine-color-placeholder);
-  content: attr(data-placeholder);
-  float: left;
-  pointer-events: none;
-  height: 0;
-}
-
-.card-desc-tiptap-editor .ProseMirror > :first-child, .card-desc-tiptap-read:not(.card-desc-tiptap-read--detail) > :first-child {
+.card-desc-tiptap-read:not(.card-desc-tiptap-read--detail) > :first-child {
   margin-top: 0;
 }
 
+/* src/client/components/card/cardDescriptionTiptap.toolbar.css */
 .card-desc-tiptap-toolbar .mantine-ActionIcon-root {
   color: var(--board-card-detail-prose, var(--mantine-color-dark-8));
 }
@@ -10196,6 +10211,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   max-height: 100% !important;
 }
 
+/* src/client/components/card/cardDescriptionTiptap.mobile.css */
 @media (max-width: 1199px) {
   .card-desc-tiptap-editor .ProseMirror {
     font-size: .92rem;
@@ -10239,6 +10255,9 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     font-size: .95rem;
   }
 }
+
+/* src/client/components/card/cardDescriptionTiptap.css */
+
 
 /* src/client/components/card/cardInlineButtonEditModal.css */
 .card-inline-button-edit-modal__mantine-inner--mobile {

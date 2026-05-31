@@ -2,6 +2,8 @@ import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
+import { parseOrThrow } from '../utils/zodValidation.js';
+import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import {
   createInviteLink,
@@ -15,10 +17,9 @@ const router = Router();
 
 router.use(requireAuth as RequestHandler);
 
-// Special rate limiter for invite acceptance (300 per minute)
 const inviteAcceptRateLimiter = createRateLimiter('api', {
-  windowMs: 60 * 1000, // 1 minute
-  max: 300, // 300 requests per minute
+  windowMs: 60 * 1000,
+  max: 300,
 });
 
 const createInviteSchema = z.object({
@@ -30,13 +31,11 @@ const createInviteSchema = z.object({
   roleKey: z.string().trim().min(1).max(80).optional(),
 });
 
-// Create invite link
 router.post('/', apiRateLimiter, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = createInviteSchema.parse(req.body);
+    const validated = parseOrThrow(createInviteSchema, req.body);
 
-    // Validate that workspaceId or boardId matches type
     if (validated.type === 'workspace' && !validated.workspaceId) {
       res.status(400).json({
         error: {
@@ -84,32 +83,10 @@ router.post('/', apiRateLimiter, async (req, res, next) => {
 
     res.status(201).json({ inviteLink });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
-// Accept invite link
 router.post('/accept/:token', inviteAcceptRateLimiter, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
@@ -119,23 +96,10 @@ router.post('/accept/:token', inviteAcceptRateLimiter, async (req, res, next) =>
 
     res.json({ message: 'Invite accepted successfully' });
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes('Invalid') || error.message.includes('expired') || error.message.includes('used')) {
-        res.status(400).json({
-          error: {
-            message: error.message,
-            code: 'INVALID_INVITE',
-            statusCode: 400,
-          },
-        });
-        return;
-      }
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
-// Get invite links
 router.get('/', apiRateLimiter, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
@@ -149,21 +113,10 @@ router.get('/', apiRateLimiter, async (req, res, next) => {
 
     res.json({ inviteLinks });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
-// Delete invite link
 router.delete('/:id', apiRateLimiter, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
@@ -182,19 +135,8 @@ router.delete('/:id', apiRateLimiter, async (req, res, next) => {
 
     res.json({ message: 'Invite link deleted successfully' });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
 export { router as inviteRoutes };
-

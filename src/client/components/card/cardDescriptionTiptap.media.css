@@ -1,0 +1,102 @@
+/* Tiptap card description — inline buttons, video, emoji sprites */
+
+.card-desc-inline-button-wrapper {
+  max-width: 100%;
+}
+
+.card-desc-inline-button-container {
+  max-width: 100%;
+}
+
+.card-desc-tiptap-read .card-desc-inline-button,
+.card-desc-tiptap-editor .ProseMirror .card-desc-inline-button {
+  max-width: 100%;
+}
+
+.card-desc-tiptap-read .card-desc-inline-button img,
+.card-desc-tiptap-editor .ProseMirror .card-desc-inline-button img {
+  max-width: none;
+  height: auto;
+}
+
+/* Shared with attachment fullscreen preview — keep in sync with AttachmentSection */
+.card-desc-video-player-shell {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border-radius: var(--mantine-radius-sm);
+  overflow: hidden;
+}
+
+.card-desc-video-poster-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  background: var(--mantine-color-dark-8, #141517);
+}
+
+video.card-desc-video-player {
+  position: relative;
+  z-index: 0;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--mantine-radius-sm);
+  background: transparent;
+  vertical-align: top;
+}
+
+/* Readonly + editor: full width of description column (no max-height — that shrinks width and leaves side gaps). */
+.card-desc-tiptap-read video.card-desc-video-player,
+.card-desc-tiptap-editor .ProseMirror video.card-desc-video-player {
+  margin: 0;
+}
+
+.card-desc-tiptap-editor .ProseMirror video:not(.card-desc-video-player) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0.5rem 0;
+  border-radius: var(--mantine-radius-sm);
+}
+
+video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0;
+  object-fit: contain;
+}
+
+.card-desc-tiptap-editor .ProseMirror .card-desc-twemoji,
+.card-desc-tiptap-read .card-desc-twemoji {
+  width: 1.1em;
+  height: 1.1em;
+  margin: 0 0.12em;
+  vertical-align: text-bottom;
+  display: inline-block;
+}
+
+/* Spritesheet cells set background-* via inline style from tiptapTwemojiExtension */
+.card-desc-tiptap-editor .ProseMirror span.card-desc-twemoji--sheet,
+.card-desc-tiptap-read span.card-desc-twemoji--sheet {
+  flex-shrink: 0;
+  background-repeat: no-repeat;
+}
+
+.card-desc-video-node-view {
+  margin: 0;
+  max-width: 100%;
+}

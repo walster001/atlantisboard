@@ -2,6 +2,8 @@ import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
+import { parseOrThrow } from '../utils/zodValidation.js';
+import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import {
   createChecklist,
@@ -39,45 +41,22 @@ const updateChecklistItemSchema = z.object({
   sortOrder: z.number().optional(),
 });
 
-// Create checklist
 router.post('/checklists', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = createChecklistSchema.parse(req.body);
+    const validated = parseOrThrow(createChecklistSchema, req.body);
     const card = await createChecklist(validated, authReq.user.id);
 
     res.status(201).json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
-// Update checklist
 router.put('/checklists/:checklistId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = updateChecklistSchema.parse(req.body);
+    const validated = parseOrThrow(updateChecklistSchema, req.body);
     const { cardId } = req.body;
     if (!cardId || typeof cardId !== 'string') {
       res.status(400).json({
@@ -106,32 +85,10 @@ router.put('/checklists/:checklistId', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
-// Delete checklist
 router.delete('/checklists/:checklistId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
@@ -159,25 +116,14 @@ router.delete('/checklists/:checklistId', async (req, res, next) => {
     }
     res.json({ message: 'Checklist deleted successfully' });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
-// Create checklist item
 router.post('/checklists/items', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = createChecklistItemSchema.parse(req.body);
+    const validated = parseOrThrow(createChecklistItemSchema, req.body);
     const itemInput: {
       cardId: string;
       checklistId: string;
@@ -204,36 +150,14 @@ router.post('/checklists/items', async (req, res, next) => {
     }
     res.status(201).json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
-// Update checklist item
 router.put('/checklists/items/:itemId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const validated = updateChecklistItemSchema.parse(req.body);
+    const validated = parseOrThrow(updateChecklistItemSchema, req.body);
     const { cardId, checklistId } = req.body;
     if (!cardId || typeof cardId !== 'string' || !checklistId || typeof checklistId !== 'string') {
       res.status(400).json({
@@ -272,32 +196,10 @@ router.put('/checklists/items/:itemId', async (req, res, next) => {
     }
     res.json({ card });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({
-        error: {
-          message: 'Validation failed',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-          details: error.issues,
-        },
-      });
-      return;
-    }
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
-// Delete checklist item
 router.delete('/checklists/items/:itemId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
@@ -325,19 +227,8 @@ router.delete('/checklists/items/:itemId', async (req, res, next) => {
     }
     res.json({ message: 'Checklist item deleted successfully' });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('permissions')) {
-      res.status(403).json({
-        error: {
-          message: error.message,
-          code: 'FORBIDDEN',
-          statusCode: 403,
-        },
-      });
-      return;
-    }
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 
 export { router as checklistRoutes };
-

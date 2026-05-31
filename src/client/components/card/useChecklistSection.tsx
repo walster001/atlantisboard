@@ -107,7 +107,7 @@ export function useChecklistSection({ card, canEdit, onCardUpdate }: UseChecklis
         cardId: card.id,
         title: newChecklistTitle.trim(),
       });
-      const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+      const updatedCard = normalizeCardFromApi(response.card, card.id);
       onCardUpdate(updatedCard);
       setNewChecklistTitle('');
       setShowNewChecklist(false);
@@ -135,7 +135,7 @@ export function useChecklistSection({ card, canEdit, onCardUpdate }: UseChecklis
         checklistId,
         text: text.trim(),
       });
-      const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+      const updatedCard = normalizeCardFromApi(response.card, card.id);
       onCardUpdate(updatedCard);
       focusAddItemInput(checklistId);
     } catch (error) {
@@ -171,7 +171,7 @@ export function useChecklistSection({ card, canEdit, onCardUpdate }: UseChecklis
         checklistId,
         completed: !completed,
       });
-      const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+      const updatedCard = normalizeCardFromApi(response.card, card.id);
       onCardUpdate(updatedCard);
     } catch (error) {
       console.error('Error updating checklist item:', error);
@@ -206,7 +206,7 @@ export function useChecklistSection({ card, canEdit, onCardUpdate }: UseChecklis
         cardId: card.id,
         title: trimmed,
       });
-      const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+      const updatedCard = normalizeCardFromApi(response.card, card.id);
       onCardUpdate(updatedCard);
       setChecklistRename(null);
     } catch (error) {
@@ -236,7 +236,7 @@ export function useChecklistSection({ card, canEdit, onCardUpdate }: UseChecklis
         try {
           await api.deleteChecklist(checklistId, card.id);
           const response = await api.getCard(card.id);
-          const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+          const updatedCard = normalizeCardFromApi(response.card, card.id);
           onCardUpdate(updatedCard);
         } catch (error) {
           console.error('Error deleting checklist:', error);
@@ -282,7 +282,7 @@ export function useChecklistSection({ card, canEdit, onCardUpdate }: UseChecklis
         checklistId,
         text: trimmed,
       });
-      const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+      const updatedCard = normalizeCardFromApi(response.card, card.id);
       onCardUpdate(updatedCard);
       setItemRename(null);
     } catch (error) {
@@ -312,7 +312,7 @@ export function useChecklistSection({ card, canEdit, onCardUpdate }: UseChecklis
         checklistId,
       });
       const response = await api.getCard(card.id);
-      const updatedCard = normalizeCardFromApi((response as { card: unknown }).card, card.id);
+      const updatedCard = normalizeCardFromApi(response.card, card.id);
       onCardUpdate(updatedCard);
     } catch (error) {
       console.error('Error deleting checklist item:', error);

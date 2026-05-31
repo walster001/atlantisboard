@@ -235,13 +235,32 @@ export const createBoardCardMapSlice: StateCreator<
     set((s) => {
       const cardsById = { ...s.cardsById };
       const cardIdsByListId = { ...s.cardIdsByListId };
+
+      const idsWrittenInPatch = new Set<string>();
+      for (const arr of map.values()) {
+        for (const c of arr) {
+          idsWrittenInPatch.add(c.id);
+        }
+      }
+
       for (const [lid, arr] of map) {
         for (const id of cardIdsByListId[lid] ?? []) {
-          delete cardsById[id];
+          // Cross-list moves patch both lists; when the destination column is ordered before the
+          // source in `orderedListIds`, processing the source list must not delete a card that
+          // was already written into the destination list in this same partial update.
+          if (!idsWrittenInPatch.has(id)) {
+            delete cardsById[id];
+          }
         }
         cardIdsByListId[lid] = arr.map((c) => c.id);
         for (const c of arr) {
           cardsById[c.id] = c;
+          for (const [otherLid, otherIds] of Object.entries(cardIdsByListId)) {
+            if (otherLid === lid || !otherIds.includes(c.id)) {
+              continue;
+            }
+            cardIdsByListId[otherLid] = removeCardIdFromList(otherIds, c.id);
+          }
         }
       }
       return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };

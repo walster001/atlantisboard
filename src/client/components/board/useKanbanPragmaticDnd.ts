@@ -4,6 +4,7 @@ import { db } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import { normalizeCardFromApi, transformList } from '../../utils/transform.js';
 import { persistDexieCardPut } from '../../store/boardDexieCache.js';
+import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
 import {
   readKanbanCardDragData,
   readKanbanListDragData,
@@ -222,10 +223,12 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
               if (targetListId === activeListId) {
                 const movePayload = await api.moveCard(activeId, activeListId, insertIndex);
                 const moved = normalizeCardFromApi(movePayload.card, activeId);
+                useBoardRuntimeStore.getState().upsertCard(moved);
                 await persistDexieCardPut(moved);
               } else {
                 const movePayload = await api.moveCard(activeId, targetListId, insertIndex);
                 const moved = normalizeCardFromApi(movePayload.card, activeId);
+                useBoardRuntimeStore.getState().upsertCard(moved);
                 await persistDexieCardPut(moved);
               }
             } catch {

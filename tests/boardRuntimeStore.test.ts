@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { useBoardRuntimeStore, buildKanbanCardsMapFromRuntimeState } from '../src/client/store/boardRuntimeStore.js';
+import { useBoardRuntimeStore, buildKanbanCardsMapFromRuntimeState, boardRuntimeMoveCardBetweenLists } from '../src/client/store/boardRuntimeStore.js';
 import type { BoardDB, CardDB, ListDB } from '../src/client/store/database.js';
 
 function sampleBoard(): BoardDB {
@@ -157,5 +157,25 @@ describe('boardRuntimeStore', () => {
     useBoardRuntimeStore.getState().upsertCard(detailSavePayload);
     const ids = useBoardRuntimeStore.getState().cardIdsByListId.l1 ?? [];
     expect(ids.indexOf('c4')).toBe(8);
+  });
+
+  it('applyKanbanCardsMapPartial retains moved card when destination list is ordered before source', () => {
+    const l1 = sampleList('l1', 0);
+    const l2 = sampleList('l2', 1);
+    useBoardRuntimeStore.getState().hydrateFromSnapshot({
+      boardId: 'b1',
+      board: sampleBoard(),
+      lists: [l2, l1],
+      cardsByList: new Map([
+        ['l1', [sampleCard('a', 'l1', 0), sampleCard('b', 'l1', 1)]],
+        ['l2', [sampleCard('c', 'l2', 0)]],
+      ]),
+    });
+    boardRuntimeMoveCardBetweenLists('a', 'l1', 'l2', 1);
+    const s = useBoardRuntimeStore.getState();
+    expect(s.cardsById.a).toBeDefined();
+    expect(s.cardIdsByListId.l1).toEqual(['b']);
+    expect(s.cardIdsByListId.l2).toEqual(['c', 'a']);
+    expect(buildKanbanCardsMapFromRuntimeState(s).get('l2')?.map((c) => c.id)).toEqual(['c', 'a']);
   });
 });

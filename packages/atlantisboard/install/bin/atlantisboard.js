@@ -38,7 +38,7 @@ const cmd = process.argv[2];
 switch (cmd) {
   case 'setup':
   case undefined: {
-    const setupSh = path.join(PKG_ROOT, 'install', 'bin', 'setup.sh');
+    const setupSh = path.join(PKG_ROOT, 'install', 'setup.sh');
     const child = spawn('bash', [setupSh, ...process.argv.slice(3)], {
       stdio: 'inherit',
       env: { ...process.env, ATLANTISBOARD_PACKAGE_ROOT: PKG_ROOT },

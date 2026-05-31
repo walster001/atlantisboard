@@ -71,10 +71,14 @@ export default function BoardPage() {
   const boardRootClassName = `board-page${isMobile ? ' board-page--mobile' : isTablet ? ' board-page--tablet' : ''}${
     isPwa ? ' board-page--pwa' : ''
   }`;
+  const boardRootProps = {
+    className: boardRootClassName,
+    ...(boardThemeStyle !== undefined ? { style: boardThemeStyle } : {}),
+  };
 
   if (loading) {
     return (
-      <Box className={boardRootClassName}>
+      <Box {...boardRootProps}>
         <Box className="min-h-screen flex items-center justify-center">
           <Loader size="lg" />
         </Box>
@@ -88,7 +92,7 @@ export default function BoardPage() {
 
   if (!board && !loadFailed) {
     return (
-      <Box className={boardRootClassName}>
+      <Box {...boardRootProps}>
         <Box className="min-h-screen flex items-center justify-center">
           <Loader size="lg" />
         </Box>
@@ -98,7 +102,7 @@ export default function BoardPage() {
 
   if (!board) {
     return (
-      <Box className={boardRootClassName}>
+      <Box {...boardRootProps}>
         <Box className="min-h-screen flex items-center justify-center">
           <Box ta="center">
             <Title order={1} mb="md">
@@ -114,10 +118,7 @@ export default function BoardPage() {
   }
 
   return (
-    <Box
-      className={boardRootClassName}
-      {...(boardThemeStyle !== undefined ? { style: boardThemeStyle } : {})}
-    >
+    <Box {...boardRootProps}>
       <Box className="board-page__header">
         <Box className="board-page__header-inner">
           <Group justify="space-between" align="center" wrap="nowrap" gap="md">

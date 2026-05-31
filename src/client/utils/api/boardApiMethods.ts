@@ -26,6 +26,7 @@ export function parseBoardsListApiResponse(data: unknown): BoardsListApiResponse
 export interface BoardSummaryOption {
   readonly id: string;
   readonly name: string;
+  readonly ownerId?: string;
 }
 
 export function mapBoardSummariesToOptions(boards: readonly unknown[]): readonly BoardSummaryOption[] {
@@ -38,7 +39,12 @@ export function mapBoardSummariesToOptions(boards: readonly unknown[]): readonly
     const id = typeof rawId === 'string' ? rawId.trim() : '';
     const rawName = record.name;
     const name = (typeof rawName === 'string' ? rawName.trim() : '') || 'Untitled board';
-    return id !== '' ? [{ id, name }] : [];
+    const rawOwnerId = record.ownerId;
+    const ownerId = typeof rawOwnerId === 'string' ? rawOwnerId.trim() : '';
+    if (id === '') {
+      return [];
+    }
+    return ownerId !== '' ? [{ id, name, ownerId }] : [{ id, name }];
   });
 }
 

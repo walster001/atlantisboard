@@ -105,7 +105,6 @@ export const cardApiMethods: CardApiMethods = {
   },
 
   async postBoardCardDescriptionsBatch(this: ApiClient, boardId, cardIds) {
-    await this.ensureCsrfToken();
     const response = await this.client.post(`/boards/${boardId}/cards/descriptions-batch`, {
       cardIds: [...cardIds],
     });

@@ -65,6 +65,64 @@ atl_get_install_user() {
   logname 2>/dev/null || echo "${SUDO_USER:-${USER:-root}}"
 }
 
+# Run commands with root privileges (/opt install, systemd, Docker without group membership).
+atl_sudo() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+atl_require_sudo_access() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    return 0
+  fi
+  if ! atl_sudo_works; then
+    whiptail --title "Administrator access required" --msgbox \
+      "Atlantisboard setup installs to system paths (for example /opt/atlantisboard) and needs administrator privileges.\n\nRun:\n  sudo atlantisboard-setup\n\nOr ensure your user can run sudo (try: sudo -v)." \
+      14 72
+    exit 1
+  fi
+  atl_sudo -v
+}
+
+atl_sudo_mkdir_p() {
+  local dir="$1"
+  atl_assert_absolute_path "$dir" "directory" || return 1
+  atl_sudo mkdir -p "$dir"
+}
+
+atl_assert_absolute_path() {
+  local path="$1" label="${2:-path}"
+  path="$(atl_sanitize_input "$path")"
+  path="${path%/}"
+  if [[ -z "$path" ]] || [[ "$path" != /* ]] || [[ "$path" == "/" ]]; then
+    whiptail --title "Invalid path" --msgbox \
+      "The ${label} is missing or invalid.\n\nUse an absolute path such as /opt/atlantisboard (not empty or /)." \
+      12 72
+    return 1
+  fi
+  return 0
+}
+
+atl_finalize_install_dir() {
+  INSTALL_DIR="$(atl_sanitize_input "$INSTALL_DIR")"
+  INSTALL_DIR="${INSTALL_DIR%/}"
+  if [[ -z "$INSTALL_DIR" ]]; then
+    INSTALL_DIR="/opt/atlantisboard"
+  fi
+  atl_assert_absolute_path "$INSTALL_DIR" "install directory" || exit 1
+}
+
+atl_normalize_backup_dir() {
+  local raw="${1:-/var/backups/atlantisboard}"
+  raw="$(atl_sanitize_input "$raw")"
+  raw="${raw:-/var/backups/atlantisboard}"
+  raw="${raw%/}"
+  printf '%s' "$raw"
+}
+
 atl_cmd_exists() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -96,7 +154,7 @@ atl_install_parent_writable() {
   while [[ "$parent" != "/" && ! -d "$parent" ]]; do
     parent="$(dirname "$parent")"
   done
-  [[ -w "$parent" ]] || sudo test -w "$parent" 2>/dev/null
+  [[ -w "$parent" ]] || atl_sudo test -w "$parent" 2>/dev/null
 }
 
 atl_preflight_fail() {
@@ -126,12 +184,13 @@ atl_preflight_check() {
     fi
   done
 
-  if ! atl_sudo_works; then
-    lines+=("sudo — your user must be able to run sudo (try: sudo -v)")
+  if ! atl_sudo_works && [[ "$(id -u)" -ne 0 ]]; then
+    lines+=("sudo — run as root or enable sudo (e.g. sudo atlantisboard-setup)")
   fi
 
-  if ! atl_install_parent_writable "$INSTALL_DIR"; then
-    lines+=("Install directory parent not writable — choose another path or fix permissions for $(dirname "$INSTALL_DIR")")
+  atl_finalize_install_dir
+  if ! atl_sudo mkdir -p "$(dirname "$INSTALL_DIR")" 2>/dev/null; then
+    lines+=("Cannot create install path parent $(dirname "$INSTALL_DIR") — run with sudo")
   fi
 
   local app_port="${ENV_VALUES[PORT]:-3000}"
@@ -147,8 +206,8 @@ atl_preflight_check() {
     docker | fullstack)
       if ! atl_cmd_exists docker; then
         lines+=("docker — install Docker Engine: https://docs.docker.com/engine/install/")
-      elif ! docker compose version >/dev/null 2>&1; then
-        lines+=("docker compose v2 — install the Docker Compose plugin (docker compose version)")
+      elif ! atl_sudo docker compose version >/dev/null 2>&1; then
+        lines+=("docker compose v2 — install the Docker Compose plugin (sudo docker compose version)")
       else
         local skip_dep_ports=false
         if atl_docker_existing_stack_detected "$mode"; then
@@ -205,8 +264,8 @@ atl_ensure_bun() {
     local existing
     existing="$(command -v bun)"
     if [[ "$existing" != /usr/local/bin/bun ]]; then
-      sudo install -d /usr/local/bin
-      sudo ln -sf "$existing" /usr/local/bin/bun
+      atl_sudo install -d /usr/local/bin
+      atl_sudo ln -sf "$existing" /usr/local/bin/bun
     fi
     printf '%s' /usr/local/bin/bun
     return 0
@@ -215,8 +274,8 @@ atl_ensure_bun() {
     "Bun is required but was not found.\n\nInstall Bun to /usr/local/bin so the atlantisboard systemd user can run it (ProtectHome=true)?" \
     12 72; then
     whiptail --title "Installing Bun" --infobox "Downloading and installing Bun to /usr/local ...\n\nPlease wait." 8 60
-    sudo mkdir -p /usr/local/bin
-    curl -fsSL https://bun.sh/install | sudo env BUN_INSTALL=/usr/local bash
+    atl_sudo mkdir -p /usr/local/bin
+    curl -fsSL https://bun.sh/install | atl_sudo env BUN_INSTALL=/usr/local bash
     if [[ ! -x /usr/local/bin/bun ]]; then
       whiptail --title "Bun install failed" --msgbox \
         "Bun installation did not produce /usr/local/bin/bun.\n\nInstall manually: https://bun.sh" \
@@ -245,12 +304,12 @@ atl_docker_existing_stack_detected() {
 
   local name
   for name in "${containers[@]}"; do
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
+    if atl_sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
       return 0
     fi
   done
 
-  if docker volume ls --format '{{.Name}}' 2>/dev/null | grep -qE '(^|_)(mongo-data|redis-data|minio-data)(-full)?$'; then
+  if atl_sudo docker volume ls --format '{{.Name}}' 2>/dev/null | grep -qE '(^|_)(mongo-data|redis-data|minio-data)(-full)?$'; then
     return 0
   fi
   return 1
@@ -320,13 +379,13 @@ atl_wait_for_docker_deps() {
             'try { quit(rs.status().ok === 1 ? 0 : 1) } catch (e) { quit(1) }' >/dev/null 2>&1; then
             mongo_ok=true
           fi
-        elif docker exec atlantisboard-mongodb-deps mongosh --quiet \
+        elif atl_sudo docker exec atlantisboard-mongodb-deps mongosh --quiet \
           -u "${ENV_VALUES[MONGODB_ROOT_USER]}" -p "${ENV_VALUES[MONGODB_ROOT_PASSWORD]}" \
           --authenticationDatabase admin \
           --eval "try { quit(rs.status().ok === 1 ? 0 : 1) } catch (e) { quit(1) }" >/dev/null 2>&1; then
           mongo_ok=true
         fi
-        if docker exec atlantisboard-redis-deps redis-cli -a "${ENV_VALUES[REDIS_PASSWORD]}" ping 2>/dev/null | grep -q PONG; then
+        if atl_sudo docker exec atlantisboard-redis-deps redis-cli -a "${ENV_VALUES[REDIS_PASSWORD]}" ping 2>/dev/null | grep -q PONG; then
           redis_ok=true
         fi
         if curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null 2>&1; then
@@ -334,16 +393,16 @@ atl_wait_for_docker_deps() {
         fi
         ;;
       fullstack)
-        if docker exec atlantisboard-mongodb-full mongosh --quiet \
+        if atl_sudo docker exec atlantisboard-mongodb-full mongosh --quiet \
           -u "${ENV_VALUES[MONGODB_ROOT_USER]}" -p "${ENV_VALUES[MONGODB_ROOT_PASSWORD]}" \
           --authenticationDatabase admin \
           --eval "try { quit(rs.status().ok === 1 ? 0 : 1) } catch (e) { quit(1) }" >/dev/null 2>&1; then
           mongo_ok=true
         fi
-        if docker exec atlantisboard-redis-full redis-cli -a "${ENV_VALUES[REDIS_PASSWORD]}" ping 2>/dev/null | grep -q PONG; then
+        if atl_sudo docker exec atlantisboard-redis-full redis-cli -a "${ENV_VALUES[REDIS_PASSWORD]}" ping 2>/dev/null | grep -q PONG; then
           redis_ok=true
         fi
-        if docker exec atlantisboard-minio-full curl -sf http://localhost:9000/minio/health/live >/dev/null 2>&1; then
+        if atl_sudo docker exec atlantisboard-minio-full curl -sf http://localhost:9000/minio/health/live >/dev/null 2>&1; then
           minio_ok=true
         fi
         ;;
@@ -358,7 +417,7 @@ atl_wait_for_docker_deps() {
 
 atl_systemctl_restart_or_fail() {
   local unit="$1"
-  if sudo systemctl restart "$unit"; then
+  if atl_sudo systemctl restart "$unit"; then
     return 0
   fi
   whiptail --title "Service start failed" --msgbox \
@@ -370,6 +429,8 @@ atl_systemctl_restart_or_fail() {
 atl_sanitize_input() {
   local val="$1"
   val="${val//$'\r'/}"
+  val="${val//\"/}"
+  val="${val//\'/}"
   val="${val#"${val%%[![:space:]]*}"}"
   val="${val%"${val##*[![:space:]]}"}"
   printf '%s' "$val"
@@ -419,7 +480,7 @@ atl_validate_value() {
       [[ "$val" =~ ^mongodb(\+srv)?:// ]]
       ;;
     install_dir)
-      [[ "$val" == /* ]] && [[ "$val" != "/" ]]
+      [[ "$val" == /* ]] && [[ "$val" != "/" ]] && [[ "$val" != *" "* ]]
       ;;
     google_client_id)
       [[ "$val" =~ \.apps\.googleusercontent\.com$ ]]
@@ -805,12 +866,12 @@ atl_write_env_file() {
   local -A merged=()
   local key line tmp
 
-  if [[ -f "$env_file" ]]; then
+  if atl_sudo test -f "$env_file"; then
     while IFS= read -r line || [[ -n "$line" ]]; do
       if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
         merged["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
       fi
-    done < "$env_file"
+    done < <(atl_sudo cat "$env_file")
   fi
 
   for key in "${!ENV_VALUES[@]}"; do
@@ -818,7 +879,7 @@ atl_write_env_file() {
   done
 
   tmp="$(mktemp)"
-  if [[ -f "$env_file" ]]; then
+  if atl_sudo test -f "$env_file"; then
     while IFS= read -r line || [[ -n "$line" ]]; do
       if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)= ]]; then
         key="${BASH_REMATCH[1]}"
@@ -831,7 +892,7 @@ atl_write_env_file() {
       else
         printf '%s\n' "$line"
       fi
-    done < "$env_file" > "$tmp"
+    done < <(atl_sudo cat "$env_file") > "$tmp"
   else
     : > "$tmp"
   fi
@@ -840,17 +901,17 @@ atl_write_env_file() {
     printf '%s=%s\n' "$key" "${merged[$key]}"
   done >> "$tmp"
 
-  sudo mv "$tmp" "$env_file"
-  sudo chmod 600 "$env_file"
+  atl_sudo install -m 600 -o root -g root "$tmp" "$env_file"
+  rm -f "$tmp"
 }
 
 atl_docker_compose() {
   local compose_dir="$1" compose_file="$2"
   shift 2
-  if docker compose version >/dev/null 2>&1; then
-    (cd "$compose_dir" && docker compose --env-file "$ENV_FILE" -f "$compose_file" "$@")
+  if atl_sudo docker compose version >/dev/null 2>&1; then
+    (cd "$compose_dir" && atl_sudo docker compose --env-file "$ENV_FILE" -f "$compose_file" "$@")
   else
-    (cd "$compose_dir" && docker-compose --env-file "$ENV_FILE" -f "$compose_file" "$@")
+    (cd "$compose_dir" && atl_sudo docker-compose --env-file "$ENV_FILE" -f "$compose_file" "$@")
   fi
 }
 
@@ -867,7 +928,7 @@ atl_prompt_install_dir() {
       current="$default"
     fi
     if atl_validate_value "$current" "install_dir" "false"; then
-      INSTALL_DIR="$current"
+      INSTALL_DIR="${current%/}"
       valid=true
     else
       err_msg="$(atl_validation_message install_dir)"

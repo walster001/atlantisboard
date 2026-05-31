@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader, Select, Stack } from '@mantine/core';
+import { Loader, Select, Stack, Text } from '@mantine/core';
 import { api } from '../../utils/api.js';
-import { mapBoardSummariesToOptions } from '../../utils/api/boardApiMethods.js';
 import { mapListSummariesToOptions } from '../../utils/api/listApiMethods.js';
-
-interface BoardOption {
-  readonly id: string;
-  readonly name: string;
-}
+import { useDuplicateTargetBoardOptions } from '../../hooks/useDuplicateTargetBoardOptions.js';
+import type { DuplicateTargetKind } from '../../utils/duplicateTargetPermissions.js';
 
 interface ListOption {
   readonly id: string;
@@ -23,6 +19,7 @@ export interface DuplicateTargetBoardListPickerProps {
   readonly onTargetBoardIdChange: (boardId: string) => void;
   readonly targetListId: string;
   readonly onTargetListIdChange: (listId: string) => void;
+  readonly duplicateKind: DuplicateTargetKind;
   readonly disabled?: boolean;
   readonly listLabel?: string;
   readonly listDescription?: string;
@@ -37,49 +34,38 @@ export function DuplicateTargetBoardListPicker({
   onTargetBoardIdChange,
   targetListId,
   onTargetListIdChange,
+  duplicateKind,
   disabled = false,
   listLabel = 'Target list',
   listDescription,
 }: DuplicateTargetBoardListPickerProps): React.ReactElement {
-  const [boards, setBoards] = useState<readonly BoardOption[]>([]);
+  const { boards, loading: loadingBoards } = useDuplicateTargetBoardOptions({
+    workspaceId,
+    currentBoardId,
+    currentBoardName,
+    kind: duplicateKind,
+  });
   const [lists, setLists] = useState<readonly ListOption[]>([]);
-  const [loadingBoards, setLoadingBoards] = useState(true);
   const [loadingLists, setLoadingLists] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    const loadBoards = async (): Promise<void> => {
-      setLoadingBoards(true);
-      try {
-        if (workspaceId != null && workspaceId.trim() !== '') {
-          const response = await api.getBoardsByWorkspace(workspaceId);
-          const options = mapBoardSummariesToOptions(response.boards ?? []);
-          if (!cancelled) {
-            setBoards(options);
-          }
-        } else if (!cancelled) {
-          setBoards([{ id: currentBoardId, name: currentBoardName }]);
-        }
-      } catch {
-        if (!cancelled) {
-          setBoards([{ id: currentBoardId, name: currentBoardName }]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingBoards(false);
-        }
-      }
-    };
-    void loadBoards();
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId, currentBoardId, currentBoardName]);
+    if (loadingBoards || boards.length === 0) {
+      return;
+    }
+    if (!boards.some((board) => board.id === targetBoardId)) {
+      const preferred =
+        boards.find((board) => board.id === currentBoardId)?.id ?? boards[0]?.id ?? currentBoardId;
+      onTargetBoardIdChange(preferred);
+    }
+  }, [boards, loadingBoards, targetBoardId, currentBoardId, onTargetBoardIdChange]);
 
   useEffect(() => {
     let cancelled = false;
     const loadLists = async (): Promise<void> => {
       if (targetBoardId.trim() === '') {
+        return;
+      }
+      if (!boards.some((board) => board.id === targetBoardId)) {
         return;
       }
       setLoadingLists(true);
@@ -113,7 +99,7 @@ export function DuplicateTargetBoardListPicker({
     return () => {
       cancelled = true;
     };
-  }, [targetBoardId, currentBoardId, currentListId, targetListId, onTargetListIdChange]);
+  }, [targetBoardId, currentBoardId, currentListId, targetListId, onTargetListIdChange, boards]);
 
   const boardSelectData = useMemo(
     () => boards.map((board) => ({ value: board.id, label: board.name })),
@@ -143,6 +129,16 @@ export function DuplicateTargetBoardListPicker({
       <Stack gap="md" align="center" py="md">
         <Loader size="sm" />
       </Stack>
+    );
+  }
+
+  if (boardSelectData.length === 0) {
+    return (
+      <Text size="sm" c="dimmed">
+        {duplicateKind === 'list'
+          ? 'No boards in this workspace allow creating lists.'
+          : 'No boards in this workspace allow creating cards.'}
+      </Text>
     );
   }
 

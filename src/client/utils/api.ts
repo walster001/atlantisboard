@@ -106,7 +106,7 @@ export class ApiClient {
 
         if (config && isCsrfError(error) && !config._csrfRetried) {
           try {
-            await this.ensureCsrfToken();
+            await this.ensureCsrfToken({ force: true });
             const token = readCsrfCookie() ?? this.csrfToken;
             if (token) {
               config.headers['X-CSRF-Token'] = token;
@@ -154,7 +154,11 @@ export class ApiClient {
   }
 
   /** Deduplicate concurrent CSRF fetches (e.g. rapid card PUTs). */
-  async ensureCsrfToken(): Promise<void> {
+  async ensureCsrfToken(options?: { readonly force?: boolean }): Promise<void> {
+    const force = options?.force === true;
+    if (!force && this.syncCsrfFromCookie()) {
+      return;
+    }
     if (this.csrfFetchPromise) {
       return this.csrfFetchPromise;
     }

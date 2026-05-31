@@ -1,7 +1,7 @@
 name: Staging
 
-# Build installer + runtime zips on demand (Actions → Staging → Run workflow). Run after CI is green on the target ref.
-# Uploads two separate workflow artifacts (installer zip and runtime zip), not one bundle containing both.
+# Build installer + runtime on demand (Actions → Staging → Run workflow). Run after CI is green on the target ref.
+# Artifacts are flat directory trees (atlantisboard-setup, install/, dist/, … at extract root) — not nested .zip files.
 on:
   workflow_dispatch:
 
@@ -28,18 +28,21 @@ jobs:
           ./scripts/build-npm-package.sh
           ./scripts/release-installer-zip.sh
           ./scripts/release-bundle.sh --no-checks --skip-build
+          ./scripts/stage-release-artifact-trees.sh
       - name: Resolve release version
         id: ver
         run: echo "version=$(bun -e 'console.log((await Bun.file("package.json").json()).version)')" >> "$GITHUB_OUTPUT"
-      - name: Upload installer zip artifact
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: atlantisboard-${{ steps.ver.outputs.version }}-installer
-          path: release/atlantisboard-${{ steps.ver.outputs.version }}.zip
+          path: release/staging-installer/
           retention-days: 30
-      - name: Upload runtime zip artifact
+          if-no-files-found: error
+      - name: Upload runtime artifact
         uses: actions/upload-artifact@v4
         with:
           name: atlantisboard-${{ steps.ver.outputs.version }}-runtime
-          path: release/atlantisboard-${{ steps.ver.outputs.version }}-runtime.zip
+          path: release/staging-runtime/
           retention-days: 30
+          if-no-files-found: error

@@ -28,10 +28,11 @@ openssl rand -base64 48
 
 **Staging** (`staging.yml`) is **manual** (`workflow_dispatch`): maintainers run it from Actions when they want release-shaped artifacts. It runs `build-npm-package.sh`, then:
 
-- `release-installer-zip.sh` → `atlantisboard-<version>.zip` (Whiptail wizard + full-stack Docker)
-- `release-bundle.sh --no-checks --skip-build` → `atlantisboard-<version>-runtime.zip` (manual install only)
+- `release-installer-zip.sh` → `release/atlantisboard-<version>.zip` (validates release layout; used on **GitHub Releases** in production)
+- `release-bundle.sh --no-checks --skip-build` → `release/atlantisboard-<version>-runtime.zip` (production GitHub Release asset)
+- `stage-release-artifact-trees.sh` → `release/staging-installer/` and `release/staging-runtime/` (flat trees for Actions artifacts)
 
-Workflow uploads **two separate artifacts** (`atlantisboard-<version>-installer` and `atlantisboard-<version>-runtime`), each containing one zip — not a single artifact with both zips nested inside.
+Workflow uploads **two separate artifacts** (`atlantisboard-<version>-installer` and `atlantisboard-<version>-runtime`). Each artifact is a **single zip whose root contains the package files** (`atlantisboard-setup`, `install/`, `dist/`, …) — **not** a zip containing another `atlantisboard-<version>.zip`. Production **GitHub Releases** still attach `atlantisboard-<version>.zip` and `-runtime.zip` directly (one unzip to files).
 
 Ensure **CI** is green on the selected branch/ref first. Staging does not re-run the full verify job.
 

@@ -63,7 +63,16 @@ chmod +x "${PKG_DIR}/install/docker/mongodb/replica-init-auth.sh" \
   "${PKG_DIR}/install/docker/minio/prod-setup.sh" \
   "${PKG_DIR}/install/docker/reset-docker-data.sh" 2>/dev/null || true
 
-cp -f "${PKG_DIR}/install/setup.sh" "${PKG_DIR}/install/bin/setup.sh"
+cat > "${PKG_DIR}/install/bin/setup.sh" <<'EOF'
+#!/usr/bin/env bash
+# npm bin entry — delegate to the canonical installer.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PKG_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+export ATLANTISBOARD_PACKAGE_ROOT="${ATLANTISBOARD_PACKAGE_ROOT:-$PKG_ROOT}"
+exec bash "${SCRIPT_DIR}/../setup.sh" "$@"
+EOF
+
 chmod +x "${PKG_DIR}/install/setup.sh" "${PKG_DIR}/install/bin/setup.sh" "${PKG_DIR}/install/bin/atlantisboard.js" 2>/dev/null || true
 chmod +x "${PKG_DIR}/install/docker/mongodb/replica-init.sh" 2>/dev/null || true
 

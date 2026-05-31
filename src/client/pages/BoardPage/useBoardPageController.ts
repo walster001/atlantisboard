@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObjec
 import type { SetURLSearchParams } from 'react-router-dom';
 import { useSocket } from '../../hooks/useSocket.js';
 import type { BoardDB, BoardSettingsLivePatch, CardDB } from '../../store/database.js';
+import { db } from '../../store/database.js';
 import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
 import { releaseBoardClientResources } from '../../utils/boardMemoryRelease.js';
 import { bootstrapBoardRuntimeFromApi, resyncBoardRuntimeFromApi } from '../../store/boardBootstrap.js';
@@ -63,6 +64,7 @@ export function useBoardPageController({
   const [showSettings, setShowSettings] = useState(false);
   const [showInvites, setShowInvites] = useState(false);
   const [overlayInitialCard, setOverlayInitialCard] = useState<CardDB | null>(null);
+  const [cachedThemeBoard, setCachedThemeBoard] = useState<BoardDB | null>(null);
   const boardCardPatchRef = useRef<((card: CardDB) => void) | null>(null);
   const isMountedRef = useRef(true);
   useSocket(boardId);
@@ -157,6 +159,23 @@ export function useBoardPageController({
     };
   }, [boardId, loadData]);
 
+  useEffect(() => {
+    if (boardId == null || boardId.trim() === '') {
+      setCachedThemeBoard(null);
+      return undefined;
+    }
+    let cancelled = false;
+    void db.boards.get(boardId).then((cached) => {
+      if (!cancelled && cached != null) {
+        setCachedThemeBoard(cached);
+      }
+    });
+    return () => {
+      cancelled = true;
+      setCachedThemeBoard(null);
+    };
+  }, [boardId]);
+
   const handleOpenInvites = useCallback(() => {
     setShowInvites(true);
   }, []);
@@ -234,9 +253,10 @@ export function useBoardPageController({
 
   const overlayInitialCardForId =
     overlayCardId != null && overlayInitialCard?.id === overlayCardId ? overlayInitialCard : undefined;
+  const boardForTheme = board ?? cachedThemeBoard;
   const boardThemeStyle = useMemo(
-    () => (board != null ? getBoardPageThemeStyle(board) : undefined),
-    [board],
+    () => (boardForTheme != null ? getBoardPageThemeStyle(boardForTheme) : undefined),
+    [boardForTheme],
   );
 
   return {

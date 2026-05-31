@@ -73,6 +73,7 @@ export function DuplicateCardModal({
             onTargetBoardIdChange={setTargetBoardId}
             targetListId={targetListId}
             onTargetListIdChange={setTargetListId}
+            duplicateKind="card"
             disabled={loading}
             listDescription="The card will be duplicated with labels, checklists, comments, assignees, and due dates."
           />

@@ -21,7 +21,7 @@ if (!process.stdin.isTTY) {
 }
 
 console.log('atlantisboard: starting interactive setup (Ctrl+C to skip)...');
-const setupSh = path.join(PKG_ROOT, 'install', 'bin', 'setup.sh');
+const setupSh = path.join(PKG_ROOT, 'install', 'setup.sh');
 const child = spawn('bash', [setupSh], {
   stdio: 'inherit',
   env: { ...process.env, ATLANTISBOARD_PACKAGE_ROOT: PKG_ROOT },

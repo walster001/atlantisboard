@@ -1,31 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { BoardDB } from '../store/database.js';
-import { api } from '../utils/api.js';
+import { fetchBoardPermissionsChunked } from '../utils/boardPermissionsBatchFetch.js';
 import { socketClient } from '../utils/socket.js';
 import type { BoardPermissionKey } from './useBoardPermissions.js';
-
-const FETCH_CHUNK = 12;
-
-async function fetchPermissionsChunked(boardIds: readonly string[]): Promise<Map<string, ReadonlySet<string>>> {
-  const out = new Map<string, ReadonlySet<string>>();
-  for (let i = 0; i < boardIds.length; i += FETCH_CHUNK) {
-    const slice = boardIds.slice(i, i + FETCH_CHUNK);
-    const rows = await Promise.all(
-      slice.map(async (id) => {
-        try {
-          const r = await api.getMyBoardPermissions(id);
-          return { id, perms: new Set(r.permissions ?? []) };
-        } catch {
-          return { id, perms: new Set<string>() };
-        }
-      }),
-    );
-    for (const { id, perms } of rows) {
-      out.set(id, perms);
-    }
-  }
-  return out;
-}
 
 /**
  * One request set per visible home board — for board menus and cross-workspace moves.
@@ -69,7 +46,7 @@ export function useHomeBoardPermissionsBatch(
       };
     }
     setLoaded(false);
-    void fetchPermissionsChunked(ids).then((next) => {
+    void fetchBoardPermissionsChunked(ids).then((next) => {
       if (!cancelled) {
         setByBoardId(next);
         setLoaded(true);
@@ -89,7 +66,7 @@ export function useHomeBoardPermissionsBatch(
       return;
     }
     const onInvalidate = (): void => {
-      void fetchPermissionsChunked(ids).then((next) => {
+      void fetchBoardPermissionsChunked(ids).then((next) => {
         setByBoardId(next);
         setLoaded(true);
       });

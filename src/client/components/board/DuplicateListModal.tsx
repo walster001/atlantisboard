@@ -2,17 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, Button, Stack, Group, Text, Select, Loader } from '@mantine/core';
 import { KB_IOS_MODAL_HEADER_SAFE_CLASS } from '../../constants/iosModalSafeArea.js';
 import { api } from '../../utils/api.js';
-import { mapBoardSummariesToOptions } from '../../utils/api/boardApiMethods.js';
+import { useDuplicateTargetBoardOptions } from '../../hooks/useDuplicateTargetBoardOptions.js';
 import {
   applyDuplicateListToRuntime,
   type DuplicateListApplyPayload,
 } from '../../utils/applyDuplicationToRuntime.js';
 import { runDuplicationWithProgressNotification } from '../../utils/duplicationProgressNotifications.js';
-
-interface BoardOption {
-  readonly id: string;
-  readonly name: string;
-}
 
 interface DuplicateListModalProps {
   readonly listId: string;
@@ -34,39 +29,24 @@ export function DuplicateListModal({
   onSuccess,
 }: DuplicateListModalProps): React.ReactElement {
   const [targetBoardId, setTargetBoardId] = useState(boardId);
-  const [boards, setBoards] = useState<readonly BoardOption[]>([]);
-  const [loadingBoards, setLoadingBoards] = useState(true);
+  const { boards, loading: loadingBoards } = useDuplicateTargetBoardOptions({
+    workspaceId,
+    currentBoardId: boardId,
+    currentBoardName: boardName,
+    kind: 'list',
+  });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    const loadBoards = async (): Promise<void> => {
-      setLoadingBoards(true);
-      try {
-        if (workspaceId != null && workspaceId.trim() !== '') {
-          const response = await api.getBoardsByWorkspace(workspaceId);
-          const options = mapBoardSummariesToOptions(response.boards ?? []);
-          if (!cancelled) {
-            setBoards(options);
-          }
-        } else if (!cancelled) {
-          setBoards([{ id: boardId, name: boardName }]);
-        }
-      } catch {
-        if (!cancelled) {
-          setBoards([{ id: boardId, name: boardName }]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingBoards(false);
-        }
-      }
-    };
-    void loadBoards();
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId, boardId, boardName]);
+    if (loadingBoards || boards.length === 0) {
+      return;
+    }
+    if (!boards.some((board) => board.id === targetBoardId)) {
+      const preferred =
+        boards.find((board) => board.id === boardId)?.id ?? boards[0]?.id ?? boardId;
+      setTargetBoardId(preferred);
+    }
+  }, [boards, loadingBoards, targetBoardId, boardId]);
 
   const boardSelectData = useMemo(
     () => boards.map((board) => ({ value: board.id, label: board.name })),
@@ -116,6 +96,10 @@ export function DuplicateListModal({
           </Text>
           {loadingBoards ? (
             <Loader size="sm" />
+          ) : boardSelectData.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No boards in this workspace allow creating lists.
+            </Text>
           ) : (
             <Select
               label="Target board"
@@ -135,7 +119,7 @@ export function DuplicateListModal({
             <Button
               type="submit"
               color="blue"
-              disabled={loading || loadingBoards || targetBoardId.trim() === ''}
+              disabled={loading || loadingBoards || targetBoardId.trim() === '' || boardSelectData.length === 0}
               loading={loading}
             >
               Duplicate list

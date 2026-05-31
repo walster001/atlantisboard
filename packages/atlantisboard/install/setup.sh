@@ -30,6 +30,8 @@ fi
 
 atl_apply_theme
 
+atl_require_sudo_access
+
 whiptail --title "Welcome to Atlantisboard" --msgbox \
   "This wizard will guide you through installing Atlantisboard.\n\n• Secrets are generated automatically\n• Each step validates your input\n• You can add Google sign-in later if you skip it\n\nPress OK to continue." \
   14 72 || exit 0
@@ -42,6 +44,7 @@ MODE="$(whiptail --title "Installation type" --menu \
   3>&2 1>&2)" || exit 1
 
 atl_prompt_install_dir "$INSTALL_DIR"
+atl_finalize_install_dir
 
 declare -A ENV_VALUES
 ENV_VALUES["PORT"]="3000"
@@ -71,31 +74,31 @@ INSTALL_USER="$(atl_get_install_user)"
 PRIOR_ENV=""
 ENV_FILE="${INSTALL_DIR}/.env"
 
-if [[ -f "$ENV_FILE" ]]; then
+if atl_sudo test -f "$ENV_FILE"; then
   PRIOR_ENV="$(mktemp)"
-  sudo cp "$ENV_FILE" "$PRIOR_ENV"
-  sudo chmod 644 "$PRIOR_ENV"
+  atl_sudo cp "$ENV_FILE" "$PRIOR_ENV"
+  atl_sudo chmod 644 "$PRIOR_ENV"
 fi
 
-sudo mkdir -p "$INSTALL_DIR"
+atl_sudo_mkdir_p "$INSTALL_DIR"
 echo "==> Copying package to ${INSTALL_DIR}"
-sudo rsync -a --delete \
+atl_sudo rsync -a --delete \
   --exclude node_modules \
   "${PKG_ROOT}/" "${INSTALL_DIR}/"
 
-if [[ -f "${PKG_ROOT}/.env.example" && ! -f "$ENV_FILE" ]]; then
-  sudo cp "${PKG_ROOT}/.env.example" "$ENV_FILE"
+if atl_sudo test -f "${PKG_ROOT}/.env.example" && ! atl_sudo test -f "$ENV_FILE"; then
+  atl_sudo cp "${PKG_ROOT}/.env.example" "$ENV_FILE"
 fi
 
 atl_write_env_file "$ENV_FILE"
 
 BUN_BIN=""
 if [[ "$MODE" != "fullstack" ]]; then
-  sudo chown -R "${INSTALL_USER}:${INSTALL_USER}" "$INSTALL_DIR"
+  atl_sudo chown -R "${INSTALL_USER}:${INSTALL_USER}" "$INSTALL_DIR"
   BUN_BIN="$(atl_ensure_bun)"
 
   echo "==> Installing production dependencies"
-  (cd "$INSTALL_DIR" && sudo -u "$INSTALL_USER" env PATH="/usr/local/bin:${PATH}" "$BUN_BIN" install --frozen-lockfile --production)
+  (cd "$INSTALL_DIR" && atl_sudo -u "$INSTALL_USER" env PATH="/usr/local/bin:${PATH}" "$BUN_BIN" install --frozen-lockfile --production)
 fi
 
 if [[ "$MODE" == "docker" ]]; then
@@ -119,26 +122,27 @@ fi
 
 rm -f "$PRIOR_ENV"
 
-BACKUP_DIR="${ENV_VALUES[BACKUP_LOCATION]:-/var/backups/atlantisboard}"
+BACKUP_DIR="$(atl_normalize_backup_dir "${ENV_VALUES[BACKUP_LOCATION]:-/var/backups/atlantisboard}")"
+ENV_VALUES["BACKUP_LOCATION"]="$BACKUP_DIR"
 if [[ "$MODE" != "fullstack" ]]; then
-  sudo mkdir -p "$BACKUP_DIR"
+  atl_sudo_mkdir_p "$BACKUP_DIR"
 fi
 
 if [[ "$MODE" != "fullstack" ]] && whiptail --title "systemd services" --yesno \
   "Install systemd services so Atlantisboard starts automatically on boot?" 10 72; then
   if atl_require_systemctl; then
     if ! id atlantisboard >/dev/null 2>&1; then
-      sudo useradd --system --create-home --shell /usr/sbin/nologin atlantisboard || true
+      atl_sudo useradd --system --create-home --shell /usr/sbin/nologin atlantisboard || true
     fi
-    sudo chown -R atlantisboard:atlantisboard "$INSTALL_DIR" "$BACKUP_DIR"
+    atl_sudo chown -R atlantisboard:atlantisboard "$INSTALL_DIR" "$BACKUP_DIR"
 
     render_unit() {
       local src="$1" dest="$2"
-      sudo sed \
+      atl_sudo sed \
         -e "s|@INSTALL_DIR@|${INSTALL_DIR}|g" \
         -e "s|@BUN_BIN@|${BUN_BIN}|g" \
         -e "s|@BACKUP_DIR@|${BACKUP_DIR}|g" \
-        "$src" | sudo tee "$dest" >/dev/null
+        "$src" | atl_sudo tee "$dest" >/dev/null
     }
 
     render_unit "${PKG_ROOT}/install/systemd/atlantisboard.service.template" /etc/systemd/system/atlantisboard.service
@@ -146,9 +150,9 @@ if [[ "$MODE" != "fullstack" ]] && whiptail --title "systemd services" --yesno \
       render_unit "${PKG_ROOT}/install/systemd/atlantisboard-worker.service.template" /etc/systemd/system/atlantisboard-worker.service
     fi
 
-    sudo systemctl daemon-reload
-    sudo systemctl enable atlantisboard.service
-    [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]] && sudo systemctl enable atlantisboard-worker.service
+    atl_sudo systemctl daemon-reload
+    atl_sudo systemctl enable atlantisboard.service
+    [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]] && atl_sudo systemctl enable atlantisboard-worker.service
 
     if [[ "$MODE" == "docker" ]]; then
       atl_wait_for_docker_deps "$MODE" 30

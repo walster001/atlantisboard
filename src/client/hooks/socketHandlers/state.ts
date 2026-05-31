@@ -2,7 +2,7 @@ import { capMapSize } from '../../../shared/utils/capMapSize.js';
 import { db, type CardDB, type WorkspaceDB } from '../../store/database.js';
 import { normalizeCardFromApi } from '../../utils/transform.js';
 import {
-  emitSocketCardUpdated,
+  emitSocketCardsUpdatedBatch,
   type SocketInvitesChangedPayload,
 } from '../../utils/socketRealtimeBridge.js';
 import {
@@ -55,7 +55,7 @@ export function applyFlatFieldPatch<T extends object>(
   changedFields: Readonly<Record<string, unknown>>,
   removedFields: readonly string[],
 ): T {
-  const patched: Record<string, unknown> = { ...(current as unknown as Record<string, unknown>) };
+  const patched: Record<string, unknown> = { ...(current as Record<string, unknown>) };
   for (const [key, value] of Object.entries(changedFields)) {
     patched[key] = value;
   }
@@ -372,9 +372,7 @@ async function flushPendingCardPatchedEvents(): Promise<void> {
     }
     try {
       await db.cards.bulkPut(nextCards);
-      for (const card of nextCards) {
-        emitSocketCardUpdated({ boardId, card });
-      }
+      emitSocketCardsUpdatedBatch({ boardId, cards: nextCards });
     } catch {
       /* Dexie bulk patch failed */
     }

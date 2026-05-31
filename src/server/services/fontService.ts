@@ -4,6 +4,9 @@ import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { logger } from '../utils/logger.js';
 import { createSignedAssetUrl } from '../utils/signedAssetUrl.js';
 import {
+  ValidationError,
+} from '../../shared/errors/domainErrors.js';
+import {
   fontFamilyValueFromDisplayName,
   SYSTEM_UI_FONT_FAMILY,
 } from '../../shared/types/customFonts.js';
@@ -130,7 +133,7 @@ export async function uploadCustomFont(
     );
   }
   if (buffer.length > MAX_FONT_BYTES) {
-    throw new Error(`Font exceeds maximum size of ${MAX_FONT_BYTES} bytes`);
+    throw new ValidationError(`Font exceeds maximum size of ${MAX_FONT_BYTES} bytes`);
   }
 
   const fromOriginal = (() => {
@@ -240,7 +243,7 @@ export async function listFontCatalog(): Promise<FontCatalogEntry[]> {
 
 export async function deleteCustomFont(fileName: string): Promise<void> {
   if (!isValidFontObjectKey(fileName)) {
-    throw new Error('Invalid font file name');
+    throw new ValidationError('Invalid font file name');
   }
   const client = getMinIOClient();
   await client.removeObject(BUCKET, fileName);
@@ -275,7 +278,7 @@ export async function normalizeDefaultUiFontFamilyInput(value: unknown): Promise
     return null;
   }
   if (typeof value !== 'string') {
-    throw new Error('Invalid default UI font');
+    throw new ValidationError('Invalid default UI font');
   }
   const t = value.trim();
   if (t === SYSTEM_UI_FONT_FAMILY) {

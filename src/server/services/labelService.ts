@@ -8,6 +8,10 @@ import { hasPermission } from '../utils/permissions.js';
 import { emitToBoard } from '../utils/socketIO.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
 import type { Document } from 'mongoose';
+import {
+  ForbiddenError,
+  NotFoundError,
+} from '../../shared/errors/domainErrors.js';
 
 export interface CreateLabelInput {
   boardId: string;
@@ -24,13 +28,13 @@ export interface UpdateLabelInput {
 export async function createLabel(input: CreateLabelInput, userId: string): Promise<Document & { boardId: unknown; name: string; color: string; isPredefined: boolean; createdAt: Date; createdBy: unknown }> {
   const board = await Board.findById(input.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   // Only admins can create labels
   const allowed = await hasPermission({ id: userId }, input.boardId, 'labels.create');
   if (!allowed) {
-    throw new Error('Only board admins can create labels');
+    throw new ForbiddenError('Only board admins can create labels');
   }
 
   const label = new BoardLabel({
@@ -69,7 +73,7 @@ export async function getBoardLabels(
 ): Promise<(Document & { boardId: unknown; name: string; color: string; isPredefined: boolean; createdAt: Date; createdBy: unknown })[]> {
   const allowed = await hasPermission({ id: userId }, boardId, 'labels.view');
   if (!allowed) {
-    throw new Error('Insufficient permissions to view labels');
+    throw new ForbiddenError('Insufficient permissions to view labels');
   }
   return await BoardLabel.find({ boardId }).sort({ createdAt: -1 });
 }
@@ -88,7 +92,7 @@ export async function updateLabel(
   // Only admins can update labels
   const allowed = await hasPermission({ id: userId }, label.boardId.toString(), 'labels.update');
   if (!allowed) {
-    throw new Error('Only board admins can update labels');
+    throw new ForbiddenError('Only board admins can update labels');
   }
 
   if (input.name !== undefined) label.name = input.name;
@@ -125,7 +129,7 @@ export async function deleteLabel(labelId: string, userId: string): Promise<bool
   // Only admins can delete labels
   const allowed = await hasPermission({ id: userId }, label.boardId.toString(), 'labels.delete');
   if (!allowed) {
-    throw new Error('Only board admins can delete labels');
+    throw new ForbiddenError('Only board admins can delete labels');
   }
 
   const affectedCards = await Card.find({ 'labels.id': labelId })
@@ -179,12 +183,12 @@ export async function assignLabelToCard(cardId: string, labelId: string, userId:
 
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.update');
   if (!allowed) {
-    throw new Error('Insufficient permissions to update card');
+    throw new ForbiddenError('Insufficient permissions to update card');
   }
 
   const label = await BoardLabel.findById(labelId);
   if (!label) {
-    throw new Error('Label not found');
+    throw new NotFoundError('Label not found');
   }
 
   // Check if label already assigned
@@ -224,7 +228,7 @@ export async function removeLabelFromCard(cardId: string, labelId: string, userI
 
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.update');
   if (!allowed) {
-    throw new Error('Insufficient permissions to update card');
+    throw new ForbiddenError('Insufficient permissions to update card');
   }
 
   card.labels = card.labels.filter((l) => l.id.toString() !== labelId);

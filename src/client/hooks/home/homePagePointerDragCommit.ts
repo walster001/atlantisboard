@@ -23,7 +23,7 @@ export interface HomePagePointerDragCommitContext {
   readonly sessionRef: { readonly current: Session };
   readonly modelsRef: { readonly current: HomePagePointerDragModels };
   readonly actionsRef: { readonly current: HomePagePointerDragActions };
-  readonly suppressBoardClickRef: { readonly current: boolean };
+  readonly suppressBoardClickRef: { current: boolean };
   readonly disarm: () => void;
 }
 

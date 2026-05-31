@@ -9,6 +9,7 @@ import { AdminConfig, type IEmailBranding, type IAppScreenBranding, type ILoginS
 import { getBrandingObjectStream, type BrandingUploadKind } from './brandingService.js';
 import { decrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
+import { streamChunkToBuffer } from '../utils/streamChunkToBuffer.js';
 
 const EMAILS_DIR = resolve(process.cwd(), 'src', 'server', 'emails');
 const LAYOUTS_DIR = resolve(EMAILS_DIR, 'layouts');
@@ -238,7 +239,7 @@ async function fetchBrandingAsBuffer(
 
   const chunks: Buffer[] = [];
   for await (const chunk of result.stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as unknown as Uint8Array));
+    chunks.push(streamChunkToBuffer(chunk));
   }
   return { buffer: Buffer.concat(chunks), contentType: result.contentType, fileName };
 }

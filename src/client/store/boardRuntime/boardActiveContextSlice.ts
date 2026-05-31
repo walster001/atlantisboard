@@ -2,11 +2,7 @@ import type { StateCreator } from 'zustand';
 import type { ListDB } from '../database.js';
 import {
   emptyBoardRuntimeSlice,
-  mergeListPreservingOrderWhenStale,
-  mergeServerListOrderWithLocalLists,
   rebuildAllCardIdsByList,
-  sortListIdsByPosition,
-  spreadListPosForIndex,
   type BoardRuntimeStore,
 } from './types.js';
 

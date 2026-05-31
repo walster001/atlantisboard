@@ -2,20 +2,8 @@ import crypto from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 
-// Get Bun's CSRF API at runtime
-const BunWithCSRF =
-  typeof Bun !== 'undefined'
-    ? (Bun as unknown as {
-        CSRF?: {
-          generate: (secret: string, options: { encoding: string; expiresIn: number }) => string;
-          verify: (
-            token: string,
-            options: { secret: string; encoding: string; maxAge: number },
-          ) => boolean;
-        };
-      })
-    : null;
-const CSRF = BunWithCSRF?.CSRF;
+// Get Bun's CSRF API at runtime (typed via global.d.ts BunGlobal.CSRF)
+const CSRF = typeof Bun !== 'undefined' ? Bun.CSRF : undefined;
 
 if (!CSRF) {
   throw new Error('Bun.CSRF is not available. Make sure you are running with Bun runtime.');

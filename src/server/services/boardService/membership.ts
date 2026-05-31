@@ -20,6 +20,12 @@ import {
   resolveTargetDisplayNameForAudit,
 } from './shared.js';
 import type { BoardMemberAuditHints } from './types.js';
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
 
 export async function addBoardMember(
   boardId: string,
@@ -37,22 +43,22 @@ export async function addBoardMember(
   if (board.ownerId.toString() !== addedBy) {
     const allowed = await hasPermission({ id: addedBy }, boardId, 'boards.members.add');
     if (!allowed) {
-      throw new Error('Insufficient permissions to add members');
+      throw new ForbiddenError('Insufficient permissions to add members');
     }
     const mode = await resolveBoardRoleUpdateModeForActor(addedBy, boardId);
     if (mode == null) {
-      throw new Error('Insufficient permissions to assign member role');
+      throw new ForbiddenError('Insufficient permissions to assign member role');
     }
     const actorRoleKey = await resolveBoardActorRoleKey(board, addedBy);
     if (actorRoleKey == null) {
-      throw new Error('Insufficient permissions to assign member role');
+      throw new ForbiddenError('Insufficient permissions to assign member role');
     }
     const [actorLevel, targetNextLevel] = await Promise.all([
       getRoleHierarchyLevel(actorRoleKey),
       getRoleHierarchyLevel(roleKey),
     ]);
     if (actorLevel == null || targetNextLevel == null) {
-      throw new Error('Invalid role hierarchy configuration');
+      throw new ValidationError('Invalid role hierarchy configuration');
     }
     const allowedByMode = canAssignByBoardMemberRoleUpdateMode({
       mode,
@@ -62,15 +68,15 @@ export async function addBoardMember(
       selfChange: false,
     });
     if (!allowedByMode) {
-      throw new Error('Cannot assign role at this hierarchy level');
+      throw new ForbiddenError('Cannot assign role at this hierarchy level');
     }
     if (mode !== 'boards.members.role.update.any' && targetNextLevel > actorLevel) {
-      throw new Error('Cannot assign a role with higher hierarchy than your own');
+      throw new ForbiddenError('Cannot assign a role with higher hierarchy than your own');
     }
   }
 
   if (board.members.some((m) => m.userId.toString() === userId)) {
-    throw new Error('User is already a member');
+    throw new ConflictError('User is already a member');
   }
 
   board.members.push({
@@ -125,13 +131,13 @@ export async function removeBoardMember(
   }
 
   if (board.ownerId.toString() === memberUserId) {
-    throw new Error('Cannot remove board owner');
+    throw new ForbiddenError('Cannot remove board owner');
   }
 
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, boardId, 'boards.members.remove');
     if (!allowed) {
-      throw new Error('Insufficient permissions to remove members');
+      throw new ForbiddenError('Insufficient permissions to remove members');
     }
   }
 
@@ -186,23 +192,23 @@ export async function updateBoardMemberRole(
   }
 
   if (board.ownerId.toString() === memberUserId) {
-    throw new Error('Cannot change board owner role');
+    throw new ForbiddenError('Cannot change board owner role');
   }
 
   const member = board.members.find((m) => m.userId.toString() === memberUserId);
   if (!member) {
-    throw new Error('Member not found');
+    throw new NotFoundError('Member not found');
   }
 
   const previousRoleKey = member.roleKey;
   if (board.ownerId.toString() !== userId) {
     const mode = await resolveBoardRoleUpdateModeForActor(userId, boardId);
     if (mode == null) {
-      throw new Error('Insufficient permissions to update member roles');
+      throw new ForbiddenError('Insufficient permissions to update member roles');
     }
     const actorRoleKey = await resolveBoardActorRoleKey(board, userId);
     if (actorRoleKey == null) {
-      throw new Error('Insufficient permissions to update member roles');
+      throw new ForbiddenError('Insufficient permissions to update member roles');
     }
     const [actorLevel, targetCurrentLevel, targetNextLevel] = await Promise.all([
       getRoleHierarchyLevel(actorRoleKey),
@@ -210,7 +216,7 @@ export async function updateBoardMemberRole(
       getRoleHierarchyLevel(newRoleKey),
     ]);
     if (actorLevel == null || targetCurrentLevel == null || targetNextLevel == null) {
-      throw new Error('Invalid role hierarchy configuration');
+      throw new ValidationError('Invalid role hierarchy configuration');
     }
     const allowedByMode = canAssignByBoardMemberRoleUpdateMode({
       mode,
@@ -220,10 +226,10 @@ export async function updateBoardMemberRole(
       selfChange: memberUserId === userId,
     });
     if (!allowedByMode) {
-      throw new Error('Role update exceeds your hierarchy permissions');
+      throw new ForbiddenError('Role update exceeds your hierarchy permissions');
     }
     if (mode !== 'boards.members.role.update.any' && targetNextLevel > actorLevel) {
-      throw new Error('Cannot assign a role with higher hierarchy than your own');
+      throw new ForbiddenError('Cannot assign a role with higher hierarchy than your own');
     }
   }
 

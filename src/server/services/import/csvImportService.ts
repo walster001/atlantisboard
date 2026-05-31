@@ -16,6 +16,10 @@ import {
   resolveImportedCardColour,
 } from '../../../shared/utils/importDefaultCardColour.js';
 import { CARD_TITLE_MAX_LENGTH } from '../../../shared/constants/entityTextLimits.js';
+import {
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
 
 interface CSVRow {
   [key: string]: string | undefined;
@@ -66,7 +70,7 @@ export async function importCSV(
     // Verify board exists
     const board = await Board.findById(boardId);
     if (!board) {
-      throw new Error('Board not found');
+      throw new NotFoundError('Board not found');
     }
 
     // Parse CSV
@@ -78,12 +82,12 @@ export async function importCSV(
     });
 
     if (parseResult.errors.length > 0) {
-      throw new Error(`CSV parsing errors: ${parseResult.errors.map((e) => e.message).join(', ')}`);
+      throw new ValidationError(`CSV parsing errors: ${parseResult.errors.map((e) => e.message).join(', ')}`);
     }
 
     const rows = parseResult.data as CSVRow[];
     if (rows.length === 0) {
-      throw new Error('CSV file is empty');
+      throw new ValidationError('CSV file is empty');
     }
 
     // Normalize column names (case-insensitive)
@@ -145,7 +149,7 @@ export async function importCSV(
     }
 
     if (validatedRows.length === 0) {
-      throw new Error('No valid rows found in CSV file');
+      throw new ValidationError('No valid rows found in CSV file');
     }
 
     await ImportJob.findByIdAndUpdate(jobId, {

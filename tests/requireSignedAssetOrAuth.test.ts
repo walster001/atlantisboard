@@ -1,14 +1,15 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, expect, it } from 'bun:test';
 import mongoose from 'mongoose';
 import type { Request, Response } from 'express';
 import { requireSignedAssetOrAuth } from '../src/server/middleware/auth.js';
 import { connectTestDatabase, disconnectTestDatabase, clearTestDatabase, getAuthToken } from './helpers/testHelpers.js';
 import { User } from '../src/server/models/User.js';
+import { describeMongoTest } from './helpers/integrationEnv.js';
+import { ensureTestServer } from './helpers/testServer.js';
 
-const hasTestDb =
-  typeof process.env.MONGODB_TEST_URI === 'string' && process.env.MONGODB_TEST_URI.trim() !== '';
+type MockResponse = Response & { statusCode: number; body: unknown };
 
-function createMockResponse(): Response & { statusCode: number; body: unknown } {
+function createMockResponse(): MockResponse {
   const state = { statusCode: 200, body: undefined as unknown };
   const res = {
     status(code: number) {
@@ -26,20 +27,21 @@ function createMockResponse(): Response & { statusCode: number; body: unknown } 
       return state.body;
     },
   };
-  return res as Response & { statusCode: number; body: unknown };
+  return res as MockResponse;
 }
 
-describe.skipIf(!hasTestDb)('requireSignedAssetOrAuth', () => {
+describeMongoTest('requireSignedAssetOrAuth', () => {
   beforeAll(async () => {
+    await ensureTestServer();
     if (mongoose.connection.readyState !== 1) {
       await connectTestDatabase();
     }
-    await clearTestDatabase();
+    await clearTestDatabase({ waitForHttp: false });
   });
 
   afterAll(async () => {
     if (mongoose.connection.readyState === 1) {
-      await clearTestDatabase();
+      await clearTestDatabase({ waitForHttp: false });
       await disconnectTestDatabase();
     }
   });

@@ -3,8 +3,11 @@
  * Express has no app.inject(); api.test.ts uses fetch — this adds CSRF + cookie handling for mutating routes.
  */
 
-const BASE_URL = process.env.TEST_BASE_URL ?? 'http://127.0.0.1:3000';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function getBaseUrl(): string {
+  return process.env.TEST_BASE_URL ?? 'http://127.0.0.1:3000';
+}
 
 let sessionCookie = '';
 let csrfToken = '';
@@ -42,11 +45,16 @@ export function resetIntegrationHttpSession(): void {
   csrfToken = '';
 }
 
-export async function waitForServer(maxAttempts = 40, delayMs = 150): Promise<void> {
+export async function waitForServer(
+  maxAttempts = 40,
+  delayMs = 150,
+  baseUrl?: string,
+): Promise<void> {
+  const target = baseUrl ?? getBaseUrl();
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      const response = await fetch(`${BASE_URL}/health`, { method: 'GET' });
+      const response = await fetch(`${target}/health`, { method: 'GET' });
       if (response.ok) {
         return;
       }
@@ -55,14 +63,15 @@ export async function waitForServer(maxAttempts = 40, delayMs = 150): Promise<vo
     }
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
-  throw lastError instanceof Error ? lastError : new Error('Server did not become ready');
+  throw lastError instanceof Error ? lastError : new Error(`Server did not become ready at ${target}`);
 }
 
 async function refreshCsrfToken(): Promise<void> {
-  const response = await fetch(`${BASE_URL}/api/v1/csrf/token`, {
-    method: 'GET',
-    headers: sessionCookie ? { cookie: sessionCookie } : undefined,
-  });
+  const init: RequestInit = { method: 'GET' };
+  if (sessionCookie) {
+    init.headers = { cookie: sessionCookie };
+  }
+  const response = await fetch(`${getBaseUrl()}/api/v1/csrf/token`, init);
   mergeSetCookies(response);
   if (!response.ok) {
     throw new Error(`Failed to fetch CSRF token: HTTP ${response.status}`);
@@ -108,11 +117,11 @@ export async function apiInject(options: ApiInjectOptions): Promise<ApiInjectRes
   }
 
   const path = options.url.startsWith('/') ? options.url : `/${options.url}`;
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: options.payload !== undefined ? JSON.stringify(options.payload) : undefined,
-  });
+  const fetchInit: RequestInit = { method, headers };
+  if (options.payload !== undefined) {
+    fetchInit.body = JSON.stringify(options.payload);
+  }
+  const response = await fetch(`${getBaseUrl()}${path}`, fetchInit);
 
   mergeSetCookies(response);
   const body = await response.text();

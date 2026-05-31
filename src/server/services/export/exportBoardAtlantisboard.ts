@@ -4,6 +4,7 @@ import {
   collectImportInlineObjectNamesFromText,
   getImportInlineObjectStream,
 } from '../importInlineAssetService.js';
+import { streamChunkToBuffer } from '../../utils/streamChunkToBuffer.js';
 import { encodeExportAttachments } from './encodeExportAttachment.js';
 import type { BoardExportContext } from './loadBoardExportContext.js';
 
@@ -15,7 +16,7 @@ interface InlineAssetEntry {
 async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as unknown as Uint8Array));
+    chunks.push(streamChunkToBuffer(chunk));
   }
   return Buffer.concat(chunks);
 }

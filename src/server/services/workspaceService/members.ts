@@ -18,6 +18,12 @@ import {
   buildWorkspaceRealtimePayload,
 } from './typesAndHelpers.js';
 import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
+import {
   emitWorkspaceHomeAccessRefreshForUser,
   emitWorkspaceHomeSnapshotToUser,
 } from './emit.js';
@@ -33,27 +39,27 @@ export async function addWorkspaceMember(
   }
 
   if (!(await hasPermission(userId, workspaceId, 'workspaces.members.add', 'workspace'))) {
-    throw new Error('Insufficient permissions to add members');
+    throw new ForbiddenError('Insufficient permissions to add members');
   }
 
   const actorRoleKey = workspaceActorRoleKey(workspace, userId);
   if (actorRoleKey == null) {
-    throw new Error('Insufficient permissions to assign member role');
+    throw new ForbiddenError('Insufficient permissions to assign member role');
   }
   const [actorLevel, targetLevel] = await Promise.all([
     getRoleHierarchyLevel(actorRoleKey),
     getRoleHierarchyLevel(input.roleKey),
   ]);
   if (actorLevel == null || targetLevel == null) {
-    throw new Error('Invalid role hierarchy configuration');
+    throw new ValidationError('Invalid role hierarchy configuration');
   }
   if (targetLevel > actorLevel) {
-    throw new Error('Cannot assign a role with higher hierarchy than your own');
+    throw new ForbiddenError('Cannot assign a role with higher hierarchy than your own');
   }
 
   // Check if user is already a member
   if (workspace.members.some((m) => m.userId.toString() === input.userId)) {
-    throw new Error('User is already a member');
+    throw new ConflictError('User is already a member');
   }
 
   workspace.members.push({
@@ -106,11 +112,11 @@ export async function removeWorkspaceMember(
 
   // Cannot remove owner
   if (workspace.ownerId.toString() === memberUserId) {
-    throw new Error('Cannot remove workspace owner');
+    throw new ForbiddenError('Cannot remove workspace owner');
   }
 
   if (!(await hasPermission(userId, workspaceId, 'workspaces.members.remove', 'workspace'))) {
-    throw new Error('Insufficient permissions to remove members');
+    throw new ForbiddenError('Insufficient permissions to remove members');
   }
 
   workspace.members = workspace.members.filter(
@@ -162,21 +168,21 @@ export async function updateWorkspaceMemberRole(
 
   // Cannot change owner role
   if (workspace.ownerId.toString() === memberUserId) {
-    throw new Error('Cannot change workspace owner role');
+    throw new ForbiddenError('Cannot change workspace owner role');
   }
 
   if (!(await hasPermission(userId, workspaceId, 'workspaces.members.role.update', 'workspace'))) {
-    throw new Error('Insufficient permissions to update member roles');
+    throw new ForbiddenError('Insufficient permissions to update member roles');
   }
 
   const member = workspace.members.find((m) => m.userId.toString() === memberUserId);
   if (!member) {
-    throw new Error('Member not found');
+    throw new NotFoundError('Member not found');
   }
 
   const actorRoleKey = workspaceActorRoleKey(workspace, userId);
   if (actorRoleKey == null) {
-    throw new Error('Insufficient permissions to update member roles');
+    throw new ForbiddenError('Insufficient permissions to update member roles');
   }
   const [actorLevel, targetCurrentLevel, targetNextLevel] = await Promise.all([
     getRoleHierarchyLevel(actorRoleKey),
@@ -184,13 +190,13 @@ export async function updateWorkspaceMemberRole(
     getRoleHierarchyLevel(roleKey),
   ]);
   if (actorLevel == null || targetCurrentLevel == null || targetNextLevel == null) {
-    throw new Error('Invalid role hierarchy configuration');
+    throw new ValidationError('Invalid role hierarchy configuration');
   }
   if (targetCurrentLevel > actorLevel) {
-    throw new Error('Cannot update a member with higher hierarchy than your own');
+    throw new ForbiddenError('Cannot update a member with higher hierarchy than your own');
   }
   if (targetNextLevel > actorLevel) {
-    throw new Error('Cannot assign a role with higher hierarchy than your own');
+    throw new ForbiddenError('Cannot assign a role with higher hierarchy than your own');
   }
 
   member.roleKey = roleKey;
@@ -231,7 +237,7 @@ export async function deleteWorkspace(
 
   // Only owner can delete
   if (workspace.ownerId.toString() !== userId) {
-    throw new Error('Only workspace owner can delete workspace');
+    throw new ForbiddenError('Only workspace owner can delete workspace');
   }
 
   const wsStr = workspace._id.toString();

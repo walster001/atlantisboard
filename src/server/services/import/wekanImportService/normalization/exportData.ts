@@ -1,4 +1,5 @@
 import type { WekanExport } from '../types.js';
+import { objectToRecord } from '../../../../utils/objectRecord.js';
 import { readWekanId } from './primitives.js';
 import {
   normalizeWekanBoardRecord,
@@ -10,15 +11,15 @@ import {
 export function normalizeWekanExportData(raw: WekanExport, options?: { singleBoardIdHint?: string }): WekanExport {
   const singleBoardIdHint = options?.singleBoardIdHint;
   const boards = (raw.boards ?? []).flatMap((b) => {
-    const normalized = normalizeWekanBoardRecord(b as unknown as Record<string, unknown>);
+    const normalized = normalizeWekanBoardRecord(objectToRecord(b));
     return normalized != null ? [normalized] : [];
   });
   const lists = (raw.lists ?? []).flatMap((l) => {
-    const normalized = normalizeWekanListRecord(l as unknown as Record<string, unknown>, singleBoardIdHint);
+    const normalized = normalizeWekanListRecord(objectToRecord(l), singleBoardIdHint);
     return normalized != null ? [normalized] : [];
   });
   const cards = (raw.cards ?? []).flatMap((c) => {
-    const normalized = normalizeWekanCardRecord(c as unknown as Record<string, unknown>, singleBoardIdHint);
+    const normalized = normalizeWekanCardRecord(objectToRecord(c), singleBoardIdHint);
     return normalized != null ? [normalized] : [];
   });
 
@@ -33,7 +34,7 @@ export function normalizeWekanExportData(raw: WekanExport, options?: { singleBoa
             if (typeof u !== 'object' || u === null) {
               return [];
             }
-            const normalized = normalizeWekanUserRecord(u as unknown as Record<string, unknown>);
+            const normalized = normalizeWekanUserRecord(objectToRecord(u));
             return normalized != null ? [normalized] : [];
           }),
         }
@@ -41,10 +42,11 @@ export function normalizeWekanExportData(raw: WekanExport, options?: { singleBoa
     ...(Array.isArray(raw.labels)
       ? {
           labels: raw.labels.flatMap((lab) => {
-            const id = readWekanId((lab as unknown as Record<string, unknown>)._id);
+            const labRecord = objectToRecord(lab);
+            const id = readWekanId(labRecord._id);
             const boardId =
-              readWekanId((lab as unknown as Record<string, unknown>).boardId) ??
-              readWekanId((lab as unknown as Record<string, unknown>).idBoard) ??
+              readWekanId(labRecord.boardId) ??
+              readWekanId(labRecord.idBoard) ??
               singleBoardIdHint;
             return id != null && boardId != null ? [{ ...lab, _id: id, boardId }] : [];
           }),

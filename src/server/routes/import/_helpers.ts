@@ -11,6 +11,9 @@ import {
 } from '../../utils/permissions.js';
 import { importPreflightPayloadSchema } from '../../../shared/import/importPreflightSchema.js';
 import {
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
+import {
   ImportJsonSourceMismatchError,
   ImportJsonUnrecognizedError,
 } from '../../../shared/import/detectImportJsonSource.js';
@@ -54,7 +57,7 @@ export function parseImportPreflightFromBody(value: unknown) {
     const parsed = JSON.parse(value) as unknown;
     return importPreflightPayloadSchema.parse(parsed);
   } catch {
-    throw new Error('Invalid preflight payload');
+    throw new ValidationError('Invalid preflight payload');
   }
 }
 

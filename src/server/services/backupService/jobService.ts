@@ -12,6 +12,9 @@ import {
 import { purgeMalformedActiveBackupJobs } from './backupCatalog.js';
 import { executeFullBackupWithProgressImpl } from './backupExecutor.js';
 import { restoreFullBackupImpl } from './restoreExecutor.js';
+import {
+  NotFoundError,
+} from '../../../shared/errors/domainErrors.js';
 
 async function runBackupJobWorker(
   jobId: string,
@@ -254,7 +257,7 @@ export async function startRestoreJobImpl(params: {
     .sort({ completedAt: -1 })
     .lean();
   if (source?.result?.filePath == null || source.filename == null || source.location == null) {
-    throw new Error('Backup archive not found');
+    throw new NotFoundError('Backup archive not found');
   }
 
   const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);

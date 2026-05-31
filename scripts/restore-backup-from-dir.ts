@@ -6,30 +6,38 @@ import { MINIO_BUCKET_BACKUPS, MINIO_BUCKET_NAMES } from '../src/shared/constant
 import { connectDatabase, disconnectDatabase } from '../src/server/config/database.js';
 import { getMinIOClient } from '../src/server/config/minio.js';
 import { restoreMongoFromDir } from '../src/server/services/backupService/mongoArchive.js';
+import {
+  BACKUP_FORMAT,
+  BACKUP_FORMAT_V1,
+  type ParsedBackupManifest,
+} from '../src/server/services/backupService/backupShared.js';
 import { buildPutObjectMetadata, type MinioObjectMetadataMap } from '../src/server/services/backupService/minioIo.js';
-
-interface ParsedBackupManifest {
-  readonly format: string;
-  readonly mongoCollections: readonly string[];
-  readonly minioMetadataFile?: string;
-}
 
 async function readManifest(extractRoot: string): Promise<ParsedBackupManifest> {
   const raw = await readFile(join(extractRoot, 'manifest.json'), 'utf8');
   const parsed = JSON.parse(raw) as {
-    format?: unknown;
-    mongoCollections?: unknown;
-    minioMetadataFile?: unknown;
+    format?: string;
+    mongoCollections?: string[];
+    minioArchiveMethod?: string;
+    minioMetadataFile?: string;
   };
-  if (typeof parsed.format !== 'string' || parsed.format.trim() === '') {
-    throw new Error('Invalid manifest: format');
+  if (parsed.format !== BACKUP_FORMAT && parsed.format !== BACKUP_FORMAT_V1) {
+    throw new Error(`Unsupported backup format: ${String(parsed.format)}`);
   }
-  if (!Array.isArray(parsed.mongoCollections) || !parsed.mongoCollections.every((v) => typeof v === 'string')) {
+  if (!Array.isArray(parsed.mongoCollections)) {
     throw new Error('Invalid manifest: mongoCollections');
   }
+  const fmt = parsed.format === BACKUP_FORMAT_V1 ? BACKUP_FORMAT_V1 : BACKUP_FORMAT;
+  const minioArchiveMethod =
+    fmt === BACKUP_FORMAT_V1
+      ? 'sdk-stream-v1'
+      : parsed.minioArchiveMethod === 'mc-mirror-v1'
+        ? 'mc-mirror-v1'
+        : 'mc-mirror-v1';
   return {
-    format: parsed.format,
+    format: fmt,
     mongoCollections: parsed.mongoCollections,
+    minioArchiveMethod,
     ...(typeof parsed.minioMetadataFile === 'string' && parsed.minioMetadataFile.trim() !== ''
       ? { minioMetadataFile: parsed.minioMetadataFile.trim() }
       : {}),
@@ -114,7 +122,7 @@ async function main(): Promise<void> {
   await connectDatabase();
   try {
     console.log('🗄️  Restoring Mongo collections…');
-    await restoreMongoFromDir(extractRoot, manifest as unknown as { mongoCollections: string[] });
+    await restoreMongoFromDir(extractRoot, manifest);
   } finally {
     await disconnectDatabase();
   }

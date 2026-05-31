@@ -1,4 +1,3 @@
-import type { Editor } from '@tiptap/core';
 import {
   cardCoverReferencesAttachment,
   collectReferencedAttachmentIdsFromDescriptionJson,

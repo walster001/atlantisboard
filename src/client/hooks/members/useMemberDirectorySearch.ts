@@ -87,35 +87,45 @@ function directorySearchReducer<TUser extends MemberUserRow>(
       };
     case 'set-users':
       return { ...state, users: action.users };
-    default: {
-      const _exhaustive: never = action;
+    default:
       return state;
-    }
   }
+}
+
+type MemberDirectoryFetchOptions = {
+  readonly limit: number;
+  readonly cursor?: string;
+  readonly signal?: AbortSignal;
+};
+
+function buildMemberDirectoryFetchOptions(
+  limit: number,
+  cursor?: string,
+  signal?: AbortSignal,
+): MemberDirectoryFetchOptions {
+  return {
+    limit,
+    ...(cursor !== undefined ? { cursor } : {}),
+    ...(signal !== undefined ? { signal } : {}),
+  };
 }
 
 async function fetchMemberDirectoryPage(
   scope: MemberDirectorySearchScope,
   scopeId: string | undefined,
   query: string,
-  options: { readonly limit: number; readonly cursor?: string; readonly signal?: AbortSignal },
+  options: MemberDirectoryFetchOptions,
 ): Promise<{ users: unknown[]; nextCursor?: string }> {
   const trimmed = query.trim();
   if (scope === 'workspace' && trimmed === '' && scopeId !== undefined) {
-    return api.getWorkspaceMemberCandidates(scopeId, {
-      limit: options.limit,
-      cursor: options.cursor,
-      signal: options.signal,
-    });
+    return api.getWorkspaceMemberCandidates(scopeId, options);
   }
 
   return api.searchUsers(trimmed, {
     ...(scope === 'board' && scopeId !== undefined ? { boardId: scopeId } : {}),
     ...(scope === 'workspace' && scopeId !== undefined ? { workspaceId: scopeId } : {}),
     ...(scope === 'app-admin' ? { appAdminDirectory: true } : {}),
-    limit: options.limit,
-    cursor: options.cursor,
-    signal: options.signal,
+    ...options,
   });
 }
 
@@ -168,10 +178,12 @@ export function useMemberDirectorySearch<TUser extends MemberUserRow = MemberUse
 
     const run = async (): Promise<void> => {
       try {
-        const response = await fetchMemberDirectoryPage(scope, scopeId, querySnapshot, {
-          limit: MEMBER_DIRECTORY_PAGE_LIMIT,
-          signal: controller.signal,
-        });
+        const response = await fetchMemberDirectoryPage(
+          scope,
+          scopeId,
+          querySnapshot,
+          buildMemberDirectoryFetchOptions(MEMBER_DIRECTORY_PAGE_LIMIT, undefined, controller.signal),
+        );
         if (controller.signal.aborted) {
           return;
         }
@@ -244,10 +256,12 @@ export function useMemberDirectorySearch<TUser extends MemberUserRow = MemberUse
 
     void (async () => {
       try {
-        const response = await fetchMemberDirectoryPage(scope, scopeIdSnapshot, querySnapshot, {
-          limit: MEMBER_DIRECTORY_PAGE_LIMIT,
-          cursor: cursorSnapshot,
-        });
+        const response = await fetchMemberDirectoryPage(
+          scope,
+          scopeIdSnapshot,
+          querySnapshot,
+          buildMemberDirectoryFetchOptions(MEMBER_DIRECTORY_PAGE_LIMIT, cursorSnapshot),
+        );
         if (
           scopeIdRef.current !== scopeIdSnapshot ||
           queryRef.current !== querySnapshot

@@ -108,6 +108,24 @@ export function emitSocketCardUpdated(p: SocketCardUpdatedPayload): void {
   }
 }
 
+export interface SocketCardsUpdatedBatchPayload {
+  readonly boardId: string;
+  readonly cards: readonly CardDB[];
+}
+
+/** Fan-out after bulk Dexie/runtime card writes (reorder, positions batch, patch flush). */
+export function emitSocketCardsUpdatedBatch(p: SocketCardsUpdatedBatchPayload): void {
+  if (p.cards.length === 0) {
+    return;
+  }
+  for (const card of p.cards) {
+    const payload: SocketCardUpdatedPayload = { boardId: p.boardId, card };
+    for (const fn of cardUpdatedSubs) {
+      fn(payload);
+    }
+  }
+}
+
 export function subscribeSocketCardDeleted(fn: (p: SocketCardDeletedPayload) => void): Unsubscribe {
   cardDeletedSubs.add(fn);
   return () => {

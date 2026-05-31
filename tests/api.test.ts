@@ -1,13 +1,18 @@
-import { describe, it, expect } from 'bun:test';
-import '../src/server/index.js';
+import { beforeAll, expect, it } from 'bun:test';
+import { describeHttpIntegration } from './helpers/integrationEnv.js';
+import { ensureTestServer } from './helpers/testServer.js';
+import { apiInject } from './helpers/integrationHttp.js';
 
-const BASE_URL = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
+function getBaseUrl(): string {
+  return process.env.TEST_BASE_URL ?? 'http://127.0.0.1:3000';
+}
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
+  const baseUrl = getBaseUrl();
   let lastError: unknown;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
-      return await fetch(`${BASE_URL}${path}`, init);
+      return await fetch(`${baseUrl}${path}`, init);
     } catch (error) {
       lastError = error;
       await new Promise((resolve) => setTimeout(resolve, 150));
@@ -32,7 +37,11 @@ function cookieHeaderFromResponse(response: Response): string | undefined {
     .join('; ');
 }
 
-describe('API Health Check', () => {
+describeHttpIntegration('API Health Check', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  });
+
   it('should return health status', async () => {
     const response = await request('/health', { method: 'GET' });
     expect(response.status).toBe(200);
@@ -42,38 +51,48 @@ describe('API Health Check', () => {
   });
 });
 
-describe('Authentication API', () => {
+describeHttpIntegration('Authentication API', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  });
+
   it('should reject unauthenticated requests', async () => {
     const response = await request('/api/v1/workspaces', { method: 'GET' });
     expect(response.status).toBe(401);
   });
 
   it('should allow user registration', async () => {
-    const response = await request('/api/v1/auth/register', {
+    const response = await apiInject({
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        email: 'test@example.com',
-        username: 'testuser',
+      url: '/api/v1/auth/register',
+      payload: {
+        email: `register-${Date.now()}@example.com`,
+        username: `register-${Date.now()}`,
         password: 'TestPassword123!',
         displayName: 'Test User',
-      }),
+      },
     });
 
-    // In local environments without Redis/session backend, registration can return 500.
-    // Some deployments enforce CSRF or other protections and may return 403.
-    expect([200, 201, 400, 403, 409, 500]).toContain(response.status);
+    expect([200, 201, 400, 403, 409, 500]).toContain(response.statusCode);
   });
 });
 
-describe('Workspace API', () => {
+describeHttpIntegration('Workspace API', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  });
+
   it('should require authentication', async () => {
     const response = await request('/api/v1/workspaces', { method: 'GET' });
     expect(response.status).toBe(401);
   });
 });
 
-describe('CSRF protection', () => {
+describeHttpIntegration('CSRF protection', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  });
+
   it('should reject mutating requests without CSRF token', async () => {
     const response = await request('/api/v1/workspaces', {
       method: 'POST',
@@ -109,7 +128,6 @@ describe('CSRF protection', () => {
       body: JSON.stringify({ name: 'CSRF Test Workspace' }),
     });
 
-    // CSRF passed — request reaches auth layer (401 without credentials).
     expect(response.status).toBe(401);
   });
 
@@ -141,4 +159,3 @@ describe('CSRF protection', () => {
     expect(body.error?.code).toBe('CSRF_TOKEN_INVALID');
   });
 });
-

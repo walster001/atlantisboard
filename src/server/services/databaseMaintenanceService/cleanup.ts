@@ -6,6 +6,7 @@ import {
 } from '../../../shared/types/adminDatabaseMaintenance.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { logger } from '../../utils/logger.js';
+import { ValidationError } from '../../../shared/errors/domainErrors.js';
 import { CATEGORY_BY_ID, CATEGORY_DEFINITIONS } from './categories.js';
 
 export async function runDatabaseCleanup(
@@ -15,7 +16,7 @@ export async function runDatabaseCleanup(
   const uniqueIds = [...new Set(categoryIds)];
   for (const id of uniqueIds) {
     if (!DATABASE_CLEANUP_CATEGORY_IDS.includes(id)) {
-      throw new Error(`Invalid cleanup category: ${id}`);
+      throw new ValidationError(`Invalid cleanup category: ${id}`);
     }
   }
 

@@ -40,7 +40,7 @@ export function normalizeWekanExport(raw: unknown): WekanExport {
       .filter((b): b is Record<string, unknown> => typeof b === 'object' && b !== null)
       .map((b) => b as Record<string, unknown>);
     const normalizedBoards = boardObjects
-      .map((b) => normalizeWekanBoardRecord(stripToWekanBoard(b) as unknown as Record<string, unknown>))
+      .map((b) => normalizeWekanBoardRecord(stripToWekanBoard(b)))
       .filter((b): b is WekanBoard => b !== null);
     const nestedLists = boardObjects.flatMap((b) => {
       if (!Array.isArray(b.lists)) {
@@ -114,7 +114,7 @@ export function normalizeWekanExport(raw: unknown): WekanExport {
   const hasListsArray = Array.isArray(o.lists);
   const formatLooksLikeWekan = typeof o._format === 'string' && o._format.toLowerCase().includes('wekan');
   if (hasBoardId && (hasListsArray || formatLooksLikeWekan)) {
-    const singleBoard = normalizeWekanBoardRecord(stripToWekanBoard(o) as unknown as Record<string, unknown>);
+    const singleBoard = normalizeWekanBoardRecord(stripToWekanBoard(o));
     if (singleBoard == null) {
       throw new Error('Wekan import: invalid single-board payload.');
     }

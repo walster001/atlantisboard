@@ -9,7 +9,16 @@ declare global {
     readonly standalone?: boolean;
   }
 
+  interface BunCsrfApi {
+    generate: (secret: string, options: { encoding: string; expiresIn: number }) => string;
+    verify: (
+      token: string,
+      options: { secret: string; encoding: string; maxAge: number },
+    ) => boolean;
+  }
+
   interface BunGlobal {
+    CSRF?: BunCsrfApi;
     password: {
       hash(
         password: string,

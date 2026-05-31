@@ -2,6 +2,7 @@ import mongoose, { type Document } from 'mongoose';
 import { Card, type ICard } from '../../models/Card.js';
 import { List, type IList } from '../../models/List.js';
 import { Board } from '../../models/Board.js';
+import { ForbiddenError, NotFoundError } from '../../../shared/errors/domainErrors.js';
 import { hasPermission, isBoardMember } from '../../utils/permissions.js';
 import {
   toCardDetail,
@@ -12,6 +13,20 @@ import type { CardDetailDTO, CardSummaryDTO } from '../../../shared/types/viewMo
 import { compareCardListOrder } from '../../../shared/utils/cardListPos.js';
 import { compareBoardListOrder } from '../../../shared/utils/listPos.js';
 import type { CardDescriptionFieldRow } from './types.js';
+
+function pickCardSummaryFields(
+  summary: CardSummaryDTO,
+  fields: readonly string[],
+): CardSummaryDTO {
+  const keep = new Set<string>(['id', 'listId', 'boardId', ...fields]);
+  const result = { ...summary };
+  for (const key of Object.keys(result)) {
+    if (!keep.has(key)) {
+      delete (result as Partial<CardSummaryDTO>)[key as keyof CardSummaryDTO];
+    }
+  }
+  return result;
+}
 
 export async function getCardById(
   cardId: string,
@@ -24,7 +39,7 @@ export async function getCardById(
   }
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.view');
   if (!allowed) {
-    throw new Error('Insufficient permissions to view card');
+    throw new ForbiddenError('Insufficient permissions to view card');
   }
   void options;
   return toCardDetail(card);
@@ -37,11 +52,11 @@ export async function getCardsByList(
 ): Promise<Array<(Document & ICard) | CardSummaryDTO>> {
   const list = await List.findById(listId).select('boardId').lean();
   if (!list) {
-    throw new Error('List not found');
+    throw new NotFoundError('List not found');
   }
   const allowed = await hasPermission({ id: userId }, String(list.boardId), 'cards.view');
   if (!allowed) {
-    throw new Error('Insufficient permissions to view cards');
+    throw new ForbiddenError('Insufficient permissions to view cards');
   }
   const cardsLean = await Card.find({ listId }).lean<ICard[]>();
   cardsLean.sort((a, b) =>
@@ -58,26 +73,14 @@ export async function getCardsByList(
       },
     ),
   );
-  const cards = cardsLean;
   if (options?.view === 'summary') {
-    const summaries = cards.map((card) => toCardSummary(card as unknown as ICard));
+    const summaries = cardsLean.map((card) => toCardSummary(card));
     if (Array.isArray(options.fields) && options.fields.length > 0) {
-      return summaries.map((summary) => {
-        const selected: Record<string, unknown> = {};
-        for (const field of options.fields ?? []) {
-          if (field in summary) {
-            selected[field] = (summary as unknown as Record<string, unknown>)[field];
-          }
-        }
-        selected.id = summary.id;
-        selected.listId = summary.listId;
-        selected.boardId = summary.boardId;
-        return selected as unknown as CardSummaryDTO;
-      });
+      return summaries.map((summary) => pickCardSummaryFields(summary, options.fields ?? []));
     }
     return summaries;
   }
-  return cards;
+  return cardsLean;
 }
 
 export async function getBoardKanbanSnapshot(
@@ -120,14 +123,14 @@ export async function getCardDescriptionFieldsBatchForBoard(
 ): Promise<CardDescriptionFieldRow[]> {
   const board = await Board.findById(boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
   const canAccess =
     board.ownerId.toString() === userId ||
     (await isBoardMember(userId, boardId)) ||
     board.visibility === 'public';
   if (!canAccess) {
-    throw new Error('Insufficient permissions to view board cards');
+    throw new ForbiddenError('Insufficient permissions to view board cards');
   }
 
   const unique = [...new Set(cardIds.map((id) => id.trim()).filter((id) => id !== ''))];

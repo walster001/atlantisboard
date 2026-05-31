@@ -346,6 +346,24 @@ export async function hydrateBoardSummaryForUser(
   return { ...summary, themeSettings };
 }
 
+function isMongooseSubdocument<T extends Record<string, unknown>>(
+  value: T,
+): value is T & { toObject: () => T } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'toObject' in value &&
+    typeof (value as { toObject?: () => T }).toObject === 'function'
+  );
+}
+
+function preferencesToPlainObject<T extends Record<string, unknown>>(preferences: T): T {
+  if (isMongooseSubdocument(preferences)) {
+    return preferences.toObject();
+  }
+  return preferences;
+}
+
 export async function attachCustomBoardThemesToPreferences<T extends Record<string, unknown>>(
   userId: string,
   preferences: T,
@@ -356,10 +374,6 @@ export async function attachCustomBoardThemesToPreferences<T extends Record<stri
    * not be enumerable), which can cause preference keys like `homeWorkspaceOrder` to disappear
    * from API responses after reload.
    */
-  const maybeDoc = preferences as unknown as { toObject?: () => unknown };
-  const plain =
-    typeof maybeDoc?.toObject === 'function'
-      ? (maybeDoc.toObject() as T)
-      : (preferences as T);
+  const plain = preferencesToPlainObject(preferences);
   return { ...plain, customBoardThemes };
 }

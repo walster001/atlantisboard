@@ -6,6 +6,10 @@ import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
 import type { Document } from 'mongoose';
 import { Types } from 'mongoose';
 import type { ICardComment } from '../models/Card.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+} from '../../shared/errors/domainErrors.js';
 
 export interface CreateCommentInput {
   cardId: string;
@@ -19,13 +23,13 @@ export interface UpdateCommentInput {
 export async function createComment(input: CreateCommentInput, userId: string): Promise<Document & { comments: ICardComment[] }> {
   const card = await Card.findById(input.cardId);
   if (!card) {
-    throw new Error('Card not found');
+    throw new NotFoundError('Card not found');
   }
 
   // Check permissions (viewer cannot comment)
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'comments.create');
   if (!allowed) {
-    throw new Error('Insufficient permissions to create comment');
+    throw new ForbiddenError('Insufficient permissions to create comment');
   }
 
   const commentId = crypto.randomUUID();
@@ -73,7 +77,7 @@ export async function updateComment(
 
   // Only comment author can update
   if (comment.userId.toString() !== userId) {
-    throw new Error('Insufficient permissions to update comment');
+    throw new ForbiddenError('Insufficient permissions to update comment');
   }
 
   comment.text = input.text;
@@ -109,7 +113,7 @@ export async function deleteComment(cardId: string, commentId: string, userId: s
   if (!isAuthor) {
     const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'comments.delete');
     if (!allowed) {
-      throw new Error('Insufficient permissions to delete comment');
+      throw new ForbiddenError('Insufficient permissions to delete comment');
     }
   }
 

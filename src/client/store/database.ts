@@ -233,11 +233,20 @@ class AtlantisboardDatabase extends Dexie {
         offlineActions: 'id, status, timestamp, resourceType',
       })
       .upgrade(async (tx) => {
+        type LegacyMemberDoc = {
+          roleKey?: string;
+          role?: string;
+        } & Record<string, string | boolean | Date | undefined>;
+
+        type LegacyEntityWithMembers = {
+          members?: LegacyMemberDoc[];
+        };
+
         await tx
           .table('workspaces')
           .toCollection()
           .modify((workspace) => {
-            const w = workspace as unknown as { members?: Array<Record<string, unknown>> };
+            const w = workspace as LegacyEntityWithMembers;
             if (!Array.isArray(w.members)) {
               return;
             }
@@ -257,7 +266,7 @@ class AtlantisboardDatabase extends Dexie {
           .table('boards')
           .toCollection()
           .modify((board) => {
-            const b = board as unknown as { members?: Array<Record<string, unknown>> };
+            const b = board as LegacyEntityWithMembers;
             if (!Array.isArray(b.members)) {
               return;
             }

@@ -8,6 +8,9 @@ import { normalizeGoogleOAuthCallbackUrl } from '../../shared/utils/googleOAuthC
 import { normalizeDefaultUiFontFamilyInput } from './fontService.js';
 import { BackupLocationNotConfiguredError, getResolvedBackupLocationFromEnv } from './backupLocationEnv.js';
 import { generateEmailLayout } from './emailTemplateGenerator.js';
+import {
+  ValidationError,
+} from '../../shared/errors/domainErrors.js';
 
 const ENCRYPTED_PLACEHOLDER = '***ENCRYPTED***';
 
@@ -171,7 +174,7 @@ export async function updateAdminConfig(
   if (u.registrationMode !== undefined) {
     const mode = u.registrationMode;
     if (mode !== 'open' && mode !== 'invite-only' && mode !== 'disabled') {
-      throw new Error('Invalid registrationMode');
+      throw new ValidationError('Invalid registrationMode');
     }
     config.registrationMode = mode;
   }

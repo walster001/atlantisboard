@@ -7,6 +7,9 @@ import type { WorkspaceSummaryDTO } from '../../../shared/types/viewModels.js';
 import { emitToUser, emitToWorkspace } from '../../utils/socketIO.js';
 import { hasPermission } from '../../utils/permissions.js';
 import {
+  ForbiddenError,
+} from '../../../shared/errors/domainErrors.js';
+import {
   type CreateWorkspaceInput,
   type UpdateWorkspaceInput,
   type WorkspaceViewMode,
@@ -197,7 +200,7 @@ export async function updateWorkspace(
   }
 
   if (!(await hasPermission(userId, workspaceId, 'workspaces.update', 'workspace'))) {
-    throw new Error('Insufficient permissions to update workspace');
+    throw new ForbiddenError('Insufficient permissions to update workspace');
   }
 
   if (input.name !== undefined) workspace.name = input.name;

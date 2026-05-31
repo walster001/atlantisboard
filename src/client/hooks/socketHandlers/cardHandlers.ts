@@ -9,6 +9,7 @@ import {
   emitSocketCardDeleted,
   emitSocketCardUpdated,
   emitSocketCardsBulkColorUpdated,
+  emitSocketCardsUpdatedBatch,
 } from '../../utils/socketRealtimeBridge.js';
 import {
   forgetCardSocketDedupe,
@@ -34,6 +35,12 @@ function cardUpdatedAtMs(card: Pick<CardDB, 'updatedAt'>): number {
     return u.getTime();
   }
   return 0;
+}
+
+/** Update dedupe cache and fan-out only cards that changed since last socket apply. */
+function emitNonRedundantCardsBatch(boardId: string, cards: readonly CardDB[]): void {
+  const changed = cards.filter((card) => !isRedundantCardSocketPayload(card.id, card));
+  emitSocketCardsUpdatedBatch({ boardId, cards: changed });
 }
 
 /** Drop out-of-order full-card payloads (same-ms `serverTs` races) before overwriting Dexie. */
@@ -218,11 +225,7 @@ export function registerCardHandlers(socket: Socket): void {
               nextCards.map((card) => card.id),
               data.serverTs,
             );
-            for (const card of nextCards) {
-              if (!isRedundantCardSocketPayload(card.id, card)) {
-                emitSocketCardUpdated({ boardId: data.boardId, card });
-              }
-            }
+            emitNonRedundantCardsBatch(data.boardId, nextCards);
           })
           .catch(() => {
             /* Dexie update failed */
@@ -285,11 +288,7 @@ export function registerCardHandlers(socket: Socket): void {
                 nextCards.map((card) => card.id),
                 data.serverTs,
               );
-              for (const card of nextCards) {
-                if (!isRedundantCardSocketPayload(card.id, card)) {
-                  emitSocketCardUpdated({ boardId: data.boardId, card });
-                }
-              }
+              emitNonRedundantCardsBatch(data.boardId, nextCards);
             }
           }),
         ).catch(() => {

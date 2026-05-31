@@ -11,6 +11,7 @@ import {
   type LoginBrandingDraft,
   type PublicLoginBranding,
 } from '../../../shared/types/loginBranding.js';
+import { toPublicLoginBranding } from '../../utils/brandingPublicTypes.js';
 import { buildBrandingFontSelectData, type PublicCustomFontEntry } from '../../../shared/types/customFonts.js';
 import {
   LoginBrandingBackgroundCard,
@@ -63,7 +64,7 @@ function LoginBrandingSectionInner() {
 
   const [debouncedDraft] = useDebouncedValue(draft, 500);
   const previewBranding = useMemo(
-    () => mergePublicLoginBranding(debouncedDraft) as unknown as PublicLoginBranding,
+    () => toPublicLoginBranding(debouncedDraft),
     [debouncedDraft],
   );
   const fontSelectData = useMemo(() => buildBrandingFontSelectData(customFonts), [customFonts]);

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import '../../src/server/index.js';
+import { describe, it, expect, beforeEach, beforeAll } from 'bun:test';
+import { describeDbIntegration } from '../helpers/integrationEnv.js';
+import { ensureTestServer } from '../helpers/testServer.js';
 import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import {
   createMockUser,
@@ -10,17 +11,16 @@ import {
 import { Card } from '../../src/server/models/Card.js';
 import mongoose from 'mongoose';
 
-const shouldRunDbIntegrationTests =
-  Boolean(process.env.MONGODB_TEST_URI) && Boolean(process.env.REDIS_URL);
-const describeDb = shouldRunDbIntegrationTests ? describe : describe.skip;
-
 function triggerAtBeforeDue(dueDate: Date, daysBefore: number): string {
   const trigger = new Date(dueDate);
   trigger.setDate(trigger.getDate() - daysBefore);
   return trigger.toISOString();
 }
 
-describeDb('Reminders', () => {
+describeDbIntegration('Reminders', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  });
   let authToken: string;
   let userId: string;
   let boardId: string;

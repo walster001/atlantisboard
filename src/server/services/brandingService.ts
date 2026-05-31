@@ -3,6 +3,9 @@ import { MINIO_BUCKET_BRANDING } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { logger } from '../utils/logger.js';
 import { isBlockedSvgUpload } from '../utils/sanitizeHtml.js';
+import {
+  ValidationError,
+} from '../../shared/errors/domainErrors.js';
 
 initializeMinIOBuckets().catch((error) => {
   logger.error({ error }, 'Failed to initialize MinIO buckets (branding)');
@@ -111,7 +114,7 @@ export async function uploadBrandingAsset(
   const client = getMinIOClient();
   const rawMime = mimeType.split(';')[0]?.trim().toLowerCase() ?? '';
   if (isBlockedSvgUpload(rawMime, originalName)) {
-    throw new Error('SVG uploads are not allowed for branding assets');
+    throw new ValidationError('SVG uploads are not allowed for branding assets');
   }
 
   const ext = resolveBrandingExtension(mimeType, kind, originalName);
@@ -129,7 +132,7 @@ export async function uploadBrandingAsset(
         ? MAX_HOME_BG_IMAGE_BYTES
         : MAX_LOGO_BYTES;
   if (buffer.length > max) {
-    throw new Error(`File exceeds maximum size of ${max} bytes`);
+    throw new ValidationError(`File exceeds maximum size of ${max} bytes`);
   }
 
   const id = crypto.randomUUID();
@@ -208,7 +211,7 @@ export async function deleteBrandingObjectByPublicUrl(input: string): Promise<bo
   const path = pathnameFromInput(input);
   const m = path.match(BRANDING_DELETE_PATH);
   if (!m?.[1] || !m[2]) {
-    throw new Error('Invalid branding asset URL');
+    throw new ValidationError('Invalid branding asset URL');
   }
   const kind = m[1] as BrandingUploadKind;
   const fileName = m[2];

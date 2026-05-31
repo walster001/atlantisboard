@@ -11,6 +11,9 @@ import { logger } from '../../utils/logger.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
 import { BUCKET_NAME, extractObjectNameFromAttachmentUrl } from './minioPaths.js';
+import {
+  NotFoundError,
+} from '../../../shared/errors/domainErrors.js';
 
 /**
  * Call before deleting card documents so URLs remain resolvable.
@@ -53,12 +56,12 @@ export async function deleteCardAttachment(
   const card = await Card.findById(cardId);
 
   if (!card) {
-    throw new Error('Card not found');
+    throw new NotFoundError('Card not found');
   }
 
   const attachment = card.attachments.find((att) => att.id === attachmentId);
   if (!attachment) {
-    throw new Error('Attachment not found');
+    throw new NotFoundError('Attachment not found');
   }
 
   try {

@@ -12,6 +12,10 @@ import {
 import type { ImportPreflightUser } from '../../shared/import/importPreflight.js';
 import { extractRefUserIdString } from './boardService/helpers.js';
 import { emitBoardUpdatedRealtime } from './boardService/shared.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+} from '../../shared/errors/domainErrors.js';
 
 const PLACEHOLDER_INSERT_BATCH_SIZE = 500;
 
@@ -319,13 +323,13 @@ export async function discardAllBoardImportPlaceholdersOnBoard(
 ): Promise<{ readonly removedCount: number }> {
   const board = await Board.findById(boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   if (board.ownerId.toString() !== actorUserId) {
     const allowed = await hasPermission({ id: actorUserId }, boardId, 'boards.members.remove');
     if (!allowed) {
-      throw new Error('Insufficient permissions to discard placeholder users');
+      throw new ForbiddenError('Insufficient permissions to discard placeholder users');
     }
   }
 

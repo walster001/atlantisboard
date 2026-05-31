@@ -20,6 +20,12 @@ import { emitBoardUpdatedRealtime } from '../boardService.js';
 import { emitWorkspaceHomeSnapshotToUserById } from '../workspaceService.js';
 import { emitToUser } from '../../utils/socketIO.js';
 import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
+import {
   resolveBoardRoleKeyForUser,
   resolveBoardRoleUpdateModeForActor,
   resolveWorkspaceRoleKeyForUser,
@@ -35,21 +41,21 @@ import {
 
 export async function createInviteLink(input: CreateInviteInput): Promise<Document & IInviteLink> {
   if (input.type === 'workspace' && !input.workspaceId) {
-    throw new Error('Workspace ID is required for workspace invites');
+    throw new ValidationError('Workspace ID is required for workspace invites');
   }
   if (input.type === 'board' && !input.boardId) {
-    throw new Error('Board ID is required for board invites');
+    throw new ValidationError('Board ID is required for board invites');
   }
 
   if (input.type === 'workspace' && input.workspaceId) {
     const workspace = await Workspace.findById(input.workspaceId);
     if (!workspace) {
-      throw new Error('Workspace not found');
+      throw new NotFoundError('Workspace not found');
     }
     if (workspace.ownerId.toString() !== input.createdBy) {
       const role = await getUserWorkspaceRole(input.createdBy, input.workspaceId);
       if (role !== 'admin') {
-        throw new Error('Only admins can create workspace invites');
+        throw new ForbiddenError('Only admins can create workspace invites');
       }
     }
   }
@@ -57,12 +63,12 @@ export async function createInviteLink(input: CreateInviteInput): Promise<Docume
   if (input.type === 'board' && input.boardId) {
     const board = await Board.findById(input.boardId);
     if (!board) {
-      throw new Error('Board not found');
+      throw new NotFoundError('Board not found');
     }
     if (board.ownerId.toString() !== input.createdBy) {
       const allowed = await hasPermission({ id: input.createdBy }, input.boardId, 'invites.create');
       if (!allowed) {
-        throw new Error('Only admins can create board invites');
+        throw new ForbiddenError('Only admins can create board invites');
       }
     }
   }
@@ -76,57 +82,44 @@ export async function createInviteLink(input: CreateInviteInput): Promise<Docume
   if (input.type === 'workspace' && input.workspaceId) {
     const workspace = await Workspace.findById(input.workspaceId);
     if (!workspace) {
-      throw new Error('Workspace not found');
+      throw new NotFoundError('Workspace not found');
     }
-    const actorRoleKey = resolveWorkspaceRoleKeyForUser(
-      workspace as unknown as Document & {
-        ownerId: mongoose.Types.ObjectId;
-        members: Array<{ userId: unknown; roleKey: string }>;
-      },
-      input.createdBy,
-    );
+    const actorRoleKey = resolveWorkspaceRoleKeyForUser(workspace, input.createdBy);
     if (actorRoleKey == null) {
-      throw new Error('Insufficient permissions to assign invite role');
+      throw new ForbiddenError('Insufficient permissions to assign invite role');
     }
     const [actorLevel, targetLevel] = await Promise.all([
       getRoleHierarchyLevel(actorRoleKey),
       getRoleHierarchyLevel(roleKeyCandidate),
     ]);
     if (actorLevel == null || targetLevel == null) {
-      throw new Error('Invalid role hierarchy configuration');
+      throw new ValidationError('Invalid role hierarchy configuration');
     }
     if (targetLevel > actorLevel) {
-      throw new Error('Cannot assign invite role above your hierarchy level');
+      throw new ForbiddenError('Cannot assign invite role above your hierarchy level');
     }
   }
 
   if (input.type === 'board' && input.boardId) {
     const board = await Board.findById(input.boardId);
     if (!board) {
-      throw new Error('Board not found');
+      throw new NotFoundError('Board not found');
     }
     if (board.ownerId.toString() !== input.createdBy) {
-      const actorRoleKey = await resolveBoardRoleKeyForUser(
-        board as unknown as Document & {
-          ownerId: mongoose.Types.ObjectId;
-          workspaceId?: mongoose.Types.ObjectId | null;
-          members: Array<{ userId: unknown; roleKey: string }>;
-        },
-        input.createdBy,
-      );
+      const actorRoleKey = await resolveBoardRoleKeyForUser(board, input.createdBy);
       if (actorRoleKey == null) {
-        throw new Error('Insufficient permissions to assign invite role');
+        throw new ForbiddenError('Insufficient permissions to assign invite role');
       }
       const mode = await resolveBoardRoleUpdateModeForActor(input.createdBy, input.boardId);
       if (mode == null) {
-        throw new Error('Insufficient permissions to assign invite role');
+        throw new ForbiddenError('Insufficient permissions to assign invite role');
       }
       const [actorLevel, targetLevel] = await Promise.all([
         getRoleHierarchyLevel(actorRoleKey),
         getRoleHierarchyLevel(roleKeyCandidate),
       ]);
       if (actorLevel == null || targetLevel == null) {
-        throw new Error('Invalid role hierarchy configuration');
+        throw new ValidationError('Invalid role hierarchy configuration');
       }
       const allowedByMode = canAssignByBoardMemberRoleUpdateMode({
         mode,
@@ -136,10 +129,10 @@ export async function createInviteLink(input: CreateInviteInput): Promise<Docume
         selfChange: false,
       });
       if (!allowedByMode) {
-        throw new Error('Cannot assign invite role at this hierarchy level');
+        throw new ForbiddenError('Cannot assign invite role at this hierarchy level');
       }
       if (mode !== 'boards.members.role.update.any' && targetLevel > actorLevel) {
-        throw new Error('Cannot assign invite role above your hierarchy level');
+        throw new ForbiddenError('Cannot assign invite role above your hierarchy level');
       }
     }
   }
@@ -191,26 +184,26 @@ export async function acceptInviteLink(token: string, userId: string): Promise<v
   const inviteLink = await InviteLink.findOne({ token });
 
   if (!inviteLink) {
-    throw new Error('Invalid invite link');
+    throw new BadRequestError('Invalid invite link', 'INVALID_INVITE');
   }
 
   if (inviteLink.expiresAt && inviteLink.expiresAt < new Date()) {
-    throw new Error('Invite link has expired');
+    throw new BadRequestError('Invite link has expired', 'INVALID_INVITE');
   }
 
   if (inviteLink.inviteType === 'one-time' && inviteLink.usedCount > 0) {
-    throw new Error('Invite link has already been used');
+    throw new BadRequestError('Invite link has already been used', 'INVALID_INVITE');
   }
 
   const user = await User.findById(userId);
   if (!user) {
-    throw new Error('User not found');
+    throw new NotFoundError('User not found');
   }
 
   if (inviteLink.type === 'workspace' && inviteLink.workspaceId) {
     const workspace = await Workspace.findById(inviteLink.workspaceId);
     if (!workspace) {
-      throw new Error('Workspace not found');
+      throw new NotFoundError('Workspace not found');
     }
 
     const effectiveRoleKey = inviteLink.roleKey.trim();
@@ -255,7 +248,7 @@ export async function acceptInviteLink(token: string, userId: string): Promise<v
   } else if (inviteLink.type === 'board' && inviteLink.boardId) {
     const board = await Board.findById(inviteLink.boardId);
     if (!board) {
-      throw new Error('Board not found');
+      throw new NotFoundError('Board not found');
     }
 
     const isBoardMember = board.members.some((m) => m.userId.toString() === userId) ||
@@ -352,12 +345,12 @@ export async function getInviteLinks(
     if (boardId) {
       const allowed = await hasPermission({ id: userId }, boardId, 'invites.view');
       if (!allowed) {
-        throw new Error('Insufficient permissions to view invites');
+        throw new ForbiddenError('Insufficient permissions to view invites');
       }
     } else if (workspaceId) {
       const allowed = await hasPermission(userId, workspaceId, 'invites.view', 'workspace');
       if (!allowed) {
-        throw new Error('Insufficient permissions to view invites');
+        throw new ForbiddenError('Insufficient permissions to view invites');
       }
     }
   }
@@ -389,7 +382,7 @@ export async function deleteInviteLink(inviteId: string, userId: string): Promis
       if (workspace && workspace.ownerId.toString() !== userId) {
         const role = await getUserWorkspaceRole(userId, inviteLink.workspaceId.toString());
         if (role !== 'admin') {
-          throw new Error('Insufficient permissions to delete invite');
+          throw new ForbiddenError('Insufficient permissions to delete invite');
         }
       }
     } else if (inviteLink.type === 'board' && inviteLink.boardId) {
@@ -397,7 +390,7 @@ export async function deleteInviteLink(inviteId: string, userId: string): Promis
       if (board && board.ownerId.toString() !== userId) {
         const allowed = await hasPermission({ id: userId }, inviteLink.boardId.toString(), 'invites.delete');
         if (!allowed) {
-          throw new Error('Insufficient permissions to delete invite');
+          throw new ForbiddenError('Insufficient permissions to delete invite');
         }
       }
     }

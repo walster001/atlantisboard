@@ -10,6 +10,10 @@ import {
   LEGACY_BOARD_EXPORT_JSON_PERMISSION_KEY,
 } from '../../../shared/export/boardExportPermissions.js';
 import type { BoardExportFormat } from '../../../shared/export/boardExportFormats.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+} from '../../../shared/errors/domainErrors.js';
 
 export interface BoardExportUserSummary {
   readonly id: string;
@@ -62,7 +66,7 @@ async function assertBoardExportAllowed(
   ) {
     return;
   }
-  throw new Error('Access denied');
+  throw new ForbiddenError('Access denied');
 }
 
 export async function loadBoardExportContext(
@@ -72,12 +76,12 @@ export async function loadBoardExportContext(
 ): Promise<BoardExportContext> {
   const board = await Board.findById(boardId);
   if (board == null) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   const allowed = await hasPermission({ id: userId }, boardId, 'boards.view');
   if (!allowed) {
-    throw new Error('Access denied');
+    throw new ForbiddenError('Access denied');
   }
   await assertBoardExportAllowed(userId, boardId, format);
 

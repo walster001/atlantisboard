@@ -23,6 +23,10 @@ import {
 } from '../../../shared/boardTheme.js';
 import type { CreateBoardInput } from './types.js';
 import {
+  ForbiddenError,
+  NotFoundError,
+} from '../../../shared/errors/domainErrors.js';
+import {
   emitBoardCreatedRealtime,
   ensureLegacyBoardPositions,
 } from './shared.js';
@@ -31,12 +35,12 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
   await ensureLegacyBoardPositions();
 
   if (!(await hasPermission(input.ownerId, input.workspaceId, 'boards.create', 'workspace'))) {
-    throw new Error('Insufficient permissions to create a board in this workspace');
+    throw new ForbiddenError('Insufficient permissions to create a board in this workspace');
   }
 
   const workspace = await Workspace.findById(input.workspaceId);
   if (!workspace) {
-    throw new Error('Workspace not found');
+    throw new NotFoundError('Workspace not found');
   }
 
   const wid = new mongoose.Types.ObjectId(input.workspaceId);
@@ -117,7 +121,7 @@ export async function deleteBoard(boardId: string, userId: string): Promise<bool
 
   // Only owner can delete
   if (board.ownerId.toString() !== userId) {
-    throw new Error('Only board owner can delete board');
+    throw new ForbiddenError('Only board owner can delete board');
   }
 
   const placeholderUserIds = await collectImportPlaceholderUserIdsOnBoards([board._id]);

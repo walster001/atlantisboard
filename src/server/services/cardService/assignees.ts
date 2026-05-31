@@ -4,6 +4,10 @@ import { Board } from '../../models/Board.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+} from '../../../shared/errors/domainErrors.js';
 
 export async function addCardAssignee(
   cardId: string,
@@ -18,13 +22,13 @@ export async function addCardAssignee(
   // Check permissions
   const board = await Board.findById(card.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.assignees.add');
     if (!allowed) {
-      throw new Error('Insufficient permissions to assign users');
+      throw new ForbiddenError('Insufficient permissions to assign users');
     }
   }
 
@@ -60,13 +64,13 @@ export async function removeCardAssignee(
   // Check permissions
   const board = await Board.findById(card.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.assignees.remove');
     if (!allowed) {
-      throw new Error('Insufficient permissions to remove assignees');
+      throw new ForbiddenError('Insufficient permissions to remove assignees');
     }
   }
 

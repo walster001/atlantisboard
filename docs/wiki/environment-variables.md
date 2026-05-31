@@ -39,6 +39,14 @@ This page documents every environment variable recognised by Atlantisboard. Vari
 | `ENABLE_CHANGE_STREAMS` | `true` | Enable MongoDB change streams for real-time sync |
 | `DISABLE_CHANGE_STREAMS` | _(empty)_ | Force change streams off |
 
+### Test / CI only
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MONGODB_TEST_URI` | _(unset)_ | MongoDB URI for `bun test` DB-backed suites (`tests/helpers/testHelpers.ts`). Use a **separate database** from `MONGODB_URI` when possible (e.g. `kanboard_test`). Required with Redis for HTTP integration tests; see [tests/README.md](../../tests/README.md). |
+| `TEST_BASE_URL` | `http://127.0.0.1:3000` | Optional base URL when reusing an already-running server during integration tests |
+| `TEST_PORT` | _(ephemeral)_ | Override listen port when the test harness starts the server (normally `0` = OS-assigned) |
+
 > **Important:** MongoDB must be configured as a replica set. Change Streams — the foundation of Atlantisboard's real-time collaboration — do not work without one. Even single-node deployments need a replica set. See the [Manual Installation](manual-install.md) guide for initialisation commands.
 
 > **Production:** The application refuses to start when `MONGODB_URI` has no credentials. Production Docker Compose enables SCRAM authentication and creates a least-privilege app user. Example URI: `mongodb://kanboard_app:SECRET@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0`

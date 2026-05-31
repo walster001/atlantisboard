@@ -17,6 +17,7 @@ import {
   isEligibleImportBoardMemberActorId,
   resolveImportActorId,
 } from '../importUserMapService.js';
+import { objectToRecord } from '../../../utils/objectRecord.js';
 import { logger } from '../../../utils/logger.js';
 import { createActivity } from '../../activityService.js';
 import { emitToUser } from '../../../utils/socketIO.js';
@@ -60,7 +61,7 @@ export async function executeWekanImportJob(params: {
   }
 
   const sourceUsers: ImportPreflightUser[] = (data.users ?? []).flatMap((wekanUser) => {
-    const mapped = importPreflightUserFromWekanRecord(wekanUser as unknown as Record<string, unknown>);
+    const mapped = importPreflightUserFromWekanRecord(objectToRecord(wekanUser));
     return mapped != null ? [mapped] : [];
   });
   const realUserMap = await buildImportRealUserMap(sourceUsers);

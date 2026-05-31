@@ -155,7 +155,7 @@ export async function emitWorkspaceBoardSummariesToUserForHome(
   for (const s of summaries) {
     emitToUser(userId, 'board:updated', {
       boardId: s.id,
-      data: s as unknown as Record<string, unknown>,
+      data: { ...s },
       serverTs,
     });
   }

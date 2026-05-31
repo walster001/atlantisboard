@@ -71,18 +71,19 @@ const WorkspaceSchema = new Schema<IWorkspace>(
   }
 );
 
+function stripLegacyWorkspacePublicFields(ret: Record<string, unknown>): void {
+  delete ret.visibility;
+  delete ret.logo;
+}
+
 WorkspaceSchema.set('toJSON', {
   transform(_doc, ret) {
-    const plain = ret as unknown as Record<string, unknown>;
-    delete plain.visibility;
-    delete plain.logo;
+    stripLegacyWorkspacePublicFields(ret as Record<string, unknown>);
   },
 });
 WorkspaceSchema.set('toObject', {
   transform(_doc, ret) {
-    const plain = ret as unknown as Record<string, unknown>;
-    delete plain.visibility;
-    delete plain.logo;
+    stripLegacyWorkspacePublicFields(ret as Record<string, unknown>);
   },
 });
 

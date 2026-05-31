@@ -1,5 +1,3 @@
-import type { WekanBoard } from '../types.js';
-
 const WEKAN_SINGLE_BOARD_NESTED_KEYS = new Set([
   'lists',
   'cards',
@@ -15,12 +13,12 @@ const WEKAN_SINGLE_BOARD_NESTED_KEYS = new Set([
   'integrations',
 ]);
 
-export function stripToWekanBoard(obj: Record<string, unknown>): WekanBoard {
+export function stripToWekanBoard(obj: Record<string, unknown>): Record<string, unknown> {
   const board: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (!WEKAN_SINGLE_BOARD_NESTED_KEYS.has(key)) {
       board[key] = value;
     }
   }
-  return board as unknown as WekanBoard;
+  return board;
 }

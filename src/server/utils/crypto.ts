@@ -3,6 +3,9 @@ import { appendFileSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { promisify } from 'util';
 import { logger } from './logger.js';
+import {
+  ValidationError,
+} from '../../shared/errors/domainErrors.js';
 
 const scryptAsync = promisify(scrypt);
 const ALGORITHM = 'aes-256-gcm';
@@ -57,7 +60,7 @@ export async function encrypt(text: string): Promise<string> {
 export async function decrypt(encryptedText: string): Promise<string> {
   const parts = encryptedText.split(':');
   if (parts.length !== 4) {
-    throw new Error('Invalid encrypted text format');
+    throw new ValidationError('Invalid encrypted text format');
   }
 
   const [saltHex, ivHex, authTagHex, encrypted] = parts;

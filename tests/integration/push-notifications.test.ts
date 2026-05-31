@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import '../../src/server/index.js';
+import { describe, it, expect, beforeEach, beforeAll } from 'bun:test';
+import { describeDbIntegration } from '../helpers/integrationEnv.js';
+import { ensureTestServer } from '../helpers/testServer.js';
 import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import { createMockUser } from '../helpers/mockData.js';
 import { User } from '../../src/server/models/User.js';
 import { getVapidPublicKey } from '../../src/server/config/vapid.js';
 
-const shouldRunDbIntegrationTests =
-  Boolean(process.env.MONGODB_TEST_URI) && Boolean(process.env.REDIS_URL);
-const describeDb = shouldRunDbIntegrationTests ? describe : describe.skip;
-
-describeDb('Push Notifications', () => {
+describeDbIntegration('Push Notifications', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  });
   let authToken: string;
   let userId: string;
 

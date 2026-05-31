@@ -6,6 +6,9 @@ import {
   MAX_CARD_ATTACHMENT_BYTES,
 } from './minioPaths.js';
 import type { AttachmentObjectMeta } from './types.js';
+import {
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
 
 async function readStreamIntoBuffer(stream: Readable, maxBytes: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -15,7 +18,7 @@ async function readStreamIntoBuffer(stream: Readable, maxBytes: number): Promise
     total += buf.length;
     if (total > maxBytes) {
       stream.destroy();
-      throw new Error(`Stream exceeds maximum size of ${maxBytes} bytes`);
+      throw new ValidationError(`Stream exceeds maximum size of ${maxBytes} bytes`);
     }
     chunks.push(buf);
   }

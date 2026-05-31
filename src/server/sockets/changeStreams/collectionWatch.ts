@@ -101,7 +101,8 @@ export async function startCollectionWatch<T = unknown>(params: StartCollectionW
       ...(resumeAfter !== null ? { resumeAfter } : {}),
     };
 
-    const stream = model.watch(pipeline as unknown as Record<string, unknown>[], options);
+    const watchPipeline: Record<string, unknown>[] = pipeline.map((stage) => ({ ...stage }));
+    const stream = model.watch(watchPipeline, options);
     activeStream = stream;
     reconnectAttempt = 0;
 

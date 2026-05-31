@@ -1,4 +1,8 @@
 import type { Document } from 'mongoose';
+import {
+  BadRequestError,
+  NotFoundError,
+} from '../../shared/errors/domainErrors.js';
 import { User } from '../models/User.js';
 import type { IBoard } from '../models/Board.js';
 import type { BoardSummaryDTO } from '../../shared/types/viewModels.js';
@@ -56,12 +60,12 @@ export async function sanitizeAndSaveHomeBoardOrderForWorkspace(
   const normalized = requestedOrder.map((id) => id.trim()).filter((id) => id !== '');
 
   if (visibleSet.size !== normalized.length || !normalized.every((id) => visibleSet.has(id))) {
-    throw new Error('Invalid board order for this workspace');
+    throw new BadRequestError('Invalid board order for this workspace', 'INVALID_REORDER');
   }
 
   const user = await User.findById(userId);
   if (user == null) {
-    throw new Error('User not found');
+    throw new NotFoundError('User not found');
   }
 
   if (user.preferences.homeBoardOrderByWorkspace == null) {
@@ -73,7 +77,7 @@ export async function sanitizeAndSaveHomeBoardOrderForWorkspace(
   } else {
     const record = homeBoardOrderMapToRecord(map);
     record[workspaceId.trim()] = [...normalized];
-    user.preferences.homeBoardOrderByWorkspace = record as unknown as Map<string, string[]>;
+    user.preferences.homeBoardOrderByWorkspace = record;
   }
 
   user.markModified('preferences');

@@ -20,6 +20,10 @@ import {
 } from '../../../shared/boardTheme.js';
 import type { UpdateBoardInput } from './types.js';
 import { emitBoardUpdatedRealtime, emitWorkspaceTransitionsOnBoardMove } from './shared.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+} from '../../../shared/errors/domainErrors.js';
 
 export async function updateBoard(
   boardId: string,
@@ -46,7 +50,7 @@ export async function updateBoard(
     if (hasThemeMutation) {
       const canChangeTheme = await hasPermission({ id: userId }, boardId, 'boards.themes.changetheme');
       if (!canChangeTheme) {
-        throw new Error('Insufficient permissions to update board theme/background');
+        throw new ForbiddenError('Insufficient permissions to update board theme/background');
       }
     }
     if (input.themeSettings !== undefined) {
@@ -61,14 +65,14 @@ export async function updateBoard(
       if (customThemesChanged) {
         const canManageCustomThemes = await hasPermission({ id: userId }, boardId, 'boards.themes.customtheme');
         if (!canManageCustomThemes) {
-          throw new Error('Insufficient permissions to manage custom board themes');
+          throw new ForbiddenError('Insufficient permissions to manage custom board themes');
         }
       }
     }
     if (hasNonThemeMutation) {
       const allowed = await hasPermission({ id: userId }, boardId, 'boards.update');
       if (!allowed) {
-        throw new Error('Insufficient permissions to update board');
+        throw new ForbiddenError('Insufficient permissions to update board');
       }
     }
   }
@@ -86,7 +90,7 @@ export async function updateBoard(
           (await userCanReorganizeWorkspaceHomeBoardBucket(userId, wid)) ||
           (isBoardOwner && (await isWorkspaceMember(userId, wid)));
         if (!ok) {
-          throw new Error(
+          throw new ForbiddenError(
             direction === 'out'
               ? 'Insufficient permissions to move board out of this workspace'
               : 'Insufficient permissions to move board into this workspace',
@@ -104,7 +108,7 @@ export async function updateBoard(
     if (input.workspaceId) {
       const workspace = await Workspace.findById(input.workspaceId);
       if (!workspace) {
-        throw new Error('Workspace not found');
+        throw new NotFoundError('Workspace not found');
       }
       board.workspaceId = new mongoose.Types.ObjectId(input.workspaceId);
     } else {
@@ -201,10 +205,7 @@ export async function updateBoard(
           { _id: board._id },
           { $unset: { 'settings.memberActivityLogRetentionDays': '' } },
         );
-        Reflect.deleteProperty(
-          board.settings as unknown as Record<string, unknown>,
-          'memberActivityLogRetentionDays',
-        );
+        delete board.settings.memberActivityLogRetentionDays;
       } else {
         board.settings.memberActivityLogRetentionDays = input.settings.memberActivityLogRetentionDays;
       }

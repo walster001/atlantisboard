@@ -1,5 +1,5 @@
 import type { InviteType, InviteLinkType } from '../../models/InviteLink.js';
-import { Workspace } from '../../models/Workspace.js';
+import { Workspace, type IWorkspace } from '../../models/Workspace.js';
 import { RoleDefinition } from '../../models/RoleDefinition.js';
 import { hasPermission } from '../../utils/permissions.js';
 import {
@@ -7,8 +7,8 @@ import {
   isValidCustomRoleKey,
   type BoardMemberRoleUpdateModeKey,
 } from '../roleService.js';
-import mongoose from 'mongoose';
-import type { Document } from 'mongoose';
+import type { IBoard } from '../../models/Board.js';
+import { ValidationError } from '../../../shared/errors/domainErrors.js';
 
 export interface CreateInviteInput {
   workspaceId?: string;
@@ -39,16 +39,16 @@ export async function validateRoleKeyForInvite(roleKey: string): Promise<void> {
     return;
   }
   if (!isValidCustomRoleKey(roleKey)) {
-    throw new Error('Invalid roleKey');
+    throw new ValidationError('Invalid roleKey');
   }
   const exists = await RoleDefinition.findOne({ key: roleKey }).select('_id').lean();
   if (!exists) {
-    throw new Error('Unknown roleKey');
+    throw new ValidationError('Unknown roleKey');
   }
 }
 
 export function resolveWorkspaceRoleKeyForUser(
-  workspace: Document & { ownerId: mongoose.Types.ObjectId; members: Array<{ userId: unknown; roleKey: string }> },
+  workspace: Pick<IWorkspace, 'ownerId' | 'members'>,
   userId: string,
 ): string | null {
   if (workspace.ownerId.toString() === userId) {
@@ -62,7 +62,7 @@ export function resolveWorkspaceRoleKeyForUser(
 }
 
 export async function resolveBoardRoleKeyForUser(
-  board: Document & { ownerId: mongoose.Types.ObjectId; workspaceId?: mongoose.Types.ObjectId | null; members: Array<{ userId: unknown; roleKey: string }> },
+  board: Pick<IBoard, 'ownerId' | 'workspaceId' | 'members'>,
   userId: string,
 ): Promise<string | null> {
   if (board.ownerId.toString() === userId) {
@@ -82,12 +82,8 @@ export async function resolveBoardRoleKeyForUser(
   if (String(workspace.ownerId) === userId) {
     return 'admin';
   }
-  const wsMember = (workspace.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
-    (m) => String(m.userId) === userId,
-  );
-  return typeof wsMember?.roleKey === 'string' && wsMember.roleKey.trim() !== ''
-    ? wsMember.roleKey.trim()
-    : null;
+  const wsMember = workspace.members.find((m) => m.userId.toString() === userId);
+  return wsMember != null && wsMember.roleKey.trim() !== '' ? wsMember.roleKey.trim() : null;
 }
 
 export async function resolveBoardRoleUpdateModeForActor(

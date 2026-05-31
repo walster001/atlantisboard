@@ -1,11 +1,11 @@
 import {
   APP_NAVBAR_ICON_SIZE_MAX_PX,
   APP_NAVBAR_ICON_SIZE_MIN_PX,
-  mergePublicAppBranding,
   type AppBrandingDraft,
   type HomepageBackgroundMode,
   type PublicAppBranding,
 } from '../../../../shared/types/appBranding.js';
+import { toPublicAppBranding } from '../../../utils/brandingPublicTypes.js';
 
 export const BG_MODE_SEGMENTS: { value: HomepageBackgroundMode; label: string }[] = [
   { value: 'color', label: 'Background color' },
@@ -36,5 +36,5 @@ export type AppBrandingHandlers = {
 };
 
 export function draftToPublicPreview(draft: AppBrandingDraft): PublicAppBranding {
-  return mergePublicAppBranding(draft) as unknown as PublicAppBranding;
+  return toPublicAppBranding(draft);
 }

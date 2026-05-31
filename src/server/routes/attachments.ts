@@ -24,6 +24,9 @@ import { Card } from '../models/Card.js';
 import { hasPermission } from '../utils/permissions.js';
 import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import { logger } from '../utils/logger.js';
+import {
+  ValidationError,
+} from '../../shared/errors/domainErrors.js';
 
 const router = Router();
 
@@ -151,7 +154,7 @@ function payloadFromMulterFile(file: Express.Multer.File): CardAttachmentUploadP
   if (file.buffer != null) {
     return { kind: 'memory', buffer: file.buffer };
   }
-  throw new Error('Invalid uploaded file');
+  throw new ValidationError('Invalid uploaded file');
 }
 
 // All routes require authentication

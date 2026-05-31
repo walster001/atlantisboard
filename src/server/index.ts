@@ -206,40 +206,86 @@ if (process.env.ENABLE_CRON_JOBS_IN_MAIN === 'true') {
   logger.info('Cron jobs disabled in main process. Start worker separately: bun run src/server/workers/index.ts');
 }
 
-async function bootstrap(): Promise<void> {
-  try {
-    await connectSessionRedis();
-    await connectDatabase();
-    await migrateLegacyUserPlaceholdersToBoardCollection();
-    await repairWekanEmailStoredInImportUsername();
-    await sanitizeBoardImportPlaceholderStoredEmails();
-    await dropLegacyUnusedCollections();
-    await migrateLegacyCardDescriptionHtmlBatch();
-    await initializeBoardThemes();
-    await initializeAdminConfig();
-    await initializeRoleDefinitions();
-    await configureGoogleStrategy();
-  } catch (err) {
-    logger.error({ err }, 'Server bootstrap failed');
-    process.exit(1);
-    return;
+let httpServerStartPromise: Promise<number> | null = null;
+
+export function getHttpListenPort(): number {
+  const address = httpServer.address();
+  if (typeof address === 'object' && address !== null) {
+    return address.port;
   }
-
-  // Non-fatal when object storage is unavailable (e.g. CI without MinIO)
-  initializeMinIOBuckets().catch((err) => {
-    logger.error({ err }, 'Failed to initialize MinIO buckets');
-  });
-
-  initializeVapid().catch((err) => {
-    logger.error({ err }, 'Failed to initialize VAPID keys');
-  });
-
-  httpServer.listen(PORT, HOST, () => {
-    logger.info(`Server running on http://${HOST}:${PORT}`);
-  });
+  return PORT;
 }
 
-void bootstrap();
+/** Bootstrap dependencies and listen. Safe to call once; subsequent calls return the same port. */
+export async function startHttpServer(options?: {
+  readonly port?: number;
+  readonly host?: string;
+}): Promise<number> {
+  if (httpServerStartPromise) {
+    return httpServerStartPromise;
+  }
+
+  httpServerStartPromise = (async () => {
+    if (httpServer.listening) {
+      return getHttpListenPort();
+    }
+
+    try {
+      await connectSessionRedis();
+      await connectDatabase();
+      await migrateLegacyUserPlaceholdersToBoardCollection();
+      await repairWekanEmailStoredInImportUsername();
+      await sanitizeBoardImportPlaceholderStoredEmails();
+      await dropLegacyUnusedCollections();
+      await migrateLegacyCardDescriptionHtmlBatch();
+      await initializeBoardThemes();
+      await initializeAdminConfig();
+      await initializeRoleDefinitions();
+      await configureGoogleStrategy();
+    } catch (err) {
+      logger.error({ err }, 'Server bootstrap failed');
+      httpServerStartPromise = null;
+      if (process.env.NODE_ENV === 'test') {
+        throw err;
+      }
+      process.exit(1);
+    }
+
+    // Non-fatal when object storage is unavailable (e.g. CI without MinIO)
+    initializeMinIOBuckets().catch((err) => {
+      logger.error({ err }, 'Failed to initialize MinIO buckets');
+    });
+
+    initializeVapid().catch((err) => {
+      logger.error({ err }, 'Failed to initialize VAPID keys');
+    });
+
+    const listenPort = options?.port ?? PORT;
+    const listenHost = options?.host ?? HOST;
+
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error): void => {
+        httpServer.off('error', onError);
+        reject(error);
+      };
+      httpServer.once('error', onError);
+      httpServer.listen(listenPort, listenHost, () => {
+        httpServer.off('error', onError);
+        const actualPort = getHttpListenPort();
+        logger.info(`Server running on http://${listenHost}:${actualPort}`);
+        resolve();
+      });
+    });
+
+    return getHttpListenPort();
+  })();
+
+  return httpServerStartPromise;
+}
+
+if (import.meta.main) {
+  void startHttpServer();
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

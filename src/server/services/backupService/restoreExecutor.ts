@@ -22,6 +22,10 @@ import { type MinioObjectMetadataMap, buildPutObjectMetadata, restoreMinioBucket
 import { restoreMongoFromDir } from './mongoArchive.js';
 import { getMinioObjectTransferConcurrency } from './runtime.js';
 import { runWithConcurrency } from '../../../shared/utils/runWithConcurrency.js';
+import {
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
 
 async function readManifest(extractRoot: string): Promise<ParsedBackupManifest> {
   const raw = await readFile(join(extractRoot, 'manifest.json'), 'utf8');
@@ -36,7 +40,7 @@ async function readManifest(extractRoot: string): Promise<ParsedBackupManifest> 
     throw new Error(`Unsupported backup format: ${String(parsed.format)}`);
   }
   if (!Array.isArray(parsed.mongoCollections)) {
-    throw new Error('Invalid manifest: mongoCollections');
+    throw new ValidationError('Invalid manifest: mongoCollections');
   }
   const fmt = parsed.format === BACKUP_FORMAT_V1 ? BACKUP_FORMAT_V1 : BACKUP_FORMAT;
   const minioArchiveMethod =
@@ -184,7 +188,7 @@ export async function restoreFullBackupImpl(params: {
 }): Promise<void> {
   const doc = await BackupJob.findOne({ 'result.folderId': params.folderId }).sort({ completedAt: -1 }).lean();
   if (!doc?.result?.filePath) {
-    throw new Error('Backup archive not found');
+    throw new NotFoundError('Backup archive not found');
   }
   const filePath = doc.result.filePath;
   const zipPath = join(tmpdir(), `restore-${Date.now()}.zip`);

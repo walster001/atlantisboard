@@ -11,6 +11,7 @@ import {
   type ApiInjectOptions,
   type ApiInjectResponse,
 } from './integrationHttp.js';
+import { DB_INTEGRATION_ENV_DOCS, resolveTestMongoUri } from './integrationEnv.js';
 
 export interface TestUser {
   _id: string;
@@ -26,15 +27,24 @@ export interface TestAuthToken {
 }
 
 export async function connectTestDatabase(): Promise<void> {
-  await mongoose.connect(process.env.MONGODB_TEST_URI!);
+  const uri = resolveTestMongoUri();
+  if (!uri) {
+    throw new Error(`MONGODB_TEST_URI is not set. ${DB_INTEGRATION_ENV_DOCS}`);
+  }
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+  await mongoose.connect(uri);
 }
 
 export async function disconnectTestDatabase(): Promise<void> {
   await mongoose.disconnect();
 }
 
-export async function clearTestDatabase(): Promise<void> {
-  await waitForServer();
+export async function clearTestDatabase(options?: { waitForHttp?: boolean }): Promise<void> {
+  if (options?.waitForHttp !== false) {
+    await waitForServer();
+  }
   const { readyState, collections } = mongoose.connection;
   if (readyState !== 1) {
     return;
@@ -55,16 +65,21 @@ export async function getAuthToken(
 
   let user = await User.findOne({ email });
   if (!user) {
-    user = await createMockUser({
+    await createMockUser({
       email,
       password,
       username: email.split('@')[0] ?? 'testuser',
       displayName: 'Test User',
     });
+    user = await User.findOne({ email });
+  }
+  if (user === null) {
+    throw new Error(`Failed to create or load test user for ${email}`);
   }
 
+  const userId = user._id.toString();
   const token = generateToken({
-    userId: user._id.toString(),
+    userId,
     email: user.email,
     username: user.username,
     isAppAdmin: user.isAppAdmin,
@@ -73,7 +88,7 @@ export async function getAuthToken(
   return {
     token,
     user: {
-      _id: user._id.toString(),
+      _id: userId,
       email: user.email,
       username: user.username,
       displayName: user.displayName,

@@ -21,6 +21,11 @@ import {
   type CardPosLeanRow,
 } from './positioning.js';
 import { getBoardListCardLimits } from './types.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
 
 export async function moveCard(
   cardId: string,
@@ -36,13 +41,13 @@ export async function moveCard(
   // Check permissions
   const board = await Board.findById(card.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   // Verify target list exists and is in same board
   const targetList = await List.findById(targetListId);
   if (!targetList) {
-    throw new Error('Target list not found');
+    throw new NotFoundError('Target list not found');
   }
 
   if (targetList.boardId.toString() !== card.boardId.toString()) {
@@ -52,7 +57,7 @@ export async function moveCard(
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.move');
     if (!allowed) {
-      throw new Error('Insufficient permissions to move card');
+      throw new ForbiddenError('Insufficient permissions to move card');
     }
   }
 
@@ -60,7 +65,7 @@ export async function moveCard(
   if (enforce && card.listId.toString() !== targetListId) {
     const cardCount = await Card.countDocuments({ listId: targetListId });
     if (cardCount >= max) {
-      throw new Error(`Target list has reached maximum card limit of ${max}`);
+      throw new ValidationError(`Target list has reached maximum card limit of ${max}`);
     }
   }
 
@@ -195,13 +200,13 @@ export async function reorderCards(
   // Verify list exists
   const list = await List.findById(listId);
   if (!list) {
-    throw new Error('List not found');
+    throw new NotFoundError('List not found');
   }
 
   // Check permissions
   const board = await Board.findById(list.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   const mode = options?.mode ?? 'bulk_reflow';
@@ -215,7 +220,7 @@ export async function reorderCards(
       hasPermission({ id: userId }, list.boardId.toString(), 'boards.update'),
     ]);
     if (!canReorderCards || !canUpdateBoard) {
-      throw new Error('Insufficient permissions to reorder cards in bulk reflow mode');
+      throw new ForbiddenError('Insufficient permissions to reorder cards in bulk reflow mode');
     }
   }
 

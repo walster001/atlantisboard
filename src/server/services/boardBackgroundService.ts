@@ -4,6 +4,9 @@ import { MINIO_BUCKET_BACKGROUNDS } from '../../shared/constants/minioBuckets.js
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { Board } from '../models/Board.js';
 import { logger } from '../utils/logger.js';
+import {
+  ValidationError,
+} from '../../shared/errors/domainErrors.js';
 
 initializeMinIOBuckets().catch((error) => {
   logger.error({ error }, 'Failed to initialize MinIO buckets (board backgrounds)');
@@ -59,11 +62,11 @@ export async function uploadBoardBackgroundAsset(
   originalName?: string,
 ): Promise<string> {
   if (buffer.length > MAX_BACKGROUND_BYTES) {
-    throw new Error(`Background image exceeds maximum size of ${MAX_BACKGROUND_BYTES} bytes`);
+    throw new ValidationError(`Background image exceeds maximum size of ${MAX_BACKGROUND_BYTES} bytes`);
   }
   const ext = resolveExt(mimeType, originalName);
   if (ext == null) {
-    throw new Error('Unsupported background image format. Use JPG, PNG, GIF, or WebP.');
+    throw new ValidationError('Unsupported background image format. Use JPG, PNG, GIF, or WebP.');
   }
   const id = crypto.randomUUID();
   const objectName = `${id}${ext}`;

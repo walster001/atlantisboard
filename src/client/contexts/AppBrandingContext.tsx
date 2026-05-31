@@ -12,12 +12,10 @@ import { api } from '../utils/api.js';
 import { useBrandingWebFonts } from '../hooks/useBrandingWebFonts.js';
 import {
   DEFAULT_TAB_FAVICON_HREF,
-  mergePublicLoginBranding,
   resolveBrowserTabFaviconHref,
   type PublicLoginBranding,
 } from '../../shared/types/loginBranding.js';
 import {
-  mergePublicAppBranding,
   resolveAppUiFontStack,
   type PublicAppBranding,
 } from '../../shared/types/appBranding.js';
@@ -26,9 +24,10 @@ import {
   APP_BRANDING_UPDATED_EVENT,
   LOGIN_BRANDING_UPDATED_EVENT,
 } from '../appBrandingEvents.js';
+import { toPublicAppBranding, toPublicLoginBranding } from '../utils/brandingPublicTypes.js';
 
-const FALLBACK_BRANDING = mergePublicLoginBranding({}) as unknown as PublicLoginBranding;
-const FALLBACK_APP_BRANDING = mergePublicAppBranding({}) as unknown as PublicAppBranding;
+const FALLBACK_BRANDING = toPublicLoginBranding({});
+const FALLBACK_APP_BRANDING = toPublicAppBranding({});
 
 const FAVICON_LINK_ID = 'atlantisboard-app-branding-favicon';
 function resolveBrandingFontStack(preferredFamily: string | undefined, fallback: string): string {
@@ -70,9 +69,7 @@ export function AppBrandingProvider({ children }: { readonly children: ReactNode
         setBranding(loginRes.value.branding);
       }
       if (appRes.status === 'fulfilled') {
-        setAppBranding(
-          mergePublicAppBranding(appRes.value.appBranding) as unknown as PublicAppBranding
-        );
+        setAppBranding(toPublicAppBranding(appRes.value.appBranding));
       }
     } finally {
       if (aliveRef.current && refetchGenRef.current === runGen) {

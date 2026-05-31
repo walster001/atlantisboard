@@ -1,13 +1,14 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import '../../src/server/index.js';
+import { it, expect, beforeEach, beforeAll } from 'bun:test';
+import { describeDbIntegration } from '../helpers/integrationEnv.js';
+import { ensureTestServer } from '../helpers/testServer.js';
 import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import { createMockUser, createMockBoardForUser, createMockList } from '../helpers/mockData.js';
 
-const shouldRunDbIntegrationTests =
-  Boolean(process.env.MONGODB_TEST_URI) && Boolean(process.env.REDIS_URL);
-const describeDb = shouldRunDbIntegrationTests ? describe : describe.skip;
+describeDbIntegration('Board-wide list card limits', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  });
 
-describeDb('Board-wide list card limits', () => {
   let authToken: string;
   let boardId: string;
   let listId: string;
@@ -39,7 +40,7 @@ describeDb('Board-wide list card limits', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body);
+    const body = JSON.parse(response.body) as { board: { settings: { listMaxCards: number } } };
     expect(body.board.settings.listMaxCards).toBe(50);
   });
 
@@ -59,7 +60,9 @@ describeDb('Board-wide list card limits', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body);
+    const body = JSON.parse(response.body) as {
+      board: { settings: { listMaxCards: number; listEnforceMaxCards: boolean } };
+    };
     expect(body.board.settings.listMaxCards).toBe(10);
     expect(body.board.settings.listEnforceMaxCards).toBe(true);
   });

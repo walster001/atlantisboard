@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 import { ImportJob } from '../../../models/ImportJob.js';
 import { emitToUser } from '../../../utils/socketIO.js';
+import {
+  ValidationError,
+} from '../../../../shared/errors/domainErrors.js';
 
 interface ProgressTrackerParams {
   readonly userId: string;
@@ -19,7 +22,7 @@ export async function createImportProgressTracker({
   totalItems,
 }: ProgressTrackerParams): Promise<ImportProgressTracker> {
   if (!mongoose.Types.ObjectId.isValid(jobId)) {
-    throw new Error('Invalid import job id');
+    throw new ValidationError('Invalid import job id');
   }
   const jobObjectId = new mongoose.Types.ObjectId(jobId);
   let processed = 0;

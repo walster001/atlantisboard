@@ -5,6 +5,10 @@ import { hasPermission } from '../utils/permissions.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
 import type { Document } from 'mongoose';
 import type { IChecklist, IChecklistItem } from '../models/Card.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+} from '../../shared/errors/domainErrors.js';
 
 export interface CreateChecklistInput {
   cardId: string;
@@ -31,13 +35,13 @@ export interface UpdateChecklistItemInput {
 export async function createChecklist(input: CreateChecklistInput, userId: string): Promise<Document & { checklists: IChecklist[] }> {
   const card = await Card.findById(input.cardId);
   if (!card) {
-    throw new Error('Card not found');
+    throw new NotFoundError('Card not found');
   }
 
   // Check permissions (viewer cannot edit)
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'checklists.create');
   if (!allowed) {
-    throw new Error('Insufficient permissions to create checklist');
+    throw new ForbiddenError('Insufficient permissions to create checklist');
   }
 
   const checklistId = crypto.randomUUID();
@@ -79,7 +83,7 @@ export async function updateChecklist(
   // Check permissions
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'checklists.update');
   if (!allowed) {
-    throw new Error('Insufficient permissions to update checklist');
+    throw new ForbiddenError('Insufficient permissions to update checklist');
   }
 
   const checklist = card.checklists.find((c) => c.id === checklistId);
@@ -116,7 +120,7 @@ export async function deleteChecklist(cardId: string, checklistId: string, userI
   // Check permissions
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'checklists.delete');
   if (!allowed) {
-    throw new Error('Insufficient permissions to delete checklist');
+    throw new ForbiddenError('Insufficient permissions to delete checklist');
   }
 
   card.checklists = card.checklists.filter((c) => c.id !== checklistId);
@@ -148,12 +152,12 @@ export async function createChecklistItem(
   // Check permissions
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'checklists.items.create');
   if (!allowed) {
-    throw new Error('Insufficient permissions to create checklist item');
+    throw new ForbiddenError('Insufficient permissions to create checklist item');
   }
 
   const checklist = card.checklists.find((c) => c.id === input.checklistId);
   if (!checklist) {
-    throw new Error('Checklist not found');
+    throw new NotFoundError('Checklist not found');
   }
 
   const itemId = crypto.randomUUID();
@@ -200,7 +204,7 @@ export async function updateChecklistItem(
   // Check permissions
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'checklists.items.update');
   if (!allowed) {
-    throw new Error('Insufficient permissions to update checklist item');
+    throw new ForbiddenError('Insufficient permissions to update checklist item');
   }
 
   const checklist = card.checklists.find((c) => c.id === checklistId);
@@ -254,7 +258,7 @@ export async function deleteChecklistItem(
   // Check permissions
   const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'checklists.items.delete');
   if (!allowed) {
-    throw new Error('Insufficient permissions to delete checklist item');
+    throw new ForbiddenError('Insufficient permissions to delete checklist item');
   }
 
   const checklist = card.checklists.find((c) => c.id === checklistId);

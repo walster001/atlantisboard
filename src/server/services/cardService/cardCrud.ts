@@ -15,16 +15,21 @@ import { ensureCardsHavePosForList } from './positioning.js';
 import type { CreateCardInput, UpdateCardInput } from './types.js';
 import { cardDateFieldChanged, getBoardListCardLimits } from './types.js';
 import { assertListOnBoard } from './listBoardValidation.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
 
 export async function createCard(input: CreateCardInput, userId: string): Promise<Document & ICard> {
   const list = await List.findById(input.listId);
   if (!list) {
-    throw new Error('List not found');
+    throw new NotFoundError('List not found');
   }
 
   const board = await Board.findById(input.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   assertListOnBoard(list.boardId, input.boardId);
@@ -33,7 +38,7 @@ export async function createCard(input: CreateCardInput, userId: string): Promis
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, input.boardId, 'cards.create');
     if (!allowed) {
-      throw new Error('Insufficient permissions to create card');
+      throw new ForbiddenError('Insufficient permissions to create card');
     }
   }
 
@@ -41,7 +46,7 @@ export async function createCard(input: CreateCardInput, userId: string): Promis
   if (enforce) {
     const cardCount = await Card.countDocuments({ listId: input.listId });
     if (cardCount >= max) {
-      throw new Error(`List has reached maximum card limit of ${max}`);
+      throw new ValidationError(`List has reached maximum card limit of ${max}`);
     }
   }
 
@@ -130,7 +135,7 @@ export async function updateCard(
   // Check permissions
   const board = await Board.findById(card.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   const boardIdStr = card.boardId.toString();
@@ -139,7 +144,7 @@ export async function updateCard(
   if (!isBoardOwner) {
     const allowed = await hasPermission({ id: userId }, boardIdStr, 'cards.update');
     if (!allowed) {
-      throw new Error('Insufficient permissions to update card');
+      throw new ForbiddenError('Insufficient permissions to update card');
     }
   }
 
@@ -161,7 +166,7 @@ export async function updateCard(
           ? 'cards.dates.due.edit'
           : 'cards.dates.end.edit';
     if (!(await hasPermission({ id: userId }, boardIdStr, key))) {
-      throw new Error(`Insufficient permissions to edit ${kind} date`);
+      throw new ForbiddenError(`Insufficient permissions to edit ${kind} date`);
     }
   };
 
@@ -180,7 +185,7 @@ export async function updateCard(
   if (input.listId !== undefined) {
     const targetList = await List.findById(input.listId).select('boardId').lean();
     if (targetList == null) {
-      throw new Error('List not found');
+      throw new NotFoundError('List not found');
     }
     assertListOnBoard(targetList.boardId, boardIdStr);
     card.listId = new Types.ObjectId(input.listId);
@@ -247,13 +252,13 @@ export async function deleteCard(cardId: string, userId: string): Promise<boolea
   // Check permissions (only admin/manager/owner can delete)
   const board = await Board.findById(card.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.delete');
     if (!allowed) {
-      throw new Error('Insufficient permissions to delete card');
+      throw new ForbiddenError('Insufficient permissions to delete card');
     }
   }
 

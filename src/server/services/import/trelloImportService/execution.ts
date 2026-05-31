@@ -22,6 +22,7 @@ import {
   collectTrelloMemberIdsForBoard,
   mapTrelloBoardMemberToBoardRoleKey,
 } from '../../../../shared/import/trelloBoardMemberRoles.js';
+import { objectToRecord } from '../../../utils/objectRecord.js';
 import { logger } from '../../../utils/logger.js';
 import { createActivity } from '../../activityService.js';
 import { emitToUser } from '../../../utils/socketIO.js';
@@ -102,7 +103,7 @@ export async function executeTrelloImportJob(params: {
   }
 
   const sourceUsers: ImportPreflightUser[] = (data.members ?? []).flatMap((member) => {
-    const mapped = importPreflightUserFromTrelloMemberRecord(member as unknown as Record<string, unknown>);
+    const mapped = importPreflightUserFromTrelloMemberRecord(objectToRecord(member));
     return mapped != null ? [mapped] : [];
   });
   const realUserMap = await buildImportRealUserMap(sourceUsers);

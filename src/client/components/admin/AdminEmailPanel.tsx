@@ -245,7 +245,10 @@ export const AdminEmailPanel = memo(function AdminEmailPanel() {
           <Select
             label="Provider"
             description="Select a provider to auto-fill connection settings, or choose Custom."
-            data={SMTP_PROVIDER_OPTIONS as unknown as Array<{ value: string; label: string }>}
+            data={SMTP_PROVIDER_OPTIONS.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
             value={form.provider}
             onChange={handleProviderChange}
             allowDeselect={false}

@@ -13,6 +13,7 @@ import { logAuditEvent } from '../utils/auditLogger.js';
 import { claimImportPlaceholderMembershipsForUser } from '../services/importPlaceholderUserService.js';
 import { verifyUserInMySQL } from '../services/mysqlService.js';
 import { assertNewUserRegistrationAllowed } from '../utils/registrationPolicy.js';
+import { hasPassportStrategy, type PassportWithStrategyRegistry } from '../types/passportRegistry.js';
 
 // Serialize user for session
 passport.serializeUser((user: Express.User, done) => {
@@ -38,8 +39,7 @@ function unregisterGoogleStrategy(): void {
 
 /** True when Passport has a registered Google OAuth strategy (for route guards). */
 export function isGoogleOAuthStrategyRegistered(): boolean {
-  const strategies = (passport as unknown as { _strategies?: Record<string, unknown> })._strategies;
-  return strategies !== undefined && strategies.google !== undefined;
+  return hasPassportStrategy(passport as PassportWithStrategyRegistry, 'google');
 }
 
 // Google OAuth Strategy — call after DB is ready and after admin config changes affecting OAuth.

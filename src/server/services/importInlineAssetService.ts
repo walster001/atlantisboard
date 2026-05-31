@@ -5,6 +5,9 @@ import { getMinIOClient } from '../config/minio.js';
 import { Card } from '../models/Card.js';
 import { logger } from '../utils/logger.js';
 import { isBlockedSvgUpload } from '../utils/sanitizeHtml.js';
+import {
+  ValidationError,
+} from '../../shared/errors/domainErrors.js';
 
 const BUCKET = MINIO_BUCKET_IMPORT_INLINE;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -185,14 +188,14 @@ export async function uploadImportInlineImage(
   originalName?: string
 ): Promise<string> {
   if (isBlockedSvgUpload(mimeType, originalName)) {
-    throw new Error('SVG uploads are not allowed for import-inline images');
+    throw new ValidationError('SVG uploads are not allowed for import-inline images');
   }
   const ext = resolveExtension(mimeType, originalName);
   if (ext == null || !ALLOWED_EXT.has(ext)) {
-    throw new Error('Unsupported file type for import-inline image upload');
+    throw new ValidationError('Unsupported file type for import-inline image upload');
   }
   if (buffer.length === 0 || buffer.length > MAX_BYTES) {
-    throw new Error(`File exceeds maximum size of ${MAX_BYTES} bytes`);
+    throw new ValidationError(`File exceeds maximum size of ${MAX_BYTES} bytes`);
   }
 
   const client = getMinIOClient();

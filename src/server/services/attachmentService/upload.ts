@@ -14,6 +14,10 @@ import {
   MAX_CARD_ATTACHMENT_BYTES,
 } from './minioPaths.js';
 import {
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
+import {
   cardAttachmentPayloadBytes,
   type CardAttachmentUploadPayload,
   type FileUploadResult,
@@ -36,7 +40,7 @@ export async function uploadCardAttachment(
 
   // Validate file size
   if (byteLength > MAX_CARD_ATTACHMENT_BYTES) {
-    throw new Error(`File size exceeds maximum limit of ${MAX_CARD_ATTACHMENT_BYTES / (1024 * 1024)} MB`);
+    throw new ValidationError(`File size exceeds maximum limit of ${MAX_CARD_ATTACHMENT_BYTES / (1024 * 1024)} MB`);
   }
 
   const allowedMimeTypes = new Set([
@@ -51,10 +55,10 @@ export async function uploadCardAttachment(
 
   const normalizedMime = mimeType.split(';')[0]?.trim().toLowerCase() ?? '';
   if (isBlockedSvgUpload(normalizedMime, fileName)) {
-    throw new Error('SVG uploads are not allowed');
+    throw new ValidationError('SVG uploads are not allowed');
   }
   if (!allowedMimeTypes.has(normalizedMime)) {
-    throw new Error(`File type not allowed: ${normalizedMime || 'unknown'}`);
+    throw new ValidationError(`File type not allowed: ${normalizedMime || 'unknown'}`);
   }
 
   await scanUploadForMalware(file, fileName, normalizedMime);
@@ -115,7 +119,7 @@ export async function uploadCardAttachment(
     // Add attachment to card
     const card = await Card.findById(cardId);
     if (!card) {
-      throw new Error('Card not found');
+      throw new NotFoundError('Card not found');
     }
 
     card.attachments.push({

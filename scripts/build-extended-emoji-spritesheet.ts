@@ -12,7 +12,7 @@
  */
 
 import { createHash } from 'crypto';
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import sharp from 'sharp';
 import twitterData from '@emoji-mart/data/sets/15/twitter.json';
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
 
   const hash = createHash('sha256').update(extendedBuffer).digest('hex').slice(0, 12);
   console.log(
-    `✅ Extended spritesheet: ${BASE_COLS}×${totalRows} (${extensions.length} extra tiles), ` +
+    `✅ Extended spritesheet: ${outWidth}×${outHeight} (${BASE_COLS}×${totalRows}, ${extensions.length} extra tiles), ` +
       `${(extendedBuffer.length / 1024 / 1024).toFixed(2)} MiB, sha256:${hash}`,
   );
   console.log(`   ${publicSheetPath}`);

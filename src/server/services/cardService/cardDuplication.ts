@@ -5,6 +5,10 @@ import { hasPermission } from '../../utils/permissions.js';
 import { loadListOrderAfterInsert, loadTargetListContext } from './cardDuplicationLoad.js';
 import { emitDuplicationRealtime, logDuplicationAuditAndActivities } from './cardDuplicationEmit.js';
 import { buildDuplicateInsertPlans, persistDuplicatedCards } from './cardDuplicationPersist.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+} from '../../../shared/errors/domainErrors.js';
 import type {
   DuplicateCardOptions,
   DuplicateCardsBatchOptions,
@@ -73,13 +77,13 @@ export async function duplicateCard(
 
   const board = await Board.findById(sourceCard.boardId);
   if (board == null) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   if (!options.skipSourcePermissionCheck && board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, sourceCard.boardId.toString(), 'cards.duplicate');
     if (!allowed) {
-      throw new Error('Insufficient permissions to duplicate card');
+      throw new ForbiddenError('Insufficient permissions to duplicate card');
     }
   }
 

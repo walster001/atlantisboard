@@ -5,6 +5,11 @@ import { Board } from '../../models/Board.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { emitToBoard } from '../../utils/socketIO.js';
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} from '../../../shared/errors/domainErrors.js';
 
 export async function bulkUpdateCardColorsForBoard(
   boardId: string,
@@ -13,13 +18,13 @@ export async function bulkUpdateCardColorsForBoard(
 ): Promise<{ updatedCount: number }> {
   const board = await Board.findById(boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, boardId, 'cards.update');
     if (!allowed) {
-      throw new Error('Insufficient permissions to update cards');
+      throw new ForbiddenError('Insufficient permissions to update cards');
     }
   }
 
@@ -28,11 +33,11 @@ export async function bulkUpdateCardColorsForBoard(
   if (input.listId != null && input.listId.trim() !== '') {
     const listIdTrim = input.listId.trim();
     if (!mongoose.Types.ObjectId.isValid(listIdTrim)) {
-      throw new Error('List not found on board');
+      throw new BadRequestError('List not found on board', 'BAD_REQUEST');
     }
     const list = await List.findById(listIdTrim).select('boardId');
     if (list == null || list.boardId.toString() !== boardId) {
-      throw new Error('List not found on board');
+      throw new BadRequestError('List not found on board', 'BAD_REQUEST');
     }
     filter.listId = new mongoose.Types.ObjectId(listIdTrim);
   }

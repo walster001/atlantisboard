@@ -16,6 +16,11 @@ import {
 } from './positioning.js';
 import { getBoardListCardLimits } from './types.js';
 import type { SourceCardForDuplicate } from './cardDuplicationTypes.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
 
 export const rowNumericPos = (r: CardPosLeanRow): number =>
   typeof r.pos === 'number' && Number.isFinite(r.pos) ? r.pos : (r.position + 1) * CARD_POS_STEP;
@@ -80,19 +85,19 @@ export async function loadTargetListContext(
 ): Promise<TargetListContext> {
   const targetList = await List.findById(targetListId);
   if (targetList == null) {
-    throw new Error('Target list not found');
+    throw new NotFoundError('Target list not found');
   }
 
   const targetBoardId = targetList.boardId.toString();
   const targetBoard = await Board.findById(targetBoardId);
   if (targetBoard == null) {
-    throw new Error('Target board not found');
+    throw new NotFoundError('Target board not found');
   }
 
   if (targetBoard.ownerId.toString() !== userId) {
     const canViewTarget = await hasPermission({ id: userId }, targetBoardId, 'boards.view');
     if (!canViewTarget) {
-      throw new Error('Insufficient permissions to view target board');
+      throw new ForbiddenError('Insufficient permissions to view target board');
     }
   }
 
@@ -100,7 +105,7 @@ export async function loadTargetListContext(
   if (enforce) {
     const cardCount = await Card.countDocuments({ listId: targetListId });
     if (cardCount + sourceCards.length > max) {
-      throw new Error(`Target list cannot exceed maximum card limit of ${max}`);
+      throw new ValidationError(`Target list cannot exceed maximum card limit of ${max}`);
     }
   }
 

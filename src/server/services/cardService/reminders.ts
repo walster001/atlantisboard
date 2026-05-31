@@ -6,6 +6,11 @@ import { hasPermission } from '../../utils/permissions.js';
 import { emitToBoard } from '../../utils/socketIO.js';
 import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
 import type { AddReminderInput, UpdateReminderInput } from './types.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/domainErrors.js';
 
 export async function addCardReminder(
   cardId: string,
@@ -20,20 +25,20 @@ export async function addCardReminder(
   // Check permissions
   const board = await Board.findById(card.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.reminders.create');
     if (!allowed) {
-      throw new Error('Insufficient permissions to add reminders');
+      throw new ForbiddenError('Insufficient permissions to add reminders');
     }
   }
 
   // Check reminder limit (max 3 per card)
   const activeReminders = card.reminders.filter((r) => !r.dismissed);
   if (activeReminders.length >= 3) {
-    throw new Error('Maximum of 3 reminders per card');
+    throw new ValidationError('Maximum of 3 reminders per card');
   }
 
   // Check if card has due date (required for reminders)
@@ -96,19 +101,19 @@ export async function updateCardReminder(
   // Check permissions
   const board = await Board.findById(card.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.reminders.update');
     if (!allowed) {
-      throw new Error('Insufficient permissions to update reminders');
+      throw new ForbiddenError('Insufficient permissions to update reminders');
     }
   }
 
   const reminder = card.reminders.find((r) => r.id === reminderId);
   if (!reminder) {
-    throw new Error('Reminder not found');
+    throw new NotFoundError('Reminder not found');
   }
 
   if (input.triggerAt !== undefined) reminder.triggerAt = input.triggerAt;
@@ -150,13 +155,13 @@ export async function deleteCardReminder(
   // Check permissions
   const board = await Board.findById(card.boardId);
   if (!board) {
-    throw new Error('Board not found');
+    throw new NotFoundError('Board not found');
   }
 
   if (board.ownerId.toString() !== userId) {
     const allowed = await hasPermission({ id: userId }, card.boardId.toString(), 'cards.reminders.delete');
     if (!allowed) {
-      throw new Error('Insufficient permissions to delete reminders');
+      throw new ForbiddenError('Insufficient permissions to delete reminders');
     }
   }
 
@@ -199,7 +204,7 @@ export async function dismissCardReminder(
 
   const reminder = card.reminders.find((r) => r.id === reminderId);
   if (!reminder) {
-    throw new Error('Reminder not found');
+    throw new NotFoundError('Reminder not found');
   }
 
   reminder.dismissed = true;

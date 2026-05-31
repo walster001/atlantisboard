@@ -117,8 +117,8 @@ const CardAttachmentSchema = new Schema<ICardAttachment>(
       default: '',
       validate: {
         validator(v: unknown): boolean {
-          const self = this as unknown as { isPlaceholder?: boolean };
-          if (self.isPlaceholder === true) {
+          const attachment = this as Pick<ICardAttachment, 'isPlaceholder'>;
+          if (attachment.isPlaceholder === true) {
             return typeof v === 'string';
           }
           return typeof v === 'string' && v.trim().length > 0;

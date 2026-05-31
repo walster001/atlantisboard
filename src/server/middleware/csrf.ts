@@ -84,6 +84,7 @@ function setCSRFCookie(res: Response, token: string): void {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
+    path: '/',
     maxAge: CSRF_CONFIG.expiresIn,
   });
 }

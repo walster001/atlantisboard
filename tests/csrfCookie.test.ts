@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { afterEach, beforeAll, describe, expect, it } from 'bun:test';
-import { CSRF_COOKIE_NAME, readCsrfCookie } from '../src/client/utils/csrfCookie.js';
+import { CSRF_COOKIE_NAME, readCsrfCookie, waitForCsrfCookie } from '../src/client/utils/csrfCookie.js';
 
 function installDocumentCookieMock(): void {
   const jar = new Map<string, string>();
@@ -46,5 +46,13 @@ describe('readCsrfCookie', () => {
   it('decodes URI-encoded cookie values', () => {
     document.cookie = `${CSRF_COOKIE_NAME}=${encodeURIComponent('a+b/c=')}; path=/`;
     expect(readCsrfCookie()).toBe('a+b/c=');
+  });
+
+  it('waitForCsrfCookie resolves when cookie appears asynchronously', async () => {
+    const pending = waitForCsrfCookie(500);
+    setTimeout(() => {
+      document.cookie = `${CSRF_COOKIE_NAME}=delayed; path=/`;
+    }, 30);
+    await expect(pending).resolves.toBe('delayed');
   });
 });

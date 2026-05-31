@@ -16,9 +16,18 @@ export function extractMongoStringId(value: unknown): string {
     if (typeof o.$oid === 'string' && o.$oid.trim().length > 0) {
       return o.$oid.trim();
     }
-    const fromNestedId = extractMongoStringId(o._id);
-    if (fromNestedId !== '') {
-      return fromNestedId;
+    // Mongoose/BSON ObjectId exposes `_id` as a self-reference; do not recurse into it.
+    const ctorName = (value as { constructor?: { name?: string } }).constructor?.name;
+    const bsontype = (value as { _bsontype?: string })._bsontype;
+    if (ctorName === 'ObjectId' || bsontype === 'ObjectId') {
+      const s = String(value).trim();
+      return /^[a-f0-9]{24}$/i.test(s) ? s : '';
+    }
+    if (o._id != null && o._id !== value) {
+      const fromNestedId = extractMongoStringId(o._id);
+      if (fromNestedId !== '') {
+        return fromNestedId;
+      }
     }
     if (typeof o.id === 'string' && o.id.trim() !== '') {
       return o.id.trim();

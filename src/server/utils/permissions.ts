@@ -168,7 +168,7 @@ export async function hasWorkspacePermission(
     }
     return perms.includes(normalizedPermission) || perms.includes(permissionKey);
   } catch (error) {
-    logger.error({ error, userId, workspaceId, permissionKey }, 'Error checking workspace permission');
+    logger.error({ err: error, userId, workspaceId, permissionKey }, 'Error checking workspace permission');
     return false;
   }
 }
@@ -342,7 +342,7 @@ export async function hasPermission(
 
     return false;
   } catch (error) {
-    logger.error({ error }, 'Error checking permission');
+    logger.error({ err: error }, 'Error checking permission');
     return false;
   }
 }
@@ -399,7 +399,7 @@ export async function getUserWorkspaceRole(
     const rk = member.roleKey;
     return (rk === 'member' ? 'viewer' : rk) as UserRole;
   } catch (error) {
-    logger.error({ error, userId, workspaceId }, 'Error getting user workspace role');
+    logger.error({ err: error, userId, workspaceId }, 'Error getting user workspace role');
     return null;
   }
 }
@@ -421,7 +421,7 @@ export async function getUserBoardRole(
     }
     return 'viewer';
   } catch (error) {
-    logger.error({ error, userId, boardId }, 'Error getting user board role');
+    logger.error({ err: error, userId, boardId }, 'Error getting user board role');
     return null;
   }
 }
@@ -443,7 +443,7 @@ export async function isWorkspaceMember(
 
     return workspace.members.some((m) => normalizeWorkspaceUserRef(m.userId) === userId);
   } catch (error) {
-    logger.error({ error, userId, workspaceId }, 'Error checking workspace membership');
+    logger.error({ err: error, userId, workspaceId }, 'Error checking workspace membership');
     return false;
   }
 }
@@ -474,7 +474,7 @@ export async function isBoardMember(
     // Check board-specific membership
     return board.members.some((m) => normalizeWorkspaceUserRef(m.userId) === userId);
   } catch (error) {
-    logger.error({ error, userId, boardId }, 'Error checking board membership');
+    logger.error({ err: error, userId, boardId }, 'Error checking board membership');
     return false;
   }
 }

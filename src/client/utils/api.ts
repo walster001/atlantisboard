@@ -23,7 +23,7 @@ import { attachmentApiMethods, type AttachmentApiMethods } from './api/attachmen
 import { themesApiMethods, type ThemesApiMethods } from './api/themesApiMethods.js';
 import { API_BASE_URL } from './api/shared.js';
 import { usesHttpOnlyAuth } from '../config/env.js';
-import { readCsrfCookie } from './csrfCookie.js';
+import { readCsrfCookie, waitForCsrfCookie } from './csrfCookie.js';
 
 interface CsrfRetryAxiosRequestConfig extends InternalAxiosRequestConfig {
   _csrfRetried?: boolean;
@@ -145,6 +145,11 @@ export class ApiClient {
       return existing;
     }
     await this.ensureCsrfToken();
+    const fromCookie = await waitForCsrfCookie();
+    if (fromCookie) {
+      this.csrfToken = fromCookie;
+      return fromCookie;
+    }
     return this.syncCsrfFromCookie();
   }
 
@@ -170,7 +175,10 @@ export class ApiClient {
           ? (response.data as { csrfToken: string }).csrfToken
           : null;
       this.syncCsrfFromCookie();
-      if (!this.csrfToken && fromBody) {
+      const fromCookie = await waitForCsrfCookie();
+      if (fromCookie) {
+        this.csrfToken = fromCookie;
+      } else if (!this.csrfToken && fromBody) {
         this.csrfToken = fromBody;
       }
     } catch {

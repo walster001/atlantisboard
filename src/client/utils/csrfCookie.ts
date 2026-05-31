@@ -16,3 +16,22 @@ export function readCsrfCookie(): string | null {
   }
   return null;
 }
+
+/** Wait until the CSRF cookie is visible after Set-Cookie (avoids header-only POSTs). */
+export async function waitForCsrfCookie(timeoutMs = 2000): Promise<string | null> {
+  const immediate = readCsrfCookie();
+  if (immediate) {
+    return immediate;
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 16);
+    });
+    const token = readCsrfCookie();
+    if (token) {
+      return token;
+    }
+  }
+  return null;
+}

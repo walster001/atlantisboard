@@ -14,4 +14,4 @@ export {
   type BuiltInRoleKey,
   type BuiltInRoleSeed,
   type RoleKey,
-} from '../../../shared/permissions/catalog.js';
+} from '../../../../shared/permissions/catalog.js';

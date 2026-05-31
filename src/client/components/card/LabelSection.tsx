@@ -63,6 +63,28 @@ function isLabelEffective(labelId: string, cardLabels: readonly { id: string }[]
   return cardLabels.some((l) => l.id === labelId);
 }
 
+function resolveLabelPending(pending: LabelPending, cardLabels: readonly { id: string }[]): LabelPending {
+  let changed = false;
+  const adds = new Set(pending.adds);
+  const removes = new Set(pending.removes);
+  for (const id of pending.adds) {
+    if (cardLabels.some((l) => l.id === id)) {
+      adds.delete(id);
+      changed = true;
+    }
+  }
+  for (const id of pending.removes) {
+    if (!cardLabels.some((l) => l.id === id)) {
+      removes.delete(id);
+      changed = true;
+    }
+  }
+  if (!changed) {
+    return pending;
+  }
+  return { adds, removes };
+}
+
 function flipLabelPending(
   prev: LabelPending,
   labelId: string,
@@ -125,34 +147,15 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
     [card.labels],
   );
 
-  useEffect(() => {
-    setLabelPending((prev) => {
-      let changed = false;
-      const adds = new Set(prev.adds);
-      const removes = new Set(prev.removes);
-      for (const id of prev.adds) {
-        if (card.labels.some((l) => l.id === id)) {
-          adds.delete(id);
-          changed = true;
-        }
-      }
-      for (const id of prev.removes) {
-        if (!card.labels.some((l) => l.id === id)) {
-          removes.delete(id);
-          changed = true;
-        }
-      }
-      if (!changed) {
-        return prev;
-      }
-      return { adds, removes };
-    });
-  }, [card.labels, labelIdsMembershipKey]);
+  const effectiveLabelPending = useMemo(
+    () => resolveLabelPending(labelPending, card.labels),
+    [labelPending, card.labels, labelIdsMembershipKey],
+  );
 
   const displayCardLabels = useMemo((): CardDB['labels'] => {
-    const list: CardDB['labels'] = card.labels.filter((l) => !labelPending.removes.has(l.id));
+    const list: CardDB['labels'] = card.labels.filter((l) => !effectiveLabelPending.removes.has(l.id));
     const ids = new Set(list.map((l) => l.id));
-    for (const id of labelPending.adds) {
+    for (const id of effectiveLabelPending.adds) {
       if (ids.has(id)) {
         continue;
       }
@@ -163,7 +166,7 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
       }
     }
     return list;
-  }, [card.labels, labelPending, labels]);
+  }, [card.labels, effectiveLabelPending, labels]);
 
   const handleToggleLabel = async (labelId: string) => {
     if (!canEdit) {
@@ -226,7 +229,7 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
               <Box style={{ maxHeight: '256px', overflowY: 'auto' }}>
                 <Stack gap="xs">
                   {labels.map((label) => {
-                    const isAssigned = isLabelEffective(label.id, card.labels, labelPending);
+                    const isAssigned = isLabelEffective(label.id, card.labels, effectiveLabelPending);
                     return (
                       <Group
                         key={label.id}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { toDatetimeLocalValue } from './helpers.js';
 
 export interface DateFieldController {
@@ -16,11 +16,12 @@ export function useDateField(isoDate: Date | string | null | undefined): DateFie
     [isoDate],
   );
   const [override, setOverride] = useState<string | null>(null);
-  const value = override ?? localFromCard;
-
-  useEffect(() => {
+  const [prevTimeKey, setPrevTimeKey] = useState(timeKey);
+  if (timeKey !== prevTimeKey) {
+    setPrevTimeKey(timeKey);
     setOverride(null);
-  }, [timeKey]);
+  }
+  const value = override ?? localFromCard;
 
   const setOpenedWithReset = useCallback((next: boolean) => {
     setOpened(next);

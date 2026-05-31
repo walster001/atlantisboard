@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'bun:test';
 import mongoose from 'mongoose';
 import type { Request, Response } from 'express';
 import { requireSignedAssetOrAuth } from '../src/server/middleware/auth.js';
-import { connectTestDatabase, disconnectTestDatabase, clearTestDatabase, getAuthToken } from './helpers/testHelpers.js';
+import { connectTestDatabase, clearTestDatabase, getAuthToken } from './helpers/testHelpers.js';
 import { User } from '../src/server/models/User.js';
 import { describeMongoTest } from './helpers/integrationEnv.js';
 import { ensureTestServer } from './helpers/testServer.js';
@@ -42,18 +42,21 @@ describeMongoTest('requireSignedAssetOrAuth', () => {
   afterAll(async () => {
     if (mongoose.connection.readyState === 1) {
       await clearTestDatabase({ waitForHttp: false });
-      await disconnectTestDatabase();
     }
   });
 
   it('returns 403 when the JWT user account is locked', async () => {
     const { token, user } = await getAuthToken(`locked-${Date.now()}@example.com`);
-    await User.findByIdAndUpdate(user._id, {
-      lockedUntil: new Date(Date.now() + 60_000),
-    });
+    const lockedUntil = new Date(Date.now() + 60_000);
+    await User.updateOne({ _id: user._id }, { $set: { lockedUntil } });
+    const lockedUser = await User.findById(user._id);
+    expect(lockedUser?.lockedUntil && lockedUser.lockedUntil > new Date()).toBe(true);
 
     const req = {
-      headers: { authorization: `Bearer ${token}` },
+      headers: {
+        authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
+      },
       query: {},
     } as unknown as Request;
     const res = createMockResponse();

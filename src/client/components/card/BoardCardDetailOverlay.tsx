@@ -154,6 +154,7 @@ export function BoardCardDetailOverlay({
       }
     >
       <CardDetailViewLazy
+        key={card.id}
         card={card}
         boardId={boardId}
         boardWorkspaceId={boardWorkspaceId}

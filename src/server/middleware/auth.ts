@@ -44,7 +44,7 @@ export async function requireAuth(
       return;
     }
 
-    const user = await User.findById(payload.userId).select('+failedLoginAttempts +lockedUntil isAppAdmin');
+    const user = await User.findById(payload.userId).select('lockedUntil isAppAdmin failedLoginAttempts');
     if (!user) {
       res.status(401).json({
         error: {
@@ -280,7 +280,7 @@ export async function requireSignedAssetOrAuth(
     return false;
   }
 
-  const user = await User.findById(payload.userId).select('+failedLoginAttempts +lockedUntil isAppAdmin');
+  const user = await User.findById(payload.userId).select('lockedUntil isAppAdmin failedLoginAttempts');
   if (!user) {
     res.status(401).json({
       error: {

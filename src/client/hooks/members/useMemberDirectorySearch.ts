@@ -110,12 +110,16 @@ function buildMemberDirectoryFetchOptions(
   };
 }
 
+type MemberDirectoryPageResponse = Awaited<
+  ReturnType<(typeof api)['searchUsers']>
+>;
+
 async function fetchMemberDirectoryPage(
   scope: MemberDirectorySearchScope,
   scopeId: string | undefined,
   query: string,
   options: MemberDirectoryFetchOptions,
-): Promise<{ users: unknown[]; nextCursor?: string }> {
+): Promise<MemberDirectoryPageResponse> {
   const trimmed = query.trim();
   if (scope === 'workspace' && trimmed === '' && scopeId !== undefined) {
     return api.getWorkspaceMemberCandidates(scopeId, options);
@@ -166,6 +170,7 @@ export function useMemberDirectorySearch<TUser extends MemberUserRow = MemberUse
     return mapper != null ? [...mapper(rawUsers)] : [...(rawUsers as TUser[])];
   }, []);
 
+  // External I/O: abortable member directory fetch on query/scope change (§1.2 allowlist).
   useEffect(() => {
     if (scopeRequiresId(scope) && (scopeId === undefined || scopeId === '')) {
       return undefined;

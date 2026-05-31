@@ -45,16 +45,24 @@ export function resetIntegrationHttpSession(): void {
   csrfToken = '';
 }
 
+const HEALTH_FETCH_TIMEOUT_MS = 1_500;
+
 export async function waitForServer(
-  maxAttempts = 40,
-  delayMs = 150,
+  maxAttempts = 24,
+  delayMs = 125,
   baseUrl?: string,
 ): Promise<void> {
+  if (process.env.ATLBOARD_TEST_SERVER_READY === '1' && baseUrl === undefined) {
+    return;
+  }
   const target = baseUrl ?? getBaseUrl();
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      const response = await fetch(`${target}/health`, { method: 'GET' });
+      const response = await fetch(`${target}/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(HEALTH_FETCH_TIMEOUT_MS),
+      });
       if (response.ok) {
         return;
       }
@@ -96,7 +104,9 @@ export type ApiInjectResponse = {
  * Issue an HTTP request to the app under test (Fastify-style inject replacement).
  */
 export async function apiInject(options: ApiInjectOptions): Promise<ApiInjectResponse> {
-  await waitForServer();
+  if (process.env.ATLBOARD_TEST_SERVER_READY !== '1') {
+    await waitForServer();
+  }
 
   const method = options.method.toUpperCase();
   if (!SAFE_METHODS.has(method)) {

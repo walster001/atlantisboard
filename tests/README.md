@@ -12,10 +12,12 @@ export REDIS_HOST=localhost
 export REDIS_PORT=6379
 # Or CI-style:
 # export REDIS_URL=redis://localhost:6379
-bun test
+bun test --timeout 120000 --max-concurrency 1
 ```
 
 When Mongo or Redis are unavailable, DB-backed suites **skip with an explicit label** in the test name (they do not hang for ~3s waiting for `/health`).
+
+If env vars are set but services are down, `tests/setup.ts` probes Mongo/Redis (≤4s) and skips global DB hooks with a console warning instead of a 30s Mongoose hang.
 
 ## Environment variables
 
@@ -36,7 +38,7 @@ Files under `tests/*.test.ts` that do not import `ensureTestServer` — no exter
 
 ### HTTP integration (`tests/api.test.ts`, `tests/permissionsPrivateBoard.test.ts`, `tests/integration/*`)
 
-Use `describeDbIntegration` from `tests/helpers/integrationEnv.ts`. Require **`MONGODB_TEST_URI` + Redis**. The shared harness in `tests/helpers/testServer.ts`:
+Use `describeDbIntegration` / `describeHttpIntegration` from `tests/helpers/integrationEnv.ts`. Require **`MONGODB_TEST_URI` + Redis**. The shared harness in `tests/helpers/testServer.ts`:
 
 1. Probes `TEST_BASE_URL` or `http://127.0.0.1:3000` (reuse dev server if healthy).
 2. Otherwise starts the Express app once on an ephemeral port via `startHttpServer({ port: 0 })`.
@@ -52,6 +54,21 @@ Mutating routes use `apiInject` (`tests/helpers/integrationHttp.ts`) for CSRF to
 
 `bunfig.toml` preloads `tests/setup.ts`, which connects and clears the test database when `MONGODB_TEST_URI` and Redis are both configured (matches CI).
 
+- **Do not** call `disconnectTestDatabase()` from per-file `afterAll` hooks — only `tests/setup.ts` tears down the shared Mongoose connection used by the HTTP server and other suites.
+- `clearTestDatabase()` defaults to **not** waiting on `/health` (server is started once in global setup). Pass `{ waitForHttp: true }` only when the server may not be up yet.
+
 ## CI
 
-`.github/workflows/reusable-verify.yml` sets `MONGODB_TEST_URI`, `MONGODB_URI`, `REDIS_HOST`, `REDIS_URL`, and required secrets before `bun test`.
+`.github/workflows/reusable-verify.yml` provides:
+
+| Service | How |
+| ------- | --- |
+| **Redis** | GitHub Actions service container `redis:7-alpine` on port 6379 |
+| **MongoDB** | `docker run` `mongo:8.0` with `--replSet rs0`, initiated before tests |
+| **Secrets** | `CI_SESSION_SECRET`, `CI_JWT_SECRET`, `CI_CSRF_SECRET`, `CI_ENCRYPTION_KEY`, `CI_MEDIA_SIGN_SECRET` (each ≥32 chars; media sign ≠ JWT) — see `.github/SECRETS.md` |
+
+Env set for the test job: `MONGODB_URI`, `MONGODB_TEST_URI` (replica-set URI), `REDIS_HOST`, `REDIS_URL`, `NODE_ENV=test`.
+
+Test command: `bun test --timeout 120000 --max-concurrency 1` (avoids Bun’s 5s default hook timeout during server bootstrap and prevents parallel files from clearing the same database).
+
+MinIO is **not** required for CI tests (bucket init is skipped in test).

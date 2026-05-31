@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   Button,
@@ -46,15 +46,10 @@ export function ImportExportModal({
   const canExportAtlantisboardJson = hasBoardExportFormatPermission(boardPermissions, 'atlantisboard');
   const canExportCsv = hasBoardExportFormatPermission(boardPermissions, 'csv');
   const showExportTab = boardId != null && boardPermissionsLoaded && (canExportAtlantisboardJson || canExportCsv);
-
-  useEffect(() => {
-    if (modalTab === 'export' && !showExportTab) {
-      setModalTab('import');
-    }
-  }, [modalTab, showExportTab]);
+  const activeModalTab = modalTab === 'export' && !showExportTab ? 'import' : modalTab;
 
   const modalTitle =
-    modalTab === 'export' ? (
+    activeModalTab === 'export' ? (
       <Text fw={700} size="lg">
         Export
       </Text>
@@ -98,9 +93,13 @@ export function ImportExportModal({
       overlayProps={{ backgroundOpacity: 0.45 }}
     >
       <Tabs
-        value={modalTab}
+        value={activeModalTab}
         onChange={(value) => {
           const next = (value || 'import') as TabType;
+          if (next === 'export' && !showExportTab) {
+            setModalTab('import');
+            return;
+          }
           setModalTab(next);
           if (next === 'import' || next === 'replace-buttons' || next === 'user-management') {
             wizard.setActiveTab(next);
@@ -125,7 +124,7 @@ export function ImportExportModal({
           {showExportTab ? <Tabs.Tab value="export">Export</Tabs.Tab> : null}
         </Tabs.List>
 
-        {wizard.error && modalTab !== 'export' ? (
+        {wizard.error && activeModalTab !== 'export' ? (
           <Alert color="red" mb="md" radius="md">
             {wizard.error}
           </Alert>
@@ -133,7 +132,7 @@ export function ImportExportModal({
 
         <Tabs.Panel
           value="import"
-          style={{ display: modalTab === 'import' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
+          style={{ display: activeModalTab === 'import' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
         >
           <ImportTab wizard={wizard} onClose={onClose} />
         </Tabs.Panel>
@@ -141,7 +140,7 @@ export function ImportExportModal({
         {wizard.needsReplaceButtons ? (
           <Tabs.Panel
             value="replace-buttons"
-            style={{ display: modalTab === 'replace-buttons' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
+            style={{ display: activeModalTab === 'replace-buttons' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
           >
             <ImportTab wizard={{ ...wizard, activeTab: 'replace-buttons' }} onClose={onClose} />
           </Tabs.Panel>
@@ -150,7 +149,7 @@ export function ImportExportModal({
         {wizard.showUserManagementTab && wizard.file != null ? (
           <Tabs.Panel
             value="user-management"
-            style={{ display: modalTab === 'user-management' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
+            style={{ display: activeModalTab === 'user-management' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
           >
             <ImportTab wizard={{ ...wizard, activeTab: 'user-management' }} onClose={onClose} />
           </Tabs.Panel>
@@ -159,7 +158,7 @@ export function ImportExportModal({
         {showExportTab && boardId != null ? (
           <Tabs.Panel
             value="export"
-            style={{ display: modalTab === 'export' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
+            style={{ display: activeModalTab === 'export' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0 }}
           >
             <ExportTab boardId={boardId} onClose={onClose} />
           </Tabs.Panel>

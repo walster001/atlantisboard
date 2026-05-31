@@ -11,7 +11,7 @@ import {
   type ApiInjectOptions,
   type ApiInjectResponse,
 } from './integrationHttp.js';
-import { DB_INTEGRATION_ENV_DOCS, resolveTestMongoUri } from './integrationEnv.js';
+import { DB_INTEGRATION_ENV_DOCS, isCiTestRun, resolveTestMongoUri } from './integrationEnv.js';
 
 export interface TestUser {
   _id: string;
@@ -26,6 +26,12 @@ export interface TestAuthToken {
   user: TestUser;
 }
 
+const TEST_MONGO_CONNECT_OPTIONS: mongoose.ConnectOptions = {
+  serverSelectionTimeoutMS: isCiTestRun() ? 15_000 : 8_000,
+  connectTimeoutMS: isCiTestRun() ? 15_000 : 8_000,
+  socketTimeoutMS: 30_000,
+};
+
 export async function connectTestDatabase(): Promise<void> {
   const uri = resolveTestMongoUri();
   if (!uri) {
@@ -34,15 +40,18 @@ export async function connectTestDatabase(): Promise<void> {
   if (mongoose.connection.readyState === 1) {
     return;
   }
-  await mongoose.connect(uri);
+  await mongoose.connect(uri, TEST_MONGO_CONNECT_OPTIONS);
 }
 
 export async function disconnectTestDatabase(): Promise<void> {
+  if (mongoose.connection.readyState === 0) {
+    return;
+  }
   await mongoose.disconnect();
 }
 
 export async function clearTestDatabase(options?: { waitForHttp?: boolean }): Promise<void> {
-  if (options?.waitForHttp !== false) {
+  if (options?.waitForHttp === true) {
     await waitForServer();
   }
   const { readyState, collections } = mongoose.connection;
@@ -61,7 +70,9 @@ export async function getAuthToken(
   password: string = 'TestPassword123!',
 ): Promise<TestAuthToken> {
   resetIntegrationHttpSession();
-  await waitForServer();
+  if (process.env.ATLBOARD_TEST_SERVER_READY !== '1') {
+    await waitForServer();
+  }
 
   let user = await User.findOne({ email });
   if (!user) {

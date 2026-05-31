@@ -43,7 +43,7 @@ export async function addCardReminder(
 
   // Check if card has due date (required for reminders)
   if (!card.dueDate) {
-    throw new Error('Card must have a due date to add reminders');
+    throw new ValidationError('Card must have a due date to add reminders');
   }
 
   const reminderId = crypto.randomUUID();

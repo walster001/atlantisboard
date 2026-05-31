@@ -14,7 +14,7 @@ describeDbIntegration('Board-wide list card limits', () => {
   let listId: string;
 
   beforeEach(async () => {
-    await clearTestDatabase();
+    await clearTestDatabase({ waitForHttp: false });
     const user = await createMockUser();
     const tokenData = await getAuthToken(user.email, 'TestPassword123!');
     authToken = tokenData.token;

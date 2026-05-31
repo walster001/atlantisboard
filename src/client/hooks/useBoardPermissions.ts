@@ -32,7 +32,10 @@ export function useBoardPermissions(
 } {
   const [permissions, setPermissions] = useState<readonly BoardPermissionKey[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState('');
+  const workspaceIdFromProp = boardWorkspaceId?.trim() ?? '';
+  const [resolvedWorkspaceIdFromDexie, setResolvedWorkspaceIdFromDexie] = useState('');
+  const resolvedWorkspaceId =
+    workspaceIdFromProp !== '' ? workspaceIdFromProp : resolvedWorkspaceIdFromDexie;
 
   useEffect(() => {
     if (!boardId) {
@@ -61,13 +64,7 @@ export function useBoardPermissions(
   }, [boardId]);
 
   useEffect(() => {
-    if (!boardId) {
-      setResolvedWorkspaceId('');
-      return;
-    }
-    const fromProp = boardWorkspaceId?.trim() ?? '';
-    if (fromProp !== '') {
-      setResolvedWorkspaceId(fromProp);
+    if (!boardId || workspaceIdFromProp !== '') {
       return;
     }
     let cancelled = false;
@@ -76,15 +73,15 @@ export function useBoardPermissions(
         return;
       }
       const w = b?.workspaceId != null ? String(b.workspaceId).trim() : '';
-      setResolvedWorkspaceId(w);
+      setResolvedWorkspaceIdFromDexie(w);
     });
     return () => {
       cancelled = true;
     };
-  }, [boardId, boardWorkspaceId]);
+  }, [boardId, workspaceIdFromProp]);
 
   useEffect(() => {
-    if (!boardId || (boardWorkspaceId?.trim() ?? '') !== '') {
+    if (!boardId || workspaceIdFromProp !== '') {
       return undefined;
     }
     const unsub = subscribeSocketBoardUpdated(({ boardId: bid, board }) => {
@@ -93,11 +90,11 @@ export function useBoardPermissions(
       }
       const w = board.workspaceId != null ? String(board.workspaceId).trim() : '';
       if (w !== '') {
-        setResolvedWorkspaceId(w);
+        setResolvedWorkspaceIdFromDexie(w);
       }
     });
     return unsub;
-  }, [boardId, boardWorkspaceId]);
+  }, [boardId, workspaceIdFromProp]);
 
   useEffect(() => {
     const socket = socketClient.getSocket();

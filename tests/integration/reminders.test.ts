@@ -29,7 +29,7 @@ describeDbIntegration('Reminders', () => {
   let cardDueDate: Date;
 
   beforeEach(async () => {
-    await clearTestDatabase();
+    await clearTestDatabase({ waitForHttp: false });
     const user = await createMockUser();
     userId = user._id.toString();
     const tokenData = await getAuthToken(user.email, 'TestPassword123!');

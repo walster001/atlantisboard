@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Button, Group, Paper, Stack, Switch, Text, TextInput } from '@mantine/core';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { notifications } from '@mantine/notifications';
@@ -51,7 +51,11 @@ interface BoardSettingsListSettingsPanelProps {
   mobileLayout?: boolean;
 }
 
-export function BoardSettingsListSettingsPanel({
+export function BoardSettingsListSettingsPanel(props: BoardSettingsListSettingsPanelProps) {
+  return <BoardSettingsListSettingsPanelContent key={props.boardId} {...props} />;
+}
+
+function BoardSettingsListSettingsPanelContent({
   boardId,
   onSettingsLivePatch,
   mobileLayout: mobileLayoutProp,
@@ -83,9 +87,11 @@ export function BoardSettingsListSettingsPanel({
     }
   }, [boardId]);
 
-  useEffect(() => {
+  const initialLoadStartedRef = useRef(false);
+  if (!initialLoadStartedRef.current) {
+    initialLoadStartedRef.current = true;
     void refreshBoard();
-  }, [refreshBoard]);
+  }
 
   const handleSave = async (): Promise<void> => {
     const digits = widthDraft.replace(/\D/g, '');

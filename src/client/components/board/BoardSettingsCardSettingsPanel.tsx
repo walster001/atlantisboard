@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Button, Group, Paper, Stack, Switch, Text } from '@mantine/core';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { notifications } from '@mantine/notifications';
@@ -63,7 +63,11 @@ const SWITCH_PROPS_DESKTOP = {
   size: 'sm' as const,
 };
 
-export function BoardSettingsCardSettingsPanel({
+export function BoardSettingsCardSettingsPanel(props: BoardSettingsCardSettingsPanelProps) {
+  return <BoardSettingsCardSettingsPanelContent key={props.boardId} {...props} />;
+}
+
+function BoardSettingsCardSettingsPanelContent({
   boardId,
   onSettingsLivePatch,
   mobileLayout: mobileLayoutProp,
@@ -97,9 +101,11 @@ export function BoardSettingsCardSettingsPanel({
     }
   }, [boardId]);
 
-  useEffect(() => {
+  const initialLoadStartedRef = useRef(false);
+  if (!initialLoadStartedRef.current) {
+    initialLoadStartedRef.current = true;
     void refreshBoard();
-  }, [refreshBoard]);
+  }
 
   const handleSave = async (): Promise<void> => {
     setLoading(true);

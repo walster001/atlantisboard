@@ -42,6 +42,31 @@ function isAssigneeEffective(
   return cardAssignees.includes(userId);
 }
 
+function resolveAssigneePending(
+  pending: AssigneePending,
+  cardAssignees: readonly string[],
+): AssigneePending {
+  let changed = false;
+  const adds = new Set(pending.adds);
+  const removes = new Set(pending.removes);
+  for (const id of pending.adds) {
+    if (cardAssignees.includes(id)) {
+      adds.delete(id);
+      changed = true;
+    }
+  }
+  for (const id of pending.removes) {
+    if (!cardAssignees.includes(id)) {
+      removes.delete(id);
+      changed = true;
+    }
+  }
+  if (!changed) {
+    return pending;
+  }
+  return { adds, removes };
+}
+
 function flipAssigneePending(
   prev: AssigneePending,
   userId: string,
@@ -122,29 +147,10 @@ export function AssigneeSection({ card, boardId, canEdit = true, onCardUpdate }:
     [card.assignees],
   );
 
-  useEffect(() => {
-    setAssigneePending((prev) => {
-      let changed = false;
-      const adds = new Set(prev.adds);
-      const removes = new Set(prev.removes);
-      for (const id of prev.adds) {
-        if (card.assignees.includes(id)) {
-          adds.delete(id);
-          changed = true;
-        }
-      }
-      for (const id of prev.removes) {
-        if (!card.assignees.includes(id)) {
-          removes.delete(id);
-          changed = true;
-        }
-      }
-      if (!changed) {
-        return prev;
-      }
-      return { adds, removes };
-    });
-  }, [assigneeMembershipKey, card.assignees]);
+  const effectiveAssigneePending = useMemo(
+    () => resolveAssigneePending(assigneePending, card.assignees),
+    [assigneePending, card.assignees, assigneeMembershipKey],
+  );
 
   const sortedMembers = useMemo(
     () => [...boardMembers].sort(compareMembersByDisplayName),
@@ -164,14 +170,14 @@ export function AssigneeSection({ card, boardId, canEdit = true, onCardUpdate }:
 
   const displayAssigneeIds = useMemo(() => {
     const s = new Set(card.assignees);
-    for (const id of assigneePending.removes) {
+    for (const id of effectiveAssigneePending.removes) {
       s.delete(id);
     }
-    for (const id of assigneePending.adds) {
+    for (const id of effectiveAssigneePending.adds) {
       s.add(id);
     }
     return [...s];
-  }, [assigneePending, card.assignees]);
+  }, [effectiveAssigneePending, card.assignees]);
 
   const handleToggleAssignee = async (userId: string) => {
     if (!canEdit) {
@@ -284,7 +290,7 @@ export function AssigneeSection({ card, boardId, canEdit = true, onCardUpdate }:
                   </colgroup>
                   <tbody>
                     {filteredMembers.map((member) => {
-                      const isAssigned = isAssigneeEffective(member._id, card.assignees, assigneePending);
+                      const isAssigned = isAssigneeEffective(member._id, card.assignees, effectiveAssigneePending);
                       return (
                         <tr
                           key={member._id}

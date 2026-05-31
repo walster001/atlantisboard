@@ -50,6 +50,11 @@ export function useBoardMemberManagement(boardId: string) {
   /** Committed filter: applied only after Enter (initial '' shows everyone). */
   const [memberFilterQuery, setMemberFilterQuery] = useState('');
   const [memberRoleFilter, setMemberRoleFilter] = useState<RoleKey | null>(null);
+  const [memberRoleFilterBoardId, setMemberRoleFilterBoardId] = useState(boardId);
+  if (memberRoleFilterBoardId !== boardId) {
+    setMemberRoleFilterBoardId(boardId);
+    setMemberRoleFilter(null);
+  }
   const [membersLoadingMore, setMembersLoadingMore] = useState(false);
 
   const addRolesRef = useRef(addRoles);
@@ -153,10 +158,6 @@ export function useBoardMemberManagement(boardId: string) {
         setDirectoryRefreshKey((k) => k + 1);
       }
     });
-  }, [boardId]);
-
-  useEffect(() => {
-    setMemberRoleFilter(null);
   }, [boardId]);
 
   const fetchNextMemberPage = useCallback(async () => {

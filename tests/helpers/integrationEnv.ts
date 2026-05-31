@@ -1,11 +1,20 @@
 /** Documented in tests/README.md and docs/wiki/environment-variables.md */
+import { connect as connectTcp } from 'node:net';
 import { describe } from 'bun:test';
+import { MongoClient } from 'mongodb';
 
 export const DB_INTEGRATION_ENV_DOCS =
   'Set MONGODB_TEST_URI (recommended separate DB) and REDIS_HOST or REDIS_URL for DB-backed integration tests';
 
 export const MONGODB_TEST_ONLY_DOCS =
   'Set MONGODB_TEST_URI for direct Mongoose test helpers (see tests/README.md)';
+
+const MONGO_PROBE_TIMEOUT_MS = 4_000;
+const REDIS_PROBE_TIMEOUT_MS = 2_000;
+
+export function isCiTestRun(): boolean {
+  return process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+}
 
 export function hasRedisForTests(): boolean {
   const redisUrl = process.env.REDIS_URL?.trim();
@@ -68,4 +77,98 @@ export function resolveTestMongoUri(): string | undefined {
     return process.env.MONGODB_URI?.trim() || undefined;
   }
   return undefined;
+}
+
+function resolveRedisProbeTarget(): { host: string; port: number } | null {
+  const redisUrl = process.env.REDIS_URL?.trim();
+  if (redisUrl) {
+    try {
+      const parsed = new URL(redisUrl);
+      const host = parsed.hostname;
+      const port = parsed.port ? Number.parseInt(parsed.port, 10) : 6379;
+      if (host && Number.isFinite(port)) {
+        return { host, port };
+      }
+    } catch {
+      return null;
+    }
+  }
+  const host = process.env.REDIS_HOST?.trim();
+  if (!host) {
+    return null;
+  }
+  const portRaw = process.env.REDIS_PORT?.trim();
+  const port = portRaw ? Number.parseInt(portRaw, 10) : 6379;
+  return Number.isFinite(port) ? { host, port } : null;
+}
+
+function probeTcp(host: string, port: number, timeoutMs: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const socket = connectTcp({ host, port });
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, timeoutMs);
+    socket.once('connect', () => {
+      clearTimeout(timer);
+      socket.end();
+      resolve(true);
+    });
+    socket.once('error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
+/** Fast fail-fast probe before Mongoose connect (avoids 30s serverSelection hangs in CI). */
+export async function probeMongoReachable(uri?: string): Promise<boolean> {
+  const target = uri ?? resolveTestMongoUri();
+  if (!target) {
+    return false;
+  }
+  const client = new MongoClient(target, {
+    serverSelectionTimeoutMS: MONGO_PROBE_TIMEOUT_MS,
+    connectTimeoutMS: MONGO_PROBE_TIMEOUT_MS,
+  });
+  try {
+    await client.connect();
+    await client.db().command({ ping: 1 });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await client.close().catch(() => undefined);
+  }
+}
+
+export async function probeRedisReachable(): Promise<boolean> {
+  const target = resolveRedisProbeTarget();
+  if (!target) {
+    return false;
+  }
+  return probeTcp(target.host, target.port, REDIS_PROBE_TIMEOUT_MS);
+}
+
+/** Fast fail-fast probe before Mongoose connect (avoids 30s serverSelection hangs). */
+export async function assertDbIntegrationReachable(): Promise<boolean> {
+  if (!hasMongoTestUri() || !hasRedisForTests()) {
+    return false;
+  }
+  const mongoUri = resolveTestMongoUri();
+  const [mongoOk, redisOk] = await Promise.all([
+    mongoUri ? probeMongoReachable(mongoUri) : Promise.resolve(false),
+    probeRedisReachable(),
+  ]);
+  if (!mongoOk || !redisOk) {
+    const parts: string[] = [];
+    if (!mongoOk) {
+      parts.push(`MongoDB not reachable at ${mongoUri ?? '(no URI)'}`);
+    }
+    if (!redisOk) {
+      parts.push('Redis not reachable (check REDIS_HOST/REDIS_URL)');
+    }
+    console.warn(`tests: DB integration deps unavailable — ${parts.join('; ')}. ${DB_INTEGRATION_ENV_DOCS}`);
+  }
+  return mongoOk && redisOk;
 }

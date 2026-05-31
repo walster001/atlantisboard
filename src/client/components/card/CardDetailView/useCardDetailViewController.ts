@@ -109,6 +109,19 @@ export function useCardDetailViewController({
   const cardRef = useRef(card);
   cardRef.current = card;
 
+  const [prevInitialCard, setPrevInitialCard] = useState(initialCard);
+  if (initialCard !== prevInitialCard) {
+    setPrevInitialCard(initialCard);
+    const current = cardRef.current;
+    if (initialCard.id !== current.id) {
+      setCard(initialCard);
+      setTitle(initialCard.title);
+    } else if (!isEditing && !isEditingDescription && shouldAcceptIncomingCard(current, initialCard)) {
+      setCard(initialCard);
+      setTitle(initialCard.title);
+    }
+  }
+
   const due = useDateField(card.dueDate);
   const start = useDateField(card.startDate);
   const end = useDateField(card.endDate);
@@ -169,19 +182,6 @@ export function useCardDetailViewController({
         : CARD_DETAIL_MODAL_STYLES,
     [isMobile],
   );
-
-  useEffect(() => {
-    const current = cardRef.current;
-    if (initialCard.id !== current.id) {
-      setCard(initialCard);
-      setTitle(initialCard.title);
-      return;
-    }
-    if (!isEditing && !isEditingDescription && shouldAcceptIncomingCard(current, initialCard)) {
-      setCard(initialCard);
-      setTitle(initialCard.title);
-    }
-  }, [initialCard, isEditing, isEditingDescription]);
 
   useEffect(() => {
     const pendingMedia = pendingDescriptionMediaRef.current;

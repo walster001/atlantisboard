@@ -1,4 +1,5 @@
 import type { Socket } from 'socket.io-client';
+import { parseBoardApiResponse } from '../../utils/api/boardApiMethods.js';
 import { transformBoard } from '../../utils/transform.js';
 import { api } from '../../utils/api.js';
 import {
@@ -61,7 +62,7 @@ export function registerBoardHandlers(socket: Socket): void {
           if (existing == null) {
             try {
               const response = await api.getBoard(data.boardId, { view: 'summary' });
-              const board = transformBoard((response as { board: unknown }).board);
+              const board = transformBoard(parseBoardApiResponse(response).board);
               if (runtimeActiveBoardId() === data.boardId) {
                 useBoardRuntimeStore.getState().commitBoard(board);
               }

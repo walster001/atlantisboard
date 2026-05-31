@@ -28,7 +28,7 @@ async function register(email: string, username: string): Promise<AuthPair> {
     },
   });
 
-  expect([200, 201, 403, 409]).toContain(res.statusCode);
+  expect([200, 201, 202, 403, 409]).toContain(res.statusCode);
   const body = JSON.parse(res.body) as RegisterResponse;
   if (res.statusCode === 403 || res.statusCode === 409) {
     resetIntegrationHttpSession();

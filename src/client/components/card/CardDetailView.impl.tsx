@@ -19,7 +19,11 @@ interface CardDetailViewProps {
   onCardUpdated?: (card: CardDB) => void;
 }
 
-export function CardDetailView({
+export function CardDetailView(props: CardDetailViewProps) {
+  return <CardDetailViewInner key={props.card.id} {...props} />;
+}
+
+function CardDetailViewInner({
   card: initialCard,
   boardId,
   boardWorkspaceId,

@@ -92,9 +92,10 @@ export function DuplicateTargetBoardListPicker({
             targetBoardId === currentBoardId && options.some((l) => l.id === currentListId)
               ? currentListId
               : (options[0]?.id ?? '');
-          if (preferred !== '' && !options.some((l) => l.id === targetListId)) {
-            onTargetListIdChange(preferred);
-          } else if (targetListId === '' && preferred !== '') {
+          if (
+            preferred !== '' &&
+            (targetListId === '' || !options.some((l) => l.id === targetListId))
+          ) {
             onTargetListIdChange(preferred);
           }
         }
@@ -124,6 +125,19 @@ export function DuplicateTargetBoardListPicker({
     [lists],
   );
 
+  const resolvedTargetListId = useMemo((): string => {
+    if (targetListId !== '' && lists.some((list) => list.id === targetListId)) {
+      return targetListId;
+    }
+    if (
+      targetBoardId === currentBoardId &&
+      lists.some((list) => list.id === currentListId)
+    ) {
+      return currentListId;
+    }
+    return lists[0]?.id ?? '';
+  }, [targetListId, lists, targetBoardId, currentBoardId, currentListId]);
+
   if (loadingBoards) {
     return (
       <Stack gap="md" align="center" py="md">
@@ -150,7 +164,7 @@ export function DuplicateTargetBoardListPicker({
         <Select
           label={listLabel}
           description={listDescription}
-          value={targetListId}
+          value={resolvedTargetListId}
           onChange={(value) => onTargetListIdChange(value ?? '')}
           data={listSelectData}
           required

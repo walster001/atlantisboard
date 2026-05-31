@@ -22,12 +22,7 @@ export function useAdminUsersTab() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<AdminUserRow | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-  const nextCursorRef = useRef<string | undefined>(undefined);
   const pagingLockRef = useRef(false);
-
-  useEffect(() => {
-    nextCursorRef.current = nextCursor;
-  }, [nextCursor]);
 
   const loadUsers = useCallback(async (next?: string): Promise<void> => {
     if (next != null) {
@@ -82,6 +77,7 @@ export function useAdminUsersTab() {
   }, [query]);
 
   useEffect(() => {
+    // External I/O: admin user directory fetch on query change (§1.2 allowlist).
     void loadUsers();
   }, [loadUsers]);
 
@@ -281,19 +277,18 @@ export function useAdminUsersTab() {
   }, []);
 
   const handleEndReached = useCallback((): void => {
-    const cursor = nextCursorRef.current;
-    if (cursor == null || loading || loadingMore || pagingLockRef.current) {
+    if (nextCursor == null || loading || loadingMore || pagingLockRef.current) {
       return;
     }
     pagingLockRef.current = true;
     void (async () => {
       try {
-        await loadUsers(cursor);
+        await loadUsers(nextCursor);
       } finally {
         pagingLockRef.current = false;
       }
     })();
-  }, [loadUsers, loading, loadingMore]);
+  }, [loadUsers, loading, loadingMore, nextCursor]);
 
   return {
     users,

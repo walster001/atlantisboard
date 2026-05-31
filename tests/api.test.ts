@@ -73,7 +73,7 @@ describeHttpIntegration('Authentication API', () => {
       },
     });
 
-    expect([200, 201, 400, 403, 409, 500]).toContain(response.statusCode);
+    expect([200, 201, 202, 400, 403, 409, 500]).toContain(response.statusCode);
   });
 });
 

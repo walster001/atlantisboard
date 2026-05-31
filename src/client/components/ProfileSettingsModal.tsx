@@ -67,6 +67,7 @@ export function ProfileSettingsModal({ opened, onClose }: ProfileSettingsModalPr
 
   const [autoDetect, setAutoDetect] = useState(false);
   const [translateUserUi, setTranslateUserUi] = useState(false);
+  const [modalSessionActive, setModalSessionActive] = useState(false);
 
   const loadFromUserAndServer = useCallback(async () => {
     if (!user) {
@@ -86,10 +87,8 @@ export function ProfileSettingsModal({ opened, onClose }: ProfileSettingsModalPr
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!opened) {
-      return;
-    }
+  if (opened && !modalSessionActive) {
+    setModalSessionActive(true);
     void loadFromUserAndServer();
     setPendingAvatarFile(null);
     setAvatarPreviewUrl((prev) => {
@@ -99,7 +98,9 @@ export function ProfileSettingsModal({ opened, onClose }: ProfileSettingsModalPr
     setAutoDetect(false);
     setTranslateUserUi(false);
     setSaveError(null);
-  }, [opened, loadFromUserAndServer]);
+  } else if (!opened && modalSessionActive) {
+    setModalSessionActive(false);
+  }
 
   useEffect(() => {
     return () => {

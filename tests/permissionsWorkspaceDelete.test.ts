@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import mongoose from 'mongoose';
 import { hasWorkspacePermission } from '../src/server/utils/permissions.js';
-import { connectTestDatabase, disconnectTestDatabase, clearTestDatabase } from './helpers/testHelpers.js';
+import { connectTestDatabase, clearTestDatabase } from './helpers/testHelpers.js';
 import { createMockUser, createMockWorkspace } from './helpers/mockData.js';
 import { describeMongoTest } from './helpers/integrationEnv.js';
 import { ensureTestServer } from './helpers/testServer.js';
@@ -18,7 +18,6 @@ describeMongoTest('hasWorkspacePermission: workspaces.delete owner-only', () => 
   afterAll(async () => {
     if (mongoose.connection.readyState === 1) {
       await clearTestDatabase({ waitForHttp: false });
-      await disconnectTestDatabase();
     }
   });
 

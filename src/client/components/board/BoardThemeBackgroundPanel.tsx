@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
+import { useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import { Box, Button, ColorInput, Group, NumberInput, Stack, Text } from '@mantine/core';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
 
@@ -35,12 +35,7 @@ export function BoardThemeBackgroundPanel({
       : 80;
   const [opacityInput, setOpacityInput] = useState<number | ''>(boardOpacityPercent);
   const [opacityEditing, setOpacityEditing] = useState(false);
-
-  useEffect(() => {
-    if (!opacityEditing) {
-      setOpacityInput(boardOpacityPercent);
-    }
-  }, [boardOpacityPercent, opacityEditing]);
+  const displayedOpacityInput = opacityEditing ? opacityInput : boardOpacityPercent;
 
   const surfacePct = `${draft.backgroundMode === 'image' ? boardOpacityPercent : 100}%`;
   const navBgSurface =
@@ -79,7 +74,7 @@ export function BoardThemeBackgroundPanel({
           {draft.backgroundMode === 'image' ? (
             <Group gap={8} wrap="nowrap" align="center">
               <NumberInput
-                value={opacityInput}
+                value={displayedOpacityInput}
                 min={10}
                 max={100}
                 step={5}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Box, Button, Checkbox, Group, Select, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
@@ -30,25 +30,27 @@ export function ExportTab({ boardId, onClose }: ExportTabProps) {
   const canExportAtlantisboardJson = hasBoardExportFormatPermission(boardPermissions, 'atlantisboard');
   const canExportCsv = hasBoardExportFormatPermission(boardPermissions, 'csv');
 
-  useEffect(() => {
+  const effectiveExportFormat = useMemo((): 'json' | 'csv' => {
     if (!boardPermissionsLoaded) {
-      return;
+      return exportFormat;
     }
     if (exportFormat === 'json' && !canExportAtlantisboardJson && canExportCsv) {
-      setExportFormat('csv');
-    } else if (exportFormat === 'csv' && !canExportCsv && canExportAtlantisboardJson) {
-      setExportFormat('json');
+      return 'csv';
     }
+    if (exportFormat === 'csv' && !canExportCsv && canExportAtlantisboardJson) {
+      return 'json';
+    }
+    return exportFormat;
   }, [boardPermissionsLoaded, exportFormat, canExportAtlantisboardJson, canExportCsv]);
 
   const handleExport = useCallback(async () => {
     setError(null);
 
-    if (exportFormat === 'json' && !canExportAtlantisboardJson) {
+    if (effectiveExportFormat === 'json' && !canExportAtlantisboardJson) {
       setError('You do not have permission to export this board as JSON.');
       return;
     }
-    if (exportFormat === 'csv' && !canExportCsv) {
+    if (effectiveExportFormat === 'csv' && !canExportCsv) {
       setError('You do not have permission to export this board as CSV.');
       return;
     }
@@ -56,7 +58,7 @@ export function ExportTab({ boardId, onClose }: ExportTabProps) {
     setLoading(true);
 
     try {
-      if (exportFormat === 'json') {
+      if (effectiveExportFormat === 'json') {
         await api.exportBoardAsJSON(boardId);
       } else {
         await api.exportBoardAsCSV(boardId, exportColumns);
@@ -76,7 +78,7 @@ export function ExportTab({ boardId, onClose }: ExportTabProps) {
       }
       setLoading(false);
     }
-  }, [boardId, canExportAtlantisboardJson, canExportCsv, exportColumns, exportFormat, onClose]);
+  }, [boardId, canExportAtlantisboardJson, canExportCsv, effectiveExportFormat, exportColumns, onClose]);
 
   if (!boardPermissionsLoaded) {
     return null;
@@ -93,7 +95,7 @@ export function ExportTab({ boardId, onClose }: ExportTabProps) {
         <Box style={PANEL_SCROLL_AREA_STYLE}>
           <Select
             label="Export Format"
-            value={exportFormat}
+            value={effectiveExportFormat}
             onChange={(value) => setExportFormat((value || 'json') as 'json' | 'csv')}
             data={[
               ...(canExportAtlantisboardJson
@@ -107,7 +109,7 @@ export function ExportTab({ boardId, onClose }: ExportTabProps) {
             radius="md"
           />
 
-          {exportFormat === 'csv' ? (
+          {effectiveExportFormat === 'csv' ? (
             <Stack gap="xs">
               <Text size="sm" fw={600}>
                 Select Columns to Export
@@ -149,7 +151,7 @@ export function ExportTab({ boardId, onClose }: ExportTabProps) {
             color="blue"
             radius="md"
             onClick={() => void handleExport()}
-            disabled={loading || (exportFormat === 'csv' && exportColumns.length === 0)}
+            disabled={loading || (effectiveExportFormat === 'csv' && exportColumns.length === 0)}
             loading={loading}
           >
             Export

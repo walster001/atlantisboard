@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import {
   Modal,
   TextInput,
@@ -47,11 +47,9 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
     return merged;
   }, [allThemes]);
 
-  useEffect(() => {
-    setSelectedThemeId((current) =>
-      availableThemes.some((theme) => theme.id === current) ? current : defaultThemeId,
-    );
-  }, [availableThemes, defaultThemeId]);
+  const effectiveSelectedThemeId = availableThemes.some((theme) => theme.id === selectedThemeId)
+    ? selectedThemeId
+    : defaultThemeId;
 
   const nameOverLimit = name.length > BOARD_NAME_MAX_LENGTH;
   const descriptionOverLimit = description.length > BOARD_DESCRIPTION_MAX_LENGTH;
@@ -89,8 +87,8 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
         boardData.description = description.trim();
       }
       const selectedTheme =
-        availableThemes.find((theme) => theme.id === selectedThemeId) ??
-        findBoardThemeById(selectedThemeId, catalog) ??
+        availableThemes.find((theme) => theme.id === effectiveSelectedThemeId) ??
+        findBoardThemeById(effectiveSelectedThemeId, catalog) ??
         findBoardThemeById(BOARD_DEFAULT_THEME_ID, catalog) ??
         systemThemes[0];
       if (selectedTheme != null) {
@@ -165,7 +163,7 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
           <Select
             label="Theme"
             data={availableThemes.map((theme) => ({ value: theme.id, label: theme.name }))}
-            value={selectedThemeId}
+            value={effectiveSelectedThemeId}
             onChange={(value) => setSelectedThemeId(value ?? selectedThemeId)}
             disabled={loading}
             allowDeselect={false}

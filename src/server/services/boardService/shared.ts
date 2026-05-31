@@ -34,6 +34,15 @@ function buildBoardSocketPayload(board: Document & IBoard): {
 }
 
 /**
+ * Push full board document to a user who gained access but has no local copy yet (e.g. member add).
+ * Existing viewers still receive `board:patched` only to avoid reverting in-flight theme edits.
+ */
+export function emitBoardDocumentToUser(board: Document & IBoard, userId: string): void {
+  const payload = buildBoardSocketPayload(board);
+  emitToUser(userId, 'board:updated', payload);
+}
+
+/**
  * Emit only `board:patched` without the full `board:updated` payload.
  * Use for operations that change non-theme fields (e.g. members) to avoid
  * sending dehydrated themeSettings that would revert the active theme on clients.

@@ -1,5 +1,6 @@
 import type { Socket } from 'socket.io-client';
 import { transformBoard } from '../../utils/transform.js';
+import { api } from '../../utils/api.js';
 import {
   emitSocketBoardCreated,
   emitSocketBoardDeleted,
@@ -56,8 +57,19 @@ export function registerBoardHandlers(socket: Socket): void {
       version?: number;
     }) => {
       deferSocketWork(() => {
-        void db.boards.get(data.boardId).then((existing) => {
+        void db.boards.get(data.boardId).then(async (existing) => {
           if (existing == null) {
+            try {
+              const response = await api.getBoard(data.boardId, { view: 'summary' });
+              const board = transformBoard((response as { board: unknown }).board);
+              if (runtimeActiveBoardId() === data.boardId) {
+                useBoardRuntimeStore.getState().commitBoard(board);
+              }
+              await db.boards.put(board);
+              emitSocketBoardUpdated({ boardId: data.boardId, board });
+            } catch {
+              /* no local copy and cannot load — user may not have access yet */
+            }
             return;
           }
           const patched = applyFlatFieldPatch(existing, data.changedFields, data.removedFields);

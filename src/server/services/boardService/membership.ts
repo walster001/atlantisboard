@@ -13,6 +13,7 @@ import {
   getRoleHierarchyLevel,
 } from '../roleService.js';
 import {
+  emitBoardDocumentToUser,
   emitBoardPatchedOnly,
   emitBoardPermissionsUpdated,
   resolveBoardActorRoleKey,
@@ -87,6 +88,7 @@ export async function addBoardMember(
 
   await board.save();
   emitBoardPatchedOnly(board, { members: board.members, updatedAt: board.updatedAt });
+  emitBoardDocumentToUser(board, userId);
 
   const wsId = board.workspaceId?.toString();
   if (wsId) {

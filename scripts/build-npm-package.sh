@@ -58,6 +58,8 @@ echo "==> Sync Docker full-stack assets"
 mkdir -p "${PKG_DIR}/install/docker/mongodb" "${PKG_DIR}/install/docker/minio"
 cp docker/mongodb/init-app-user.js "${PKG_DIR}/install/docker/mongodb/"
 cp docker/mongodb/replica-init.sh "${PKG_DIR}/install/docker/mongodb/replica-init-auth.sh"
+# install/docker/minio may contain repo symlinks into docker/minio — remove before cp.
+rm -f "${PKG_DIR}/install/docker/minio/prod-setup.sh" "${PKG_DIR}/install/docker/minio/app-readwrite-policy.json"
 cp docker/minio/prod-setup.sh docker/minio/app-readwrite-policy.json "${PKG_DIR}/install/docker/minio/"
 chmod +x "${PKG_DIR}/install/docker/mongodb/replica-init-auth.sh" \
   "${PKG_DIR}/install/docker/minio/prod-setup.sh" \

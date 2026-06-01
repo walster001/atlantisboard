@@ -158,11 +158,10 @@ assert_prereq_package_mapping() {
   [[ "$pkgs" == "whiptail" ]] || fail "apt whiptail mapping expected whiptail, got [${pkgs}]"
   pkgs="$(atl_prereq_packages_for_cmd whiptail dnf)"
   [[ "$pkgs" == "newt" ]] || fail "dnf whiptail mapping expected newt, got [${pkgs}]"
-  local pkg_line
   pkg_line="$(atl_prereq_packages_for_cmd docker-engine apt)"
-  read -r -a pkgs <<<"$pkg_line"
-  [[ "${pkgs[0]:-}" == "docker.io" && "${pkgs[1]:-}" == "docker-compose-plugin" ]] \
-    || fail "apt docker mapping expected docker.io + docker-compose-plugin, got [${pkgs[*]}]"
+  [[ "$pkg_line" == "docker.io" ]] || fail "apt docker-engine mapping expected docker.io, got [${pkg_line}]"
+  pkg_line="$(atl_prereq_packages_for_cmd docker-compose-plugin apt)"
+  [[ "$pkg_line" == "docker-compose-v2" ]] || fail "apt compose mapping expected docker-compose-v2, got [${pkg_line}]"
   return 0
 }
 

@@ -4,34 +4,58 @@
 set -euo pipefail
 
 atl_apply_theme() {
-  # Atlantis Leadership palette: blue background, white body text, cyan accent on focus.
+  # Match default login screen branding (src/shared/types/loginBranding.ts):
+  #   background #1f68b5, body text #ffffff, logo highlight #7ccfed for focused controls.
   # label= is required for whiptail --msgbox body text (without it, distro defaults = unreadable).
+  local bg accent fg
+  fg=white
+  if atl_newt_supports_256_colors; then
+    bg=color31    # ~#1f68b5 login backgroundColor
+    accent=color117 # ~#7ccfed logo light blue (active yes/no, menus)
+  else
+    bg=blue
+    accent=cyan
+  fi
   unset NEWT_COLORS_FILE
-  export NEWT_COLORS='
-root=,blue
-window=,blue
-border=white,blue
+  export NEWT_COLORS="
+root=,${bg}
+window=,${bg}
+border=${fg},${bg}
 shadow=,black
-title=white,blue
-roottext=white,blue
-label=white,blue
-textbox=white,blue
-acttextbox=white,blue
-helpline=white,blue
-button=white,blue
-actbutton=black,cyan
-compactbutton=white,blue
-actcompactbutton=black,cyan
-entry=white,blue
-actentry=black,cyan
-disentry=,blue
-listbox=white,blue
-actlistbox=black,cyan
-sellslistbox=white,blue
-actsellistbox=black,cyan
-checkbox=white,blue
-actcheckbox=black,cyan
-'
+title=${fg},${bg}
+roottext=${fg},${bg}
+label=${fg},${bg}
+textbox=${fg},${bg}
+acttextbox=${fg},${bg}
+helpline=${fg},${bg}
+button=${fg},${bg}
+actbutton=black,${accent}
+compactbutton=${fg},${bg}
+actcompactbutton=black,${accent}
+entry=${fg},${bg}
+actentry=black,${accent}
+disentry=,${bg}
+listbox=${fg},${bg}
+actlistbox=black,${accent}
+sellslistbox=${fg},${bg}
+actsellistbox=black,${accent}
+checkbox=${fg},${bg}
+actcheckbox=black,${accent}
+"
+}
+
+atl_newt_supports_256_colors() {
+  case "${TERM:-}" in
+    *256* | *-color | screen* | tmux* | xterm* | alacritty* | foot* | wezterm* | rxvt* | contour* | kitty* )
+      return 0
+      ;;
+  esac
+  case "${COLORTERM:-}" in
+    *256* | truecolor )
+      return 0
+      ;;
+  esac
+  return 1
 }
 
 atl_generate_secret() {
@@ -74,17 +98,32 @@ atl_sudo() {
   fi
 }
 
+atl_ensure_sudo_credentials() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    return 0
+  fi
+  if sudo -n true 2>/dev/null; then
+    return 0
+  fi
+  local tty
+  tty="$(atl_whiptail_tty)"
+  if [[ "$tty" != "/dev/null" ]]; then
+    sudo -v </dev/tty >/dev/tty 2>&1
+    return $?
+  fi
+  sudo -v >/dev/null 2>&1
+}
+
 atl_require_sudo_access() {
   if [[ "$(id -u)" -eq 0 ]]; then
     return 0
   fi
-  if ! atl_sudo_works; then
-    whiptail --title "Administrator access required" --msgbox \
-      "Atlantisboard setup installs to system paths (for example /opt/atlantisboard) and needs administrator privileges.\n\nRun:\n  sudo atlantisboard-setup\n\nOr ensure your user can run sudo (try: sudo -v)." \
-      14 72
+  if ! atl_ensure_sudo_credentials; then
+    atl_whiptail_display --title "Administrator access required" --msgbox \
+      "Atlantisboard setup installs to system paths (for example /opt/atlantisboard) and needs administrator privileges.\n\nRun:\n  sudo ./atlantisboard-setup\n\nOr enter your password when sudo prompts in the terminal." \
+      14 72 || true
     exit 1
   fi
-  atl_sudo -v
 }
 
 atl_whiptail_tty() {
@@ -101,7 +140,13 @@ atl_whiptail_capture() {
   local tmp tty
   tmp="$(mktemp)"
   tty="$(atl_whiptail_tty)"
-  if command whiptail "$@" 2>"$tmp" 1>"$tty"; then
+  if [[ "$tty" != "/dev/null" ]]; then
+    if command whiptail "$@" </dev/tty 2>"$tmp" 1>"$tty"; then
+      atl_sanitize_input "$(tr -d '\r' <"$tmp")"
+      rm -f "$tmp"
+      return 0
+    fi
+  elif command whiptail "$@" 2>"$tmp" 1>"$tty"; then
     atl_sanitize_input "$(tr -d '\r' <"$tmp")"
     rm -f "$tmp"
     return 0
@@ -113,7 +158,11 @@ atl_whiptail_capture() {
 atl_whiptail_display() {
   local tty
   tty="$(atl_whiptail_tty)"
-  command whiptail "$@" 1>"$tty" 2>"$tty"
+  if [[ "$tty" != "/dev/null" ]]; then
+    command whiptail "$@" </dev/tty 1>"$tty" 2>"$tty"
+  else
+    command whiptail "$@" 1>"$tty" 2>"$tty"
+  fi
 }
 
 atl_sudo_mkdir_p() {
@@ -267,14 +316,15 @@ atl_prereq_packages_for_cmd() {
     curl) printf '%s' curl ;;
     docker-engine)
       case "$pm" in
-        apt) printf '%s' 'docker.io docker-compose-plugin' ;;
-        dnf | yum) printf '%s' 'docker docker-compose-plugin' ;;
-        apk) printf '%s' 'docker docker-cli-compose' ;;
+        apt) printf '%s' docker.io ;;
+        dnf | yum) printf '%s' docker ;;
+        apk) printf '%s' docker ;;
       esac
       ;;
     docker-compose-plugin)
       case "$pm" in
-        apt) printf '%s' docker-compose-plugin ;;
+        # Ubuntu/Debian universe: docker-compose-v2 (not docker-compose-plugin from Docker CE repo).
+        apt) printf '%s' docker-compose-v2 ;;
         dnf | yum) printf '%s' docker-compose-plugin ;;
         apk) printf '%s' docker-cli-compose ;;
       esac
@@ -295,7 +345,14 @@ atl_pkg_install_packages() {
   case "$pm" in
     apt)
       atl_sudo env DEBIAN_FRONTEND=noninteractive apt-get update -qq
-      atl_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
+      local pkg install_ok=true
+      for pkg in "${pkgs[@]}"; do
+        if ! atl_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "$pkg"; then
+          install_ok=false
+          echo "atlantisboard-setup: warning: package install failed: ${pkg}" >&2
+        fi
+      done
+      [[ "$install_ok" == true ]]
       ;;
     dnf)
       atl_sudo dnf install -y "${pkgs[@]}"
@@ -327,30 +384,119 @@ atl_bootstrap_whiptail() {
   local pm
   pm="$(atl_detect_pkg_manager)" || return 1
   echo "atlantisboard-setup: installing whiptail (required for the installer)..." >&2
+  echo "atlantisboard-setup: sudo may prompt for your password." >&2
+  atl_ensure_sudo_credentials || return 1
   atl_install_prerequisite_cmd whiptail "$pm" || return 1
   atl_cmd_exists whiptail
 }
 
+atl_docker_compose_works() {
+  atl_cmd_exists docker && atl_sudo docker compose version >/dev/null 2>&1
+}
+
+atl_apt_package_available() {
+  local pkg="$1"
+  atl_cmd_exists apt-cache && apt-cache show "$pkg" >/dev/null 2>&1
+}
+
+atl_os_release_codename() {
+  if [[ ! -f /etc/os-release ]]; then
+    return 1
+  fi
+  # shellcheck disable=SC1091
+  . /etc/os-release
+  if [[ -n "${UBUNTU_CODENAME:-}" ]]; then
+    printf '%s' "$UBUNTU_CODENAME"
+    return 0
+  fi
+  if [[ -n "${VERSION_CODENAME:-}" ]]; then
+    printf '%s' "$VERSION_CODENAME"
+    return 0
+  fi
+  return 1
+}
+
+atl_apt_add_docker_official_repository() {
+  if [[ -f /etc/apt/sources.list.d/docker.list ]]; then
+    return 0
+  fi
+  atl_cmd_exists curl || atl_install_prerequisite_cmd curl apt || return 1
+  atl_sudo install -m 0755 -d /etc/apt/keyrings
+  if ! curl -fsSL https://download.docker.com/linux/ubuntu/gpg | atl_sudo tee /etc/apt/keyrings/docker.asc >/dev/null; then
+    return 1
+  fi
+  atl_sudo chmod a+r /etc/apt/keyrings/docker.asc
+  local codename fallback
+  codename="$(atl_os_release_codename)" || codename=noble
+  for fallback in "$codename" noble bookworm; do
+    [[ -n "$fallback" ]] || continue
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${fallback} stable" \
+      | atl_sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+    if atl_sudo env DEBIAN_FRONTEND=noninteractive apt-get update -qq; then
+      return 0
+    fi
+    atl_sudo rm -f /etc/apt/sources.list.d/docker.list
+  done
+  return 1
+}
+
+atl_install_docker_compose_for_pm() {
+  local pm="$1"
+  case "$pm" in
+    apt)
+      if atl_docker_compose_works; then
+        return 0
+      fi
+      local -a candidates=()
+      local pkg_line pkg
+      pkg_line="$(atl_prereq_packages_for_cmd docker-compose-plugin apt)" || return 1
+      read -r -a candidates <<<"$pkg_line"
+      candidates+=(docker-compose-plugin)
+      for pkg in "${candidates[@]}"; do
+        [[ -n "$pkg" ]] || continue
+        if ! atl_apt_package_available "$pkg"; then
+          continue
+        fi
+        echo "atlantisboard-setup: installing ${pkg}..." >&2
+        atl_pkg_install_packages apt "$pkg" || continue
+        if atl_docker_compose_works; then
+          return 0
+        fi
+      done
+      echo "atlantisboard-setup: trying Docker official apt repository for Compose..." >&2
+      if atl_apt_add_docker_official_repository; then
+        atl_pkg_install_packages apt docker-compose-plugin || true
+        atl_docker_compose_works && return 0
+      fi
+      return 1
+      ;;
+    *)
+      atl_install_prerequisite_cmd docker-compose-plugin "$pm"
+      ;;
+  esac
+}
+
 atl_install_docker_prerequisites() {
   local pm="$1"
+  local pkg_line
   local -a pkgs=()
 
-  local pkg_line
   if ! atl_cmd_exists docker; then
     pkg_line="$(atl_prereq_packages_for_cmd docker-engine "$pm")" || return 1
     read -r -a pkgs <<<"$pkg_line"
-  elif ! atl_sudo docker compose version >/dev/null 2>&1; then
-    pkg_line="$(atl_prereq_packages_for_cmd docker-compose-plugin "$pm")" || return 1
-    read -r -a pkgs <<<"$pkg_line"
-  else
-    return 0
+    [[ ${#pkgs[@]} -gt 0 ]] || return 1
+    echo "atlantisboard-setup: installing ${pkgs[*]}..." >&2
+    atl_pkg_install_packages "$pm" "${pkgs[@]}" || return 1
+    if atl_cmd_exists systemctl; then
+      atl_sudo systemctl enable --now docker >/dev/null 2>&1 || true
+    fi
   fi
 
-  [[ ${#pkgs[@]} -gt 0 ]] || return 1
-  atl_pkg_install_packages "$pm" "${pkgs[@]}"
-  if atl_cmd_exists systemctl; then
-    atl_sudo systemctl enable --now docker >/dev/null 2>&1 || true
+  if atl_docker_compose_works; then
+    return 0
   fi
+  atl_install_docker_compose_for_pm "$pm"
 }
 
 atl_install_port_check_tools() {
@@ -380,9 +526,9 @@ atl_offer_install_prerequisites() {
 
   case "$mode" in
     docker | fullstack)
-      if ! atl_cmd_exists docker || ! atl_sudo docker compose version >/dev/null 2>&1; then
+      if ! atl_cmd_exists docker || ! atl_docker_compose_works; then
         need_docker=true
-        missing_labels+=("Docker Engine and Compose plugin")
+        missing_labels+=("Docker Engine and Compose (docker compose)")
       fi
       ;;
   esac
@@ -418,9 +564,14 @@ atl_offer_install_prerequisites() {
     return 0
   fi
 
-  atl_whiptail_display --title "Installing prerequisites" --infobox \
-    "Installing packages via ${pm}...\n\nPlease wait." \
-    10 70
+  if ! atl_ensure_sudo_credentials; then
+    atl_whiptail_display --title "Administrator access" --msgbox \
+      "Could not obtain sudo privileges.\n\nRun:\n  sudo ./atlantisboard-setup\n\nOr enter your password when sudo prompts in this terminal." \
+      14 72 || true
+    return 0
+  fi
+
+  echo "atlantisboard-setup: installing prerequisites via ${pm} (sudo may prompt again)..." >&2
 
   for cmd in "${missing_cmds[@]}"; do
     atl_install_prerequisite_cmd "$cmd" "$pm" || true
@@ -441,9 +592,9 @@ atl_offer_install_prerequisites() {
 
 atl_preflight_fail() {
   local message="$1"
-  whiptail --title "Preflight check failed" --msgbox \
+  atl_whiptail_display --title "Preflight check failed" --msgbox \
     "Some prerequisites are missing or failed:\n\n${message}\n\nFix these issues and run atlantisboard-setup again." \
-    22 78
+    22 78 || true
   exit 1
 }
 
@@ -490,8 +641,8 @@ atl_preflight_check() {
     docker | fullstack)
       if ! atl_cmd_exists docker; then
         lines+=("docker — install Docker Engine: https://docs.docker.com/engine/install/")
-      elif ! atl_sudo docker compose version >/dev/null 2>&1; then
-        lines+=("docker compose v2 — install the Docker Compose plugin (sudo docker compose version)")
+      elif ! atl_docker_compose_works; then
+        lines+=("docker compose v2 — install: sudo apt install docker-compose-v2 (Ubuntu/Debian) or docker-compose-plugin from Docker’s apt repo; verify with: sudo docker compose version")
       else
         local skip_dep_ports=false
         if atl_docker_existing_stack_detected "$mode"; then

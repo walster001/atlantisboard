@@ -24,9 +24,10 @@ WORKDIR /app
 
 # Install MinIO Client (mc) for backup mirroring.
 # Pinned version for reproducible production images.
-ARG MC_VERSION=RELEASE.2026-01-21T05-28-08Z
+ARG MC_RELEASE=RELEASE.2025-08-13T08-35-41Z
 RUN apk add --no-cache ca-certificates curl && \
-    curl -fsSL "https://dl.min.io/client/mc/release/linux-amd64/archive/mc-${MC_VERSION}" -o /usr/local/bin/mc && \
+    curl -fsSL "https://github.com/minio/mc/releases/download/${MC_RELEASE}/mc.linux-amd64.${MC_RELEASE}" \
+      -o /usr/local/bin/mc && \
     chmod +x /usr/local/bin/mc && \
     /usr/local/bin/mc --version
 

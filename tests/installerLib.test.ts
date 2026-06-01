@@ -174,6 +174,7 @@ describe('installer shell static guards', () => {
   test('installer MinIO images default to Docker Hub (not quay.io)', () => {
     const defaults = readFileSync(join(INSTALL_DIR, 'docker', 'image-defaults.env'), 'utf8');
     expect(defaults).toContain('docker.io/minio/minio:');
+    expect(defaults).toContain('ATLANTISBOARD_MC_RELEASE=RELEASE.2025-08-13T08-35-41Z');
     expect(defaults).not.toContain('quay.io');
     const deps = readFileSync(join(INSTALL_DIR, 'docker', 'docker-compose.deps.yml'), 'utf8');
     expect(deps).toContain('ATLANTISBOARD_MINIO_IMAGE');
@@ -181,6 +182,9 @@ describe('installer shell static guards', () => {
     const common = readFileSync(join(INSTALL_DIR, 'lib', 'common.sh'), 'utf8');
     expect(common).toContain('image-defaults.env');
     expect(common).toContain('max_attempts=3');
+    const dockerfile = readFileSync(join(INSTALL_DIR, 'docker', 'Dockerfile'), 'utf8');
+    expect(dockerfile).toContain('github.com/minio/mc/releases/download');
+    expect(dockerfile).not.toContain('dl.min.io');
   });
 
   test('mock whiptail fixture is executable', () => {

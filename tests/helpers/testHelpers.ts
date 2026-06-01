@@ -2,7 +2,6 @@ import mongoose from 'mongoose';
 import type { Express } from 'express';
 import { User } from '../../src/server/models/User.js';
 import { initializeAdminConfig } from '../../src/server/models/AdminConfig.js';
-import { generateToken } from '../../src/server/utils/jwt.js';
 import { createMockUser } from './mockData.js';
 import {
   apiInject,
@@ -87,6 +86,7 @@ export async function getAuthToken(
   }
 
   const userId = user._id.toString();
+  const { generateToken } = await import('../../src/server/utils/jwt.js');
   const token = generateToken({
     userId,
     email: user.email,

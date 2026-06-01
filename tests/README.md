@@ -26,7 +26,8 @@ If env vars are set but services are down, `tests/setup.ts` probes Mongo/Redis (
 | `MONGODB_URI` or `MONGODB_TEST_URI` + Redis | HTTP integration (`api.test.ts`, `permissionsPrivateBoard.test.ts`) | Server bootstrap uses `MONGODB_URI`; either URI satisfies the HTTP gate. |
 | `MONGODB_TEST_URI` + Redis | `tests/integration/*` direct DB helpers | Separate test DB recommended. |
 | `TEST_BASE_URL` | Optional | Reuse an already-running server (e.g. dev on `:3000`) instead of starting an ephemeral listener. |
-| `NODE_ENV=test` | Auto-set by harness | Set by `ensureTestServer()` when starting the app under test. |
+| `NODE_ENV=test` | Auto-set by harness | Set by `tests/preload-env.ts` and `ensureTestServer()` when starting the app under test. |
+| `LOG_LEVEL` | `warn` in tests | Default via `tests/preload-env.ts` and CI test job — suppresses info-level audit/redis noise in `bun test` output. Use `LOG_LEVEL=info` locally to debug server logs during integration runs. |
 
 See also [Environment Variables Reference](../docs/wiki/environment-variables.md) and `.env.example`.
 

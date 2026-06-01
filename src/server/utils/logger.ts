@@ -2,6 +2,16 @@ import pino from 'pino';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
+function resolveLogLevel(): string {
+  const fromEnv = process.env.LOG_LEVEL?.trim();
+  if (fromEnv !== undefined && fromEnv !== '') {
+    return fromEnv;
+  }
+  return process.env.NODE_ENV === 'test' ? 'warn' : 'info';
+}
+
+const logLevel = resolveLogLevel();
+
 const transport = isDevelopment
   ? {
       target: 'pino-pretty',
@@ -16,7 +26,7 @@ const transport = isDevelopment
 export const logger = transport
   ? pino(
       {
-        level: process.env.LOG_LEVEL || 'info',
+        level: logLevel,
         formatters: {
           level: (label) => {
             return { level: label };
@@ -26,7 +36,7 @@ export const logger = transport
       pino.transport(transport)
     )
   : pino({
-      level: process.env.LOG_LEVEL || 'info',
+      level: logLevel,
       formatters: {
         level: (label) => {
           return { level: label };

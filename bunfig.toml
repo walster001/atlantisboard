@@ -2,4 +2,4 @@
 auto = true
 
 [test]
-preload = ["./tests/setup.ts"]
+preload = ["./tests/preload-env.ts", "./tests/setup.ts"]

@@ -20,9 +20,9 @@ _prompt_proxy_field() {
       prompt_text="${prompt_text}\n\n(Optional — leave blank to skip.)"
     fi
     if [[ "$secret" == "true" ]]; then
-      current="$(whiptail --passwordbox "$prompt_text" 14 78 "$current" 3>&2 1>&2)" || return 1
+      current="$(atl_whiptail_capture --passwordbox "$prompt_text" 14 78 "$current")" || return 1
     else
-      current="$(whiptail --inputbox "$prompt_text" 14 78 "$current" 3>&2 1>&2)" || return 1
+      current="$(atl_whiptail_capture --inputbox "$prompt_text" 14 78 "$current")" || return 1
     fi
     current="$(atl_sanitize_input "$current")"
     if atl_validate_value "$current" "$vtype" "$optional"; then
@@ -232,10 +232,10 @@ run_reverse_proxy_wizard() {
   fi
 
   local choice
-  choice="$(whiptail --title "Reverse proxy" --menu "Choose web server" 14 70 3 \
+  choice="$(atl_whiptail_capture --title "Reverse proxy" --menu "Choose web server" 14 70 3 \
     "nginx" "Nginx — manual TLS paths or certbot" \
     "caddy" "Caddy — automatic HTTPS (Let's Encrypt)" \
-    "skip" "Skip reverse proxy setup" 3>&2 1>&2)" || return 0
+    "skip" "Skip reverse proxy setup")" || return 0
 
   if [[ "$choice" == "skip" ]]; then
     return 0

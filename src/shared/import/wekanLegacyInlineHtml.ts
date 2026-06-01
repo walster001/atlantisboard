@@ -8,6 +8,7 @@ import { markdownToCardDescriptionJson } from '../utils/markdownToCardDescriptio
 import { applyUtf8EmojiToTwemojiInCardDescriptionDoc } from '../utils/utf8EmojiToTwemojiInCardDescriptionDoc.js';
 import { CARD_DESCRIPTION_JSON_MAX_LENGTH } from '../constants/cardDescription.js';
 import { isValidCardDescriptionDoc } from '../validation/cardDescriptionDoc.js';
+import { normalizeInlineButtonIconSrcKey } from './importPreflight.js';
 import {
   decodeWekanHtmlEntities,
   hasLegacyWekanInlineButtonHtml,
@@ -17,6 +18,21 @@ import {
 export { hasLegacyWekanInlineButtonHtml, decodeWekanHtmlEntities, LEGACY_WEKAN_INLINE_BUTTON_RES };
 
 const LEGACY_HORIZONTAL_RULE_RE = /<\s*hr\b[^>]*>(?:\s*<\/\s*hr\s*>)?/gi;
+
+function resolveInlineIconMapValue<T>(
+  map: ReadonlyMap<string, T>,
+  iconSrc: string,
+): T | undefined {
+  const direct = map.get(iconSrc);
+  if (direct != null) {
+    return direct;
+  }
+  const normalized = normalizeInlineButtonIconSrcKey(iconSrc);
+  if (normalized !== iconSrc) {
+    return map.get(normalized);
+  }
+  return undefined;
+}
 
 function stripHtmlTags(value: string): string {
   return value.replace(/<[^>]*>/g, '');
@@ -207,8 +223,8 @@ function buildWekanDescriptionDocNodes(
     const buttonText = decodeWekanHtmlEntities(buttonTextRaw).replace(/\s+/g, ' ').trim();
     const inlineButton = buildTrelloImportInlineButton(href, buttonText);
     if (inlineButton != null) {
-      const replacement = replacementByIconSrc.get(iconSrc);
-      const localized = localizedByIconSrc.get(iconSrc);
+      const replacement = resolveInlineIconMapValue(replacementByIconSrc, iconSrc);
+      const localized = resolveInlineIconMapValue(localizedByIconSrc, iconSrc);
       const colors = extractInlineButtonColorsFromLegacySpan(full);
       const attrs = {
         ...inlineButton.attrs,

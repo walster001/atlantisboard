@@ -64,6 +64,7 @@ export function ImportTab({ wizard, onClose }: ImportTabProps) {
     showUserManagementTab,
     showDefaultCardColourPicker,
     unresolvedButtonsCount,
+    allRequiredIconsReplaced,
     fileLabel,
     handleImport,
     handleImportTypeChange,
@@ -100,10 +101,10 @@ export function ImportTab({ wizard, onClose }: ImportTabProps) {
               }
               void handleImport();
             }}
-            disabled={!file || !importType || loading}
+            disabled={!file || !importType || loading || !allRequiredIconsReplaced}
           >
             {unresolvedButtonsCount > 0
-              ? `Continue (${unresolvedButtonsCount} icon source${unresolvedButtonsCount === 1 ? '' : 's'} unchanged)`
+              ? `Upload ${unresolvedButtonsCount} more icon${unresolvedButtonsCount === 1 ? '' : 's'} to continue`
               : 'Continue'}
           </Button>
         </Group>
@@ -140,7 +141,7 @@ export function ImportTab({ wizard, onClose }: ImportTabProps) {
             color="blue"
             radius="md"
             onClick={() => void handleImport()}
-            disabled={!file || !importType || loading}
+            disabled={!file || !importType || loading || (needsReplaceButtons && !allRequiredIconsReplaced)}
             loading={loading}
           >
             Import

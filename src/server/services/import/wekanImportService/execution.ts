@@ -5,7 +5,12 @@ import { Card } from '../../../models/Card.js';
 import { BoardLabel } from '../../../models/BoardLabel.js';
 import { Workspace } from '../../../models/Workspace.js';
 import { ImportJob } from '../../../models/ImportJob.js';
-import type { ImportPreflightUser } from '../../../../shared/import/importPreflight.js';
+import {
+  assertWekanInlineButtonReplacementsComplete,
+  detectWekanLegacyInlineButtons,
+  getRequiredWekanReplacementIconSrcs,
+  type ImportPreflightUser,
+} from '../../../../shared/import/importPreflight.js';
 import { importPreflightUserFromWekanRecord } from '../../../../shared/import/importSourceUserContact.js';
 import {
   collectWekanReferencedUserIdsForBoard,
@@ -40,8 +45,12 @@ export async function executeWekanImportJob(params: {
 }): Promise<void> {
   const { jsonData, userId, jobId, defaultUncolouredCardColour, preflight } = params;
   const data = normalizeWekanExport(jsonData);
+  assertWekanInlineButtonReplacementsComplete(data.cards, preflight?.inlineButtonIconReplacements);
   const { replacementByIconSrc, skipLocalizationIconSrcs } = await buildWekanInlineButtonReplacementMap(
     preflight?.inlineButtonIconReplacements,
+  );
+  const manualReplacementIconSrcs = new Set(
+    getRequiredWekanReplacementIconSrcs(detectWekanLegacyInlineButtons(data.cards)),
   );
   const inlineButtonImportColorOverrides = {
     ...(preflight?.inlineButtonImportColorOverrides?.textColor != null
@@ -53,7 +62,7 @@ export async function executeWekanImportJob(params: {
   };
   const localizedByIconSrc = await buildLocalizedInlineIconMap(
     extractLegacyInlineButtonCandidates(data.cards),
-    skipLocalizationIconSrcs,
+    new Set([...manualReplacementIconSrcs, ...skipLocalizationIconSrcs]),
   );
 
   if (data.boards.length === 0) {

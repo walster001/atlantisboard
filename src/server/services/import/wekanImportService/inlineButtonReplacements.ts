@@ -1,4 +1,7 @@
-import type { InlineButtonIconReplacement } from '../../../../shared/import/importPreflight.js';
+import {
+  normalizeInlineButtonIconSrcKey,
+  type InlineButtonIconReplacement,
+} from '../../../../shared/import/importPreflight.js';
 import type { WekanInlineButtonImportReplacement } from '../../../../shared/import/wekanLegacyInlineHtml.js';
 import { parseDataUrl } from '../../../../shared/import/atlantisboardNormalize.js';
 import { uploadImportInlineImage } from '../../importInlineAssetService.js';
@@ -14,7 +17,7 @@ export async function buildWekanInlineButtonReplacementMap(
   const skipLocalizationIconSrcs = new Set<string>();
 
   for (const entry of replacements ?? []) {
-    const iconSrc = entry.iconSrc.trim();
+    const iconSrc = normalizeInlineButtonIconSrcKey(entry.iconSrc);
     if (iconSrc === '') {
       continue;
     }

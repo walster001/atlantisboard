@@ -87,8 +87,44 @@ atl_require_sudo_access() {
   atl_sudo -v
 }
 
+atl_whiptail_tty() {
+  if [[ -e /dev/tty ]] && (: </dev/tty >/dev/tty) 2>/dev/null; then
+    printf '%s' /dev/tty
+    return 0
+  fi
+  printf '%s' /dev/null
+}
+
+# Whiptail must write UI to the terminal; capture stdout via a temp file (legacy fd redirects break capture).
+atl_whiptail_capture() {
+  local tmp tty
+  tmp="$(mktemp)"
+  tty="$(atl_whiptail_tty)"
+  if command whiptail "$@" >"$tmp" 2>"$tty"; then
+    atl_sanitize_input "$(tr -d '\r' <"$tmp")"
+    rm -f "$tmp"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+atl_whiptail_display() {
+  local tty
+  tty="$(atl_whiptail_tty)"
+  command whiptail "$@" >"$tty" 2>&1
+}
+
 atl_sudo_mkdir_p() {
   local dir="$1"
+  dir="$(atl_sanitize_input "$dir")"
+  dir="${dir%/}"
+  if [[ -z "$dir" ]]; then
+    whiptail --title "Invalid path" --msgbox \
+      "A directory path is required but was empty.\n\nThis usually means the installer did not receive a valid path from the prompts." \
+      12 72 || true
+    return 1
+  fi
   atl_assert_absolute_path "$dir" "directory" || return 1
   atl_sudo mkdir -p "$dir"
 }
@@ -118,9 +154,31 @@ atl_finalize_install_dir() {
 atl_normalize_backup_dir() {
   local raw="${1:-/var/backups/atlantisboard}"
   raw="$(atl_sanitize_input "$raw")"
-  raw="${raw:-/var/backups/atlantisboard}"
+  if [[ -z "$raw" ]]; then
+    raw="/var/backups/atlantisboard"
+  fi
   raw="${raw%/}"
   printf '%s' "$raw"
+}
+
+atl_env_get() {
+  local key="$1" default="$2" value
+  value="${ENV_VALUES[$key]:-}"
+  if [[ -z "$value" ]]; then
+    value="$default"
+  fi
+  printf '%s' "$value"
+}
+
+atl_path_is_safe_absolute() {
+  local val="$1"
+  [[ "$val" == /* ]] || return 1
+  [[ "$val" != "/" ]] || return 1
+  [[ "$val" != *$'\n'* ]] || return 1
+  [[ "$val" != *"://"* ]] || return 1
+  [[ "$val" != *"mongodb"* ]] || return 1
+  [[ "${#val}" -le 512 ]] || return 1
+  return 0
 }
 
 atl_cmd_exists() {
@@ -468,7 +526,7 @@ atl_validate_value() {
       [[ "$val" == "true" || "$val" == "false" ]]
       ;;
     path_absolute)
-      [[ "$val" == /* ]] && [[ "$val" != "/" ]]
+      atl_path_is_safe_absolute "$val"
       ;;
     host)
       [[ "$val" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]
@@ -480,7 +538,7 @@ atl_validate_value() {
       [[ "$val" =~ ^mongodb(\+srv)?:// ]]
       ;;
     install_dir)
-      [[ "$val" == /* ]] && [[ "$val" != "/" ]] && [[ "$val" != *" "* ]]
+      atl_path_is_safe_absolute "$val" && [[ "$val" != *" "* ]]
       ;;
     google_client_id)
       [[ "$val" =~ \.apps\.googleusercontent\.com$ ]]
@@ -508,7 +566,7 @@ atl_validation_message() {
     url) echo "Enter a full URL starting with http:// or https:// (no spaces)." ;;
     cors) echo "Enter one or more URLs separated by commas (http:// or https://)." ;;
     boolean) echo "Enter exactly true or false." ;;
-    path_absolute) echo "Enter an absolute path starting with / (not just /)." ;;
+    path_absolute) echo "Enter one absolute path starting with / (no URLs or other settings pasted in)." ;;
     host) echo "Enter a hostname (letters, numbers, dots, hyphens)." ;;
     domain) echo "Enter a public domain name (e.g. boards.example.com)." ;;
     mongodb_uri) echo "Enter a MongoDB URI starting with mongodb:// or mongodb+srv://." ;;
@@ -558,9 +616,9 @@ atl_prompt_validated() {
     fi
 
     if [[ "$secret" == "true" ]]; then
-      current="$(whiptail --passwordbox "$prompt_text" 14 78 "$current" 3>&2 1>&2)" || return 1
+      current="$(atl_whiptail_capture --passwordbox "$prompt_text" 14 78 "$current")" || return 1
     else
-      current="$(whiptail --inputbox "$prompt_text" 14 78 "$current" 3>&2 1>&2)" || return 1
+      current="$(atl_whiptail_capture --inputbox "$prompt_text" 14 78 "$current")" || return 1
     fi
     current="$(atl_sanitize_input "$current")"
 
@@ -875,7 +933,9 @@ atl_write_env_file() {
   fi
 
   for key in "${!ENV_VALUES[@]}"; do
-    merged["$key"]="${ENV_VALUES[$key]}"
+    if [[ -n "$key" ]]; then
+      merged["$key"]="${ENV_VALUES[$key]}"
+    fi
   done
 
   tmp="$(mktemp)"
@@ -898,7 +958,14 @@ atl_write_env_file() {
   fi
 
   for key in "${!merged[@]}"; do
-    printf '%s=%s\n' "$key" "${merged[$key]}"
+    local val="${merged[$key]}"
+    val="${val//$'\n'/}"
+    val="${val//$'\r'/}"
+    if [[ -n "$key" && -n "$val" ]]; then
+      printf '%s=%s\n' "$key" "$val"
+    elif [[ -n "$key" ]]; then
+      printf '%s=\n' "$key"
+    fi
   done >> "$tmp"
 
   atl_sudo install -m 600 -o root -g root "$tmp" "$env_file"
@@ -919,9 +986,9 @@ atl_prompt_install_dir() {
   local default="$1"
   local valid=false current err_msg
   while [[ "$valid" != true ]]; do
-    current="$(whiptail --title "Install location" --inputbox \
+    current="$(atl_whiptail_capture --title "Install location" --inputbox \
       "Where should Atlantisboard be installed?\n\nUse an absolute path. Default: ${default}" \
-      12 78 "$default" 3>&2 1>&2)" || exit 1
+      12 78 "$default")" || exit 1
     current="$(atl_sanitize_input "$current")"
     current="${current%/}"
     if [[ -z "$current" ]]; then

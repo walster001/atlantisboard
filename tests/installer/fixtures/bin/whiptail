@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Mock whiptail for installer harness tests (prepend this directory to PATH).
+# Set WHIPTAIL_MOCK_VALUE to the string atl_whiptail_capture should read.
+# Set WHIPTAIL_MOCK_EXIT_CODE=1 to simulate cancel.
+set -euo pipefail
+if [[ "${WHIPTAIL_MOCK_EXIT_CODE:-0}" != "0" ]]; then
+  exit "${WHIPTAIL_MOCK_EXIT_CODE}"
+fi
+printf '%s' "${WHIPTAIL_MOCK_VALUE:-}"
+exit 0

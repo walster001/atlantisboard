@@ -3,15 +3,25 @@
 set -euo pipefail
 
 _resolve_pkg_root() {
-  local dir
-  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  if [[ -f "${dir}/../package.json" ]]; then
-    cd "${dir}/.." && pwd
-  else
-    cd "${dir}/../.." && pwd
+  if [[ -n "${ATLANTISBOARD_PACKAGE_ROOT:-}" ]]; then
+    cd "${ATLANTISBOARD_PACKAGE_ROOT}" && pwd
+    return 0
   fi
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ -f "${script_dir}/../package.json" ]]; then
+    cd "${script_dir}/.." && pwd
+    return 0
+  fi
+  if [[ -f "${script_dir}/../../package.json" ]]; then
+    cd "${script_dir}/../.." && pwd
+    return 0
+  fi
+  echo "atlantisboard-setup: could not locate package root (set ATLANTISBOARD_PACKAGE_ROOT)" >&2
+  exit 1
 }
-PKG_ROOT="${ATLANTISBOARD_PACKAGE_ROOT:-$(_resolve_pkg_root)}"
+PKG_ROOT="$(_resolve_pkg_root)"
+export ATLANTISBOARD_PACKAGE_ROOT="$PKG_ROOT"
 ENV_FIELDS="${PKG_ROOT}/install/env-fields.json"
 INSTALL_DIR="${ATLANTISBOARD_INSTALL_DIR:-/opt/atlantisboard}"
 
@@ -32,16 +42,25 @@ atl_apply_theme
 
 atl_require_sudo_access
 
-whiptail --title "Welcome to Atlantisboard" --msgbox \
+atl_whiptail_display --title "Welcome to Atlantisboard" --msgbox \
   "This wizard will guide you through installing Atlantisboard.\n\n• Secrets are generated automatically\n• Each step validates your input\n• You can add Google sign-in later if you skip it\n\nPress OK to continue." \
   14 72 || exit 0
 
-MODE="$(whiptail --title "Installation type" --menu \
+MODE="$(atl_whiptail_capture --title "Installation type" --menu \
   "How should Atlantisboard run on this server?" 18 78 3 \
   "fullstack" "Docker full stack — app, database, Redis, and storage (easiest)" \
   "docker" "Docker dependencies only — app runs on this server with Bun" \
-  "manual" "Bring your own MongoDB, Redis, and MinIO" \
-  3>&2 1>&2)" || exit 1
+  "manual" "Bring your own MongoDB, Redis, and MinIO")" || exit 1
+MODE="$(atl_sanitize_input "$MODE")"
+case "$MODE" in
+  fullstack | docker | manual) ;;
+  *)
+    atl_whiptail_display --title "Installation type" --msgbox \
+      "Could not read the selected installation type.\n\nRun atlantisboard-setup from an interactive terminal (not piped or redirected)." \
+      12 72 || true
+    exit 1
+    ;;
+esac
 
 atl_prompt_install_dir "$INSTALL_DIR"
 atl_finalize_install_dir
@@ -122,8 +141,9 @@ fi
 
 rm -f "$PRIOR_ENV"
 
-BACKUP_DIR="$(atl_normalize_backup_dir "${ENV_VALUES[BACKUP_LOCATION]:-/var/backups/atlantisboard}")"
+BACKUP_DIR="$(atl_normalize_backup_dir "$(atl_env_get BACKUP_LOCATION /var/backups/atlantisboard)")"
 ENV_VALUES["BACKUP_LOCATION"]="$BACKUP_DIR"
+atl_write_env_file "$ENV_FILE"
 if [[ "$MODE" != "fullstack" ]]; then
   atl_sudo_mkdir_p "$BACKUP_DIR"
 fi
@@ -169,12 +189,13 @@ fi
 source "${PKG_ROOT}/install/reverse-proxy.sh"
 run_reverse_proxy_wizard
 
+atl_write_env_file "$ENV_FILE"
+
 if [[ "$MODE" == "fullstack" ]]; then
-  atl_write_env_file "$ENV_FILE"
   atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.fullstack.yml up -d
 fi
 
-PUBLIC_URL="${ENV_VALUES[APP_URL]:-http://localhost:3000}"
+PUBLIC_URL="$(atl_env_get APP_URL http://localhost:3000)"
 case "$MODE" in
   fullstack)
     whiptail --title "Installation complete" --msgbox \

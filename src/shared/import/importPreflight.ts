@@ -250,6 +250,69 @@ export function detectWekanLegacyInlineButtons(
   return out;
 }
 
+/** Canonical key for matching icon sources within one import preflight (trim + decode URI). */
+export function normalizeInlineButtonIconSrcKey(iconSrc: string): string {
+  const trimmed = iconSrc.trim();
+  if (trimmed === '') {
+    return '';
+  }
+  try {
+    return decodeURIComponent(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
+/** Unique `/cdn/storage/` icon sources that require a user-uploaded replacement for this import. */
+export function getRequiredWekanReplacementIconSrcs(
+  buttons: readonly WekanLegacyInlineButtonCandidate[],
+): readonly string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const button of buttons) {
+    const key = normalizeInlineButtonIconSrcKey(button.iconSrc);
+    if (key === '' || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+}
+
+export function countResolvedWekanIconReplacements(
+  requiredIconSrcs: readonly string[],
+  replacements: readonly InlineButtonIconReplacement[] | undefined,
+): number {
+  const required = new Set(requiredIconSrcs);
+  const resolved = new Set<string>();
+  for (const entry of replacements ?? []) {
+    const key = normalizeInlineButtonIconSrcKey(entry.iconSrc);
+    const dataUrl = entry.replacementDataUrl?.trim() ?? '';
+    if (key !== '' && dataUrl !== '' && required.has(key)) {
+      resolved.add(key);
+    }
+  }
+  return resolved.size;
+}
+
+export function assertWekanInlineButtonReplacementsComplete(
+  cards: readonly WekanCardLike[],
+  replacements: readonly InlineButtonIconReplacement[] | undefined,
+): void {
+  const required = getRequiredWekanReplacementIconSrcs(detectWekanLegacyInlineButtons(cards));
+  if (required.length === 0) {
+    return;
+  }
+  const resolved = countResolvedWekanIconReplacements(required, replacements);
+  if (resolved < required.length) {
+    const remaining = required.length - resolved;
+    throw new Error(
+      `Upload a replacement icon for every legacy button icon reference before importing (${remaining} remaining).`,
+    );
+  }
+}
+
 export function buildWekanImportPreflight(raw: unknown): ImportPreflightResult {
   const normalized = normalizeWekanPreflightExport(raw);
   const users: ImportPreflightUser[] = normalized.users.flatMap((u) => {

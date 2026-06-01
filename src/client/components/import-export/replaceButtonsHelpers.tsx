@@ -5,6 +5,7 @@ import type {
   InlineButtonImportColorOverrides,
   WekanLegacyInlineButtonCandidate,
 } from '../../../shared/import/importPreflight.js';
+import { normalizeInlineButtonIconSrcKey } from '../../../shared/import/importPreflight.js';
 import { extractWekanLegacyInlineButtonColorsFromHtml } from '../../../shared/import/wekanLegacyInlineHtml.js';
 
 export type ColourField = 'textColor' | 'bgColor';
@@ -18,7 +19,7 @@ export function uniqueByIconSrc(
   const seen = new Set<string>();
   const out: WekanLegacyInlineButtonCandidate[] = [];
   for (const b of buttons) {
-    const key = b.iconSrc.trim();
+    const key = normalizeInlineButtonIconSrcKey(b.iconSrc);
     if (key === '' || seen.has(key)) {
       continue;
     }
@@ -53,12 +54,13 @@ export function upsertReplacement(
   iconSrc: string,
   replacementDataUrl: string,
 ): readonly InlineButtonIconReplacement[] {
-  const filtered = replacements.filter((r) => r.iconSrc !== iconSrc);
+  const key = normalizeInlineButtonIconSrcKey(iconSrc);
+  const filtered = replacements.filter((r) => normalizeInlineButtonIconSrcKey(r.iconSrc) !== key);
   const trimmed = replacementDataUrl.trim();
   if (trimmed === '') {
     return filtered;
   }
-  return [...filtered, { iconSrc, replacementDataUrl: trimmed }];
+  return [...filtered, { iconSrc: iconSrc.trim(), replacementDataUrl: trimmed }];
 }
 
 function isImportDefaultHexLabel(label: string): boolean {

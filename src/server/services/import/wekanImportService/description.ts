@@ -1,6 +1,7 @@
 import type { WekanCard } from './types.js';
 import { uploadImportInlineImage } from '../../importInlineAssetService.js';
 import { logger } from '../../../utils/logger.js';
+import { normalizeInlineButtonIconSrcKey } from '../../../../shared/import/importPreflight.js';
 import {
   decodeWekanHtmlEntities,
   hasLegacyWekanInlineButtonHtml,
@@ -67,13 +68,27 @@ function resolveFetchableIconUrl(iconSrc: string): string | null {
   return null;
 }
 
+function isSkippedInlineIconSrc(iconSrc: string, skipIconSrcs: ReadonlySet<string>): boolean {
+  const trimmed = iconSrc.trim();
+  if (trimmed === '') {
+    return true;
+  }
+  if (skipIconSrcs.has(trimmed)) {
+    return true;
+  }
+  const normalized = normalizeInlineButtonIconSrcKey(trimmed);
+  return skipIconSrcs.has(normalized);
+}
+
 export async function buildLocalizedInlineIconMap(
   buttons: readonly { iconSrc: string }[],
   skipIconSrcs: ReadonlySet<string> = new Set(),
 ): Promise<Map<string, string>> {
   const localizedByIconSrc = new Map<string, string>();
   const uniqueIconSources = [
-    ...new Set(buttons.map((b) => b.iconSrc.trim()).filter((s) => s !== '' && !skipIconSrcs.has(s))),
+    ...new Set(
+      buttons.map((b) => b.iconSrc.trim()).filter((s) => s !== '' && !isSkippedInlineIconSrc(s, skipIconSrcs)),
+    ),
   ];
   for (const iconSrc of uniqueIconSources) {
     const fetchable = resolveFetchableIconUrl(iconSrc);

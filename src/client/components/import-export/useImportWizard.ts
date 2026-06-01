@@ -10,6 +10,8 @@ import {
 import {
   buildTrelloImportPreflight,
   buildWekanImportPreflight,
+  countResolvedWekanIconReplacements,
+  getRequiredWekanReplacementIconSrcs,
   type ImportPreflightPayload,
   type ImportPreflightResult,
   type InlineButtonIconReplacement,
@@ -120,14 +122,20 @@ export function useImportWizard(options: UseImportWizardOptions) {
   const showUserManagementTab = importType === 'trello' || importType === 'wekan';
   const showDefaultCardColourPicker = importType !== 'atlantisboard';
 
+  const requiredIconSrcs = useMemo(
+    () => (needsReplaceButtons ? getRequiredWekanReplacementIconSrcs(wekanButtons) : []),
+    [needsReplaceButtons, wekanButtons],
+  );
+
   const unresolvedButtonsCount = useMemo(() => {
     if (!needsReplaceButtons) {
       return 0;
     }
-    const uniqueIconCount = new Set(wekanButtons.map((b) => b.iconSrc)).size;
-    const replacedIconCount = new Set(inlineButtonReplacements.map((r) => r.iconSrc)).size;
-    return Math.max(0, uniqueIconCount - replacedIconCount);
-  }, [inlineButtonReplacements, needsReplaceButtons, wekanButtons]);
+    const resolved = countResolvedWekanIconReplacements(requiredIconSrcs, inlineButtonReplacements);
+    return Math.max(0, requiredIconSrcs.length - resolved);
+  }, [inlineButtonReplacements, needsReplaceButtons, requiredIconSrcs]);
+
+  const allRequiredIconsReplaced = !needsReplaceButtons || unresolvedButtonsCount === 0;
 
   const resetPreflightState = useCallback((): void => {
     setPreflight(null);
@@ -207,6 +215,14 @@ export function useImportWizard(options: UseImportWizardOptions) {
 
   const handleImport = useCallback(async () => {
     if (!file || !importType) {
+      return;
+    }
+
+    if (importType === 'wekan' && needsReplaceButtons && !allRequiredIconsReplaced) {
+      setError(
+        `Upload a replacement icon for every legacy button icon (${unresolvedButtonsCount} remaining).`,
+      );
+      setActiveTab('replace-buttons');
       return;
     }
 
@@ -317,6 +333,7 @@ export function useImportWizard(options: UseImportWizardOptions) {
       }
     })();
   }, [
+    allRequiredIconsReplaced,
     boardId,
     file,
     importDefaultHex,
@@ -325,9 +342,11 @@ export function useImportWizard(options: UseImportWizardOptions) {
     importUsersAsPlaceholders,
     inlineButtonColorOverrides,
     inlineButtonReplacements,
+    needsReplaceButtons,
     onClose,
     onImportComplete,
     parsedPreflightJson,
+    unresolvedButtonsCount,
     workspaceId,
   ]);
 
@@ -397,6 +416,7 @@ export function useImportWizard(options: UseImportWizardOptions) {
     showUserManagementTab,
     showDefaultCardColourPicker,
     unresolvedButtonsCount,
+    allRequiredIconsReplaced,
     fileLabel,
     handleImport,
     handleImportTypeChange,

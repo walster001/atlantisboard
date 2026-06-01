@@ -9,6 +9,7 @@ import { loginBrandingColorInputProps } from '../../constants/loginBrandingColor
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { ReplaceButtonRow } from './ReplaceButtonRow.js';
 import { ReplaceButtonsColourModal } from './ReplaceButtonsColourModal.js';
+import { normalizeInlineButtonIconSrcKey } from '../../../shared/import/importPreflight.js';
 import { uniqueByIconSrc } from './replaceButtonsHelpers.js';
 import { useReplaceButtonsColourModal } from './useReplaceButtonsColourModal.js';
 
@@ -34,7 +35,10 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
   const replacementByIcon = useMemo(() => {
     const map = new Map<string, InlineButtonIconReplacement>();
     for (const item of replacements) {
-      map.set(item.iconSrc, item);
+      const key = normalizeInlineButtonIconSrcKey(item.iconSrc);
+      if (key !== '') {
+        map.set(key, item);
+      }
     }
     return map;
   }, [replacements]);
@@ -103,7 +107,7 @@ export const ReplaceButtonsTab = memo(function ReplaceButtonsTab({
         <ReplaceButtonRow
           key={button.iconSrc}
           button={button}
-          replacement={replacementByIcon.get(button.iconSrc)}
+          replacement={replacementByIcon.get(normalizeInlineButtonIconSrcKey(button.iconSrc))}
           colorOverrides={colorOverrides}
           replacements={replacements}
           onChangeReplacements={onChangeReplacements}

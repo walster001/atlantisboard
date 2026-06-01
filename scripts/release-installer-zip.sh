@@ -31,7 +31,7 @@ echo "==> Verify package lockfile matches package.json (Docker full-stack + setu
 (
   cd "${PKG_DIR}"
   rm -rf node_modules
-  bun install --frozen-lockfile --production
+  bun install --frozen-lockfile --production --ignore-scripts
   rm -rf node_modules
 )
 

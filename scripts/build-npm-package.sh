@@ -53,8 +53,19 @@ find "${PKG_DIR}/dist" -name '*.tsbuildinfo' -delete 2>/dev/null || true
 echo "==> Production lockfile for packages/atlantisboard (must match package.json; root bun.lock is not valid)"
 rm -f "${PKG_DIR}/bun.lock"
 rm -rf "${PKG_DIR}/node_modules"
-(cd "${PKG_DIR}" && bun install --production)
-(cd "${PKG_DIR}" && rm -rf node_modules && bun install --frozen-lockfile --production)
+# lockfile-only writes bun.lock without node_modules; --production alone does not save a lockfile on Bun 1.3.x.
+if ! (cd "${PKG_DIR}" && bun install --lockfile-only); then
+  echo "error: bun install --lockfile-only failed in ${PKG_DIR}" >&2
+  exit 1
+fi
+if [[ ! -s "${PKG_DIR}/bun.lock" ]]; then
+  echo "error: ${PKG_DIR}/bun.lock was not created — cannot build installer zip" >&2
+  exit 1
+fi
+if ! (cd "${PKG_DIR}" && bun install --frozen-lockfile --production --ignore-scripts); then
+  echo "error: production install with frozen lockfile failed in ${PKG_DIR}" >&2
+  exit 1
+fi
 rm -rf "${PKG_DIR}/node_modules"
 
 cp .env.example "${PKG_DIR}/.env.example"
@@ -103,5 +114,10 @@ exec node "${ROOT}/install/bin/atlantisboard.js" "$@"
 EOF
 chmod +x "${PKG_DIR}/atlantisboard-setup" "${PKG_DIR}/atlantisboard"
 
-echo "==> Package ready at ${PKG_DIR}"
+if [[ ! -s "${PKG_DIR}/bun.lock" ]]; then
+  echo "error: ${PKG_DIR}/bun.lock missing after package build — aborting" >&2
+  exit 1
+fi
+
+echo "==> Package ready at ${PKG_DIR} (bun.lock $(wc -c <"${PKG_DIR}/bun.lock") bytes)"
 echo "    Dry run: (cd packages/atlantisboard && npm pack)"

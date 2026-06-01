@@ -216,6 +216,229 @@ atl_install_parent_writable() {
   [[ -w "$parent" ]] || atl_sudo test -w "$parent" 2>/dev/null
 }
 
+atl_detect_pkg_manager() {
+  if atl_cmd_exists apt-get; then
+    printf '%s' apt
+    return 0
+  fi
+  if atl_cmd_exists dnf; then
+    printf '%s' dnf
+    return 0
+  fi
+  if atl_cmd_exists yum; then
+    printf '%s' yum
+    return 0
+  fi
+  if atl_cmd_exists apk; then
+    printf '%s' apk
+    return 0
+  fi
+  return 1
+}
+
+# Map CLI command names to distro packages (whiptail, jq, docker, …).
+atl_prereq_packages_for_cmd() {
+  local cmd="$1" pm="$2"
+  case "$cmd" in
+    whiptail)
+      case "$pm" in
+        apt | apk) printf '%s' whiptail ;;
+        dnf | yum) printf '%s' newt ;;
+      esac
+      ;;
+    openssl) printf '%s' openssl ;;
+    jq) printf '%s' jq ;;
+    rsync) printf '%s' rsync ;;
+    bash) printf '%s' bash ;;
+    ss)
+      case "$pm" in
+        apt) printf '%s' iproute2 ;;
+        dnf | yum) printf '%s' iproute ;;
+        apk) printf '%s' iproute2 ;;
+      esac
+      ;;
+    nc)
+      case "$pm" in
+        apt) printf '%s' netcat-openbsd ;;
+        dnf | yum) printf '%s' nmap-ncat ;;
+        apk) printf '%s' netcat-openbsd ;;
+      esac
+      ;;
+    curl) printf '%s' curl ;;
+    docker-engine)
+      case "$pm" in
+        apt) printf '%s' 'docker.io docker-compose-plugin' ;;
+        dnf | yum) printf '%s' 'docker docker-compose-plugin' ;;
+        apk) printf '%s' 'docker docker-cli-compose' ;;
+      esac
+      ;;
+    docker-compose-plugin)
+      case "$pm" in
+        apt) printf '%s' docker-compose-plugin ;;
+        dnf | yum) printf '%s' docker-compose-plugin ;;
+        apk) printf '%s' docker-cli-compose ;;
+      esac
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+atl_pkg_install_packages() {
+  local pm="$1"
+  shift
+  local -a pkgs=("$@")
+  [[ ${#pkgs[@]} -gt 0 ]] || return 0
+  [[ "${ATLANTISBOARD_SKIP_PKG_INSTALL:-}" == "1" ]] && return 0
+
+  case "$pm" in
+    apt)
+      atl_sudo env DEBIAN_FRONTEND=noninteractive apt-get update -qq
+      atl_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
+      ;;
+    dnf)
+      atl_sudo dnf install -y "${pkgs[@]}"
+      ;;
+    yum)
+      atl_sudo yum install -y "${pkgs[@]}"
+      ;;
+    apk)
+      atl_sudo apk add --no-cache "${pkgs[@]}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+atl_install_prerequisite_cmd() {
+  local cmd="$1" pm="$2"
+  local pkg_line
+  pkg_line="$(atl_prereq_packages_for_cmd "$cmd" "$pm")" || return 1
+  read -r -a pkgs <<<"$pkg_line"
+  [[ ${#pkgs[@]} -gt 0 ]] || return 1
+  atl_pkg_install_packages "$pm" "${pkgs[@]}"
+}
+
+atl_bootstrap_whiptail() {
+  atl_cmd_exists whiptail && return 0
+  [[ "${ATLANTISBOARD_SKIP_PKG_INSTALL:-}" == "1" ]] && return 1
+  local pm
+  pm="$(atl_detect_pkg_manager)" || return 1
+  echo "atlantisboard-setup: installing whiptail (required for the installer)..." >&2
+  atl_install_prerequisite_cmd whiptail "$pm" || return 1
+  atl_cmd_exists whiptail
+}
+
+atl_install_docker_prerequisites() {
+  local pm="$1"
+  local -a pkgs=()
+
+  local pkg_line
+  if ! atl_cmd_exists docker; then
+    pkg_line="$(atl_prereq_packages_for_cmd docker-engine "$pm")" || return 1
+    read -r -a pkgs <<<"$pkg_line"
+  elif ! atl_sudo docker compose version >/dev/null 2>&1; then
+    pkg_line="$(atl_prereq_packages_for_cmd docker-compose-plugin "$pm")" || return 1
+    read -r -a pkgs <<<"$pkg_line"
+  else
+    return 0
+  fi
+
+  [[ ${#pkgs[@]} -gt 0 ]] || return 1
+  atl_pkg_install_packages "$pm" "${pkgs[@]}"
+  if atl_cmd_exists systemctl; then
+    atl_sudo systemctl enable --now docker >/dev/null 2>&1 || true
+  fi
+}
+
+atl_install_port_check_tools() {
+  local pm="$1"
+  if atl_cmd_exists ss || atl_cmd_exists nc; then
+    return 0
+  fi
+  atl_install_prerequisite_cmd ss "$pm" || atl_install_prerequisite_cmd nc "$pm" || return 1
+}
+
+atl_offer_install_prerequisites() {
+  local mode="$1"
+  local pm
+  local -a missing_labels=() missing_cmds=()
+  local need_docker=false need_port_tools=false need_curl=false
+
+  [[ "${ATLANTISBOARD_SKIP_PKG_INSTALL:-}" == "1" ]] && return 0
+  pm="$(atl_detect_pkg_manager)" || return 0
+
+  local cmd
+  for cmd in openssl jq rsync; do
+    if ! atl_cmd_exists "$cmd"; then
+      missing_cmds+=("$cmd")
+      missing_labels+=("$cmd")
+    fi
+  done
+
+  case "$mode" in
+    docker | fullstack)
+      if ! atl_cmd_exists docker || ! atl_sudo docker compose version >/dev/null 2>&1; then
+        need_docker=true
+        missing_labels+=("Docker Engine and Compose plugin")
+      fi
+      ;;
+  esac
+
+  if ! atl_cmd_exists ss && ! atl_cmd_exists nc; then
+    need_port_tools=true
+    missing_labels+=("ss or nc (port checks)")
+  fi
+
+  case "$mode" in
+    docker | manual)
+      if ! atl_cmd_exists bun; then
+        if ! atl_cmd_exists curl; then
+          need_curl=true
+          missing_labels+=("curl (for Bun install)")
+        fi
+      fi
+      ;;
+  esac
+
+  if [[ ${#missing_cmds[@]} -eq 0 && "$need_docker" != true && "$need_port_tools" != true && "$need_curl" != true ]]; then
+    return 0
+  fi
+
+  local msg="The installer can try to install missing packages using ${pm}:\n\n"
+  local item
+  for item in "${missing_labels[@]}"; do
+    msg+="- ${item}\n"
+  done
+  msg+="\nThis requires administrator privileges. Continue?"
+
+  if ! atl_whiptail_display --title "Install prerequisites" --yesno "$msg" 14 78; then
+    return 0
+  fi
+
+  atl_whiptail_display --title "Installing prerequisites" --infobox \
+    "Installing packages via ${pm}...\n\nPlease wait." \
+    10 70
+
+  for cmd in "${missing_cmds[@]}"; do
+    atl_install_prerequisite_cmd "$cmd" "$pm" || true
+  done
+
+  if [[ "$need_port_tools" == true ]]; then
+    atl_install_port_check_tools "$pm" || true
+  fi
+
+  if [[ "$need_curl" == true ]]; then
+    atl_install_prerequisite_cmd curl "$pm" || true
+  fi
+
+  if [[ "$need_docker" == true ]]; then
+    atl_install_docker_prerequisites "$pm" || true
+  fi
+}
+
 atl_preflight_fail() {
   local message="$1"
   whiptail --title "Preflight check failed" --msgbox \
@@ -228,6 +451,8 @@ atl_preflight_check() {
   local mode="$1"
   local -a lines=()
   local line
+
+  atl_offer_install_prerequisites "$mode"
 
   for cmd in whiptail openssl jq rsync bash; do
     if ! atl_cmd_exists "$cmd"; then

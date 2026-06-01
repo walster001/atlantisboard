@@ -34,8 +34,10 @@ if [[ "$(uname -s)" != "Linux" ]]; then
 fi
 
 if ! command -v whiptail >/dev/null 2>&1; then
-  echo "atlantisboard-setup requires whiptail. Install whiptail (Debian/Ubuntu: sudo apt install whiptail) and retry."
-  exit 1
+  if ! atl_bootstrap_whiptail; then
+    echo "atlantisboard-setup requires whiptail. Install whiptail (Debian/Ubuntu: sudo apt install whiptail; Fedora: sudo dnf install newt) and retry." >&2
+    exit 1
+  fi
 fi
 
 atl_apply_theme

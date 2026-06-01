@@ -86,17 +86,18 @@ _sync_env_public_url() {
   atl_write_env_file "$ENV_FILE"
 }
 
-_install_apt_packages() {
+_install_proxy_packages() {
   local pkgs=("$@")
-  if ! command -v apt-get >/dev/null 2>&1; then
+  local pm
+  pm="$(atl_detect_pkg_manager)" || pm=""
+  if [[ -z "$pm" ]]; then
     whiptail --title "Package install" --msgbox \
-      "Automatic package install requires apt-get (Debian/Ubuntu).\n\nOn RHEL, Fedora, and other distros install these packages yourself, then copy configs from ${INSTALL_DIR}/install/ (nginx/ or caddy/).\n\nSee DEPLOYMENT.md (Manual install) and docs/wiki/reverse-proxy.md for Nginx/Caddy setup.\n\nPackages: ${pkgs[*]}" \
+      "Automatic package install requires apt-get, dnf, yum, or apk.\n\nInstall these packages yourself, then copy configs from ${INSTALL_DIR}/install/ (nginx/ or caddy/).\n\nSee DEPLOYMENT.md and docs/wiki/reverse-proxy.md.\n\nPackages: ${pkgs[*]}" \
       16 78
     return 1
   fi
-  whiptail --title "Installing packages" --infobox "Installing: ${pkgs[*]} ..." 8 70
-  sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
+  atl_whiptail_display --title "Installing packages" --infobox "Installing: ${pkgs[*]} ..." 8 70
+  atl_pkg_install_packages "$pm" "${pkgs[@]}"
 }
 
 _render_nginx_site() {
@@ -126,7 +127,7 @@ _configure_nginx() {
   local ssl_key="${PROXY_VALUES[NGINX_SSL_KEY]//DOMAIN_PLACEHOLDER/$domain}"
   local use_https_tpl=true
 
-  if ! _install_apt_packages nginx; then
+  if ! _install_proxy_packages nginx; then
     return 1
   fi
 
@@ -156,7 +157,7 @@ _configure_nginx() {
     fi
     if ! command -v certbot >/dev/null 2>&1; then
       if whiptail --title "certbot" --yesno "Install certbot and python3-certbot-nginx?" 10 70; then
-        _install_apt_packages certbot python3-certbot-nginx || return 0
+        _install_proxy_packages certbot python3-certbot-nginx || return 0
       else
         return 0
       fi
@@ -187,7 +188,7 @@ _configure_caddy() {
   local domain="${PROXY_VALUES[PROXY_DOMAIN]}"
   local max_body="${PROXY_VALUES[PROXY_MAX_BODY_MB]}MB"
 
-  if ! _install_apt_packages caddy; then
+  if ! _install_proxy_packages caddy; then
     return 1
   fi
 

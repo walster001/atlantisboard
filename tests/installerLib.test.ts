@@ -101,6 +101,8 @@ describe('installer shell static guards', () => {
     expect(common).toContain('atl_path_is_safe_absolute()');
     expect(common).toContain('atl_env_get()');
     expect(common).toContain('atl_generate_install_secrets()');
+    expect(common).toContain('atl_offer_install_prerequisites()');
+    expect(common).toContain('atl_bootstrap_whiptail()');
     expect(common).toMatch(/whiptail\s+"\$@"\s+2>"\$tmp"\s+1>"\$tty"/);
     expect(common).toContain('--passwordbox "$prompt_text" 14 78 ""');
   });

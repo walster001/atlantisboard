@@ -9,6 +9,7 @@ MOCK_BIN="${HARNESS_DIR}/fixtures/bin"
 
 export PATH="${MOCK_BIN}:${PATH}"
 export ATLANTISBOARD_PACKAGE_ROOT="$PKG_ROOT"
+export ATLANTISBOARD_SKIP_PKG_INSTALL=1
 
 fail() {
   echo "installer-lib.harness: $*" >&2
@@ -62,6 +63,7 @@ assert_path_rejects_garbled() {
   if atl_validate_value "$garbled" "path_absolute" "false"; then
     fail "garbled blob must not pass path_absolute validation"
   fi
+  return 0
 }
 
 assert_path_accepts_valid() {
@@ -146,6 +148,22 @@ assert_mkdir_rejects_empty() {
   if atl_sudo_mkdir_p ""; then
     fail "mkdir should reject empty directory"
   fi
+  return 0
+}
+
+assert_prereq_package_mapping() {
+  local pm pkgs
+  pm="$(atl_detect_pkg_manager)" || pm=apt
+  pkgs="$(atl_prereq_packages_for_cmd whiptail apt)"
+  [[ "$pkgs" == "whiptail" ]] || fail "apt whiptail mapping expected whiptail, got [${pkgs}]"
+  pkgs="$(atl_prereq_packages_for_cmd whiptail dnf)"
+  [[ "$pkgs" == "newt" ]] || fail "dnf whiptail mapping expected newt, got [${pkgs}]"
+  local pkg_line
+  pkg_line="$(atl_prereq_packages_for_cmd docker-engine apt)"
+  read -r -a pkgs <<<"$pkg_line"
+  [[ "${pkgs[0]:-}" == "docker.io" && "${pkgs[1]:-}" == "docker-compose-plugin" ]] \
+    || fail "apt docker mapping expected docker.io + docker-compose-plugin, got [${pkgs[*]}]"
+  return 0
 }
 
 assert_welcome_secrets_section_skipped_in_prompts() {
@@ -166,6 +184,7 @@ assert_env_get_empty_coalesce
 assert_whiptail_capture_isolated
 assert_write_env_file_format
 assert_mkdir_rejects_empty
+assert_prereq_package_mapping
 assert_welcome_secrets_section_skipped_in_prompts
 
 echo "installer-lib.harness: all checks passed"

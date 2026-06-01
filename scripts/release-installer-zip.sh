@@ -27,6 +27,14 @@ for required in dist/server/index.js install/setup.sh install/env-fields.json pa
   fi
 done
 
+echo "==> Verify package lockfile matches package.json (Docker full-stack + setup.sh use --frozen-lockfile)"
+(
+  cd "${PKG_DIR}"
+  rm -rf node_modules
+  bun install --frozen-lockfile --production
+  rm -rf node_modules
+)
+
 ZIP_NAME="atlantisboard-${VERSION}.zip"
 ZIP_PATH="release/${ZIP_NAME}"
 

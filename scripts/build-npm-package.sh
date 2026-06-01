@@ -49,7 +49,14 @@ rm -rf "${PKG_DIR}/dist" "${PKG_DIR}/public" "${PKG_DIR}/node_modules"
 cp -a dist "${PKG_DIR}/dist"
 cp -a public "${PKG_DIR}/public"
 find "${PKG_DIR}/dist" -name '*.tsbuildinfo' -delete 2>/dev/null || true
-cp bun.lock "${PKG_DIR}/bun.lock"
+
+echo "==> Production lockfile for packages/atlantisboard (must match package.json; root bun.lock is not valid)"
+rm -f "${PKG_DIR}/bun.lock"
+rm -rf "${PKG_DIR}/node_modules"
+(cd "${PKG_DIR}" && bun install --production)
+(cd "${PKG_DIR}" && rm -rf node_modules && bun install --frozen-lockfile --production)
+rm -rf "${PKG_DIR}/node_modules"
+
 cp .env.example "${PKG_DIR}/.env.example"
 cp DEPLOYMENT.md "${PKG_DIR}/DEPLOYMENT.md"
 cp README.md "${PKG_DIR}/README.md"

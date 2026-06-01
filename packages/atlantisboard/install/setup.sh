@@ -70,15 +70,13 @@ ENV_VALUES["PORT"]="3000"
 
 atl_preflight_check "$MODE"
 
-whiptail --title "Generating secrets" --infobox "Creating secure random passwords and signing keys...\n\nPlease wait." 8 60
-atl_auto_generate_secrets "$MODE"
-sleep 1
+atl_generate_install_secrets "$MODE"
 
 atl_prompt_env_fields "$MODE"
 
 # Google OAuth: if Client ID set, secret is required.
 while [[ -n "${ENV_VALUES[GOOGLE_CLIENT_ID]:-}" && -z "${ENV_VALUES[GOOGLE_CLIENT_SECRET]:-}" ]]; do
-  whiptail --title "Google sign-in" --msgbox \
+  atl_whiptail_display --title "Google sign-in" --msgbox \
     "You entered a Google OAuth Client ID but no Client Secret.\n\nBoth are required for Google sign-in, or leave both blank to skip." \
     12 70 || true
   atl_prompt_validated "GOOGLE_CLIENT_SECRET" \
@@ -122,19 +120,19 @@ fi
 
 if [[ "$MODE" == "docker" ]]; then
   atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
-  whiptail --title "Starting dependencies" --infobox "Starting MongoDB, Redis, and MinIO containers..." 8 60
+  atl_whiptail_display --title "Starting dependencies" --infobox "Starting MongoDB, Redis, and MinIO containers..." 8 60
   atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.deps.yml up -d
   atl_wait_for_docker_deps "$MODE"
 fi
 
 if [[ "$MODE" == "fullstack" ]]; then
   atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
-  whiptail --title "Building full stack" --infobox \
+  atl_whiptail_display --title "Building full stack" --infobox \
     "Building the Atlantisboard image and starting all containers.\n\nThis can take several minutes on first run." \
     10 70
   atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.fullstack.yml up -d --build
   atl_wait_for_docker_deps "$MODE"
-  whiptail --title "Full stack started" --msgbox \
+  atl_whiptail_display --title "Full stack started" --msgbox \
     "All services are running in Docker.\n\n• App: port ${ENV_VALUES[PORT]:-3000}\n• MongoDB, Redis, and MinIO are ready\n\nUse: docker compose -f ${INSTALL_DIR}/install/docker/docker-compose.fullstack.yml ps" \
     14 72 || true
 fi
@@ -148,7 +146,7 @@ if [[ "$MODE" != "fullstack" ]]; then
   atl_sudo_mkdir_p "$BACKUP_DIR"
 fi
 
-if [[ "$MODE" != "fullstack" ]] && whiptail --title "systemd services" --yesno \
+if [[ "$MODE" != "fullstack" ]] && atl_whiptail_display --title "systemd services" --yesno \
   "Install systemd services so Atlantisboard starts automatically on boot?" 10 72; then
   if atl_require_systemctl; then
     if ! id atlantisboard >/dev/null 2>&1; then
@@ -198,12 +196,12 @@ fi
 PUBLIC_URL="$(atl_env_get APP_URL http://localhost:3000)"
 case "$MODE" in
   fullstack)
-    whiptail --title "Installation complete" --msgbox \
+    atl_whiptail_display --title "Installation complete" --msgbox \
       "Atlantisboard full stack is running in Docker.\n\nOpen: ${PUBLIC_URL}\nInstall dir: ${INSTALL_DIR}\n\nManage: cd ${INSTALL_DIR}/install/docker && docker compose -f docker-compose.fullstack.yml ps\n\nSee docs/wiki/npm-install.md" \
       16 72
     ;;
   *)
-    whiptail --title "Installation complete" --msgbox \
+    atl_whiptail_display --title "Installation complete" --msgbox \
       "Installation finished.\n\nOpen: ${PUBLIC_URL}\nInstall dir: ${INSTALL_DIR}\n\nSee DEPLOYMENT.md and docs/wiki/npm-install.md" \
       14 72
     ;;

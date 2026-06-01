@@ -148,6 +148,17 @@ assert_mkdir_rejects_empty() {
   fi
 }
 
+assert_welcome_secrets_section_skipped_in_prompts() {
+  [[ -f "$ENV_FIELDS" ]] && command -v jq >/dev/null 2>&1 || return 0
+  local section
+  section="$(jq -c '.sections[] | select(.id == "welcome_secrets")' "$ENV_FIELDS")"
+  [[ -n "$section" ]] || fail "welcome_secrets section missing"
+  atl_section_prompt_enabled "$section" || fail "welcome_secrets must have prompt: false"
+  if atl_section_has_promptable_fields "$section" docker; then
+    fail "welcome_secrets must not have promptable fields"
+  fi
+}
+
 assert_path_rejects_garbled
 assert_path_accepts_valid
 assert_backup_dir_defaults
@@ -155,5 +166,6 @@ assert_env_get_empty_coalesce
 assert_whiptail_capture_isolated
 assert_write_env_file_format
 assert_mkdir_rejects_empty
+assert_welcome_secrets_section_skipped_in_prompts
 
 echo "installer-lib.harness: all checks passed"

@@ -20,7 +20,7 @@ _prompt_proxy_field() {
       prompt_text="${prompt_text}\n\n(Optional — leave blank to skip.)"
     fi
     if [[ "$secret" == "true" ]]; then
-      current="$(atl_whiptail_capture --passwordbox "$prompt_text" 14 78 "$current")" || return 1
+      current="$(atl_whiptail_capture --passwordbox "$prompt_text" 14 78 "")" || return 1
     else
       current="$(atl_whiptail_capture --inputbox "$prompt_text" 14 78 "$current")" || return 1
     fi

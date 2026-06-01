@@ -3,7 +3,8 @@
     {
       "id": "welcome_secrets",
       "title": "Security",
-      "intro": "Strong random secrets will be generated automatically.\n\nYou do not need to enter JWT, session, database, or storage passwords — they are created for you in the background.",
+      "prompt": false,
+      "intro": "Strong random secrets are generated automatically during setup (never shown on screen).",
       "fields": [
         {
           "key": "JWT_SECRET",

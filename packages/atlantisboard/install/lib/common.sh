@@ -95,12 +95,13 @@ atl_whiptail_tty() {
   printf '%s' /dev/null
 }
 
-# Whiptail must write UI to the terminal; capture stdout via a temp file (legacy fd redirects break capture).
+# Whiptail draws widgets on stdout and prints the chosen value on stderr (see whiptail(1)).
+# Capture stderr in a fresh temp file each call; never use 3>&2 1>&2 (values accumulate across prompts).
 atl_whiptail_capture() {
   local tmp tty
   tmp="$(mktemp)"
   tty="$(atl_whiptail_tty)"
-  if command whiptail "$@" >"$tmp" 2>"$tty"; then
+  if command whiptail "$@" 2>"$tmp" 1>"$tty"; then
     atl_sanitize_input "$(tr -d '\r' <"$tmp")"
     rm -f "$tmp"
     return 0
@@ -112,7 +113,7 @@ atl_whiptail_capture() {
 atl_whiptail_display() {
   local tty
   tty="$(atl_whiptail_tty)"
-  command whiptail "$@" >"$tty" 2>&1
+  command whiptail "$@" 1>"$tty" 2>"$tty"
 }
 
 atl_sudo_mkdir_p() {
@@ -604,6 +605,46 @@ atl_section_applies_to_mode() {
   [[ " $applies " == *" $mode "* ]]
 }
 
+atl_section_prompt_enabled() {
+  local section_json="$1"
+  [[ "$(jq -r '.prompt // true' <<<"$section_json")" != "false" ]]
+}
+
+atl_section_has_promptable_fields() {
+  local section_json="$1" mode="$2"
+  local field auto_gen
+  while IFS= read -r field; do
+    atl_field_applies_to_mode "$field" "$mode" || continue
+    auto_gen="$(jq -r '.auto_generate // false' <<<"$field")"
+    [[ "$auto_gen" != "true" ]] && return 0
+  done < <(jq -c '.fields[]' <<<"$section_json")
+  return 1
+}
+
+atl_count_auto_generate_fields() {
+  local mode="$1" count=0
+  local field
+  [[ -f "$ENV_FIELDS" ]] && command -v jq >/dev/null 2>&1 || {
+    printf '0'
+    return 0
+  }
+  while IFS= read -r field; do
+    atl_field_applies_to_mode "$field" "$mode" || continue
+    [[ "$(jq -r '.auto_generate // false' <<<"$field")" == "true" ]] && count=$((count + 1))
+  done < <(jq -c '.sections[].fields[]' "$ENV_FIELDS")
+  printf '%s' "$count"
+}
+
+atl_generate_install_secrets() {
+  local mode="$1" count
+  [[ -f "$ENV_FIELDS" ]] && command -v jq >/dev/null 2>&1 || return 0
+  count="$(atl_count_auto_generate_fields "$mode")"
+  atl_whiptail_display --title "Security" --infobox \
+    "Generating all keys and passwords...\n\nCreating ${count} secure random values.\n\nSecrets are never shown on screen." \
+    10 72
+  atl_auto_generate_secrets "$mode"
+}
+
 atl_prompt_validated() {
   local key="$1" label="$2" desc="$3" default="$4" secret="$5" optional="$6" vtype="$7"
   local current prompt_text err_msg valid=false
@@ -616,7 +657,8 @@ atl_prompt_validated() {
     fi
 
     if [[ "$secret" == "true" ]]; then
-      current="$(atl_whiptail_capture --passwordbox "$prompt_text" 14 78 "$current")" || return 1
+      # Never pre-fill password boxes (avoids flashing generated or existing secrets).
+      current="$(atl_whiptail_capture --passwordbox "$prompt_text" 14 78 "")" || return 1
     else
       current="$(atl_whiptail_capture --inputbox "$prompt_text" 14 78 "$current")" || return 1
     fi
@@ -661,19 +703,23 @@ atl_auto_generate_secrets() {
 atl_prompt_env_fields() {
   local mode="$1"
   [[ -f "$ENV_FIELDS" ]] && command -v jq >/dev/null 2>&1 || {
-    whiptail --title "Setup" --msgbox "jq not found; only auto-generated secrets and defaults will be used.\n\nInstall jq for the full setup experience." 10 70 || true
+    atl_whiptail_display --title "Setup" --msgbox \
+      "jq not found; only auto-generated secrets and defaults will be used.\n\nInstall jq for the full setup experience." \
+      10 70 || true
     return 0
   }
 
   local section title intro field key label desc default secret optional vtype auto_gen
   while IFS= read -r section; do
     atl_section_applies_to_mode "$section" "$mode" || continue
+    atl_section_prompt_enabled "$section" || continue
+    atl_section_has_promptable_fields "$section" "$mode" || continue
     title="$(jq -r '.title' <<<"$section")"
     intro="$(jq -r '.intro // empty' <<<"$section")"
     if [[ -n "$intro" ]]; then
-      whiptail --title "$title" --msgbox "$intro" 12 70 || true
+      atl_whiptail_display --title "$title" --msgbox "$intro" 12 70 || true
     else
-      whiptail --title "$title" --msgbox "Configure ${title} in the next dialogs." 8 70 || true
+      atl_whiptail_display --title "$title" --msgbox "Configure ${title} in the next dialogs." 8 70 || true
     fi
 
     mapfile -t fields < <(jq -c '.fields[]' <<<"$section")

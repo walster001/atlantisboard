@@ -6,5 +6,13 @@ set -euo pipefail
 if [[ "${WHIPTAIL_MOCK_EXIT_CODE:-0}" != "0" ]]; then
   exit "${WHIPTAIL_MOCK_EXIT_CODE}"
 fi
-printf '%s' "${WHIPTAIL_MOCK_VALUE:-}"
+# Real whiptail writes chosen values to stderr for input widgets only (see whiptail(1)).
+args=" $* "
+if [[ "$args" == *" --menu "* ]] \
+  || [[ "$args" == *" --inputbox "* ]] \
+  || [[ "$args" == *" --passwordbox "* ]] \
+  || [[ "$args" == *" --checklist "* ]] \
+  || [[ "$args" == *" --radiolist "* ]]; then
+  printf '%s' "${WHIPTAIL_MOCK_VALUE:-}" >&2
+fi
 exit 0

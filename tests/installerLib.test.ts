@@ -15,7 +15,7 @@ const INSTALL_SHELL_FILES = [
   join(INSTALL_DIR, 'bin', 'setup.sh'),
 ];
 
-/** Legacy redirect on whiptail capture lines caused menu/input answers to merge incorrectly. */
+/** Legacy fd swap on capture lines caused answers to merge; whiptail values belong on stderr (see whiptail(1)). */
 const FORBIDDEN_WHIPTAIL_REDIRECT = /3>&2 1>&2/;
 
 function shellLineUsesBrokenWhiptailRedirect(line: string): boolean {
@@ -100,6 +100,26 @@ describe('installer shell static guards', () => {
     expect(common).toContain('atl_whiptail_capture()');
     expect(common).toContain('atl_path_is_safe_absolute()');
     expect(common).toContain('atl_env_get()');
+    expect(common).toContain('atl_generate_install_secrets()');
+    expect(common).toMatch(/whiptail\s+"\$@"\s+2>"\$tmp"\s+1>"\$tty"/);
+    expect(common).toContain('--passwordbox "$prompt_text" 14 78 ""');
+  });
+
+  test('setup.sh generates secrets via infobox only (not interactive key prompts)', () => {
+    const setup = readFileSync(join(INSTALL_DIR, 'setup.sh'), 'utf8');
+    expect(setup).toContain('atl_generate_install_secrets "$MODE"');
+    expect(setup).not.toContain('atl_auto_generate_secrets "$MODE"');
+  });
+
+  test('welcome_secrets section is non-interactive in env-fields.json', () => {
+    const raw = readFileSync(join(INSTALL_DIR, 'env-fields.json'), 'utf8');
+    const parsed = JSON.parse(raw) as {
+      sections: ReadonlyArray<{ id: string; prompt?: boolean; fields: ReadonlyArray<{ auto_generate?: boolean }> }>;
+    };
+    const security = parsed.sections.find((s) => s.id === 'welcome_secrets');
+    expect(security).toBeDefined();
+    expect(security?.prompt).toBe(false);
+    expect(security?.fields.every((f) => f.auto_generate === true)).toBe(true);
   });
 
   test('setup.sh validates installation MODE after menu capture', () => {

@@ -37,7 +37,7 @@ See also [Environment Variables Reference](../docs/wiki/environment-variables.md
 
 Files under `tests/*.test.ts` that do not import `ensureTestServer` — no external services.
 
-**Installer** (`tests/installerLib.test.ts`): runs `tests/installer/installer-lib.harness.sh` against `packages/atlantisboard/install/lib/common.sh` — path validation, mock whiptail capture isolation, `.env` newline format, and static guards (no legacy `whiptail … 3>&2 1>&2` capture redirects). No Mongo/Redis/real whiptail required. Fast subset: `bun run test:installer`.
+**Installer** (`tests/installerLib.test.ts`): runs `tests/installer/installer-lib.harness.sh` against `packages/atlantisboard/install/lib/common.sh` — path validation, mock whiptail capture isolation (stderr, per `whiptail(1)`), `.env` newline format, and static guards (no legacy `whiptail … 3>&2 1>&2` capture redirects). No Mongo/Redis/real whiptail required. Fast subset: `bun run test:installer`.
 
 ### HTTP integration (`tests/api.test.ts`, `tests/permissionsPrivateBoard.test.ts`, `tests/integration/*`)
 

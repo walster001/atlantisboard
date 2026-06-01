@@ -1,4 +1,3 @@
-import { SQL } from 'bun';
 import { AdminConfig } from '../models/AdminConfig.js';
 import { decrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
@@ -14,6 +13,8 @@ export interface MySQLConfig {
 }
 
 export const DEFAULT_VERIFICATION_QUERY = 'SELECT 1 FROM users WHERE email = ? LIMIT 1';
+
+type MysqlSqlClient = BunSqlClient;
 
 export function splitMysqlHostInput(raw: string, defaultPort: number): { host: string; port: number } {
   const t = raw.trim();
@@ -123,11 +124,11 @@ export async function verifyUserInMySQL(email: string): Promise<boolean> {
     return false;
   }
 
-  let mysql: SQL | undefined;
+  let mysql: MysqlSqlClient | undefined;
   try {
     await assertMysqlHostAllowed(config.host);
     const url = buildMysqlUrl(config);
-    mysql = new SQL(url);
+    mysql = new Bun.SQL(url);
     const result = await mysql.unsafe(config.verificationQuery, [email]);
     const rows = normalizeSqlRows(result);
     return rows.length > 0;
@@ -179,11 +180,11 @@ export async function testExternalMySQLConnection(input: TestMySQLInput): Promis
     verificationQuery: queryText,
   };
 
-  let mysql: SQL | undefined;
+  let mysql: MysqlSqlClient | undefined;
   try {
     await assertMysqlHostAllowed(cfg.host);
     const url = buildMysqlUrl(cfg);
-    mysql = new SQL(url);
+    mysql = new Bun.SQL(url);
     await mysql`SELECT 1 AS ping`;
     await mysql.unsafe(queryText, ['__kanboard_connection_test__@invalid.local']);
     return { ok: true, message: 'Connection successful. Verification query executed.' };

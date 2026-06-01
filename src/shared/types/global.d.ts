@@ -17,8 +17,20 @@ declare global {
     ) => boolean;
   }
 
+  /** Bun built-in SQL client (MySQL, PostgreSQL, SQLite). */
+  interface BunSqlClient {
+    unsafe<T = unknown>(query: string, values?: readonly unknown[]): Promise<T>;
+    close(options?: { timeout?: number }): Promise<void>;
+    (strings: TemplateStringsArray, ...values: unknown[]): Promise<unknown>;
+  }
+
+  interface BunSqlConstructor {
+    new (connectionString: string | URL): BunSqlClient;
+  }
+
   interface BunGlobal {
     CSRF?: BunCsrfApi;
+    SQL: BunSqlConstructor;
     password: {
       hash(
         password: string,

@@ -632,8 +632,8 @@ body.site--home .site-footer__copy {
 }
 
 body.site--home .site-footer__inner {
-  padding-top: 0.65rem;
-  padding-bottom: 0.75rem;
+  padding: 0;
+  min-height: 0;
 }
 
 .site-footer__inner {

@@ -161,6 +161,16 @@ describe('installer shell static guards', () => {
     expect(fieldCount).toBeGreaterThan(10);
   });
 
+  test('fullstack compose references install root .env not install/.env', () => {
+    const compose = readFileSync(
+      join(INSTALL_DIR, 'docker', 'docker-compose.fullstack.yml'),
+      'utf8'
+    );
+    expect(compose).toContain('../../.env');
+    expect(compose).not.toMatch(/env_file:\s*\n\s*-\s+\.\.\/\.env\b/);
+    expect(compose).toContain('context: ../..');
+  });
+
   test('mock whiptail fixture is executable', () => {
     const mockDir = join(REPO_ROOT, 'tests', 'installer', 'fixtures', 'bin');
     const names = readdirSync(mockDir);

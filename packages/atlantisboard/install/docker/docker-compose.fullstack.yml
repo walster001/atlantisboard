@@ -1,5 +1,5 @@
 # Production full-stack Compose for atlantisboard-setup (app + MongoDB + Redis + MinIO + ClamAV).
-# Build context is the install directory (parent of install/docker/).
+# Paths are relative to this file (install/docker/): repo root is ../..
 #
 # VOLUME RESET (reinstall / new secrets):
 #   cd install/docker && docker compose --env-file ../../.env -f docker-compose.fullstack.yml down -v
@@ -136,14 +136,14 @@ services:
 
   app:
     build:
-      context: ..
+      context: ../..
       dockerfile: install/docker/Dockerfile
     container_name: atlantisboard-app-full
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:3000"
     env_file:
-      - ../.env
+      - ../../.env
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0

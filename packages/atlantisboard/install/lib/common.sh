@@ -1397,10 +1397,19 @@ atl_write_env_file() {
 atl_docker_compose() {
   local compose_dir="$1" compose_file="$2"
   shift 2
+  local env_file="${ENV_FILE:-}"
+  if [[ -z "$env_file" ]]; then
+    echo "atlantisboard-setup: internal error — ENV_FILE is not set before docker compose" >&2
+    return 1
+  fi
+  if ! atl_sudo test -f "$env_file"; then
+    echo "atlantisboard-setup: ${env_file} not found — run setup through .env creation before starting containers" >&2
+    return 1
+  fi
   if atl_sudo docker compose version >/dev/null 2>&1; then
-    (cd "$compose_dir" && atl_sudo docker compose --env-file "$ENV_FILE" -f "$compose_file" "$@")
+    (cd "$compose_dir" && atl_sudo docker compose --env-file "$env_file" -f "$compose_file" "$@")
   else
-    (cd "$compose_dir" && atl_sudo docker-compose --env-file "$ENV_FILE" -f "$compose_file" "$@")
+    (cd "$compose_dir" && atl_sudo docker-compose --env-file "$env_file" -f "$compose_file" "$@")
   fi
 }
 

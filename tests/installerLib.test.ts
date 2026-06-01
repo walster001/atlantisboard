@@ -171,6 +171,18 @@ describe('installer shell static guards', () => {
     expect(compose).toContain('context: ../..');
   });
 
+  test('installer MinIO images default to Docker Hub (not quay.io)', () => {
+    const defaults = readFileSync(join(INSTALL_DIR, 'docker', 'image-defaults.env'), 'utf8');
+    expect(defaults).toContain('docker.io/minio/minio:');
+    expect(defaults).not.toContain('quay.io');
+    const deps = readFileSync(join(INSTALL_DIR, 'docker', 'docker-compose.deps.yml'), 'utf8');
+    expect(deps).toContain('ATLANTISBOARD_MINIO_IMAGE');
+    expect(deps).not.toContain('quay.io/minio');
+    const common = readFileSync(join(INSTALL_DIR, 'lib', 'common.sh'), 'utf8');
+    expect(common).toContain('image-defaults.env');
+    expect(common).toContain('max_attempts=3');
+  });
+
   test('mock whiptail fixture is executable', () => {
     const mockDir = join(REPO_ROOT, 'tests', 'installer', 'fixtures', 'bin');
     const names = readdirSync(mockDir);

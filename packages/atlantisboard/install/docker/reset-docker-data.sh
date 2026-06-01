@@ -36,7 +36,8 @@ else
 fi
 
 ENV_ARGS=()
-[[ -f "$ENV_FILE" ]] && ENV_ARGS=(--env-file "$ENV_FILE")
+[[ -f "${SCRIPT_DIR}/image-defaults.env" ]] && ENV_ARGS+=(--env-file "${SCRIPT_DIR}/image-defaults.env")
+[[ -f "$ENV_FILE" ]] && ENV_ARGS+=(--env-file "$ENV_FILE")
 
 echo "Stopping ${MODE} stack and removing volumes (env: ${ENV_FILE})..."
 (cd "$SCRIPT_DIR" && "${COMPOSE[@]}" "${ENV_ARGS[@]}" -f "$COMPOSE_FILE" down -v)

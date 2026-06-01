@@ -78,7 +78,7 @@ services:
 
   # AGPL community S3 — not AIStor enterprise
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: kanboard-minio-prod
     restart: unless-stopped
     environment:
@@ -97,7 +97,7 @@ services:
 
   # AGPL community mc CLI — not AIStor enterprise
   minio-setup:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: docker.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: kanboard-minio-setup-prod
     depends_on:
       - minio

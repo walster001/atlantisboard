@@ -1394,6 +1394,31 @@ atl_write_env_file() {
   rm -f "$tmp"
 }
 
+atl_docker_compose_env_args() {
+  local compose_dir="$1"
+  local env_file="${ENV_FILE:-}"
+  local -a args=()
+  if [[ -f "${compose_dir}/image-defaults.env" ]]; then
+    args+=(--env-file "${compose_dir}/image-defaults.env")
+  fi
+  args+=(--env-file "$env_file")
+  printf '%s\n' "${args[@]}"
+}
+
+atl_docker_compose_run() {
+  local compose_dir="$1" compose_file="$2"
+  shift 2
+  local -a env_args=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && env_args+=("$line")
+  done < <(atl_docker_compose_env_args "$compose_dir")
+  if atl_sudo docker compose version >/dev/null 2>&1; then
+    (cd "$compose_dir" && atl_sudo docker compose "${env_args[@]}" -f "$compose_file" "$@")
+  else
+    (cd "$compose_dir" && atl_sudo docker-compose "${env_args[@]}" -f "$compose_file" "$@")
+  fi
+}
+
 atl_docker_compose() {
   local compose_dir="$1" compose_file="$2"
   shift 2
@@ -1406,11 +1431,21 @@ atl_docker_compose() {
     echo "atlantisboard-setup: ${env_file} not found — run setup through .env creation before starting containers" >&2
     return 1
   fi
-  if atl_sudo docker compose version >/dev/null 2>&1; then
-    (cd "$compose_dir" && atl_sudo docker compose --env-file "$env_file" -f "$compose_file" "$@")
-  else
-    (cd "$compose_dir" && atl_sudo docker-compose --env-file "$env_file" -f "$compose_file" "$@")
-  fi
+
+  local max_attempts=3 attempt=1 delay=15
+  while [[ "$attempt" -le "$max_attempts" ]]; do
+    if atl_docker_compose_run "$compose_dir" "$compose_file" "$@"; then
+      return 0
+    fi
+    if [[ "$attempt" -lt "$max_attempts" ]]; then
+      echo "atlantisboard-setup: docker compose failed (attempt ${attempt}/${max_attempts}); retrying in ${delay}s (registry timeouts are common)..." >&2
+      sleep "$delay"
+      delay=$((delay + 15))
+    fi
+    attempt=$((attempt + 1))
+  done
+  echo "atlantisboard-setup: docker compose failed after ${max_attempts} attempts. Check network access to docker.io and retry, or set ATLANTISBOARD_MINIO_IMAGE / ATLANTISBOARD_MINIO_MC_IMAGE in .env to a mirror." >&2
+  return 1
 }
 
 atl_prompt_install_dir() {

@@ -101,8 +101,8 @@ Atlantisboard is a self-hosted, real-time collaborative Kanban board designed fo
 
 ### Import & Export
 
-- [Importing Boards](/wiki/import/) — Supported formats (Atlantisboard, Trello, Wekan, CSV), import flow, and user management.
-- [Exporting Boards](/wiki/export/) — CSV, Trello, Wekan, and Atlantisboard export formats with column configuration.
+- [Importing Boards](/wiki/import/) — Supported formats (Atlantisboard, Trello®, WeKan®, CSV), import flow, and user management.
+- [Exporting Boards](/wiki/export/) — CSV, Trello®, WeKan®, and Atlantisboard export formats with column configuration.
 
 ### More
 

@@ -59,7 +59,7 @@ On the home page, each board tile has a three-dot menu icon (or you can right-cl
 | **Rename board** | Change the board's display name inline. |
 | **Edit description** | Update the board's description text. |
 | **Change colour** | Open a background colour preset picker to quickly change the board tile's colour on the home page. |
-| **Export board** | Download the board in one of the supported export formats (CSV, Trello JSON, Wekan JSON, or Atlantisboard JSON). See [Exporting Boards](/wiki/export/). |
+| **Export board** | Download the board in one of the supported export formats (CSV, Trello® JSON, WeKan® JSON, or Atlantisboard JSON). See [Exporting Boards](/wiki/export/). |
 | **Delete board** | Permanently remove the board and all its data. A confirmation modal requires you to acknowledge the action before deletion proceeds. |
 
 ### Permissions

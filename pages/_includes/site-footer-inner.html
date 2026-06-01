@@ -1,0 +1,6 @@
+<div class="site-footer__inner">
+  {% unless page.url == '/' or page.url == '/index.html' %}
+    <p class="site-footer__copy">&copy; {{ 'now' | date: '%Y' }} Atlantis Leadership Inc.</p>
+  {% endunless %}
+  {% include site-footer-disclaimer.html %}
+</div>

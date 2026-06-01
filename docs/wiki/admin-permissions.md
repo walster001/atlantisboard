@@ -123,8 +123,8 @@ Atlantisboard organises permissions into **15 categories**. Each category contai
 | 10 | **Comments** | Add, edit, and delete comments on cards |
 | 11 | **Checklists** | Create, edit, and delete checklists and checklist items |
 | 12 | **Invites** | Create, view, and delete board invite links |
-| 13 | **Import** | Import boards from external formats (Trello, Wekan, CSV, Atlantisboard JSON) |
-| 14 | **Export** | Export boards to external formats (CSV, Trello JSON, Wekan JSON, Atlantisboard JSON) |
+| 13 | **Import** | Import boards from external formats (Trello®, WeKan®, CSV, Atlantisboard JSON) |
+| 14 | **Export** | Export boards to external formats (CSV, Trello® JSON, WeKan® JSON, Atlantisboard JSON) |
 | 15 | **Other** | Miscellaneous permissions not covered by the above categories |
 
 Each category expands to show its individual permission toggles. For example, the **Cards** category includes separate toggles for creating cards, editing card titles, moving cards between lists, reordering cards within a list, editing start/due/end dates, deleting cards, and more.

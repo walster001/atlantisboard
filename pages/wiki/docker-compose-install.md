@@ -53,13 +53,13 @@ cp .env.example .env
 
 ### 3. Generate Secrets
 
-Atlantisboard requires four cryptographic secrets. Generate each one with:
+Atlantisboard requires five cryptographic secrets. Generate each one with:
 
 ```bash
 openssl rand -base64 48
 ```
 
-Run this command **four times** and paste the results into your `.env` file for:
+Run this command **five times** and paste the results into your `.env` file for:
 
 | Variable | Purpose |
 |----------|---------|
@@ -67,6 +67,7 @@ Run this command **four times** and paste the results into your `.env` file for:
 | `SESSION_SECRET` | Signs Express session cookies |
 | `CSRF_SECRET` | Signs CSRF protection tokens |
 | `ENCRYPTION_KEY` | AES-256-GCM key for encrypting stored credentials (OAuth secrets, MySQL passwords, VAPID keys) |
+| `MEDIA_SIGN_SECRET` | HMAC signing for time-limited branding and asset URLs (must differ from `JWT_SECRET`) |
 
 > **Warning:** Never reuse the same secret for multiple variables. Each must be unique. Never commit your `.env` file to version control.
 
@@ -84,10 +85,23 @@ JWT_SECRET=<your-generated-secret>
 SESSION_SECRET=<your-generated-secret>
 CSRF_SECRET=<your-generated-secret>
 ENCRYPTION_KEY=<your-generated-secret>
+MEDIA_SIGN_SECRET=<your-generated-secret>
 
-MINIO_ACCESS_KEY=<choose-a-strong-access-key>
-MINIO_SECRET_KEY=<choose-a-strong-secret-key>
+REDIS_PASSWORD=<your-generated-secret>
+
+MONGODB_ROOT_USER=kanboard_root
+MONGODB_ROOT_PASSWORD=<your-generated-secret>
+MONGODB_APP_USER=kanboard_app
+MONGODB_APP_PASSWORD=<your-generated-secret>
+MONGODB_URI=mongodb://kanboard_app:<MONGODB_APP_PASSWORD>@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0
+
+MINIO_ROOT_ACCESS_KEY=<minio-root-access-key>
+MINIO_ROOT_SECRET_KEY=<minio-root-secret-key>
+MINIO_ACCESS_KEY=<scoped-app-access-key>
+MINIO_SECRET_KEY=<scoped-app-secret-key>
 ```
+
+For a single credential set (simpler, less isolated), you may omit `MINIO_ROOT_*` and use the same values for both MinIO root and the app. For least privilege, use distinct root and application keys as shown above.
 
 For a complete list of every variable, see the [Environment Variables Reference](/wiki/environment-variables/).
 
@@ -107,14 +121,15 @@ Check that all containers are running and healthy:
 docker compose -f docker-compose.prod.yml ps
 ```
 
-You should see five containers (four persistent services + one init container that exits after setup):
+You should see seven services (four persistent + three one-shot init jobs that exit 0):
 
 | Container | Status |
 |-----------|--------|
 | `mongodb` | Running (healthy) |
+| `mongodb-init` | Exited (0) — replica set initiation |
 | `redis` | Running (healthy) |
 | `minio` | Running (healthy) |
-| `minio-setup` | Exited (0) — this is expected |
+| `minio-setup` | Exited (0) — bucket and optional scoped user |
 | `app` | Running (healthy) |
 
 ### 7. Access Atlantisboard
@@ -133,7 +148,9 @@ You should see the Atlantisboard login page. Proceed to [Creating the First Admi
 
 ### `mongodb` — Database
 
-MongoDB 8.0 stores all application data: users, workspaces, boards, cards, labels, comments, activities, and settings. It runs as a **replica set** (required for Change Streams, which power real-time collaboration).
+MongoDB 8.0 stores all application data: users, workspaces, boards, cards, labels, comments, activities, and settings. It runs as a **replica set** with **SCRAM authentication** in production (required for Change Streams, which power real-time collaboration). The `mongodb-init` job configures `rs0` on first deploy.
+
+**Oplog sizing:** change streams read the oplog. For production, configure enough oplog retention (typically **24–48 hours** of writes at peak load) so a deploy or outage does not roll the oplog before the app resumes from its stored tokens. On self-hosted MongoDB, adjust `replication.oplogSizeMB`; on Atlas, use the cluster’s oplog window settings. Check headroom with `db.getReplicationInfo()` in `mongosh`.
 
 ### `redis` — Session Store & Rate Limiting
 
@@ -189,6 +206,18 @@ All data is stored in named Docker volumes, which persist across container resta
 
 > **Warning:** Removing Docker volumes (`docker compose down -v`) permanently deletes all data. Always create a backup before performing destructive operations.
 
+### Migrating an existing production deployment
+
+If you already ran production Compose **without** MongoDB authentication:
+
+1. Back up MongoDB and MinIO data before any change.
+2. Either provision a fresh volume (`docker compose -f docker-compose.prod.yml down -v` **destroys data**) and restore from backup, or manually enable auth and create users with `mongosh` (see MongoDB docs).
+3. Set `MONGODB_ROOT_*`, `MONGODB_APP_*`, and a credentialed `MONGODB_URI` in `.env`.
+4. Rotate `REDIS_PASSWORD`, MinIO keys, and add `MEDIA_SIGN_SECRET` (distinct from `JWT_SECRET`).
+5. Remove any anonymous branding bucket policy in MinIO (`mc anonymous set none myminio/branding`).
+
+Development Compose binds MongoDB, Redis, and MinIO to **127.0.0.1** only (not all interfaces). Branding is not publicly readable from MinIO; the app serves assets via signed URLs.
+
 ---
 
 ## Managing the Stack
@@ -228,6 +257,17 @@ docker compose -f docker-compose.prod.yml down -v
 ```
 
 > **Warning:** The `-v` flag deletes all named volumes. This is irreversible. Only use this if you want a completely fresh start.
+
+---
+
+## Local development persistence
+
+The root `docker-compose.yml` (used by `./scripts/dev-start.sh`) stores MongoDB, Redis, and MinIO on the **host** under `.docker-data/` via bind mounts. Data survives `docker compose down` and container removal.
+
+- **Safe:** `docker compose stop`, `docker compose down` (without `-v`)
+- **Risky:** `docker compose down -v`, `docker volume prune`, deleting `.docker-data/`
+
+See **[DOCKER-DEV-DATA.md](../DOCKER-DEV-DATA.md)** for layout, `KANBOARD_DOCKER_DATA_DIR`, backups, and migrating from old named volumes.
 
 ---
 

@@ -1338,16 +1338,16 @@ The card detail modal with all sections:
 **Content**:
 - **Supported import formats** (4):
   - **Atlantisboard JSON** — native format, full fidelity.
-  - **Trello JSON** — Trello board export file.
-  - **Wekan JSON** — Wekan board export file.
+  - **Trello® JSON** — Trello® board export file.
+  - **WeKan® JSON** — WeKan® board export file.
   - **CSV / TSV** — tabular card data appended to an existing board.
 - **Import flow**:
   1. Open the Import/Export modal from the home page.
   2. Select the import source/format.
   3. Upload a file (max size configurable via `BOARD_IMPORT_MAX_MB`, default 35 MB).
-  4. **Preflight** (Trello/Wekan): the file is parsed client-side to detect users and (for Wekan) legacy inline buttons with broken icon URLs.
+  4. **Preflight** (Trello®/WeKan®): the file is parsed client-side to detect users and (for Wekan) legacy inline buttons with broken icon URLs.
   5. **User Management tab**: choose whether to create placeholder users or discard unmapped users.
-  6. **Replace Buttons tab** (Wekan only): upload replacement icons for legacy inline buttons.
+  6. **Replace Buttons tab** (WeKan® only): upload replacement icons for legacy inline buttons.
   7. Optionally set a default card colour.
   8. Confirm and start the import.
 - **Import job tracking**: server creates a persistent `ImportJob` record. The client polls progress every 2 seconds, showing a progress bar with current phase (boards → labels → lists → cards → done).
@@ -1371,8 +1371,8 @@ The card detail modal with all sections:
 **Content**:
 - **Export formats** (4, each gated by a role permission):
   - **CSV** (`export.board.csv`) — card data in tabular format with configurable columns (title, description, list, labels, assignees, due date, start date, completed, created, updated).
-  - **Trello JSON** (`export.board.trello`) — Trello-compatible JSON.
-  - **Wekan JSON** (`export.board.wekan`) — Wekan-compatible JSON.
+  - **Trello® JSON** (`export.board.trello`) — Trello-compatible JSON.
+  - **WeKan® JSON** (`export.board.wekan`) — Wekan-compatible JSON.
   - **Atlantisboard JSON** (`export.board.atlantisboard`) — complete board data with embedded attachments (up to 25 MB as data URLs).
 - **Export flow**:
   1. Open the board card context menu on the home page, or use the Export tab in the Import/Export modal.

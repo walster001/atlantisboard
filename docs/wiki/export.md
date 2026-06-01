@@ -1,7 +1,7 @@
 ---
 layout: wiki
 title: "Exporting Boards"
-description: "Export boards to CSV, Trello JSON, Wekan JSON, or Atlantisboard JSON with configurable columns and embedded attachments."
+description: "Export boards to CSV, Trello® JSON, WeKan® JSON, or Atlantisboard JSON with configurable columns and embedded attachments."
 parent: "Import & Export"
 nav_order: 51
 permalink: /wiki/export/
@@ -44,11 +44,11 @@ You can select which columns to include before exporting, tailoring the output t
 
 ---
 
-### Trello JSON
+### Trello® JSON
 
 **Permission:** `export.board.trello`
 
-Exports the board in a Trello-compatible JSON format. This file can be imported into Trello or any other tool that supports the Trello export format.
+Exports the board in a Trello®-compatible JSON format. This file can be imported into Trello® or any other tool that supports the Trello® export format.
 
 **Includes:**
 - Board name and description
@@ -60,15 +60,15 @@ Exports the board in a Trello-compatible JSON format. This file can be imported 
 
 ---
 
-### Wekan JSON
+### WeKan® JSON
 
 **Permission:** `export.board.wekan`
 
-Exports the board in a Wekan-compatible JSON format, suitable for importing into Wekan instances.
+Exports the board in a WeKan®-compatible JSON format, suitable for importing into WeKan® instances.
 
 **Includes:**
 - Board structure and metadata
-- Lists (mapped to Wekan's list format)
+- Lists (mapped to WeKan®'s list format)
 - Cards with all standard fields
 - Labels
 - Checklists
@@ -128,8 +128,8 @@ Export files are served with the `Content-Disposition: attachment` header, trigg
 | Format | Required Permission |
 |--------|-------------------|
 | CSV | `export.board.csv` |
-| Trello JSON | `export.board.trello` |
-| Wekan JSON | `export.board.wekan` |
+| Trello® JSON | `export.board.trello` |
+| WeKan® JSON | `export.board.wekan` |
 | Atlantisboard JSON | `export.board.atlantisboard` |
 
 If you don't see an export option, your current role may not include the corresponding permission. Contact your board or app administrator to request access.
@@ -139,7 +139,7 @@ If you don't see an export option, your current role may not include the corresp
 ## Use Cases
 
 - **Reporting** — Export to CSV for use in spreadsheets, BI tools, or project reports.
-- **Migration** — Export to Trello or Wekan format when moving to another platform.
+- **Migration** — Export to Trello® or WeKan® format when moving to another platform.
 - **Board backup** — Export to Atlantisboard JSON for a portable board backup with attachments.
 - **Data archival** — Export completed boards before deletion for long-term storage.
 

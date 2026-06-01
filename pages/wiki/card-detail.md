@@ -130,10 +130,9 @@ The comments section supports threaded discussion on a card.
 
 ![Card comments](/assets/wiki/card-comments.png)
 
-- **Add a comment** — type in the comment field (rich text supported via Tiptap).
-- **Edit** your own comments after posting.
+- **Add a comment** — type in the comment field and click **Save**.
 - **Delete** your own comments, or delete others' comments if you have the `comments.delete` permission.
-- **Typing indicator** — when another user is typing a comment, a real-time indicator appears so you know a response is incoming.
+- **Real-time sync** — when another user adds or deletes a comment, your open card detail updates automatically (you do not see text while they are still typing).
 - Each comment displays the **author avatar**, **author name**, and **timestamp**.
 
 ---

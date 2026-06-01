@@ -1,7 +1,7 @@
 ---
 layout: wiki
 title: "Importing Boards"
-description: "Import boards from Trello, Wekan, CSV/TSV, or Atlantisboard JSON — full import flow with user mapping and progress tracking."
+description: "Import boards from Trello®, WeKan®, CSV/TSV, or Atlantisboard JSON — full import flow with user mapping and progress tracking."
 parent: "Import & Export"
 nav_order: 50
 permalink: /wiki/import/
@@ -20,8 +20,8 @@ Atlantisboard can import boards from multiple sources, making it easy to migrate
 | Format | Description | Permission |
 |--------|-------------|-----------|
 | **Atlantisboard JSON** | Native format with full fidelity — preserves all board data including attachments, settings, and metadata. | (standard import capability) |
-| **Trello JSON** | Import directly from Trello's board export file. Translates Trello lists, cards, labels, checklists, and comments. | `import.trello` |
-| **Wekan JSON** | Import from Wekan's board export file. Handles Wekan-specific structures including swimlanes. | `import.wekan` |
+| **Trello® JSON** | Import directly from Trello®'s board export file. Translates Trello® lists, cards, labels, checklists, and comments. | `import.trello` |
+| **WeKan® JSON** | Import from WeKan®'s board export file. Handles WeKan®-specific structures including swimlanes. | `import.wekan` |
 | **CSV / TSV** | Import tabular card data into an existing board. Each row becomes a card with mapped columns. | (standard import capability) |
 
 ---
@@ -31,7 +31,7 @@ Atlantisboard can import boards from multiple sources, making it easy to migrate
 Before importing, ensure:
 
 - You have the **Import Boards** capability enabled on your user account (configured by an app admin in [User Management](admin-users.md)).
-- For Trello/Wekan imports, you have the appropriate format-specific permission in your role.
+- For Trello®/WeKan® imports, you have the appropriate format-specific permission in your role.
 - Your import file does not exceed the maximum size (configurable via `BOARD_IMPORT_MAX_MB`, default 35 MB).
 
 ---
@@ -52,13 +52,13 @@ Choose one of the four supported formats. The interface adapts to show options s
 
 Click the upload area or drag-and-drop your export file. The file is validated client-side for correct format and size before proceeding.
 
-### Step 4 — Preflight Parsing (Trello & Wekan)
+### Step 4 — Preflight Parsing (Trello® & WeKan®)
 
-For Trello and Wekan imports, the file is parsed client-side to:
+For Trello® and WeKan® imports, the file is parsed client-side to:
 
 - Detect all users referenced in the export.
 - Identify board members, card assignees, and comment authors.
-- (Wekan only) Detect legacy inline buttons with potentially broken icon URLs.
+- (WeKan® only) Detect legacy inline buttons with potentially broken icon URLs.
 
 This step prepares data for the user management and button replacement tabs.
 
@@ -72,9 +72,9 @@ The User Management tab shows all users found in the import file. For each user,
 - **Discard** — The user is not imported. Their cards and comments remain but are unattributed.
 - **Map to existing user** — Link the imported user to an existing Atlantisboard account.
 
-### Step 6 — Replace Buttons Tab (Wekan Only)
+### Step 6 — Replace Buttons Tab (WeKan® Only)
 
-Wekan exports may contain legacy inline buttons with icon URLs that no longer resolve. This tab lets you:
+WeKan® exports may contain legacy inline buttons with icon URLs that no longer resolve. This tab lets you:
 
 - View all detected inline buttons.
 - Upload replacement icon images for broken references.
@@ -110,7 +110,7 @@ The import runs server-side, so you can navigate away and return — the job con
 
 The data imported depends on the source format:
 
-| Data | Atlantisboard JSON | Trello JSON | Wekan JSON | CSV/TSV |
+| Data | Atlantisboard JSON | Trello® JSON | WeKan® JSON | CSV/TSV |
 |------|:---:|:---:|:---:|:---:|
 | Board name & description | Yes | Yes | Yes | — |
 | Lists/columns | Yes | Yes | Yes | — |
@@ -156,8 +156,8 @@ Check the import job status for detailed error information if the import complet
 | Requirement | Description |
 |-------------|-------------|
 | **Import Boards capability** | Must be enabled on your user account by an app admin. |
-| `import.trello` | Role permission required for Trello format imports. |
-| `import.wekan` | Role permission required for Wekan format imports. |
+| `import.trello` | Role permission required for Trello® format imports. |
+| `import.wekan` | Role permission required for WeKan® format imports. |
 | Standard import | Atlantisboard JSON and CSV/TSV require only the Import Boards capability. |
 
 ---

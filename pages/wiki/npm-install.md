@@ -11,7 +11,7 @@ permalink: /wiki/npm-install/
 
 Install the published package on a **Linux** server with [Bun](https://bun.sh) and **whiptail** (dialog UI).
 
-The same Whiptail installer is in the GitHub Release file **`atlantisboard-<version>.zip`** (not `-runtime.zip`).
+The same Whiptail installer is also in the **GitHub Release** file `atlantisboard-<version>.zip` (see [GitHub Release install](#github-release-install) below).
 
 ## Quick install
 
@@ -36,13 +36,17 @@ atlantisboard-setup   # run later on the target host
 
 ## GitHub Release install
 
+Download **`atlantisboard-<version>.zip`** from [GitHub Releases](https://github.com/walster001/atlantisboard/releases) (not the `-runtime.zip` file). That archive is the same layout as the npm package, including the Whiptail wizard.
+
 ```bash
 unzip atlantisboard-1.0.1.zip -d atlantisboard-1.0.1
 cd atlantisboard-1.0.1
 sudo ./atlantisboard-setup
 ```
 
-Use **`atlantisboard-<version>.zip`** from [GitHub Releases](https://github.com/walster001/atlantisboard/releases). The **`-runtime.zip`** file has no Whiptail installer (manual `.env` only).
+Requires Linux, **whiptail**, **jq**, **openssl**, and **Docker** (for full-stack or dependency modes). Secrets are auto-generated; choose **Docker full stack** for the easiest single-server setup.
+
+> **Note:** `atlantisboard-<version>-runtime.zip` is a **slim runtime-only** bundle without the installer — use it only if you configure `.env` and services yourself. See [DEPLOYMENT.md](https://github.com/walster001/atlantisboard/blob/main/DEPLOYMENT.md).
 
 ## What the wizard does
 
@@ -54,14 +58,13 @@ Use **`atlantisboard-<version>.zip`** from [GitHub Releases](https://github.com/
 3. **Environment** — friendly prompts with validation; security secrets are **generated automatically** (no need to press Enter on each password field).
 4. **Dependencies** — `bun install --production` on the host (skipped for full-stack Docker mode).
 5. **systemd** — optional `atlantisboard` and `atlantisboard-worker` units for host-run modes.
-6. **Reverse proxy (optional)** — Nginx or Caddy with validated prompts; optional certbot on Debian/Ubuntu.
+6. **Reverse proxy (optional)** — at the end of the wizard, choose **Nginx** or **Caddy**. You get validated prompts for domain, backend host/port, upload limits, and TLS paths (Nginx) or log path (Caddy). The installer can install the package on Debian/Ubuntu via `apt`, write the site config, update `APP_URL` / `CORS_ORIGIN` / `TRUST_PROXY_HOPS` in `.env`, and optionally run `certbot --nginx`.
 
 ## After install
 
 - App URL: value of `APP_URL` in `.env` (default `http://localhost:3000`).
 - Health check: `curl -s http://localhost:3000/health`
-- Host-run logs: `journalctl -u atlantisboard -f`
-- Full-stack Docker: `docker compose -f /opt/atlantisboard/install/docker/docker-compose.fullstack.yml ps`
+- Logs: `journalctl -u atlantisboard -f`
 
 ## Related docs
 

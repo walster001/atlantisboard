@@ -25,7 +25,7 @@ All registered users are displayed in a searchable, sortable table. Use the sear
 
 | Column | Description |
 |--------|-------------|
-| **Import Boards** | Checkbox — grants the user permission to import boards from external sources (Trello, Wekan, CSV, Atlantisboard JSON). |
+| **Import Boards** | Checkbox — grants the user permission to import boards from external sources (Trello®, WeKan®, CSV, Atlantisboard JSON). |
 | **Create Workspace** | Checkbox — grants the user permission to create new workspaces on the home page. |
 | **Full Name** | The user's display name. |
 | **Email** | The user's registered email address. |

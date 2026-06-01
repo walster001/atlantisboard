@@ -112,7 +112,7 @@ Removed members lose all access to the board. Their existing contributions (card
 
 ## Import Placeholder Users
 
-When a board is imported from Trello, Wekan, or another Atlantisboard instance, users referenced in the imported data are created as **placeholder users**. These appear with special badges:
+When a board is imported from Trello®, WeKan®, or another Atlantisboard instance, users referenced in the imported data are created as **placeholder users**. These appear with special badges:
 
 - **Imported** — The placeholder has been mapped to a real user.
 - **Not Mapped** — The placeholder is still unclaimed.

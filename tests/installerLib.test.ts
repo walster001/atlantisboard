@@ -136,6 +136,16 @@ describe('installer shell static guards', () => {
     expect(setup).toContain('fullstack | docker | manual');
   });
 
+  test('setup.sh wires post-prompt validation and preserves install .env on rsync', () => {
+    const setup = readFileSync(join(INSTALL_DIR, 'setup.sh'), 'utf8');
+    expect(setup).toContain('atl_sync_cors_with_app_url');
+    expect(setup).toContain('atl_validate_google_oauth_config');
+    expect(setup).toContain('atl_verify_app_port');
+    expect(setup).toContain('atl_preflight_manual_services');
+    expect(setup).toContain('--exclude .env');
+    expect(setup).toContain('${INSTALL_DIR}/install/systemd/');
+  });
+
   test('env-fields.json is present and every prompted field has a label', () => {
     const envFieldsPath = join(INSTALL_DIR, 'env-fields.json');
     const raw = readFileSync(envFieldsPath, 'utf8');
@@ -182,9 +192,11 @@ describe('installer shell static guards', () => {
     const common = readFileSync(join(INSTALL_DIR, 'lib', 'common.sh'), 'utf8');
     expect(common).toContain('image-defaults.env');
     expect(common).toContain('max_attempts=3');
+    expect(common).toContain('COMPOSE_BAKE=false');
     const dockerfile = readFileSync(join(INSTALL_DIR, 'docker', 'Dockerfile'), 'utf8');
     expect(dockerfile).toContain('github.com/minio/mc/releases/download');
     expect(dockerfile).not.toContain('dl.min.io');
+    expect(dockerfile).toContain('--frozen-lockfile --production --ignore-scripts');
   });
 
   test('mock whiptail fixture is executable', () => {

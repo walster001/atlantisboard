@@ -598,6 +598,44 @@ atl_preflight_fail() {
   exit 1
 }
 
+atl_verify_app_port() {
+  local mode="${1:-manual}"
+  local -a lines=()
+  local app_port="${ENV_VALUES[PORT]:-3000}"
+  local port_status=0
+
+  atl_port_listening "$app_port" || port_status=$?
+  if [[ $port_status -eq 0 ]]; then
+    lines+=("Port ${app_port} is already in use — stop the service using it or choose another PORT")
+  elif [[ $port_status -eq 2 ]]; then
+    lines+=("Cannot check port ${app_port} — install ss (iproute2) or nc (netcat)")
+  fi
+
+  case "$mode" in
+    docker | fullstack)
+      local skip_dep_ports=false
+      if atl_docker_existing_stack_detected "$mode"; then
+        skip_dep_ports=true
+      fi
+      if [[ "$skip_dep_ports" != true ]]; then
+        for dep_port in 27017 6379 9000; do
+          port_status=0
+          atl_port_listening "$dep_port" || port_status=$?
+          if [[ $port_status -eq 0 ]]; then
+            lines+=("Port ${dep_port} is already in use — required for MongoDB, Redis, or MinIO containers")
+          elif [[ $port_status -eq 2 ]]; then
+            lines+=("Cannot check port ${dep_port} — install ss (iproute2) or nc (netcat)")
+          fi
+        done
+      fi
+      ;;
+  esac
+
+  if [[ ${#lines[@]} -gt 0 ]]; then
+    atl_preflight_fail "$(printf '%s\n\n' "${lines[@]}")"
+  fi
+}
+
 atl_preflight_check() {
   local mode="$1"
   local -a lines=()
@@ -628,37 +666,12 @@ atl_preflight_check() {
     lines+=("Cannot create install path parent $(dirname "$INSTALL_DIR") — run with sudo")
   fi
 
-  local app_port="${ENV_VALUES[PORT]:-3000}"
-  local port_status=0
-  atl_port_listening "$app_port" || port_status=$?
-  if [[ $port_status -eq 0 ]]; then
-    lines+=("Port ${app_port} is already in use — stop the service using it or choose another PORT later")
-  elif [[ $port_status -eq 2 ]]; then
-    lines+=("Cannot check port ${app_port} — install ss (iproute2) or nc (netcat)")
-  fi
-
   case "$mode" in
     docker | fullstack)
       if ! atl_cmd_exists docker; then
         lines+=("docker — install Docker Engine: https://docs.docker.com/engine/install/")
       elif ! atl_docker_compose_works; then
         lines+=("docker compose v2 — install: sudo apt install docker-compose-v2 (Ubuntu/Debian) or docker-compose-plugin from Docker’s apt repo; verify with: sudo docker compose version")
-      else
-        local skip_dep_ports=false
-        if atl_docker_existing_stack_detected "$mode"; then
-          skip_dep_ports=true
-        fi
-        if [[ "$skip_dep_ports" != true ]]; then
-          for dep_port in 27017 6379 9000; do
-            port_status=0
-            atl_port_listening "$dep_port" || port_status=$?
-            if [[ $port_status -eq 0 ]]; then
-              lines+=("Port ${dep_port} is already in use — required for MongoDB, Redis, or MinIO containers")
-            elif [[ $port_status -eq 2 ]]; then
-              lines+=("Cannot check port ${dep_port} — install ss (iproute2) or nc (netcat)")
-            fi
-          done
-        fi
       fi
       ;;
   esac
@@ -900,6 +913,7 @@ atl_validate_value() {
       done
       ;;
     boolean)
+      val="${val,,}"
       [[ "$val" == "true" || "$val" == "false" ]]
       ;;
     path_absolute)
@@ -1041,11 +1055,14 @@ atl_prompt_validated() {
     current="$(atl_sanitize_input "$current")"
 
     if atl_validate_value "$current" "$vtype" "$optional"; then
+      if [[ "$vtype" == "boolean" ]]; then
+        current="${current,,}"
+      fi
       ENV_VALUES["$key"]="$current"
       valid=true
     else
       err_msg="$(atl_validation_message "$vtype")"
-      whiptail --title "Invalid input" --msgbox "${label}\n\n${err_msg}" 12 70 || true
+      atl_whiptail_display --title "Invalid input" --msgbox "${label}\n\n${err_msg}" 12 70 || true
     fi
   done
 }
@@ -1412,10 +1429,12 @@ atl_docker_compose_run() {
   while IFS= read -r line; do
     [[ -n "$line" ]] && env_args+=("$line")
   done < <(atl_docker_compose_env_args "$compose_dir")
+  # Avoid Compose Bake when buildx is not installed (Ubuntu docker.io); classic build still works.
+  local -a compose_env=(COMPOSE_BAKE=false)
   if atl_sudo docker compose version >/dev/null 2>&1; then
-    (cd "$compose_dir" && atl_sudo docker compose "${env_args[@]}" -f "$compose_file" "$@")
+    (cd "$compose_dir" && atl_sudo env "${compose_env[@]}" docker compose "${env_args[@]}" -f "$compose_file" "$@")
   else
-    (cd "$compose_dir" && atl_sudo docker-compose "${env_args[@]}" -f "$compose_file" "$@")
+    (cd "$compose_dir" && atl_sudo env "${compose_env[@]}" docker-compose "${env_args[@]}" -f "$compose_file" "$@")
   fi
 }
 

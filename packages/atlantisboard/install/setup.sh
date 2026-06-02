@@ -87,7 +87,15 @@ while [[ -n "${ENV_VALUES[GOOGLE_CLIENT_ID]:-}" && -z "${ENV_VALUES[GOOGLE_CLIEN
     "" "true" "false" "" || exit 1
 done
 
+atl_sync_cors_with_app_url
+atl_validate_google_oauth_config
+atl_verify_app_port "$MODE"
+
 atl_apply_mode_defaults "$MODE"
+
+if [[ "$MODE" == "manual" ]]; then
+  atl_preflight_manual_services
+fi
 
 INSTALL_USER="$(atl_get_install_user)"
 PRIOR_ENV=""
@@ -103,6 +111,7 @@ atl_sudo_mkdir_p "$INSTALL_DIR"
 echo "==> Copying package to ${INSTALL_DIR}"
 atl_sudo rsync -a --delete \
   --exclude node_modules \
+  --exclude .env \
   "${PKG_ROOT}/" "${INSTALL_DIR}/"
 
 if atl_sudo test -f "${PKG_ROOT}/.env.example" && ! atl_sudo test -f "$ENV_FILE"; then
@@ -117,7 +126,9 @@ if [[ "$MODE" != "fullstack" ]]; then
   BUN_BIN="$(atl_ensure_bun)"
 
   echo "==> Installing production dependencies"
-  (cd "$INSTALL_DIR" && atl_sudo -u "$INSTALL_USER" env PATH="/usr/local/bin:${PATH}" "$BUN_BIN" install --frozen-lockfile --production)
+  (cd "$INSTALL_DIR" && atl_sudo -u "$INSTALL_USER" env \
+    ATLANTISBOARD_SKIP_SETUP=1 PATH="/usr/local/bin:${PATH}" \
+    "$BUN_BIN" install --frozen-lockfile --production --ignore-scripts)
 fi
 
 if [[ "$MODE" == "docker" ]]; then
@@ -165,9 +176,9 @@ if [[ "$MODE" != "fullstack" ]] && atl_whiptail_display --title "systemd service
         "$src" | atl_sudo tee "$dest" >/dev/null
     }
 
-    render_unit "${PKG_ROOT}/install/systemd/atlantisboard.service.template" /etc/systemd/system/atlantisboard.service
+    render_unit "${INSTALL_DIR}/install/systemd/atlantisboard.service.template" /etc/systemd/system/atlantisboard.service
     if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
-      render_unit "${PKG_ROOT}/install/systemd/atlantisboard-worker.service.template" /etc/systemd/system/atlantisboard-worker.service
+      render_unit "${INSTALL_DIR}/install/systemd/atlantisboard-worker.service.template" /etc/systemd/system/atlantisboard-worker.service
     fi
 
     atl_sudo systemctl daemon-reload

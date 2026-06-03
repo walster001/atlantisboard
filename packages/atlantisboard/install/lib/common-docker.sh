@@ -317,7 +317,7 @@ atl_docker_compose_env_args() {
 
 
 ## atl_docker_compose_run
-# Execute docker compose and capture logs.
+# Execute docker compose; stream output to the console and a log file.
 # Arguments:
 #   compose_dir compose_file ...args
 atl_docker_compose_run() {
@@ -337,17 +337,21 @@ atl_docker_compose_run() {
   else
     : >"$log_file"
   fi
+  # Piped through tee (not a TTY); plain shows pull/build progress lines live.
+  local -a progress_args=(--progress plain)
   local rc=0
   if atl_sudo docker compose version >/dev/null 2>&1; then
     (cd "$compose_dir" \
       && atl_sudo env "${compose_env[@]}" docker compose \
-        "${env_args[@]}" -f "$compose_file" "$@") \
-      >>"$log_file" 2>&1 || rc=$?
+        "${env_args[@]}" -f "$compose_file" "${progress_args[@]}" "$@") \
+      2>&1 | tee "$log_file" || rc=$?
+    rc="${PIPESTATUS[0]:-$rc}"
   else
     (cd "$compose_dir" \
       && atl_sudo env "${compose_env[@]}" docker-compose \
         "${env_args[@]}" -f "$compose_file" "$@") \
-      >>"$log_file" 2>&1 || rc=$?
+      2>&1 | tee "$log_file" || rc=$?
+    rc="${PIPESTATUS[0]:-$rc}"
   fi
   return "$rc"
 }

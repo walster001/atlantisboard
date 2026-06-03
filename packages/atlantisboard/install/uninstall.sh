@@ -27,7 +27,9 @@ _resolve_pkg_root() {
 
 # Run the interactive uninstall flow.
 main() {
-  readonly PKG_ROOT="$(_resolve_pkg_root)"
+  local pkg_root
+  pkg_root="$(_resolve_pkg_root)"
+  readonly PKG_ROOT="$pkg_root"
   export ATLANTISBOARD_PACKAGE_ROOT="$PKG_ROOT"
 
   # shellcheck source=lib/common.sh

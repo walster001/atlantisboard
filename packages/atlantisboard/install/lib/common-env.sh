@@ -543,12 +543,11 @@ atl_apply_pompelmi_defaults() {
       ENV_VALUES["POMPELMI_CLAMD_PORT"]="3310"
       ;;
     manual)
-      ENV_VALUES["POMPELMI_CLAMD_HOST"]="${
-        ENV_VALUES[POMPELMI_CLAMD_HOST]:-127.0.0.1
-      }"
-      ENV_VALUES["POMPELMI_CLAMD_PORT"]="${
-        ENV_VALUES[POMPELMI_CLAMD_PORT]:-3310
-      }"
+      local clamd_host clamd_port
+      clamd_host="${ENV_VALUES[POMPELMI_CLAMD_HOST]:-127.0.0.1}"
+      clamd_port="${ENV_VALUES[POMPELMI_CLAMD_PORT]:-3310}"
+      ENV_VALUES["POMPELMI_CLAMD_HOST"]="$clamd_host"
+      ENV_VALUES["POMPELMI_CLAMD_PORT"]="$clamd_port"
       ;;
   esac
 }
@@ -659,14 +658,13 @@ atl_apply_mode_defaults() {
   local mode="$1"
   case "$mode" in
     docker)
+      local mongodb_root_user mongodb_app_user
       ENV_VALUES["REDIS_HOST"]="localhost"
       ENV_VALUES["MINIO_ENDPOINT"]="localhost"
-      ENV_VALUES["MONGODB_ROOT_USER"]="${
-        ENV_VALUES[MONGODB_ROOT_USER]:-kanboard_root
-      }"
-      ENV_VALUES["MONGODB_APP_USER"]="${
-        ENV_VALUES[MONGODB_APP_USER]:-kanboard_app
-      }"
+      mongodb_root_user="${ENV_VALUES[MONGODB_ROOT_USER]:-kanboard_root}"
+      mongodb_app_user="${ENV_VALUES[MONGODB_APP_USER]:-kanboard_app}"
+      ENV_VALUES["MONGODB_ROOT_USER"]="$mongodb_root_user"
+      ENV_VALUES["MONGODB_APP_USER"]="$mongodb_app_user"
       ENV_VALUES["MONGODB_URI"]="$(atl_build_mongodb_uri \
         "${ENV_VALUES[MONGODB_APP_USER]}" \
         "${ENV_VALUES[MONGODB_APP_PASSWORD]}" \
@@ -674,27 +672,34 @@ atl_apply_mode_defaults() {
         "${ENV_VALUES[MONGODB_DB_NAME]:-kanboard}")"
       ;;
     fullstack)
+      local mongodb_root_user mongodb_app_user
+      local minio_access_key minio_secret_key
+      local minio_root_access_key minio_root_secret_key
       ENV_VALUES["REDIS_HOST"]="redis"
       ENV_VALUES["MINIO_ENDPOINT"]="minio"
       ENV_VALUES["HOST"]="0.0.0.0"
       ENV_VALUES["ENABLE_CRON_JOBS_IN_MAIN"]="true"
-      ENV_VALUES["MONGODB_ROOT_USER"]="${
-        ENV_VALUES[MONGODB_ROOT_USER]:-kanboard_root
-      }"
-      ENV_VALUES["MONGODB_APP_USER"]="${
-        ENV_VALUES[MONGODB_APP_USER]:-kanboard_app
-      }"
+      mongodb_root_user="${ENV_VALUES[MONGODB_ROOT_USER]:-kanboard_root}"
+      mongodb_app_user="${ENV_VALUES[MONGODB_APP_USER]:-kanboard_app}"
+      ENV_VALUES["MONGODB_ROOT_USER"]="$mongodb_root_user"
+      ENV_VALUES["MONGODB_APP_USER"]="$mongodb_app_user"
       ENV_VALUES["MONGODB_URI"]="$(atl_build_mongodb_uri \
         "${ENV_VALUES[MONGODB_APP_USER]}" \
         "${ENV_VALUES[MONGODB_APP_PASSWORD]}" \
         "mongodb" \
         "${ENV_VALUES[MONGODB_DB_NAME]:-kanboard}")"
-      ENV_VALUES["MINIO_ROOT_ACCESS_KEY"]="${
-        ENV_VALUES[MINIO_ROOT_ACCESS_KEY]:-${ENV_VALUES[MINIO_ACCESS_KEY]}
-      }"
-      ENV_VALUES["MINIO_ROOT_SECRET_KEY"]="${
-        ENV_VALUES[MINIO_ROOT_SECRET_KEY]:-${ENV_VALUES[MINIO_SECRET_KEY]}
-      }"
+      minio_access_key="${ENV_VALUES[MINIO_ACCESS_KEY]}"
+      minio_secret_key="${ENV_VALUES[MINIO_SECRET_KEY]}"
+      minio_root_access_key="${ENV_VALUES[MINIO_ROOT_ACCESS_KEY]}"
+      minio_root_secret_key="${ENV_VALUES[MINIO_ROOT_SECRET_KEY]}"
+      if [[ -z "$minio_root_access_key" ]]; then
+        minio_root_access_key="$minio_access_key"
+      fi
+      if [[ -z "$minio_root_secret_key" ]]; then
+        minio_root_secret_key="$minio_secret_key"
+      fi
+      ENV_VALUES["MINIO_ROOT_ACCESS_KEY"]="$minio_root_access_key"
+      ENV_VALUES["MINIO_ROOT_SECRET_KEY"]="$minio_root_secret_key"
       ;;
   esac
   atl_apply_pompelmi_defaults "$mode"

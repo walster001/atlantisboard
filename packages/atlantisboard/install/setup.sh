@@ -44,7 +44,11 @@ atl_render_systemd_unit() {
 
 # Run the interactive installer flow.
 main() {
-  readonly PKG_ROOT="$(_resolve_pkg_root)"
+  local pkg_root
+  pkg_root="$(_resolve_pkg_root)"
+  readonly PKG_ROOT="$pkg_root"
+  # Used by sourced install/lib/common-env.sh (not referenced in this file).
+  # shellcheck disable=SC2034
   readonly ENV_FIELDS="${PKG_ROOT}/install/env-fields.json"
   export ATLANTISBOARD_PACKAGE_ROOT="$PKG_ROOT"
   INSTALL_DIR="${ATLANTISBOARD_INSTALL_DIR:-/opt/atlantisboard}"

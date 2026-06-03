@@ -10,13 +10,22 @@ APP_SECRET="${MINIO_SECRET_KEY:-minioadmin}"
 sleep 5
 mc alias set myminio "http://minio:9000" "$ROOT_KEY" "$ROOT_SECRET"
 
-for bucket in import-inline card-attachments branding fonts user-avatars backgrounds backups; do
+for bucket in \
+  import-inline \
+  card-attachments \
+  branding \
+  fonts \
+  user-avatars \
+  backgrounds \
+  backups; do
   mc mb "myminio/${bucket}" --ignore-existing
 done
 
 if [ "$APP_KEY" != "$ROOT_KEY" ] || [ "$APP_SECRET" != "$ROOT_SECRET" ]; then
-  mc admin policy create myminio kanboard-app-rw /policy/app-readwrite-policy.json 2>/dev/null || true
+  mc admin policy create myminio kanboard-app-rw \
+    /policy/app-readwrite-policy.json 2>/dev/null || true
   mc admin user add myminio "$APP_KEY" "$APP_SECRET" 2>/dev/null || true
-  mc admin policy attach myminio kanboard-app-rw --user "$APP_KEY" 2>/dev/null || true
+  mc admin policy attach myminio kanboard-app-rw \
+    --user "$APP_KEY" 2>/dev/null || true
   echo "scoped MinIO application user configured"
 fi

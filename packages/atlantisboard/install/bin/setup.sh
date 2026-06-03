@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# npm bin entry — delegate to the canonical installer.
+# Uses env bash for PATH portability (project convention).
+# npm bin entry - delegate to canonical installer.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PKG_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"

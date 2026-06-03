@@ -1,6 +1,8 @@
 #!/bin/bash
-# Wraps the official mongo image entrypoint: replica set + root auth requires a keyFile.
-# Generates /data/replica.key on first start (persisted in the mongo data volume).
+# Wraps the official mongo image entrypoint.
+# Replica set + root auth requires a keyFile.
+# Generates /data/replica.key on first start.
+# The file persists in the mongo data volume.
 set -euo pipefail
 
 KEYFILE=/data/replica.key

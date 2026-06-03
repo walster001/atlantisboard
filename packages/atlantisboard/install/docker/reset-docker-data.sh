@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Remove Atlantisboard installer Docker volumes for a clean reinstall.
-# Use when .env secrets were regenerated but containers still have old passwords.
+# Use when .env secrets were regenerated.
+# Helps when containers still have old passwords.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,7 +12,8 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") <deps|fullstack>
 
-Stops the Compose stack and deletes named volumes (MongoDB, Redis, MinIO, ClamAV data).
+Stops the Compose stack and deletes named volumes:
+MongoDB, Redis, MinIO, and ClamAV data.
 
   deps      — docker-compose.deps.yml (Docker dependencies only)
   fullstack — docker-compose.fullstack.yml
@@ -36,9 +38,12 @@ else
 fi
 
 ENV_ARGS=()
-[[ -f "${SCRIPT_DIR}/image-defaults.env" ]] && ENV_ARGS+=(--env-file "${SCRIPT_DIR}/image-defaults.env")
+[[ -f "${SCRIPT_DIR}/image-defaults.env" ]] \
+  && ENV_ARGS+=(--env-file "${SCRIPT_DIR}/image-defaults.env")
 [[ -f "$ENV_FILE" ]] && ENV_ARGS+=(--env-file "$ENV_FILE")
 
 echo "Stopping ${MODE} stack and removing volumes (env: ${ENV_FILE})..."
-(cd "$SCRIPT_DIR" && "${COMPOSE[@]}" "${ENV_ARGS[@]}" -f "$COMPOSE_FILE" down -v)
-echo "Done. Re-run atlantisboard-setup or: docker compose -f ${COMPOSE_FILE} up -d"
+(cd "$SCRIPT_DIR" && "${COMPOSE[@]}" "${ENV_ARGS[@]}" \
+  -f "$COMPOSE_FILE" down -v)
+echo "Done. Re-run atlantisboard-setup or:"
+echo "docker compose -f ${COMPOSE_FILE} up -d"

@@ -1,8 +1,8 @@
 # Uninstall helpers for atlantisboard-setup (sourced by install/uninstall.sh).
 # Expects install/lib/common.sh to be loaded first.
 
-ATL_MANIFEST_NAME=".atlantisboard-install-manifest.json"
-ATL_UNINSTALL_LOG_TAG="atlantisboard-uninstall"
+readonly ATL_MANIFEST_NAME=".atlantisboard-install-manifest.json"
+readonly ATL_UNINSTALL_LOG_TAG="atlantisboard-uninstall"
 
 # Populated by atl_uninstall_discover_state
 ATL_UNINSTALL_MODE=""
@@ -15,33 +15,72 @@ ATL_UNINSTALL_SYSTEMD_WORKER=false
 ATL_UNINSTALL_REVERSE_PROXY="none"
 ATL_UNINSTALL_CREATED_USER=false
 
+# Logs uninstall diagnostics to stderr, preferring shared err() when present.
+#
+# Arguments:
+#   $*: Message text.
+# Returns:
+#   None.
 atl_uninstall_log() {
+  if declare -F err >/dev/null 2>&1; then
+    err "$*"
+    return
+  fi
   printf '%s: %s\n' "$ATL_UNINSTALL_LOG_TAG" "$*" >&2
 }
 
+# Reads a key from an env file using KEY=value format.
+#
+# Arguments:
+#   $1: Key name.
+#   $2: Env file path.
+# Returns:
+#   0 and value on stdout when found; non-zero otherwise.
 atl_uninstall_env_get() {
   local key="$1" file="$2"
   atl_sudo test -f "$file" 2>/dev/null || return 1
-  atl_sudo grep -E "^${key}=" "$file" 2>/dev/null | tail -1 | cut -d= -f2- || return 1
+  atl_sudo grep -E "^${key}=" "$file" 2>/dev/null \
+    | tail -1 \
+    | cut -d= -f2- || return 1
 }
 
+# Reads a field value from the uninstall manifest JSON.
+#
+# Arguments:
+#   $1: Field name.
+#   $2: Manifest file path.
+# Returns:
+#   0 and value on stdout when found; non-zero otherwise.
 atl_uninstall_read_manifest_field() {
   local field="$1" manifest="$2"
   atl_sudo test -f "$manifest" 2>/dev/null || return 1
   command -v jq >/dev/null 2>&1 || return 1
-  atl_sudo cat "$manifest" 2>/dev/null | jq -r --arg f "$field" '.[$f] // empty' 2>/dev/null
+  atl_sudo cat "$manifest" 2>/dev/null \
+    | jq -r --arg f "$field" '.[$f] // empty' 2>/dev/null
 }
 
+# Returns the default install directory.
+#
+# Returns:
+#   Default absolute install directory path on stdout.
 atl_uninstall_default_install_dir() {
   printf '%s' "${ATLANTISBOARD_INSTALL_DIR:-/opt/atlantisboard}"
 }
 
+# Discovers install directory from manifest, systemd unit, or known defaults.
+#
+# Arguments:
+#   $1: Optional manifest path.
+# Returns:
+#   0 and resolved absolute path on stdout; non-zero if not found.
 atl_uninstall_discover_install_dir() {
   local dir manifest="$1"
   local from_manifest from_unit candidate
 
   if [[ -z "$manifest" ]]; then
-    for candidate in "$(atl_uninstall_default_install_dir)" /opt/atlantisboard; do
+    for candidate in \
+      "$(atl_uninstall_default_install_dir)" \
+      /opt/atlantisboard; do
       if atl_sudo test -f "${candidate}/${ATL_MANIFEST_NAME}" 2>/dev/null; then
         manifest="${candidate}/${ATL_MANIFEST_NAME}"
         break
@@ -57,8 +96,10 @@ atl_uninstall_discover_install_dir() {
     fi
   fi
 
-  if atl_sudo test -f /etc/systemd/system/atlantisboard.service 2>/dev/null; then
-    from_unit="$(atl_sudo grep -E '^EnvironmentFile=' /etc/systemd/system/atlantisboard.service 2>/dev/null \
+  if atl_sudo test -f /etc/systemd/system/atlantisboard.service \
+    2>/dev/null; then
+    from_unit="$(atl_sudo grep -E '^EnvironmentFile=' \
+      /etc/systemd/system/atlantisboard.service 2>/dev/null \
       | head -1 | cut -d= -f2- | tr -d ' ')"
     if [[ -n "$from_unit" ]]; then
       dir="$(dirname "$from_unit")"
@@ -67,7 +108,8 @@ atl_uninstall_discover_install_dir() {
         return 0
       fi
     fi
-    from_unit="$(atl_sudo grep -E '^WorkingDirectory=' /etc/systemd/system/atlantisboard.service 2>/dev/null \
+    from_unit="$(atl_sudo grep -E '^WorkingDirectory=' \
+      /etc/systemd/system/atlantisboard.service 2>/dev/null \
       | head -1 | cut -d= -f2- | tr -d ' ')"
     if [[ -n "$from_unit" && "$from_unit" == /* ]]; then
       printf '%s' "${from_unit%/}"
@@ -76,7 +118,8 @@ atl_uninstall_discover_install_dir() {
   fi
 
   for dir in "$(atl_uninstall_default_install_dir)" /opt/atlantisboard; do
-    if atl_sudo test -f "${dir}/.env" 2>/dev/null || atl_sudo test -f "${dir}/${ATL_MANIFEST_NAME}" 2>/dev/null; then
+    if atl_sudo test -f "${dir}/.env" 2>/dev/null \
+      || atl_sudo test -f "${dir}/${ATL_MANIFEST_NAME}" 2>/dev/null; then
       printf '%s' "${dir%/}"
       return 0
     fi
@@ -85,6 +128,14 @@ atl_uninstall_discover_install_dir() {
   return 1
 }
 
+# Detects install mode from manifest, env, containers, and local artifacts.
+#
+# Arguments:
+#   $1: Optional manifest path.
+#   $2: Optional install directory.
+#   $3: Optional env file path.
+# Returns:
+#   Mode string on stdout when detected.
 atl_uninstall_detect_mode() {
   local manifest="$1" install_dir="$2" env_file="$3"
   local mode detected=""
@@ -92,8 +143,10 @@ atl_uninstall_detect_mode() {
   if [[ -n "$manifest" ]] && atl_sudo test -f "$manifest" 2>/dev/null; then
     mode="$(atl_uninstall_read_manifest_field mode "$manifest")"
   fi
-  if [[ -z "$mode" && -n "$env_file" ]] && atl_sudo test -f "$env_file" 2>/dev/null; then
-    mode="$(atl_uninstall_env_get ATLANTISBOARD_INSTALL_MODE "$env_file" 2>/dev/null || true)"
+  if [[ -z "$mode" && -n "$env_file" ]] \
+    && atl_sudo test -f "$env_file" 2>/dev/null; then
+    mode="$(atl_uninstall_env_get ATLANTISBOARD_INSTALL_MODE "$env_file" \
+      2>/dev/null || true)"
   fi
 
   if [[ -n "$mode" ]]; then
@@ -102,19 +155,29 @@ atl_uninstall_detect_mode() {
     esac
   fi
 
-  if atl_sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'atlantisboard-app-full'; then
+  if atl_sudo docker ps -a --format '{{.Names}}' 2>/dev/null \
+    | grep -qx 'atlantisboard-app-full'; then
     detected=fullstack
-  elif atl_sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'atlantisboard-mongodb-deps'; then
+  elif atl_sudo docker ps -a --format '{{.Names}}' 2>/dev/null \
+    | grep -qx 'atlantisboard-mongodb-deps'; then
     detected=docker
-  elif atl_sudo test -f /etc/systemd/system/atlantisboard.service 2>/dev/null; then
+  elif atl_sudo test -f /etc/systemd/system/atlantisboard.service \
+    2>/dev/null; then
     detected=docker
-  elif [[ -n "$install_dir" ]] && atl_sudo test -d "$install_dir" 2>/dev/null; then
+  elif [[ -n "$install_dir" ]] \
+    && atl_sudo test -d "$install_dir" 2>/dev/null; then
     detected=manual
   fi
 
   [[ -n "$detected" ]] && printf '%s' "$detected"
 }
 
+# Lists known Atlantisboard docker container names by install mode.
+#
+# Arguments:
+#   $1: Install mode.
+# Returns:
+#   Container names, one per line.
 atl_uninstall_collect_docker_containers() {
   local mode="$1"
   case "$mode" in
@@ -156,37 +219,81 @@ atl_uninstall_collect_docker_containers() {
   esac
 }
 
+# Lists known Atlantisboard docker volume names by install mode.
+#
+# Arguments:
+#   $1: Install mode.
+# Returns:
+#   Volume names, one per line.
 atl_uninstall_collect_docker_volumes() {
   local mode="$1"
   case "$mode" in
     fullstack)
       printf '%s\n' \
-        mongo-data-full mongo-config-full redis-data-full minio-data-full clamav-db-full \
-        docker_mongo-data-full docker_mongo-config-full docker_redis-data-full \
+        mongo-data-full \
+        mongo-config-full \
+        redis-data-full \
+        minio-data-full \
+        clamav-db-full \
+        docker_mongo-data-full \
+        docker_mongo-config-full \
+        docker_redis-data-full \
         docker_minio-data-full docker_clamav-db-full
       ;;
     docker)
       printf '%s\n' \
-        mongo-data mongo-config redis-data minio-data clamav-db \
-        docker_mongo-data docker_mongo-config docker_redis-data docker_minio-data docker_clamav-db
+        mongo-data \
+        mongo-config \
+        redis-data \
+        minio-data \
+        clamav-db \
+        docker_mongo-data \
+        docker_mongo-config \
+        docker_redis-data \
+        docker_minio-data \
+        docker_clamav-db
       ;;
     *)
       printf '%s\n' \
-        mongo-data-full mongo-config-full redis-data-full minio-data-full clamav-db-full \
-        mongo-data mongo-config redis-data minio-data clamav-db \
-        docker_mongo-data-full docker_mongo-config-full docker_redis-data-full \
+        mongo-data-full \
+        mongo-config-full \
+        redis-data-full \
+        minio-data-full \
+        clamav-db-full \
+        mongo-data \
+        mongo-config \
+        redis-data \
+        minio-data \
+        clamav-db \
+        docker_mongo-data-full \
+        docker_mongo-config-full \
+        docker_redis-data-full \
         docker_minio-data-full docker_clamav-db-full \
-        docker_mongo-data docker_mongo-config docker_redis-data docker_minio-data docker_clamav-db
+        docker_mongo-data \
+        docker_mongo-config \
+        docker_redis-data \
+        docker_minio-data \
+        docker_clamav-db
       ;;
   esac
 }
 
+# Lists tracked uninstall paths and deduplicates entries.
+#
+# Arguments:
+#   $1: Install directory.
+#   $2: Backup directory.
+#   $3: Install mode.
+#   $4: Reverse proxy type.
+# Returns:
+#   Paths, one per line.
 atl_uninstall_collect_tracked_paths() {
   local install_dir="$1" backup_dir="$2" mode="$3" reverse_proxy="$4"
   local -a paths=()
 
   [[ -n "$install_dir" ]] && paths+=("$install_dir")
-  [[ -n "$backup_dir" && "$backup_dir" != "$install_dir" ]] && paths+=("$backup_dir")
+  [[ -n "$backup_dir" && "$backup_dir" != "$install_dir" ]] \
+    && paths+=("$backup_dir")
   paths+=(
     /etc/systemd/system/atlantisboard.service
     /etc/systemd/system/atlantisboard-worker.service
@@ -211,9 +318,16 @@ atl_uninstall_collect_tracked_paths() {
   done | awk '!seen[$0]++'
 }
 
+# Discovers uninstall state and populates ATL_UNINSTALL_* globals.
+#
+# Arguments:
+#   $1: Package root path.
+# Returns:
+#   0 if an uninstall mode is detected; non-zero otherwise.
 atl_uninstall_discover_state() {
   local pkg_root="$1"
   local manifest=""
+  local dir
 
   ATL_UNINSTALL_INSTALL_DIR=""
   ATL_UNINSTALL_ENV_FILE=""
@@ -235,7 +349,8 @@ atl_uninstall_discover_state() {
   fi
 
   if [[ -z "$manifest" && -n "$ATL_UNINSTALL_INSTALL_DIR" ]] \
-    && atl_sudo test -f "${ATL_UNINSTALL_INSTALL_DIR}/${ATL_MANIFEST_NAME}" 2>/dev/null; then
+    && atl_sudo test -f \
+      "${ATL_UNINSTALL_INSTALL_DIR}/${ATL_MANIFEST_NAME}" 2>/dev/null; then
     manifest="${ATL_UNINSTALL_INSTALL_DIR}/${ATL_MANIFEST_NAME}"
     ATL_UNINSTALL_MANIFEST_PATH="$manifest"
   fi
@@ -247,35 +362,57 @@ atl_uninstall_discover_state() {
   fi
 
   if atl_sudo test -f "${ATL_UNINSTALL_ENV_FILE:-}" 2>/dev/null; then
-    ATL_UNINSTALL_BACKUP_DIR="$(atl_uninstall_env_get BACKUP_LOCATION "$ATL_UNINSTALL_ENV_FILE" 2>/dev/null || true)"
-    ATL_UNINSTALL_BACKUP_DIR="$(atl_normalize_backup_dir "${ATL_UNINSTALL_BACKUP_DIR:-}")"
+    ATL_UNINSTALL_BACKUP_DIR="$(atl_uninstall_env_get BACKUP_LOCATION \
+      "$ATL_UNINSTALL_ENV_FILE" 2>/dev/null || true)"
+    ATL_UNINSTALL_BACKUP_DIR="$(
+      atl_normalize_backup_dir "${ATL_UNINSTALL_BACKUP_DIR:-}"
+    )"
   fi
   if [[ -z "${ATL_UNINSTALL_BACKUP_DIR:-}" && -n "$manifest" ]] \
     && atl_sudo test -f "$manifest" 2>/dev/null; then
-    ATL_UNINSTALL_BACKUP_DIR="$(atl_uninstall_read_manifest_field backup_dir "$manifest")"
+    ATL_UNINSTALL_BACKUP_DIR="$(
+      atl_uninstall_read_manifest_field backup_dir "$manifest"
+    )"
   fi
 
-  ATL_UNINSTALL_MODE="$(atl_uninstall_detect_mode "$manifest" "${ATL_UNINSTALL_INSTALL_DIR:-}" "${ATL_UNINSTALL_ENV_FILE:-}" || true)"
+  ATL_UNINSTALL_MODE="$(atl_uninstall_detect_mode "$manifest" \
+    "${ATL_UNINSTALL_INSTALL_DIR:-}" "${ATL_UNINSTALL_ENV_FILE:-}" || true)"
 
-  if [[ -n "$manifest" ]] && atl_sudo test -f "$manifest" 2>/dev/null && command -v jq >/dev/null 2>&1; then
-    [[ "$(atl_sudo cat "$manifest" | jq -r '.systemd.main // false')" == "true" ]] && ATL_UNINSTALL_SYSTEMD_MAIN=true
-    [[ "$(atl_sudo cat "$manifest" | jq -r '.systemd.worker // false')" == "true" ]] && ATL_UNINSTALL_SYSTEMD_WORKER=true
-    ATL_UNINSTALL_REVERSE_PROXY="$(atl_sudo cat "$manifest" | jq -r '.reverse_proxy // "none"')"
-    [[ "$(atl_sudo cat "$manifest" | jq -r '.systemd.created_user // false')" == "true" ]] && ATL_UNINSTALL_CREATED_USER=true
+  if [[ -n "$manifest" ]] \
+    && atl_sudo test -f "$manifest" 2>/dev/null \
+    && command -v jq >/dev/null 2>&1; then
+    [[ "$(atl_sudo cat "$manifest" \
+      | jq -r '.systemd.main // false')" == "true" ]] \
+      && ATL_UNINSTALL_SYSTEMD_MAIN=true
+    [[ "$(atl_sudo cat "$manifest" \
+      | jq -r '.systemd.worker // false')" == "true" ]] \
+      && ATL_UNINSTALL_SYSTEMD_WORKER=true
+    ATL_UNINSTALL_REVERSE_PROXY="$(
+      atl_sudo cat "$manifest" | jq -r '.reverse_proxy // "none"'
+    )"
+    [[ "$(atl_sudo cat "$manifest" \
+      | jq -r '.systemd.created_user // false')" == "true" ]] \
+      && ATL_UNINSTALL_CREATED_USER=true
     local mmode
     mmode="$(atl_sudo cat "$manifest" | jq -r '.mode // empty')"
     [[ -n "$mmode" ]] && ATL_UNINSTALL_MODE="$mmode"
   fi
 
-  if [[ "$ATL_UNINSTALL_SYSTEMD_MAIN" != true ]] && atl_sudo test -f /etc/systemd/system/atlantisboard.service 2>/dev/null; then
+  if [[ "$ATL_UNINSTALL_SYSTEMD_MAIN" != true ]] \
+    && atl_sudo test -f /etc/systemd/system/atlantisboard.service \
+      2>/dev/null; then
     ATL_UNINSTALL_SYSTEMD_MAIN=true
   fi
-  if [[ "$ATL_UNINSTALL_SYSTEMD_WORKER" != true ]] && atl_sudo test -f /etc/systemd/system/atlantisboard-worker.service 2>/dev/null; then
+  if [[ "$ATL_UNINSTALL_SYSTEMD_WORKER" != true ]] \
+    && atl_sudo test -f /etc/systemd/system/atlantisboard-worker.service \
+      2>/dev/null; then
     ATL_UNINSTALL_SYSTEMD_WORKER=true
   fi
   if [[ "$ATL_UNINSTALL_REVERSE_PROXY" == "none" ]]; then
-    atl_sudo test -f /etc/nginx/sites-available/atlantisboard 2>/dev/null && ATL_UNINSTALL_REVERSE_PROXY=nginx
-    atl_sudo test -f /etc/caddy/conf.d/atlantisboard.caddy 2>/dev/null && ATL_UNINSTALL_REVERSE_PROXY=caddy
+    atl_sudo test -f /etc/nginx/sites-available/atlantisboard 2>/dev/null \
+      && ATL_UNINSTALL_REVERSE_PROXY=nginx
+    atl_sudo test -f /etc/caddy/conf.d/atlantisboard.caddy 2>/dev/null \
+      && ATL_UNINSTALL_REVERSE_PROXY=caddy
   fi
   if id atlantisboard >/dev/null 2>&1; then
     ATL_UNINSTALL_CREATED_USER=true
@@ -284,6 +421,10 @@ atl_uninstall_discover_state() {
   [[ -n "${ATL_UNINSTALL_MODE:-}" ]]
 }
 
+# Stops and disables Atlantisboard systemd units when present.
+#
+# Returns:
+#   None.
 atl_uninstall_stop_systemd() {
   local unit
   for unit in atlantisboard-worker.service atlantisboard.service; do
@@ -293,12 +434,26 @@ atl_uninstall_stop_systemd() {
   atl_sudo systemctl daemon-reload 2>/dev/null || true
 }
 
+# Removes Atlantisboard systemd unit files and resets daemon state.
+#
+# Returns:
+#   None.
 atl_uninstall_remove_systemd_units() {
-  atl_sudo rm -f /etc/systemd/system/atlantisboard.service /etc/systemd/system/atlantisboard-worker.service
+  atl_sudo rm -f \
+    /etc/systemd/system/atlantisboard.service \
+    /etc/systemd/system/atlantisboard-worker.service
   atl_sudo systemctl daemon-reload 2>/dev/null || true
   atl_sudo systemctl reset-failed 2>/dev/null || true
 }
 
+# Brings down a compose stack and removes associated resources.
+#
+# Arguments:
+#   $1: Compose directory.
+#   $2: Compose file name.
+#   $3: Optional env file path.
+# Returns:
+#   None.
 atl_uninstall_compose_down() {
   local compose_dir="$1" compose_file="$2" env_file="$3"
   [[ -d "$compose_dir" ]] || return 0
@@ -315,27 +470,44 @@ atl_uninstall_compose_down() {
   fi
 
   if atl_sudo docker compose version >/dev/null 2>&1; then
-    (cd "$compose_dir" && atl_sudo env COMPOSE_BAKE=false docker compose "${env_args[@]}" -f "$compose_file" down -v --remove-orphans 2>/dev/null) || true
-    (cd "$compose_dir" && atl_sudo env COMPOSE_BAKE=false docker compose "${env_args[@]}" -f "$compose_file" down -v --rmi local --remove-orphans 2>/dev/null) || true
+    (cd "$compose_dir" && atl_sudo env COMPOSE_BAKE=false docker compose \
+      "${env_args[@]}" -f "$compose_file" down -v --remove-orphans \
+      2>/dev/null) || true
+    (cd "$compose_dir" && atl_sudo env COMPOSE_BAKE=false docker compose \
+      "${env_args[@]}" -f "$compose_file" down -v --rmi local \
+      --remove-orphans 2>/dev/null) || true
   elif atl_cmd_exists docker-compose; then
-    (cd "$compose_dir" && atl_sudo docker-compose "${env_args[@]}" -f "$compose_file" down -v --remove-orphans 2>/dev/null) || true
+    (cd "$compose_dir" && atl_sudo docker-compose "${env_args[@]}" \
+      -f "$compose_file" down -v --remove-orphans 2>/dev/null) || true
   fi
 }
 
+# Removes docker services, containers, volumes, and known networks/images.
+#
+# Arguments:
+#   $1: Install mode.
+#   $2: Install directory.
+#   $3: Optional env file path.
+# Returns:
+#   None.
 atl_uninstall_remove_docker() {
   local mode="$1" install_dir="$2" env_file="$3"
   local name vol
 
   case "$mode" in
     fullstack)
-      atl_uninstall_compose_down "${install_dir}/install/docker" docker-compose.fullstack.yml "$env_file"
+      atl_uninstall_compose_down "${install_dir}/install/docker" \
+        docker-compose.fullstack.yml "$env_file"
       ;;
     docker)
-      atl_uninstall_compose_down "${install_dir}/install/docker" docker-compose.deps.yml "$env_file"
+      atl_uninstall_compose_down "${install_dir}/install/docker" \
+        docker-compose.deps.yml "$env_file"
       ;;
     *)
-      atl_uninstall_compose_down "${install_dir}/install/docker" docker-compose.fullstack.yml "$env_file"
-      atl_uninstall_compose_down "${install_dir}/install/docker" docker-compose.deps.yml "$env_file"
+      atl_uninstall_compose_down "${install_dir}/install/docker" \
+        docker-compose.fullstack.yml "$env_file"
+      atl_uninstall_compose_down "${install_dir}/install/docker" \
+        docker-compose.deps.yml "$env_file"
       ;;
   esac
 
@@ -356,28 +528,51 @@ atl_uninstall_remove_docker() {
   atl_sudo docker image rm -f docker_app:latest 2>/dev/null || true
 }
 
+# Removes Atlantisboard reverse-proxy configuration artifacts.
+#
+# Arguments:
+#   $1: Reverse proxy type ("nginx", "caddy", or fallback).
+# Returns:
+#   None.
 atl_uninstall_remove_reverse_proxy() {
   local kind="$1"
   case "$kind" in
     nginx)
-      atl_sudo rm -f /etc/nginx/sites-enabled/atlantisboard /etc/nginx/sites-available/atlantisboard
+      atl_sudo rm -f \
+        /etc/nginx/sites-enabled/atlantisboard \
+        /etc/nginx/sites-available/atlantisboard
       if atl_sudo test -f /etc/nginx/sites-available/default 2>/dev/null \
         && ! atl_sudo test -e /etc/nginx/sites-enabled/default 2>/dev/null; then
-        atl_sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default 2>/dev/null || true
+        atl_sudo ln -sf /etc/nginx/sites-available/default \
+          /etc/nginx/sites-enabled/default 2>/dev/null || true
       fi
-      atl_cmd_exists nginx && atl_sudo nginx -t 2>/dev/null && atl_sudo systemctl reload nginx 2>/dev/null || true
+      atl_cmd_exists nginx \
+        && atl_sudo nginx -t 2>/dev/null \
+        && atl_sudo systemctl reload nginx 2>/dev/null || true
       ;;
     caddy)
-      atl_sudo rm -f /etc/caddy/conf.d/atlantisboard.caddy /etc/caddy/conf.d/00-acme-email.caddy
-      atl_cmd_exists caddy && atl_sudo systemctl reload caddy 2>/dev/null || true
+      atl_sudo rm -f \
+        /etc/caddy/conf.d/atlantisboard.caddy \
+        /etc/caddy/conf.d/00-acme-email.caddy
+      atl_cmd_exists caddy \
+        && atl_sudo systemctl reload caddy 2>/dev/null || true
       ;;
     *)
-      atl_sudo rm -f /etc/nginx/sites-enabled/atlantisboard /etc/nginx/sites-available/atlantisboard \
-        /etc/caddy/conf.d/atlantisboard.caddy /etc/caddy/conf.d/00-acme-email.caddy 2>/dev/null || true
+      atl_sudo rm -f \
+        /etc/nginx/sites-enabled/atlantisboard \
+        /etc/nginx/sites-available/atlantisboard \
+        /etc/caddy/conf.d/atlantisboard.caddy \
+        /etc/caddy/conf.d/00-acme-email.caddy 2>/dev/null || true
       ;;
   esac
 }
 
+# Removes a path if present, using sudo when needed.
+#
+# Arguments:
+#   $1: Path to remove.
+# Returns:
+#   None.
 atl_uninstall_remove_path() {
   local path="$1"
   [[ -n "$path" ]] || return 0
@@ -388,12 +583,22 @@ atl_uninstall_remove_path() {
   fi
 }
 
+# Removes the Atlantisboard system user when present.
+#
+# Returns:
+#   None.
 atl_uninstall_remove_system_user() {
   if id atlantisboard >/dev/null 2>&1; then
-    atl_sudo userdel -r atlantisboard 2>/dev/null || atl_sudo userdel atlantisboard 2>/dev/null || true
+    atl_sudo userdel -r atlantisboard 2>/dev/null \
+      || atl_sudo userdel atlantisboard 2>/dev/null \
+      || true
   fi
 }
 
+# Verifies whether tracked uninstall artifacts still exist.
+#
+# Returns:
+#   0 when nothing remains; non-zero and details on stdout otherwise.
 atl_uninstall_verify_remaining() {
   local -a remaining=()
   local path name vol
@@ -413,7 +618,8 @@ atl_uninstall_verify_remaining() {
 
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
-    if atl_sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
+    if atl_sudo docker ps -a --format '{{.Names}}' 2>/dev/null \
+      | grep -qx "$name"; then
       remaining+=("container ${name} still exists")
     fi
   done < <(atl_uninstall_collect_docker_containers "${ATL_UNINSTALL_MODE:-}")
@@ -425,6 +631,12 @@ atl_uninstall_verify_remaining() {
   return 0
 }
 
+# Removes uninstall launcher/scripts from package roots.
+#
+# Arguments:
+#   $1: Package root path.
+# Returns:
+#   None.
 atl_uninstall_remove_self_scripts() {
   local pkg_root="$1"
   local -a self_paths=()
@@ -434,7 +646,8 @@ atl_uninstall_remove_self_scripts() {
     "${pkg_root}/install/uninstall.sh"
     "${pkg_root}/install/lib/uninstall-lib.sh"
   )
-  if [[ -n "${ATL_UNINSTALL_INSTALL_DIR:-}" && "${ATL_UNINSTALL_INSTALL_DIR}" != "$pkg_root" ]]; then
+  if [[ -n "${ATL_UNINSTALL_INSTALL_DIR:-}" \
+    && "${ATL_UNINSTALL_INSTALL_DIR}" != "$pkg_root" ]]; then
     self_paths+=(
       "${ATL_UNINSTALL_INSTALL_DIR}/atlantisboard-uninstall"
       "${ATL_UNINSTALL_INSTALL_DIR}/install/uninstall.sh"
@@ -452,6 +665,20 @@ atl_uninstall_remove_self_scripts() {
   done
 }
 
+# Writes install manifest JSON used by uninstall discovery.
+#
+# Arguments:
+#   $1: Install mode.
+#   $2: Install directory.
+#   $3: Env file path.
+#   $4: Backup directory.
+#   $5: Main systemd unit created flag.
+#   $6: Worker systemd unit created flag.
+#   $7: Reverse proxy kind.
+#   $8: System user created flag.
+#   $9: Package root.
+# Returns:
+#   None.
 atl_write_install_manifest() {
   local mode="$1"
   local install_dir="$2"
@@ -469,7 +696,11 @@ atl_write_install_manifest() {
   local jq_main jq_worker jq_user
   tmp="$(mktemp)"
   if [[ "$systemd_main" == true ]]; then jq_main=true; else jq_main=false; fi
-  if [[ "$systemd_worker" == true ]]; then jq_worker=true; else jq_worker=false; fi
+  if [[ "$systemd_worker" == true ]]; then
+    jq_worker=true
+  else
+    jq_worker=false
+  fi
   if [[ "$created_user" == true ]]; then jq_user=true; else jq_user=false; fi
   if command -v jq >/dev/null 2>&1; then
     jq -n \
@@ -493,11 +724,29 @@ atl_write_install_manifest() {
         backup_dir: $backup_dir,
         package_root: $package_root,
         reverse_proxy: $reverse_proxy,
-        systemd: { main: $systemd_main, worker: $systemd_worker, created_user: $created_user }
+        systemd: {
+          main: $systemd_main,
+          worker: $systemd_worker,
+          created_user: $created_user
+        }
       }' >"$tmp"
   else
     cat >"$tmp" <<EOF
-{"version":"1","mode":"${mode}","installed_at":"${installed_at}","install_dir":"${install_dir}","env_file":"${env_file}","backup_dir":"${backup_dir}","package_root":"${pkg_root}","reverse_proxy":"${reverse_proxy}","systemd":{"main":${jq_main},"worker":${jq_worker},"created_user":${jq_user}}}
+{
+  "version": "1",
+  "mode": "${mode}",
+  "installed_at": "${installed_at}",
+  "install_dir": "${install_dir}",
+  "env_file": "${env_file}",
+  "backup_dir": "${backup_dir}",
+  "package_root": "${pkg_root}",
+  "reverse_proxy": "${reverse_proxy}",
+  "systemd": {
+    "main": ${jq_main},
+    "worker": ${jq_worker},
+    "created_user": ${jq_user}
+  }
+}
 EOF
   fi
 

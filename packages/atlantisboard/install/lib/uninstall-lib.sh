@@ -503,5 +503,4 @@ EOF
 
   atl_sudo install -m 600 -o root -g root "$tmp" "$manifest_path"
   rm -f "$tmp"
-  atl_uninstall_log "wrote install manifest ${manifest_path}"
 }

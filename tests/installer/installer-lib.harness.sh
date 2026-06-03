@@ -26,6 +26,8 @@ ENV_FIELDS="${PKG_ROOT}/install/env-fields.json"
 
 # shellcheck source=../../packages/atlantisboard/install/lib/common.sh
 source "${PKG_ROOT}/install/lib/common.sh"
+# shellcheck source=../../packages/atlantisboard/install/lib/uninstall-lib.sh
+source "${PKG_ROOT}/install/lib/uninstall-lib.sh"
 
 # Avoid sudo / interactive dialogs in harness.
 atl_sudo() {
@@ -176,6 +178,61 @@ assert_welcome_secrets_section_skipped_in_prompts() {
   fi
 }
 
+assert_uninstall_scripts_present() {
+  [[ -x "${PKG_ROOT}/install/uninstall.sh" ]] || fail "missing install/uninstall.sh"
+  [[ -x "${PKG_ROOT}/atlantisboard-uninstall" ]] || fail "missing atlantisboard-uninstall launcher"
+  [[ -f "${PKG_ROOT}/install/lib/uninstall-lib.sh" ]] || fail "missing uninstall-lib.sh"
+  return 0
+}
+
+assert_uninstall_docker_inventory() {
+  local names
+  names="$(atl_uninstall_collect_docker_containers fullstack)"
+  grep -qx 'atlantisboard-app-full' <<<"$names" || fail "fullstack missing app container name"
+  names="$(atl_uninstall_collect_docker_containers docker)"
+  grep -qx 'atlantisboard-mongodb-deps' <<<"$names" || fail "docker deps missing mongodb container name"
+  return 0
+}
+
+assert_uninstall_tracked_paths() {
+  local paths
+  paths="$(atl_uninstall_collect_tracked_paths /opt/atlantisboard /var/backups/atlantisboard fullstack nginx)"
+  grep -qx '/opt/atlantisboard' <<<"$paths" || fail "tracked paths must include install dir"
+  grep -qx '/etc/nginx/sites-available/atlantisboard' <<<"$paths" || fail "tracked paths must include nginx site"
+  return 0
+}
+
+assert_env_get_from_file_reads_disk() {
+  local tmp env_val
+  tmp="$(mktemp -d)"
+  printf '%s\n' 'APP_URL=https://boards.example.com' 'PORT=3000' >"${tmp}/.env"
+  env_val="$(atl_env_get_from_file APP_URL "${tmp}/.env")" || fail "read APP_URL from file"
+  [[ "$env_val" == "https://boards.example.com" ]] || fail "APP_URL mismatch: ${env_val}"
+  rm -rf "$tmp"
+  return 0
+}
+
+assert_app_url_local_detection() {
+  atl_app_url_is_local 'http://localhost:3000' || fail 'localhost should be local'
+  atl_app_url_is_local 'https://boards.example.com' && fail 'public domain should not be local'
+  domain="$(atl_extract_domain_from_url 'https://boards.example.com')"
+  [[ "$domain" == "boards.example.com" ]] || fail "domain extract got ${domain}"
+  return 0
+}
+
+assert_install_manifest_write() {
+  command -v jq >/dev/null 2>&1 || return 0
+  local tmp manifest
+  tmp="$(mktemp -d)"
+  manifest="${tmp}/${ATL_MANIFEST_NAME}"
+  atl_write_install_manifest docker "$tmp" "${tmp}/.env" /var/backups/atlantisboard true false nginx true "$PKG_ROOT"
+  [[ -f "$manifest" ]] || fail "manifest not written"
+  [[ "$(jq -r '.mode' "$manifest")" == "docker" ]] || fail "manifest mode"
+  [[ "$(jq -r '.reverse_proxy' "$manifest")" == "nginx" ]] || fail "manifest reverse_proxy"
+  rm -rf "$tmp"
+  return 0
+}
+
 assert_path_rejects_garbled
 assert_path_accepts_valid
 assert_backup_dir_defaults
@@ -185,5 +242,11 @@ assert_write_env_file_format
 assert_mkdir_rejects_empty
 assert_prereq_package_mapping
 assert_welcome_secrets_section_skipped_in_prompts
+assert_uninstall_scripts_present
+assert_uninstall_docker_inventory
+assert_uninstall_tracked_paths
+assert_env_get_from_file_reads_disk
+assert_app_url_local_detection
+assert_install_manifest_write
 
 echo "installer-lib.harness: all checks passed"

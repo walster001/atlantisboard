@@ -10,9 +10,12 @@ const HARNESS_SCRIPT = join(REPO_ROOT, 'tests', 'installer', 'installer-lib.harn
 
 const INSTALL_SHELL_FILES = [
   join(INSTALL_DIR, 'setup.sh'),
+  join(INSTALL_DIR, 'uninstall.sh'),
   join(INSTALL_DIR, 'lib', 'common.sh'),
+  join(INSTALL_DIR, 'lib', 'uninstall-lib.sh'),
   join(INSTALL_DIR, 'reverse-proxy.sh'),
   join(INSTALL_DIR, 'bin', 'setup.sh'),
+  join(INSTALL_DIR, 'bin', 'uninstall.sh'),
 ];
 
 /** Legacy fd swap on capture lines caused answers to merge; whiptail values belong on stderr (see whiptail(1)). */
@@ -95,6 +98,18 @@ describe('installer shell static guards', () => {
     }
   });
 
+  test('install scripts route yes/no dialogs through atl_whiptail_yesno (TTY-safe under sudo)', () => {
+    for (const filePath of INSTALL_SHELL_FILES) {
+      if (filePath.endsWith('common.sh')) {
+        continue;
+      }
+      const text = readFileSync(filePath, 'utf8');
+      expect(text).not.toMatch(/\bwhiptail\b[^\n]*--yesno/);
+    }
+    const reverseProxy = readFileSync(join(INSTALL_DIR, 'reverse-proxy.sh'), 'utf8');
+    expect(reverseProxy).toContain('atl_whiptail_yesno');
+  });
+
   test('common.sh defines atl_whiptail_capture and atl_path_is_safe_absolute', () => {
     const common = readFileSync(join(INSTALL_DIR, 'lib', 'common.sh'), 'utf8');
     expect(common).toContain('atl_whiptail_capture()');
@@ -104,7 +119,8 @@ describe('installer shell static guards', () => {
     expect(common).toContain('atl_offer_install_prerequisites()');
     expect(common).toContain('atl_apply_theme()');
     expect(common).toContain('#1f68b5');
-    expect(common).toContain('#7ccfed');
+    expect(common).toContain('actbutton=black,white');
+    expect(common).toContain('atl_whiptail_yesno()');
     expect(common).toContain('atl_bootstrap_whiptail()');
     expect(common).toContain('atl_ensure_sudo_credentials()');
     expect(common).toContain('docker-compose-v2');
@@ -136,6 +152,23 @@ describe('installer shell static guards', () => {
     expect(setup).toContain('fullstack | docker | manual');
   });
 
+  test('completion message reads APP_URL from install .env on disk', () => {
+    const setup = readFileSync(join(INSTALL_DIR, 'setup.sh'), 'utf8');
+    const common = readFileSync(join(INSTALL_DIR, 'lib', 'common.sh'), 'utf8');
+    expect(setup).toContain('atl_env_get_from_file APP_URL "$ENV_FILE"');
+    expect(setup).not.toContain('atl_env_get APP_URL');
+    expect(common).toContain('atl_env_get_from_file()');
+  });
+
+  test('setup.sh uses compose failure dialog with continue option', () => {
+    const setup = readFileSync(join(INSTALL_DIR, 'setup.sh'), 'utf8');
+    const common = readFileSync(join(INSTALL_DIR, 'lib', 'common.sh'), 'utf8');
+    expect(setup).toContain('atl_docker_compose_or_continue');
+    expect(setup).toContain('atl_wait_for_docker_deps_or_continue');
+    expect(common).toContain('atl_docker_compose_or_continue()');
+    expect(common).toContain('Docker Compose failed');
+  });
+
   test('setup.sh wires post-prompt validation and preserves install .env on rsync', () => {
     const setup = readFileSync(join(INSTALL_DIR, 'setup.sh'), 'utf8');
     expect(setup).toContain('atl_sync_cors_with_app_url');
@@ -144,6 +177,27 @@ describe('installer shell static guards', () => {
     expect(setup).toContain('atl_preflight_manual_services');
     expect(setup).toContain('--exclude .env');
     expect(setup).toContain('${INSTALL_DIR}/install/systemd/');
+  });
+
+  test('setup.sh records install mode and writes uninstall manifest', () => {
+    const setup = readFileSync(join(INSTALL_DIR, 'setup.sh'), 'utf8');
+    expect(setup).toContain('ATLANTISBOARD_INSTALL_MODE');
+    expect(setup).toContain('atl_write_install_manifest');
+    expect(setup).toContain('install/lib/uninstall-lib.sh');
+  });
+
+  test('release bundle includes atlantisboard-uninstall launcher', () => {
+    const buildScript = readFileSync(join(REPO_ROOT, 'scripts', 'build-npm-package.sh'), 'utf8');
+    expect(buildScript).toContain('atlantisboard-uninstall');
+    const launcher = readFileSync(join(PKG_ROOT, 'atlantisboard-uninstall'), 'utf8');
+    expect(launcher).toContain('install/uninstall.sh');
+  });
+
+  test('uninstall.sh verifies removal before deleting itself', () => {
+    const uninstall = readFileSync(join(INSTALL_DIR, 'uninstall.sh'), 'utf8');
+    expect(uninstall).toContain('atl_uninstall_verify_remaining');
+    expect(uninstall).toContain('atl_uninstall_remove_self_scripts');
+    expect(uninstall).toContain('fullstack | docker | manual');
   });
 
   test('env-fields.json is present and every prompted field has a label', () => {
@@ -179,6 +233,17 @@ describe('installer shell static guards', () => {
     expect(compose).toContain('../../.env');
     expect(compose).not.toMatch(/env_file:\s*\n\s*-\s+\.\.\/\.env\b/);
     expect(compose).toContain('context: ../..');
+  });
+
+  test('mongodb compose uses keyFile entrypoint for replSet with auth', () => {
+    const full = readFileSync(
+      join(INSTALL_DIR, 'docker', 'docker-compose.fullstack.yml'),
+      'utf8'
+    );
+    expect(full).toContain('docker-entrypoint-with-keyfile.sh');
+    expect(full).toContain('--keyFile');
+    expect(full).toContain('/data/replica.key');
+    expect(full).not.toMatch(/mongodb:\/\/\$\$\{MONGO_INITDB_ROOT/);
   });
 
   test('installer MinIO images default to Docker Hub (not quay.io)', () => {

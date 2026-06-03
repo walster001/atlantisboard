@@ -51,3 +51,4 @@ echo "==> Installer zip (Whiptail wizard + full-stack Docker) v${VERSION}"
 
 echo "==> wrote ${ZIP_PATH}"
 echo "    On a Linux VM: unzip, then sudo ./atlantisboard-setup"
+echo "    To remove: sudo ./atlantisboard-uninstall"

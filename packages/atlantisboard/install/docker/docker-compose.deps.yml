@@ -15,22 +15,25 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:?Set MONGODB_ROOT_PASSWORD in .env}
       MONGODB_APP_USER: ${MONGODB_APP_USER:-kanboard_app}
       MONGODB_APP_PASSWORD: ${MONGODB_APP_PASSWORD:?Set MONGODB_APP_PASSWORD in .env}
-    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
+    entrypoint: ['/mongodb/docker-entrypoint-with-keyfile.sh']
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all', '--keyFile', '/data/replica.key']
     volumes:
       - mongo-data:/data/db
       - mongo-config:/data/configdb
       - ./mongodb/init-app-user.js:/docker-entrypoint-initdb.d/init-app-user.js:ro
+      - ./mongodb/docker-entrypoint-with-keyfile.sh:/mongodb/docker-entrypoint-with-keyfile.sh:ro
     ports:
       - '127.0.0.1:27017:27017'
     healthcheck:
       test: >
-        sh -c "
-        mongosh \"mongodb://$${MONGO_INITDB_ROOT_USERNAME}:$${MONGO_INITDB_ROOT_PASSWORD}@localhost:27017/admin\" --quiet --eval \"db.adminCommand('ping')\"
-        "
+        sh -c "mongosh --host 127.0.0.1 --port 27017
+        -u \"$${MONGO_INITDB_ROOT_USERNAME}\" -p \"$${MONGO_INITDB_ROOT_PASSWORD}\"
+        --authenticationDatabase admin --quiet
+        --eval 'db.adminCommand({ ping: 1 }).ok'"
       interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      timeout: 10s
+      retries: 8
+      start_period: 60s
 
   mongodb-init:
     image: mongo:8.0

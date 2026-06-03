@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Run the Whiptail uninstaller from an extracted release zip (Linux).
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export ATLANTISBOARD_PACKAGE_ROOT="$ROOT"
+exec bash "${ROOT}/install/uninstall.sh" "$@"

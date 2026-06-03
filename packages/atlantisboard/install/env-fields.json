@@ -91,7 +91,7 @@
         {
           "key": "APP_URL",
           "label": "Public site URL",
-          "description": "The URL people type in the browser (e.g. https://boards.example.com). Use http://localhost:3000 for local testing.",
+          "description": "The URL you will open when setup finishes (e.g. https://boards.example.com).\n\nUse your real domain here — the installer configures HTTPS next.\nFor local-only testing use http://localhost:3000.",
           "default": "http://localhost:3000",
           "secret": false,
           "validation": "url"

@@ -1,0 +1,14 @@
+#!/bin/bash
+# Wraps the official mongo image entrypoint: replica set + root auth requires a keyFile.
+# Generates /data/replica.key on first start (persisted in the mongo data volume).
+set -euo pipefail
+
+KEYFILE=/data/replica.key
+
+if [[ ! -s "$KEYFILE" ]]; then
+  openssl rand -base64 756 >"$KEYFILE"
+fi
+chmod 400 "$KEYFILE"
+chown mongodb:mongodb "$KEYFILE" 2>/dev/null || chown 999:999 "$KEYFILE"
+
+exec /usr/local/bin/docker-entrypoint.sh "$@"

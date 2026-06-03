@@ -27,6 +27,11 @@ INSTALL_DIR="${ATLANTISBOARD_INSTALL_DIR:-/opt/atlantisboard}"
 
 # shellcheck source=lib/common.sh
 source "${PKG_ROOT}/install/lib/common.sh"
+# shellcheck source=lib/uninstall-lib.sh
+source "${PKG_ROOT}/install/lib/uninstall-lib.sh"
+
+ATL_SYSTEMD_INSTALLED=false
+ATL_REVERSE_PROXY_KIND=none
 
 if [[ "$(uname -s)" != "Linux" ]]; then
   echo "atlantisboard-setup requires Linux (whiptail). On macOS use Docker or manual install — see docs/wiki/npm-install.md"
@@ -44,9 +49,9 @@ atl_apply_theme
 
 atl_require_sudo_access
 
-atl_whiptail_display --title "Welcome to Atlantisboard" --msgbox \
-  "This wizard will guide you through installing Atlantisboard.\n\n• Secrets are generated automatically\n• Each step validates your input\n• You can add Google sign-in later if you skip it\n\nPress OK to continue." \
-  14 72 || exit 0
+atl_whiptail_msgbox --title "Welcome to Atlantisboard" --msgbox \
+  "This installer sets up Atlantisboard end to end:\n\n• App and dependencies (Docker or Bun)\n• HTTPS reverse proxy (Caddy or Nginx)\n• Secrets generated automatically\n\nWhen it finishes, open the public site URL you enter.\n\nPress OK to start." \
+  16 72 || exit 0
 
 MODE="$(atl_whiptail_capture --title "Installation type" --menu \
   "How should Atlantisboard run on this server?" 18 78 3 \
@@ -134,8 +139,8 @@ fi
 if [[ "$MODE" == "docker" ]]; then
   atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
   atl_whiptail_display --title "Starting dependencies" --infobox "Starting MongoDB, Redis, and MinIO containers..." 8 60
-  atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.deps.yml up -d
-  atl_wait_for_docker_deps "$MODE"
+  atl_docker_compose_or_continue "${INSTALL_DIR}/install/docker" docker-compose.deps.yml up -d
+  atl_wait_for_docker_deps_or_continue "$MODE"
 fi
 
 if [[ "$MODE" == "fullstack" ]]; then
@@ -143,11 +148,8 @@ if [[ "$MODE" == "fullstack" ]]; then
   atl_whiptail_display --title "Building full stack" --infobox \
     "Building the Atlantisboard image and starting all containers.\n\nThis can take several minutes on first run." \
     10 70
-  atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.fullstack.yml up -d --build
-  atl_wait_for_docker_deps "$MODE"
-  atl_whiptail_display --title "Full stack started" --msgbox \
-    "All services are running in Docker.\n\n• App: port ${ENV_VALUES[PORT]:-3000}\n• MongoDB, Redis, and MinIO are ready\n\nUse: docker compose -f ${INSTALL_DIR}/install/docker/docker-compose.fullstack.yml ps" \
-    14 72 || true
+  atl_docker_compose_or_continue "${INSTALL_DIR}/install/docker" docker-compose.fullstack.yml up -d --build
+  atl_wait_for_docker_deps_or_continue "$MODE"
 fi
 
 rm -f "$PRIOR_ENV"
@@ -159,9 +161,9 @@ if [[ "$MODE" != "fullstack" ]]; then
   atl_sudo_mkdir_p "$BACKUP_DIR"
 fi
 
-if [[ "$MODE" != "fullstack" ]] && atl_whiptail_display --title "systemd services" --yesno \
-  "Install systemd services so Atlantisboard starts automatically on boot?" 10 72; then
+if [[ "$MODE" != "fullstack" ]]; then
   if atl_require_systemctl; then
+    ATL_SYSTEMD_INSTALLED=true
     if ! id atlantisboard >/dev/null 2>&1; then
       atl_sudo useradd --system --create-home --shell /usr/sbin/nologin atlantisboard || true
     fi
@@ -186,13 +188,17 @@ if [[ "$MODE" != "fullstack" ]] && atl_whiptail_display --title "systemd service
     [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]] && atl_sudo systemctl enable atlantisboard-worker.service
 
     if [[ "$MODE" == "docker" ]]; then
-      atl_wait_for_docker_deps "$MODE" 30
+      atl_wait_for_docker_deps_or_continue "$MODE" 30
     fi
 
     atl_systemctl_restart_or_fail atlantisboard.service
     if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
       atl_systemctl_restart_or_fail atlantisboard-worker.service
     fi
+  else
+    atl_whiptail_msgbox --title "systemd skipped" --msgbox \
+      "systemd is not available on this host.\n\nStart Atlantisboard manually from ${INSTALL_DIR} after setup completes." \
+      10 72 || true
   fi
 fi
 
@@ -200,22 +206,25 @@ fi
 source "${PKG_ROOT}/install/reverse-proxy.sh"
 run_reverse_proxy_wizard
 
+ENV_VALUES["ATLANTISBOARD_INSTALL_MODE"]="$MODE"
 atl_write_env_file "$ENV_FILE"
+atl_restart_after_config "$MODE" "$INSTALL_DIR"
 
-if [[ "$MODE" == "fullstack" ]]; then
-  atl_docker_compose "${INSTALL_DIR}/install/docker" docker-compose.fullstack.yml up -d
+worker_installed=false
+if [[ "$ATL_SYSTEMD_INSTALLED" == true && "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
+  worker_installed=true
 fi
+created_user=false
+if [[ "$ATL_SYSTEMD_INSTALLED" == true ]]; then
+  created_user=true
+fi
+atl_write_install_manifest "$MODE" "$INSTALL_DIR" "$ENV_FILE" "$BACKUP_DIR" \
+  "$ATL_SYSTEMD_INSTALLED" "$worker_installed" "$ATL_REVERSE_PROXY_KIND" "$created_user" "$PKG_ROOT"
 
-PUBLIC_URL="$(atl_env_get APP_URL http://localhost:3000)"
-case "$MODE" in
-  fullstack)
-    atl_whiptail_display --title "Installation complete" --msgbox \
-      "Atlantisboard full stack is running in Docker.\n\nOpen: ${PUBLIC_URL}\nInstall dir: ${INSTALL_DIR}\n\nManage: cd ${INSTALL_DIR}/install/docker && docker compose -f docker-compose.fullstack.yml ps\n\nSee docs/wiki/npm-install.md" \
-      16 72
-    ;;
-  *)
-    atl_whiptail_display --title "Installation complete" --msgbox \
-      "Installation finished.\n\nOpen: ${PUBLIC_URL}\nInstall dir: ${INSTALL_DIR}\n\nSee DEPLOYMENT.md and docs/wiki/npm-install.md" \
-      14 72
-    ;;
-esac
+PUBLIC_URL="$(atl_env_get_from_file APP_URL "$ENV_FILE" 2>/dev/null || true)"
+if [[ -z "$PUBLIC_URL" ]]; then
+  PUBLIC_URL="(APP_URL is not set in ${ENV_FILE})"
+fi
+atl_whiptail_msgbox --title "Installation complete" --msgbox \
+  "Atlantisboard is ready.\n\nSign in at:\n${PUBLIC_URL}\n\nInstall directory:\n${INSTALL_DIR}\n\nIf the page does not load yet, wait a minute for TLS certificates (Caddy) or check DNS points to this server." \
+  16 72 || true

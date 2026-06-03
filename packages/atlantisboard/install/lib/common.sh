@@ -29,9 +29,9 @@ textbox=${fg},${bg}
 acttextbox=${fg},${bg}
 helpline=${fg},${bg}
 button=${fg},${bg}
-actbutton=black,${accent}
+actbutton=black,white
 compactbutton=${fg},${bg}
-actcompactbutton=black,${accent}
+actcompactbutton=black,white
 entry=${fg},${bg}
 actentry=black,${accent}
 disentry=,${bg}
@@ -80,7 +80,8 @@ atl_url_encode() {
 
 atl_require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    whiptail --title "Missing prerequisite" --msgbox "Required command not found: $1\n\nInstall it and run atlantisboard-setup again." 12 60
+    atl_whiptail_msgbox --title "Missing prerequisite" --msgbox \
+      "Required command not found: $1\n\nInstall it and run atlantisboard-setup again." 12 60
     exit 1
   fi
 }
@@ -156,13 +157,54 @@ atl_whiptail_capture() {
 }
 
 atl_whiptail_display() {
-  local tty
+  local tty rc=0
   tty="$(atl_whiptail_tty)"
   if [[ "$tty" != "/dev/null" ]]; then
-    command whiptail "$@" </dev/tty 1>"$tty" 2>"$tty"
+    command whiptail "$@" </dev/tty 1>"$tty" 2>"$tty" || rc=$?
   else
-    command whiptail "$@" 1>"$tty" 2>"$tty"
+    command whiptail "$@" 1>"$tty" 2>"$tty" || rc=$?
   fi
+  return "$rc"
+}
+
+# Prefer these over raw whiptail — raw calls break Tab/Enter on yes/no under sudo (stdin is not /dev/tty).
+atl_whiptail_yesno() {
+  atl_whiptail_display "$@"
+}
+
+atl_whiptail_msgbox() {
+  atl_whiptail_display "$@"
+}
+
+atl_whiptail_infobox() {
+  atl_whiptail_display "$@"
+}
+
+atl_extract_domain_from_url() {
+  local url host
+  url="$(atl_sanitize_input "$1")"
+  [[ -z "$url" ]] && return 1
+  url="${url#*://}"
+  host="${url%%/*}"
+  host="${host%%:*}"
+  host="${host%%\?*}"
+  host="${host,,}"
+  [[ -n "$host" ]] || return 1
+  printf '%s' "$host"
+}
+
+atl_app_url_is_local() {
+  local host
+  host="$(atl_extract_domain_from_url "${1:-}")" || return 0
+  case "$host" in
+    localhost | 127.0.0.1 | ::1 | 0.0.0.0)
+      return 0
+      ;;
+    *.local)
+      return 0
+      ;;
+  esac
+  return 1
 }
 
 atl_sudo_mkdir_p() {
@@ -170,7 +212,7 @@ atl_sudo_mkdir_p() {
   dir="$(atl_sanitize_input "$dir")"
   dir="${dir%/}"
   if [[ -z "$dir" ]]; then
-    whiptail --title "Invalid path" --msgbox \
+    atl_whiptail_msgbox --title "Invalid path" --msgbox \
       "A directory path is required but was empty.\n\nThis usually means the installer did not receive a valid path from the prompts." \
       12 72 || true
     return 1
@@ -184,7 +226,7 @@ atl_assert_absolute_path() {
   path="$(atl_sanitize_input "$path")"
   path="${path%/}"
   if [[ -z "$path" ]] || [[ "$path" != /* ]] || [[ "$path" == "/" ]]; then
-    whiptail --title "Invalid path" --msgbox \
+    atl_whiptail_msgbox --title "Invalid path" --msgbox \
       "The ${label} is missing or invalid.\n\nUse an absolute path such as /opt/atlantisboard (not empty or /)." \
       12 72
     return 1
@@ -217,6 +259,25 @@ atl_env_get() {
   if [[ -z "$value" ]]; then
     value="$default"
   fi
+  printf '%s' "$value"
+}
+
+# Read a single KEY=value from the install .env on disk (authoritative after atl_write_env_file).
+atl_env_get_from_file() {
+  local key="$1" env_file="$2"
+  local line value
+  [[ -n "$key" && -n "$env_file" ]] || return 1
+  atl_sudo test -f "$env_file" 2>/dev/null || return 1
+  line="$(atl_sudo grep -E "^${key}=" "$env_file" 2>/dev/null | tail -1 || true)"
+  [[ -n "$line" ]] || return 1
+  value="${line#*=}"
+  value="${value%$'\r'}"
+  if [[ "$value" =~ ^\"(.*)\"$ ]]; then
+    value="${BASH_REMATCH[1]}"
+  elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+    value="${BASH_REMATCH[1]}"
+  fi
+  [[ -n "$value" ]] || return 1
   printf '%s' "$value"
 }
 
@@ -695,7 +756,7 @@ atl_preflight_check() {
 
 atl_require_systemctl() {
   if ! atl_cmd_exists systemctl; then
-    whiptail --title "systemd unavailable" --msgbox \
+    atl_whiptail_msgbox --title "systemd unavailable" --msgbox \
       "systemctl was not found on this system.\n\nAutomatic startup via systemd is only supported on Linux systems with systemd.\n\nSkip systemd setup and start Atlantisboard manually." \
       14 72
     return 1
@@ -718,14 +779,15 @@ atl_ensure_bun() {
     printf '%s' /usr/local/bin/bun
     return 0
   fi
-  if whiptail --title "Install Bun?" --yesno \
+  if atl_whiptail_yesno --title "Install Bun?" --yesno \
     "Bun is required but was not found.\n\nInstall Bun to /usr/local/bin so the atlantisboard systemd user can run it (ProtectHome=true)?" \
     12 72; then
-    whiptail --title "Installing Bun" --infobox "Downloading and installing Bun to /usr/local ...\n\nPlease wait." 8 60
+    atl_whiptail_infobox --title "Installing Bun" --infobox \
+      "Downloading and installing Bun to /usr/local ...\n\nPlease wait." 8 60
     atl_sudo mkdir -p /usr/local/bin
     curl -fsSL https://bun.sh/install | atl_sudo env BUN_INSTALL=/usr/local bash
     if [[ ! -x /usr/local/bin/bun ]]; then
-      whiptail --title "Bun install failed" --msgbox \
+      atl_whiptail_msgbox --title "Bun install failed" --msgbox \
         "Bun installation did not produce /usr/local/bin/bun.\n\nInstall manually: https://bun.sh" \
         12 70
       exit 1
@@ -733,7 +795,7 @@ atl_ensure_bun() {
     printf '%s' /usr/local/bin/bun
     return 0
   fi
-  whiptail --title "Bun required" --msgbox "Bun is required for this installation mode." 8 60
+  atl_whiptail_msgbox --title "Bun required" --msgbox "Bun is required for this installation mode." 8 60
   exit 1
 }
 
@@ -791,7 +853,7 @@ atl_warn_docker_volume_desync() {
     done
   fi
 
-  if ! whiptail --title "Existing Docker data" --yesno \
+  if ! atl_whiptail_yesno --title "Existing Docker data" --yesno \
     "Existing Docker containers or volumes were found for this stack.\n\nNew secrets in .env may not match passwords already stored in those volumes (Redis, MongoDB, MinIO). Continuing often causes authentication failures.${extra}\n\nTo reset data: install/docker/reset-docker-data.sh ${mode}\n\nContinue anyway?" \
     18 78; then
     exit 1
@@ -804,7 +866,7 @@ atl_wait_for_docker_deps() {
   local start now elapsed
   start="$(date +%s)"
 
-  whiptail --title "Starting dependencies" --infobox \
+  atl_whiptail_infobox --title "Starting dependencies" --infobox \
     "Waiting for MongoDB replica set, Redis, and MinIO to become ready...\n\nThis can take up to ${timeout} seconds on first run." \
     10 70
 
@@ -812,10 +874,10 @@ atl_wait_for_docker_deps() {
     now="$(date +%s)"
     elapsed=$((now - start))
     if (( elapsed >= timeout )); then
-      whiptail --title "Dependency timeout" --msgbox \
+      atl_whiptail_msgbox --title "Dependency timeout" --msgbox \
         "Timed out after ${timeout}s waiting for Docker dependencies.\n\nCheck container logs, e.g.:\n  cd ${INSTALL_DIR}/install/docker && docker compose ps" \
-        14 72
-      exit 1
+        14 72 || true
+      return 1
     fi
 
     local mongo_ok=false redis_ok=false minio_ok=false
@@ -868,7 +930,7 @@ atl_systemctl_restart_or_fail() {
   if atl_sudo systemctl restart "$unit"; then
     return 0
   fi
-  whiptail --title "Service start failed" --msgbox \
+  atl_whiptail_msgbox --title "Service start failed" --msgbox \
     "Failed to start ${unit}.\n\nInspect logs with:\n  sudo journalctl -u ${unit} -n 50 --no-pager\n\nFix the issue and run:\n  sudo systemctl restart ${unit}" \
     16 78
   exit 1
@@ -1109,13 +1171,9 @@ atl_prompt_env_fields() {
     atl_section_has_promptable_fields "$section" "$mode" || continue
     title="$(jq -r '.title' <<<"$section")"
     intro="$(jq -r '.intro // empty' <<<"$section")"
-    if [[ -n "$intro" ]]; then
-      atl_whiptail_display --title "$title" --msgbox "$intro" 12 70 || true
-    else
-      atl_whiptail_display --title "$title" --msgbox "Configure ${title} in the next dialogs." 8 70 || true
-    fi
-
     mapfile -t fields < <(jq -c '.fields[]' <<<"$section")
+    local section_intro="$intro"
+    local first_promptable=true
     for field in "${fields[@]}"; do
       atl_field_applies_to_mode "$field" "$mode" || continue
       key="$(jq -r '.key' <<<"$field")"
@@ -1125,11 +1183,16 @@ atl_prompt_env_fields() {
       fi
       label="$(jq -r '.label' <<<"$field")"
       desc="$(jq -r '.description' <<<"$field")"
+      if [[ "$first_promptable" == true && -n "$section_intro" ]]; then
+        desc="${section_intro}\n\n${desc}"
+        first_promptable=false
+      fi
       default="$(jq -r '.default' <<<"$field")"
       secret="$(jq -r '.secret // false' <<<"$field")"
       optional="$(jq -r '.optional // false' <<<"$field")"
       vtype="$(jq -r '.validation // empty' <<<"$field")"
       atl_prompt_validated "$key" "$label" "$desc" "$default" "$secret" "$optional" "$vtype" || exit 1
+      first_promptable=false
     done
   done < <(jq -c '.sections[]' "$ENV_FIELDS")
 }
@@ -1166,16 +1229,8 @@ atl_sync_cors_with_app_url() {
   local app_url="${ENV_VALUES[APP_URL]:-}"
   local cors="${ENV_VALUES[CORS_ORIGIN]:-}"
   [[ -n "$app_url" ]] || return 0
-  if [[ -z "$cors" ]]; then
+  if [[ -z "$cors" || "$cors" != "$app_url" ]]; then
     ENV_VALUES["CORS_ORIGIN"]="$app_url"
-    return 0
-  fi
-  if [[ "$cors" != "$app_url" ]]; then
-    if whiptail --title "CORS origin" --yesno \
-      "CORS_ORIGIN (${cors}) differs from your public site URL (${app_url}).\n\nSet CORS_ORIGIN to match APP_URL?" \
-      12 72; then
-      ENV_VALUES["CORS_ORIGIN"]="$app_url"
-    fi
   fi
 }
 
@@ -1207,7 +1262,7 @@ atl_validate_google_oauth_config() {
   while true; do
     oauth_origin="$(atl_url_origin "${ENV_VALUES[GOOGLE_OAUTH_BROWSER_ORIGIN]:-}")" || oauth_origin=""
     if [[ -z "$oauth_origin" ]]; then
-      whiptail --title "Google sign-in" --msgbox \
+      atl_whiptail_msgbox --title "Google sign-in" --msgbox \
         "Google OAuth browser origin is required when a Client ID is set.\n\nEnter the origin users open in the browser (e.g. https://boards.example.com)." \
         12 72 || true
       atl_prompt_validated "GOOGLE_OAUTH_BROWSER_ORIGIN" \
@@ -1218,7 +1273,7 @@ atl_validate_google_oauth_config() {
     fi
     ENV_VALUES["GOOGLE_OAUTH_BROWSER_ORIGIN"]="$oauth_origin"
     if [[ -n "$app_origin" && "$oauth_origin" != "$app_origin" ]]; then
-      whiptail --title "Google sign-in" --msgbox \
+      atl_whiptail_msgbox --title "Google sign-in" --msgbox \
         "Google OAuth browser origin must match your public site URL origin.\n\nAPP_URL origin: ${app_origin}\nOAuth origin: ${oauth_origin}\n\nUpdate one of them so they match." \
         14 72 || true
       atl_prompt_validated "GOOGLE_OAUTH_BROWSER_ORIGIN" \
@@ -1306,8 +1361,6 @@ atl_preflight_manual_services() {
   fi
 
   if ((${#warnings[@]} == 0)); then
-    whiptail --title "Connectivity check" --msgbox \
-      "Manual dependency checks passed (Redis, MinIO, MongoDB)." 8 60 || true
     return 0
   fi
 
@@ -1318,7 +1371,7 @@ atl_preflight_manual_services() {
   done
   msg+="\nFix networking/firewall/credentials, or continue anyway if services are still starting."
 
-  if whiptail --title "Connectivity check" --yesno "$msg" 18 78; then
+  if atl_whiptail_yesno --title "Connectivity check" --yesno "$msg" 18 78; then
     return 0
   fi
   exit 1
@@ -1426,22 +1479,54 @@ atl_docker_compose_run() {
   local compose_dir="$1" compose_file="$2"
   shift 2
   local -a env_args=()
+  local log_file="${ATL_DOCKER_COMPOSE_LOG:-}"
   while IFS= read -r line; do
     [[ -n "$line" ]] && env_args+=("$line")
   done < <(atl_docker_compose_env_args "$compose_dir")
   # Avoid Compose Bake when buildx is not installed (Ubuntu docker.io); classic build still works.
   local -a compose_env=(COMPOSE_BAKE=false)
-  if atl_sudo docker compose version >/dev/null 2>&1; then
-    (cd "$compose_dir" && atl_sudo env "${compose_env[@]}" docker compose "${env_args[@]}" -f "$compose_file" "$@")
+  if [[ -z "$log_file" ]]; then
+    log_file="$(mktemp)"
+    ATL_DOCKER_COMPOSE_LOG="$log_file"
   else
-    (cd "$compose_dir" && atl_sudo env "${compose_env[@]}" docker-compose "${env_args[@]}" -f "$compose_file" "$@")
+    : >"$log_file"
   fi
+  local rc=0
+  if atl_sudo docker compose version >/dev/null 2>&1; then
+    (cd "$compose_dir" && atl_sudo env "${compose_env[@]}" docker compose "${env_args[@]}" -f "$compose_file" "$@") \
+      >>"$log_file" 2>&1 || rc=$?
+  else
+    (cd "$compose_dir" && atl_sudo env "${compose_env[@]}" docker-compose "${env_args[@]}" -f "$compose_file" "$@") \
+      >>"$log_file" 2>&1 || rc=$?
+  fi
+  return "$rc"
+}
+
+atl_docker_compose_log_excerpt() {
+  local log_file="${ATL_DOCKER_COMPOSE_LOG:-}"
+  local excerpt=""
+  if [[ -n "$log_file" && -f "$log_file" ]]; then
+    excerpt="$(tail -n 10 "$log_file" 2>/dev/null | sed 's/\\/\\\\/g' | tr -d '\r' || true)"
+  fi
+  if [[ -n "$excerpt" ]]; then
+    printf '%s' "$excerpt"
+  else
+    printf '%s' "(no compose output captured — check the terminal scrollback)"
+  fi
+}
+
+atl_docker_compose_cleanup_log() {
+  if [[ -n "${ATL_DOCKER_COMPOSE_LOG:-}" && -f "${ATL_DOCKER_COMPOSE_LOG}" ]]; then
+    rm -f "${ATL_DOCKER_COMPOSE_LOG}"
+  fi
+  ATL_DOCKER_COMPOSE_LOG=""
 }
 
 atl_docker_compose() {
   local compose_dir="$1" compose_file="$2"
   shift 2
   local env_file="${ENV_FILE:-}"
+  atl_docker_compose_cleanup_log
   if [[ -z "$env_file" ]]; then
     echo "atlantisboard-setup: internal error — ENV_FILE is not set before docker compose" >&2
     return 1
@@ -1454,6 +1539,7 @@ atl_docker_compose() {
   local max_attempts=3 attempt=1 delay=15
   while [[ "$attempt" -le "$max_attempts" ]]; do
     if atl_docker_compose_run "$compose_dir" "$compose_file" "$@"; then
+      atl_docker_compose_cleanup_log
       return 0
     fi
     if [[ "$attempt" -lt "$max_attempts" ]]; then
@@ -1465,6 +1551,72 @@ atl_docker_compose() {
   done
   echo "atlantisboard-setup: docker compose failed after ${max_attempts} attempts. Check network access to docker.io and retry, or set ATLANTISBOARD_MINIO_IMAGE / ATLANTISBOARD_MINIO_MC_IMAGE in .env to a mirror." >&2
   return 1
+}
+
+# Set when compose failed but the user chose to continue (skip dependency health wait).
+ATL_DOCKER_COMPOSE_DEFERRED=false
+
+# Run docker compose; on failure show whiptail error and offer to continue setup (e.g. reverse proxy).
+# Returns 0 on compose success or if user chooses Continue anyway; exits if user aborts.
+atl_docker_compose_or_continue() {
+  local compose_dir="$1" compose_file="$2"
+  shift 2
+  local compose_label="${compose_file}"
+  local install_hint="${INSTALL_DIR:-/opt/atlantisboard}"
+
+  if atl_docker_compose "$compose_dir" "$compose_file" "$@"; then
+    return 0
+  fi
+
+  local excerpt msg
+  excerpt="$(atl_docker_compose_log_excerpt)"
+  msg="docker compose did not finish successfully.\n\nFile: ${compose_label}\nDirectory: ${compose_dir}\n\nLast output:\n${excerpt}\n\nYou can fix containers later with:\n  cd ${install_hint}/install/docker\n  sudo docker compose --env-file ../../.env -f ${compose_label} logs\n\nContinue setup anyway (HTTPS reverse proxy and remaining steps)?"
+
+  if atl_whiptail_yesno --title "Docker Compose failed" --yesno "$msg" 22 78; then
+    ATL_DOCKER_COMPOSE_DEFERRED=true
+    atl_docker_compose_cleanup_log
+    return 0
+  fi
+
+  atl_docker_compose_cleanup_log
+  exit 1
+}
+
+atl_wait_for_docker_deps_or_continue() {
+  local mode="$1"
+  local timeout="${2:-120}"
+  if [[ "${ATL_DOCKER_COMPOSE_DEFERRED:-false}" == true ]]; then
+    return 0
+  fi
+  if atl_wait_for_docker_deps "$mode" "$timeout"; then
+    return 0
+  fi
+  local msg="Docker dependencies did not become healthy within ${timeout} seconds.\n\nMongoDB, Redis, or MinIO may still be starting or misconfigured.\n\nContinue setup anyway (HTTPS reverse proxy and remaining steps)?"
+  if atl_whiptail_yesno --title "Docker health check" --yesno "$msg" 14 78; then
+    return 0
+  fi
+  exit 1
+}
+
+atl_restart_after_config() {
+  local mode="$1" install_dir="$2"
+  case "$mode" in
+    fullstack)
+      if ! atl_docker_compose "${install_dir}/install/docker" docker-compose.fullstack.yml up -d; then
+        atl_whiptail_msgbox --title "Docker restart" --msgbox \
+          "Could not restart the full stack after configuration changes.\n\nRun manually:\n  cd ${install_dir}/install/docker\n  sudo docker compose --env-file ../../.env -f docker-compose.fullstack.yml up -d" \
+          14 72 || true
+      fi
+      ;;
+    docker | manual)
+      if atl_sudo test -f /etc/systemd/system/atlantisboard.service 2>/dev/null; then
+        atl_systemctl_restart_or_fail atlantisboard.service || true
+        if atl_sudo test -f /etc/systemd/system/atlantisboard-worker.service 2>/dev/null; then
+          atl_systemctl_restart_or_fail atlantisboard-worker.service || true
+        fi
+      fi
+      ;;
+  esac
 }
 
 atl_prompt_install_dir() {
@@ -1484,7 +1636,7 @@ atl_prompt_install_dir() {
       valid=true
     else
       err_msg="$(atl_validation_message install_dir)"
-      whiptail --title "Invalid path" --msgbox "${err_msg}\n\nYou entered: ${current:-(empty)}" 12 70 || true
+      atl_whiptail_msgbox --title "Invalid path" --msgbox "${err_msg}\n\nYou entered: ${current:-(empty)}" 12 70 || true
     fi
   done
 }

@@ -74,12 +74,15 @@ cp README.md "${PKG_DIR}/README.md"
 
 echo "==> Sync Docker full-stack assets"
 mkdir -p "${PKG_DIR}/install/docker/mongodb" "${PKG_DIR}/install/docker/minio"
-cp docker/mongodb/init-app-user.js "${PKG_DIR}/install/docker/mongodb/"
-cp docker/mongodb/replica-init.sh "${PKG_DIR}/install/docker/mongodb/replica-init-auth.sh"
+cp docker/mongodb/init-app-user.js \
+  docker/mongodb/replica-init-auth.sh \
+  docker/mongodb/docker-entrypoint-with-keyfile.sh \
+  "${PKG_DIR}/install/docker/mongodb/"
 # install/docker/minio may contain repo symlinks into docker/minio — remove before cp.
 rm -f "${PKG_DIR}/install/docker/minio/prod-setup.sh" "${PKG_DIR}/install/docker/minio/app-readwrite-policy.json"
 cp docker/minio/prod-setup.sh docker/minio/app-readwrite-policy.json "${PKG_DIR}/install/docker/minio/"
 chmod +x "${PKG_DIR}/install/docker/mongodb/replica-init-auth.sh" \
+  "${PKG_DIR}/install/docker/mongodb/docker-entrypoint-with-keyfile.sh" \
   "${PKG_DIR}/install/docker/minio/prod-setup.sh" \
   "${PKG_DIR}/install/docker/reset-docker-data.sh" 2>/dev/null || true
 
@@ -93,7 +96,7 @@ export ATLANTISBOARD_PACKAGE_ROOT="${ATLANTISBOARD_PACKAGE_ROOT:-$PKG_ROOT}"
 exec bash "${SCRIPT_DIR}/../setup.sh" "$@"
 EOF
 
-chmod +x "${PKG_DIR}/install/setup.sh" "${PKG_DIR}/install/bin/setup.sh" "${PKG_DIR}/install/bin/atlantisboard.js" 2>/dev/null || true
+chmod +x "${PKG_DIR}/install/setup.sh" "${PKG_DIR}/install/uninstall.sh" "${PKG_DIR}/install/bin/setup.sh" "${PKG_DIR}/install/bin/uninstall.sh" "${PKG_DIR}/install/bin/atlantisboard.js" 2>/dev/null || true
 chmod +x "${PKG_DIR}/install/docker/mongodb/replica-init.sh" 2>/dev/null || true
 
 echo "==> Root launchers for GitHub zip extract (same tree as npm publish)"
@@ -113,6 +116,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec node "${ROOT}/install/bin/atlantisboard.js" "$@"
 EOF
 chmod +x "${PKG_DIR}/atlantisboard-setup" "${PKG_DIR}/atlantisboard"
+cat > "${PKG_DIR}/atlantisboard-uninstall" <<'EOF'
+#!/usr/bin/env bash
+# Run the Whiptail uninstaller from an extracted release zip (Linux).
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export ATLANTISBOARD_PACKAGE_ROOT="$ROOT"
+exec bash "${ROOT}/install/uninstall.sh" "$@"
+EOF
+chmod +x "${PKG_DIR}/atlantisboard-uninstall"
 
 if [[ ! -s "${PKG_DIR}/bun.lock" ]]; then
   echo "error: ${PKG_DIR}/bun.lock missing after package build — aborting" >&2

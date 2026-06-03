@@ -9,10 +9,11 @@ if (appPassword == null || String(appPassword).length < 8) {
   quit(1);
 }
 
-db = db.getSiblingDB('kanboard');
+const dbName = process.env.MONGO_INITDB_DATABASE || 'kanboard';
+db = db.getSiblingDB(dbName);
 db.createUser({
   user: appUser,
   pwd: appPassword,
-  roles: [{ role: 'readWrite', db: 'kanboard' }],
+  roles: [{ role: 'readWrite', db: dbName }],
 });
-print(`Created application user "${appUser}" on database kanboard`);
+print(`Created application user "${appUser}" on database ${dbName}`);

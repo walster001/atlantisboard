@@ -26,7 +26,8 @@
   ],
   "bin": {
     "atlantisboard": "install/bin/atlantisboard.js",
-    "atlantisboard-setup": "install/bin/setup.sh"
+    "atlantisboard-setup": "install/bin/setup.sh",
+    "atlantisboard-uninstall": "install/bin/uninstall.sh"
   },
   "files": [
     "dist",
@@ -39,7 +40,8 @@
     "install",
     ".npmignore",
     "atlantisboard",
-    "atlantisboard-setup"
+    "atlantisboard-setup",
+    "atlantisboard-uninstall"
   ],
   "scripts": {
     "postinstall": "node install/postinstall.js",

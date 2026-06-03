@@ -35,7 +35,19 @@ atl_sudo() {
   shift
   case "$cmd" in
     install)
-      local src="${@: -2:1}" dest="${@: -1}"
+      local src dest
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          -m | -o | -g) shift 2 ;;
+          -*) shift ;;
+          *)
+            break
+            ;;
+        esac
+      done
+      src="${1:-}"
+      dest="${2:-}"
+      [[ -n "$src" && -n "$dest" ]] || return 1
       install -m 600 "$src" "$dest"
       ;;
     test)
@@ -43,6 +55,9 @@ atl_sudo() {
       ;;
     cat)
       cat "$@"
+      ;;
+    grep)
+      grep "$@"
       ;;
     mkdir)
       mkdir "$@"
@@ -206,8 +221,15 @@ assert_env_get_from_file_reads_disk() {
   local tmp env_val
   tmp="$(mktemp -d)"
   printf '%s\n' 'APP_URL=https://boards.example.com' 'PORT=3000' >"${tmp}/.env"
-  env_val="$(atl_env_get_from_file APP_URL "${tmp}/.env")" || fail "read APP_URL from file"
-  [[ "$env_val" == "https://boards.example.com" ]] || fail "APP_URL mismatch: ${env_val}"
+  if ! env_val="$(atl_env_get_from_file APP_URL "${tmp}/.env")"; then
+    fail "read APP_URL from file (see ${tmp}/.env)"
+  fi
+  [[ "$env_val" == "https://boards.example.com" ]] || fail "APP_URL mismatch: [${env_val}]"
+  if ! atl_env_get_from_file MISSING_KEY "${tmp}/.env" 2>/dev/null; then
+    :
+  else
+    fail "expected missing key to fail read"
+  fi
   rm -rf "$tmp"
   return 0
 }

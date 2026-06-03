@@ -268,17 +268,21 @@ atl_env_get_from_file() {
   local line value
   [[ -n "$key" && -n "$env_file" ]] || return 1
   atl_sudo test -f "$env_file" 2>/dev/null || return 1
-  line="$(atl_sudo grep -E "^${key}=" "$env_file" 2>/dev/null | tail -1 || true)"
-  [[ -n "$line" ]] || return 1
-  value="${line#*=}"
-  value="${value%$'\r'}"
-  if [[ "$value" =~ ^\"(.*)\"$ ]]; then
-    value="${BASH_REMATCH[1]}"
-  elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
-    value="${BASH_REMATCH[1]}"
-  fi
-  [[ -n "$value" ]] || return 1
-  printf '%s' "$value"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    [[ "${BASH_REMATCH[1]}" == "$key" ]] || continue
+    value="${BASH_REMATCH[2]}"
+    value="${value%$'\r'}"
+    if [[ "$value" =~ ^\"(.*)\"$ ]]; then
+      value="${BASH_REMATCH[1]}"
+    elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+      value="${BASH_REMATCH[1]}"
+    fi
+    [[ -n "$value" ]] || return 1
+    printf '%s' "$value"
+    return 0
+  done < <(atl_sudo cat "$env_file" 2>/dev/null || true)
+  return 1
 }
 
 atl_path_is_safe_absolute() {

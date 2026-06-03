@@ -382,6 +382,8 @@ or sudo dnf install newt (Fedora)"
   fi
 
   atl_finalize_install_dir
+  # INSTALL_DIR is set by atl_finalize_install_dir above.
+  # shellcheck disable=SC2153
   if ! atl_sudo mkdir -p "$(dirname "$INSTALL_DIR")" 2>/dev/null; then
     lines+=("Cannot create install path parent $(dirname "$INSTALL_DIR") — run \
 with sudo")

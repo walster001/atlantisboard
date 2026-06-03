@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Uninstall helpers for atlantisboard-setup (sourced by install/uninstall.sh).
 # Expects install/lib/common.sh to be loaded first.
 
@@ -415,6 +416,8 @@ atl_uninstall_discover_state() {
       && ATL_UNINSTALL_REVERSE_PROXY=caddy
   fi
   if id atlantisboard >/dev/null 2>&1; then
+    # Read by install/uninstall.sh after atl_uninstall_discover_state.
+    # shellcheck disable=SC2034
     ATL_UNINSTALL_CREATED_USER=true
   fi
 
@@ -546,16 +549,19 @@ atl_uninstall_remove_reverse_proxy() {
         atl_sudo ln -sf /etc/nginx/sites-available/default \
           /etc/nginx/sites-enabled/default 2>/dev/null || true
       fi
-      atl_cmd_exists nginx \
-        && atl_sudo nginx -t 2>/dev/null \
-        && atl_sudo systemctl reload nginx 2>/dev/null || true
+      if atl_cmd_exists nginx; then
+        if atl_sudo nginx -t 2>/dev/null; then
+          atl_sudo systemctl reload nginx 2>/dev/null || true
+        fi
+      fi
       ;;
     caddy)
       atl_sudo rm -f \
         /etc/caddy/conf.d/atlantisboard.caddy \
         /etc/caddy/conf.d/00-acme-email.caddy
-      atl_cmd_exists caddy \
-        && atl_sudo systemctl reload caddy 2>/dev/null || true
+      if atl_cmd_exists caddy; then
+        atl_sudo systemctl reload caddy 2>/dev/null || true
+      fi
       ;;
     *)
       atl_sudo rm -f \

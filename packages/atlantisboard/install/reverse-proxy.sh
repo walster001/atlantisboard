@@ -142,20 +142,20 @@ _render_nginx_site() {
   local max_body="${PROXY_VALUES[PROXY_MAX_BODY_MB]}m"
   local ssl_cert="${PROXY_VALUES[NGINX_SSL_CERT]//DOMAIN_PLACEHOLDER/$domain}"
   local ssl_key="${PROXY_VALUES[NGINX_SSL_KEY]//DOMAIN_PLACEHOLDER/$domain}"
+  local backend_host="${PROXY_VALUES[PROXY_BACKEND_HOST]}"
+  local backend_port="${PROXY_VALUES[PROXY_BACKEND_PORT]}"
+  local ssl_options="${PROXY_VALUES[NGINX_SSL_OPTIONS]}"
+  local ssl_dhparam="${PROXY_VALUES[NGINX_SSL_DHPARAM]}"
 
   atl_sudo sed \
     -e "s|@DOMAIN@|$(_proxy_sed_escape "$domain")|g" \
-    -e "s|@BACKEND_HOST@|$(_proxy_sed_escape \
-${PROXY_VALUES[PROXY_BACKEND_HOST]})|g" \
-    -e "s|@BACKEND_PORT@|$(_proxy_sed_escape \
-${PROXY_VALUES[PROXY_BACKEND_PORT]})|g" \
+    -e "s|@BACKEND_HOST@|$(_proxy_sed_escape "$backend_host")|g" \
+    -e "s|@BACKEND_PORT@|$(_proxy_sed_escape "$backend_port")|g" \
     -e "s|@MAX_BODY@|$(_proxy_sed_escape "$max_body")|g" \
     -e "s|@SSL_CERT@|$(_proxy_sed_escape "$ssl_cert")|g" \
     -e "s|@SSL_KEY@|$(_proxy_sed_escape "$ssl_key")|g" \
-    -e "s|@SSL_OPTIONS@|$(_proxy_sed_escape \
-${PROXY_VALUES[NGINX_SSL_OPTIONS]})|g" \
-    -e "s|@SSL_DHPARAM@|$(_proxy_sed_escape \
-${PROXY_VALUES[NGINX_SSL_DHPARAM]})|g" \
+    -e "s|@SSL_OPTIONS@|$(_proxy_sed_escape "$ssl_options")|g" \
+    -e "s|@SSL_DHPARAM@|$(_proxy_sed_escape "$ssl_dhparam")|g" \
     "$tpl" | atl_sudo tee "$dest" >/dev/null
 }
 
@@ -266,6 +266,9 @@ _configure_caddy() {
   local site_file="${conf_d}/atlantisboard.caddy"
   local domain="${PROXY_VALUES[PROXY_DOMAIN]}"
   local max_body="${PROXY_VALUES[PROXY_MAX_BODY_MB]}MB"
+  local backend_host="${PROXY_VALUES[PROXY_BACKEND_HOST]}"
+  local backend_port="${PROXY_VALUES[PROXY_BACKEND_PORT]}"
+  local log_file="${PROXY_VALUES[CADDY_LOG_FILE]}"
 
   if ! _install_proxy_packages caddy; then
     return 1
@@ -285,12 +288,10 @@ _configure_caddy() {
 
   atl_sudo sed \
     -e "s|@DOMAIN@|$(_proxy_sed_escape "$domain")|g" \
-    -e "s|@BACKEND_HOST@|$(_proxy_sed_escape \
-${PROXY_VALUES[PROXY_BACKEND_HOST]})|g" \
-    -e "s|@BACKEND_PORT@|$(_proxy_sed_escape \
-${PROXY_VALUES[PROXY_BACKEND_PORT]})|g" \
+    -e "s|@BACKEND_HOST@|$(_proxy_sed_escape "$backend_host")|g" \
+    -e "s|@BACKEND_PORT@|$(_proxy_sed_escape "$backend_port")|g" \
     -e "s|@MAX_BODY@|$(_proxy_sed_escape "$max_body")|g" \
-    -e "s|@LOG_FILE@|$(_proxy_sed_escape ${PROXY_VALUES[CADDY_LOG_FILE]})|g" \
+    -e "s|@LOG_FILE@|$(_proxy_sed_escape "$log_file")|g" \
     "$tpl" | atl_sudo tee "$site_file" >/dev/null
 
   local main_file="/etc/caddy/Caddyfile"
@@ -371,10 +372,13 @@ EOF
   case "$choice" in
     nginx)
       _configure_nginx || return 1
+      # Read by setup.sh for install manifest (sourced scope).
+      # shellcheck disable=SC2034
       ATL_REVERSE_PROXY_KIND=nginx
       ;;
     caddy)
       _configure_caddy || return 1
+      # shellcheck disable=SC2034
       ATL_REVERSE_PROXY_KIND=caddy
       ;;
   esac

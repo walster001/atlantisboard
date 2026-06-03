@@ -70,7 +70,7 @@ atl_ensure_sudo_credentials() {
   local tty
   tty="$(atl_whiptail_tty)"
   if [[ "$tty" != "/dev/null" ]]; then
-    sudo -v </dev/tty >/dev/tty 2>&1
+    ( sudo -v ) </dev/tty >/dev/tty 2>&1
     return $?
   fi
   sudo -v >/dev/null 2>&1
@@ -365,13 +365,18 @@ atl_section_has_promptable_fields() {
 }
 
 
+atl_env_fields_jq_ready() {
+  [[ -f "${ENV_FIELDS:-}" ]] && command -v jq >/dev/null 2>&1
+}
+
+
 atl_count_auto_generate_fields() {
   local mode="$1" count=0
   local field
-  [[ -f "$ENV_FIELDS" ]] && command -v jq >/dev/null 2>&1 || {
+  if ! atl_env_fields_jq_ready; then
     printf '0'
     return 0
-  }
+  fi
   while IFS= read -r field; do
     atl_field_applies_to_mode "$field" "$mode" || continue
     [[ "$(jq -r '.auto_generate // false' <<<"$field")" == "true" ]] \
@@ -383,7 +388,9 @@ atl_count_auto_generate_fields() {
 
 atl_generate_install_secrets() {
   local mode="$1" count
-  [[ -f "$ENV_FIELDS" ]] && command -v jq >/dev/null 2>&1 || return 0
+  if ! atl_env_fields_jq_ready; then
+    return 0
+  fi
   count="$(atl_count_auto_generate_fields "$mode")"
   local msg
   msg="Generating all keys and passwords...\n\n"
@@ -441,7 +448,9 @@ atl_prompt_validated() {
 
 atl_auto_generate_secrets() {
   local mode="${1:-manual}"
-  [[ -f "$ENV_FIELDS" ]] && command -v jq >/dev/null 2>&1 || return 0
+  if ! atl_env_fields_jq_ready; then
+    return 0
+  fi
 
   local field key gen_type
   while IFS= read -r field; do
@@ -474,7 +483,7 @@ atl_auto_generate_secrets() {
 #   $1 install mode.
 atl_prompt_env_fields() {
   local mode="$1"
-  [[ -f "$ENV_FIELDS" ]] && command -v jq >/dev/null 2>&1 || {
+  if ! atl_env_fields_jq_ready; then
     local msg
     msg="jq not found; only auto-generated secrets "
     msg+="and defaults will be used.\n\n"
@@ -482,15 +491,14 @@ atl_prompt_env_fields() {
     atl_whiptail_display --title "Setup" --msgbox \
       "$msg" 10 70 || true
     return 0
-  }
+  fi
 
-  local section title intro field key label desc default
+  local section intro field key label desc default
   local secret optional vtype auto_gen
   while IFS= read -r section; do
     atl_section_applies_to_mode "$section" "$mode" || continue
     atl_section_prompt_enabled "$section" || continue
     atl_section_has_promptable_fields "$section" "$mode" || continue
-    title="$(jq -r '.title' <<<"$section")"
     intro="$(jq -r '.intro // empty' <<<"$section")"
     mapfile -t fields < <(jq -c '.fields[]' <<<"$section")
     local section_intro="$intro"

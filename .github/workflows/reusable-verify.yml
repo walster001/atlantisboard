@@ -80,7 +80,7 @@ jobs:
           set -euo pipefail
           # Service containers cannot pass mongod --replSet; start explicitly (see docker-compose.yml).
           docker rm -f ci-mongodb 2>/dev/null || true
-          docker run -d --name ci-mongodb -p 27017:27017 mongo:8.0 \
+          docker run -d --name ci-mongodb -p 27017:27017 mongo:8.0.4 \
             mongod --replSet rs0 --bind_ip_all
           for i in $(seq 1 30); do
             if docker exec ci-mongodb mongosh --quiet --eval "db.adminCommand('ping').ok" 2>/dev/null | grep -q 1; then

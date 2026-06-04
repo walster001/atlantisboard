@@ -6,7 +6,7 @@
 # Named volumes (mongo-data, redis-data, minio-data) keep old passwords after reinstall unless removed.
 services:
   mongodb:
-    image: mongo:8.0
+    image: ${ATLANTISBOARD_MONGO_IMAGE:?Set ATLANTISBOARD_MONGO_IMAGE — see install/docker/image-defaults.env}
     container_name: atlantisboard-mongodb-deps
     restart: unless-stopped
     environment:
@@ -36,7 +36,7 @@ services:
       start_period: 60s
 
   mongodb-init:
-    image: mongo:8.0
+    image: ${ATLANTISBOARD_MONGO_IMAGE:?Set ATLANTISBOARD_MONGO_IMAGE — see install/docker/image-defaults.env}
     container_name: atlantisboard-mongodb-init-deps
     depends_on:
       mongodb:

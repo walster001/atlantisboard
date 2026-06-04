@@ -66,7 +66,7 @@ Mutating routes use `apiInject` (`tests/helpers/integrationHttp.ts`) for CSRF to
 | Service | How |
 | ------- | --- |
 | **Redis** | GitHub Actions service container `redis:7-alpine` on port 6379 |
-| **MongoDB** | `docker run` `mongo:8.0` with `--replSet rs0`, initiated before tests |
+| **MongoDB** | `docker run` `mongo:8.0.4` with `--replSet rs0`, initiated before tests |
 | **Secrets** | `CI_SESSION_SECRET`, `CI_JWT_SECRET`, `CI_CSRF_SECRET`, `CI_ENCRYPTION_KEY`, `CI_MEDIA_SIGN_SECRET` (each ≥32 chars; media sign ≠ JWT) — see `.github/SECRETS.md` |
 
 Env set for the test job: `MONGODB_URI`, `MONGODB_TEST_URI` (replica-set URI), `REDIS_HOST`, `REDIS_URL`, `NODE_ENV=test`.

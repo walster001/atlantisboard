@@ -1,12 +1,15 @@
 # Production full-stack Compose for atlantisboard-setup (app + MongoDB + Redis + MinIO + ClamAV).
 # Paths are relative to this file (install/docker/): repo root is ../..
 #
+# MongoDB image: see image-defaults.env (ATLANTISBOARD_MONGO_IMAGE). Kernel 6.19+ needs mongo
+# 8.0.4 or older 8.0.x — newer 8.0 tags exit on startup (SERVER-121912 / TCMalloc+RSEQ).
+#
 # VOLUME RESET (reinstall / new secrets):
 #   cd install/docker && docker compose --env-file ../../.env -f docker-compose.fullstack.yml down -v
 # Or run: install/docker/reset-docker-data.sh fullstack
 services:
   mongodb:
-    image: mongo:8.0
+    image: ${ATLANTISBOARD_MONGO_IMAGE:?Set ATLANTISBOARD_MONGO_IMAGE — see install/docker/image-defaults.env}
     container_name: atlantisboard-mongodb-full
     restart: unless-stopped
     environment:
@@ -42,7 +45,7 @@ services:
       start_period: 60s
 
   mongodb-init:
-    image: mongo:8.0
+    image: ${ATLANTISBOARD_MONGO_IMAGE:?Set ATLANTISBOARD_MONGO_IMAGE — see install/docker/image-defaults.env}
     container_name: atlantisboard-mongodb-init-full
     depends_on:
       mongodb:

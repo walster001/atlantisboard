@@ -101,6 +101,11 @@ jobs:
           ./scripts/build-npm-package.sh
           ./scripts/release-installer-zip.sh
           ./scripts/release-bundle.sh --no-checks --skip-build
+      - name: Verify production Docker image
+        run: |
+          docker build --target production \
+            -f packages/atlantisboard/install/docker/Dockerfile \
+            packages/atlantisboard
 
       - name: Create git tag
         run: |

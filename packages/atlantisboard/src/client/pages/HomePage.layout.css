@@ -1,0 +1,56 @@
+/* Boards homepage — page shell, main content, loading */
+
+.home-page {
+  /* Wider than 72rem so ~3 board columns use more viewport */
+  --home-page-content-max-width: 85rem;
+  min-height: 100vh;
+  background-color: var(--mantine-color-body);
+}
+
+.home-page__main {
+  max-width: var(--home-page-content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1rem;
+  width: 100%;
+  background-color: var(--mantine-color-body);
+  min-height: calc(100vh - 65px);
+}
+
+.home-page__title {
+  color: var(--mantine-color-dark-7);
+  font-weight: 700;
+  font-size: clamp(1.875rem, 2.5vw, 2.25rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.home-page__actions {
+  flex-shrink: 0;
+}
+
+.home-page__import-btn {
+  background-color: #fff;
+  border-color: var(--mantine-color-gray-4);
+  white-space: nowrap;
+}
+
+.home-page__new-workspace-btn {
+  white-space: nowrap;
+}
+
+.home-page__loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--mantine-color-body);
+}
+
+.home-page__icon-plus {
+  font-size: 1.125rem;
+}
+
+.home-page__list-root {
+  width: 100%;
+}

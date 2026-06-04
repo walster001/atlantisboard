@@ -260,6 +260,22 @@ EOF
   fi
 }
 
+# Distro Caddyfile must import conf.d only (global { } blocks must be first).
+_atl_write_caddy_mainfile() {
+  local main_file="/etc/caddy/Caddyfile"
+  local conf_d="/etc/caddy/conf.d"
+  local backup="${main_file}.pre-atlantisboard"
+  local marker='# atlantisboard-setup'
+
+  if atl_sudo test -f "$main_file" && ! atl_sudo test -f "$backup"; then
+    atl_sudo cp -a "$main_file" "$backup"
+  fi
+  atl_sudo tee "$main_file" >/dev/null <<EOF
+${marker} — imports conf.d (package default backed up to ${backup}).
+import ${conf_d}/*.caddy
+EOF
+}
+
 _configure_caddy() {
   local tpl="${PKG_ROOT}/install/caddy/atlantisboard.caddy.template"
   local conf_d="/etc/caddy/conf.d"
@@ -294,23 +310,21 @@ _configure_caddy() {
     -e "s|@LOG_FILE@|$(_proxy_sed_escape "$log_file")|g" \
     "$tpl" | atl_sudo tee "$site_file" >/dev/null
 
-  local main_file="/etc/caddy/Caddyfile"
-  if atl_sudo test -f "$main_file" \
-    && ! grep -q 'conf.d/\*\.caddy' "$main_file" 2>/dev/null; then
-    if ! grep -q 'atlantisboard.caddy' "$main_file" 2>/dev/null; then
-      echo "" | atl_sudo tee -a "$main_file" >/dev/null
-      echo "import ${conf_d}/*.caddy" | atl_sudo tee -a "$main_file" >/dev/null
-    fi
-  elif ! atl_sudo test -f "$main_file"; then
-    echo "import ${conf_d}/*.caddy" | atl_sudo tee "$main_file" >/dev/null
-  fi
+  _atl_write_caddy_mainfile
 
+  local main_file="/etc/caddy/Caddyfile"
   if command -v caddy >/dev/null 2>&1; then
-    atl_sudo caddy validate --config "$main_file" || {
+    local err_file
+    err_file="$(mktemp)"
+    if ! atl_sudo caddy validate --config "$main_file" 2>"$err_file"; then
+      local err_msg
+      err_msg="$(tr -d '\r' <"$err_file" | tail -n 8 || true)"
+      rm -f "$err_file"
       atl_whiptail_msgbox --title "Caddy config error" --msgbox \
-        "caddy validate failed for ${main_file}" 8 60
+        "caddy validate failed for ${main_file}:\n\n${err_msg}" 14 72
       return 1
-    }
+    fi
+    rm -f "$err_file"
   fi
   atl_sudo systemctl enable caddy
   atl_sudo systemctl reload caddy

@@ -261,7 +261,16 @@ describe('installer shell static guards', () => {
     const dockerfile = readFileSync(join(INSTALL_DIR, 'docker', 'Dockerfile'), 'utf8');
     expect(dockerfile).toContain('github.com/minio/mc/releases/download');
     expect(dockerfile).not.toContain('dl.min.io');
+    expect(dockerfile).toContain('AS production');
+    expect(dockerfile).toContain('AS development');
+    expect(dockerfile).toContain('NODE_ENV=production');
+    expect(dockerfile).toContain('bun run build:client');
     expect(dockerfile).toContain('--frozen-lockfile --production --ignore-scripts');
+    const fullstack = readFileSync(
+      join(INSTALL_DIR, 'docker', 'docker-compose.fullstack.yml'),
+      'utf8',
+    );
+    expect(fullstack).toContain('target: production');
   });
 
   test('mock whiptail fixture is executable', () => {

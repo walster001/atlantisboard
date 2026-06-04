@@ -146,6 +146,7 @@ services:
     build:
       context: ../..
       dockerfile: install/docker/Dockerfile
+      target: production
       args:
         MC_RELEASE: ${ATLANTISBOARD_MC_RELEASE:-RELEASE.2025-08-13T08-35-41Z}
     container_name: atlantisboard-app-full

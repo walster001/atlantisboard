@@ -122,3 +122,14 @@ jobs:
       - uses: ./.github/actions/setup-toolchain
       - run: bun install --frozen-lockfile
       - run: bun audit --audit-level=high
+
+  docker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-toolchain
+      - run: bun install --frozen-lockfile
+      - name: Prepare atlantisboard package for Docker
+        run: ./scripts/prepare-atlantisboard-package.sh
+      - name: Build Docker images (development + production)
+        run: bash .github/scripts/verify-docker-images.sh

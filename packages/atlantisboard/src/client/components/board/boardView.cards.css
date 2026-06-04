@@ -1,0 +1,370 @@
+/* Co-located partial: boardView.cards.css (board view) */
+.board-card {
+  background: var(--board-card-bg, #fff) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+  /*
+   * Do not set `touch-action: none` on the card root: it is an ancestor of the Virtuoso scroller
+   * and of `.board-card__kanban-body` (which toggles pan-y / none). Ancestor `none` blocks
+   * vertical list scroll and Swiper `pan-x` on Android.
+   */
+}
+
+.board-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Match home board tiles: wrap long title/description cleanly */
+.board-card__desc {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Kanban list card: labels → title (caps) → first logical line of description (≤2 visual lines) → due pill */
+/* Keep full content width by default; reserve menu space only where needed (title row). */
+/* No text selection: avoids highlighting titles/descriptions when dragging across columns. */
+.board-card--kanban {
+  user-select: none;
+  -webkit-user-select: none;
+  /* Fill column width and allow shrinking so long titles wrap instead of overflowing the list. */
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Cover inside clickable body: full-bleed at top; text block keeps inner padding */
+.board-card--kanban.board-card--has-cover .board-card__kanban-body {
+  padding: 0;
+}
+
+.board-card--kanban.board-card--has-cover .board-card__kanban-cover {
+  display: block;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.board-card--kanban.board-card--has-cover .board-card__kanban-cover-image {
+  display: block;
+  width: 100%;
+  height: 10rem;
+}
+
+.board-card--kanban.board-card--has-cover .board-card__kanban-body-content {
+  padding: 14px;
+}
+
+.board-card__kanban-menu {
+  position: absolute;
+  top: var(--mantine-spacing-sm);
+  right: var(--mantine-spacing-sm);
+  z-index: 2;
+}
+
+.board-card__kanban-body {
+  min-width: 0;
+}
+
+.board-card__kanban-body--touch-armed {
+  transform: translateY(-2px) scale(1.015);
+  transition: transform 0.12s ease;
+  outline: none;
+}
+
+.board-card:has(.board-card__kanban-body--touch-armed) {
+  outline: none;
+}
+
+.board-card.board-card--kanban .board-card__kanban-title {
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  word-spacing: 0.02em;
+  color: var(--board-card-title-color, var(--mantine-color-dark-7));
+  /* Prevent title text from colliding with top-right menu icon. */
+  padding-right: 24px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.board-card--kanban--no-card-menu .board-card__kanban-title {
+  padding-right: 0;
+}
+
+/* Non-Twemoji images in titles (rare); Twemoji uses `.twemoji-plain-text img` sizing */
+.board-card.board-card--kanban .board-card__kanban-title img:not(.card-desc-twemoji):not(.emoji) {
+  max-width: 100%;
+  height: auto;
+  vertical-align: -0.125em;
+}
+
+.board-card__kanban-menu .mantine-ActionIcon-root {
+  color: var(--board-card-menu-color, inherit);
+}
+
+.board-card__kanban-menu .mantine-ActionIcon-root:hover {
+  background-color: var(--board-card-menu-hover-bg, rgba(0, 0, 0, 0.06));
+}
+
+.board-card--kanban-colored .board-card__desc {
+  color: var(--board-card-desc-color, rgba(255, 255, 255, 0.92));
+}
+
+.board-card__kanban-due-wrap {
+  margin-top: var(--mantine-spacing-sm);
+}
+
+/* Card body: smaller than title, sentence case, tight line-height (Trello-like) */
+.board-card__kanban-desc {
+  font-size: 0.75rem;
+  font-weight: 200;
+  line-height: 1.4;
+}
+
+/*
+ * Rich description preview: Mantine Text `lineClamp={2}` uses -webkit-line-clamp on this root.
+ * Block children (<p>, headings) would each clamp separately unless flattened to inline flow.
+ */
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  :is(p, h1, h2, h3, h4, h5, h6) {
+  display: inline;
+  margin: 0;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  :is(h1, h2, h3, h4, h5, h6) {
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  p
+  + p::before {
+  content: ' ';
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  :is(ul, ol) {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp] .card-desc-tiptap-read--board-preview li {
+  display: inline;
+}
+
+.board-card__kanban-desc-board-preview[data-line-clamp]
+  .card-desc-tiptap-read--board-preview
+  li:not(:last-child)::after {
+  content: ' ';
+}
+
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview video.card-desc-video-player {
+  display: none;
+}
+
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview img:not(.card-desc-twemoji) {
+  max-height: 1.15em;
+  width: auto;
+  vertical-align: text-bottom;
+  margin: 0 0.1em;
+}
+
+/* Inline link buttons are editor/detail-only; hide on list cards (JSON strip + fallback if DOM still renders). */
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview a.card-desc-inline-button,
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview .card-desc-inline-button-wrapper {
+  display: none !important;
+}
+
+/*
+ * Card drop indicator: flat card-sized fill (no shadow); surface = list mixed 10% toward black.
+ */
+.board-card-drop-indicator-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.board-card-drop-indicator {
+  flex-shrink: 0;
+  margin: 6px 0 10px;
+  border: none;
+  border-radius: 12px;
+  box-sizing: border-box;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--board-card-drop-surface, #ffffff) 90%, #000000);
+  box-shadow: none;
+  transition:
+    min-height 0.14s ease-out,
+    max-height 0.14s ease-out,
+    opacity 0.12s ease-out;
+}
+
+/* Native drag preview mounts under body — no MantineProvider; use plain DOM + these classes. */
+.board-page__dnd-card-lift-preview {
+  box-sizing: border-box;
+  cursor: grabbing;
+  transform: rotate(-1.5deg) translate3d(0, -2px, 0);
+  transform-origin: center center;
+  border: none !important;
+  outline: none !important;
+  overflow: hidden;
+  background: var(--board-card-bg, #fff);
+  -webkit-tap-highlight-color: transparent;
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.14) !important;
+  border-radius: 12px;
+}
+
+.board-page__dnd-card-lift-preview *,
+.board-page__dnd-card-lift-preview *::before,
+.board-page__dnd-card-lift-preview *::after {
+  outline: none !important;
+}
+
+.board-page__dnd-card-lift-preview .board-card__kanban-body--touch-armed {
+  transform: none !important;
+  transition: none !important;
+}
+
+/* Atlaskit passes this container to setDragImage — must stay square, opaque, no shadow. */
+.board-page__dnd-drag-preview-container {
+  box-sizing: border-box;
+  overflow: hidden;
+  border: none;
+  outline: none;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-backface-visibility: hidden;
+}
+
+/* iOS WebKit: square shell fills drag bitmap corners; face supplies rounded clip. */
+.board-page__dnd-ios-drag-shell {
+  display: block;
+  box-sizing: border-box;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: none !important;
+}
+
+.board-page__dnd-ios-drag-face {
+  box-sizing: border-box;
+  padding: 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: none !important;
+  border: none;
+  outline: none;
+}
+
+.board-page__dnd-native-card-preview {
+  width: 272px;
+  padding: 14px;
+  border-radius: 12px;
+  cursor: grabbing;
+  box-sizing: border-box;
+  background: #fff;
+  border: none;
+  outline: none;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.board-page__dnd-native-card-preview--inner {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none !important;
+  background: transparent;
+  cursor: grabbing;
+}
+
+.board-page__dnd-native-card-preview *,
+.board-page__dnd-native-card-preview *::before,
+.board-page__dnd-native-card-preview *::after {
+  outline: none !important;
+}
+
+.board-page__dnd-native-card-preview-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: #1a1a1a;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-transform: uppercase;
+  letter-spacing: normal;
+  word-spacing: normal;
+}
+
+.board-page__dnd-native-card-preview-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.board-page__dnd-native-card-preview-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #fff;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: lowercase;
+}
+
+.board-page__dnd-native-list-preview {
+  width: 272px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: grabbing;
+  box-sizing: border-box;
+  /* Preview mounts under document.body — do not rely on .board-page CSS variables. */
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.board-page__dnd-native-list-preview-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

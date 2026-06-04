@@ -1,0 +1,11 @@
+/**
+ * Spritesheet emoji in plain titles/previews — inline with text metrics (no per-tile <img>).
+ */
+.twemoji-plain-text .card-desc-twemoji--sheet {
+  width: 1.1em;
+  height: 1.1em;
+  margin: 0 0.12em;
+  vertical-align: text-bottom;
+  display: inline-block;
+  box-sizing: content-box;
+}

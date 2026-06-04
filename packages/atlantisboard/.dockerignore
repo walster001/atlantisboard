@@ -1,0 +1,11 @@
+# Reduce Docker build context size (package root = build context).
+node_modules
+.env
+.env.*
+!.env.example
+install
+dist
+.git
+.cursor
+*.md
+!DEPLOYMENT.md

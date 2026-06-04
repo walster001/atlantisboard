@@ -24,6 +24,15 @@ openssl rand -base64 48
 
 `MONGODB_URI` / `REDIS_*` in workflows point at ephemeral service containers on `localhost`; those connection strings are not secrets.
 
+## Docker images (CI / Staging / Production)
+
+Installer full-stack images are built from `packages/atlantisboard/install/docker/Dockerfile`:
+
+- **`development`** — CI (`reusable-verify` → `docker-image` job): in-image `bun run build`, no pre-built `dist/` required.
+- **`production`** — Staging, production deploy, and `docker compose` fullstack (`target: production`).
+
+Prepare context with `scripts/prepare-atlantisboard-package.sh` or `scripts/build-npm-package.sh` (syncs `src/`, `scripts/`, and `docker/root.*` lockfiles).
+
 ## Staging artifact workflow
 
 **Staging** (`staging.yml`) is **manual** (`workflow_dispatch`): maintainers run it from Actions when they want release-shaped artifacts. It runs `build-npm-package.sh`, then:

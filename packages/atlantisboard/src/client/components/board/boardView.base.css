@@ -1,0 +1,112 @@
+/*
+ * Board view — default blue theme (matches board chrome reference).
+ * CSS variables are grouped for a future theme editor.
+ */
+.board-page {
+  --board-nav-bg: #1a5b99;
+  --board-nav-fg: #fff;
+  --board-nav-border: rgba(255, 255, 255, 0.12);
+  --board-surface-opacity-pct: 100%;
+  --board-canvas-bg: #2b82c9;
+  --board-list-bg: #ffffff;
+  /* Trello-like list chrome: slate title + muted count */
+  --board-list-header-text: #172b4d;
+  --board-list-muted: #5e6c84;
+  --board-list-muted-strong: #42526e;
+  --board-list-control-hover-bg: rgba(0, 0, 0, 0.06);
+  --board-list-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --board-add-list-bg: rgba(255, 255, 255, 0.2);
+  --board-add-list-bg-hover: rgba(255, 255, 255, 0.28);
+  --board-canvas-bg-image: none;
+  --board-canvas-bg-image-size: cover;
+  --board-canvas-bg-image-repeat: no-repeat;
+  --board-canvas-bg-image-position: center;
+  /* List + body: thumb follows palette (`unset` → navbar); track always transparent (see getBoardPageThemeStyle). */
+  --board-scrollbar-color: var(--board-nav-bg);
+  --board-scrollbar-track-color: #00000000;
+  --board-body-scrollbar-color: var(--board-nav-bg);
+  --board-body-scrollbar-track-color: #00000000;
+  --board-card-detail-bg: #f8f9fb;
+  --board-card-detail-text: #868e96;
+  --board-card-detail-button-bg: #f0f1f4;
+  --board-card-detail-button-text: #1f2937;
+  --board-card-detail-button-hover-bg: #e4e6ea;
+  --board-card-detail-button-hover-text: #1f2937;
+  --board-card-detail-title-text: #1a1b1e;
+  --board-card-detail-prose: #373a40;
+  /* Shared top/bottom breathing room as viewport percentage. */
+  --board-viewport-gap: 2.5dvh;
+  /* Header bar footprint (approx. nav bar height) used for column max-height calc. */
+  --board-header-height: 56px;
+
+  height: 100svh;
+  height: 100dvh;
+  min-height: 100svh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--board-canvas-bg);
+  background-image: var(--board-canvas-bg-image);
+  background-size: var(--board-canvas-bg-image-size);
+  background-repeat: var(--board-canvas-bg-image-repeat);
+  background-position: var(--board-canvas-bg-image-position);
+}
+
+@media (max-width: 767px) {
+  .board-page {
+    width: 100%;
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+
+  .board-page__body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Installed PWA: keep a pinned fullscreen shell even on larger iOS viewports. */
+.board-page--pwa {
+  width: 100%;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.board-page--pwa .board-page__body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.board-page__header {
+  flex-shrink: 0;
+  background: transparent;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-bottom: 6px;
+  /* iOS PWA + `viewport-fit=cover`: keep controls below status bar / Dynamic Island. */
+  padding-top: calc(6px + constant(safe-area-inset-top));
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
+  position: relative;
+}
+
+.board-page__header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--board-nav-bg);
+  opacity: var(--board-nav-bg-opacity, 1);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.board-page__header-inner {
+  position: relative;
+  z-index: 1;
+}
+

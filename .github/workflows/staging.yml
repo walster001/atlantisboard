@@ -27,6 +27,11 @@ jobs:
           ./scripts/release-installer-zip.sh
           ./scripts/release-bundle.sh --no-checks --skip-build
           ./scripts/stage-release-artifact-trees.sh
+      - name: Verify production Docker image
+        run: |
+          docker build --target production \
+            -f packages/atlantisboard/install/docker/Dockerfile \
+            packages/atlantisboard
       - name: Resolve release version
         id: ver
         run: echo "version=$(bun -e 'console.log((await Bun.file("package.json").json()).version)')" >> "$GITHUB_OUTPUT"

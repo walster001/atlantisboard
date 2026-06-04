@@ -1,0 +1,34 @@
+.checklist-block__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-xs);
+  margin-bottom: var(--mantine-spacing-sm);
+}
+
+.checklist-block__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.checklist-block__menu {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.checklist-block__header:hover .checklist-block__menu,
+.checklist-block__menu:focus-within {
+  opacity: 1;
+}
+
+.checklist-item-row__menu {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.checklist-item-row:hover .checklist-item-row__menu,
+.checklist-item-row__menu:focus-within {
+  opacity: 1;
+}

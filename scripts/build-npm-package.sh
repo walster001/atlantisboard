@@ -42,6 +42,8 @@ if ! (cd "${PKG_DIR}" && bun install --frozen-lockfile --production --ignore-scr
 fi
 rm -rf "${PKG_DIR}/node_modules"
 
+"${SCRIPT_DIR}/strip-release-docker-sources.sh" "${PKG_DIR}"
+
 cp .env.example "${PKG_DIR}/.env.example"
 cp DEPLOYMENT.md "${PKG_DIR}/DEPLOYMENT.md"
 cp README.md "${PKG_DIR}/README.md"

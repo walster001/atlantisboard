@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build installer Docker targets after packages/atlantisboard is prepared.
+# Verify installer Docker targets after packages/atlantisboard is prepared.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -8,15 +8,12 @@ DOCKERFILE="${PKG}/install/docker/Dockerfile"
 
 cd "${ROOT}"
 
-if [[ ! -f "${PKG}/docker/root.bun.lock" ]]; then
-  echo "error: run scripts/prepare-atlantisboard-package.sh or build-npm-package.sh first" >&2
+if [[ ! -f "${PKG}/dist/server/index.js" ]]; then
+  echo "error: ${PKG}/dist/server/index.js missing — run build-npm-package.sh first" >&2
   exit 1
 fi
 
-echo "==> Docker build --target development (CI)"
-docker build --target development -f "${DOCKERFILE}" "${PKG}"
-
-echo "==> Docker build --target production (staging / production)"
+echo "==> Docker build --target production (release / staging artifact)"
 prod_id="$(
   docker build --target production -f "${DOCKERFILE}" -q "${PKG}"
 )"
@@ -27,5 +24,10 @@ if docker run --rm "${prod_id}" \
   echo "error: dist/server/index.js still embeds GitHub Actions paths" >&2
   exit 1
 fi
+
+echo "==> Docker build --target development (CI source compile)"
+SYNC_DOCKER_BUILD_SOURCES=1 ./scripts/sync-docker-build-context.sh "${PKG}"
+docker build --target development -f "${DOCKERFILE}" "${PKG}"
+"${ROOT}/scripts/strip-release-docker-sources.sh" "${PKG}"
 
 echo "==> Docker images OK"

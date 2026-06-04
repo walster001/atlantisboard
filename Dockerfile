@@ -1,8 +1,11 @@
 # Multi-stage image for repo-root docker-compose.prod.yml (context: repository root).
 #
 # Targets:
-#   development — CI: full install + in-image build (NODE_ENV=development)
-#   production  — production Compose app service (NODE_ENV=production)
+#   development — CI / local: in-image build (NODE_ENV=development)
+#   production  — pre-built dist/ in context, or build via development in CI
+#
+# Repo .dockerignore excludes dist/; production here uses build-from-source chain.
+# Installer package uses install/docker/Dockerfile (artifacts → production).
 
 FROM oven/bun:1.3.5-alpine AS base
 WORKDIR /app

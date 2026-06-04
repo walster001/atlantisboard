@@ -1,19 +1,25 @@
 # Multi-stage image for atlantisboard full-stack Compose.
 #
 # Build context: package root (packages/atlantisboard or /opt/atlantisboard).
-# Requires docker/root.package.json + docker/root.bun.lock (sync-docker-build-context.sh).
 #
 # Targets:
-#   development — CI: install dev deps, build inside image (NODE_ENV=development)
-#   production  — Staging, production release, installer Compose (NODE_ENV=production)
+#   artifacts           — internal; pre-built dist/ + public/ from build-npm-package.sh
+#   build-from-source   — internal; compile inside image (CI development target only)
+#   development         — CI: full dev install + in-image build (not shipped in release zip)
+#   production          — Release zip / Staging / installer Compose (pre-built dist only)
 #
-# Build examples:
-#   docker build --target development -f install/docker/Dockerfile .
-#   docker build --target production -f install/docker/Dockerfile .
+# Release zip must include dist/ and public/ and must NOT include src/ or docker/root.*.
+# See packages/atlantisboard/.dockerignore.
 
 FROM oven/bun:1.3.5-alpine AS base
 WORKDIR /app
 
+# Pre-built artifacts from build-npm-package.sh (host CI / staging / production).
+FROM base AS artifacts
+COPY dist ./dist
+COPY public ./public
+
+# Source compile path — CI only (sync-docker-build-context.sh).
 FROM base AS deps-dev
 COPY docker/root.package.json package.json
 COPY docker/root.bun.lock bun.lock
@@ -21,7 +27,7 @@ ENV ATLANTISBOARD_SKIP_SETUP=1
 RUN bun install --frozen-lockfile --ignore-scripts \
   && rm -rf /root/.bun/install/cache
 
-FROM deps-dev AS build
+FROM deps-dev AS build-from-source
 ENV NODE_ENV=production
 COPY src ./src
 COPY scripts ./scripts
@@ -33,8 +39,8 @@ RUN bun run build:client \
 FROM base AS development
 ENV NODE_ENV=development
 COPY --from=deps-dev /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/public ./public
+COPY --from=build-from-source /app/dist ./dist
+COPY --from=build-from-source /app/public ./public
 COPY package.json bun.lock ./
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
@@ -53,8 +59,8 @@ COPY package.json bun.lock ./
 ENV ATLANTISBOARD_SKIP_SETUP=1 NODE_ENV=production
 RUN bun install --frozen-lockfile --production --ignore-scripts \
   && rm -rf /root/.bun/install/cache
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/public ./public
+COPY --from=artifacts /app/dist ./dist
+COPY --from=artifacts /app/public ./public
 RUN addgroup -g 1001 -S nodejs \
   && adduser -S bunjs -u 1001 \
   && chown -R bunjs:nodejs /app

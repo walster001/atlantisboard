@@ -1,0 +1,14 @@
+# Repository-root Docker build (docker-compose.prod.yml, target: production-from-source).
+node_modules
+.git
+.cursor
+dist
+.env
+.env.*
+!.env.example
+packages
+tests
+pages
+docs
+*.md
+!DEPLOYMENT.md

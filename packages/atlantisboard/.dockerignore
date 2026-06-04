@@ -1,11 +1,28 @@
-# Reduce Docker build context size (package root = build context).
+# Docker build context for packages/atlantisboard (installer / release zip).
+#
+# production target: uses pre-built dist/ + public/ (artifacts stage).
+# development target (CI only): needs src/, scripts/, docker/root.* — do not use this
+# .dockerignore for CI; CI builds from a temp context or uses selective COPY in Dockerfile.
+
+# Never send these to the daemon for release/production builds
 node_modules
 .env
 .env.*
 !.env.example
-install
-dist
 .git
 .cursor
 *.md
 !DEPLOYMENT.md
+README.md
+
+# CI / dev-only sources (not in release zip; see strip-release-docker-sources.sh)
+src
+scripts
+docker
+postcss.config.js
+tailwind.config.js
+tsconfig.json
+tsconfig.typecheck.json
+
+# Installer tree is not part of the app image
+install

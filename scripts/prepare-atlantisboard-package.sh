@@ -24,7 +24,11 @@ if (root.overrides) {
 await Bun.write(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 "
 
-"${SCRIPT_DIR}/sync-docker-build-context.sh" "${PKG_DIR}"
+if [[ "${SYNC_DOCKER_BUILD_SOURCES:-0}" == "1" ]]; then
+  "${SCRIPT_DIR}/sync-docker-build-context.sh" "${PKG_DIR}"
+else
+  echo "==> Skipping Docker source sync (release package uses pre-built dist/)"
+fi
 
 echo "==> Production lockfile for packages/atlantisboard"
 rm -f "${PKG_DIR}/bun.lock"

@@ -12,7 +12,7 @@ jobs:
   lint-typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: ShellCheck installer scripts
@@ -54,7 +54,7 @@ jobs:
       ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY }}
       MEDIA_SIGN_SECRET: ${{ secrets.CI_MEDIA_SIGN_SECRET }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-toolchain
       - run: bun install --frozen-lockfile
       - name: Validate CI secrets
@@ -118,7 +118,7 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-toolchain
       - run: bun install --frozen-lockfile
       - run: bun audit --audit-level=high
@@ -126,10 +126,10 @@ jobs:
   docker-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-toolchain
       - run: bun install --frozen-lockfile
-      - name: Prepare atlantisboard package for Docker
-        run: ./scripts/prepare-atlantisboard-package.sh
-      - name: Build Docker images (development + production)
+      - name: Build release package (pre-built dist for production image)
+        run: ./scripts/build-npm-package.sh
+      - name: Verify Docker images (production + CI development)
         run: bash .github/scripts/verify-docker-images.sh

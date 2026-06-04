@@ -262,10 +262,16 @@ describe('installer shell static guards', () => {
     expect(dockerfile).toContain('github.com/minio/mc/releases/download');
     expect(dockerfile).not.toContain('dl.min.io');
     expect(dockerfile).toContain('AS production');
+    expect(dockerfile).toContain('AS artifacts');
+    expect(dockerfile).toContain('COPY --from=artifacts');
     expect(dockerfile).toContain('AS development');
     expect(dockerfile).toContain('NODE_ENV=production');
     expect(dockerfile).toContain('bun run build:client');
     expect(dockerfile).toContain('--frozen-lockfile --production --ignore-scripts');
+    const dockerignore = readFileSync(join(PKG_ROOT, '.dockerignore'), 'utf8');
+    expect(dockerignore).toContain('src');
+    expect(dockerignore).toContain('docker');
+    expect(dockerignore).not.toContain('\ndist\n');
     const fullstack = readFileSync(
       join(INSTALL_DIR, 'docker', 'docker-compose.fullstack.yml'),
       'utf8',

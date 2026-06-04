@@ -12,10 +12,10 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v5
       with:
         node-version: "24"
         registry-url: ${{ inputs.registry-url }}
-    - uses: oven-sh/setup-bun@v2
+    - uses: oven-sh/setup-bun@v2.2.0
       with:
         bun-version: ${{ inputs.bun-version }}

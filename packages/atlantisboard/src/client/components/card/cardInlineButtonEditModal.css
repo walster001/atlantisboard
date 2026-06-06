@@ -1,0 +1,49 @@
+/* Mobile fullscreen: scroll form; keep actions pinned above home indicator. */
+.card-inline-button-edit-modal__mantine-inner--mobile {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+.card-inline-button-edit-modal__mantine-content--mobile {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100dvh;
+}
+
+.card-inline-button-edit-modal__mantine-body--mobile {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.card-inline-button-edit-modal__mobile-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.card-inline-button-edit-modal__mobile-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.card-inline-button-edit-modal__mobile-footer {
+  flex-shrink: 0;
+  width: 100%;
+  padding-top: var(--mantine-spacing-md);
+  padding-bottom: var(--mantine-spacing-md);
+  border-top: 1px solid var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-body);
+}

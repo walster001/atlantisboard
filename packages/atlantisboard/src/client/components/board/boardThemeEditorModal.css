@@ -1,0 +1,231 @@
+/**
+ * Full viewport height with 10px inset top/bottom; horizontal gutter matches board settings feel.
+ * `centered={false}` on the Modal so Mantine does not vertically center this shell.
+ */
+.board-theme-editor-modal__inner {
+  --board-theme-editor-modal-gutter-x: clamp(12px, 3vmin, 28px);
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100dvh;
+  padding: 10px var(--board-theme-editor-modal-gutter-x);
+  box-sizing: border-box;
+}
+
+.board-theme-editor-modal__content {
+  width: min(70vw, calc(100vw - 2 * var(--board-theme-editor-modal-gutter-x))) !important;
+  /* Inner vertical padding 10px + 10px → dialog fills remaining viewport. */
+  height: calc(100dvh - 20px) !important;
+  max-width: min(70vw, calc(100vw - 2 * var(--board-theme-editor-modal-gutter-x))) !important;
+  max-height: calc(100dvh - 20px) !important;
+  display: flex !important;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.board-theme-editor-modal__header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+  padding-bottom: var(--mantine-spacing-sm);
+}
+
+.board-theme-editor-modal__title {
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.board-theme-editor-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--mantine-spacing-md) !important;
+  overflow: hidden;
+}
+
+.board-theme-editor-modal__body-stack {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.board-theme-editor-modal__split {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.board-theme-editor-modal__form-column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: var(--mantine-spacing-xs);
+}
+
+.board-theme-editor-modal__preview-column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (min-width: 48em) {
+  .board-theme-editor-modal__preview-column {
+    border-left: 1px solid var(--mantine-color-gray-2);
+    padding-left: var(--mantine-spacing-lg);
+    margin-left: var(--mantine-spacing-xs);
+  }
+
+  .board-theme-editor-modal__form-column {
+    padding-right: var(--mantine-spacing-md);
+  }
+}
+
+.board-theme-editor-modal__footer {
+  flex-shrink: 0;
+  padding-top: var(--mantine-spacing-xs);
+}
+
+.board-theme-editor-modal__section {
+  border-left: 2px solid var(--mantine-color-gray-2);
+  padding-left: var(--mantine-spacing-md);
+}
+
+.board-theme-editor-modal__section-title {
+  color: var(--mantine-color-gray-6);
+  letter-spacing: 0.04em;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.board-theme-editor-modal__board-preview {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid var(--mantine-color-gray-2);
+  overflow: hidden;
+  min-height: 146px;
+  max-width: 100%;
+}
+
+.board-theme-editor-modal__board-preview-nav {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.board-theme-editor-modal__board-preview-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Mirrors `.board-page__body`: horizontal scroll + native thumb colour from `scrollbar-color`. */
+.board-theme-editor-modal__board-preview-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.board-theme-editor-modal__board-preview-body::-webkit-scrollbar {
+  height: 8px;
+}
+
+.board-theme-editor-modal__board-preview-body::-webkit-scrollbar-track {
+  background-color: var(--board-preview-scrollbar-track, transparent);
+}
+
+.board-theme-editor-modal__board-preview-body::-webkit-scrollbar-thumb {
+  background-color: var(--board-preview-scrollbar-thumb, var(--mantine-color-gray-5));
+  border-radius: 999px;
+}
+
+.board-theme-editor-modal__board-preview-columns {
+  padding: 12px;
+}
+
+.board-theme-editor-modal__board-preview-add-list {
+  width: 92px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.board-theme-editor-modal__list-preview-scroll {
+  max-height: 112px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+.board-theme-editor-modal__list-preview-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.board-theme-editor-modal__list-preview-scroll::-webkit-scrollbar-track {
+  background-color: var(--board-preview-scrollbar-track, transparent);
+}
+
+.board-theme-editor-modal__list-preview-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--board-preview-scrollbar-thumb, var(--mantine-color-gray-5));
+  border-radius: 999px;
+}
+
+.board-theme-editor-modal__board-preview-list {
+  width: 180px;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.board-theme-editor-modal__board-preview-card {
+  height: 24px;
+  border-radius: 6px;
+  margin-top: 8px;
+  opacity: 0.45;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.08));
+}
+
+.board-theme-editor-modal__card-preview {
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 14px;
+}
+
+.board-theme-editor-modal__card-preview-close {
+  width: 28px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.board-theme-editor-modal__inner--mobile {
+  --board-theme-editor-modal-gutter-x: 0;
+  padding: 0;
+  min-height: 100dvh;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.board-theme-editor-modal__content--mobile {
+  width: 100dvw !important;
+  min-width: 100dvw !important;
+  max-width: 100dvw !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+

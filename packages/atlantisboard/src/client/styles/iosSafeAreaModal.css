@@ -1,0 +1,14 @@
+/*
+ * iOS PWA / `viewport-fit=cover`: match board nav (`boardView.css` header) so modal titles
+ * and controls clear the status bar. Applied via Modal `classNames.header`.
+ */
+.kb-ios-modal-header-safe {
+  padding-top: calc(6px + constant(safe-area-inset-top)) !important;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px)) !important;
+}
+
+/* Shell modals without a Mantine title/header (loading / error). */
+.kb-ios-modal-inner-safe {
+  padding-top: calc(6px + constant(safe-area-inset-top)) !important;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px)) !important;
+}

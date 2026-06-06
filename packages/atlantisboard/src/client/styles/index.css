@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 100;
+  font-display: swap;
+  src: url('./fonts/poppins-100-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 200;
+  font-display: swap;
+  src: url('./fonts/poppins-200-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('./fonts/poppins-300-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/poppins-400-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/poppins-500-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./fonts/poppins-600-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/poppins-700-latin.woff2') format('woff2');
+}
+
+/* Custom utility variables for backward compatibility and custom components */
+
+/* App-wide UI font: overridden at runtime from AdminConfig (AppBrandingContext). */
+:root {
+  --kb-app-ui-font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--kb-app-ui-font-family);
+}
+
+/* Custom global styles - shadcn-ui inspired */
+:root,
+[data-theme="light"] {
+  font-family: var(--kb-app-ui-font-family);
+  --border-color: #e2e8f0;           /* slate-200 */
+  --muted-bg: #f8fafc;                /* slate-50 */
+  --muted-text: #64748b;              /* slate-500 */
+}
+
+/* Dark theme overrides */
+[data-theme="dark"] {
+  --color-base-100: #1e293b;          /* slate-800 */
+  --color-base-200: #0f172a;          /* slate-900 */
+  --color-base-300: #334155;          /* slate-700 */
+  --color-base-content: #f1f5f9;      /* slate-100 */
+  --border-color: #334155;            /* slate-700 */
+  --muted-bg: #0f172a;                /* slate-900 */
+  --muted-text: #94a3b8;              /* slate-400 */
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--kb-app-ui-font-family);
+  background-color: var(--color-base-200);
+  color: var(--color-base-content);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Custom utility classes for shadcn-style elements */
+.border-subtle {
+  border-color: var(--border-color);
+}
+
+.bg-muted {
+  background-color: var(--muted-bg);
+}
+
+.text-muted {
+  color: var(--muted-text);
+}
+

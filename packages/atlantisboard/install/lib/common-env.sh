@@ -551,8 +551,8 @@ atl_apply_pompelmi_defaults() {
   if [[ -n "${ENV_VALUES[POMPELMI_CLAMD_HOST]:-}" ]]; then
     ENV_VALUES["POMPELMI_CLAMD_PORT"]="${ENV_VALUES[POMPELMI_CLAMD_PORT]:-3310}"
   else
-    unset ENV_VALUES["POMPELMI_CLAMD_HOST"]
-    unset ENV_VALUES["POMPELMI_CLAMD_PORT"]
+    unset 'ENV_VALUES[POMPELMI_CLAMD_HOST]'
+    unset 'ENV_VALUES[POMPELMI_CLAMD_PORT]'
   fi
 }
 

@@ -1,0 +1,31 @@
+import type { LoginBoxStyle } from '../../../../shared/types/loginBranding.js';
+
+export type BrandingHandlers = {
+  readonly setBackgroundEnabled: (v: boolean) => void;
+  readonly setBackgroundType: (v: string | null) => void;
+  readonly setBackgroundColor: (c: string) => void;
+  readonly setBackgroundGradientEnd: (c: string) => void;
+  readonly setLoginBoxStyle: (v: LoginBoxStyle) => void;
+  readonly setLoginBoxBackgroundColor: (c: string) => void;
+  readonly setGoogleButtonBackgroundColor: (c: string) => void;
+  readonly setGoogleButtonTextColor: (c: string) => void;
+  readonly setLoginInputTitleColor: (c: string) => void;
+  readonly setLoginLinkTitleColor: (c: string) => void;
+  readonly setLoginSignInButtonTextColor: (c: string) => void;
+  readonly setLoginSignInButtonColor: (c: string) => void;
+  readonly setLogoEnabled: (v: boolean) => void;
+  readonly setLogoSizePx: (v: string | null) => void;
+  readonly setAppNameEnabled: (v: boolean) => void;
+  readonly setAppName: (v: string) => void;
+  readonly setAppNameFontFamily: (v: string | null) => void;
+  readonly setAppNameFontSizePx: (v: string | null) => void;
+  readonly setAppNameColor: (c: string) => void;
+  readonly setTaglineEnabled: (v: boolean) => void;
+  readonly setTagline: (v: string) => void;
+  readonly setTaglineFontFamily: (v: string | null) => void;
+  readonly setTaglineFontSizePx: (v: string | null) => void;
+  readonly setTaglineColor: (c: string) => void;
+  readonly setBrowserTabTitleEnabled: (v: boolean) => void;
+  readonly setBrowserTabTitle: (v: string) => void;
+  readonly setFaviconEnabled: (v: boolean) => void;
+};

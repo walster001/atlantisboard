@@ -24,5 +24,8 @@ tailwind.config.js
 tsconfig.json
 tsconfig.typecheck.json
 
-# Installer tree is not part of the app image
+# Installer tree is not part of the app image (except production entrypoint)
 install
+!install/
+!install/docker/
+!install/docker/entrypoint.sh

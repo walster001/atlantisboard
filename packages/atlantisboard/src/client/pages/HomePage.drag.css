@@ -1,0 +1,40 @@
+/* Boards homepage — pointer drag float and reorder affordances */
+
+.home-page--dragging {
+  cursor: grabbing;
+}
+
+.home-page__drag-float-host {
+  will-change: transform;
+}
+
+.home-page__drag-float-card,
+.home-page__drag-float-workspace {
+  min-width: 200px;
+  max-width: 280px;
+  padding: 0.75rem 1rem;
+  border-radius: var(--mantine-radius-md, 8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  background: #fff;
+  border: 1px solid var(--mantine-color-gray-3);
+}
+
+.home-page__drag-float-card-title,
+.home-page__drag-float-workspace-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--mantine-color-dark-7);
+}
+
+.home-page__board-card[data-home-board-draggable='1'] {
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.home-page--dragging .home-page__board-card[data-home-board-draggable='1'] {
+  cursor: grabbing;
+}
+
+.home-page__board-card--drag-source {
+  opacity: 0.45;
+}

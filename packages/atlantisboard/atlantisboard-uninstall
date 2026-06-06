@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Uses env bash for PATH portability (project convention).
 # Run the Whiptail uninstaller from an extracted release zip (Linux).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

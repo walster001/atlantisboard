@@ -1,8 +1,0 @@
-/*
- * Tiptap card description — composed from co-located partials.
- */
-@import './cardDescriptionTiptap.editor.css';
-@import './cardDescriptionTiptap.media.css';
-@import './cardDescriptionTiptap.read.css';
-@import './cardDescriptionTiptap.toolbar.css';
-@import './cardDescriptionTiptap.mobile.css';

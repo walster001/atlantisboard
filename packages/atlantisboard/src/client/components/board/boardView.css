@@ -1,8 +1,0 @@
-/*
- * Board view styles — composed from co-located partials.
- * CSS variables are grouped for a future theme editor.
- */
-@import './boardView.base.css';
-@import './boardView.columns.css';
-@import './boardView.cards.css';
-@import './boardView.mobile.css';

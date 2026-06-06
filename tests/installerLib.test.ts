@@ -263,7 +263,10 @@ describe('installer shell static guards', () => {
     expect(dockerfile).not.toContain('dl.min.io');
     expect(dockerfile).toContain('AS production');
     expect(dockerfile).toContain('AS artifacts');
-    expect(dockerfile).toContain('COPY --from=artifacts');
+    expect(dockerfile).toContain('--from=artifacts');
+    expect(dockerfile).toContain('COPY --chown=bunjs:nodejs');
+    expect(dockerfile).not.toContain('chown -R');
+    expect(dockerfile).toContain('chown bunjs:nodejs /app');
     expect(dockerfile).toContain('AS development');
     expect(dockerfile).toContain('NODE_ENV=production');
     expect(dockerfile).toContain('bun run build:client');

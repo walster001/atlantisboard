@@ -54,17 +54,17 @@ RUN apk add --no-cache ca-certificates curl \
     "https://github.com/minio/mc/releases/download/${MC_RELEASE}/mc.linux-amd64.${MC_RELEASE}" \
     -o /usr/local/bin/mc \
   && chmod +x /usr/local/bin/mc \
-  && rm -rf /var/cache/apk/*
-COPY package.json bun.lock ./
+  && rm -rf /var/cache/apk/* \
+  && addgroup -g 1001 -S nodejs \
+  && adduser -S bunjs -u 1001 -G nodejs \
+  && chown bunjs:nodejs /app
+COPY --chown=bunjs:nodejs package.json bun.lock ./
+USER bunjs
 ENV ATLANTISBOARD_SKIP_SETUP=1 NODE_ENV=production
 RUN bun install --frozen-lockfile --production --ignore-scripts \
-  && rm -rf /root/.bun/install/cache
-COPY --from=artifacts /app/dist ./dist
-COPY --from=artifacts /app/public ./public
-RUN addgroup -g 1001 -S nodejs \
-  && adduser -S bunjs -u 1001 \
-  && chown -R bunjs:nodejs /app
-USER bunjs
+  && rm -rf /home/bunjs/.bun/install/cache
+COPY --chown=bunjs:nodejs --from=artifacts /app/dist ./dist
+COPY --chown=bunjs:nodejs --from=artifacts /app/public ./public
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD bun run -e "fetch('http://localhost:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"

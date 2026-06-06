@@ -235,7 +235,9 @@ atl_wait_for_docker_deps() {
     if (( elapsed >= timeout )); then
       msg="Timed out after ${timeout}s waiting for Docker dependencies.\n\n"
       msg+="Check container logs, e.g.:\n"
-      msg+="  cd ${INSTALL_DIR}/install/docker && docker compose ps"
+      msg+="  cd ${INSTALL_DIR}/install/docker && docker compose \\\n"
+      msg+="    --env-file image-defaults.env --env-file ../../.env \\\n"
+      msg+="    -f docker-compose.fullstack.yml ps"
       atl_whiptail_msgbox --title "Dependency timeout" --msgbox \
         "$msg" 14 72 || true
       return 1

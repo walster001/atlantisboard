@@ -1,9 +1,0 @@
-/*
- * Boards homepage — composed from co-located partials.
- */
-@import './HomePage.layout.css';
-@import './HomePage.nav.css';
-@import './HomePage.workspace.css';
-@import './HomePage.boardCards.css';
-@import './HomePage.drag.css';
-@import './HomePage.responsive.css';

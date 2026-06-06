@@ -247,7 +247,7 @@ export function useBoardMemberManagement(boardId: string) {
       setDiscardingPlaceholders,
       loadBoard,
     }),
-    [boardId, canAddMember, canRemoveMember, canUpdateMemberRole, loadBoard],
+    [boardId, canAddMember, canRemoveMember, canUpdateMemberRole, directoryUsersRef, loadBoard, setDirectoryUsers],
   );
 
   const handleDiscardAllPlaceholders = useCallback(async (): Promise<void> => {

@@ -231,7 +231,7 @@ export function useWorkspaceMemberManagement({
         });
       }
     },
-    [addRoles, applyWorkspaceFromMutationResponse, canAddMembers, loadWorkspaceMembers, workspaceId],
+    [addRoles, applyWorkspaceFromMutationResponse, canAddMembers, loadWorkspaceMembers, setDirectoryUsers, workspaceId],
   );
 
   const handleRemoveUser = useCallback(

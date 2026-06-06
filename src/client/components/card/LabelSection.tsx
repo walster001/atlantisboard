@@ -138,18 +138,16 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
     });
   }, [boardId]);
 
-  const labelIdsMembershipKey = useMemo(
-    () =>
-      [...card.labels]
-        .map((l) => l.id)
-        .sort((a, b) => a.localeCompare(b))
-        .join('\0'),
-    [card.labels],
-  );
+  const labelIdsMembershipKey = [...card.labels]
+    .map((l) => l.id)
+    .sort((a, b) => a.localeCompare(b))
+    .join('\0');
 
   const effectiveLabelPending = useMemo(
     () => resolveLabelPending(labelPending, card.labels),
-    [labelPending, card.labels, labelIdsMembershipKey],
+    // labelIdsMembershipKey is value-based sync for card.labels (see commit "Fix board sync/lag").
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- array ref churn must not reset pending state
+    [labelPending, labelIdsMembershipKey],
   );
 
   const displayCardLabels = useMemo((): CardDB['labels'] => {
@@ -166,7 +164,8 @@ export function LabelSection({ card, boardId, canEdit = true, onCardUpdate }: La
       }
     }
     return list;
-  }, [card.labels, effectiveLabelPending, labels]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- labelIdsMembershipKey tracks label id set for board sync
+  }, [labelIdsMembershipKey, effectiveLabelPending, labels]);
 
   const handleToggleLabel = async (labelId: string) => {
     if (!canEdit) {

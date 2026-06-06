@@ -28,6 +28,10 @@ bun run build:client
 echo "==> build"
 bun run build
 
+"${SCRIPT_DIR}/assert-bundle-no-host-paths.sh" \
+  "${PROJECT_ROOT}/dist/server/index.js" \
+  "${PROJECT_ROOT}/dist/workers/index.js"
+
 "${SCRIPT_DIR}/prepare-atlantisboard-package.sh"
 
 echo "==> Copy runtime files into package"

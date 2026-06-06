@@ -142,14 +142,13 @@ export function AssigneeSection({ card, boardId, canEdit = true, onCardUpdate }:
     }
   }, []);
 
-  const assigneeMembershipKey = useMemo(
-    () => [...card.assignees].sort((a, b) => a.localeCompare(b)).join('\0'),
-    [card.assignees],
-  );
+  const assigneeMembershipKey = [...card.assignees].sort((a, b) => a.localeCompare(b)).join('\0');
 
   const effectiveAssigneePending = useMemo(
     () => resolveAssigneePending(assigneePending, card.assignees),
-    [assigneePending, card.assignees, assigneeMembershipKey],
+    // assigneeMembershipKey is value-based sync for card.assignees (see commit "Fix board sync/lag").
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- array ref churn must not reset pending state
+    [assigneePending, assigneeMembershipKey],
   );
 
   const sortedMembers = useMemo(
@@ -177,7 +176,8 @@ export function AssigneeSection({ card, boardId, canEdit = true, onCardUpdate }:
       s.add(id);
     }
     return [...s];
-  }, [effectiveAssigneePending, card.assignees]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- assigneeMembershipKey tracks assignee id set for board sync
+  }, [effectiveAssigneePending, assigneeMembershipKey]);
 
   const handleToggleAssignee = async (userId: string) => {
     if (!canEdit) {

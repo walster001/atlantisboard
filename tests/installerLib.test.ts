@@ -279,6 +279,18 @@ describe('installer shell static guards', () => {
     expect(fullstack).toContain('target: production');
   });
 
+  test('server bundles externalize node_modules (no host paths in release artifacts)', () => {
+    const pkg = readFileSync(join(REPO_ROOT, 'package.json'), 'utf8');
+    expect(pkg).toContain('--packages=external');
+    const assertScript = readFileSync(
+      join(REPO_ROOT, 'scripts', 'assert-bundle-no-host-paths.sh'),
+      'utf8',
+    );
+    expect(assertScript).toContain('runner/work/');
+    const buildScript = readFileSync(join(REPO_ROOT, 'scripts', 'build-npm-package.sh'), 'utf8');
+    expect(buildScript).toContain('assert-bundle-no-host-paths.sh');
+  });
+
   test('mock whiptail fixture is executable', () => {
     const mockDir = join(REPO_ROOT, 'tests', 'installer', 'fixtures', 'bin');
     const names = readdirSync(mockDir);

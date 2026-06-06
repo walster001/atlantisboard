@@ -189,8 +189,7 @@ atl_uninstall_collect_docker_containers() {
         atlantisboard-mongodb-init-full \
         atlantisboard-redis-full \
         atlantisboard-minio-full \
-        atlantisboard-minio-setup-full \
-        atlantisboard-clamav-full
+        atlantisboard-minio-setup-full
       ;;
     docker)
       printf '%s\n' \
@@ -198,8 +197,7 @@ atl_uninstall_collect_docker_containers() {
         atlantisboard-mongodb-init-deps \
         atlantisboard-redis-deps \
         atlantisboard-minio-deps \
-        atlantisboard-minio-setup-deps \
-        atlantisboard-clamav-deps
+        atlantisboard-minio-setup-deps
       ;;
     *)
       printf '%s\n' \
@@ -209,13 +207,11 @@ atl_uninstall_collect_docker_containers() {
         atlantisboard-redis-full \
         atlantisboard-minio-full \
         atlantisboard-minio-setup-full \
-        atlantisboard-clamav-full \
         atlantisboard-mongodb-deps \
         atlantisboard-mongodb-init-deps \
         atlantisboard-redis-deps \
         atlantisboard-minio-deps \
-        atlantisboard-minio-setup-deps \
-        atlantisboard-clamav-deps
+        atlantisboard-minio-setup-deps
       ;;
   esac
 }
@@ -235,11 +231,11 @@ atl_uninstall_collect_docker_volumes() {
         mongo-config-full \
         redis-data-full \
         minio-data-full \
-        clamav-db-full \
+        clamav-sigs-full \
         docker_mongo-data-full \
         docker_mongo-config-full \
         docker_redis-data-full \
-        docker_minio-data-full docker_clamav-db-full
+        docker_minio-data-full docker_clamav-sigs-full
       ;;
     docker)
       printf '%s\n' \
@@ -247,12 +243,10 @@ atl_uninstall_collect_docker_volumes() {
         mongo-config \
         redis-data \
         minio-data \
-        clamav-db \
         docker_mongo-data \
         docker_mongo-config \
         docker_redis-data \
-        docker_minio-data \
-        docker_clamav-db
+        docker_minio-data
       ;;
     *)
       printf '%s\n' \
@@ -260,21 +254,19 @@ atl_uninstall_collect_docker_volumes() {
         mongo-config-full \
         redis-data-full \
         minio-data-full \
-        clamav-db-full \
+        clamav-sigs-full \
         mongo-data \
         mongo-config \
         redis-data \
         minio-data \
-        clamav-db \
         docker_mongo-data-full \
         docker_mongo-config-full \
         docker_redis-data-full \
-        docker_minio-data-full docker_clamav-db-full \
+        docker_minio-data-full docker_clamav-sigs-full \
         docker_mongo-data \
         docker_mongo-config \
         docker_redis-data \
-        docker_minio-data \
-        docker_clamav-db
+        docker_minio-data
       ;;
   esac
 }

@@ -14,6 +14,7 @@ import {
 import { IconExternalLink, IconTrash, IconUpload } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
+import { prewarmMalwareScannerOnUploadIntent } from '../../utils/prewarmMalwareScanner.js';
 import { requireUploadedAttachmentId } from '../../utils/api/attachmentApiMethods.js';
 import { DEFAULT_INLINE_BUTTON_ATTRS } from './tiptapInlineButtonExtension.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
@@ -120,6 +121,7 @@ export function CardDescriptionInlineButtonEditModal({
   }, [opened, nodePos, editor, onClose]);
 
   const uploadIcon = (): void => {
+    prewarmMalwareScannerOnUploadIntent();
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';

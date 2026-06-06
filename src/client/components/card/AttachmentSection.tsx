@@ -44,6 +44,7 @@ export function AttachmentSection({
     handleSetCoverFromAttachment,
     handleFileSelect,
     handleDelete,
+    openFilePicker,
     openAttachmentPreview,
     closeAttachmentPreview,
   } = useAttachmentSection({
@@ -75,7 +76,7 @@ export function AttachmentSection({
               variant="default"
               leftSection={<IconUpload size={16} />}
               styles={cardDetailSoftButtonStyles}
-              onClick={() => (fileInputRef.current as HTMLInputElement)?.click()}
+              onClick={openFilePicker}
               disabled={uploading}
             >
               {uploading ? 'Uploading…' : 'Add'}

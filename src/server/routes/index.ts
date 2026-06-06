@@ -14,6 +14,7 @@ import { activityRoutes } from './activities.js';
 import { inviteRoutes } from './invites.js';
 import { userRoutes } from './users.js';
 import { attachmentRoutes } from './attachments.js';
+import { scanRoutes } from './scan.js';
 import { csrfRoutes } from './csrf.js';
 import { brandingRoutes } from './branding.js';
 import { boardBackgroundRoutes } from './boardBackgrounds.js';
@@ -101,6 +102,9 @@ apiRoutes.use('/invites', inviteRoutes);
 
 // Attachment routes
 apiRoutes.use('/', attachmentRoutes);
+
+// Malware scan pre-warm (on-demand clamscan)
+apiRoutes.use('/scan', scanRoutes);
 
 // Debug route — disabled in production (use /health for probes)
 if (process.env.NODE_ENV !== 'production') {

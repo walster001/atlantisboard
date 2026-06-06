@@ -224,7 +224,9 @@ EOF
     fullstack_msg="$(cat <<'EOF'
 Building the Atlantisboard image and starting all containers.
 
-This can take several minutes on first run.
+Malware scanning uses on-demand clamscan inside the app container.
+The first attachment upload (or clicking Add) may download virus
+definitions; signatures are stored in the clamav-sigs volume.
 EOF
 )"
     atl_whiptail_display --title "Building full stack" --infobox \

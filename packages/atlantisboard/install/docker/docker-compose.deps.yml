@@ -113,24 +113,8 @@ services:
       - ./minio/app-readwrite-policy.json:/policy/app-readwrite-policy.json:ro
     entrypoint: ['/bin/sh', '/setup.sh']
 
-  clamav:
-    image: clamav/clamav:1.4
-    container_name: atlantisboard-clamav-deps
-    restart: unless-stopped
-    volumes:
-      - clamav-db:/var/lib/clamav
-    ports:
-      - '127.0.0.1:3310:3310'
-    healthcheck:
-      test: ['CMD', '/usr/local/bin/clamdcheck.sh']
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 300s
-
 volumes:
   mongo-data:
   mongo-config:
   redis-data:
   minio-data:
-  clamav-db:

@@ -265,7 +265,7 @@ describe('installer shell static guards', () => {
     expect(dockerfile).toContain('AS artifacts');
     expect(dockerfile).toContain('--from=artifacts');
     expect(dockerfile).toContain('COPY --chown=bunjs:nodejs');
-    expect(dockerfile).not.toContain('chown -R');
+    expect(dockerfile).not.toContain('chown -R bunjs:nodejs /app');
     expect(dockerfile).toContain('chown bunjs:nodejs /app');
     expect(dockerfile).toContain('AS development');
     expect(dockerfile).toContain('NODE_ENV=production');
@@ -280,6 +280,12 @@ describe('installer shell static guards', () => {
       'utf8',
     );
     expect(fullstack).toContain('target: production');
+    expect(fullstack).toContain('clamav-sigs-full');
+    expect(fullstack).not.toMatch(/\n  clamav:/);
+    expect(fullstack).not.toContain('POMPELMI_CLAMD_HOST');
+    expect(dockerfile).toContain('clamav');
+    expect(dockerfile).toContain('entrypoint.sh');
+    expect(dockerfile).toContain('su-exec');
   });
 
   test('server bundles externalize node_modules (no host paths in release artifacts)', () => {

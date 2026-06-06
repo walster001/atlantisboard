@@ -543,21 +543,17 @@ atl_apply_pompelmi_defaults() {
   ENV_VALUES["POMPELMI_SKIP_SCAN"]="false"
   case "$mode" in
     fullstack)
-      ENV_VALUES["POMPELMI_CLAMD_HOST"]="clamav"
-      ENV_VALUES["POMPELMI_CLAMD_PORT"]="3310"
+      ENV_VALUES["CLAMAV_DB_DIR"]="/var/lib/clamav"
       ;;
-    docker)
-      ENV_VALUES["POMPELMI_CLAMD_HOST"]="127.0.0.1"
-      ENV_VALUES["POMPELMI_CLAMD_PORT"]="3310"
-      ;;
-    manual)
-      local clamd_host clamd_port
-      clamd_host="${ENV_VALUES[POMPELMI_CLAMD_HOST]:-127.0.0.1}"
-      clamd_port="${ENV_VALUES[POMPELMI_CLAMD_PORT]:-3310}"
-      ENV_VALUES["POMPELMI_CLAMD_HOST"]="$clamd_host"
-      ENV_VALUES["POMPELMI_CLAMD_PORT"]="$clamd_port"
+    docker|manual)
       ;;
   esac
+  if [[ -n "${ENV_VALUES[POMPELMI_CLAMD_HOST]:-}" ]]; then
+    ENV_VALUES["POMPELMI_CLAMD_PORT"]="${ENV_VALUES[POMPELMI_CLAMD_PORT]:-3310}"
+  else
+    unset ENV_VALUES["POMPELMI_CLAMD_HOST"]
+    unset ENV_VALUES["POMPELMI_CLAMD_PORT"]
+  fi
 }
 
 

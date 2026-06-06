@@ -32,6 +32,7 @@ export function requireUploadedAttachmentId(response: AttachmentUploadResponse):
 }
 
 export interface AttachmentApiMethods {
+  prewarmMalwareScanner(): Promise<void>;
   uploadCardAttachment(cardId: string, file: File, onProgress?: (progress: number) => void): Promise<AttachmentUploadResponse>;
   deleteCardAttachment(cardId: string, attachmentId: string): Promise<void>;
   getAttachmentUrl(attachmentId: string): Promise<AttachmentStreamUrlResponse>;
@@ -40,6 +41,10 @@ export interface AttachmentApiMethods {
 }
 
 export const attachmentApiMethods: AttachmentApiMethods = {
+  async prewarmMalwareScanner(this: ApiClient) {
+    await this.client.post('/scan/prewarm');
+  },
+
   async uploadCardAttachment(this: ApiClient, cardId, file, onProgress) {
     const formData = new FormData();
     formData.append('file', file);

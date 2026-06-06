@@ -20,6 +20,7 @@ import {
 import { isCoverAttachment } from '../../utils/attachmentCoverUtils.js';
 import { maybeCompressImageForAttachment } from '../../utils/imageCompression.js';
 import { buildPreviewModalProps } from '../../components/card/buildPreviewModalProps.js';
+import { prewarmMalwareScannerOnUploadIntent } from '../../utils/prewarmMalwareScanner.js';
 
 export interface UseAttachmentSectionOptions {
   readonly card: CardDB;
@@ -279,6 +280,11 @@ export function useAttachmentSection({
     linkPreviewImageSize,
   );
 
+  const openFilePicker = useCallback(() => {
+    prewarmMalwareScannerOnUploadIntent();
+    fileInputRef.current?.click();
+  }, []);
+
   return {
     uploading,
     error,
@@ -297,6 +303,7 @@ export function useAttachmentSection({
     handleSetCoverFromAttachment,
     handleFileSelect,
     handleDelete,
+    openFilePicker,
     openAttachmentPreview,
     closeAttachmentPreview,
   };

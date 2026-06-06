@@ -11,6 +11,7 @@ import {
   registerPendingDescriptionMediaFile,
   type DescriptionPendingMediaRegistry,
 } from '../../../utils/descriptionPendingMedia.js';
+import { prewarmMalwareScannerOnUploadIntent } from '../../../utils/prewarmMalwareScanner.js';
 import { prefetchEmojiMartModules } from './emojiMartPicker.js';
 import {
   EDITOR_TEXT_COLOR_FALLBACK,
@@ -148,6 +149,7 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
   };
 
   const handleInsertImage = (): void => {
+    prewarmMalwareScannerOnUploadIntent();
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -170,6 +172,7 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
   };
 
   const handleInsertVideo = (): void => {
+    prewarmMalwareScannerOnUploadIntent();
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'video/*';

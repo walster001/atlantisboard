@@ -32,11 +32,9 @@ So:
 
 `scripts/check-docker-data-migration.sh` (run from `dev-start.sh`) now **blocks startup** when a large legacy volume exists but the bind mount is still tiny, and offers to run the migrate script.
 
-Automatic migrate (non-interactive):
+**Prevent recurrence:** keep `MONGODB_TEST_URI` pointed at `kanboard_test` (never `kanboard`) when running `bun test`. The test harness refuses to wipe the `kanboard` database locally.
 
-```bash
-AUTO_MIGRATE_LEGACY_DOCKER=1 ./scripts/dev-start.sh
-```
+If the bind mount is large on disk but shows **0 users** while the legacy volume still has data, re-run migrate — deleted data leaves WiredTiger files behind so size-only checks are not enough.
 
 ## Layout
 

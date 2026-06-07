@@ -36,7 +36,15 @@ describe('mongo test URI guard', () => {
     ).toBe(false);
   });
 
-  it('throws locally when MONGODB_TEST_URI matches MONGODB_URI database', () => {
+  it('throws locally when MONGODB_TEST_URI is unset', () => {
+    delete process.env.CI;
+    delete process.env.GITHUB_ACTIONS;
+    delete process.env.MONGODB_TEST_URI;
+    process.env.MONGODB_URI = 'mongodb://localhost:27017/kanboard?replicaSet=rs0';
+    expect(() => assertSafeTestMongoUriForDestructiveOps()).toThrow(/MONGODB_TEST_URI is not set/);
+  });
+
+  it('throws locally when test URI targets kanboard by name', () => {
     delete process.env.CI;
     delete process.env.GITHUB_ACTIONS;
     process.env.MONGODB_URI = 'mongodb://localhost:27017/kanboard?replicaSet=rs0';

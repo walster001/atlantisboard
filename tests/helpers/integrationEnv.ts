@@ -73,11 +73,24 @@ export function resolveTestMongoUri(): string | undefined {
   if (testUri) {
     return testUri;
   }
-  if (process.env.NODE_ENV === 'test') {
+  // Local dev must set MONGODB_TEST_URI — never fall back to MONGODB_URI (would wipe kanboard).
+  if (process.env.NODE_ENV === 'test' && isCiTestRun()) {
     return process.env.MONGODB_URI?.trim() || undefined;
   }
   return undefined;
 }
+
+export function databaseNameFromMongoUri(rawUri: string): string {
+  const normalized = normalizeMongoDatabaseTarget(rawUri);
+  const slash = normalized.indexOf('/');
+  if (slash < 0) {
+    return '';
+  }
+  return normalized.slice(slash + 1).split('?')[0] ?? '';
+}
+
+/** Dev database name — must never be cleared by test helpers locally. */
+export const DEV_MONGO_DATABASE_NAME = 'kanboard' as const;
 
 /** Host, port, and database name — used to detect test URI accidentally pointing at dev data. */
 export function normalizeMongoDatabaseTarget(rawUri: string): string {
@@ -120,8 +133,21 @@ export function assertSafeTestMongoUriForDestructiveOps(): void {
   }
   const testUri = resolveTestMongoUri();
   const devUri = process.env.MONGODB_URI?.trim();
-  if (testUri == null || testUri === '' || devUri == null || devUri === '') {
+  if (testUri == null || testUri === '') {
+    throw new Error(
+      'Refusing to clear MongoDB during tests: MONGODB_TEST_URI is not set. ' +
+        'Use a separate database (e.g. mongodb://localhost:27017/kanboard_test?replicaSet=rs0).',
+    );
+  }
+  if (devUri == null || devUri === '') {
     return;
+  }
+  const testDb = databaseNameFromMongoUri(testUri);
+  if (testDb === DEV_MONGO_DATABASE_NAME) {
+    throw new Error(
+      `Refusing to clear MongoDB during tests: test URI targets the dev database "${DEV_MONGO_DATABASE_NAME}". ` +
+        'Use kanboard_test (or another non-production database name).',
+    );
   }
   if (testMongoUriTargetsDevDatabase(testUri, devUri)) {
     throw new Error(

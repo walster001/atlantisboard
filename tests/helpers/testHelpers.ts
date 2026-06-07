@@ -10,7 +10,7 @@ import {
   type ApiInjectResponse,
 } from './integrationHttp.js';
 import { ensureTestServer } from './testServer.js';
-import { DB_INTEGRATION_ENV_DOCS, assertSafeTestMongoUriForDestructiveOps, isCiTestRun, resolveTestMongoUri } from './integrationEnv.js';
+import { DB_INTEGRATION_ENV_DOCS, assertSafeTestMongoUriForDestructiveOps, DEV_MONGO_DATABASE_NAME, isCiTestRun, resolveTestMongoUri } from './integrationEnv.js';
 
 export interface TestUser {
   _id: string;
@@ -54,9 +54,16 @@ export async function clearTestDatabase(options?: { waitForHttp?: boolean }): Pr
   if (options?.waitForHttp === true) {
     await ensureTestServer();
   }
-  const { readyState, collections } = mongoose.connection;
+  const { readyState, collections, db } = mongoose.connection;
   if (readyState !== 1) {
     return;
+  }
+  const databaseName = db?.databaseName;
+  if (!isCiTestRun() && databaseName === DEV_MONGO_DATABASE_NAME) {
+    throw new Error(
+      `Refusing to clear MongoDB: connected to dev database "${DEV_MONGO_DATABASE_NAME}". ` +
+        'Tests must use MONGODB_TEST_URI (e.g. kanboard_test).',
+    );
   }
   for (const collection of Object.values(collections)) {
     await collection.deleteMany({});

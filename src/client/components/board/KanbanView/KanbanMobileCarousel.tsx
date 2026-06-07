@@ -7,6 +7,7 @@ import {
   type MutableRefObject,
   type MouseEventHandler,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { Box, Button } from '@mantine/core';
 import type { Swiper as SwiperClass } from 'swiper';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -111,8 +112,47 @@ export function KanbanMobileCarousel({
   }, [totalMobileSlides]);
 
   const prevSlideCountRef = useRef(totalMobileSlides);
+  const prevListCountRef = useRef(totalMobileLists);
+  /** After mobile create: slide index of the new list (set before store update). */
+  const pendingPostCreateSlideIndexRef = useRef<number | null>(null);
+  const [swiperTransitionLock, setSwiperTransitionLock] = useState(false);
+
+  const handleMobileListCreated = useCallback(
+    (response?: { list: unknown }) => {
+      if (response?.list == null) {
+        onListCreated(response);
+        return;
+      }
+      const targetIndex = totalMobileLists;
+      pendingPostCreateSlideIndexRef.current = targetIndex;
+      setSwiperTransitionLock(true);
+      flushSync(() => {
+        closeAddListComposer();
+      });
+      onListCreated(response);
+    },
+    [totalMobileLists, closeAddListComposer, onListCreated],
+  );
 
   useLayoutEffect(() => {
+    const pendingIndex = pendingPostCreateSlideIndexRef.current;
+    const listCountIncreased = totalMobileLists > prevListCountRef.current;
+    prevListCountRef.current = totalMobileLists;
+
+    if (pendingIndex != null && listCountIncreased) {
+      pendingPostCreateSlideIndexRef.current = null;
+      const targetIndex = Math.min(pendingIndex, carouselLayout.maxActiveIndex);
+      prevSlideCountRef.current = totalMobileSlides;
+      setActiveIndex(targetIndex);
+      const sw = swiperRef.current;
+      if (sw != null) {
+        sw.update();
+        sw.slideTo(targetIndex, 0);
+      }
+      setSwiperTransitionLock(false);
+      return;
+    }
+
     if (totalMobileSlides === 0) {
       prevSlideCountRef.current = totalMobileSlides;
       if (activeIndex !== 0) {
@@ -128,12 +168,11 @@ export function KanbanMobileCarousel({
       const sw = swiperRef.current;
       if (sw != null) {
         sw.update();
-        if (sw.activeIndex !== activeIndex) {
-          sw.slideTo(activeIndex, 0);
-        }
+        const clamped = Math.min(activeIndex, carouselLayout.maxActiveIndex);
+        sw.slideTo(clamped, 0);
       }
     }
-  }, [totalMobileSlides, activeIndex, carouselLayout.maxActiveIndex]);
+  }, [totalMobileSlides, totalMobileLists, activeIndex, carouselLayout.maxActiveIndex]);
 
   const clearHoverTimer = (): void => {
     if (hoverTimerRef.current != null) {
@@ -278,7 +317,9 @@ export function KanbanMobileCarousel({
           slidesPerView={carouselLayout.slidesPerView}
           spaceBetween={LIST_HORIZONTAL_GAP_PX}
           grabCursor={draggingCardId == null}
-          allowTouchMove={draggingCardId == null && totalMobileSlides > 1}
+          allowTouchMove={
+            !swiperTransitionLock && draggingCardId == null && totalMobileSlides > 1
+          }
           touchRatio={MOBILE_CAROUSEL_SWIPER_TOUCH_RATIO}
           threshold={MOBILE_CAROUSEL_SWIPER_THRESHOLD_PX}
           longSwipesRatio={MOBILE_CAROUSEL_SWIPER_LONG_SWIPES_RATIO}
@@ -323,7 +364,7 @@ export function KanbanMobileCarousel({
                     <BoardInlineListComposer
                       boardId={board.id}
                       getNextPosition={getNextListPosition}
-                      onListCreated={onListCreated}
+                      onListCreated={handleMobileListCreated}
                       onCancel={closeAddListComposer}
                     />
                   </Box>

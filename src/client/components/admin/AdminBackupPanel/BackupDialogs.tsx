@@ -1,7 +1,15 @@
 import { memo } from 'react';
-import { Button, Group, Modal, NumberInput, Progress, Stack, Text, TextInput } from '@mantine/core';
+import { Button, Group, Modal, NativeSelect, Progress, Stack, Text, TextInput } from '@mantine/core';
 import { backupPhaseDisplayLabel } from '../../../utils/adminBackupJobPoll.js';
 import type { AdminBackupListItem } from '../../../../shared/types/adminBackup.js';
+import {
+  BACKUP_SCHEDULE_UNIT_OPTIONS,
+  clampBackupScheduleAmount,
+  isBackupScheduleUnit,
+  maxAmountForScheduleUnit,
+  parseBackupScheduleAmount,
+  type BackupScheduleUnit,
+} from '../../../../shared/constants/backupScheduleInterval.js';
 import type { RestoreStatus } from './useAdminBackupPanelState.js';
 
 interface BackupDialogsProps {
@@ -16,8 +24,10 @@ interface BackupDialogsProps {
   readonly scheduleOpen: boolean;
   readonly setScheduleOpen: (next: boolean) => void;
   readonly savingSchedule: boolean;
-  readonly scheduleDays: number;
-  readonly setScheduleDays: (next: number) => void;
+  readonly scheduleAmount: number;
+  readonly setScheduleAmount: (next: number | ((current: number) => number)) => void;
+  readonly scheduleUnit: BackupScheduleUnit;
+  readonly setScheduleUnit: (next: BackupScheduleUnit) => void;
   readonly saveSchedule: () => Promise<void>;
   readonly restoreOpen: boolean;
   readonly setRestoreOpen: (next: boolean) => void;
@@ -46,8 +56,10 @@ export const BackupDialogs = memo(function BackupDialogs({
   scheduleOpen,
   setScheduleOpen,
   savingSchedule,
-  scheduleDays,
-  setScheduleDays,
+  scheduleAmount,
+  setScheduleAmount,
+  scheduleUnit,
+  setScheduleUnit,
   saveSchedule,
   restoreOpen,
   setRestoreOpen,
@@ -123,19 +135,49 @@ export const BackupDialogs = memo(function BackupDialogs({
               <> (set BACKUP_LOCATION on the server; see .env.example).</>
             )}
           </Text>
-          <NumberInput
-            label="Frequency (days)"
-            value={scheduleDays}
-            onChange={(value) => {
-              if (typeof value === 'number' && Number.isFinite(value)) {
-                setScheduleDays(Math.min(3650, Math.max(1, Math.floor(value))));
-              }
-            }}
-            min={1}
-            max={3650}
-            allowDecimal={false}
-            disabled={savingSchedule}
-          />
+          <Stack gap={4}>
+            <Text size="sm" fw={500}>
+              Frequency
+            </Text>
+            <Group gap="xs" align="center" wrap="nowrap">
+              <TextInput
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={maxAmountForScheduleUnit(scheduleUnit)}
+                value={String(scheduleAmount)}
+                onChange={(event) => {
+                  const parsed = parseBackupScheduleAmount(event.currentTarget.value);
+                  if (parsed != null) {
+                    setScheduleAmount(clampBackupScheduleAmount(parsed, scheduleUnit));
+                  }
+                }}
+                disabled={savingSchedule}
+                w={96}
+                aria-label="Scheduled backup frequency amount"
+              />
+              <NativeSelect
+                data={BACKUP_SCHEDULE_UNIT_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+                value={scheduleUnit}
+                onChange={(event) => {
+                  const unit = event.currentTarget.value;
+                  if (isBackupScheduleUnit(unit)) {
+                    setScheduleUnit(unit);
+                    setScheduleAmount((current) => clampBackupScheduleAmount(current, unit));
+                  }
+                }}
+                disabled={savingSchedule}
+                w={120}
+                aria-label="Scheduled backup frequency unit"
+              />
+            </Group>
+            <Text size="xs" c="dimmed">
+              Run a full backup automatically on this interval (minimum 1 hour; months use 30-day periods).
+            </Text>
+          </Stack>
           <Group justify="flex-end">
             <Button variant="default" disabled={savingSchedule} onClick={() => setScheduleOpen(false)}>
               Close

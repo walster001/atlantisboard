@@ -106,8 +106,12 @@ export interface IBackupSettings {
   retentionDays: number;
   /** Default directory where local backup archives are written. */
   location?: string;
-  /** Automatic full-backup interval in days (1..3650). */
+  /** @deprecated Legacy interval in days — use scheduleIntervalAmount + scheduleIntervalUnit. */
   scheduleFrequencyDays?: number;
+  /** Scheduled backup interval magnitude (e.g. 12 with unit `hours`). */
+  scheduleIntervalAmount?: number;
+  /** Scheduled backup interval unit. */
+  scheduleIntervalUnit?: 'hours' | 'days' | 'weeks' | 'months';
   /** Whether scheduled backups are enabled. */
   scheduleEnabled?: boolean;
   /** Timestamp of the last successful scheduled backup run. */
@@ -285,9 +289,14 @@ const VapidKeysSchema = new Schema<IVapidKeys>(
 
 const BackupSettingsSchema = new Schema<IBackupSettings>(
   {
-    retentionDays: { type: Number, default: 14, min: 1, max: 3650 },
+    retentionDays: { type: Number, default: 30, min: 0, max: 3650 },
     location: { type: String, trim: true, maxlength: 1200 },
     scheduleFrequencyDays: { type: Number, min: 1, max: 3650 },
+    scheduleIntervalAmount: { type: Number, min: 1, max: 87600 },
+    scheduleIntervalUnit: {
+      type: String,
+      enum: ['hours', 'days', 'weeks', 'months'],
+    },
     scheduleEnabled: { type: Boolean, default: false },
     lastScheduledRunAt: { type: Date },
   },

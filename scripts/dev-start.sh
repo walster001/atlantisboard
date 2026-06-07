@@ -65,7 +65,29 @@ fi
 DOCKER_DATA_DIR="$("$SCRIPT_DIR/ensure-docker-data-dirs.sh")"
 echo -e "${BLUE}Docker dev data:${NC} ${DOCKER_DATA_DIR}"
 echo -e "${YELLOW}Never run:${NC} docker compose down -v  (see docs/DOCKER-DEV-DATA.md)"
-"$SCRIPT_DIR/check-docker-data-migration.sh" || true
+if ! "$SCRIPT_DIR/check-docker-data-migration.sh"; then
+  if [ "${AUTO_MIGRATE_LEGACY_DOCKER:-}" = "1" ]; then
+    echo -e "${BLUE}AUTO_MIGRATE_LEGACY_DOCKER=1 — migrating legacy Docker volumes into bind mount...${NC}"
+    docker compose stop mongodb 2>/dev/null || true
+    "$SCRIPT_DIR/migrate-legacy-docker-volumes.sh" --replace
+  elif [ -t 0 ] && [ -z "${SKIP_DOCKER_PROMPT:-}" ]; then
+    echo -e "${YELLOW}Legacy MongoDB data detected in an unused Docker volume.${NC}"
+    read -p "Migrate legacy volume into ${DOCKER_DATA_DIR} now? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      docker compose stop mongodb 2>/dev/null || true
+      "$SCRIPT_DIR/migrate-legacy-docker-volumes.sh" --replace
+      docker compose up -d mongodb 2>/dev/null || true
+      docker compose up --no-deps mongodb-init 2>/dev/null || true
+    else
+      echo -e "${RED}Aborting dev start — compose would use empty bind-mount data, not the legacy volume.${NC}"
+      exit 1
+    fi
+  else
+    echo -e "${RED}Aborting dev start. Set AUTO_MIGRATE_LEGACY_DOCKER=1 or run ./scripts/migrate-legacy-docker-volumes.sh --replace${NC}"
+    exit 1
+  fi
+fi
 echo ""
 echo -e "${BLUE}Starting Docker services...${NC}"
 RESTART_DOCKER=false

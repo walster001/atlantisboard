@@ -3,6 +3,9 @@ import type {
   AdminFileStorageCreateFolderResponse,
   AdminFileStorageDeleteResponse,
   AdminFileStorageListResponse,
+  AdminFileStorageOrphanDeleteResponse,
+  AdminFileStorageOrphanObjectRef,
+  AdminFileStorageOrphanScanResponse,
   AdminFileStorageUploadResponse,
 } from '../../../shared/types/adminFileStorage.js';
 import type { MinioBucketName } from '../../../shared/constants/minioBuckets.js';
@@ -32,6 +35,10 @@ export interface AdminFileStorageApiMethods {
     bucket: MinioBucketName,
     keys: readonly string[],
   ): Promise<AdminFileStorageDeleteResponse>;
+  scanAdminFileStorageOrphans(): Promise<AdminFileStorageOrphanScanResponse>;
+  deleteAdminFileStorageOrphans(
+    objects: readonly AdminFileStorageOrphanObjectRef[],
+  ): Promise<AdminFileStorageOrphanDeleteResponse>;
 }
 
 export const adminFileStorageApiMethods: AdminFileStorageApiMethods = {
@@ -99,6 +106,24 @@ export const adminFileStorageApiMethods: AdminFileStorageApiMethods = {
         confirmPhrase: ADMIN_DESTRUCTIVE_CONFIRM_PHRASE,
       },
     });
+    return response.data;
+  },
+
+  async scanAdminFileStorageOrphans(this: ApiClient) {
+    const response = await this.client.post<AdminFileStorageOrphanScanResponse>(
+      '/admin/file-storage/orphans/scan',
+    );
+    return response.data;
+  },
+
+  async deleteAdminFileStorageOrphans(this: ApiClient, objects) {
+    const response = await this.client.post<AdminFileStorageOrphanDeleteResponse>(
+      '/admin/file-storage/orphans/delete',
+      {
+        objects,
+        confirmPhrase: ADMIN_DESTRUCTIVE_CONFIRM_PHRASE,
+      },
+    );
     return response.data;
   },
 };

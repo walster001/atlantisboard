@@ -1,5 +1,12 @@
+import { access, constants as fsConstants, mkdir, stat } from 'node:fs/promises';
 import { isAbsolute, normalize, resolve } from 'node:path';
-import { BACKUP_LOCATION_SETUP_GUIDANCE } from '../../shared/constants/backupLocationEnv.js';
+import { BACKUP_LOCATION_ENV_NAME, BACKUP_LOCATION_SETUP_GUIDANCE } from '../../shared/constants/backupLocationEnv.js';
+import type {
+  AdminBackupLocationCheckResult,
+  AdminBackupLocationStatus,
+} from '../../shared/types/adminBackupLocation.js';
+import { ValidationError } from '../../shared/errors/domainErrors.js';
+import { upsertEnvFileVariable } from '../utils/envFileWriter.js';
 
 /** Thrown when BACKUP_LOCATION is missing or not a valid absolute path (operator-safe message). */
 export class BackupLocationNotConfiguredError extends Error {
@@ -13,10 +20,13 @@ export class BackupLocationNotConfiguredError extends Error {
   }
 }
 
-function normalizeLocationPath(input: string): string {
+export function normalizeBackupLocationPath(input: string): string {
   const trimmed = input.trim().replace(/\\/g, '/');
+  if (trimmed === '' || trimmed.includes('\0')) {
+    throw new ValidationError('Backup path is required');
+  }
   if (!isAbsolute(trimmed)) {
-    throw new Error('BACKUP_LOCATION must be an absolute local filesystem path');
+    throw new ValidationError('BACKUP_LOCATION must be an absolute local filesystem path');
   }
   return normalize(resolve(trimmed));
 }
@@ -30,7 +40,7 @@ export function getResolvedBackupLocationFromEnv(): string | null {
     return null;
   }
   try {
-    return normalizeLocationPath(raw);
+    return normalizeBackupLocationPath(raw);
   } catch {
     return null;
   }
@@ -45,4 +55,117 @@ export function requireBackupLocationFromEnv(): string {
     return resolved;
   }
   throw new BackupLocationNotConfiguredError(503);
+}
+
+async function inspectPathOnDisk(normalizedPath: string): Promise<{
+  exists: boolean;
+  isDirectory: boolean;
+  writable: boolean;
+}> {
+  try {
+    const info = await stat(normalizedPath);
+    const isDirectory = info.isDirectory();
+    let writable = false;
+    if (isDirectory) {
+      try {
+        await access(normalizedPath, fsConstants.W_OK);
+        writable = true;
+      } catch {
+        writable = false;
+      }
+    }
+    return { exists: true, isDirectory, writable };
+  } catch {
+    return { exists: false, isDirectory: false, writable: false };
+  }
+}
+
+export async function checkBackupLocationPath(input: string): Promise<AdminBackupLocationCheckResult> {
+  const path = normalizeBackupLocationPath(input);
+  const disk = await inspectPathOnDisk(path);
+  return {
+    path,
+    exists: disk.exists,
+    isDirectory: disk.isDirectory,
+    writable: disk.writable,
+  };
+}
+
+export function getBackupLocationStatus(): AdminBackupLocationStatus {
+  const path = getResolvedBackupLocationFromEnv();
+  if (path == null) {
+    return {
+      configured: false,
+      path: null,
+      exists: false,
+      isDirectory: false,
+      writable: false,
+      persistedToEnvFile: false,
+    };
+  }
+  return {
+    configured: true,
+    path,
+    exists: false,
+    isDirectory: false,
+    writable: false,
+    persistedToEnvFile: false,
+  };
+}
+
+export async function getBackupLocationStatusAsync(): Promise<AdminBackupLocationStatus> {
+  const path = getResolvedBackupLocationFromEnv();
+  if (path == null) {
+    return getBackupLocationStatus();
+  }
+  const disk = await inspectPathOnDisk(path);
+  return {
+    configured: true,
+    path,
+    exists: disk.exists,
+    isDirectory: disk.isDirectory,
+    writable: disk.writable,
+    persistedToEnvFile: false,
+  };
+}
+
+export async function applyBackupLocation(params: {
+  readonly path: string;
+  readonly createIfMissing: boolean;
+}): Promise<AdminBackupLocationStatus> {
+  const normalized = normalizeBackupLocationPath(params.path);
+  let disk = await inspectPathOnDisk(normalized);
+
+  if (!disk.exists) {
+    if (!params.createIfMissing) {
+      throw new ValidationError('Backup path does not exist', {
+        path: normalized,
+        exists: false,
+        code: 'BACKUP_PATH_MISSING',
+      });
+    }
+    await mkdir(normalized, { recursive: true });
+    disk = await inspectPathOnDisk(normalized);
+  }
+
+  if (!disk.isDirectory) {
+    throw new ValidationError('Backup path must be a directory', { path: normalized });
+  }
+  if (!disk.writable) {
+    throw new ValidationError('Backup path is not writable by the application process', {
+      path: normalized,
+    });
+  }
+
+  process.env.BACKUP_LOCATION = normalized;
+  const persistedToEnvFile = upsertEnvFileVariable(BACKUP_LOCATION_ENV_NAME, normalized);
+
+  return {
+    configured: true,
+    path: normalized,
+    exists: disk.exists,
+    isDirectory: disk.isDirectory,
+    writable: disk.writable,
+    persistedToEnvFile,
+  };
 }

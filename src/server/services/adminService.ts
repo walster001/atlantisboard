@@ -7,6 +7,12 @@ import { DEFAULT_VERIFICATION_QUERY } from './mysqlService.js';
 import { normalizeGoogleOAuthCallbackUrl } from '../../shared/utils/googleOAuthCallbackUrl.js';
 import { normalizeDefaultUiFontFamilyInput } from './fontService.js';
 import { BackupLocationNotConfiguredError, getResolvedBackupLocationFromEnv } from './backupLocationEnv.js';
+import {
+  backupScheduleToMs,
+  clampBackupScheduleAmount,
+  isBackupScheduleUnit,
+  resolveBackupScheduleInterval,
+} from '../../shared/constants/backupScheduleInterval.js';
 import { generateEmailLayout } from './emailTemplateGenerator.js';
 import {
   ValidationError,
@@ -71,10 +77,13 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
 
   const envPath = getResolvedBackupLocationFromEnv();
   const rawBs = o.backupSettings;
+  const resolvedSchedule = rawBs ? resolveBackupScheduleInterval(rawBs) : resolveBackupScheduleInterval({});
   const safeBackupSettings: Record<string, unknown> = rawBs
     ? {
         retentionDays: typeof rawBs.retentionDays === 'number' ? rawBs.retentionDays : 14,
         scheduleFrequencyDays: rawBs.scheduleFrequencyDays,
+        scheduleIntervalAmount: resolvedSchedule.amount,
+        scheduleIntervalUnit: resolvedSchedule.unit,
         scheduleEnabled: rawBs.scheduleEnabled === true,
         lastScheduledRunAt: rawBs.lastScheduledRunAt,
         environmentBackupLocation: envPath,
@@ -83,6 +92,8 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
     : {
         retentionDays: 14,
         scheduleEnabled: false,
+        scheduleIntervalAmount: resolvedSchedule.amount,
+        scheduleIntervalUnit: resolvedSchedule.unit,
         environmentBackupLocation: envPath,
         environmentBackupLocationConfigured: envPath !== null,
       };
@@ -349,6 +360,8 @@ export async function updateAdminConfig(
     const bs = u.backupSettings as {
       retentionDays?: number;
       scheduleFrequencyDays?: number;
+      scheduleIntervalAmount?: number;
+      scheduleIntervalUnit?: string;
       scheduleEnabled?: boolean;
       lastScheduledRunAt?: string | Date;
     };
@@ -358,7 +371,7 @@ export async function updateAdminConfig(
     if (bs.retentionDays !== undefined) {
       const d = Math.floor(Number(bs.retentionDays));
       if (Number.isFinite(d)) {
-        config.backupSettings.retentionDays = Math.min(3650, Math.max(1, d));
+        config.backupSettings.retentionDays = d === 0 ? 0 : Math.min(3650, Math.max(1, d));
       }
     }
     if (bs.scheduleEnabled === true && getResolvedBackupLocationFromEnv() == null) {
@@ -369,6 +382,23 @@ export async function updateAdminConfig(
       if (Number.isFinite(d)) {
         config.backupSettings.scheduleFrequencyDays = Math.min(3650, Math.max(1, d));
       }
+    }
+    if (bs.scheduleIntervalAmount !== undefined && bs.scheduleIntervalUnit !== undefined) {
+      const unit = bs.scheduleIntervalUnit.trim();
+      if (!isBackupScheduleUnit(unit)) {
+        throw new ValidationError('Invalid scheduleIntervalUnit');
+      }
+      const amount = Math.floor(Number(bs.scheduleIntervalAmount));
+      if (!Number.isFinite(amount)) {
+        throw new ValidationError('Invalid scheduleIntervalAmount');
+      }
+      const clampedAmount = clampBackupScheduleAmount(amount, unit);
+      config.backupSettings.scheduleIntervalAmount = clampedAmount;
+      config.backupSettings.scheduleIntervalUnit = unit;
+      config.backupSettings.scheduleFrequencyDays = Math.max(
+        1,
+        Math.ceil(backupScheduleToMs(clampedAmount, unit) / (24 * 60 * 60 * 1000)),
+      );
     }
     if (bs.scheduleEnabled !== undefined) {
       config.backupSettings.scheduleEnabled = bs.scheduleEnabled === true;

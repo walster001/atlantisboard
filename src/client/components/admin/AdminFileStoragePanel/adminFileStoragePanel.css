@@ -1,0 +1,35 @@
+.admin-file-storage-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.admin-file-storage-panel__browser {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-file-storage-panel__browser-inner {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-file-storage-panel__table-scroll {
+  flex: 1 1 auto;
+  min-height: 180px;
+  max-height: min(52vh, 560px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-file-storage-panel__table-scroll .mantine-ScrollArea-root {
+  flex: 1 1 auto;
+  min-height: 0;
+}

@@ -63,6 +63,11 @@ copy_volume_if_needed() {
 
   if [ "$kind" = "mongo-db" ]; then
     MONGO_DB_COPIED=true
+    cat >"${dest_dir}/../MIGRATION_SOURCE.txt" <<EOF
+Migrated from Docker volume: ${vol_name}
+Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+Tool: scripts/migrate-legacy-docker-volumes.sh
+EOF
   fi
   if [ "$kind" = "mongo-config" ]; then
     MONGO_CONFIG_COPIED=true

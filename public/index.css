@@ -14497,6 +14497,36 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   justify-content: center;
 }
 
+/* src/client/components/admin/AdminFileStoragePanel/adminFileStoragePanel.css */
+.admin-file-storage-panel {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.admin-file-storage-panel__browser, .admin-file-storage-panel__browser-inner {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-file-storage-panel__table-scroll {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 180px;
+  max-height: min(52vh, 560px);
+}
+
+.admin-file-storage-panel__table-scroll .mantine-ScrollArea-root {
+  flex: auto;
+  min-height: 0;
+}
+
 /* src/client/styles/index.processed.css */
 /*! tailwindcss v4.1.18 | MIT License | https://tailwindcss.com */
 @layer properties;

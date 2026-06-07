@@ -4,6 +4,8 @@ export {
   getAdminFileStorageObjectStream,
   uploadAdminFileStorageObject,
 } from './mutations.js';
+export { deleteAdminFileStorageOrphans } from './orphanDelete.js';
+export { scanAdminFileStorageOrphans } from './orphanScan.js';
 export { listAdminFileStorageBuckets, listAdminFileStorageObjects } from './list.js';
 export {
   assertAllowedBucket,

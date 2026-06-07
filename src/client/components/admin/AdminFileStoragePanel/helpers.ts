@@ -34,26 +34,6 @@ export function isLikelyImageEntry(contentType: string | null, name: string): bo
   return /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(name);
 }
 
-export type FileStorageBreadcrumb = {
-  readonly label: string;
-  readonly prefix: string;
-};
-
-export function buildPrefixBreadcrumbs(prefix: string): readonly FileStorageBreadcrumb[] {
-  const crumbs: FileStorageBreadcrumb[] = [{ label: 'Root', prefix: '' }];
-  if (prefix.trim() === '') {
-    return crumbs;
-  }
-  const normalized = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
-  const parts = normalized.split('/').filter((part) => part.length > 0);
-  let current = '';
-  for (const part of parts) {
-    current = `${current}${part}/`;
-    crumbs.push({ label: part, prefix: current });
-  }
-  return crumbs;
-}
-
 export function bucketSelectData(
   buckets: readonly { name: MinioBucketName; label: string; exists: boolean }[],
 ): { value: string; label: string; disabled?: boolean }[] {

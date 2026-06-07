@@ -1,19 +1,19 @@
 import { memo, useState } from 'react';
-import { Alert, Stack, Text, Title } from '@mantine/core';
-import { IconInfoCircle } from '@tabler/icons-react';
+import { Box, Paper, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import type { MinioBucketName } from '../../../../shared/constants/minioBuckets.js';
 import type { AdminFileStorageObjectEntry } from '../../../../shared/types/adminFileStorage.js';
 import { FileStorageDialogs } from './FileStorageDialogs.js';
 import { FileStorageObjectTable } from './FileStorageObjectTable.js';
 import { FileStorageToolbar } from './FileStorageToolbar.js';
+import { OrphanCleanupModal } from './OrphanCleanupModal.js';
 import { useAdminFileStoragePanelState } from './useAdminFileStoragePanelState.js';
+import './adminFileStoragePanel.css';
 
 export const AdminFileStoragePanel = memo(function AdminFileStoragePanel() {
   const {
     buckets,
     selectedBucket,
     setSelectedBucket,
-    prefix,
     entries,
     loading,
     refreshing,
@@ -23,7 +23,6 @@ export const AdminFileStoragePanel = memo(function AdminFileStoragePanel() {
     downloadingKey,
     refresh,
     openFolder,
-    navigateToPrefix,
     uploadFile,
     createFolder,
     downloadObject,
@@ -31,11 +30,12 @@ export const AdminFileStoragePanel = memo(function AdminFileStoragePanel() {
   } = useAdminFileStoragePanelState();
 
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [orphanCleanupOpen, setOrphanCleanupOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminFileStorageObjectEntry | null>(null);
   const [previewTarget, setPreviewTarget] = useState<AdminFileStorageObjectEntry | null>(null);
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" className="admin-file-storage-panel">
       <Stack gap={4}>
         <Title order={3}>File Storage</Title>
         <Text size="sm" c="dimmed">
@@ -44,33 +44,38 @@ export const AdminFileStoragePanel = memo(function AdminFileStoragePanel() {
         </Text>
       </Stack>
 
-      <Alert variant="light" color="blue" icon={<IconInfoCircle size={18} />} title="Admin access">
-        Uploads are limited to 100 MB per file. Deleting folders removes all nested objects.
-      </Alert>
+      <Paper withBorder radius="md" p="sm" className="admin-file-storage-panel__browser">
+        <Stack gap="sm" className="admin-file-storage-panel__browser-inner">
+          <FileStorageToolbar
+            buckets={buckets}
+            selectedBucket={selectedBucket}
+            refreshing={refreshing}
+            uploading={uploading}
+            onBucketChange={(bucket) => setSelectedBucket(bucket)}
+            onRefresh={() => void refresh()}
+            onOpenOrphanCleanup={() => setOrphanCleanupOpen(true)}
+            onUpload={(file) => void uploadFile(file)}
+            onCreateFolderClick={() => setCreateFolderOpen(true)}
+          />
 
-      <FileStorageToolbar
-        buckets={buckets}
-        selectedBucket={selectedBucket}
-        prefix={prefix}
-        refreshing={refreshing}
-        uploading={uploading}
-        onBucketChange={(bucket) => setSelectedBucket(bucket)}
-        onNavigatePrefix={navigateToPrefix}
-        onRefresh={() => void refresh()}
-        onUpload={(file) => void uploadFile(file)}
-        onCreateFolderClick={() => setCreateFolderOpen(true)}
-      />
+          <Box className="admin-file-storage-panel__table-scroll">
+            <ScrollArea style={{ height: '100%' }} type="auto" offsetScrollbars>
+              <FileStorageObjectTable
+                entries={entries}
+                loading={loading}
+                deletingKey={deletingKey}
+                downloadingKey={downloadingKey}
+                onOpenFolder={openFolder}
+                onDownload={(key) => void downloadObject(key)}
+                onDelete={setDeleteTarget}
+                onPreview={setPreviewTarget}
+              />
+            </ScrollArea>
+          </Box>
+        </Stack>
+      </Paper>
 
-      <FileStorageObjectTable
-        entries={entries}
-        loading={loading}
-        deletingKey={deletingKey}
-        downloadingKey={downloadingKey}
-        onOpenFolder={openFolder}
-        onDownload={(key) => void downloadObject(key)}
-        onDelete={setDeleteTarget}
-        onPreview={setPreviewTarget}
-      />
+      <OrphanCleanupModal opened={orphanCleanupOpen} onClose={() => setOrphanCleanupOpen(false)} />
 
       <FileStorageDialogs
         selectedBucket={selectedBucket as MinioBucketName | null}

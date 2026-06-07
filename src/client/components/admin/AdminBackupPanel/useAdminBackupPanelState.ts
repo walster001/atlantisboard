@@ -7,7 +7,19 @@ import {
   type SetStateAction,
 } from 'react';
 import { notifications } from '@mantine/notifications';
+import { modals } from '@mantine/modals';
 import type { AdminBackupListItem } from '../../../../shared/types/adminBackup.js';
+import {
+  formatBackupRetentionLabel,
+  normalizeBackupRetentionDays,
+  type BackupRetentionDays,
+} from '../../../../shared/constants/backupRetention.js';
+import {
+  formatBackupScheduleLabel,
+  resolveBackupScheduleInterval,
+  type BackupScheduleUnit,
+} from '../../../../shared/constants/backupScheduleInterval.js';
+import type { AdminBackupLocationCheckResult } from '../../../../shared/types/adminBackupLocation.js';
 import { BACKUP_LOCATION_SETUP_GUIDANCE } from '../../../../shared/constants/backupLocationEnv.js';
 import { api } from '../../../utils/api.js';
 import { readApiErrorMessage } from '../AdminBackupPanel/helpers.js';
@@ -19,13 +31,15 @@ interface UseAdminBackupPanelStateResult {
   readonly backups: readonly AdminBackupListItem[];
   readonly loading: boolean;
   readonly running: boolean;
-  readonly retention: number;
-  readonly setRetention: Dispatch<SetStateAction<number>>;
+  readonly retention: BackupRetentionDays;
+  readonly setRetention: Dispatch<SetStateAction<BackupRetentionDays>>;
   readonly savingRetention: boolean;
   readonly defaultLocation: string;
   readonly backupLocationConfigured: boolean;
-  readonly scheduleDays: number;
-  readonly setScheduleDays: Dispatch<SetStateAction<number>>;
+  readonly scheduleAmount: number;
+  readonly setScheduleAmount: Dispatch<SetStateAction<number>>;
+  readonly scheduleUnit: BackupScheduleUnit;
+  readonly setScheduleUnit: Dispatch<SetStateAction<BackupScheduleUnit>>;
   readonly scheduleEnabled: boolean;
   readonly createOpen: boolean;
   readonly setCreateOpen: Dispatch<SetStateAction<boolean>>;
@@ -52,17 +66,27 @@ interface UseAdminBackupPanelStateResult {
   readonly runBackup: () => Promise<void>;
   readonly saveSchedule: () => Promise<void>;
   readonly doRestore: () => Promise<void>;
+  readonly locationInput: string;
+  readonly setLocationInput: Dispatch<SetStateAction<string>>;
+  readonly locationCheck: AdminBackupLocationCheckResult | null;
+  readonly checkingLocation: boolean;
+  readonly savingLocation: boolean;
+  readonly checkBackupLocation: () => Promise<void>;
+  readonly saveBackupLocation: () => Promise<void>;
+  readonly downloadBackup: (folderId: string) => Promise<void>;
+  readonly downloadingBackupId: string | null;
 }
 
 export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
   const [backups, setBackups] = useState<readonly AdminBackupListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
-  const [retention, setRetention] = useState(14);
+  const [retention, setRetention] = useState<BackupRetentionDays>(30);
   const [savingRetention, setSavingRetention] = useState(false);
   const [defaultLocation, setDefaultLocation] = useState('');
   const [backupLocationConfigured, setBackupLocationConfigured] = useState(false);
-  const [scheduleDays, setScheduleDays] = useState(14);
+  const [scheduleAmount, setScheduleAmount] = useState(14);
+  const [scheduleUnit, setScheduleUnit] = useState<BackupScheduleUnit>('days');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createFilename, setCreateFilename] = useState(
@@ -80,6 +104,11 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
   const [restorePhase, setRestorePhase] = useState<string | undefined>(undefined);
   const [restoreFailure, setRestoreFailure] = useState<string | null>(null);
   const [restoreStatus, setRestoreStatus] = useState<RestoreStatus>('idle');
+  const [locationInput, setLocationInput] = useState('');
+  const [locationCheck, setLocationCheck] = useState<AdminBackupLocationCheckResult | null>(null);
+  const [checkingLocation, setCheckingLocation] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [downloadingBackupId, setDownloadingBackupId] = useState<string | null>(null);
 
   const refreshBackupList = useCallback(async (): Promise<void> => {
     try {
@@ -103,6 +132,8 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
         backupSettings?: {
           retentionDays?: number;
           scheduleFrequencyDays?: number;
+          scheduleIntervalAmount?: number;
+          scheduleIntervalUnit?: string;
           scheduleEnabled?: boolean;
           environmentBackupLocation?: string | null;
           environmentBackupLocationConfigured?: boolean;
@@ -110,19 +141,18 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
       };
       const retentionDays = cfg.backupSettings?.retentionDays;
       if (typeof retentionDays === 'number' && Number.isFinite(retentionDays)) {
-        setRetention(Math.min(3650, Math.max(1, Math.floor(retentionDays))));
+        setRetention(normalizeBackupRetentionDays(retentionDays));
       }
       setBackupLocationConfigured(cfg.backupSettings?.environmentBackupLocationConfigured === true);
-      setDefaultLocation(
+      const envLocation =
         typeof cfg.backupSettings?.environmentBackupLocation === 'string'
           ? cfg.backupSettings.environmentBackupLocation
-          : '',
-      );
-      if (typeof cfg.backupSettings?.scheduleFrequencyDays === 'number') {
-        setScheduleDays(Math.min(3650, Math.max(1, Math.floor(cfg.backupSettings.scheduleFrequencyDays))));
-      } else {
-        setScheduleDays(14);
-      }
+          : '';
+      setDefaultLocation(envLocation);
+      setLocationInput((prev) => (prev.trim() === '' ? envLocation : prev));
+      const schedule = resolveBackupScheduleInterval(cfg.backupSettings ?? {});
+      setScheduleAmount(schedule.amount);
+      setScheduleUnit(schedule.unit);
       setScheduleEnabled(cfg.backupSettings?.scheduleEnabled === true);
     } catch (error: unknown) {
       notifications.show({
@@ -171,7 +201,10 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     setSavingRetention(true);
     try {
       await api.updateAdminConfig({ backupSettings: { retentionDays: retention } });
-      notifications.show({ title: 'Retention saved', message: `${retention} days` });
+      notifications.show({
+        title: 'Retention saved',
+        message: formatBackupRetentionLabel(retention),
+      });
     } catch (error: unknown) {
       notifications.show({
         title: 'Save failed',
@@ -237,11 +270,15 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
         backupSettings: {
           retentionDays: retention,
           scheduleEnabled: true,
-          scheduleFrequencyDays: scheduleDays,
+          scheduleIntervalAmount: scheduleAmount,
+          scheduleIntervalUnit: scheduleUnit,
         },
       });
       setScheduleEnabled(true);
-      notifications.show({ title: 'Scheduled backup enabled', message: `Every ${scheduleDays} day(s)` });
+      notifications.show({
+        title: 'Scheduled backup enabled',
+        message: `Every ${formatBackupScheduleLabel(scheduleAmount, scheduleUnit)}`,
+      });
       setScheduleOpen(false);
       await refreshBackupList();
     } catch (error: unknown) {
@@ -278,6 +315,150 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     }
   };
 
+  const applyLocationStatus = useCallback(
+    (status: {
+      configured: boolean;
+      path: string | null;
+      exists: boolean;
+      isDirectory: boolean;
+      writable: boolean;
+    }): void => {
+      setBackupLocationConfigured(status.configured && status.path != null);
+      if (status.path != null) {
+        setDefaultLocation(status.path);
+        setLocationInput(status.path);
+        setLocationCheck({
+          path: status.path,
+          exists: status.exists,
+          isDirectory: status.isDirectory,
+          writable: status.writable,
+        });
+      }
+    },
+    [],
+  );
+
+  const persistBackupLocation = async (path: string, createIfMissing: boolean): Promise<void> => {
+    setSavingLocation(true);
+    try {
+      const { status } = await api.setAdminBackupLocation({ path, createIfMissing });
+      applyLocationStatus(status);
+      notifications.show({
+        title: 'Backup path saved',
+        message: status.persistedToEnvFile
+          ? `${status.path} (written to .env)`
+          : `${status.path} (active until server restart — could not update .env)`,
+        color: status.persistedToEnvFile ? 'green' : 'yellow',
+      });
+    } catch (error: unknown) {
+      notifications.show({
+        title: 'Could not save backup path',
+        message: readApiErrorMessage(error, 'Save failed'),
+        color: 'red',
+      });
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
+  const checkBackupLocation = async (): Promise<void> => {
+    const path = locationInput.trim();
+    if (path === '') {
+      notifications.show({ title: 'Missing path', message: 'Enter an absolute backup directory path.', color: 'red' });
+      return;
+    }
+    setCheckingLocation(true);
+    try {
+      const { result } = await api.checkAdminBackupLocation(path);
+      setLocationCheck(result);
+      notifications.show({
+        title: 'Path checked',
+        message: result.exists
+          ? result.writable
+            ? 'Directory exists and is writable.'
+            : 'Directory exists but is not writable.'
+          : 'Directory does not exist on the server.',
+        color: result.exists && result.writable ? 'green' : 'yellow',
+      });
+    } catch (error: unknown) {
+      notifications.show({
+        title: 'Path check failed',
+        message: readApiErrorMessage(error, 'Could not validate path'),
+        color: 'red',
+      });
+    } finally {
+      setCheckingLocation(false);
+    }
+  };
+
+  const saveBackupLocation = async (): Promise<void> => {
+    const path = locationInput.trim();
+    if (path === '') {
+      notifications.show({ title: 'Missing path', message: 'Enter an absolute backup directory path.', color: 'red' });
+      return;
+    }
+
+    let shouldCreate = false;
+    try {
+      const { result } = await api.checkAdminBackupLocation(path);
+      setLocationCheck(result);
+      if (!result.exists) {
+        shouldCreate = await new Promise<boolean>((resolve) => {
+          modals.openConfirmModal({
+            title: 'Create backup directory?',
+            children: `The path ${path} does not exist on the server. Create it now?`,
+            labels: { confirm: 'Create and save', cancel: 'Cancel' },
+            confirmProps: { color: 'blue' },
+            onConfirm: () => resolve(true),
+            onCancel: () => resolve(false),
+          });
+        });
+        if (!shouldCreate) {
+          return;
+        }
+      } else if (!result.isDirectory) {
+        notifications.show({
+          title: 'Invalid path',
+          message: 'Backup path must be a directory.',
+          color: 'red',
+        });
+        return;
+      } else if (!result.writable) {
+        notifications.show({
+          title: 'Path not writable',
+          message: 'Choose a directory the server process can write to.',
+          color: 'red',
+        });
+        return;
+      }
+    } catch (error: unknown) {
+      notifications.show({
+        title: 'Path check failed',
+        message: readApiErrorMessage(error, 'Could not validate path'),
+        color: 'red',
+      });
+      return;
+    }
+
+    await persistBackupLocation(path, shouldCreate);
+  };
+
+  const downloadBackup = async (folderId: string): Promise<void> => {
+    setDownloadingBackupId(folderId);
+    try {
+      await api.downloadAdminBackup(folderId);
+      notifications.show({ title: 'Download started', message: folderId, color: 'green' });
+    } catch (error: unknown) {
+      notifications.show({
+        title: 'Download failed',
+        message: readApiErrorMessage(error, 'Could not download backup'),
+        color: 'red',
+      });
+    } finally {
+      setDownloadingBackupId(null);
+    }
+  };
+
   return {
     backups,
     loading,
@@ -287,8 +468,10 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     savingRetention,
     defaultLocation,
     backupLocationConfigured,
-    scheduleDays,
-    setScheduleDays,
+    scheduleAmount,
+    setScheduleAmount,
+    scheduleUnit,
+    setScheduleUnit,
     scheduleEnabled,
     createOpen,
     setCreateOpen,
@@ -315,5 +498,14 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     runBackup,
     saveSchedule,
     doRestore,
+    locationInput,
+    setLocationInput,
+    locationCheck,
+    checkingLocation,
+    savingLocation,
+    checkBackupLocation,
+    saveBackupLocation,
+    downloadBackup,
+    downloadingBackupId,
   };
 }

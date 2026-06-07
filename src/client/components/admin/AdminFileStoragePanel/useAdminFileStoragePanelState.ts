@@ -89,10 +89,6 @@ export function useAdminFileStoragePanelState() {
     setPrefix(key);
   }, []);
 
-  const navigateToPrefix = useCallback((nextPrefix: string) => {
-    setPrefix(nextPrefix);
-  }, []);
-
   const uploadFile = useCallback(
     async (file: File | null) => {
       if (file == null || selectedBucket == null) {
@@ -217,7 +213,6 @@ export function useAdminFileStoragePanelState() {
     downloadingKey,
     refresh,
     openFolder,
-    navigateToPrefix,
     uploadFile,
     createFolder,
     downloadObject,

@@ -45,3 +45,28 @@ export type AdminFileStorageUploadResponse = {
 export type AdminFileStorageDeleteResponse = {
   readonly deletedCount: number;
 };
+
+/** Bucket + object key pair for orphan cleanup. */
+export type AdminFileStorageOrphanObjectRef = {
+  readonly bucket: MinioBucketName;
+  readonly key: string;
+};
+
+/** One orphaned object reported by the orphan scan. */
+export type AdminFileStorageOrphanEntry = AdminFileStorageOrphanObjectRef & {
+  readonly size: number;
+};
+
+/** JSON from `POST /api/v1/admin/file-storage/orphans/scan`. */
+export type AdminFileStorageOrphanScanResponse = {
+  readonly orphans: readonly AdminFileStorageOrphanEntry[];
+  readonly scannedBuckets: number;
+  readonly scannedObjects: number;
+  readonly referencedObjects: number;
+  readonly durationMs: number;
+};
+
+/** JSON from `POST /api/v1/admin/file-storage/orphans/delete`. */
+export type AdminFileStorageOrphanDeleteResponse = {
+  readonly deletedCount: number;
+};

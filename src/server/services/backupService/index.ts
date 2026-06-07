@@ -1,3 +1,4 @@
+import { resolveBackupScheduleIntervalMs } from '../../../shared/constants/backupScheduleInterval.js';
 import { getAdminConfig } from '../adminService.js';
 import { getResolvedBackupLocationFromEnv } from '../backupLocationEnv.js';
 import {
@@ -76,15 +77,17 @@ export async function startRestoreJob(params: {
   return await startRestoreJobImpl(params);
 }
 
+export { resolveBackupDownloadTarget } from './backupDownload.js';
+
 export async function runScheduledBackupIfDue(): Promise<void> {
   const cfg = await getAdminConfig();
   const settings = cfg.backupSettings;
   const envLocation = getResolvedBackupLocationFromEnv();
-  if (!settings?.scheduleEnabled || settings.scheduleFrequencyDays == null || envLocation == null) {
+  const dueAfterMs = settings != null ? resolveBackupScheduleIntervalMs(settings) : null;
+  if (!settings?.scheduleEnabled || dueAfterMs == null || envLocation == null) {
     return;
   }
   const last = settings.lastScheduledRunAt?.getTime() ?? 0;
-  const dueAfterMs = settings.scheduleFrequencyDays * 24 * 60 * 60 * 1000;
   if (Date.now() - last < dueAfterMs) {
     return;
   }

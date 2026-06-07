@@ -1,8 +1,8 @@
 import { memo } from 'react';
-import { Badge, Button, Group, Progress, Stack, Table, Text } from '@mantine/core';
+import { Badge, Button, Group, Progress, Stack, Table, Text, ActionIcon, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
-import { IconTrash } from '@tabler/icons-react';
+import { IconDownload, IconTrash } from '@tabler/icons-react';
 import type { AdminBackupListItem } from '../../../../shared/types/adminBackup.js';
 import { api } from '../../../utils/api.js';
 import { formatBackupBytes } from '../../../utils/adminBackupJobPoll.js';
@@ -11,6 +11,8 @@ interface BackupsTableBodyProps {
   readonly backups: readonly AdminBackupListItem[];
   readonly refreshBackupList: () => Promise<void>;
   readonly onOpenRestoreModal: (target: AdminBackupListItem) => void;
+  readonly onDownloadBackup: (folderId: string) => void;
+  readonly downloadingBackupId: string | null;
   /** Admin configuration on narrow viewports: omit created/size cells. */
   readonly hideMetaColumns?: boolean;
 }
@@ -19,6 +21,8 @@ export const BackupsTableBody = memo(function BackupsTableBody({
   backups,
   refreshBackupList,
   onOpenRestoreModal,
+  onDownloadBackup,
+  downloadingBackupId,
   hideMetaColumns = false,
 }: BackupsTableBodyProps) {
   return (
@@ -74,6 +78,17 @@ export const BackupsTableBody = memo(function BackupsTableBody({
               </Stack>
             ) : backup.status === 'completed' || backup.status == null ? (
               <Group gap="xs" wrap="nowrap">
+                <Tooltip label="Download backup ZIP">
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    aria-label="Download backup"
+                    loading={downloadingBackupId === backup.folderId}
+                    onClick={() => onDownloadBackup(backup.folderId)}
+                  >
+                    <IconDownload size={16} />
+                  </ActionIcon>
+                </Tooltip>
                 <Button size="xs" variant="light" onClick={() => onOpenRestoreModal(backup)}>
                   {hideMetaColumns ? 'Restore' : 'Restore backup'}
                 </Button>

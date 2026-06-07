@@ -13,6 +13,31 @@ Previously, data lived in Docker **named volumes** (for example `atlboard-new_mo
 
 Bind mounts keep files in a visible project folder you can back up, copy, and restore.
 
+## Why it looks like Docker “recreated” the volume
+
+Root `docker-compose.yml` **does not mount** `atlboard-new_mongo-data` (or any other named Mongo volume). It bind-mounts a host folder:
+
+```
+${KANBOARD_DOCKER_DATA_DIR:-./.docker-data}/mongodb/db  →  /data/db
+```
+
+So:
+
+| Store | Used by dev compose? | Your full data |
+|--------|----------------------|----------------|
+| `.docker-data/mongodb/db` (bind mount) | **Yes** | Only if you migrated or created data here |
+| `atlboard-new_mongo-data` (named volume) | **No** | Often still holds the old ~500 MiB database |
+
+`docker compose up` / `dev-start.sh` **persist** whatever is in `.docker-data/`. They do **not** automatically copy from the legacy named volume. If the bind mount is empty (or was wiped by tests / a fresh `mkdir`), MongoDB starts fine but shows an empty app — it can feel like Docker “recreated” the database when you are actually looking at a **different directory** than where the old data lives.
+
+`scripts/check-docker-data-migration.sh` (run from `dev-start.sh`) now **blocks startup** when a large legacy volume exists but the bind mount is still tiny, and offers to run the migrate script.
+
+Automatic migrate (non-interactive):
+
+```bash
+AUTO_MIGRATE_LEGACY_DOCKER=1 ./scripts/dev-start.sh
+```
+
 ## Layout
 
 ```

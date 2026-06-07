@@ -8,9 +8,11 @@ import type { AuthenticatedRequest } from '../../types/express.js';
 import {
   createAdminFileStorageFolder,
   deleteAdminFileStorageObjects,
+  deleteAdminFileStorageOrphans,
   getAdminFileStorageObjectStream,
   listAdminFileStorageBuckets,
   listAdminFileStorageObjects,
+  scanAdminFileStorageOrphans,
   uploadAdminFileStorageObject,
 } from '../../services/adminFileStorageService/index.js';
 import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
@@ -42,6 +44,19 @@ const uploadBodySchema = z.object({
 const deleteBodySchema = z.object({
   bucket: z.enum(MINIO_BUCKET_NAMES),
   keys: z.array(z.string().trim().min(1).max(1024)).min(1).max(200),
+  confirmPhrase: z.literal(ADMIN_DESTRUCTIVE_CONFIRM_PHRASE),
+});
+
+const orphanDeleteBodySchema = z.object({
+  objects: z
+    .array(
+      z.object({
+        bucket: z.enum(MINIO_BUCKET_NAMES),
+        key: z.string().trim().min(1).max(1024),
+      }),
+    )
+    .min(1)
+    .max(200),
   confirmPhrase: z.literal(ADMIN_DESTRUCTIVE_CONFIRM_PHRASE),
 });
 
@@ -171,6 +186,29 @@ export function registerFileStorageRoutes(router: Router): void {
       const result = await deleteAdminFileStorageObjects({
         bucketName: body.bucket,
         keys: body.keys,
+        adminUserId: authReq.user.id,
+      });
+      res.json(result);
+    } catch (error) {
+      handleApiRouteError(res, error, next);
+    }
+  });
+
+  router.post('/file-storage/orphans/scan', async (_req, res, next) => {
+    try {
+      const result = await scanAdminFileStorageOrphans();
+      res.json(result);
+    } catch (error) {
+      handleApiRouteError(res, error, next);
+    }
+  });
+
+  router.post('/file-storage/orphans/delete', async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const body = parseOrThrow(orphanDeleteBodySchema, req.body);
+      const result = await deleteAdminFileStorageOrphans({
+        objects: body.objects,
         adminUserId: authReq.user.id,
       });
       res.json(result);

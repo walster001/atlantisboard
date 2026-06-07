@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../../shared/adminDestructiveConfirmation.js';
 import type { AdminBackupListItem } from '../../../shared/types/adminBackup.js';
+import type {
+  AdminBackupLocationCheckResult,
+  AdminBackupLocationStatus,
+} from '../../../shared/types/adminBackupLocation.js';
 import type { ApiClient } from '../api.js';
+import { downloadBlob, parseContentDispositionFilename } from '../downloadBlob.js';
 
 export const adminBackupJobResponseSchema = z.object({
   job: z.unknown(),
@@ -15,6 +20,13 @@ export function parseAdminBackupJobResponse(data: unknown): AdminBackupJobRespon
 
 export interface AdminBackupApiMethods {
   listAdminBackups(): Promise<{ backups: AdminBackupListItem[] }>;
+  getAdminBackupLocation(): Promise<{ status: AdminBackupLocationStatus }>;
+  checkAdminBackupLocation(path: string): Promise<{ result: AdminBackupLocationCheckResult }>;
+  setAdminBackupLocation(input: {
+    path: string;
+    createIfMissing: boolean;
+  }): Promise<{ status: AdminBackupLocationStatus }>;
+  downloadAdminBackup(folderId: string): Promise<void>;
   startAdminBackup(input: { filename: string }): Promise<{ message: string; jobId: string; reusedExisting: boolean }>;
   getAdminBackupJob(jobId: string): Promise<AdminBackupJobResponse>;
   cancelAdminBackupJob(jobId: string): Promise<{ message: string }>;
@@ -29,6 +41,34 @@ export const adminBackupApiMethods: AdminBackupApiMethods = {
   async listAdminBackups(this: ApiClient) {
     const response = await this.client.get<{ backups: AdminBackupListItem[] }>('/admin/backup/list');
     return response.data;
+  },
+
+  async getAdminBackupLocation(this: ApiClient) {
+    const response = await this.client.get<{ status: AdminBackupLocationStatus }>('/admin/backup/location');
+    return response.data;
+  },
+
+  async checkAdminBackupLocation(this: ApiClient, path) {
+    const response = await this.client.post<{ result: AdminBackupLocationCheckResult }>(
+      '/admin/backup/location/check',
+      { path },
+    );
+    return response.data;
+  },
+
+  async setAdminBackupLocation(this: ApiClient, input) {
+    const response = await this.client.put<{ status: AdminBackupLocationStatus }>('/admin/backup/location', input);
+    return response.data;
+  },
+
+  async downloadAdminBackup(this: ApiClient, folderId) {
+    const response = await this.client.get(`/admin/backup/${encodeURIComponent(folderId)}/download`, {
+      responseType: 'blob',
+      timeout: 0,
+    });
+    const fallback = `${folderId}.zip`;
+    const filename = parseContentDispositionFilename(response.headers['content-disposition'], fallback);
+    downloadBlob(response.data, filename);
   },
 
   async startAdminBackup(this: ApiClient, input) {

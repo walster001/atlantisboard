@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
+import { createReadStream } from 'node:fs';
+import type { Response } from 'express';
 import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../shared/adminDestructiveConfirmation.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { BackupJob } from '../models/BackupJob.js';
@@ -9,9 +11,16 @@ import {
   cancelBackupJob,
   deleteBackupFolder,
   listBackups,
+  resolveBackupDownloadTarget,
   startBackupJob,
   startRestoreJob,
 } from '../services/backupService.js';
+import {
+  applyBackupLocation,
+  BackupLocationNotConfiguredError,
+  checkBackupLocationPath,
+  getBackupLocationStatusAsync,
+} from '../services/backupLocationEnv.js';
 import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import { parseOrThrow } from '../utils/zodValidation.js';
 
@@ -29,6 +38,106 @@ router.get('/list', async (_req, res, next) => {
     res.json({ backups });
   } catch (error) {
     next(error);
+  }
+});
+
+const backupLocationPathSchema = z.object({
+  path: z.string().trim().min(1).max(4096),
+});
+
+router.get('/location', async (_req, res, next) => {
+  try {
+    const status = await getBackupLocationStatusAsync();
+    res.json({ status });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/location/check', async (req, res, next) => {
+  try {
+    const body = parseOrThrow(backupLocationPathSchema, req.body);
+    const result = await checkBackupLocationPath(body.path);
+    res.json({ result });
+  } catch (error) {
+    handleApiRouteError(res, error, next);
+  }
+});
+
+const setBackupLocationBodySchema = backupLocationPathSchema.extend({
+  createIfMissing: z.boolean().optional().default(false),
+});
+
+router.put('/location', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const body = parseOrThrow(setBackupLocationBodySchema, req.body);
+    const status = await applyBackupLocation({
+      path: body.path,
+      createIfMissing: body.createIfMissing,
+    });
+    logAuditEvent({
+      userId: authReq.user.id,
+      action: 'admin_backup_location_set',
+      resourceType: 'backup',
+      resourceId: status.path ?? 'unknown',
+      ipAddress: req.ip || undefined,
+      timestamp: new Date(),
+    });
+    res.json({ status });
+  } catch (error) {
+    handleApiRouteError(res, error, next);
+  }
+});
+
+function pipeBackupDownload(
+  res: Response,
+  filePath: string,
+  fileName: string,
+  sizeBytes: number,
+): void {
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+  res.setHeader('Content-Type', 'application/zip');
+  if (Number.isFinite(sizeBytes) && sizeBytes > 0) {
+    res.setHeader('Content-Length', String(sizeBytes));
+  }
+  const stream = createReadStream(filePath);
+  stream.on('error', () => {
+    if (!res.headersSent) {
+      res.status(500).end();
+      return;
+    }
+    res.destroy();
+  });
+  stream.pipe(res);
+}
+
+router.get('/:folderId/download', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const folderId = parseOrThrow(backupFolderIdSchema, req.params.folderId);
+    const target = await resolveBackupDownloadTarget(folderId);
+    logAuditEvent({
+      userId: authReq.user.id,
+      action: 'admin_backup_downloaded',
+      resourceType: 'backup',
+      resourceId: folderId,
+      ipAddress: req.ip || undefined,
+      timestamp: new Date(),
+    });
+    pipeBackupDownload(res, target.filePath, target.fileName, target.sizeBytes);
+  } catch (error) {
+    if (error instanceof BackupLocationNotConfiguredError) {
+      res.status(error.statusCode).json({
+        error: {
+          message: error.message,
+          code: error.code,
+          statusCode: error.statusCode,
+        },
+      });
+      return;
+    }
+    handleApiRouteError(res, error, next);
   }
 });
 

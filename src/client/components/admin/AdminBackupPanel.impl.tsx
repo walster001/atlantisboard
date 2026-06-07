@@ -1,9 +1,12 @@
 import { memo } from 'react';
-import { Badge, Button, Group, Loader, NumberInput, Progress, Stack, Table, Text, Title } from '@mantine/core';
+import { Badge, Button, Group, Loader, NativeSelect, Progress, Stack, Table, Text, Title } from '@mantine/core';
 import { IconDatabase } from '@tabler/icons-react';
+import { BACKUP_RETENTION_OPTIONS, parseBackupRetentionSelectValue } from '../../../shared/constants/backupRetention.js';
+import { formatBackupScheduleLabel } from '../../../shared/constants/backupScheduleInterval.js';
 import { backupPhaseDisplayLabel } from '../../utils/adminBackupJobPoll.js';
 import { BackupsTableBody } from './AdminBackupPanel/BackupsTableBody.js';
 import { BackupDialogs } from './AdminBackupPanel/BackupDialogs.js';
+import { BackupLocationSection } from './AdminBackupPanel/BackupLocationSection.js';
 import { useAdminBackupPanelState } from './AdminBackupPanel/useAdminBackupPanelState.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 
@@ -19,8 +22,10 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     savingRetention,
     defaultLocation,
     backupLocationConfigured,
-    scheduleDays,
-    setScheduleDays,
+    scheduleAmount,
+    setScheduleAmount,
+    scheduleUnit,
+    setScheduleUnit,
     scheduleEnabled,
     createOpen,
     setCreateOpen,
@@ -47,6 +52,15 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     runBackup,
     saveSchedule,
     doRestore,
+    locationInput,
+    setLocationInput,
+    locationCheck,
+    checkingLocation,
+    savingLocation,
+    checkBackupLocation,
+    saveBackupLocation,
+    downloadBackup,
+    downloadingBackupId,
   } = useAdminBackupPanelState();
 
   return (
@@ -57,20 +71,34 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         are written under the configured backup path.
       </Text>
 
+      <BackupLocationSection
+        locationInput={locationInput}
+        setLocationInput={setLocationInput}
+        defaultLocation={defaultLocation}
+        backupLocationConfigured={backupLocationConfigured}
+        locationCheck={locationCheck}
+        checkingLocation={checkingLocation}
+        savingLocation={savingLocation}
+        onCheckLocation={checkBackupLocation}
+        onSaveLocation={saveBackupLocation}
+      />
+
       <Group align="flex-end" wrap="wrap">
-        <NumberInput
-          label="Retention (days)"
+        <NativeSelect
+          label="Retention"
           description="Older backups are removed after each successful run."
-          min={1}
-          max={3650}
-          value={retention}
-          onChange={(v) => {
-            if (typeof v === 'number' && Number.isFinite(v)) {
-              setRetention(v);
+          data={BACKUP_RETENTION_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+          }))}
+          value={String(retention)}
+          onChange={(event) => {
+            const parsed = parseBackupRetentionSelectValue(event.currentTarget.value);
+            if (parsed != null) {
+              setRetention(parsed);
             }
           }}
-          allowDecimal={false}
-          w={200}
+          w={220}
         />
         <Button loading={savingRetention} variant="default" onClick={() => void saveRetention()}>
           Save retention
@@ -113,6 +141,8 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
               backups={backups}
               refreshBackupList={refreshBackupList}
               hideMetaColumns={hideBackupMetaColumns}
+              downloadingBackupId={downloadingBackupId}
+              onDownloadBackup={(folderId) => void downloadBackup(folderId)}
               onOpenRestoreModal={(target) => {
                 setRestoreTarget(target);
                 setRestoreConfirm('');
@@ -134,8 +164,10 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         scheduleOpen={scheduleOpen}
         setScheduleOpen={setScheduleOpen}
         savingSchedule={savingSchedule}
-        scheduleDays={scheduleDays}
-        setScheduleDays={setScheduleDays}
+        scheduleAmount={scheduleAmount}
+        setScheduleAmount={setScheduleAmount}
+        scheduleUnit={scheduleUnit}
+        setScheduleUnit={setScheduleUnit}
         saveSchedule={saveSchedule}
         restoreOpen={restoreOpen}
         setRestoreOpen={setRestoreOpen}
@@ -153,8 +185,10 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
       />
 
       <Text size="xs" c="dimmed">
-        Backup path (BACKUP_LOCATION): <Text span ff="monospace">{defaultLocation || 'Not set'}</Text> | Scheduled:{' '}
-        {scheduleEnabled ? `Every ${scheduleDays} day(s)` : 'Disabled'}
+        Scheduled:{' '}
+        {scheduleEnabled
+          ? `Every ${formatBackupScheduleLabel(scheduleAmount, scheduleUnit)}`
+          : 'Disabled'}
       </Text>
 
       {(restoreStatus === 'pending' || restoreStatus === 'processing') && (

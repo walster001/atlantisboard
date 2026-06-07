@@ -82,6 +82,9 @@ export async function deleteBackupFolderCatalog(folderId: string): Promise<void>
 }
 
 export async function pruneOldBackups(retentionDays: number): Promise<number> {
+  if (!Number.isFinite(retentionDays) || retentionDays <= 0) {
+    return 0;
+  }
   const cutoff = Date.now() - retentionDays * 86_400_000;
   const entries = await listBackupsCatalog();
   let removed = 0;

@@ -46,6 +46,8 @@ sudo ./atlantisboard-setup
 
 Requires Linux, **whiptail**, **jq**, **openssl**, and **Docker** (for full-stack or dependency modes). Secrets are auto-generated; choose **Docker full stack** for the easiest single-server setup.
 
+> **Debian:** Step-by-step auto setup (full stack, apt prerequisites, troubleshooting) is in [Debian installation (auto setup)](/wiki/debian-install/).
+
 > **Note:** `atlantisboard-<version>-runtime.zip` is a **slim runtime-only** bundle without the installer — use it only if you configure `.env` and services yourself. See [DEPLOYMENT.md](https://github.com/walster001/atlantisboard/blob/main/DEPLOYMENT.md).
 
 ## What the wizard does
@@ -68,6 +70,7 @@ Requires Linux, **whiptail**, **jq**, **openssl**, and **Docker** (for full-stac
 
 ## Related docs
 
+- [Debian installation (auto setup)](/wiki/debian-install/)
 - [Environment variables](/wiki/environment-variables/)
 - [Manual installation](/wiki/manual-install/)
 - [Docker Compose install](/wiki/docker-compose-install/)

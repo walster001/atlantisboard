@@ -11,7 +11,8 @@ description: Download Atlantisboard from GitHub Releases or npm and run the setu
     Install Atlantisboard on your own server. Pick a package below, then follow the three steps to unpack and run the setup wizard.
   </p>
   <p>
-    You need a <strong>Linux</strong> machine with <strong>Docker</strong> (recommended) and a few common tools. Full details are in the
+    You need a <strong>Linux</strong> machine with <strong>Docker</strong> (recommended) and a few common tools. On <strong>Debian 12</strong>, see the
+    <a href="{{ '/wiki/debian-install/' | relative_url }}">Debian auto setup guide</a> or the general
     <a href="{{ '/wiki/npm-install/' | relative_url }}">install guide</a>.
   </p>
 </div>
@@ -80,6 +81,7 @@ cd {{ folder_name }}</code></pre>
   <p class="cta-card__lead">
     Prefer Docker Compose from source, or a full production checklist? See the wiki.
   </p>
-  <a class="btn btn--primary" href="{{ '/wiki/docker-compose-install/' | relative_url }}">Docker Compose guide</a>
+  <a class="btn btn--primary" href="{{ '/wiki/debian-install/' | relative_url }}">Debian auto setup</a>
+  <a class="btn btn--ghost" href="{{ '/wiki/docker-compose-install/' | relative_url }}">Docker Compose (from source)</a>
   <a class="btn btn--ghost" href="{{ '/wiki/' | relative_url }}">Documentation</a>
 </div>

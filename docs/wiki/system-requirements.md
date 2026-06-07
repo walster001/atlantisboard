@@ -37,6 +37,17 @@ This page lists everything you need to run Atlantisboard. There are two deployme
 
 ## Software
 
+### Supported operating systems
+
+| OS | Auto setup (`atlantisboard-setup`) | Notes |
+|----|-----------------------------------|--------|
+| **Debian 12 (bookworm)** | Recommended | Full-stack Docker; wizard installs deps via `apt`. See [Debian installation](debian-install.md). |
+| **Debian 11 (bullseye)** | Supported | Pre-install Docker/Compose if wizard package step fails. |
+| **Ubuntu 22.04 / 24.04** | Recommended | Same installer as Debian (`apt`). |
+| **Other Linux** | Partial | Fedora/RHEL use `dnf` for some packages; full-stack Docker still works if Docker is pre-installed. |
+
+The Whiptail installer requires **Linux**, **sudo**, and an **interactive terminal**. It is not supported on macOS or Windows natively (use Docker Desktop or WSL2 for development only).
+
 ### Docker Path (Recommended)
 
 | Software | Minimum Version |
@@ -105,5 +116,7 @@ Atlantisboard is also installable as a **Progressive Web App (PWA)** on both des
 
 ## Next Steps
 
-- [Docker Compose Installation (Recommended)](docker-compose-install.md) — the fastest way to get up and running.
+- [Debian installation (auto setup)](debian-install.md) — GitHub zip or npm + `atlantisboard-setup` on Debian.
+- [npm install (`atlantisboard`)](npm-install.md) — Whiptail wizard on any supported Linux distro.
+- [Docker Compose Installation (Recommended)](docker-compose-install.md) — the fastest way to get up and running from a git clone.
 - [Manual Installation](manual-install.md) — for environments where Docker is not available.

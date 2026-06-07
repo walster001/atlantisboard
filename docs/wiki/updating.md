@@ -63,6 +63,43 @@ docker compose -f docker-compose.prod.yml logs -f app
 
 ---
 
+## Updating an installer deployment (Debian / release zip)
+
+If you installed with **`atlantisboard-setup`** and **Docker full stack** (files under `/opt/atlantisboard`):
+
+1. **Back up** — Admin → Backup & Restore, or snapshot Docker volumes.
+2. Download the new **`atlantisboard-<version>.zip`** and extract it (any directory is fine; setup copies to `/opt/atlantisboard`).
+3. Run the wizard again:
+
+```bash
+cd atlantisboard-<version>
+sudo ./atlantisboard-setup
+```
+
+Choose **Docker full stack**. The installer rebuilds the app image and recreates containers. **Data volumes are kept** unless you run `reset-docker-data.sh` or `docker compose down -v`.
+
+4. Verify:
+
+```bash
+cd /opt/atlantisboard/install/docker
+sudo docker compose --env-file image-defaults.env --env-file ../../.env \
+  -f docker-compose.fullstack.yml ps
+curl -s http://localhost:3000/health
+```
+
+> **Warning:** Re-running setup **regenerates secrets in `.env`** while old volumes may still hold previous passwords. If MongoDB or Redis fail auth after an upgrade, either restore the old `.env` secrets or reset data — see [Debian installation — troubleshooting](debian-install.md#mongodb-unhealthy--scram-authentication-failed-storedkey-mismatch).
+
+After layout changes (for example removing the ClamAV sidecar), remove orphans once:
+
+```bash
+sudo docker compose --env-file image-defaults.env --env-file ../../.env \
+  -f docker-compose.fullstack.yml down --remove-orphans
+sudo docker compose --env-file image-defaults.env --env-file ../../.env \
+  -f docker-compose.fullstack.yml up -d --build
+```
+
+---
+
 ## Updating a Manual Installation
 
 ### 1. Stop the Application
@@ -199,6 +236,8 @@ This shows any commits on `main` that you have not yet applied.
 
 ## See Also
 
+- [Debian installation (auto setup)](debian-install.md)
+- [npm install (`atlantisboard`)](npm-install.md)
 - [Docker Compose Installation](docker-compose-install.md)
 - [Manual Installation](manual-install.md)
 - [Environment Variables Reference](environment-variables.md)

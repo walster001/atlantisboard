@@ -11,6 +11,8 @@ permalink: /wiki/docker-compose-install/
 
 Docker Compose is the fastest and most reliable way to deploy Atlantisboard. It bundles the application, database, cache, and object storage into a single configuration file that you can start with one command.
 
+> **Production VM (Debian/Ubuntu):** You can skip manual compose steps by using the release zip and **`sudo ./atlantisboard-setup`** (choose **Docker full stack**). See [Debian installation (auto setup)](/wiki/debian-install/) or [npm install](/wiki/npm-install/).
+
 ![Docker Compose architecture diagram](/assets/wiki/docker-compose-architecture.png)
 
 ---

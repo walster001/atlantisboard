@@ -25,7 +25,9 @@ Atlantisboard is a self-hosted, real-time collaborative Kanban board designed fo
 
 ### Deployment & Installation
 
-- [Docker Compose Installation (Recommended)](/wiki/docker-compose-install/) — Step-by-step Docker Compose setup with container explanations.
+- [npm install (`atlantisboard`)](/wiki/npm-install/) — Interactive Whiptail wizard (npm or GitHub release zip).
+- [Debian installation (auto setup)](/wiki/debian-install/) — Recommended Debian path with `atlantisboard-setup` and Docker full stack.
+- [Docker Compose Installation (Recommended)](/wiki/docker-compose-install/) — Step-by-step Docker Compose setup from a git clone.
 - [Environment Variables Reference](/wiki/environment-variables/) — Complete reference for every `.env` configuration variable.
 - [Reverse Proxy Setup (Nginx / Caddy)](/wiki/reverse-proxy/) — Production-ready Nginx and Caddy configurations with WebSocket support.
 - [Manual (Non-Docker) Installation](/wiki/manual-install/) — Installing without Docker, including a systemd service example.

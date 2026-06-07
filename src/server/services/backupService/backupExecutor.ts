@@ -18,7 +18,7 @@ import {
   throwIfCancelled,
   type BackupProgressReporter,
 } from './backupShared.js';
-import { buildBackupFilePath, pruneOldBackups } from './backupCatalog.js';
+import { buildBackupFilePath, listBackupsCatalog, pruneOldBackups } from './backupCatalog.js';
 import { dumpMongoCollectionsToBsonDir } from './mongoArchive.js';
 import {
   type MinioArchiveMethod,
@@ -164,7 +164,8 @@ export async function executeFullBackupWithProgressImpl(params: {
     await reporter.report('zip_finalize', 88, 3, BACKUP_PHASE_TOTAL);
 
     const st = await stat(zipPath);
-    const folderId = newBackupFolderId();
+    const existingFolderIds = new Set((await listBackupsCatalog()).map((entry) => entry.folderId));
+    const folderId = newBackupFolderId(existingFolderIds);
     const filename = normalizeFilename(params.filename);
     const location = normalizeLocationPath(params.location);
     const filePath = buildBackupFilePath(location, folderId, filename);

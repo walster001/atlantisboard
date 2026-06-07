@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { BackupJob } from '../../models/BackupJob.js';
 import { logger } from '../../utils/logger.js';
 import { backupFolderMillis, type BackupListEntry, normalizeLocationPath } from './backupShared.js';
+import { formatBackupFolderTimestamp } from '../../../shared/utils/backupFolderNaming.js';
 
 export function buildBackupFilePath(location: string, folderId: string, filename: string): string {
   return join(location, folderId, filename);
@@ -42,7 +43,7 @@ export async function listBackupsCatalog(): Promise<BackupListEntry[]> {
     .filter((job) => job.result?.folderId != null || job.status === 'processing' || job.status === 'pending')
     .map((job) => {
       const result = job.result;
-      const fallbackFolderId = `${job.createdAt.getTime()}_pending-${String(job._id)}`;
+      const fallbackFolderId = `${formatBackupFolderTimestamp(job.createdAt)}_pending-${String(job._id)}`;
       const fallbackLocation = typeof job.location === 'string' && job.location.trim() !== '' ? job.location : '/unknown-location';
       const fallbackFilename = typeof job.filename === 'string' && job.filename.trim() !== '' ? job.filename : 'backup.zip';
       return {

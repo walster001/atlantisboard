@@ -1,4 +1,8 @@
 import { basename, isAbsolute, normalize, resolve } from 'node:path';
+import {
+  parseBackupFolderMillis,
+  newBackupFolderId as createBackupFolderId,
+} from '../../../shared/utils/backupFolderNaming.js';
 
 /** Current archive manifest format (BSON mongo + mc mirror/sdk minio). */
 export const BACKUP_FORMAT = 'atlboard-backup-v2' as const;
@@ -69,18 +73,12 @@ export function sortCollectionsForRestore(names: readonly string[]): string[] {
   return [...ordered, ...rest];
 }
 
-export function newBackupFolderId(): string {
-  const iso = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '-');
-  return `${Date.now()}_${iso}`;
+export function newBackupFolderId(existingFolderIds?: ReadonlySet<string>): string {
+  return createBackupFolderId(existingFolderIds);
 }
 
 export function backupFolderMillis(folderId: string): number | null {
-  const i = folderId.indexOf('_');
-  if (i <= 0) {
-    return null;
-  }
-  const ms = Number(folderId.slice(0, i));
-  return Number.isFinite(ms) ? ms : null;
+  return parseBackupFolderMillis(folderId);
 }
 
 export function normalizeFilename(input: string): string {

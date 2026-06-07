@@ -4,6 +4,7 @@ import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { IconDownload, IconTrash } from '@tabler/icons-react';
 import type { AdminBackupListItem } from '../../../../shared/types/adminBackup.js';
+import { formatBackupFolderDisplayLabel } from '../../../../shared/utils/backupFolderNaming.js';
 import { api } from '../../../utils/api.js';
 import { formatBackupBytes } from '../../../utils/adminBackupJobPoll.js';
 
@@ -27,11 +28,13 @@ export const BackupsTableBody = memo(function BackupsTableBody({
 }: BackupsTableBodyProps) {
   return (
     <>
-      {backups.map((backup) => (
+      {backups.map((backup) => {
+        const displayLabel = formatBackupFolderDisplayLabel(backup.folderId);
+        return (
         <Table.Tr key={backup.folderId}>
           <Table.Td>
             <Text size="sm" ff="monospace">
-              {backup.folderId}
+              {displayLabel}
             </Text>
           </Table.Td>
           {!hideMetaColumns ? (
@@ -61,7 +64,7 @@ export const BackupsTableBody = memo(function BackupsTableBody({
                       if (!backup.jobId) return;
                       try {
                         await api.cancelAdminBackupJob(backup.jobId);
-                        notifications.show({ title: 'Cancel requested', message: backup.folderId });
+                        notifications.show({ title: 'Cancel requested', message: displayLabel });
                         await refreshBackupList();
                       } catch (error: unknown) {
                         notifications.show({
@@ -102,7 +105,7 @@ export const BackupsTableBody = memo(function BackupsTableBody({
                       title: 'Delete backup?',
                       children: (
                         <Text size="sm">
-                          Permanently delete backup <Text span ff="monospace">{backup.folderId}</Text> from
+                          Permanently delete backup <Text span ff="monospace">{displayLabel}</Text> from
                           local storage.
                         </Text>
                       ),
@@ -111,7 +114,7 @@ export const BackupsTableBody = memo(function BackupsTableBody({
                       onConfirm: async () => {
                         try {
                           await api.deleteAdminBackup(backup.folderId);
-                          notifications.show({ title: 'Backup deleted', message: backup.folderId });
+                          notifications.show({ title: 'Backup deleted', message: displayLabel });
                           await refreshBackupList();
                         } catch (error: unknown) {
                           notifications.show({
@@ -134,7 +137,8 @@ export const BackupsTableBody = memo(function BackupsTableBody({
             )}
           </Table.Td>
         </Table.Tr>
-      ))}
+        );
+      })}
     </>
   );
 });

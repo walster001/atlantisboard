@@ -3,6 +3,7 @@ import { Badge, Button, Group, Loader, NativeSelect, Progress, Stack, Table, Tex
 import { IconDatabase } from '@tabler/icons-react';
 import { BACKUP_RETENTION_OPTIONS, parseBackupRetentionSelectValue } from '../../../shared/constants/backupRetention.js';
 import { formatBackupScheduleLabel } from '../../../shared/constants/backupScheduleInterval.js';
+import { buildDefaultBackupFilename } from '../../../shared/utils/backupFolderNaming.js';
 import { backupPhaseDisplayLabel } from '../../utils/adminBackupJobPoll.js';
 import { BackupsTableBody } from './AdminBackupPanel/BackupsTableBody.js';
 import { BackupDialogs } from './AdminBackupPanel/BackupDialogs.js';
@@ -106,7 +107,10 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         <Button
           leftSection={<IconDatabase size={18} />}
           loading={running}
-          onClick={() => setCreateOpen(true)}
+          onClick={() => {
+            setCreateFilename(buildDefaultBackupFilename());
+            setCreateOpen(true);
+          }}
         >
           Create Backup
         </Button>

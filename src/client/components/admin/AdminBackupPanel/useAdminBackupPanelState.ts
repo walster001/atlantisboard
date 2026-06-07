@@ -21,6 +21,10 @@ import {
 } from '../../../../shared/constants/backupScheduleInterval.js';
 import type { AdminBackupLocationCheckResult } from '../../../../shared/types/adminBackupLocation.js';
 import { BACKUP_LOCATION_SETUP_GUIDANCE } from '../../../../shared/constants/backupLocationEnv.js';
+import {
+  buildDefaultBackupFilename,
+  formatBackupFolderDisplayLabel,
+} from '../../../../shared/utils/backupFolderNaming.js';
 import { api } from '../../../utils/api.js';
 import { readApiErrorMessage } from '../AdminBackupPanel/helpers.js';
 import { useRestoreJobPolling } from './useRestoreJobPolling.js';
@@ -89,9 +93,7 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
   const [scheduleUnit, setScheduleUnit] = useState<BackupScheduleUnit>('days');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createFilename, setCreateFilename] = useState(
-    `backup-${new Date().toISOString().slice(0, 10)}.zip`,
-  );
+  const [createFilename, setCreateFilename] = useState(() => buildDefaultBackupFilename());
   const [creating, setCreating] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
@@ -447,7 +449,11 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     setDownloadingBackupId(folderId);
     try {
       await api.downloadAdminBackup(folderId);
-      notifications.show({ title: 'Download started', message: folderId, color: 'green' });
+      notifications.show({
+        title: 'Download started',
+        message: formatBackupFolderDisplayLabel(folderId),
+        color: 'green',
+      });
     } catch (error: unknown) {
       notifications.show({
         title: 'Download failed',

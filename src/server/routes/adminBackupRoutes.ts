@@ -23,14 +23,14 @@ import {
 } from '../services/backupLocationEnv.js';
 import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import { parseOrThrow } from '../utils/zodValidation.js';
+import { isValidBackupFolderId } from '../../shared/utils/backupFolderNaming.js';
 
 const router = Router();
-
 const backupFolderIdSchema = z
   .string()
   .min(8)
   .max(240)
-  .regex(/^[0-9]+_[0-9A-Za-z.-]+$/, 'Invalid backup folder id');
+  .refine(isValidBackupFolderId, 'Invalid backup folder id');
 
 router.get('/list', async (_req, res, next) => {
   try {

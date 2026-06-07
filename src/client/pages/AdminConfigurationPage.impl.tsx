@@ -29,6 +29,7 @@ import {
   AdminBackupPanel,
   AdminDatabasePanel,
   AdminEmailPanel,
+  AdminFileStoragePanel,
   AdminMonitorPanel,
   AdminUsersTab,
   LoaderCentered,
@@ -203,6 +204,10 @@ export default function AdminConfigurationPage() {
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminDatabasePanel />
                 </Suspense>
+              ) : mobileConfigOpen === 'file-storage' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminFileStoragePanel />
+                </Suspense>
               ) : mobileConfigOpen === 'backup' ? (
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminBackupPanel />
@@ -350,6 +355,10 @@ export default function AdminConfigurationPage() {
               ) : configSubtab === 'database' ? (
                 <Suspense fallback={<LoaderCentered />}>
                   <AdminDatabasePanel />
+                </Suspense>
+              ) : configSubtab === 'file-storage' ? (
+                <Suspense fallback={<LoaderCentered />}>
+                  <AdminFileStoragePanel />
                 </Suspense>
               ) : configSubtab === 'backup' ? (
                 <Suspense fallback={<LoaderCentered />}>

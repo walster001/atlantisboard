@@ -339,8 +339,10 @@ function VirtualizedCardListInner({
       data-kanban-list-body={listId}
     >
       <Virtuoso
+        key={cardRunSignature}
         style={virtuosoRootStyle}
         data={sortedCards}
+        computeItemKey={(_index, card) => card.id}
         defaultItemHeight={defaultItemHeight}
         heightEstimates={heightEstimates}
         totalListHeightChanged={onTotalListHeightChanged}

@@ -16,6 +16,11 @@ export const AdminDatabasePanel = lazy(async () => {
   return { default: m.AdminDatabasePanel };
 });
 
+export const AdminFileStoragePanel = lazy(async () => {
+  const m = await import('../../components/admin/AdminFileStoragePanel.js');
+  return { default: m.AdminFileStoragePanel };
+});
+
 export const AdminBackupPanel = lazy(async () => {
   const m = await import('../../components/admin/AdminBackupPanel.js');
   return { default: m.AdminBackupPanel };

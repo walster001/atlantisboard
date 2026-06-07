@@ -113,6 +113,12 @@ export function KanbanMobileCarousel({
 
   const prevSlideCountRef = useRef(totalMobileSlides);
   const prevListCountRef = useRef(totalMobileLists);
+  const listOrderSignature = useMemo(
+    () => mountedLists.map((list) => list.id).join('\u001f'),
+    [mountedLists],
+  );
+  const prevListOrderSignatureRef = useRef(listOrderSignature);
+  const activeListIdRef = useRef<string | null>(mountedLists[0]?.id ?? null);
   /** After mobile create: slide index of the new list (set before store update). */
   const pendingPostCreateSlideIndexRef = useRef<number | null>(null);
   const [swiperTransitionLock, setSwiperTransitionLock] = useState(false);
@@ -149,6 +155,7 @@ export function KanbanMobileCarousel({
         sw.update();
         sw.slideTo(targetIndex, 0);
       }
+      activeListIdRef.current = mountedLists[targetIndex]?.id ?? null;
       setSwiperTransitionLock(false);
       return;
     }
@@ -172,7 +179,37 @@ export function KanbanMobileCarousel({
         sw.slideTo(clamped, 0);
       }
     }
-  }, [totalMobileSlides, totalMobileLists, activeIndex, carouselLayout.maxActiveIndex]);
+
+    const orderChanged =
+      listOrderSignature !== prevListOrderSignatureRef.current &&
+      pendingPostCreateSlideIndexRef.current == null;
+    prevListOrderSignatureRef.current = listOrderSignature;
+    if (orderChanged && totalMobileSlides > 0) {
+      const sw = swiperRef.current;
+      if (sw != null) {
+        const targetListId = activeListIdRef.current;
+        const resolvedIndex =
+          targetListId != null
+            ? mountedLists.findIndex((list) => list.id === targetListId)
+            : Math.min(activeIndex, carouselLayout.maxActiveIndex);
+        const nextIndex =
+          resolvedIndex >= 0 ? resolvedIndex : Math.min(activeIndex, carouselLayout.maxActiveIndex);
+        sw.update();
+        sw.slideTo(nextIndex, 0);
+        activeListIdRef.current = mountedLists[nextIndex]?.id ?? null;
+        if (nextIndex !== activeIndex) {
+          setActiveIndex(nextIndex);
+        }
+      }
+    }
+  }, [
+    totalMobileSlides,
+    totalMobileLists,
+    activeIndex,
+    carouselLayout.maxActiveIndex,
+    listOrderSignature,
+    mountedLists,
+  ]);
 
   const clearHoverTimer = (): void => {
     if (hoverTimerRef.current != null) {
@@ -331,6 +368,7 @@ export function KanbanMobileCarousel({
           }}
           onSlideChange={(swiper) => {
             setActiveIndex(swiper.activeIndex);
+            activeListIdRef.current = mountedLists[swiper.activeIndex]?.id ?? null;
           }}
         >
           {mountedLists.map((list) => (

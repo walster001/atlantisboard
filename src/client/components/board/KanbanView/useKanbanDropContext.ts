@@ -64,31 +64,40 @@ export function useKanbanDropContext({
       }
       cardIdToListIdRef.current = m;
     };
-    const syncDragCardsFromStore = () => {
-      const map = buildKanbanCardsMapFromRuntimeState(useBoardRuntimeStore.getState());
+    const syncDragStateFromStore = () => {
+      const state = useBoardRuntimeStore.getState();
+      const map = buildKanbanCardsMapFromRuntimeState(state);
+      const listsFromStore: ListDB[] = [];
+      for (let i = 0; i < state.orderedListIds.length; i += 1) {
+        const row = state.listsById[state.orderedListIds[i]!];
+        if (row != null) {
+          listsFromStore.push(row);
+        }
+      }
       kanbanDropCtxRef.current = {
         ...kanbanDropCtxRef.current,
+        lists: listsFromStore,
         cards: map,
       };
       rebuildCardIdIndex(map);
     };
-    const scheduleSyncDragCardsFromStore = (): void => {
+    const scheduleSyncDragStateFromStore = (): void => {
       if (syncRafId != null) {
         return;
       }
       syncRafId = window.requestAnimationFrame(() => {
         syncRafId = null;
-        syncDragCardsFromStore();
+        syncDragStateFromStore();
       });
     };
-    syncDragCardsFromStore();
+    syncDragStateFromStore();
     const unsub = useBoardRuntimeStore.subscribe((state, prev) => {
       if (
         state.cardsVersion !== prev.cardsVersion ||
         state.orderedListIds !== prev.orderedListIds ||
         state.activeBoardId !== prev.activeBoardId
       ) {
-        scheduleSyncDragCardsFromStore();
+        scheduleSyncDragStateFromStore();
       }
     });
     return () => {

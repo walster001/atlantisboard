@@ -97,7 +97,8 @@ export const createBoardListOrderSlice: StateCreator<
     for (const l of lists) {
       listsById[l.id] = l;
     }
-    const orderedListIds = sortListIdsByPosition(listsById);
+    // Preserve caller array order (DnD hover slot); do not re-sort by stale fractional pos.
+    const orderedListIds = lists.map((l) => l.id);
     set((s) => ({
       listsById,
       orderedListIds,

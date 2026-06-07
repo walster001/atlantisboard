@@ -10,6 +10,7 @@ export const CONFIGURATION_SUBTABS = [
   { value: 'integrations', label: 'Integrations' },
   { value: 'email', label: 'Email' },
   { value: 'database', label: 'Database' },
+  { value: 'file-storage', label: 'File Storage' },
   { value: 'backup', label: 'Backup' },
   { value: 'monitor', label: 'Monitor' },
 ] as const;

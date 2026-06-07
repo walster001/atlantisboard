@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { Card, Button, Alert, Stack, Title, Loader, Box } from '@mantine/core';
+import { Card, Button, Alert, Stack, Title, Text, Anchor } from '@mantine/core';
 import { isAxiosError } from 'axios';
 import { api } from '../utils/api';
 import { useAuthContext } from '../contexts/AuthContext';
@@ -11,7 +11,7 @@ export default function VerifyEmailPage() {
   const { refreshUser } = useAuthContext();
   const token = searchParams.get('token');
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -19,53 +19,6 @@ export default function VerifyEmailPage() {
 
   useEffect(() => {
     isMountedRef.current = true;
-
-    const verifyEmail = async () => {
-      if (!token) {
-        if (isMountedRef.current) {
-          setError('Invalid or missing verification token');
-          setLoading(false);
-        }
-        return;
-      }
-
-      try {
-        await api.verifyEmail(token);
-
-        if (!isMountedRef.current) return;
-
-        setSuccess(true);
-        await refreshUser();
-
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-
-        timeoutRef.current = setTimeout(() => {
-          if (isMountedRef.current) {
-            navigate('/');
-          }
-          timeoutRef.current = null;
-        }, 2000);
-      } catch (err) {
-        if (!isMountedRef.current) return;
-        if (isAxiosError(err)) {
-          const msg = (err.response?.data as { error?: { message?: string } } | undefined)?.error?.message;
-          setError(msg ?? 'Failed to verify email. The link may have expired.');
-        } else if (err instanceof Error) {
-          setError(err.message || 'Failed to verify email');
-        } else {
-          setError('Failed to verify email. Please try again.');
-        }
-      } finally {
-        if (isMountedRef.current) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void verifyEmail();
-
     return () => {
       isMountedRef.current = false;
       if (timeoutRef.current) {
@@ -73,7 +26,69 @@ export default function VerifyEmailPage() {
         timeoutRef.current = null;
       }
     };
-  }, [token, navigate, refreshUser]);
+  }, []);
+
+  const handleVerify = async () => {
+    if (!token) {
+      setError('Invalid or missing verification token');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+
+    try {
+      await api.verifyEmail(token);
+
+      if (!isMountedRef.current) return;
+
+      setSuccess(true);
+      await refreshUser();
+
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      timeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          navigate('/');
+        }
+        timeoutRef.current = null;
+      }, 2000);
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      if (isAxiosError(err)) {
+        const msg = (err.response?.data as { error?: { message?: string } } | undefined)?.error?.message;
+        setError(msg ?? 'Failed to verify email. The link may have expired.');
+      } else if (err instanceof Error) {
+        setError(err.message || 'Failed to verify email');
+      } else {
+        setError('Failed to verify email. Please try again.');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
+        <Card shadow="xl" padding="xl" w="100%" maw={400} radius="md" withBorder>
+          <Stack gap="md">
+            <Title order={2} ta="center">Email Verification</Title>
+            <Alert color="red">
+              Invalid or missing verification token
+            </Alert>
+            <Button component={Link} to="/login" color="blue" fullWidth>
+              Back to Login
+            </Button>
+          </Stack>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
@@ -81,11 +96,7 @@ export default function VerifyEmailPage() {
         <Stack gap="lg">
           <Title order={2} ta="center">Email Verification</Title>
 
-          {loading ? (
-            <Box ta="center" py="xl">
-              <Loader size="lg" />
-            </Box>
-          ) : success ? (
+          {success ? (
             <Stack gap="md">
               <Alert color="green">
                 Email verified successfully! Signing you in...
@@ -96,14 +107,32 @@ export default function VerifyEmailPage() {
             </Stack>
           ) : (
             <Stack gap="md">
-              <Alert color="red">
-                {error || 'Failed to verify email'}
-              </Alert>
-              <Stack gap="xs">
-                <Button component={Link} to="/login" color="blue" fullWidth>
+              {error && (
+                <Alert color="red">
+                  {error}
+                </Alert>
+              )}
+
+              <Text ta="center" size="sm">
+                Click the button below to confirm your email address.
+              </Text>
+
+              <Button
+                color="blue"
+                fullWidth
+                loading={loading}
+                onClick={() => {
+                  void handleVerify();
+                }}
+              >
+                {loading ? 'Verifying...' : 'Verify Email'}
+              </Button>
+
+              <Text ta="center" size="sm">
+                <Anchor component={Link} to="/login" c="blue">
                   Back to Login
-                </Button>
-              </Stack>
+                </Anchor>
+              </Text>
             </Stack>
           )}
         </Stack>
@@ -111,4 +140,3 @@ export default function VerifyEmailPage() {
     </div>
   );
 }
-

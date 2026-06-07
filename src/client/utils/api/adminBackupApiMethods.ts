@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../../shared/adminDestructiveConfirmation.js';
 import type { AdminBackupListItem } from '../../../shared/types/adminBackup.js';
 import type { ApiClient } from '../api.js';
 
@@ -50,7 +51,9 @@ export const adminBackupApiMethods: AdminBackupApiMethods = {
   },
 
   async deleteAdminBackup(this: ApiClient, folderId) {
-    await this.client.delete(`/admin/backup/${encodeURIComponent(folderId)}`);
+    await this.client.delete(`/admin/backup/${encodeURIComponent(folderId)}`, {
+      data: { confirmPhrase: ADMIN_DESTRUCTIVE_CONFIRM_PHRASE },
+    });
   },
 
   async restoreAdminBackup(this: ApiClient, folderId, confirmFolder) {

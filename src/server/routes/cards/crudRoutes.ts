@@ -13,6 +13,7 @@ import {
   cardViewQuerySchema,
   createCardSchema,
   handleCardRouteError,
+  parseOrThrow,
   updateCardSchema,
 } from './_helpers.js';
 
@@ -20,7 +21,7 @@ export function registerCardCollectionRoutes(router: Router): void {
   router.post('/', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const validated = createCardSchema.parse(req.body);
+      const validated = parseOrThrow(createCardSchema, req.body);
       const card = await createCard(validated, authReq.user.id);
 
       res.status(201).json({ card });
@@ -32,7 +33,7 @@ export function registerCardCollectionRoutes(router: Router): void {
   router.get('/list/:listId', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const query = cardViewQuerySchema.parse(req.query);
+      const query = parseOrThrow(cardViewQuerySchema, req.query);
       const fields =
         typeof query.fields === 'string'
           ? query.fields
@@ -59,7 +60,7 @@ export function registerCardItemRoutes(router: Router): void {
   router.get('/:id', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const query = cardViewQuerySchema.parse(req.query);
+      const query = parseOrThrow(cardViewQuerySchema, req.query);
       const options = query.view !== undefined ? { view: query.view } : undefined;
       const card = await getCardById(req.params.id, authReq.user.id, options);
       if (!card) {
@@ -81,7 +82,7 @@ export function registerCardItemRoutes(router: Router): void {
   router.put('/:id', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const validated = updateCardSchema.parse(req.body);
+      const validated = parseOrThrow(updateCardSchema, req.body);
       const updateData: {
         title?: string | undefined;
         description?: string | undefined;

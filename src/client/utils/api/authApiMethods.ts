@@ -209,13 +209,11 @@ export const authApiMethods: AuthApiMethods = {
   },
 
   async verifyEmail(this: ApiClient, token) {
-    const response = await this.client.get('/auth/verify-email', { params: { token } });
-    const data = response.data;
-    if (data != null && typeof data === 'object' && 'token' in data) {
-      const jwt = (data as { token?: unknown }).token;
-      if (typeof jwt === 'string' && jwt.length > 0) {
-        this.setToken(jwt);
-      }
+    await this.ensureCsrfToken();
+    const response = await this.client.post('/auth/verify-email', { token });
+    const data = parseLoginResponse(response.data);
+    if (data.token) {
+      this.setToken(data.token);
     }
     return data;
   },

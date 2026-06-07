@@ -52,6 +52,10 @@ export async function assertMysqlHostAllowed(host: string): Promise<void> {
   }
 
   const allowlist = parseAllowedHostsEnv();
+  if (process.env.NODE_ENV === 'production' && allowlist == null) {
+    throw new Error('MYSQL_ALLOWED_HOSTS must be set in production');
+  }
+
   if (allowlist != null) {
     if (!allowlist.has(trimmed.toLowerCase())) {
       throw new Error('MySQL host is not in MYSQL_ALLOWED_HOSTS');

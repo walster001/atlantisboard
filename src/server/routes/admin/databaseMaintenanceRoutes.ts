@@ -1,6 +1,7 @@
 import type { Router } from 'express';
 import { z } from 'zod';
 import type { AuthenticatedRequest } from '../../types/express.js';
+import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../../shared/adminDestructiveConfirmation.js';
 import { DATABASE_CLEANUP_CATEGORY_IDS } from '../../../shared/types/adminDatabaseMaintenance.js';
 import {
   getDatabaseMaintenanceSnapshot,
@@ -13,6 +14,7 @@ const cleanupBodySchema = z.object({
     .array(z.enum(DATABASE_CLEANUP_CATEGORY_IDS))
     .min(1)
     .max(DATABASE_CLEANUP_CATEGORY_IDS.length),
+  confirmPhrase: z.literal(ADMIN_DESTRUCTIVE_CONFIRM_PHRASE),
 });
 
 export function registerDatabaseMaintenanceRoutes(router: Router): void {

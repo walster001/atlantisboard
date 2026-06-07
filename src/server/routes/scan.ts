@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { fileUploadRateLimiter } from '../middleware/rateLimit.js';
 import { prewarmMalwareScanner, shouldSkipMalwareScan } from '../utils/uploadMalwareScan.js';
 import { hasClamSignatureDatabase } from '../utils/clamSignatures.js';
 
@@ -8,7 +9,7 @@ const router = Router();
 router.use(requireAuth);
 
 /** Pre-warm ClamAV signatures when the user opens the attachment picker (on-demand clamscan). */
-router.post('/prewarm', async (_req, res) => {
+router.post('/prewarm', fileUploadRateLimiter, async (_req, res) => {
   if (shouldSkipMalwareScan()) {
     res.json({ ok: true, skipped: true, ready: true });
     return;

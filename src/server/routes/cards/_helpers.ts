@@ -3,6 +3,9 @@ import { CARD_DESCRIPTION_JSON_MAX_LENGTH } from '../../../shared/constants/card
 import { CARD_TITLE_MAX_LENGTH } from '../../../shared/constants/entityTextLimits.js';
 import { isValidCardDescriptionJsonString } from '../../../shared/validation/cardDescriptionDoc.js';
 import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
+import { parseOrThrow } from '../../utils/zodValidation.js';
+
+export { parseOrThrow };
 
 export function handleCardRouteError(
   res: import('express').Response,
@@ -61,3 +64,9 @@ export const updateReminderSchema = z.object({
   triggerAt: z.string().datetime().optional(),
   repeatFrequency: z.string().optional(),
 });
+
+export const cardAssigneeBodySchema = z.object({
+  userId: z.string().min(1),
+});
+
+export const cardAssigneeUserIdParamSchema = z.string().min(1);

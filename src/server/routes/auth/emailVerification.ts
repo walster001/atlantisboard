@@ -7,26 +7,26 @@ import { logger } from '../../utils/logger.js';
 import { sendVerificationEmail } from '../../services/emailService.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { attachCustomBoardThemesToPreferences } from '../../services/boardThemeService.js';
-import { authRateLimiter, sendAuthSuccess } from './_helpers.js';
+import { authRateLimiter, sendAuthSuccess, verifyEmailSchema } from './_helpers.js';
 import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import { parseOrThrow } from '../../utils/zodValidation.js';
 
 const router = Router();
 
-router.get('/verify-email', authRateLimiter, async (req, res, next) => {
-  try {
-    const token = req.query.token as string;
+/** Deprecated: email clients may prefetch GET links. Use POST /auth/verify-email instead. */
+router.get('/verify-email', authRateLimiter, (_req, res) => {
+  res.status(405).json({
+    error: {
+      message: 'Email verification must be submitted via POST /auth/verify-email',
+      code: 'METHOD_NOT_ALLOWED',
+      statusCode: 405,
+    },
+  });
+});
 
-    if (!token) {
-      res.status(400).json({
-        error: {
-          message: 'Verification token is required',
-          code: 'TOKEN_REQUIRED',
-          statusCode: 400,
-        },
-      });
-      return;
-    }
+router.post('/verify-email', authRateLimiter, async (req, res, next) => {
+  try {
+    const { token } = parseOrThrow(verifyEmailSchema, req.body);
 
     const user = await User.findOne({ verificationToken: token });
 
@@ -74,7 +74,7 @@ router.get('/verify-email', authRateLimiter, async (req, res, next) => {
       emailVerified: true,
     });
   } catch (error) {
-    next(error);
+    handleApiRouteError(res, error, next);
   }
 });
 

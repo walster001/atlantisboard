@@ -1,7 +1,7 @@
 import { type Router } from 'express';
 import type { AuthenticatedRequest } from '../../types/express.js';
 import { reorderCards } from '../../services/cardService.js';
-import { handleCardRouteError, reorderCardsBulkReflowSchema } from './_helpers.js';
+import { handleCardRouteError, parseOrThrow, reorderCardsBulkReflowSchema } from './_helpers.js';
 
 export function registerCardReorderRoutes(router: Router): void {
   // Deprecated for interactive DnD; reserved for admin/bulk list reflow operations.
@@ -9,7 +9,7 @@ export function registerCardReorderRoutes(router: Router): void {
   router.put('/reorder', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const { listId, cardIds, mode } = reorderCardsBulkReflowSchema.parse(req.body);
+      const { listId, cardIds, mode } = parseOrThrow(reorderCardsBulkReflowSchema, req.body);
 
       const success = await reorderCards(listId, cardIds, authReq.user.id, { mode });
       if (!success) {

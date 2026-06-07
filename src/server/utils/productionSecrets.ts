@@ -127,4 +127,15 @@ export function assertProductionSecrets(): void {
 
   assertMediaSignSecretDistinctFromJwt();
   assertProductionMongoUri();
+  assertProductionMysqlAllowedHosts();
+}
+
+function assertProductionMysqlAllowedHosts(): void {
+  const raw = process.env.MYSQL_ALLOWED_HOSTS?.trim();
+  if (raw == null || raw === '') {
+    throw new Error(
+      'Production startup blocked: MYSQL_ALLOWED_HOSTS must list at least one external MySQL host. ' +
+        'Example: MYSQL_ALLOWED_HOSTS=db.example.com'
+    );
+  }
 }

@@ -90,6 +90,10 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(12),
 });
 
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1),
+});
+
 /**
  * Base URL for redirects back to the SPA after OAuth. Prefer env in production;
  * otherwise use the incoming request so the host matches (e.g. 127.0.0.1 vs localhost).

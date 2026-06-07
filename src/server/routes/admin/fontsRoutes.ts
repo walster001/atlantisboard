@@ -10,6 +10,7 @@ import {
   uploadCustomFont,
 } from '../../services/fontService.js';
 import { mapServiceErrorToHttp } from '../../utils/mapServiceErrorToHttp.js';
+import { parseOrThrow, respondZodValidationError } from '../../utils/zodValidation.js';
 
 const fontUpload = multer({
   storage: multer.memoryStorage(),
@@ -23,6 +24,13 @@ const fontDisplayNameSchema = z
   .max(80)
   .regex(/^[^"\\\r\n<>&]+$/, 'Display name contains invalid characters');
 
+const fontUploadBodySchema = z.object({
+  displayName: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+    fontDisplayNameSchema.optional(),
+  ),
+});
+
 export function registerFontsRoutes(router: Router): void {
   router.post(
     '/fonts/upload',
@@ -30,12 +38,7 @@ export function registerFontsRoutes(router: Router): void {
     fontUpload.single('file'),
     async (req, res, next) => {
       try {
-        const displayNameRaw =
-          typeof req.body.displayName === 'string' ? req.body.displayName : undefined;
-        const displayName =
-          displayNameRaw != null && displayNameRaw.trim() !== ''
-            ? fontDisplayNameSchema.parse(displayNameRaw)
-            : undefined;
+        const { displayName } = parseOrThrow(fontUploadBodySchema, req.body);
         if (!req.file) {
           res.status(400).json({
             error: {
@@ -54,6 +57,9 @@ export function registerFontsRoutes(router: Router): void {
         );
         res.status(201).json({ font });
       } catch (error) {
+        if (respondZodValidationError(res, error)) {
+          return;
+        }
         if (mapServiceErrorToHttp(res, error)) {
           return;
         }

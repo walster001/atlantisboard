@@ -11,6 +11,7 @@ import {
 import {
   addReminderSchema,
   handleCardRouteError,
+  parseOrThrow,
   updateReminderSchema,
 } from './_helpers.js';
 
@@ -18,7 +19,7 @@ export function registerCardRemindersRoutes(router: Router): void {
   router.post('/:id/reminders', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const validated = addReminderSchema.parse(req.body);
+      const validated = parseOrThrow(addReminderSchema, req.body);
       const input: AddReminderInput = {
         triggerAt: new Date(validated.triggerAt),
       };
@@ -45,7 +46,7 @@ export function registerCardRemindersRoutes(router: Router): void {
   router.put('/:id/reminders/:reminderId', async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const validated = updateReminderSchema.parse(req.body);
+      const validated = parseOrThrow(updateReminderSchema, req.body);
       const input: UpdateReminderInput = {};
       if (validated.triggerAt !== undefined) {
         input.triggerAt = new Date(validated.triggerAt);

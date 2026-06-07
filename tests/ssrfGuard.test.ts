@@ -43,4 +43,27 @@ describe('assertMysqlHostAllowed', () => {
       }
     }
   });
+
+  test('rejects external MySQL host in production when MYSQL_ALLOWED_HOSTS is unset', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousHosts = process.env.MYSQL_ALLOWED_HOSTS;
+    process.env.NODE_ENV = 'production';
+    delete process.env.MYSQL_ALLOWED_HOSTS;
+    try {
+      await expect(assertMysqlHostAllowed('db.example.com')).rejects.toThrow(
+        'MYSQL_ALLOWED_HOSTS must be set in production',
+      );
+    } finally {
+      if (previousNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
+      if (previousHosts === undefined) {
+        delete process.env.MYSQL_ALLOWED_HOSTS;
+      } else {
+        process.env.MYSQL_ALLOWED_HOSTS = previousHosts;
+      }
+    }
+  });
 });

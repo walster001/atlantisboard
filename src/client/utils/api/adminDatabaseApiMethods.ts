@@ -3,6 +3,7 @@ import type {
   AdminDatabaseMaintenanceSnapshot,
   DatabaseCleanupCategoryId,
 } from '../../../shared/types/adminDatabaseMaintenance.js';
+import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../../shared/adminDestructiveConfirmation.js';
 import type { ApiClient } from '../api.js';
 
 export interface AdminDatabaseApiMethods {
@@ -20,7 +21,10 @@ export const adminDatabaseApiMethods: AdminDatabaseApiMethods = {
   },
 
   async runAdminDatabaseCleanup(this: ApiClient, categories) {
-    const response = await this.client.post('/admin/database/cleanup', { categories });
+    const response = await this.client.post('/admin/database/cleanup', {
+      categories,
+      confirmPhrase: ADMIN_DESTRUCTIVE_CONFIRM_PHRASE,
+    });
     return response.data as AdminDatabaseCleanupResult;
   },
 

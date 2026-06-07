@@ -18,7 +18,7 @@ export async function requireAuth(
   next: NextFunction
 ): Promise<void> {
   try {
-    const token = extractToken(req);
+    const token = extractAuthToken(req);
 
     if (!token) {
       res.status(401).json({
@@ -94,7 +94,7 @@ export async function optionalAuth(
   next: NextFunction
 ): Promise<void> {
   try {
-    const token = extractToken(req);
+    const token = extractAuthToken(req);
 
     if (!token) {
       next();
@@ -177,7 +177,7 @@ export async function requireAppAdmin(
 }
 
 export async function blocklistTokenFromRequest(req: Request): Promise<void> {
-  const token = extractToken(req);
+  const token = extractAuthToken(req);
   if (token == null) {
     return;
   }
@@ -187,7 +187,8 @@ export async function blocklistTokenFromRequest(req: Request): Promise<void> {
   }
 }
 
-function extractToken(req: Request): string | null {
+/** Extract JWT from Authorization header, auth cookie, or (dev only) ?token= query. */
+export function extractAuthToken(req: Request): string | null {
   const authHeader = req.headers['authorization'];
   if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
     const bearerToken = authHeader.substring(7).trim();
@@ -257,7 +258,7 @@ export async function requireSignedAssetOrAuth(
   if (hasValidSignedAssetQuery(req, assetPath)) {
     return true;
   }
-  const token = extractToken(req);
+  const token = extractAuthToken(req);
   if (token == null) {
     res.status(401).json({
       error: {

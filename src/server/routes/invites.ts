@@ -31,6 +31,11 @@ const createInviteSchema = z.object({
   roleKey: z.string().trim().min(1).max(80).optional(),
 });
 
+const inviteListQuerySchema = z.object({
+  workspaceId: z.string().min(1).optional(),
+  boardId: z.string().min(1).optional(),
+});
+
 router.post('/', apiRateLimiter, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
@@ -103,11 +108,11 @@ router.post('/accept/:token', inviteAcceptRateLimiter, async (req, res, next) =>
 router.get('/', apiRateLimiter, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const { workspaceId, boardId } = req.query;
+    const query = parseOrThrow(inviteListQuerySchema, req.query);
 
     const inviteLinks = await getInviteLinks(
-      workspaceId as string | undefined,
-      boardId as string | undefined,
+      query.workspaceId,
+      query.boardId,
       authReq.user.id
     );
 

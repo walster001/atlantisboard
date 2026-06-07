@@ -8,6 +8,7 @@ import {
   type BrandingUploadKind,
 } from '../../services/brandingService.js';
 import { mapServiceErrorToHttp } from '../../utils/mapServiceErrorToHttp.js';
+import { parseOrThrow, respondZodValidationError } from '../../utils/zodValidation.js';
 
 const brandingUpload = multer({
   storage: multer.memoryStorage(),
@@ -19,6 +20,21 @@ const deleteBrandingFileBodySchema = z.object({
   url: z.string().min(1),
 });
 
+const brandingUploadQuerySchema = z.object({
+  type: z.enum(['logo', 'favicon', 'home-nav-icon', 'home-bg-image', 'board-nav-icon']),
+});
+
+const brandingUploadKindByType: Record<
+  z.infer<typeof brandingUploadQuerySchema>['type'],
+  BrandingUploadKind
+> = {
+  logo: 'login-logo',
+  favicon: 'favicon',
+  'home-nav-icon': 'home-nav-icon',
+  'home-bg-image': 'home-bg-image',
+  'board-nav-icon': 'board-nav-icon',
+};
+
 export function registerBrandingRoutes(router: Router): void {
   router.post(
     '/branding/upload',
@@ -26,27 +42,8 @@ export function registerBrandingRoutes(router: Router): void {
     brandingUpload.single('file'),
     async (req, res, next) => {
       try {
-        const typeRaw = req.query.type;
-        const type = typeof typeRaw === 'string' ? typeRaw : '';
-        const typeToKind: Record<string, BrandingUploadKind> = {
-          logo: 'login-logo',
-          favicon: 'favicon',
-          'home-nav-icon': 'home-nav-icon',
-          'home-bg-image': 'home-bg-image',
-          'board-nav-icon': 'board-nav-icon',
-        };
-        const kind = typeToKind[type];
-        if (!kind) {
-          res.status(400).json({
-            error: {
-              message:
-                'Query parameter type must be "logo", "favicon", "home-nav-icon", "home-bg-image", or "board-nav-icon"',
-              code: 'VALIDATION_ERROR',
-              statusCode: 400,
-            },
-          });
-          return;
-        }
+        const { type } = parseOrThrow(brandingUploadQuerySchema, req.query);
+        const kind = brandingUploadKindByType[type];
         if (!req.file) {
           res.status(400).json({
             error: {
@@ -65,6 +62,9 @@ export function registerBrandingRoutes(router: Router): void {
         );
         res.json({ url });
       } catch (error) {
+        if (respondZodValidationError(res, error)) {
+          return;
+        }
         if (error instanceof Error) {
           res.status(400).json({
             error: {
@@ -82,10 +82,13 @@ export function registerBrandingRoutes(router: Router): void {
 
   router.delete('/branding/file', async (req, res, next) => {
     try {
-      const { url } = deleteBrandingFileBodySchema.parse(req.body);
+      const { url } = parseOrThrow(deleteBrandingFileBodySchema, req.body);
       await deleteBrandingObjectByPublicUrl(url);
       res.status(204).end();
     } catch (error) {
+      if (respondZodValidationError(res, error)) {
+        return;
+      }
       if (mapServiceErrorToHttp(res, error)) {
         return;
       }

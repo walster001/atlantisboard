@@ -1,4 +1,4 @@
-import { beforeAll, expect, it } from 'bun:test';
+import { expect, it } from 'bun:test';
 import { describeHttpIntegration } from './helpers/integrationEnv.js';
 import { beforeAllEnsureTestServer } from './helpers/integrationHooks.js';
 import { apiInject, resetIntegrationHttpSession } from './helpers/integrationHttp.js';

@@ -27,6 +27,7 @@ import {
 } from './config/attachmentDelivery.js';
 import { assertProductionCorsConfig, expressCorsOptions } from './config/cors.js';
 import { assertProductionSecrets } from './utils/productionSecrets.js';
+import { isProductionAuthMode } from './utils/authCookie.js';
 import { attachCspNonce, getCspNonceFromResponse } from './middleware/cspNonce.js';
 import { renderSpaIndexHtml } from './utils/spaIndex.js';
 // Background jobs can run in separate worker process or in main process
@@ -42,6 +43,12 @@ import { initializeVapid } from './config/vapid.js';
 
 assertProductionSecrets();
 assertProductionCorsConfig();
+
+if (!isProductionAuthMode()) {
+  logger.warn(
+    'Dev auth mode: JWT via ?token= query parameter is enabled. Set NODE_ENV=production to disable.',
+  );
+}
 
 const app = express();
 const httpServer = createServer(app);

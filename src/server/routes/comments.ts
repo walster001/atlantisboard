@@ -22,7 +22,12 @@ const createCommentSchema = z.object({
 });
 
 const updateCommentSchema = z.object({
+  cardId: z.string().min(1),
   text: z.string().min(1).max(5000),
+});
+
+const deleteCommentBodySchema = z.object({
+  cardId: z.string().min(1),
 });
 
 // Create comment
@@ -43,18 +48,12 @@ router.put('/comments/:commentId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const validated = parseOrThrow(updateCommentSchema, req.body);
-    const { cardId } = req.body;
-    if (!cardId || typeof cardId !== 'string') {
-      res.status(400).json({
-        error: {
-          message: 'cardId is required',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-        },
-      });
-      return;
-    }
-    const card = await updateComment(cardId, req.params.commentId, validated, authReq.user.id);
+    const card = await updateComment(
+      validated.cardId,
+      req.params.commentId,
+      { text: validated.text },
+      authReq.user.id,
+    );
     if (!card) {
       res.status(404).json({
         error: {
@@ -75,17 +74,7 @@ router.put('/comments/:commentId', async (req, res, next) => {
 router.delete('/comments/:commentId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const { cardId } = req.body;
-    if (!cardId || typeof cardId !== 'string') {
-      res.status(400).json({
-        error: {
-          message: 'cardId is required',
-          code: 'VALIDATION_ERROR',
-          statusCode: 400,
-        },
-      });
-      return;
-    }
+    const { cardId } = parseOrThrow(deleteCommentBodySchema, req.body);
     const deleted = await deleteComment(cardId, req.params.commentId, authReq.user.id);
     if (!deleted) {
       res.status(404).json({

@@ -1,3 +1,6 @@
+# DEV-ONLY: Do not expose this file unchanged to the WAN. Data-service ports are loopback-bound for local use.
+# For production, use docker-compose.prod.yml (or fullstack) with proper auth, firewall, and reverse proxy.
+#
 # Local development: MongoDB, Redis, MinIO
 #
 # PERSISTENCE POLICY (read docs/DOCKER-DEV-DATA.md):
@@ -13,7 +16,7 @@ services:
     image: mongo:8.0.4
     container_name: kanboard-mongodb
     ports:
-      - '27017:27017'
+      - '127.0.0.1:27017:27017'
     environment:
       MONGO_INITDB_DATABASE: kanboard
     command:
@@ -63,7 +66,7 @@ services:
     image: redis:7-alpine
     container_name: kanboard-redis
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379'
     command: >
       sh -c "
       if [ -n \"$${REDIS_PASSWORD}\" ]; then
@@ -98,8 +101,8 @@ services:
     image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: kanboard-minio
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}

@@ -80,3 +80,9 @@ Repeat for `atlboard-new_redis-data` → `.docker-data/redis` and `atlboard-new_
 - Copy the whole `.docker-data` directory, or
 - Use the app’s **Admin → Backups** feature (`BACKUP_LOCATION` in `.env`), or
 - Run `tar -czf kanboard-docker-data-$(date +%F).tar.gz .docker-data`
+
+## Network exposure (dev compose)
+
+Root `docker-compose.yml` publishes MongoDB (27017), Redis (6379), and MinIO (9000/9001) on **127.0.0.1** only so host tools can connect via `localhost` without binding on all interfaces. Do not remove loopback binding or deploy this file unchanged on a public host; use `docker-compose.prod.yml` for production.
+
+When the app runs in a container, `HOST=0.0.0.0` is correct so the process listens inside the container network namespace; expose it to users only through a reverse proxy and host firewall, not by widening data-store port mappings.

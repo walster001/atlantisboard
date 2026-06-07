@@ -39,6 +39,7 @@ describe('assertProductionSecrets', () => {
     process.env.MINIO_SECRET_KEY = secure;
     process.env.MONGODB_URI =
       'mongodb://kanboard_app:secret@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0';
+    process.env.MYSQL_ALLOWED_HOSTS = 'db.example.com';
     delete process.env.POMPELMI_SKIP_SCAN;
   }
 
@@ -85,5 +86,17 @@ describe('assertProductionSecrets', () => {
     setSecureProductionSecrets();
     process.env.MEDIA_SIGN_SECRET = process.env.JWT_SECRET;
     expect(() => assertProductionSecrets()).toThrow(/MEDIA_SIGN_SECRET must differ/);
+  });
+
+  it('blocks missing MYSQL_ALLOWED_HOSTS in production', () => {
+    setSecureProductionSecrets();
+    delete process.env.MYSQL_ALLOWED_HOSTS;
+    expect(() => assertProductionSecrets()).toThrow(/MYSQL_ALLOWED_HOSTS must list at least one external MySQL host/);
+  });
+
+  it('accepts MYSQL_ALLOWED_HOSTS in production', () => {
+    setSecureProductionSecrets();
+    process.env.MYSQL_ALLOWED_HOSTS = 'db.example.com';
+    expect(() => assertProductionSecrets()).not.toThrow();
   });
 });

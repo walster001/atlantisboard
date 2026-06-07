@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
+import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../shared/adminDestructiveConfirmation.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { BackupJob } from '../models/BackupJob.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
@@ -125,10 +126,15 @@ router.post('/jobs/:jobId/cancel', async (req, res, next) => {
   }
 });
 
+const deleteBackupBodySchema = z.object({
+  confirmPhrase: z.literal(ADMIN_DESTRUCTIVE_CONFIRM_PHRASE),
+});
+
 router.delete('/:folderId', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const folderId = parseOrThrow(backupFolderIdSchema, req.params.folderId);
+    parseOrThrow(deleteBackupBodySchema, req.body);
     await deleteBackupFolder(folderId);
     logAuditEvent({
       userId: authReq.user.id,

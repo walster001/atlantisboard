@@ -79,5 +79,12 @@ export function assertProductionCorsConfig(): void {
       'Production startup blocked: CORS_ORIGIN must list at least one explicit browser origin.'
     );
   }
+
+  if (process.env.CORS_ALLOW_MISSING_ORIGIN === 'true') {
+    throw new Error(
+      'Production startup blocked: CORS_ALLOW_MISSING_ORIGIN must not be true in production. ' +
+        'Credentialed API calls without an Origin header bypass browser same-origin protections.'
+    );
+  }
 }
 

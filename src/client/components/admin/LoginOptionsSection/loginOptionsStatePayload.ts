@@ -41,6 +41,7 @@ export function buildLoginOptionsSavePayload(args: {
     if (googleReplaceMode || !googleConfigured) {
       const googlePayload: Record<string, unknown> = {
         enabled: config.googleOAuth.enabled,
+        forceHttpsUpgrade: config.googleOAuth.forceHttpsUpgrade === true,
         clientId: googleDraft.clientId.trim(),
         callbackUrl: normalizeGoogleOAuthCallbackUrl(googleDraft.callbackUrl),
       };
@@ -52,7 +53,10 @@ export function buildLoginOptionsSavePayload(args: {
       }
       payload.googleOAuth = googlePayload;
     } else {
-      payload.googleOAuth = { enabled: config.googleOAuth.enabled };
+      payload.googleOAuth = {
+        enabled: config.googleOAuth.enabled,
+        forceHttpsUpgrade: config.googleOAuth.forceHttpsUpgrade === true,
+      };
     }
   }
 

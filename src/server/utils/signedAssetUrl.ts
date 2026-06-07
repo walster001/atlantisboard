@@ -56,8 +56,9 @@ export function rewriteBrandingPathToSigned(path: string | undefined): string | 
     return path;
   }
   const trimmed = path.trim();
-  if (!trimmed.startsWith('/api/v1/branding/')) {
+  const pathOnly = (trimmed.split('?')[0] ?? trimmed).split('#')[0] ?? trimmed;
+  if (!pathOnly.startsWith('/api/v1/branding/')) {
     return trimmed;
   }
-  return createSignedAssetUrl(trimmed);
+  return createSignedAssetUrl(pathOnly);
 }

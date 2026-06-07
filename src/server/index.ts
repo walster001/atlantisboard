@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import type { Server as SocketIOServer } from 'socket.io';
 import { createServer } from 'http';
 import { join } from 'path';
 import cookieParser from 'cookie-parser';
@@ -207,6 +208,19 @@ if (process.env.ENABLE_CRON_JOBS_IN_MAIN === 'true') {
 }
 
 let httpServerStartPromise: Promise<number> | null = null;
+let changeStreamsStarted = false;
+
+async function ensureChangeStreamsAfterDatabase(socketIo: SocketIOServer): Promise<void> {
+  if (changeStreamsStarted) {
+    return;
+  }
+  changeStreamsStarted = true;
+  const { setupChangeStreams } = await import('./sockets/changeStreams.js');
+  await setupChangeStreams(socketIo).catch((error) => {
+    changeStreamsStarted = false;
+    logger.error({ error }, 'Failed to setup MongoDB Change Streams');
+  });
+}
 
 export function getHttpListenPort(): number {
   const address = httpServer.address();
@@ -233,6 +247,7 @@ export async function startHttpServer(options?: {
     try {
       await connectSessionRedis();
       await connectDatabase();
+      await ensureChangeStreamsAfterDatabase(io);
       await migrateLegacyUserPlaceholdersToBoardCollection();
       await repairWekanEmailStoredInImportUsername();
       await sanitizeBoardImportPlaceholderStoredEmails();

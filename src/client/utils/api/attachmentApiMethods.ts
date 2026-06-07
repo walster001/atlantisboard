@@ -78,13 +78,20 @@ export const attachmentApiMethods: AttachmentApiMethods = {
   resolveAttachmentUrl(this: ApiClient, rawUrl) {
     const trimmed = rawUrl.trim();
     if (trimmed === '') return '';
+    if (trimmed.startsWith('/api/v1/attachments/')) {
+      return trimmed.split('?')[0] ?? trimmed;
+    }
     if (trimmed.startsWith('/')) return trimmed;
     if (trimmed.startsWith('api/')) return `/${trimmed}`;
     if (/^https?:\/\//.test(trimmed)) {
       try {
         const parsed = new URL(trimmed);
+        const host = parsed.hostname.toLowerCase();
+        if (host === 'minio' || host === 'kanboard-minio' || host.endsWith('.internal')) {
+          return '';
+        }
         if (parsed.pathname.startsWith('/card-attachments/')) {
-          return `${parsed.pathname}${parsed.search}`;
+          return '';
         }
       } catch {
         return trimmed;

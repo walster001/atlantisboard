@@ -13,6 +13,8 @@ export interface IGoogleOAuth {
   clientSecret?: string;
   /** Full callback URL; server uses process.env.GOOGLE_CALLBACK_URL when set, else this, else default path. */
   callbackUrl?: string;
+  /** When true (or FORCE_HTTPS env), OAuth redirect URIs use https:// behind TLS-terminating proxies. */
+  forceHttpsUpgrade?: boolean;
   enabled: boolean;
 }
 
@@ -170,6 +172,7 @@ const GoogleOAuthSchema = new Schema<IGoogleOAuth>(
     clientId: String,
     clientSecret: String,
     callbackUrl: String,
+    forceHttpsUpgrade: { type: Boolean, default: false },
     enabled: { type: Boolean, default: false },
   },
   { _id: false }

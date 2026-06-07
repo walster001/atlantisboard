@@ -7,6 +7,8 @@ import { logger } from '../utils/logger.js';
 import {
   normalizeGoogleOAuthCallbackUrl,
   resolveGoogleOAuthPassportCallbackUrl,
+  resolveGoogleOAuthRuntimeSettings,
+  setGoogleOAuthAdminForceHttpsUpgrade,
 } from '../../shared/utils/googleOAuthCallbackUrl.js';
 import { deriveUniqueUsernameForGoogleOAuth } from '../utils/googleOAuthUsername.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
@@ -49,6 +51,7 @@ export async function configureGoogleStrategy(): Promise<void> {
   try {
     const config = await AdminConfig.findOne();
     if (!config || !config.googleOAuth.enabled) {
+      setGoogleOAuthAdminForceHttpsUpgrade(undefined);
       logger.info('Google OAuth is not enabled');
       return;
     }
@@ -85,10 +88,19 @@ export async function configureGoogleStrategy(): Promise<void> {
       envCallbackUrl || storedCallbackUrl || '/api/v1/auth/google/callback';
     const normalizedCallback =
       normalizeGoogleOAuthCallbackUrl(rawCallback) || '/api/v1/auth/google/callback';
+    setGoogleOAuthAdminForceHttpsUpgrade(config.googleOAuth.forceHttpsUpgrade === true);
+    const oauthRuntime = resolveGoogleOAuthRuntimeSettings({
+      FORCE_HTTPS: process.env.FORCE_HTTPS,
+      OAUTH_REDIRECT_BASE: process.env.OAUTH_REDIRECT_BASE,
+      APP_URL: process.env.APP_URL,
+      CORS_ORIGIN: process.env.CORS_ORIGIN,
+    });
     const callbackURL = resolveGoogleOAuthPassportCallbackUrl({
       normalizedCallback,
       nodeEnv: process.env.NODE_ENV,
       googleOAuthBrowserOrigin: process.env.GOOGLE_OAUTH_BROWSER_ORIGIN,
+      forceHttps: oauthRuntime.forceHttps,
+      publicBaseUrl: oauthRuntime.publicBaseUrl,
     });
 
     passport.use(
@@ -98,6 +110,7 @@ export async function configureGoogleStrategy(): Promise<void> {
           clientID: clientId,
           clientSecret: clientSecret,
           callbackURL,
+          proxy: true,
         },
         async (_accessToken, _refreshToken, profile, done) => {
           try {

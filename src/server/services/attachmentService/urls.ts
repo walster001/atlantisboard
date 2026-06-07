@@ -1,6 +1,7 @@
 import {
   getAttachmentDeliveryMode,
   getAttachmentSignedUrlTtlSec,
+  isMinioPublicPresignConfigured,
   resolveAttachmentDeliveryKind,
 } from '../../config/attachmentDelivery.js';
 import { getMinIOPublicPresignClient } from '../../config/minio.js';
@@ -34,7 +35,7 @@ export async function buildAttachmentStreamUrl(
     size: objectMeta.size,
   });
   const ttlSec = getAttachmentSignedUrlTtlSec();
-  if (delivery === 'signed') {
+  if (delivery === 'signed' && isMinioPublicPresignConfigured()) {
     const minted = await mintAttachmentReadUrl(objectMeta.objectName, ttlSec);
     return { ...minted, delivery: 'signed' };
   }

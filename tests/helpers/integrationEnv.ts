@@ -79,6 +79,59 @@ export function resolveTestMongoUri(): string | undefined {
   return undefined;
 }
 
+/** Host, port, and database name — used to detect test URI accidentally pointing at dev data. */
+export function normalizeMongoDatabaseTarget(rawUri: string): string {
+  const uri = rawUri.trim();
+  if (uri === '') {
+    return '';
+  }
+  try {
+    const isSrv = uri.startsWith('mongodb+srv://');
+    const forUrl = isSrv
+      ? uri.replace(/^mongodb\+srv:\/\//, 'https://')
+      : uri.replace(/^mongodb:\/\//, 'http://');
+    const parsed = new URL(forUrl);
+    const host = parsed.hostname.toLowerCase();
+    const port = parsed.port !== '' ? parsed.port : isSrv ? '' : '27017';
+    const dbSegment = parsed.pathname.replace(/^\//, '').split('/')[0] ?? '';
+    const hostPort = port !== '' ? `${host}:${port}` : host;
+    return `${hostPort}/${dbSegment}`;
+  } catch {
+    return uri;
+  }
+}
+
+export function testMongoUriTargetsDevDatabase(testUri: string, devUri: string): boolean {
+  const normalizedTest = normalizeMongoDatabaseTarget(testUri);
+  const normalizedDev = normalizeMongoDatabaseTarget(devUri);
+  if (normalizedTest === '' || normalizedDev === '') {
+    return false;
+  }
+  return normalizedTest === normalizedDev;
+}
+
+/**
+ * Throws when integration tests would wipe the same Mongo database as MONGODB_URI (local dev).
+ * CI is exempt — ephemeral runners use a disposable database for both app and tests.
+ */
+export function assertSafeTestMongoUriForDestructiveOps(): void {
+  if (isCiTestRun()) {
+    return;
+  }
+  const testUri = resolveTestMongoUri();
+  const devUri = process.env.MONGODB_URI?.trim();
+  if (testUri == null || testUri === '' || devUri == null || devUri === '') {
+    return;
+  }
+  if (testMongoUriTargetsDevDatabase(testUri, devUri)) {
+    throw new Error(
+      'Refusing to clear MongoDB during tests: MONGODB_TEST_URI targets the same database as MONGODB_URI. ' +
+        'Use a separate database (e.g. mongodb://localhost:27017/kanboard_test?replicaSet=rs0). ' +
+        `Resolved target: ${normalizeMongoDatabaseTarget(testUri)}`,
+    );
+  }
+}
+
 function resolveRedisProbeTarget(): { host: string; port: number } | null {
   const redisUrl = process.env.REDIS_URL?.trim();
   if (redisUrl) {

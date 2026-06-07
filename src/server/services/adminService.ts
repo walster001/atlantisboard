@@ -56,6 +56,7 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
 
   const safeGoogle: Record<string, unknown> = {
     enabled: go.enabled,
+    forceHttpsUpgrade: go.forceHttpsUpgrade === true,
   };
 
   if (googleConfigured) {
@@ -187,6 +188,9 @@ export async function updateAdminConfig(
     const go = u.googleOAuth as Partial<IGoogleOAuth> & { replaceGoogleOAuth?: boolean };
     if (go.enabled !== undefined) {
       config.googleOAuth.enabled = go.enabled;
+    }
+    if (go.forceHttpsUpgrade !== undefined) {
+      config.googleOAuth.forceHttpsUpgrade = go.forceHttpsUpgrade === true;
     }
     const googleStored = isGoogleOAuthCredentialsStored(config.googleOAuth);
     const replaceGoogle = go.replaceGoogleOAuth === true;

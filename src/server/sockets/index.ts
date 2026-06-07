@@ -5,7 +5,6 @@ import { extractTokenFromHandshake } from '../middleware/auth.js';
 import { hasPermission, isWorkspaceMember } from '../utils/permissions.js';
 import { User } from '../models/User.js';
 import { logger } from '../utils/logger.js';
-import { setupChangeStreams } from './changeStreams.js';
 import { setSocketIOInstance } from '../utils/socketIO.js';
 import { isAllowedCorsOrigin } from '../config/cors.js';
 import { getAdminMonitorRoom } from '../services/systemMetricsService.js';
@@ -253,10 +252,7 @@ export function setupSocketIO(httpServer: HTTPServer): SocketIOServer {
     });
   });
 
-  // Setup MongoDB Change Streams
-  setupChangeStreams(io).catch((error) => {
-    logger.error({ error }, 'Failed to setup MongoDB Change Streams');
-  });
+  // Change streams are started from startHttpServer() after connectDatabase() — not here (race on cold boot).
 
   // Store io instance for use in routes/services
   setSocketIOInstance(io);

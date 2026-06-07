@@ -132,6 +132,7 @@ export function LoginStyleSection({ config, setConfig, googleConfigured }: Login
 
 interface GoogleOAuthSectionProps {
   readonly config: AdminConfigShape;
+  readonly setConfig: Dispatch<SetStateAction<AdminConfigShape | null>>;
   readonly googleConfigured: boolean;
   readonly googleReplaceMode: boolean;
   readonly setGoogleReplaceMode: Dispatch<SetStateAction<boolean>>;
@@ -142,6 +143,7 @@ interface GoogleOAuthSectionProps {
 }
 export function GoogleOAuthSection({
   config,
+  setConfig,
   googleConfigured,
   googleReplaceMode,
   setGoogleReplaceMode,
@@ -193,6 +195,38 @@ export function GoogleOAuthSection({
           You can set <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> in{' '}
           <code>.env</code>; when set, they override the Client ID and Client Secret fields here.
         </Alert>
+        <Stack gap={4}>
+          <Text size="sm" fw={500}>Upgrade OAuth URLs to HTTPS</Text>
+          <Group gap="md" align="flex-start">
+            <Switch
+              checked={config.googleOAuth.forceHttpsUpgrade === true}
+              size="md"
+              withThumbIndicator={false}
+              onChange={(event) => {
+                const checked = event.currentTarget.checked;
+                startTransition(() => {
+                  setConfig((current) =>
+                    current
+                      ? {
+                          ...current,
+                          googleOAuth: {
+                            ...current.googleOAuth,
+                            forceHttpsUpgrade: checked,
+                          },
+                        }
+                      : current,
+                  );
+                });
+              }}
+            />
+            <Text size="xs" c="dimmed" style={{ flex: 1 }}>
+              Enable when TLS terminates at Caddy/nginx and Google OAuth receives{' '}
+              <code>http://</code> redirect URIs. Also set <code>APP_URL</code> to your public{' '}
+              <code>https://</code> origin, <code>TRUST_PROXY_HOPS=1</code>, and optionally{' '}
+              <code>FORCE_HTTPS=true</code> in <code>.env</code> (env overrides this toggle).
+            </Text>
+          </Group>
+        </Stack>
         {googleConfigured && !googleReplaceMode && (
           <Alert color="teal" variant="light">
             Google OAuth credentials are stored encrypted on the server and are not shown here.

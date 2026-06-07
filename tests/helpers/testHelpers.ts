@@ -10,7 +10,7 @@ import {
   type ApiInjectResponse,
 } from './integrationHttp.js';
 import { ensureTestServer } from './testServer.js';
-import { DB_INTEGRATION_ENV_DOCS, isCiTestRun, resolveTestMongoUri } from './integrationEnv.js';
+import { DB_INTEGRATION_ENV_DOCS, assertSafeTestMongoUriForDestructiveOps, isCiTestRun, resolveTestMongoUri } from './integrationEnv.js';
 
 export interface TestUser {
   _id: string;
@@ -50,6 +50,7 @@ export async function disconnectTestDatabase(): Promise<void> {
 }
 
 export async function clearTestDatabase(options?: { waitForHttp?: boolean }): Promise<void> {
+  assertSafeTestMongoUriForDestructiveOps();
   if (options?.waitForHttp === true) {
     await ensureTestServer();
   }

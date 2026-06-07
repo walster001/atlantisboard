@@ -74,22 +74,132 @@ export function isSignedAttachmentDeliveryEnabled(): boolean {
   return mode === 'signed' || mode === 'hybrid';
 }
 
-/**
- * Browser-reachable MinIO origin for CSP (`media-src` / `connect-src`).
- * Derived from MINIO_PUBLIC_* when set, otherwise internal MINIO_*.
- */
-export function getMinioPublicOrigin(): string | null {
-  const endpoint = (process.env.MINIO_PUBLIC_ENDPOINT ?? process.env.MINIO_ENDPOINT ?? '').trim();
-  if (endpoint === '') {
+export interface MinioPublicEndpointConfig {
+  readonly endPoint: string;
+  readonly port: number;
+  readonly useSSL: boolean;
+}
+
+function normalizeHostname(host: string): string {
+  const trimmed = host.trim().toLowerCase();
+  const withoutPort = trimmed.split(':')[0] ?? trimmed;
+  return withoutPort;
+}
+
+function isProductionRuntime(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
+
+/** Docker / cluster service names that browsers cannot resolve — never use in presigned URLs. */
+function isUnresolvableMinioPublicHost(host: string): boolean {
+  const normalized = normalizeHostname(host);
+  return (
+    normalized === 'minio' ||
+    normalized === 'kanboard-minio' ||
+    normalized.endsWith('.internal')
+  );
+}
+
+function isSameAsInternalMinioEndpoint(publicHost: string): boolean {
+  const internal = normalizeHostname(process.env.MINIO_ENDPOINT ?? 'localhost');
+  const pub = normalizeHostname(publicHost);
+  return pub === internal;
+}
+
+function defaultPublicUrlScheme(): 'http:' | 'https:' {
+  return isProductionRuntime() ? 'https:' : 'http:';
+}
+
+function parsePublicUrlToEndpointConfig(raw: string): MinioPublicEndpointConfig | null {
+  const trimmed = raw.trim();
+  if (trimmed === '') {
     return null;
   }
-  const portRaw = process.env.MINIO_PUBLIC_PORT ?? process.env.MINIO_PORT ?? '9000';
-  const port = Number.parseInt(portRaw, 10);
-  const useSsl =
-    process.env.MINIO_PUBLIC_USE_SSL === 'true' ||
-    (process.env.MINIO_PUBLIC_USE_SSL === undefined && process.env.MINIO_USE_SSL === 'true');
-  const protocol = useSsl ? 'https' : 'http';
-  const host = endpoint.includes(':') ? endpoint : `${endpoint}:${Number.isFinite(port) ? port : 9000}`;
+  try {
+    const withScheme = trimmed.includes('://')
+      ? trimmed
+      : `${defaultPublicUrlScheme()}//${trimmed}`;
+    const url = new URL(withScheme);
+    const useSSL = url.protocol === 'https:';
+    const defaultPort = useSSL ? 443 : 80;
+    const parsedPort = url.port !== '' ? Number.parseInt(url.port, 10) : defaultPort;
+    const port = Number.isFinite(parsedPort) ? parsedPort : defaultPort;
+    if (url.hostname === '') {
+      return null;
+    }
+    return { endPoint: url.hostname, port, useSSL };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolves browser-reachable MinIO endpoint for presigned URLs.
+ * Uses `MINIO_PUBLIC_*`, or parses `S3_PUBLIC_URL` / `ATTACHMENT_PUBLIC_BASE` when set.
+ * Never falls back to internal `MINIO_ENDPOINT` (e.g. Docker `minio:9000`).
+ */
+export function resolveMinioPublicEndpointConfig(): MinioPublicEndpointConfig | null {
+  const explicitEndpoint = (process.env.MINIO_PUBLIC_ENDPOINT ?? '').trim();
+  if (explicitEndpoint !== '') {
+    const hostOnly = explicitEndpoint.includes(':')
+      ? explicitEndpoint.split(':')[0] ?? explicitEndpoint
+      : explicitEndpoint;
+    const portRaw = process.env.MINIO_PUBLIC_PORT ?? process.env.MINIO_PORT ?? '9000';
+    const port = Number.parseInt(portRaw, 10);
+    const useSSL = process.env.MINIO_PUBLIC_USE_SSL === 'true';
+    return {
+      endPoint: hostOnly,
+      port: Number.isFinite(port) ? port : 9000,
+      useSSL,
+    };
+  }
+
+  for (const alias of [
+    process.env.S3_PUBLIC_URL,
+    process.env.ATTACHMENT_PUBLIC_BASE,
+  ]) {
+    const fromUrl = parsePublicUrlToEndpointConfig(alias ?? '');
+    if (fromUrl != null) {
+      return fromUrl;
+    }
+  }
+
+  return null;
+}
+
+/** True when a distinct, browser-reachable public MinIO endpoint is configured for presigning. */
+export function isMinioPublicPresignConfigured(): boolean {
+  const config = resolveMinioPublicEndpointConfig();
+  if (config == null) {
+    return false;
+  }
+  if (isUnresolvableMinioPublicHost(config.endPoint)) {
+    return false;
+  }
+  // Production: public host must differ from internal service endpoint (avoid Docker-only hostnames).
+  if (isProductionRuntime() && isSameAsInternalMinioEndpoint(config.endPoint)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Browser-reachable MinIO origin for CSP (`media-src` / `connect-src`).
+ * Only set when a public endpoint is configured — never uses internal `MINIO_ENDPOINT`.
+ */
+export function getMinioPublicOrigin(): string | null {
+  if (!isMinioPublicPresignConfigured()) {
+    return null;
+  }
+  const config = resolveMinioPublicEndpointConfig();
+  if (config == null) {
+    return null;
+  }
+  const protocol = config.useSSL ? 'https' : 'http';
+  const host =
+    (config.useSSL && config.port === 443) || (!config.useSSL && config.port === 80)
+      ? config.endPoint
+      : `${config.endPoint}:${config.port}`;
   try {
     return new URL(`${protocol}://${host}`).origin;
   } catch {

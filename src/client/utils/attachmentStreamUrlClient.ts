@@ -12,6 +12,28 @@ export interface AttachmentStreamUrlEntry {
 const REFRESH_BEFORE_EXPIRY_MS = 60_000;
 const MAX_ATTACHMENT_STREAM_CACHE_ENTRIES = 128;
 
+/** Docker/internal MinIO hostnames must never be used in browser media elements. */
+function isInternalMinioMediaUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    const host = parsed.hostname.toLowerCase();
+    return host === 'minio' || host === 'kanboard-minio' || host.endsWith('.internal');
+  } catch {
+    return false;
+  }
+}
+
+function toProxyStreamEntry(attachmentId: string, expiresAt: string): AttachmentStreamUrlEntry {
+  return {
+    url: api.getAttachmentFileUrl(attachmentId),
+    expiresAt,
+    delivery: 'proxy',
+  };
+}
+
 interface CacheEntry extends AttachmentStreamUrlEntry {
   refreshTimerId: ReturnType<typeof setTimeout> | null;
 }
@@ -50,11 +72,16 @@ async function fetchStreamUrl(attachmentId: string): Promise<AttachmentStreamUrl
   }
   const promise = api
     .getAttachmentUrl(attachmentId)
-    .then((data) => ({
-      url: data.url,
-      expiresAt: data.expiresAt,
-      delivery: data.delivery,
-    }))
+    .then((data) => {
+      if (data.delivery === 'signed' && isInternalMinioMediaUrl(data.url)) {
+        return toProxyStreamEntry(attachmentId, data.expiresAt);
+      }
+      return {
+        url: data.url,
+        expiresAt: data.expiresAt,
+        delivery: data.delivery,
+      };
+    })
     .finally(() => {
       inflight.delete(attachmentId);
     });

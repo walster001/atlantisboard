@@ -12,6 +12,7 @@ export interface AdminConfigShape {
   };
   googleOAuth: {
     enabled: boolean;
+    forceHttpsUpgrade?: boolean;
     clientIdSet?: boolean;
     clientSecretSet?: boolean;
     callbackUrlSet?: boolean;

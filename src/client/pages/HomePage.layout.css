@@ -4,6 +4,8 @@
   /* Wider than 72rem so ~3 board columns use more viewport */
   --home-page-content-max-width: 85rem;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background-color: var(--mantine-color-body);
 }
 
@@ -14,7 +16,8 @@
   padding: 1rem;
   width: 100%;
   background-color: var(--mantine-color-body);
-  min-height: calc(100vh - 65px);
+  /* Fill remaining viewport below nav; avoid nav + calc(100vh - N) which overflows. */
+  flex: 1 1 auto;
 }
 
 .home-page__title {

@@ -9060,15 +9060,17 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
 /* src/client/pages/HomePage.layout.css */
 .home-page {
   --home-page-content-max-width: 85rem;
+  display: flex;
   background-color: var(--mantine-color-body);
+  flex-direction: column;
   min-height: 100vh;
 }
 
 .home-page__main {
   max-width: var(--home-page-content-max-width);
   background-color: var(--mantine-color-body);
+  flex: auto;
   width: 100%;
-  min-height: calc(100vh - 65px);
   margin-left: auto;
   margin-right: auto;
   padding: 1rem;
@@ -9121,6 +9123,7 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   padding-top: calc(var(--mantine-spacing-md)  + constant(safe-area-inset-top));
   padding-top: calc(var(--mantine-spacing-md)  + env(safe-area-inset-top, 0px));
   background-color: #fff;
+  flex-shrink: 0;
   box-shadow: 0 1px 3px #00000014;
 }
 

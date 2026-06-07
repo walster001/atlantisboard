@@ -1,3 +1,148 @@
+export type GoogleOAuthUrlBuildInput = {
+  readonly configuredCallback: string | undefined;
+  readonly host: string | undefined;
+  readonly protocol: string | undefined;
+  readonly forwardedProto: string | undefined;
+  readonly forceHttps: boolean;
+  readonly publicBaseUrl: string | undefined;
+};
+
+export type GoogleOAuthEnv = Readonly<{
+  FORCE_HTTPS?: string | undefined;
+  OAUTH_REDIRECT_BASE?: string | undefined;
+  APP_URL?: string | undefined;
+  CORS_ORIGIN?: string | undefined;
+}>;
+
+let googleOAuthAdminForceHttpsUpgrade: boolean | undefined;
+
+/** Synced from AdminConfig when Google OAuth strategy is (re)configured. */
+export function setGoogleOAuthAdminForceHttpsUpgrade(enabled: boolean | undefined): void {
+  googleOAuthAdminForceHttpsUpgrade = enabled;
+}
+
+/** True when `FORCE_HTTPS` env is set; env overrides admin when explicitly true/false. */
+export function isForceHttpsEnabled(
+  env: GoogleOAuthEnv,
+  adminForceHttpsUpgrade?: boolean,
+): boolean {
+  const raw = env.FORCE_HTTPS?.trim().toLowerCase();
+  if (raw === 'true' || raw === '1' || raw === 'yes') {
+    return true;
+  }
+  if (raw === 'false' || raw === '0' || raw === 'no') {
+    return false;
+  }
+  return adminForceHttpsUpgrade === true;
+}
+
+/** Public origin for OAuth redirects: `OAUTH_REDIRECT_BASE`, then `APP_URL`, then `CORS_ORIGIN`. */
+export function resolveOAuthPublicBaseUrl(env: GoogleOAuthEnv): string | undefined {
+  for (const key of ['OAUTH_REDIRECT_BASE', 'APP_URL', 'CORS_ORIGIN'] as const) {
+    const value = env[key]?.trim();
+    if (value) {
+      return value.replace(/\/$/, '');
+    }
+  }
+  return undefined;
+}
+
+export function resolveGoogleOAuthRuntimeSettings(
+  env: GoogleOAuthEnv,
+): { readonly forceHttps: boolean; readonly publicBaseUrl: string | undefined } {
+  return {
+    forceHttps: isForceHttpsEnabled(env, googleOAuthAdminForceHttpsUpgrade),
+    publicBaseUrl: resolveOAuthPublicBaseUrl(env),
+  };
+}
+
+/**
+ * Effective request scheme for URL building behind reverse proxies.
+ * Prefers `https` when `X-Forwarded-Proto` is `https` or force-HTTPS is enabled.
+ */
+export function resolveRequestProtocol(input: {
+  readonly protocol: string | undefined;
+  readonly forwardedProto: string | undefined;
+  readonly forceHttps: boolean;
+}): 'http' | 'https' {
+  const forwarded = input.forwardedProto?.split(',')[0]?.trim().toLowerCase();
+  if (forwarded === 'https') {
+    return 'https';
+  }
+  if (input.forceHttps) {
+    return 'https';
+  }
+  const direct = input.protocol?.replace(/:$/, '').toLowerCase();
+  if (direct === 'https') {
+    return 'https';
+  }
+  return 'http';
+}
+
+/** Upgrades an absolute `http:` URL origin to `https:` (path/query unchanged). */
+export function upgradeHttpOriginToHttps(urlString: string): string {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol === 'http:') {
+      parsed.protocol = 'https:';
+    }
+    return parsed.toString();
+  } catch {
+    return urlString;
+  }
+}
+
+/**
+ * Builds the absolute Google OAuth callback URL sent to Google as `redirect_uri`.
+ * Used at request time so TLS-terminated reverse proxies resolve to `https://`.
+ */
+export function buildGoogleOAuthCallbackUrlAtRequest(input: GoogleOAuthUrlBuildInput): string | undefined {
+  const configured = input.configuredCallback?.trim();
+  if (!configured) {
+    return undefined;
+  }
+
+  const path = extractGoogleOAuthCallbackPathAndQuery(
+    configured.startsWith('/') ? configured : normalizeGoogleOAuthCallbackUrl(configured),
+  );
+  const effectiveProto = resolveRequestProtocol({
+    protocol: input.protocol,
+    forwardedProto: input.forwardedProto,
+    forceHttps: input.forceHttps,
+  });
+
+  const publicBase = input.publicBaseUrl?.trim();
+  if (publicBase) {
+    try {
+      const base = new URL(publicBase);
+      base.protocol = effectiveProto === 'https' ? 'https:' : 'http:';
+      return `${base.origin}${path.startsWith('/') ? path : `/${path}`}`;
+    } catch {
+      /* fall through to host-based build */
+    }
+  }
+
+  const host = input.host?.trim();
+  if (!host) {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(configured)) {
+      return effectiveProto === 'https' ? upgradeHttpOriginToHttps(configured) : configured;
+    }
+    return configured;
+  }
+
+  if (configured.startsWith('/') || !/^[a-z][a-z0-9+.-]*:/i.test(configured)) {
+    return `${effectiveProto}://${host}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
+  try {
+    const absolute = new URL(configured);
+    absolute.protocol = effectiveProto === 'https' ? 'https:' : 'http:';
+    return absolute.toString();
+  } catch {
+    return configured;
+  }
+}
+
 /**
  * Normalizes Google OAuth redirect URI values. Google Cloud Console copy/paste
  * sometimes appends a separate token such as ` flowName=GeneralOAuthFlow`, and
@@ -102,13 +247,38 @@ export function resolveGoogleOAuthPassportCallbackUrl(input: {
   readonly normalizedCallback: string;
   readonly nodeEnv: string | undefined;
   readonly googleOAuthBrowserOrigin: string | undefined;
+  readonly forceHttps?: boolean;
+  readonly publicBaseUrl?: string | undefined;
 }): string {
   const origin = parseGoogleOAuthBrowserOrigin(input.googleOAuthBrowserOrigin);
   if (origin !== null) {
     const path = extractGoogleOAuthCallbackPathAndQuery(input.normalizedCallback);
-    return `${origin.origin}${path.startsWith('/') ? path : `/${path}`}`;
+    let callback = `${origin.origin}${path.startsWith('/') ? path : `/${path}`}`;
+    if (input.forceHttps) {
+      callback = upgradeHttpOriginToHttps(callback);
+    }
+    return callback;
   }
-  return resolvePassportGoogleOAuthCallbackUrl(input.normalizedCallback, input.nodeEnv);
+
+  let resolved = resolvePassportGoogleOAuthCallbackUrl(input.normalizedCallback, input.nodeEnv);
+  const isRelative = resolved.startsWith('/') || !/^[a-z][a-z0-9+.-]*:/i.test(resolved);
+
+  if (input.nodeEnv === 'production' && input.publicBaseUrl && isRelative) {
+    const path = extractGoogleOAuthCallbackPathAndQuery(resolved);
+    try {
+      const base = new URL(input.publicBaseUrl);
+      if (input.forceHttps) {
+        base.protocol = 'https:';
+      }
+      resolved = `${base.origin}${path.startsWith('/') ? path : `/${path}`}`;
+    } catch {
+      /* keep resolved */
+    }
+  } else if (input.forceHttps && /^http:\/\//i.test(resolved)) {
+    resolved = upgradeHttpOriginToHttps(resolved);
+  }
+
+  return resolved;
 }
 
 /** Absolute URL to start the Google OAuth browser flow, or `null` when no browser origin is configured. */

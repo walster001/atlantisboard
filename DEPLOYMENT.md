@@ -19,6 +19,12 @@ Both zips are built from the same `build-npm-package.sh` run; see `scripts/relea
 
 Environment variables: [docs/wiki/environment-variables.md](docs/wiki/environment-variables.md).
 
+## Built-in board roles (automatic)
+
+On every server start, Atlantisboard upserts built-in roles (`admin`, `manager`, `viewer`) and runs idempotent permission migrations, then **re-syncs built-in role permissions from** `src/shared/permissions/catalog.ts` (bundled in `dist/server/index.js` for npm/Docker installs). No manual migration command is required after install or upgrade—restart the app service (or full-stack container) so bootstrap runs once the new package is in place.
+
+Custom roles you create are never overwritten by this sync.
+
 ## MongoDB oplog sizing (change streams)
 
 Change streams read the replica set **oplog**. If the oplog rolls over before a restarted Atlantisboard node resumes (resume tokens are stored in Redis — see [Real-Time Collaboration](docs/wiki/realtime.md)), events can be missed.

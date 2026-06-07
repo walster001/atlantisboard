@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'bun:test';
 import {
   clampAttachmentSignedUrlTtlSec,
   getMinioPublicOrigin,
+  isMinioPublicPresignConfigured,
   parseAttachmentDeliveryMode,
   resolveAttachmentDeliveryKind,
 } from '../src/server/config/attachmentDelivery.js';
@@ -64,9 +65,66 @@ describe('attachmentDelivery config', () => {
   });
 
   it('derives MinIO public origin from MINIO_PUBLIC_*', () => {
+    process.env.MINIO_ENDPOINT = 'minio';
     process.env.MINIO_PUBLIC_ENDPOINT = 'cdn.example.com';
     process.env.MINIO_PUBLIC_PORT = '443';
     process.env.MINIO_PUBLIC_USE_SSL = 'true';
     expect(getMinioPublicOrigin()).toBe('https://cdn.example.com');
+    expect(isMinioPublicPresignConfigured()).toBe(true);
+  });
+
+  it('does not treat internal MINIO_ENDPOINT as public origin', () => {
+    delete process.env.MINIO_PUBLIC_ENDPOINT;
+    delete process.env.MINIO_PUBLIC_PORT;
+    delete process.env.MINIO_PUBLIC_USE_SSL;
+    delete process.env.S3_PUBLIC_URL;
+    delete process.env.ATTACHMENT_PUBLIC_BASE;
+    process.env.MINIO_ENDPOINT = 'minio';
+    process.env.MINIO_PORT = '9000';
+    expect(getMinioPublicOrigin()).toBeNull();
+    expect(isMinioPublicPresignConfigured()).toBe(false);
+  });
+
+  it('rejects MINIO_PUBLIC_ENDPOINT that matches internal endpoint in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.MINIO_ENDPOINT = 'minio';
+    process.env.MINIO_PUBLIC_ENDPOINT = 'minio';
+    process.env.MINIO_PUBLIC_PORT = '9000';
+    expect(isMinioPublicPresignConfigured()).toBe(false);
+    expect(getMinioPublicOrigin()).toBeNull();
+  });
+
+  it('allows localhost public presign in development when internal is also localhost', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.MINIO_ENDPOINT = 'localhost';
+    process.env.MINIO_PUBLIC_ENDPOINT = 'localhost';
+    process.env.MINIO_PUBLIC_PORT = '9000';
+    process.env.MINIO_PUBLIC_USE_SSL = 'false';
+    expect(isMinioPublicPresignConfigured()).toBe(true);
+    expect(getMinioPublicOrigin()).toBe('http://localhost:9000');
+  });
+
+  it('defaults scheme-less S3_PUBLIC_URL to http in development', () => {
+    process.env.NODE_ENV = 'development';
+    delete process.env.MINIO_PUBLIC_ENDPOINT;
+    process.env.MINIO_ENDPOINT = '127.0.0.1';
+    process.env.S3_PUBLIC_URL = 'localhost:9000';
+    expect(isMinioPublicPresignConfigured()).toBe(true);
+    expect(getMinioPublicOrigin()).toBe('http://localhost:9000');
+  });
+
+  it('rejects docker internal hostname even in development', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.MINIO_ENDPOINT = 'localhost';
+    process.env.MINIO_PUBLIC_ENDPOINT = 'minio';
+    process.env.MINIO_PUBLIC_PORT = '9000';
+    expect(isMinioPublicPresignConfigured()).toBe(false);
+  });
+
+  it('parses S3_PUBLIC_URL as public presign endpoint', () => {
+    delete process.env.MINIO_PUBLIC_ENDPOINT;
+    process.env.S3_PUBLIC_URL = 'https://storage.example.com';
+    expect(isMinioPublicPresignConfigured()).toBe(true);
+    expect(getMinioPublicOrigin()).toBe('https://storage.example.com');
   });
 });

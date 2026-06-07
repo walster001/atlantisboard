@@ -17,6 +17,8 @@ bun test --timeout 120000 --max-concurrency 1
 
 When Mongo or Redis are unavailable, DB-backed suites **skip with an explicit label** in the test name (they do not hang for ~3s waiting for `/health`).
 
+**Safety:** `clearTestDatabase()` refuses to run locally when `MONGODB_TEST_URI` resolves to the same database as `MONGODB_URI` (prevents wiping dev data). Use `kanboard_test` for tests. CI is exempt (disposable DB).
+
 If env vars are set but services are down, `tests/setup.ts` probes Mongo/Redis (≤4s) and skips global DB hooks with a console warning instead of a 30s Mongoose hang.
 
 ## Environment variables

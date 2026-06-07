@@ -133,6 +133,7 @@ fi
 
 # Start development server in background
 echo -e "${BLUE}Starting development server...${NC}"
+"$SCRIPT_DIR/ensure-dev-port-free.sh"
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  Application will be available at:${NC}"
 echo -e "${GREEN}  http://localhost:3000${NC}"

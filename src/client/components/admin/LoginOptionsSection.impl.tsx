@@ -69,6 +69,7 @@ function LoginOptionsSectionInner() {
       <LoginStyleSection config={config} setConfig={setConfig} googleConfigured={googleConfigured} />
       <GoogleOAuthSection
         config={config}
+        setConfig={setConfig}
         googleConfigured={googleConfigured}
         googleReplaceMode={googleReplaceMode}
         setGoogleReplaceMode={setGoogleReplaceMode}

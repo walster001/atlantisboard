@@ -6,6 +6,22 @@ import {
 
 export { BUILTIN_ROLE_SEEDS } from '../../shared/permissions/catalog.js';
 
+/** Force built-in role rows to match `BUILTIN_ROLE_SEEDS` (catalog is canonical). */
+export async function syncBuiltinRolePermissionsFromCatalog(): Promise<void> {
+  for (const seed of BUILTIN_ROLE_SEEDS) {
+    await RoleDefinition.updateOne(
+      { key: seed.key, isBuiltIn: true },
+      {
+        $set: {
+          displayName: seed.displayName,
+          permissions: [...seed.permissions],
+          hierarchyLevel: seed.hierarchyLevel,
+        },
+      },
+    );
+  }
+}
+
 /** Upsert built-in role definitions and remove legacy "member" role. */
 export async function seedBuiltinRoleDefinitions(): Promise<void> {
   for (const seed of BUILTIN_ROLE_SEEDS) {

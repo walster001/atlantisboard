@@ -58,7 +58,9 @@ export async function setupChangeStreams(io: SocketIOServer): Promise<void> {
   }
 
   if (!mongoose.connection.db) {
-    logger.warn('Database connection not available for Change Streams');
+    logger.warn(
+      'Database connection not available for Change Streams (mongoose.connection.db is unset after connect)',
+    );
     return;
   }
 

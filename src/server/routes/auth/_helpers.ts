@@ -6,6 +6,11 @@ import { createRateLimiter } from '../../middleware/rateLimit.js';
 import {
   assertNewUserRegistrationAllowed,
 } from '../../utils/registrationPolicy.js';
+import {
+  isForceHttpsEnabled,
+  resolveOAuthPublicBaseUrl,
+  upgradeHttpOriginToHttps,
+} from '../../../shared/utils/googleOAuthCallbackUrl.js';
 import { resolveHostOrigin } from '../../utils/resolveHostOrigin.js';
 
 export async function assertEmailPasswordAllowed(res: Response): Promise<boolean> {
@@ -91,15 +96,28 @@ export const resetPasswordSchema = z.object({
  */
 export function oauthRedirectBase(req?: Request): string {
   const isProduction = process.env.NODE_ENV === 'production';
+  const forceHttps = isForceHttpsEnabled({
+    FORCE_HTTPS: process.env.FORCE_HTTPS,
+  });
+  const fromEnv = resolveOAuthPublicBaseUrl({
+    OAUTH_REDIRECT_BASE: process.env.OAUTH_REDIRECT_BASE,
+    APP_URL: process.env.APP_URL,
+    CORS_ORIGIN: process.env.CORS_ORIGIN,
+  });
+  if (fromEnv) {
+    let base = fromEnv;
+    if (forceHttps && base.startsWith('http://')) {
+      base = upgradeHttpOriginToHttps(base);
+    }
+    if (isProduction) {
+      return base;
+    }
+  }
   if (!isProduction && req) {
     const fromRequest = resolveHostOrigin(req);
     if (fromRequest) {
       return fromRequest;
     }
-  }
-  const fromEnv = (process.env.APP_URL || process.env.CORS_ORIGIN)?.trim();
-  if (fromEnv) {
-    return fromEnv.replace(/\/$/, '');
   }
   if (req) {
     const fromRequest = resolveHostOrigin(req);

@@ -132,6 +132,16 @@ These variables are only used when the authentication method is set to **Google 
 | `MINIO_ROOT_ACCESS_KEY` | _(falls back to `MINIO_ACCESS_KEY`)_ | MinIO **server** root user (production Compose). Set separately from app keys for least privilege |
 | `MINIO_ROOT_SECRET_KEY` | _(falls back to `MINIO_SECRET_KEY`)_ | MinIO server root password |
 | `MINIO_UPLOAD_PART_SIZE_MB` | `128` | Multipart upload chunk size (16–256 MiB) |
+| `MINIO_PUBLIC_ENDPOINT` | _(unset)_ | Browser-reachable MinIO hostname for presigned attachment URLs (e.g. `minio.example.com`). **Do not** set to Docker internal `minio` |
+| `MINIO_PUBLIC_PORT` | `9000` | Public MinIO API port (use `443` with TLS) |
+| `MINIO_PUBLIC_USE_SSL` | `false` | Use HTTPS in presigned URLs |
+| `S3_PUBLIC_URL` | _(unset)_ | Alternative to `MINIO_PUBLIC_*`: full public object-store base URL (e.g. `https://minio.example.com`) |
+| `ATTACHMENT_PUBLIC_BASE` | _(unset)_ | Alias for `S3_PUBLIC_URL` when exposing attachments via CDN/public MinIO |
+| `ATTACHMENT_DELIVERY_MODE` | `hybrid` | `hybrid` \| `signed` \| `proxy` — how attachments are streamed to browsers |
+| `ATTACHMENT_SIGNED_URL_TTL_SEC` | `900` | Presigned GET TTL (60–3600 seconds) |
+| `ATTACHMENT_HYBRID_SIGNED_MIN_BYTES` | `5242880` | Hybrid mode: sign files at or above this size (bytes) |
+
+> **Production attachments:** Leave `MINIO_PUBLIC_*` unset to serve all media through same-origin `/api/v1/attachments/:id/file` (works with `media-src 'self'`). Set `MINIO_PUBLIC_ENDPOINT` (or `S3_PUBLIC_URL`) only when browsers must fetch large/video files directly from MinIO/CDN—and add that origin to your reverse proxy / MinIO CORS config.
 
 > **Warning:** Change the default `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` in production. The defaults (`minioadmin` / `minioadmin`) are for development only.
 

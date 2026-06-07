@@ -56,10 +56,15 @@ rm -rf .docker-data             # deletes all local dev DB + MinIO data
 If you still have data in Docker volumes from before this change (for example `atlboard-new_mongo-data`):
 
 ```bash
-./scripts/migrate-legacy-docker-volumes.sh
+docker compose stop mongodb
+./scripts/migrate-legacy-docker-volumes.sh --replace
+docker compose up -d mongodb
+docker compose up --no-deps mongodb-init
 ```
 
-Or copy manually:
+**Do not** copy legacy volume data into a non-empty `.docker-data/mongodb/db` with plain `docker run … cp -a` — merging two WiredTiger trees corrupts the journal and MongoDB will exit with code 14. Use the script (it replaces the directory atomically) or move the old bind mount aside first.
+
+Or copy manually (MongoDB must be stopped; destination must be empty):
 
 ```bash
 docker run --rm \

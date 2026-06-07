@@ -2,7 +2,11 @@ import http from 'node:http';
 import https from 'node:https';
 import { Client as MinIOClient } from 'minio';
 import { MINIO_BUCKET_CARD_ATTACHMENTS, MINIO_BUCKET_NAMES } from '../../shared/constants/minioBuckets.js';
-import { getMinioPublicOrigin } from './attachmentDelivery.js';
+import {
+  getMinioPublicOrigin,
+  isMinioPublicPresignConfigured,
+  resolveMinioPublicEndpointConfig,
+} from './attachmentDelivery.js';
 import { logger } from '../utils/logger.js';
 
 let minioClient: MinIOClient | null = null;
@@ -73,24 +77,27 @@ function buildMinioClientOptions(endPoint: string, port: number, useSSL: boolean
 
 /**
  * MinIO client whose host appears in presigned URLs (browser-reachable).
- * Falls back to the internal client when MINIO_PUBLIC_* is unset.
+ * Requires `MINIO_PUBLIC_*` or `S3_PUBLIC_URL` / `ATTACHMENT_PUBLIC_BASE` — never uses internal endpoint.
  */
 export function getMinIOPublicPresignClient(): MinIOClient {
   if (minioPublicPresignClient) {
     return minioPublicPresignClient;
   }
 
-  const publicEndpoint = (process.env.MINIO_PUBLIC_ENDPOINT ?? '').trim();
-  if (publicEndpoint === '') {
-    return getMinIOClient();
+  if (!isMinioPublicPresignConfigured()) {
+    throw new Error(
+      'MinIO public presign endpoint is not configured. Set MINIO_PUBLIC_ENDPOINT (or S3_PUBLIC_URL) for direct browser delivery, or use ATTACHMENT_DELIVERY_MODE=proxy.',
+    );
   }
 
-  const port = Number.parseInt(process.env.MINIO_PUBLIC_PORT ?? process.env.MINIO_PORT ?? '9000', 10);
-  const useSSL = process.env.MINIO_PUBLIC_USE_SSL === 'true';
-  minioPublicPresignClient = new MinIOClient(
-    buildMinioClientOptions(publicEndpoint, Number.isFinite(port) ? port : 9000, useSSL),
-  );
-  logger.info({ endPoint: publicEndpoint, port, useSSL }, 'MinIO public presign client initialized');
+  const publicConfig = resolveMinioPublicEndpointConfig();
+  if (publicConfig == null) {
+    throw new Error('MinIO public presign endpoint configuration is invalid');
+  }
+
+  const { endPoint, port, useSSL } = publicConfig;
+  minioPublicPresignClient = new MinIOClient(buildMinioClientOptions(endPoint, port, useSSL));
+  logger.info({ endPoint, port, useSSL }, 'MinIO public presign client initialized');
   return minioPublicPresignClient;
 }
 

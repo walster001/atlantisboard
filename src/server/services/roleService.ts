@@ -7,7 +7,7 @@ import {
   type BuiltInRoleSeed,
   type RoleKey,
 } from '../../shared/permissions/catalog.js';
-import { seedBuiltinRoleDefinitions } from './roleSeeds.js';
+import { seedBuiltinRoleDefinitions, syncBuiltinRolePermissionsFromCatalog } from './roleSeeds.js';
 import { runRolePermissionMigrations } from './rolePermissionMigrations.js';
 
 export type { BoardMemberRoleUpdateModeKey, BuiltInRoleKey, BuiltInRoleSeed, RoleKey };
@@ -40,5 +40,6 @@ export async function initializeRoleDefinitions(): Promise<void> {
 async function seedRoleDefinitions(): Promise<void> {
   await seedBuiltinRoleDefinitions();
   await runRolePermissionMigrations();
+  await syncBuiltinRolePermissionsFromCatalog();
   logger.info('Role definitions initialized');
 }

@@ -1,7 +1,21 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger.js';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/kanboard';
+function resolveMongoUri(): string {
+  return process.env.MONGODB_URI?.trim() || 'mongodb://localhost:27017/kanboard';
+}
+
+/** Database name from URI path (for startup logs — not used for connect). */
+function mongoDatabaseNameFromUri(uri: string): string {
+  try {
+    const normalized = uri.replace(/^mongodb\+srv:\/\//, 'https://').replace(/^mongodb:\/\//, 'http://');
+    const pathname = new URL(normalized).pathname.replace(/^\//, '');
+    const dbName = pathname.split('/')[0]?.split('?')[0];
+    return dbName && dbName.length > 0 ? dbName : 'test';
+  } catch {
+    return 'unknown';
+  }
+}
 
 const connectionOptions: mongoose.ConnectOptions = {
   maxPoolSize: 50,
@@ -52,9 +66,14 @@ export async function connectDatabase(): Promise<void> {
   }
 
   try {
-    await mongoose.connect(MONGODB_URI, connectionOptions);
+    const mongoUri = resolveMongoUri();
+    const databaseName = mongoDatabaseNameFromUri(mongoUri);
+    await mongoose.connect(mongoUri, connectionOptions);
     isConnected = true;
-    logger.info('Database connection established');
+    logger.info(
+      { database: mongoose.connection.db?.databaseName ?? databaseName },
+      'Database connection established',
+    );
   } catch (error) {
     logger.error({ error }, 'Failed to connect to database');
     throw error;

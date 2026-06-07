@@ -55,7 +55,8 @@ services:
     restart: 'no'
     environment:
       MONGODB_HOST: mongodb
-      MONGODB_REPLICA_MEMBER_HOST: mongodb:27017
+      # Host clients use localhost:27017; member must match for replica-set discovery from the host.
+      MONGODB_REPLICA_MEMBER_HOST: 127.0.0.1:27017
     volumes:
       - ./docker/mongodb/replica-init.sh:/replica-init.sh:ro
     entrypoint: ['bash', '/replica-init.sh']

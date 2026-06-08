@@ -32,6 +32,7 @@
   "files": [
     "dist",
     "public",
+    "src/server/emails",
     "package.json",
     "bun.lock",
     ".env.example",

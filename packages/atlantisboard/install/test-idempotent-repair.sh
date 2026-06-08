@@ -62,6 +62,16 @@ seed_install_tree() {
     "${PKG_ROOT}/install/docker/entrypoint.sh" \
     "${PKG_ROOT}/install/docker/reset-docker-data.sh" \
     "${root}/install/docker/" 2>/dev/null || true
+  local emails_src=""
+  if [[ -d "${PKG_ROOT}/src/server/emails" ]]; then
+    emails_src="${PKG_ROOT}/src/server/emails"
+  elif [[ -d "${PKG_ROOT}/../../src/server/emails" ]]; then
+    emails_src="${PKG_ROOT}/../../src/server/emails"
+  fi
+  if [[ -n "$emails_src" ]]; then
+    mkdir -p "${root}/src/server"
+    cp -a "$emails_src" "${root}/src/server/emails"
+  fi
 }
 
 state="$(atl_detect_existing_install "$INSTALL_DIR")"

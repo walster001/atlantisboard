@@ -200,6 +200,11 @@ atl_install_integrity_paths() {
 dist/server/index.js
 dist/workers/index.js
 public/index.js
+src/server/emails/test.handlebars
+src/server/emails/layouts/main.handlebars
+src/server/emails/password-reset.handlebars
+src/server/emails/verify-email.handlebars
+src/server/emails/board-activity-roundup.handlebars
 install/setup.sh
 install/lib/common.sh
 install/lib/common-env.sh

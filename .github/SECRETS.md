@@ -28,7 +28,7 @@ openssl rand -base64 48
 
 Installer full-stack images use `packages/atlantisboard/install/docker/Dockerfile`:
 
-- **`production`** — Staging zip, production deploy, and `docker compose` fullstack: **pre-built `dist/` only** (no `src/` in the zip). See `.dockerignore` and `strip-release-docker-sources.sh`.
+- **`production`** — Staging zip, production deploy, and `docker compose` fullstack: **pre-built `dist/`** plus **`src/server/emails/`** (Handlebars templates). Other `src/` is stripped; see `strip-release-docker-sources.sh` and `copy-release-email-templates.sh`.
 - **`development`** — CI only (`docker-image` job): in-image compile via `SYNC_DOCKER_BUILD_SOURCES=1`; not bundled in release artifacts.
 
 Run `scripts/build-npm-package.sh` before zips or `docker build --target production`.

@@ -8,8 +8,8 @@
 #   development         — CI: full dev install + in-image build (not shipped in release zip)
 #   production          — Release zip / Staging / installer Compose (pre-built dist only)
 #
-# Release zip must include dist/ and public/ and must NOT include src/ or docker/root.*.
-# See packages/atlantisboard/.dockerignore.
+# Release zip must include dist/, public/, and src/server/emails (Handlebars templates).
+# Other src/ and docker/root.* are excluded. See packages/atlantisboard/.dockerignore.
 
 FROM oven/bun:1.3.5-alpine AS base
 WORKDIR /app
@@ -18,6 +18,7 @@ WORKDIR /app
 FROM base AS artifacts
 COPY dist ./dist
 COPY public ./public
+COPY src/server/emails ./src/server/emails
 
 # Source compile path — CI only (sync-docker-build-context.sh).
 FROM base AS deps-dev
@@ -71,6 +72,7 @@ RUN bun install --frozen-lockfile --production --ignore-scripts \
   && rm -rf /home/bunjs/.bun/install/cache
 COPY --chown=bunjs:nodejs --from=artifacts /app/dist ./dist
 COPY --chown=bunjs:nodejs --from=artifacts /app/public ./public
+COPY --chown=bunjs:nodejs --from=artifacts /app/src/server/emails ./src/server/emails
 EXPOSE 3000
 USER root
 ENTRYPOINT ["/entrypoint.sh"]

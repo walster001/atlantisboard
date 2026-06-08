@@ -16,7 +16,11 @@ node_modules
 README.md
 
 # CI / dev-only sources (not in release zip; see strip-release-docker-sources.sh)
-src
+src/*
+!src/server/
+src/server/*
+!src/server/emails/
+!src/server/emails/**
 scripts
 docker
 postcss.config.js

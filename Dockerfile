@@ -60,6 +60,7 @@ RUN bun install --frozen-lockfile --production --ignore-scripts \
   && rm -rf /home/bunjs/.bun/install/cache
 COPY --chown=bunjs:nodejs --from=build /app/dist ./dist
 COPY --chown=bunjs:nodejs --from=build /app/public ./public
+COPY --chown=bunjs:nodejs --from=build /app/src/server/emails ./src/server/emails
 EXPOSE 3000
 USER root
 ENTRYPOINT ["/entrypoint.sh"]

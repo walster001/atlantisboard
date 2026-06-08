@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Remove CI-only Docker source context from the release npm package / installer zip.
+# Email templates are re-copied afterward by copy-release-email-templates.sh.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

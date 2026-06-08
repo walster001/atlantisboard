@@ -91,7 +91,7 @@ export function useHomePagePointerDrag(
       setBoardLongPressUi,
       setBoardDropIndicator,
     });
-  }, [actionsRef, layoutReady, modelsRef, touchReorderRequiresLongPress]);
+  }, [actionsRef, layoutReady, modelsRef, setBoardDropIndicator, touchReorderRequiresLongPress]);
 
   return { suppressBoardClickRef, floatPreview, draggingBoardId, boardLongPressUi, boardDropIndicator };
 }

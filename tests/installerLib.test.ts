@@ -323,6 +323,40 @@ describe('installer shell static guards', () => {
     expect(assertScript).toContain('runner/work/');
     const buildScript = readFileSync(join(REPO_ROOT, 'scripts', 'build-npm-package.sh'), 'utf8');
     expect(buildScript).toContain('assert-bundle-no-host-paths.sh');
+    expect(buildScript).toContain('copy-release-email-templates.sh');
+  });
+
+  test('release pipeline ships Handlebars email templates for SMTP', () => {
+    const copyScript = readFileSync(
+      join(REPO_ROOT, 'scripts', 'copy-release-email-templates.sh'),
+      'utf8',
+    );
+    expect(copyScript).toContain('src/server/emails');
+    expect(copyScript).toContain('test.handlebars');
+    const integrity = readFileSync(
+      join(INSTALL_DIR, 'lib', 'common-install-integrity.sh'),
+      'utf8',
+    );
+    expect(integrity).toContain('src/server/emails/test.handlebars');
+    expect(integrity).toContain('src/server/emails/layouts/main.handlebars');
+    const dockerfile = readFileSync(join(INSTALL_DIR, 'docker', 'Dockerfile'), 'utf8');
+    expect(dockerfile).toContain('COPY src/server/emails ./src/server/emails');
+    expect(dockerfile).toContain('--from=artifacts /app/src/server/emails');
+    const dockerignore = readFileSync(join(PKG_ROOT, '.dockerignore'), 'utf8');
+    expect(dockerignore).toContain('!src/server/emails/');
+    const verifyDocker = readFileSync(
+      join(REPO_ROOT, '.github', 'scripts', 'verify-docker-images.sh'),
+      'utf8',
+    );
+    expect(verifyDocker).toContain('Assert production image includes email templates');
+    const pkgJson = readFileSync(join(PKG_ROOT, 'package.json'), 'utf8');
+    expect(pkgJson).toContain('src/server/emails');
+    for (const rel of [
+      'src/server/emails/test.handlebars',
+      'src/server/emails/layouts/main.handlebars',
+    ]) {
+      expect(readFileSync(join(REPO_ROOT, rel), 'utf8').length).toBeGreaterThan(0);
+    }
   });
 
   test('mock whiptail fixture is executable', () => {

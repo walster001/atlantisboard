@@ -626,6 +626,8 @@ atl_apply_pompelmi_defaults() {
     docker|manual)
       ;;
   esac
+  ENV_VALUES["POMPELMI_USE_CLAMD"]="${ENV_VALUES[POMPELMI_USE_CLAMD]:-auto}"
+  ENV_VALUES["POMPELMI_CLAMD_MIN_RAM_MB"]="${ENV_VALUES[POMPELMI_CLAMD_MIN_RAM_MB]:-2048}"
   if [[ -n "${ENV_VALUES[POMPELMI_CLAMD_HOST]:-}" ]]; then
     ENV_VALUES["POMPELMI_CLAMD_PORT"]="${ENV_VALUES[POMPELMI_CLAMD_PORT]:-3310}"
   else

@@ -20,7 +20,7 @@ This page lists everything you need to run Atlantisboard. There are two deployme
 | Resource | Minimum |
 |----------|---------|
 | **CPU** | 1 vCPU / core |
-| **RAM** | 2 GB |
+| **RAM** | 2 GB (malware scanning uses on-demand `clamscan`; no `clamd` daemon) |
 | **Disk** | 10 GB free (SSD recommended) |
 
 ### Larger Deployment (10–50+ users)
@@ -30,6 +30,8 @@ This page lists everything you need to run Atlantisboard. There are two deployme
 | **CPU** | 2–4 vCPUs / cores |
 | **RAM** | 4–8 GB |
 | **Disk** | 20–50 GB SSD (scales with attachment storage) |
+
+> **Malware scanning and RAM:** Docker production images include ClamAV for attachment scanning. When **available memory is at least 2 GB** (`MemAvailable`, configurable via `POMPELMI_CLAMD_MIN_RAM_MB`), the app container starts **`clamd`** and keeps virus signatures in daemon RAM (~200–400 MB on top of the normal stack). Below that threshold it uses **`clamscan`** per upload instead — lower RAM, no extra daemon. **Allocating more than 2 GB of available RAM therefore increases memory use** for scanning. For a single VM running the full Docker stack with `clamd`, plan **4 GB+ total RAM**. See [Environment Variables — Malware scanning](environment-variables.md#malware-scanning-clamav--pompelmi).
 
 > **Note:** Disk usage depends heavily on how many file attachments, board backgrounds, and backups you store. MinIO handles object storage separately, so plan accordingly if your team uploads large files frequently.
 

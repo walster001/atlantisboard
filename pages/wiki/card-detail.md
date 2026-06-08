@@ -146,6 +146,7 @@ Upload and manage files attached to a card.
 | Feature | Details |
 |---------|---------|
 | **Upload** | Drag and drop files onto the card detail, or use the file picker button. |
+| **Malware scan** | Uploads are scanned with ClamAV before storage. On servers with **≥ 2 GB available RAM**, scanning uses an in-container **`clamd`** daemon (higher RAM use, faster repeat scans); below that threshold scans run on-demand via **`clamscan`**. |
 | **Size limit** | Configurable via the `CARD_ATTACHMENT_MAX_MB` environment variable (default: 50 MB). |
 | **Attachment list** | Displays all attached files with filenames and download links. |
 | **Image previews** | Image attachments show inline thumbnail previews. |

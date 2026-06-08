@@ -37,6 +37,8 @@ import { renderSpaIndexHtml } from './utils/spaIndex.js';
 // Background jobs can run in separate worker process or in main process
 // Set ENABLE_CRON_JOBS_IN_MAIN=true to run in main process (default: false, use separate worker)
 import { scheduleCronJobs } from './workers/cronJobs.js';
+import { startClamSignatureRefreshScheduler } from './utils/clamSignatureScheduler.js';
+import { logMalwareScanModeAtStartup } from './utils/clamScanMode.js';
 import {
   migrateLegacyUserPlaceholdersToBoardCollection,
   repairWekanEmailStoredInImportUsername,
@@ -188,6 +190,9 @@ if (process.env.ENABLE_CRON_JOBS_IN_MAIN === 'true') {
 } else {
   logger.info('Cron jobs disabled in main process. Start worker separately: bun run src/server/workers/index.ts');
 }
+
+startClamSignatureRefreshScheduler();
+void logMalwareScanModeAtStartup();
 
 let httpServerStartPromise: Promise<number> | null = null;
 let changeStreamsStarted = false;

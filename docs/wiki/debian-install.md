@@ -19,7 +19,16 @@ For npm details and wizard options shared with other distros, see [npm install (
 
 Choose **Docker full stack** in the wizard. The app, MongoDB, Redis, and MinIO all run in containers. You do **not** need Bun on the host for this mode.
 
-Malware scanning uses **on-demand `clamscan` inside the app container** (no separate ClamAV sidecar). Signature files are stored in the `clamav-sigs-full` Docker volume.
+**Malware scanning** (ClamAV via Pompelmi) runs **inside the app container** — there is no separate ClamAV sidecar. Signature files live in the `clamav-sigs-full` Docker volume.
+
+On container start the entrypoint picks the scan backend from available RAM (`MemAvailable`):
+
+| Available RAM | Mode | What it means |
+|---------------|------|----------------|
+| **≥ 2 GB** (default threshold) | **`clamd`** | A ClamAV daemon starts in the app container and keeps signatures loaded in RAM (~200–400 MB extra). Upload scans are faster on repeat traffic. |
+| **&lt; 2 GB** | **`clamscan`** | No daemon — each upload runs an on-demand scan with OS page-cache warm. Lower RAM use, slightly higher per-scan cost. |
+
+If you give the VM **more than 2 GB of available memory**, Atlantisboard **will use more RAM for malware scanning** because `clamd` mode activates automatically. Plan **4 GB+ total RAM** for a comfortable single-VM full stack with `clamd` enabled. See [System Requirements](system-requirements.md) and [Environment Variables — Malware scanning](environment-variables.md#malware-scanning-clamav--pompelmi).
 
 ---
 
@@ -33,7 +42,7 @@ Malware scanning uses **on-demand `clamscan` inside the app container** (no sepa
 | **Interactive TTY** | Whiptail needs a real terminal (SSH session, not a non-interactive CI job) |
 | **Outbound HTTPS** | Pull container images and (on first scan) ClamAV signature updates |
 
-**Hardware:** see [System Requirements](system-requirements.md) — **2 GB RAM** minimum for small teams; **4 GB+** comfortable for full stack on a single VM.
+**Hardware:** see [System Requirements](system-requirements.md) — **2 GB RAM** minimum (uses on-demand `clamscan`); **4 GB+** recommended so `clamd` can start and the full stack stays responsive.
 
 ---
 

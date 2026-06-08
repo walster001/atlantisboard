@@ -6,6 +6,10 @@ import {
   ensureClamScanReady,
   hasClamSignatureDatabaseInDir,
 } from '../src/server/utils/clamSignatures.js';
+import {
+  getWarmedFingerprintForTests,
+  resetClamDbPageCacheStateForTests,
+} from '../src/server/utils/clamDbPageCache.js';
 import { ValidationError } from '../src/shared/errors/domainErrors.js';
 
 describe('clamSignatures', () => {
@@ -13,6 +17,7 @@ describe('clamSignatures', () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
+    resetClamDbPageCacheStateForTests();
   });
 
   it('detects signature files in a directory', async () => {
@@ -32,6 +37,22 @@ describe('clamSignatures', () => {
       process.env.CLAMAV_DB_DIR = dir;
       process.env.POMPELMI_SKIP_SCAN = 'false';
       await expect(ensureClamScanReady()).rejects.toBeInstanceOf(ValidationError);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('warms page cache when signatures are present', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'clam-ready-warm-'));
+    try {
+      process.env.CLAMAV_DB_DIR = dir;
+      process.env.POMPELMI_SKIP_SCAN = 'false';
+      process.env.POMPELMI_USE_CLAMD = 'false';
+      await writeFile(join(dir, 'main.cvd'), 'stub');
+
+      await ensureClamScanReady();
+
+      expect(getWarmedFingerprintForTests()).not.toBeNull();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

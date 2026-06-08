@@ -1,7 +1,7 @@
 # Production full-stack Compose (repo root). For installer-based deploys, use
 # packages/atlantisboard/install/docker/docker-compose.fullstack.yml instead.
 #
-# Malware scanning: clamscan runs inside the app image on each upload (no clamd sidecar).
+# Malware scanning: clamd when MemAvailable ≥ 2GB, else on-demand clamscan (see entrypoint.sh).
 # Signatures live in clamav-sigs-prod; first upload or container start may run freshclam.
 services:
   mongodb:

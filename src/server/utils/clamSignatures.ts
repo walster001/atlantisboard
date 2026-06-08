@@ -2,9 +2,14 @@ import { access } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { ValidationError } from '../../shared/errors/domainErrors.js';
+import {
+  getClamAvDbDir,
+  invalidateClamDbPageCacheWarmState,
+  warmClamDbPageCache,
+} from './clamDbPageCache.js';
+import { reloadClamdSignaturesIfActive } from './clamdReload.js';
+import { resolveUseClamd } from './clamScanMode.js';
 import { logger } from './logger.js';
-
-const DB_DIR = process.env.CLAMAV_DB_DIR?.trim() || '/var/lib/clamav';
 
 export const CLAMAV_SIGNATURE_FILES = ['main.cvd', 'main.cld', 'daily.cvd', 'daily.cld'] as const;
 const SIGNATURE_FILES = CLAMAV_SIGNATURE_FILES;
@@ -28,7 +33,7 @@ export async function hasClamSignatureDatabaseInDir(dir: string): Promise<boolea
 }
 
 export async function hasClamSignatureDatabase(): Promise<boolean> {
-  return hasClamSignatureDatabaseInDir(DB_DIR);
+  return hasClamSignatureDatabaseInDir(getClamAvDbDir());
 }
 
 async function runFreshclam(): Promise<void> {
@@ -64,7 +69,11 @@ export async function updateClamSignaturesIfNeeded(): Promise<void> {
     await updateInFlight;
     return;
   }
-  updateInFlight = runFreshclam().finally(() => {
+  updateInFlight = (async () => {
+    invalidateClamDbPageCacheWarmState();
+    await runFreshclam();
+    await reloadClamdSignaturesIfActive();
+  })().finally(() => {
     updateInFlight = null;
   });
   await updateInFlight;
@@ -80,6 +89,9 @@ export function prewarmMalwareScanner(): void {
       if (!(await hasClamSignatureDatabase())) {
         await updateClamSignaturesIfNeeded();
       }
+      if (!(await resolveUseClamd())) {
+        await warmClamDbPageCache();
+      }
     } catch (error) {
       logger.warn({ error }, 'ClamAV pre-warm failed');
     }
@@ -91,13 +103,15 @@ export async function ensureClamScanReady(): Promise<void> {
   if (shouldSkipMalwareScan()) {
     return;
   }
-  if (await hasClamSignatureDatabase()) {
-    return;
-  }
-  await updateClamSignaturesIfNeeded();
   if (!(await hasClamSignatureDatabase())) {
-    throw new ValidationError(
-      'Upload blocked: security scan is not ready. Wait a moment and try again.',
-    );
+    await updateClamSignaturesIfNeeded();
+    if (!(await hasClamSignatureDatabase())) {
+      throw new ValidationError(
+        'Upload blocked: security scan is not ready. Wait a moment and try again.',
+      );
+    }
+  }
+  if (!(await resolveUseClamd())) {
+    await warmClamDbPageCache();
   }
 }

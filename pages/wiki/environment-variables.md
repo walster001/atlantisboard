@@ -133,7 +133,7 @@ These variables are only used when the authentication method is set to **Google 
 | `MINIO_ROOT_SECRET_KEY` | _(falls back to `MINIO_SECRET_KEY`)_ | MinIO server root password |
 | `MINIO_UPLOAD_PART_SIZE_MB` | `128` | Multipart upload chunk size (16–256 MiB) |
 | `MINIO_PUBLIC_ENDPOINT` | _(unset)_ | Browser-reachable MinIO hostname for presigned attachment URLs (e.g. `minio.example.com`). **Do not** set to Docker internal `minio` |
-| `MINIO_PUBLIC_PORT` | `9000` | Public MinIO API port (use `443` with TLS) |
+| `MINIO_PUBLIC_PORT` | `443` | Public MinIO API port (use `443` with TLS) |
 | `MINIO_PUBLIC_USE_SSL` | `false` | Use HTTPS in presigned URLs |
 | `S3_PUBLIC_URL` | _(unset)_ | Alternative to `MINIO_PUBLIC_*`: full public object-store base URL (e.g. `https://minio.example.com`) |
 | `ATTACHMENT_PUBLIC_BASE` | _(unset)_ | Alias for `S3_PUBLIC_URL` when exposing attachments via CDN/public MinIO |
@@ -158,6 +158,8 @@ These variables are only used when the authentication method is set to **Google 
 | `CORS_ORIGIN` | `http://localhost:3000` | Comma-separated allowed CORS origins. Wildcard `*` rejected in production |
 | `CORS_ALLOW_MISSING_ORIGIN` | `false` | Production only: set `true` to allow credentialed API calls with no `Origin` header (non-browser clients). Browsers and installed PWAs normally send `Origin`; leave unset unless you operate server-to-server integrations |
 | `TRUST_PROXY_HOPS` | `1` | Number of trusted reverse proxy hops (Nginx/Caddy = 1) |
+| `FORCE_HTTPS` | *(unset)* | When `true`, OAuth redirect URIs and request-derived origins use `https://` even if Node sees plain HTTP behind TLS termination. Admin **Login options → Google OAuth → Upgrade OAuth URLs to HTTPS** applies when unset |
+| `OAUTH_REDIRECT_BASE` | *(unset)* | Public origin for OAuth redirects; falls back to `APP_URL`, then `CORS_ORIGIN` |
 | `APP_URL` | `http://localhost:3000` | Public-facing application URL |
 | `API_URL` | `http://localhost:3000/api/v1` | API base URL |
 
@@ -202,6 +204,38 @@ Rate limits are enforced per IP address using Redis-backed counters. Adjust thes
 > **Note:** The `BACKUP_LOCATION` must be an absolute path on the server (e.g. `/var/backups/atlantisboard`). The directory must exist and be writable by the application process. When using Docker, mount a host volume to this path so backups are accessible outside the container.
 
 > **Security:** Backup jobs use the MinIO Client (`mc`) with credentials from the app environment. Prefer a scoped `MINIO_ACCESS_KEY` (not root) so a compromised app process has limited object-store access. Never enable `POMPELMI_SKIP_SCAN=true` in production.
+
+---
+
+## Malware Scanning (ClamAV / Pompelmi)
+
+Card and board-import uploads are scanned with **ClamAV** through the **Pompelmi** library. In Docker, scanning runs inside the **app container** (no separate ClamAV service).
+
+### How `clamd` vs `clamscan` is chosen
+
+On container start, the entrypoint reads Linux **`MemAvailable`** and sets the scan backend:
+
+| Condition | Backend | RAM impact |
+|-----------|---------|------------|
+| `MemAvailable` ≥ `POMPELMI_CLAMD_MIN_RAM_MB` (default **2048**) | **`clamd`** | Daemon keeps signatures in RAM (~**200–400 MB** extra). Faster repeat scans. |
+| Below threshold, or `POMPELMI_USE_CLAMD=false` | **`clamscan`** | On-demand scans only; uses OS page-cache warm, no long-lived daemon. |
+
+**Important:** If you allocate **more than 2 GB of available memory** to the host/VM, Atlantisboard **automatically uses more RAM for malware scanning** because `clamd` starts. Size the machine accordingly (typically **4 GB+ total** for full-stack Docker with `clamd`).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POMPELMI_SKIP_SCAN` | `false` in production images | Set `true` only for local dev without ClamAV. **Never in production.** |
+| `POMPELMI_USE_CLAMD` | `auto` | `auto` — pick from RAM threshold; `true` — force `clamd`; `false` — force `clamscan`. |
+| `POMPELMI_CLAMD_MIN_RAM_MB` | `2048` | Minimum `MemAvailable` (MB) before `auto` starts `clamd`. |
+| `POMPELMI_CLAMD_HOST` | `127.0.0.1` | `clamd` TCP host (set when using an external daemon). |
+| `POMPELMI_CLAMD_PORT` | `3310` | `clamd` TCP port. |
+| `CLAMAV_DB_DIR` | `/var/lib/clamav` | Signature database directory (Docker volume in Compose). |
+| `POMPELMI_SCAN_TIMEOUT_MS` | `600000` | Max scan time per file (ms). |
+| `POMPELMI_FAIL_OPEN` | `false` | If `true`, allow uploads when the scanner is unavailable (not recommended for production). |
+| `POMPELMI_DB_PAGE_CACHE_WARM` | `true` | Warm kernel page cache for signature files (`clamscan` path). |
+| `POMPELMI_SIGNATURE_REFRESH` | `true` | Scheduled `freshclam` + re-warm (default every 24 h). |
+
+Startup logs show which mode is active, for example *Malware scanning via clamd* or *via on-demand clamscan*.
 
 ---
 

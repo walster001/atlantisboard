@@ -32,7 +32,14 @@ describe('repo-root production Docker', () => {
     expect(compose).toContain('POMPELMI_SKIP_SCAN: ${POMPELMI_SKIP_SCAN:-false}');
     expect(compose).toContain('POMPELMI_FAIL_OPEN: ${POMPELMI_FAIL_OPEN:-false}');
     expect(compose).not.toMatch(/\n  clamav:/);
-    expect(compose).not.toContain('POMPELMI_CLAMD_HOST');
+  });
+
+  test('entrypoint starts clamd when RAM allows', () => {
+    const entrypoint = readFileSync(join(REPO_ROOT, 'docker', 'entrypoint.sh'), 'utf8');
+    expect(entrypoint).toContain('should_start_clamd');
+    expect(entrypoint).toContain('POMPELMI_USE_CLAMD=true');
+    expect(entrypoint).toContain('POMPELMI_CLAMD_HOST=127.0.0.1');
+    expect(entrypoint).toContain('POMPELMI_CLAMD_MIN_RAM_MB');
   });
 
   test('repo-root entrypoint matches installer fullstack entrypoint', () => {

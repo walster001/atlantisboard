@@ -207,6 +207,38 @@ Rate limits are enforced per IP address using Redis-backed counters. Adjust thes
 
 ---
 
+## Malware Scanning (ClamAV / Pompelmi)
+
+Card and board-import uploads are scanned with **ClamAV** through the **Pompelmi** library. In Docker, scanning runs inside the **app container** (no separate ClamAV service).
+
+### How `clamd` vs `clamscan` is chosen
+
+On container start, the entrypoint reads Linux **`MemAvailable`** and sets the scan backend:
+
+| Condition | Backend | RAM impact |
+|-----------|---------|------------|
+| `MemAvailable` ≥ `POMPELMI_CLAMD_MIN_RAM_MB` (default **2048**) | **`clamd`** | Daemon keeps signatures in RAM (~**200–400 MB** extra). Faster repeat scans. |
+| Below threshold, or `POMPELMI_USE_CLAMD=false` | **`clamscan`** | On-demand scans only; uses OS page-cache warm, no long-lived daemon. |
+
+**Important:** If you allocate **more than 2 GB of available memory** to the host/VM, Atlantisboard **automatically uses more RAM for malware scanning** because `clamd` starts. Size the machine accordingly (typically **4 GB+ total** for full-stack Docker with `clamd`).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POMPELMI_SKIP_SCAN` | `false` in production images | Set `true` only for local dev without ClamAV. **Never in production.** |
+| `POMPELMI_USE_CLAMD` | `auto` | `auto` — pick from RAM threshold; `true` — force `clamd`; `false` — force `clamscan`. |
+| `POMPELMI_CLAMD_MIN_RAM_MB` | `2048` | Minimum `MemAvailable` (MB) before `auto` starts `clamd`. |
+| `POMPELMI_CLAMD_HOST` | `127.0.0.1` | `clamd` TCP host (set when using an external daemon). |
+| `POMPELMI_CLAMD_PORT` | `3310` | `clamd` TCP port. |
+| `CLAMAV_DB_DIR` | `/var/lib/clamav` | Signature database directory (Docker volume in Compose). |
+| `POMPELMI_SCAN_TIMEOUT_MS` | `600000` | Max scan time per file (ms). |
+| `POMPELMI_FAIL_OPEN` | `false` | If `true`, allow uploads when the scanner is unavailable (not recommended for production). |
+| `POMPELMI_DB_PAGE_CACHE_WARM` | `true` | Warm kernel page cache for signature files (`clamscan` path). |
+| `POMPELMI_SIGNATURE_REFRESH` | `true` | Scheduled `freshclam` + re-warm (default every 24 h). |
+
+Startup logs show which mode is active, for example *Malware scanning via clamd* or *via on-demand clamscan*.
+
+---
+
 ## Push Notifications (Optional)
 
 | Variable | Default | Description |

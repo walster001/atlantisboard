@@ -4,7 +4,7 @@
 # MongoDB image: see image-defaults.env (ATLANTISBOARD_MONGO_IMAGE). Kernel 6.19+ needs mongo
 # 8.0.4 or older 8.0.x — newer 8.0 tags exit on startup (SERVER-121912 / TCMalloc+RSEQ).
 #
-# Malware scanning: clamscan runs inside the app image on each upload (no clamd sidecar).
+# Malware scanning: clamd when MemAvailable ≥ 2GB, else on-demand clamscan (see entrypoint.sh).
 # Signatures live in clamav-sigs-full; first upload or pre-warm may run freshclam.
 #
 # Backups: app writes to BACKUP_LOCATION (default /data/backups in-container). Host files live under

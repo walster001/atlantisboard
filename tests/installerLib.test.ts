@@ -306,7 +306,7 @@ describe('installer shell static guards', () => {
     expect(fullstack).toContain('target: /app/.env');
     expect(fullstack).toContain('BACKUP_LOCATION: ${BACKUP_LOCATION:-/data/backups}');
     expect(fullstack).not.toMatch(/\n  clamav:/);
-    expect(fullstack).not.toContain('POMPELMI_CLAMD_HOST');
+    expect(fullstack).toContain('clamav-sigs-full');
     expect(dockerfile).toContain('clamav');
     expect(dockerfile).toContain('/opt/clamav-seed');
     expect(dockerfile).toContain('entrypoint.sh');

@@ -75,12 +75,14 @@ atl_detect_existing_install() {
 # Ask how to proceed when an existing install is detected.
 # Arguments:
 #   $1 existing state (partial | complete).
+#   $2 install directory path.
 # Outputs:
 #   reinstall | repair
 # Returns:
 #   0 on choice, 1 on cancel.
 atl_prompt_install_action() {
   local state="$1"
+  local install_dir="$2"
   local intro msg choice
   case "$state" in
     complete)
@@ -93,7 +95,7 @@ atl_prompt_install_action() {
       intro="Existing files were found at:"
       ;;
   esac
-  msg="${intro}\n${INSTALL_DIR}\n\n"
+  msg="${intro}\n${install_dir}\n\n"
   msg+="Choose how to continue:"
 
   choice="$(atl_whiptail_capture --title "Existing installation" --menu \
@@ -350,8 +352,10 @@ atl_needs_bun_install() {
 # On reinstall, optionally run reset-docker-data.sh for docker modes.
 # Arguments:
 #   $1 install mode (docker | fullstack).
+#   $2 install directory.
 atl_offer_docker_data_reset() {
   local mode="$1"
+  local install_dir="$2"
   local reset_mode script msg
   case "$mode" in
     docker) reset_mode=deps ;;
@@ -370,13 +374,13 @@ atl_offer_docker_data_reset() {
     return 0
   fi
 
-  script="${INSTALL_DIR}/install/docker/reset-docker-data.sh"
+  script="${install_dir}/install/docker/reset-docker-data.sh"
   if ! atl_sudo test -x "$script" 2>/dev/null; then
     err "reset script not found: ${script}"
     return 1
   fi
   info "==> Resetting Docker data via ${script}"
-  ATLANTISBOARD_ENV_FILE="${ENV_FILE:-${INSTALL_DIR}/.env}" \
-    atl_sudo env ATLANTISBOARD_ENV_FILE="${ENV_FILE:-${INSTALL_DIR}/.env}" \
+  ATLANTISBOARD_ENV_FILE="${ENV_FILE:-${install_dir}/.env}" \
+    atl_sudo env ATLANTISBOARD_ENV_FILE="${ENV_FILE:-${install_dir}/.env}" \
     bash "$script" "$reset_mode"
 }

@@ -270,7 +270,7 @@ EOF
   existing_state="$(atl_detect_existing_install "$INSTALL_DIR")"
   INSTALL_ACTION="fresh"
   if [[ "$existing_state" == "partial" || "$existing_state" == "complete" ]]; then
-    if ! INSTALL_ACTION="$(atl_prompt_install_action "$existing_state")"; then
+    if ! INSTALL_ACTION="$(atl_prompt_install_action "$existing_state" "$INSTALL_DIR")"; then
       info "Setup cancelled."
       exit 0
     fi
@@ -346,10 +346,10 @@ EOF
   INSTALL_USER="$(atl_get_install_user)"
 
   if [[ "$INSTALL_ACTION" == "repair" ]]; then
-    local missing_files mismatched_files ok_files
+    local missing_files mismatched_files
     atl_sudo_mkdir_p "$INSTALL_DIR"
     info "==> Verifying installation at ${INSTALL_DIR}"
-    read -r missing_files mismatched_files ok_files \
+    read -r missing_files mismatched_files _ \
       <<< "$(atl_verify_install_integrity "$PKG_ROOT" "$INSTALL_DIR")"
     if [[ "${missing_files:-0}" -gt 0 || "${mismatched_files:-0}" -gt 0 ]]; then
       APP_FILES_CHANGED=true
@@ -406,7 +406,7 @@ EOF
     if [[ "$INSTALL_ACTION" == "reinstall" \
       && ( "$MODE" == "docker" || "$MODE" == "fullstack" ) ]]; then
       atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
-      atl_offer_docker_data_reset "$MODE" || true
+      atl_offer_docker_data_reset "$MODE" "$INSTALL_DIR" || true
     fi
   fi
 

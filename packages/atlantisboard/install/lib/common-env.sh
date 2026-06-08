@@ -577,7 +577,7 @@ atl_prompt_env_fields() {
 #   0 when complete; exits installer on cancel.
 atl_prompt_missing_env_fields() {
   local mode="$1"
-  ATL_ENV_FIELDS_PROMPTED=false
+  export ATL_ENV_FIELDS_PROMPTED=false
   if ! atl_env_fields_jq_ready; then
     return 0
   fi
@@ -592,7 +592,7 @@ atl_prompt_missing_env_fields() {
       [[ "$auto_gen" != "true" ]] || continue
       key="$(jq -r '.key' <<<"$field")"
       [[ -n "${ENV_VALUES[$key]:-}" ]] && continue
-      ATL_ENV_FIELDS_PROMPTED=true
+      export ATL_ENV_FIELDS_PROMPTED=true
       label="$(jq -r '.label' <<<"$field")"
       desc="$(jq -r '.description' <<<"$field")"
       default="$(jq -r '.default' <<<"$field")"

@@ -28,8 +28,12 @@ declare global {
     new (connectionString: string | URL): BunSqlClient;
   }
 
+  interface BunFile {
+    text(): Promise<string>;
+  }
+
   interface BunGlobal {
-    file(arg0: string): unknown;
+    file(path: string): BunFile;
     CSRF?: BunCsrfApi;
     SQL: BunSqlConstructor;
     password: {

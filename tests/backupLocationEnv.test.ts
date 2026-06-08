@@ -103,21 +103,17 @@ describe('upsertEnvFileVariable', () => {
     rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it('updates an existing key', () => {
+  it('updates an existing key', async () => {
     writeFileSync(process.env.ATL_ENV_FILE!, 'BACKUP_LOCATION=/old\n');
     expect(upsertEnvFileVariable('BACKUP_LOCATION', '/new/path')).toBe(true);
-    const contents = Bun.file(process.env.ATL_ENV_FILE!).text();
-    return contents.then((text) => {
-      expect(text).toContain('BACKUP_LOCATION=/new/path');
-      expect(text).not.toContain('/old');
-    });
+    const text = await Bun.file(process.env.ATL_ENV_FILE!).text();
+    expect(text).toContain('BACKUP_LOCATION=/new/path');
+    expect(text).not.toContain('/old');
   });
 
-  it('appends a missing key', () => {
+  it('appends a missing key', async () => {
     expect(upsertEnvFileVariable('BACKUP_LOCATION', '/var/backups')).toBe(true);
-    const contents = Bun.file(process.env.ATL_ENV_FILE!).text();
-    return contents.then((text) => {
-      expect(text).toContain('BACKUP_LOCATION=/var/backups');
-    });
+    const text = await Bun.file(process.env.ATL_ENV_FILE!).text();
+    expect(text).toContain('BACKUP_LOCATION=/var/backups');
   });
 });

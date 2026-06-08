@@ -13,7 +13,6 @@ PKG_MIRROR="$(mktemp -d)"
 trap 'rm -rf "$INSTALL_DIR" "$PKG_MIRROR"' EXIT
 
 declare -A ENV_VALUES
-ENV_FIELDS="${PKG_ROOT}/install/env-fields.json"
 
 # shellcheck source=lib/common.sh
 source "${PKG_ROOT}/install/lib/common.sh"
@@ -68,7 +67,7 @@ state="$(atl_detect_existing_install "$INSTALL_DIR")"
 
 seed_install_tree "$PKG_MIRROR"
 seed_install_tree "$INSTALL_DIR"
-read -r missing mismatched ok \
+read -r missing mismatched _ \
   <<< "$(atl_verify_install_integrity "$PKG_MIRROR" "$INSTALL_DIR")"
 [[ "$missing" -eq 0 && "$mismatched" -eq 0 ]] \
   || fail "mirrored tree should verify (missing=${missing} mismatched=${mismatched})"

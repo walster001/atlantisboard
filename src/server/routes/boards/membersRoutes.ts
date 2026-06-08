@@ -10,6 +10,7 @@ import {
   removeBoardMember,
   updateBoardMemberRole,
 } from '../../services/boardService.js';
+import { updateBoardImportPlaceholderRole } from '../../services/boardImportPlaceholderService.js';
 import { discardAllUnmappedPlaceholdersOnBoard } from '../../services/importPlaceholderUserService.js';
 import { isBuiltInRoleKey, isValidCustomRoleKey } from '../../services/roleService.js';
 import { boardMembersQuerySchema } from './schemas.js';
@@ -211,6 +212,61 @@ export function registerMemberManagementRoutes(router: Router): void {
         return;
       }
       res.json({ board });
+    } catch (error) {
+      handleApiRouteError(res, error, next);
+    }
+  });
+
+  router.put('/:id/placeholders/:placeholderId/role', async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const { role, roleKey } = req.body as { role?: unknown; roleKey?: unknown };
+      const roleKeyCandidate =
+        typeof roleKey === 'string' && roleKey.trim() !== ''
+          ? roleKey.trim()
+          : typeof role === 'string'
+            ? role
+            : '';
+      if (roleKeyCandidate === '') {
+        res.status(400).json({
+          error: {
+            message: 'Invalid roleKey',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      if (!(isBuiltInRoleKey(roleKeyCandidate) || isValidCustomRoleKey(roleKeyCandidate))) {
+        res.status(400).json({
+          error: {
+            message: 'Invalid roleKey',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      if (isValidCustomRoleKey(roleKeyCandidate)) {
+        const exists = await RoleDefinition.findOne({ key: roleKeyCandidate }).select('_id').lean();
+        if (!exists) {
+          res.status(400).json({
+            error: {
+              message: 'Unknown roleKey',
+              code: 'VALIDATION_ERROR',
+              statusCode: 400,
+            },
+          });
+          return;
+        }
+      }
+      await updateBoardImportPlaceholderRole({
+        boardId: req.params.id,
+        placeholderId: req.params.placeholderId,
+        actorUserId: authReq.user.id,
+        roleKey: roleKeyCandidate,
+      });
+      res.json({ roleKey: roleKeyCandidate });
     } catch (error) {
       handleApiRouteError(res, error, next);
     }

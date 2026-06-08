@@ -44,7 +44,10 @@ export interface BoardImportPlaceholderDirectoryRow {
   readonly displayName: string;
   readonly email: string;
   readonly username: string;
+  /** Effective role applied when the placeholder is claimed. */
   readonly roleKey: string;
+  /** Role from import mapping (falls back to {@link roleKey} for legacy rows). */
+  readonly importRoleKey: string;
 }
 
 export async function isBoardImportPlaceholderId(id: string): Promise<boolean> {
@@ -138,6 +141,7 @@ export async function batchGetOrCreateBoardImportPlaceholders(params: {
       sourceUserId: fields.sourceUserId,
       displayName: fields.displayName,
       roleKey: fields.roleKey,
+      importedRoleKey: fields.roleKey,
       ...(fields.email != null ? { email: fields.email } : {}),
       ...(fields.importUsername != null ? { importUsername: fields.importUsername } : {}),
     };
@@ -230,7 +234,61 @@ export async function listBoardImportPlaceholderDirectoryRows(params: {
     }),
     username: row.importUsername ?? row.sourceUserId.slice(0, 24),
     roleKey: row.roleKey,
+    importRoleKey:
+      typeof row.importedRoleKey === 'string' && row.importedRoleKey.trim() !== ''
+        ? row.importedRoleKey.trim()
+        : row.roleKey,
   }));
+}
+
+export async function updateBoardImportPlaceholderRole(params: {
+  readonly boardId: string;
+  readonly placeholderId: string;
+  readonly actorUserId: string;
+  readonly roleKey: string;
+}): Promise<void> {
+  const board = await Board.findById(params.boardId);
+  if (!board) {
+    throw new NotFoundError('Board not found');
+  }
+
+  if (board.ownerId.toString() !== params.actorUserId) {
+    const allowed = await hasPermission({ id: params.actorUserId }, params.boardId, 'boards.members.role.update');
+    if (!allowed) {
+      throw new ForbiddenError('Insufficient permissions to update placeholder role');
+    }
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(params.placeholderId)) {
+    throw new NotFoundError('Placeholder not found');
+  }
+
+  const existing = await BoardImportPlaceholder.findOne({
+    _id: new mongoose.Types.ObjectId(params.placeholderId),
+    boardId: new mongoose.Types.ObjectId(params.boardId),
+  })
+    .select('roleKey importedRoleKey')
+    .lean();
+
+  if (existing == null) {
+    throw new NotFoundError('Placeholder not found');
+  }
+
+  const $set: { roleKey: string; importedRoleKey?: string } = { roleKey: params.roleKey };
+  if (
+    typeof existing.importedRoleKey !== 'string' ||
+    existing.importedRoleKey.trim() === ''
+  ) {
+    $set.importedRoleKey = existing.roleKey;
+  }
+
+  await BoardImportPlaceholder.updateOne(
+    {
+      _id: new mongoose.Types.ObjectId(params.placeholderId),
+      boardId: new mongoose.Types.ObjectId(params.boardId),
+    },
+    { $set },
+  );
 }
 
 export async function listBoardImportPlaceholdersForDisplay(

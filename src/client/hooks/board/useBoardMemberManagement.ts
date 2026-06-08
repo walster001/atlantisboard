@@ -17,6 +17,7 @@ import {
 import {
   addBoardMemberFromDirectory,
   changeDirectoryAddRole,
+  changeDirectoryPlaceholderRole,
   discardAllBoardImportPlaceholders,
   removeBoardMemberOptimistic,
   updateBoardMemberRole,
@@ -70,7 +71,10 @@ export function useBoardMemberManagement(boardId: string) {
           const next: Record<string, RoleKey> = { ...prev };
           for (const user of users) {
             if (next[user._id] === undefined) {
-              next[user._id] = 'viewer';
+              next[user._id] =
+                user.importPlaceholder === true
+                  ? ((user.importPlaceholderRoleKey ?? user.importRoleKey ?? 'viewer') as RoleKey)
+                  : 'viewer';
             }
           }
           return next;
@@ -80,7 +84,11 @@ export function useBoardMemberManagement(boardId: string) {
       setAddRoles((prev) => {
         const next: Record<string, RoleKey> = {};
         for (const user of users) {
-          next[user._id] = prev[user._id] ?? 'viewer';
+          next[user._id] =
+            prev[user._id] ??
+            (user.importPlaceholder === true
+              ? ((user.importPlaceholderRoleKey ?? user.importRoleKey ?? 'viewer') as RoleKey)
+              : 'viewer');
         }
         return next;
       });
@@ -254,9 +262,17 @@ export function useBoardMemberManagement(boardId: string) {
     await discardAllBoardImportPlaceholders(handlerDeps);
   }, [handlerDeps]);
 
-  const handleDirectoryRoleChange = useCallback((userId: string, roleKey: RoleKey) => {
-    changeDirectoryAddRole(handlerDeps, userId, roleKey);
-  }, [handlerDeps]);
+  const handleDirectoryRoleChange = useCallback(
+    (userId: string, roleKey: RoleKey) => {
+      const row = directoryUsersRef.current.find((user) => user._id === userId);
+      if (row?.importPlaceholder === true) {
+        void changeDirectoryPlaceholderRole(handlerDeps, userId, roleKey);
+        return;
+      }
+      changeDirectoryAddRole(handlerDeps, userId, roleKey);
+    },
+    [handlerDeps, directoryUsersRef],
+  );
 
   const handleAddUser = useCallback(
     async (userId: string) => {

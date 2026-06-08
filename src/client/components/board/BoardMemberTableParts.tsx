@@ -24,6 +24,7 @@ import {
   MEMBER_VIRTUOSO_VIEWPORT_PAD,
 } from '../members/shared/memberTableConstants.js';
 import { MemberUserIdentityStack } from '../members/shared/MemberUserIdentityStack.js';
+import { PlaceholderImportRoleCell } from './PlaceholderImportRoleCell.js';
 import { builtinRoleSelectOptions, type RoleKey } from '../../../shared/permissions/catalog.js';
 
 export type UserRow = MemberUserRow;
@@ -125,6 +126,7 @@ export const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: 
   } = props;
   const avatarSize = compactLayout ? MEMBER_MOBILE_AVATAR_PX : APP_USER_AVATAR_SIZE;
   const isImportPlaceholder = user.importPlaceholder === true;
+  const importRoleKey = user.importRoleKey ?? user.importPlaceholderRoleKey ?? roleKey;
   return (
     <>
       <td className="board-member-management__td board-member-management__td--user">
@@ -144,8 +146,25 @@ export const DirectoryUserTableRow = memo(function DirectoryUserTableRow(props: 
           />
         </Group>
       </td>
-      <td className="board-member-management__td board-member-management__td--role">
-        {canUpdateMemberRole ? (
+      <td
+        className={
+          isImportPlaceholder
+            ? 'board-member-management__td board-member-management__td--role board-member-management__td--role-placeholder'
+            : 'board-member-management__td board-member-management__td--role'
+        }
+      >
+        {isImportPlaceholder ? (
+          <PlaceholderImportRoleCell
+            importRoleKey={importRoleKey}
+            targetRoleKey={roleKey}
+            roleOptions={roleOptions}
+            canUpdateRole={canUpdateMemberRole}
+            onTargetRoleChange={(next) => {
+              onRoleChange(user._id, next);
+            }}
+            compactLayout={compactLayout}
+          />
+        ) : canUpdateMemberRole ? (
           <Select
             size="xs"
             w="100%"

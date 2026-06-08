@@ -172,6 +172,11 @@
   max-width: 320px;
 }
 
+.board-member-management__td--role-placeholder {
+  vertical-align: top;
+  text-align: start;
+}
+
 /*
  * Owner row: do not use display:flex on <td> — it breaks table cell stretch, so the label stays
  * top-aligned inside a tall Virtuoso row. Use table vertical-align + centered user column instead.

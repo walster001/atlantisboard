@@ -41,6 +41,10 @@ export interface DirectoryUser {
   readonly importPlaceholder?: boolean | undefined;
   /** Placeholder not yet claimed by a real account login. */
   readonly importNotMapped?: boolean | undefined;
+  /** Role from import mapping (placeholder rows only). */
+  readonly importRoleKey?: string | undefined;
+  /** Current role applied when placeholder is claimed (placeholder rows only). */
+  readonly importPlaceholderRoleKey?: string | undefined;
 }
 
 export interface DirectorySearchResult {
@@ -129,5 +133,7 @@ export async function listBoardImportPlaceholderDirectoryUsers(params: {
     username: row.username,
     importPlaceholder: true,
     importNotMapped: true,
+    importRoleKey: row.importRoleKey,
+    importPlaceholderRoleKey: row.roleKey,
   }));
 }

@@ -79,6 +79,50 @@ export function changeDirectoryAddRole(
   deps.setAddRoles((prev) => ({ ...prev, [userId]: roleKey }));
 }
 
+export async function changeDirectoryPlaceholderRole(
+  deps: BoardMemberManagementHandlerDeps,
+  userId: string,
+  roleKey: RoleKey,
+): Promise<void> {
+  if (!deps.canUpdateMemberRole) {
+    return;
+  }
+  const previous =
+    deps.addRolesRef.current[userId] ??
+    deps.directoryUsersRef.current.find((u) => u._id === userId)?.importPlaceholderRoleKey ??
+    'viewer';
+  if (previous === roleKey) {
+    return;
+  }
+
+  deps.setAddRoles((prev) => ({ ...prev, [userId]: roleKey }));
+  deps.setDirectoryUsers((prev) =>
+    prev.map((user) =>
+      user._id === userId && user.importPlaceholder === true
+        ? { ...user, importPlaceholderRoleKey: roleKey }
+        : user,
+    ),
+  );
+
+  try {
+    await api.updateBoardImportPlaceholderRole(deps.boardId, userId, roleKey);
+  } catch (error) {
+    deps.setAddRoles((prev) => ({ ...prev, [userId]: previous }));
+    deps.setDirectoryUsers((prev) =>
+      prev.map((user) =>
+        user._id === userId && user.importPlaceholder === true
+          ? { ...user, importPlaceholderRoleKey: previous }
+          : user,
+      ),
+    );
+    notifications.show({
+      color: 'red',
+      title: 'Could not update placeholder role',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
 export async function addBoardMemberFromDirectory(
   deps: BoardMemberManagementHandlerDeps,
   userId: string,

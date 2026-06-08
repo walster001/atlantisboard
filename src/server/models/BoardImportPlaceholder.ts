@@ -8,6 +8,8 @@ export interface IBoardImportPlaceholder extends Document {
   email?: string;
   importUsername?: string;
   roleKey: string;
+  /** Role assigned at import; unchanged when admins adjust {@link roleKey} before claim. */
+  importedRoleKey?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,6 +51,10 @@ const BoardImportPlaceholderSchema = new Schema<IBoardImportPlaceholder>(
     roleKey: {
       type: String,
       required: true,
+      trim: true,
+    },
+    importedRoleKey: {
+      type: String,
       trim: true,
     },
   },

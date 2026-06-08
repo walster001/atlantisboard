@@ -9,6 +9,10 @@ export interface MemberUserRow {
   readonly profilePicture?: string | undefined;
   readonly importPlaceholder?: boolean | undefined;
   readonly importNotMapped?: boolean | undefined;
+  /** Role from import mapping (placeholder directory rows). */
+  readonly importRoleKey?: string | undefined;
+  /** Role applied when placeholder is claimed; editable before sign-in. */
+  readonly importPlaceholderRoleKey?: string | undefined;
 }
 
 export function isSearchRequestCancelled(error: unknown): boolean {

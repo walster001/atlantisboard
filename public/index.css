@@ -9691,6 +9691,11 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   max-width: 320px;
 }
 
+.board-member-management__td--role-placeholder {
+  vertical-align: top;
+  text-align: start;
+}
+
 .board-member-management__td--user.board-member-management__td--user-row-owner {
   vertical-align: middle;
 }

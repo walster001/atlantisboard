@@ -143,6 +143,11 @@ export interface BoardApiMethods {
     }
   ): Promise<{ members: unknown[]; nextCursor?: string }>;
   discardBoardImportPlaceholders(boardId: string): Promise<{ removedCount: number }>;
+  updateBoardImportPlaceholderRole(
+    boardId: string,
+    placeholderId: string,
+    roleKey: string,
+  ): Promise<{ roleKey: string }>;
 }
 
 export const boardApiMethods: BoardApiMethods = {
@@ -258,5 +263,12 @@ export const boardApiMethods: BoardApiMethods = {
   async discardBoardImportPlaceholders(this: ApiClient, boardId) {
     const response = await this.client.post(`/boards/${boardId}/placeholders/discard`);
     return response.data as { removedCount: number };
+  },
+
+  async updateBoardImportPlaceholderRole(this: ApiClient, boardId, placeholderId, roleKey) {
+    const response = await this.client.put(`/boards/${boardId}/placeholders/${placeholderId}/role`, {
+      roleKey,
+    });
+    return response.data as { roleKey: string };
   },
 };

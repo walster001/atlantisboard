@@ -10,8 +10,16 @@ import {
   isSyntheticImportPlaceholderEmail,
 } from '../../shared/import/importPlaceholderDisplay.js';
 import type { ImportPreflightUser } from '../../shared/import/importPreflight.js';
+import { logAuditEvent } from '../utils/auditLogger.js';
+import { createActivity } from './activityService.js';
 import { extractRefUserIdString } from './boardService/helpers.js';
-import { emitBoardUpdatedRealtime } from './boardService/shared.js';
+import {
+  emitBoardDocumentToUser,
+  emitBoardPermissionsUpdated,
+  emitBoardUpdatedRealtime,
+  resolveTargetDisplayNameForAudit,
+} from './boardService/shared.js';
+import { emitWorkspaceHomeSnapshotToUserById } from './workspaceService.js';
 import {
   ForbiddenError,
   NotFoundError,
@@ -254,7 +262,8 @@ async function claimPlaceholderOnBoard(
 
   const members = board.members.filter((m) => extractRefUserIdString(m.userId) !== placeholderId);
   const realAlreadyMember = members.some((m) => extractRefUserIdString(m.userId) === realUserId);
-  if (realUserId !== ownerId && !realAlreadyMember) {
+  const addedViaPlaceholder = realUserId !== ownerId && !realAlreadyMember;
+  if (addedViaPlaceholder) {
     members.push({
       userId: realOid,
       roleKey,
@@ -264,6 +273,41 @@ async function claimPlaceholderOnBoard(
   board.members = members;
   await board.save();
   emitBoardUpdatedRealtime(board);
+
+  if (addedViaPlaceholder) {
+    emitBoardDocumentToUser(board, realUserId);
+    const wsId = board.workspaceId?.toString();
+    if (wsId) {
+      void emitWorkspaceHomeSnapshotToUserById(wsId, realUserId);
+    }
+    emitBoardPermissionsUpdated(boardId, [realUserId], {
+      reason: 'board.member.add',
+      roleKey,
+      viaPlaceholder: true,
+    });
+
+    const targetDisplayName = await resolveTargetDisplayNameForAudit(realUserId);
+    logAuditEvent({
+      userId: realUserId,
+      action: 'board.member.add',
+      resourceType: 'board',
+      resourceId: boardId,
+      metadata: { roleKey, viaPlaceholder: true },
+      timestamp: new Date(),
+    });
+    createActivity({
+      boardId,
+      userId: realUserId,
+      type: 'board.member.add',
+      description: 'board.member.add',
+      metadata: {
+        targetUserId: realUserId,
+        targetDisplayName,
+        roleKey,
+        viaPlaceholder: true,
+      },
+    });
+  }
 
   const cards = await Card.find({ boardId, assignees: placeholderOid }).select('assignees').lean();
   for (const card of cards) {

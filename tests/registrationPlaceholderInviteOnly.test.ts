@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-import { describe, expect, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import mongoose from 'mongoose';
 import { BoardImportPlaceholder } from '../src/server/models/BoardImportPlaceholder.js';
 import { User } from '../src/server/models/User.js';

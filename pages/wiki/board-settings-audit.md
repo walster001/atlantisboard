@@ -32,7 +32,7 @@ The audit log records three categories of membership events:
 | `board.member.remove` | A member was removed from the board. |
 | `board.member.role.update` | A member's role was changed (e.g. promoted from Observer to Member). |
 
-The log distinguishes between **invite-based joins** (user accepted an invite link) and **direct admin adds** (an administrator manually added the user), giving you full context on how each member gained access.
+The log distinguishes between **invite-based joins** (user accepted an invite link), **placeholder claims** (user registered or signed in and was automatically added because they matched an import placeholder on the board), and **direct admin adds** (an administrator manually added the user), giving you full context on how each member gained access.
 
 ---
 

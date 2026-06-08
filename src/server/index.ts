@@ -32,6 +32,7 @@ import {
 import { assertProductionCorsConfig, expressCorsOptions } from './config/cors.js';
 import { assertProductionSecrets } from './utils/productionSecrets.js';
 import { isProductionAuthMode } from './utils/authCookie.js';
+import { authCookieMaxAgeMs, getJwtExpiresInFromEnv } from './utils/jwtExpiry.js';
 import { attachCspNonce, getCspNonceFromResponse } from './middleware/cspNonce.js';
 import { renderSpaIndexHtml } from './utils/spaIndex.js';
 // Background jobs can run in separate worker process or in main process
@@ -55,6 +56,14 @@ if (!isProductionAuthMode()) {
     'Dev auth mode: JWT via ?token= query parameter is enabled. Set NODE_ENV=production to disable.',
   );
 }
+
+logger.info(
+  {
+    jwtExpiresIn: getJwtExpiresInFromEnv(),
+    authCookieMaxAgeHours: Math.round((authCookieMaxAgeMs() / (60 * 60 * 1000)) * 10) / 10,
+  },
+  'Session JWT lifetime configured (no sliding refresh — re-login after expiry)',
+);
 
 const app = express();
 const httpServer = createServer(app);

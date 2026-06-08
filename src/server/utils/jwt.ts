@@ -2,16 +2,16 @@ import crypto from 'node:crypto';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { logger } from './logger.js';
 import { isJwtJtiBlocklisted, getUserTokenRevokedAt } from './jwtBlocklist.js';
+import {
+  DEFAULT_JWT_EXPIRES_IN,
+  getJwtExpiresInFromEnv,
+  parseJwtExpiryToSeconds,
+} from './jwtExpiry.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
 function getJwtSecret(): string {
   return process.env.JWT_SECRET || JWT_SECRET;
-}
-
-function getJwtExpiresIn(): string {
-  return process.env.JWT_EXPIRES_IN || JWT_EXPIRES_IN;
 }
 
 if (JWT_SECRET === 'change-this-secret-in-production') {
@@ -29,7 +29,7 @@ export interface JWTPayload {
 export function generateToken(payload: Omit<JWTPayload, 'jti'>): string {
   const jti = crypto.randomUUID();
   return jwt.sign({ ...payload, jti }, getJwtSecret(), {
-    expiresIn: getJwtExpiresIn(),
+    expiresIn: getJwtExpiresInFromEnv(),
     issuer: 'kanboard',
     audience: 'kanboard-users',
     algorithm: 'HS256',
@@ -78,23 +78,7 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
 }
 
 export function jwtExpiresInSeconds(): number {
-  const raw = getJwtExpiresIn().trim();
-  const match = /^(\d+)([smhd])$/i.exec(raw);
-  if (!match) {
-    return 3600;
-  }
-  const amount = Number.parseInt(match[1] ?? '1', 10);
-  const unit = (match[2] ?? 'h').toLowerCase();
-  switch (unit) {
-    case 's':
-      return amount;
-    case 'm':
-      return amount * 60;
-    case 'h':
-      return amount * 3600;
-    case 'd':
-      return amount * 86_400;
-    default:
-      return 3600;
-  }
+  return parseJwtExpiryToSeconds(getJwtExpiresInFromEnv());
 }
+
+export { DEFAULT_JWT_EXPIRES_IN, getJwtExpiresInFromEnv };

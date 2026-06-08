@@ -112,8 +112,20 @@ const EntryBody = memo(function EntryBody({
     readString(row.meta, 'previousRoleKey') ?? readString(row.meta, 'previousRole') ?? '';
   const newRoleKey = readString(row.meta, 'newRoleKey') ?? readString(row.meta, 'newRole') ?? '';
   const viaInvite = row.meta.viaInvite === true;
+  const viaPlaceholder = row.meta.viaPlaceholder === true;
 
   if (row.type === 'board.member.add') {
+    if (viaPlaceholder) {
+      return (
+        <Text component="div" size="sm">
+          <Text component="span" fw={700}>
+            {row.actorName}
+          </Text>{' '}
+          joined the board via placeholder with{' '}
+          {roleKey !== '' ? <RoleBadge role={resolveRoleLabel(roleKey)} /> : 'member'}
+        </Text>
+      );
+    }
     if (viaInvite) {
       return (
         <Text component="div" size="sm">

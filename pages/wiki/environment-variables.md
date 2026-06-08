@@ -77,7 +77,7 @@ This page documents every environment variable recognised by Atlantisboard. Vari
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `JWT_SECRET` | _(must set)_ | Secret for signing JWTs. Generate: `openssl rand -base64 48` |
-| `JWT_EXPIRES_IN` | `1h` | JWT token lifetime (e.g. `1h`, `30m`, `1d`) |
+| `JWT_EXPIRES_IN` | `1d` | Session JWT lifetime (e.g. `1d`, `12h`, `30m`). Bare integers are seconds (`3600` = 1 hour). No sliding refresh — users must re-login after expiry. |
 | `SESSION_SECRET` | _(must set)_ | Express session signing secret |
 | `CSRF_SECRET` | _(must set)_ | CSRF token signing secret |
 | `ENCRYPTION_KEY` | _(must set)_ | AES-256-GCM key for encrypting stored credentials (OAuth secrets, MySQL passwords, VAPID keys) |

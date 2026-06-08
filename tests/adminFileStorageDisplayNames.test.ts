@@ -42,7 +42,7 @@ describe('admin file storage display names', () => {
     expect(entryPrimaryLabel(entry)).toBe('Sprint screenshot.png');
     expect(entryShowsStorageKey(entry)).toBe(true);
 
-    const plain = { ...entry, displayName: undefined };
+    const { displayName: _displayName, ...plain } = entry;
     expect(entryPrimaryLabel(plain)).toBe(entry.name);
     expect(entryShowsStorageKey(plain)).toBe(false);
   });

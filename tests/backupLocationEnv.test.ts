@@ -126,6 +126,9 @@ describe('upsertEnvFileVariable', () => {
   it('resolves ATL_ENV_FILE before cwd .env', () => {
     const envFile = process.env.ATL_ENV_FILE;
     expect(envFile).toBeDefined();
+    if (envFile === undefined) {
+      throw new Error('ATL_ENV_FILE must be set for this test');
+    }
     expect(resolveEnvFilePath()).toBe(envFile);
   });
 

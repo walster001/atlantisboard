@@ -26,8 +26,24 @@ fail() {
   exit 1
 }
 
+# packages/atlantisboard/bun.lock is gitignored; CI checkouts use the repo-root lockfile.
+atl_pkg_bun_lock() {
+  if [[ -s "${PKG_ROOT}/bun.lock" ]]; then
+    printf '%s\n' "${PKG_ROOT}/bun.lock"
+    return 0
+  fi
+  local repo_lock="${PKG_ROOT}/../../bun.lock"
+  if [[ -s "$repo_lock" ]]; then
+    printf '%s\n' "$repo_lock"
+    return 0
+  fi
+  fail "bun.lock not found (expected ${PKG_ROOT}/bun.lock or ${repo_lock})"
+}
+
 seed_install_tree() {
   local root="$1"
+  local bun_lock
+  bun_lock="$(atl_pkg_bun_lock)"
   mkdir -p "${root}/dist/server" "${root}/dist/workers" "${root}/public"
   mkdir -p "${root}/install/lib" "${root}/install/docker"
   touch "${root}/dist/server/index.js"
@@ -36,9 +52,10 @@ seed_install_tree() {
   cp -a "${PKG_ROOT}/install/setup.sh" "${root}/install/"
   cp -a "${PKG_ROOT}/install/lib/"*.sh "${root}/install/lib/"
   cp -a "${PKG_ROOT}/install/env-fields.json" "${root}/install/"
-  cp -a "${PKG_ROOT}/package.json" "${PKG_ROOT}/bun.lock" \
+  cp -a "${PKG_ROOT}/package.json" \
     "${PKG_ROOT}/atlantisboard" "${PKG_ROOT}/atlantisboard-setup" \
     "${root}/"
+  cp -a "$bun_lock" "${root}/bun.lock"
   cp -a "${PKG_ROOT}/install/docker/"*.yml "${root}/install/docker/" 2>/dev/null || true
   cp -a "${PKG_ROOT}/install/docker/"*.env "${root}/install/docker/" 2>/dev/null || true
   cp -a "${PKG_ROOT}/install/docker/Dockerfile" \

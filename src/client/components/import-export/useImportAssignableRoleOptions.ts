@@ -141,10 +141,11 @@ export function useImportAssignableRoleOptions(
   params: UseImportAssignableRoleOptionsParams,
 ): ReadonlyArray<ImportRoleSelectOption> {
   const [roleOptions, setRoleOptions] = useState<ImportRoleSelectOption[]>(BUILTIN_FALLBACK_OPTIONS);
+  const { boardId, workspaceId, isAppAdmin, userId } = params;
 
   useEffect(() => {
     let cancelled = false;
-    void resolveImportAssignableRoleOptions(params)
+    void resolveImportAssignableRoleOptions({ boardId, workspaceId, isAppAdmin, userId })
       .then((options) => {
         if (!cancelled) {
           setRoleOptions(options);
@@ -158,7 +159,7 @@ export function useImportAssignableRoleOptions(
     return () => {
       cancelled = true;
     };
-  }, [params.boardId, params.workspaceId, params.isAppAdmin, params.userId]);
+  }, [boardId, workspaceId, isAppAdmin, userId]);
 
   return roleOptions;
 }

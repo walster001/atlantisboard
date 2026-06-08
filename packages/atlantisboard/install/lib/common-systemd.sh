@@ -294,6 +294,8 @@ atl_preflight_fail() {
 
 ## atl_verify_app_port
 # Ensure the app/dependency ports are available before install.
+# Skips the app port when updating/repairing an existing install (the running
+# app or container is expected to hold PORT until compose/systemd restarts it).
 # Arguments:
 #   $1 install mode (optional, defaults to manual).
 atl_verify_app_port() {
@@ -301,16 +303,25 @@ atl_verify_app_port() {
   local -a lines=()
   local app_port="${ENV_VALUES[PORT]:-3000}"
   local port_status=0
+  local skip_app_port=false
+  local line
 
-  atl_port_listening "$app_port" || port_status=$?
-  if [[ $port_status -eq 0 ]]; then
-    line="Port ${app_port} is already in use — stop the service using it "
-    line+="or choose another PORT"
-    lines+=("$line")
-  elif [[ $port_status -eq 2 ]]; then
-    line="Cannot check port ${app_port} — install ss (iproute2) "
-    line+="or nc (netcat)"
-    lines+=("$line")
+  if [[ "${INSTALL_ACTION:-fresh}" == "update" \
+    || "${INSTALL_ACTION:-fresh}" == "repair" ]]; then
+    skip_app_port=true
+  fi
+
+  if [[ "$skip_app_port" != true ]]; then
+    atl_port_listening "$app_port" || port_status=$?
+    if [[ $port_status -eq 0 ]]; then
+      line="Port ${app_port} is already in use — stop the service using it "
+      line+="or choose another PORT"
+      lines+=("$line")
+    elif [[ $port_status -eq 2 ]]; then
+      line="Cannot check port ${app_port} — install ss (iproute2) "
+      line+="or nc (netcat)"
+      lines+=("$line")
+    fi
   fi
 
   case "$mode" in

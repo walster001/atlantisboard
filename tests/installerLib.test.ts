@@ -169,6 +169,16 @@ describe('installer shell static guards', () => {
     expect(common).toContain('Docker Compose failed');
   });
 
+  test('atl_verify_app_port skips PORT check during update and repair', () => {
+    const systemd = readFileSync(
+      join(INSTALL_DIR, 'lib', 'common-systemd.sh'),
+      'utf8',
+    );
+    expect(systemd).toContain('skip_app_port=true');
+    expect(systemd).toContain('"${INSTALL_ACTION:-fresh}" == "update"');
+    expect(systemd).toContain('"${INSTALL_ACTION:-fresh}" == "repair"');
+  });
+
   test('setup.sh wires post-prompt validation and preserves install .env on rsync', () => {
     const setup = readFileSync(join(INSTALL_DIR, 'setup.sh'), 'utf8');
     expect(setup).toContain('atl_sync_cors_with_app_url');

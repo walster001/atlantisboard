@@ -323,6 +323,42 @@ assert_load_env_file_into_values() {
   return 0
 }
 
+assert_verify_app_port_skips_on_update_repair() {
+  local preflight_called=false
+  ENV_VALUES["PORT"]="3000"
+  INSTALL_ACTION="fresh"
+
+  atl_port_listening() {
+    return 0
+  }
+  atl_preflight_fail() {
+    preflight_called=true
+    return 1
+  }
+  atl_docker_existing_stack_detected() {
+    return 1
+  }
+
+  preflight_called=false
+  if atl_verify_app_port fullstack; then
+    fail "fresh install should fail when PORT is in use"
+  fi
+  [[ "$preflight_called" == true ]] \
+    || fail "fresh install should call preflight_fail when PORT is in use"
+
+  for INSTALL_ACTION in update repair; do
+    preflight_called=false
+    atl_verify_app_port manual \
+      || fail "${INSTALL_ACTION} should pass when PORT is in use"
+    [[ "$preflight_called" != true ]] \
+      || fail "${INSTALL_ACTION} must skip PORT-in-use check"
+  done
+
+  unset -f atl_port_listening atl_preflight_fail atl_docker_existing_stack_detected
+  INSTALL_ACTION="fresh"
+  return 0
+}
+
 assert_path_rejects_garbled
 assert_path_accepts_valid
 assert_backup_dir_defaults
@@ -340,5 +376,6 @@ assert_app_url_local_detection
 assert_install_manifest_write
 assert_detect_existing_install_states
 assert_load_env_file_into_values
+assert_verify_app_port_skips_on_update_repair
 
 echo "installer-lib.harness: all checks passed"

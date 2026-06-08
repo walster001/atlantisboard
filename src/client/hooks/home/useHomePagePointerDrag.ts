@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useLayoutEffect,
   useRef,
   useState,
@@ -47,7 +48,19 @@ export function useHomePagePointerDrag(
   const [floatPreview, setFloatPreview] = useState<FloatState>(null);
   const [draggingBoardId, setDraggingBoardId] = useState<string | null>(null);
   const [boardLongPressUi, setBoardLongPressUi] = useState<HomeBoardLongPressUi | null>(null);
-  const [boardDropIndicator, setBoardDropIndicator] = useState<BoardDropIndicator>(null);
+  const [boardDropIndicator, setBoardDropIndicatorState] = useState<BoardDropIndicator>(null);
+  const boardDropIndicatorRef = useRef<BoardDropIndicator>(null);
+  const setBoardDropIndicator = useCallback((next: BoardDropIndicator): void => {
+    const prev = boardDropIndicatorRef.current;
+    if (
+      prev?.workspaceId === next?.workspaceId &&
+      prev?.anchorBoardId === next?.anchorBoardId
+    ) {
+      return;
+    }
+    boardDropIndicatorRef.current = next;
+    setBoardDropIndicatorState(next);
+  }, []);
   const suppressBoardClickRef = useRef(false);
 
   const refsR = useRef(refs);

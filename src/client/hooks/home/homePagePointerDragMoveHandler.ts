@@ -54,7 +54,12 @@ export function createHomePagePointerMoveHandler(
     clearDocumentSelection,
   } = ctx;
 
+  const latestPointerRef = { clientX: 0, clientY: 0 };
+
   return (ev: PointerEvent): void => {
+    latestPointerRef.clientX = ev.clientX;
+    latestPointerRef.clientY = ev.clientY;
+
     const s = sessionRef.current;
     if (s == null) {
       return;
@@ -94,6 +99,9 @@ export function createHomePagePointerMoveHandler(
           disarm();
           return;
         }
+      }
+      if (ev.cancelable) {
+        ev.preventDefault();
       }
       const tile = root.querySelector<HTMLElement>(`[data-home-board-id="${CSS.escape(s.boardId)}"]`);
       if (tile != null) {
@@ -138,6 +146,9 @@ export function createHomePagePointerMoveHandler(
           return;
         }
       }
+      if (ev.cancelable) {
+        ev.preventDefault();
+      }
       refsR.current.previewMetricsRef.current = { width: 200, height: 44 };
       sessionRef.current = {
         kind: 'active_workspace',
@@ -168,9 +179,10 @@ export function createHomePagePointerMoveHandler(
       if (live == null) {
         return;
       }
+      const { clientX, clientY } = latestPointerRef;
 
       if (live.kind === 'active_board') {
-        const targetWs = pickHomeTargetWorkspaceIdUnderPointer(ev.clientX, ev.clientY);
+        const targetWs = pickHomeTargetWorkspaceIdUnderPointer(clientX, clientY);
         if (targetWs != null && targetWs !== live.sourceWorkspaceId) {
           actionsRef.current.setBoardGridDropTarget(targetWs);
         } else {
@@ -179,7 +191,7 @@ export function createHomePagePointerMoveHandler(
         if (touchReorderRequiresLongPressRef.current && targetWs != null) {
           const grid = findHomeBoardGridForWorkspace(root, targetWs);
           if (grid != null) {
-            const { anchorBoardId } = pickHomeBoardInsertAnchor(grid, ev.clientX, ev.clientY, live.boardId);
+            const { anchorBoardId } = pickHomeBoardInsertAnchor(grid, clientX, clientY, live.boardId);
             setBoardDropIndicator({ workspaceId: targetWs, anchorBoardId });
           } else {
             setBoardDropIndicator(null);
@@ -190,7 +202,7 @@ export function createHomePagePointerMoveHandler(
       }
 
       if (live.kind === 'active_workspace') {
-        const idx = pickHomeWorkspaceRowInsertIndex(root, ev.clientY, live.workspaceId);
+        const idx = pickHomeWorkspaceRowInsertIndex(root, clientY, live.workspaceId);
         actionsRef.current.setWorkspaceRowDrag({ workspaceId: live.workspaceId, insertIndex: idx });
       }
 
@@ -198,7 +210,7 @@ export function createHomePagePointerMoveHandler(
        * Keep style writes after all geometry reads/hit-tests in this frame.
        * This reduces read-after-write pressure that can trigger forced sync layout.
        */
-      positionFloat(ev.clientX, ev.clientY);
+      positionFloat(clientX, clientY);
     });
   };
 }

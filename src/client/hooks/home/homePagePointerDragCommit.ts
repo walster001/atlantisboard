@@ -42,32 +42,42 @@ export async function commitHomeBoardDrag(
     ctx.disarm();
     return;
   }
+  const snapshot = {
+    boardId: s.boardId,
+    sourceWorkspaceId: s.sourceWorkspaceId,
+    boardsBefore: s.boardsBefore,
+  };
   const m = ctx.modelsRef.current;
   const acts = ctx.actionsRef.current;
   const targetWs = pickHomeTargetWorkspaceIdUnderPointer(ev.clientX, ev.clientY);
   if (targetWs == null) {
-    acts.setAllBoards(s.boardsBefore);
+    acts.setAllBoards(snapshot.boardsBefore);
     ctx.disarm();
     resetSuppressBoardClick(ctx);
     return;
   }
   const grid = findHomeBoardGridForWorkspace(ctx.root, targetWs);
   if (grid == null) {
-    acts.setAllBoards(s.boardsBefore);
+    acts.setAllBoards(snapshot.boardsBefore);
     ctx.disarm();
     resetSuppressBoardClick(ctx);
     return;
   }
-  const { anchorBoardId } = pickHomeBoardInsertAnchor(grid, ev.clientX, ev.clientY, s.boardId);
+  const { anchorBoardId } = pickHomeBoardInsertAnchor(grid, ev.clientX, ev.clientY, snapshot.boardId);
 
-  const sameWs = s.sourceWorkspaceId === targetWs;
+  const sameWs = snapshot.sourceWorkspaceId === targetWs;
 
-  let applied: BoardDB[] | null = moveHomeBoardOptimistic(m.boards, s.boardId, targetWs, anchorBoardId);
+  let applied: BoardDB[] | null = moveHomeBoardOptimistic(
+    m.boards,
+    snapshot.boardId,
+    targetWs,
+    anchorBoardId,
+  );
   if (applied == null && !sameWs) {
-    applied = boardsAfterCrossWorkspaceAppend(m.boards, s.boardId, targetWs);
+    applied = boardsAfterCrossWorkspaceAppend(m.boards, snapshot.boardId, targetWs);
   }
   if (applied == null) {
-    acts.setAllBoards(s.boardsBefore);
+    acts.setAllBoards(snapshot.boardsBefore);
     ctx.disarm();
     resetSuppressBoardClick(ctx);
     return;
@@ -79,20 +89,24 @@ export async function commitHomeBoardDrag(
     boards: applied,
     workspaces: [...m.workspaces],
     userId: m.userId,
-    activeBoardId: s.boardId,
-    sourceWorkspaceId: s.sourceWorkspaceId,
+    activeBoardId: snapshot.boardId,
+    sourceWorkspaceId: snapshot.sourceWorkspaceId,
     targetWorkspaceId: targetWs,
     anchorBoardId,
     hasBoardUpdate: acts.hasBoardUpdate,
     hasWorkspaceUpdate: acts.hasWorkspaceUpdate,
   };
 
+  /* Release float preview and drag chrome before network I/O (persist can be slow in prod). */
+  ctx.disarm();
+  resetSuppressBoardClick(ctx);
+
   try {
     await persistHomeBoardMove(input);
     await acts.refreshUserAfterBoardMove();
   } catch (err) {
     console.error(err);
-    acts.setAllBoards(s.boardsBefore);
+    acts.setAllBoards(snapshot.boardsBefore);
     const msg =
       err instanceof Error && err.message === 'HOME_MOVE_FORBIDDEN'
         ? 'You cannot move this board there.'
@@ -103,9 +117,6 @@ export async function commitHomeBoardDrag(
           : 'Failed to move board.';
     acts.onMoveError(msg);
   }
-
-  ctx.disarm();
-  resetSuppressBoardClick(ctx);
 }
 
 export async function commitHomeWorkspaceDrag(
@@ -127,12 +138,14 @@ export async function commitHomeWorkspaceDrag(
     resetSuppressBoardClick(ctx);
     return;
   }
+
+  ctx.disarm();
+  resetSuppressBoardClick(ctx);
+
   try {
     await ctx.actionsRef.current.persistWorkspaceOrder(next);
   } catch (err) {
     console.error(err);
     ctx.actionsRef.current.onMoveError('Failed to save workspace order.');
   }
-  ctx.disarm();
-  resetSuppressBoardClick(ctx);
 }

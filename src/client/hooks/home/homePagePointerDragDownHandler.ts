@@ -43,7 +43,6 @@ export function createHomePagePointerDownCaptureHandler(
     if (wsHandle instanceof HTMLElement) {
       const wsId = wsHandle.getAttribute('data-home-workspace-id');
       if (typeof wsId === 'string' && wsId !== '') {
-        ev.preventDefault();
         sessionRef.current = {
           kind: 'pending_workspace',
           workspaceId: wsId,
@@ -65,10 +64,6 @@ export function createHomePagePointerDownCaptureHandler(
       if (typeof boardId === 'string' && boardId !== '' && typeof wsId === 'string' && wsId !== '') {
         const touchLike = ev.pointerType === 'touch' || ev.pointerType === 'pen';
         const needsLongPress = touchReorderRequiresLongPressRef.current && touchLike;
-        /* iOS: avoid preventDefault on touch pointerdown so long-press + scroll still work. */
-        if (!needsLongPress) {
-          ev.preventDefault();
-        }
         const pointerIdCapture = ev.pointerId;
         let armTimerId: number | null = null;
         let reorderArmed = true;

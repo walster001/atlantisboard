@@ -166,6 +166,31 @@ export function useHomePageController(): HomePageController {
   });
   const [homePageDragging, setHomePageDragging] = useState(false);
   const [boardGridDropTargetWsId, setBoardGridDropTargetWsId] = useState<string | null>(null);
+  const boardGridDropTargetRef = useRef<string | null>(null);
+  const workspaceRowDragRef = useRef<{ workspaceId: string | null; insertIndex: number | null }>({
+    workspaceId: null,
+    insertIndex: null,
+  });
+
+  const setBoardGridDropTargetDeduped = useCallback((workspaceId: string | null): void => {
+    if (boardGridDropTargetRef.current === workspaceId) {
+      return;
+    }
+    boardGridDropTargetRef.current = workspaceId;
+    setBoardGridDropTargetWsId(workspaceId);
+  }, []);
+
+  const setWorkspaceRowDragDeduped = useCallback(
+    (next: { readonly workspaceId: string | null; readonly insertIndex: number | null }): void => {
+      const prev = workspaceRowDragRef.current;
+      if (prev.workspaceId === next.workspaceId && prev.insertIndex === next.insertIndex) {
+        return;
+      }
+      workspaceRowDragRef.current = next;
+      setWorkspaceRowDrag(next);
+    },
+    [],
+  );
 
   const modelsRef = useRef<HomePagePointerDragModels>({
     boards: [],
@@ -225,8 +250,8 @@ export function useHomePageController(): HomePageController {
   const actionsRef = useRef<HomePagePointerDragActions>(null!);
   actionsRef.current = {
     setAllBoards,
-    setWorkspaceRowDrag,
-    setBoardGridDropTarget: setBoardGridDropTargetWsId,
+    setWorkspaceRowDrag: setWorkspaceRowDragDeduped,
+    setBoardGridDropTarget: setBoardGridDropTargetDeduped,
     setHomeDraggingClass: setHomePageDragging,
     canDragBoard: (board) => user != null && homePerms.canDragBoardOnHome(board),
     refreshUserAfterBoardMove: refreshUser,

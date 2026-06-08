@@ -1,4 +1,5 @@
 import { ATLANTISBOARD_EXPORT_FORMAT_VERSION } from '../../../shared/export/boardExportFormats.js';
+import { enrichAtlantisboardExportUsers } from '../../../shared/export/enrichAtlantisboardExportUsers.js';
 import { logger } from '../../utils/logger.js';
 import {
   collectImportInlineObjectNamesFromText,
@@ -124,7 +125,10 @@ export async function buildAtlantisboardExportPayload(ctx: BoardExportContext): 
       color: label.color,
       isPredefined: label.isPredefined,
     })),
-    users: [...ctx.usersById.values()],
+    users: enrichAtlantisboardExportUsers(ctx.usersById.values(), {
+      ownerId: ctx.board.ownerId.toString(),
+      members: ctx.board.members,
+    }),
     inlineAssets,
     exportedAt: new Date().toISOString(),
   };

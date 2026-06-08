@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { notifications } from '@mantine/notifications';
+import { useAuthContext } from '../../contexts/AuthContext.js';
 import { api } from '../../utils/api.js';
+import { useImportAssignableRoleOptions } from './useImportAssignableRoleOptions.js';
 import {
   LONG_TASK_NOTIFICATION_POSITION,
   renderStartupProgressMessage,
@@ -14,11 +16,13 @@ import {
   getRequiredWekanReplacementIconSrcs,
   type ImportPreflightPayload,
   type ImportPreflightResult,
+  type ImportSourceRoleMapping,
   type InlineButtonIconReplacement,
   type InlineButtonImportColorOverrides,
 } from '../../../shared/import/importPreflight.js';
 import { assertImportJsonMatchesSource } from '../../../shared/import/detectImportJsonSource.js';
 import { assertAtlantisboardExportShape } from '../../../shared/import/atlantisboardNormalize.js';
+import { buildDefaultImportSourceRoleMappings } from '../../../shared/import/importSourceBoardRoles.js';
 import {
   BOARD_PRESET_COLOURS,
   normalizePresetHex,
@@ -91,6 +95,13 @@ export interface UseImportWizardOptions {
 
 export function useImportWizard(options: UseImportWizardOptions) {
   const { boardId, workspaceId, onImportComplete, onClose } = options;
+  const { user } = useAuthContext();
+  const targetRoleOptions = useImportAssignableRoleOptions({
+    boardId,
+    workspaceId,
+    isAppAdmin: user?.isAppAdmin,
+    userId: user?.id,
+  });
 
   const [activeTab, setActiveTab] = useState<ImportWizardTab>('import');
   const [importType, setImportType] = useState<ImportType>('wekan');
@@ -113,6 +124,7 @@ export function useImportWizard(options: UseImportWizardOptions) {
   const [inlineButtonColorOverrides, setInlineButtonColorOverrides] =
     useState<InlineButtonImportColorOverrides>({});
   const [importUsersAsPlaceholders, setImportUsersAsPlaceholders] = useState(false);
+  const [sourceRoleMappings, setSourceRoleMappings] = useState<ImportSourceRoleMapping[]>([]);
 
   const wekanButtons = useMemo(
     () => (importType === 'wekan' ? preflight?.wekanButtons?.buttons ?? [] : []),
@@ -143,6 +155,7 @@ export function useImportWizard(options: UseImportWizardOptions) {
     setInlineButtonReplacements([]);
     setInlineButtonColorOverrides({});
     setImportUsersAsPlaceholders(false);
+    setSourceRoleMappings([]);
   }, []);
 
   const runPreflightForFile = useCallback(async (nextFile: File, nextImportType: ImportType): Promise<void> => {
@@ -157,6 +170,7 @@ export function useImportWizard(options: UseImportWizardOptions) {
         setInlineButtonReplacements([]);
         setInlineButtonColorOverrides({});
         setImportUsersAsPlaceholders(false);
+        setSourceRoleMappings([]);
         setParsedPreflightJson(parsed);
         setActiveTab('import');
       } catch (err) {
@@ -193,6 +207,9 @@ export function useImportWizard(options: UseImportWizardOptions) {
       setPreflight(result);
       setInlineButtonReplacements([]);
       setInlineButtonColorOverrides({});
+      setSourceRoleMappings(
+        buildDefaultImportSourceRoleMappings(result.source, result.sourceBoardRoles.roles),
+      );
 
       const hasButtons = nextImportType === 'wekan' && (result.wekanButtons?.buttons.length ?? 0) > 0;
       if (hasButtons) {
@@ -235,6 +252,9 @@ export function useImportWizard(options: UseImportWizardOptions) {
         ? {
             userDecisions: [],
             unmappedUserPolicy: importUsersAsPlaceholders ? 'create_placeholders' : 'discard_unmapped',
+            ...(importUsersAsPlaceholders && sourceRoleMappings.length > 0
+              ? { sourceRoleMappings }
+              : {}),
             ...(importType === 'wekan'
               ? {
                   inlineButtonIconReplacements: inlineButtonReplacements,
@@ -340,6 +360,7 @@ export function useImportWizard(options: UseImportWizardOptions) {
     importDefaultUseTheme,
     importType,
     importUsersAsPlaceholders,
+    sourceRoleMappings,
     inlineButtonColorOverrides,
     inlineButtonReplacements,
     needsReplaceButtons,
@@ -411,6 +432,9 @@ export function useImportWizard(options: UseImportWizardOptions) {
     setInlineButtonColorOverrides,
     importUsersAsPlaceholders,
     setImportUsersAsPlaceholders,
+    sourceRoleMappings,
+    setSourceRoleMappings,
+    targetRoleOptions,
     wekanButtons,
     needsReplaceButtons,
     showUserManagementTab,

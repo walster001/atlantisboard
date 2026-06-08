@@ -60,6 +60,22 @@ describe('normalizeAtlantisboardExport', () => {
     expect(normalized.labels).toHaveLength(1);
   });
 
+  it('parses export users with optional boardRoleKey', () => {
+    const normalized = normalizeAtlantisboardExport({
+      ...minimalAtlantisboardExport,
+      users: [
+        {
+          id: 'user-1',
+          email: 'a@test.com',
+          username: 'alice',
+          displayName: 'Alice',
+          boardRoleKey: 'manager',
+        },
+      ],
+    });
+    expect(normalized.users[0]?.boardRoleKey).toBe('manager');
+  });
+
   it('throws AtlantisboardExportShapeError for invalid payloads', () => {
     expect(() => assertAtlantisboardExportShape({})).toThrow(AtlantisboardExportShapeError);
   });

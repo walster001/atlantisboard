@@ -13,10 +13,16 @@ import {
   LIST_NAME_MAX_LENGTH,
 } from '../../../../shared/constants/entityTextLimits.js';
 import {
+  buildAtlantisboardUserRoleKeyById,
+  collectAtlantisboardImportMemberRoleKeys,
+  resolveAtlantisboardImportMemberRoleKey,
+} from '../../../../shared/import/atlantisboardMemberRoles.js';
+import {
   atlantisboardImportToDate,
   normalizeAtlantisboardExport,
   parseDataUrl,
 } from '../../../../shared/import/atlantisboardNormalize.js';
+import { validateImportRoleKeys } from '../validateImportRoleKeys.js';
 import type { NormalizedAtlantisboardExport } from '../../../../shared/import/atlantisboardNormalize.js';
 import { createActivity } from '../../activityService.js';
 import { uploadImportInlineImage } from '../../importInlineAssetService.js';
@@ -116,6 +122,19 @@ export async function executeAtlantisboardImportJob(params: {
 }): Promise<void> {
   const { jsonData, userId, jobId, targetWorkspaceId } = params;
   const data = normalizeAtlantisboardExport(jsonData);
+  const exportUserRoleRefs = data.users.map((user) => ({
+    id: user.id,
+    ...(user.boardRoleKey != null && user.boardRoleKey.trim() !== ''
+      ? { boardRoleKey: user.boardRoleKey.trim() }
+      : {}),
+  }));
+  await validateImportRoleKeys(
+    collectAtlantisboardImportMemberRoleKeys(
+      { users: exportUserRoleRefs, board: data.board },
+      userId,
+    ),
+  );
+  const userRoleKeyById = buildAtlantisboardUserRoleKeyById(exportUserRoleRefs);
   const rewriteInlineUrl = await buildInlineAssetRewriter(data.inlineAssets);
 
   let workspaceId = targetWorkspaceId;
@@ -159,7 +178,11 @@ export async function executeAtlantisboardImportJob(params: {
     seenMemberIds.add(resolvedKey);
     members.push({
       userId: resolvedId,
-      roleKey: member.roleKey.trim() || 'viewer',
+      roleKey: resolveAtlantisboardImportMemberRoleKey(
+        member.userId,
+        userRoleKeyById,
+        member.roleKey,
+      ),
       addedAt: atlantisboardImportToDate(member.addedAt) ?? new Date(),
     });
   }

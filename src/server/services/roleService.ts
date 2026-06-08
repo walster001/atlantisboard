@@ -20,6 +20,7 @@ export {
   isBuiltInRoleKey,
   isValidCustomRoleKey,
   resolveBoardMemberRoleUpdateModeFromPermissions,
+  validateRoleKeyExists,
 } from './roleResolution.js';
 
 let roleDefinitionsInitPromise: Promise<void> | null = null;

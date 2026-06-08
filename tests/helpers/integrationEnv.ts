@@ -150,11 +150,14 @@ export function assertSafeTestMongoUriForDestructiveOps(): void {
     );
   }
   if (testMongoUriTargetsDevDatabase(testUri, devUri)) {
-    throw new Error(
-      'Refusing to clear MongoDB during tests: MONGODB_TEST_URI targets the same database as MONGODB_URI. ' +
-        'Use a separate database (e.g. mongodb://localhost:27017/kanboard_test?replicaSet=rs0). ' +
-        `Resolved target: ${normalizeMongoDatabaseTarget(testUri)}`,
-    );
+    if (testDb === DEV_MONGO_DATABASE_NAME) {
+      throw new Error(
+        'Refusing to clear MongoDB during tests: MONGODB_TEST_URI targets the same database as MONGODB_URI. ' +
+          'Use a separate database (e.g. mongodb://localhost:27017/kanboard_test?replicaSet=rs0). ' +
+          `Resolved target: ${normalizeMongoDatabaseTarget(testUri)}`,
+      );
+    }
+    // Both URIs point at the same non-dev database (e.g. tests/setup aligned MONGODB_URI to MONGODB_TEST_URI).
   }
 }
 

@@ -26,7 +26,7 @@ import { objectToRecord } from '../../../utils/objectRecord.js';
 import { logger } from '../../../utils/logger.js';
 import { createActivity } from '../../activityService.js';
 import { emitToUser } from '../../../utils/socketIO.js';
-import { mapWekanBoardMemberToBoardRoleKey } from '../../../../shared/import/wekanBoardMemberRoleMap.js';
+import { buildWekanImportBoardRoleResolver } from '../wekanImportBoardRoleResolver.js';
 import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_NAME_MAX_LENGTH, LIST_NAME_MAX_LENGTH } from '../../../../shared/constants/entityTextLimits.js';
 import type { ImportPreflightPayloadParsed } from '../../../../shared/import/importPreflightSchema.js';
 import { normalizeImportedColour } from './helpers.js';
@@ -140,6 +140,7 @@ export async function executeWekanImportJob(params: {
       const referencedUserIds = collectWekanReferencedUserIdsForBoard(data, wekanBoard._id);
       const boardSourceUsersById = extendSourceUsersById(sourceUsers, referencedUserIds);
       const boardActorMap = new Map(realUserMap);
+      const resolveBoardRoleKey = buildWekanImportBoardRoleResolver(wekanBoard, preflight);
       await ensureBoardImportPlaceholdersSeeded({
         boardId: atlBoardId,
         sourceUsersById: boardSourceUsersById,
@@ -149,10 +150,11 @@ export async function executeWekanImportJob(params: {
         policy: unmappedPolicy,
         importerUserId: userId,
         preflight,
+        resolveBoardRoleKey,
       });
       const seenMemberIds = new Set<string>([userId]);
       for (const member of wekanBoard.members || []) {
-        const roleKey = mapWekanBoardMemberToBoardRoleKey(member);
+        const roleKey = resolveBoardRoleKey(member.userId);
         const actorId = await resolveImportActorId({
           boardId: atlBoardId,
           sourceUserId: member.userId,

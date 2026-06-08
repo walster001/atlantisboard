@@ -1,14 +1,11 @@
 import type { InviteType, InviteLinkType } from '../../models/InviteLink.js';
 import { Workspace, type IWorkspace } from '../../models/Workspace.js';
-import { RoleDefinition } from '../../models/RoleDefinition.js';
 import { hasPermission } from '../../utils/permissions.js';
 import {
-  isBuiltInRoleKey,
-  isValidCustomRoleKey,
   type BoardMemberRoleUpdateModeKey,
+  validateRoleKeyExists,
 } from '../roleService.js';
 import type { IBoard } from '../../models/Board.js';
-import { ValidationError } from '../../../shared/errors/domainErrors.js';
 
 export interface CreateInviteInput {
   workspaceId?: string;
@@ -35,16 +32,7 @@ export function uniqueUserIds(ids: readonly string[]): string[] {
 }
 
 export async function validateRoleKeyForInvite(roleKey: string): Promise<void> {
-  if (isBuiltInRoleKey(roleKey)) {
-    return;
-  }
-  if (!isValidCustomRoleKey(roleKey)) {
-    throw new ValidationError('Invalid roleKey');
-  }
-  const exists = await RoleDefinition.findOne({ key: roleKey }).select('_id').lean();
-  if (!exists) {
-    throw new ValidationError('Unknown roleKey');
-  }
+  await validateRoleKeyExists(roleKey);
 }
 
 export function resolveWorkspaceRoleKeyForUser(

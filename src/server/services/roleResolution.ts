@@ -1,4 +1,5 @@
 import { RoleDefinition } from '../models/RoleDefinition.js';
+import { ValidationError } from '../../shared/errors/domainErrors.js';
 import {
   BUILTIN_ROLE_HIERARCHY_LEVELS,
   type BoardMemberRoleUpdateModeKey,
@@ -15,6 +16,24 @@ export function isValidCustomRoleKey(key: string): key is `custom:${string}` {
   }
   const slug = key.slice('custom:'.length);
   return /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slug);
+}
+
+/** Validates a board/workspace role key against built-ins and persisted RoleDefinition rows. */
+export async function validateRoleKeyExists(roleKey: string): Promise<void> {
+  const trimmed = roleKey.trim();
+  if (trimmed === '') {
+    throw new ValidationError('Invalid roleKey');
+  }
+  if (isBuiltInRoleKey(trimmed)) {
+    return;
+  }
+  if (!isValidCustomRoleKey(trimmed)) {
+    throw new ValidationError('Invalid roleKey');
+  }
+  const exists = await RoleDefinition.findOne({ key: trimmed }).select('_id').lean();
+  if (!exists) {
+    throw new ValidationError('Unknown roleKey');
+  }
 }
 
 /** Workspace/board custom roles must not include app-admin or account capability keys. */

@@ -6,7 +6,7 @@ import { LONG_TASK_NOTIFICATION_POSITION } from './longTaskProgressNotifications
 const ATTACHMENT_UPLOAD_NOTIFICATION_ID = 'card-attachment-upload';
 
 function renderUploadProgressMessage(label: string, percent: number): ReactElement {
-  const clamped = Math.min(100, Math.max(0, Math.round(percent)));
+  const clamped = Math.min(99, Math.max(0, Math.round(percent)));
   return (
     <Stack gap={6}>
       <Text size="sm">{label}</Text>
@@ -14,6 +14,16 @@ function renderUploadProgressMessage(label: string, percent: number): ReactEleme
       <Text size="xs" c="dimmed">
         {clamped}%
       </Text>
+    </Stack>
+  );
+}
+
+function renderMalwareScanMessage(label: string): ReactElement {
+  return (
+    <Stack gap={6}>
+      <Text size="sm">{label}</Text>
+      <Text size="sm">Scanning for Malware</Text>
+      <Progress value={100} radius="md" size="sm" animated />
     </Stack>
   );
 }
@@ -32,12 +42,26 @@ export function beginAttachmentUploadNotification(label: string): void {
 }
 
 export function updateAttachmentUploadNotification(label: string, percent: number): void {
+  if (percent >= 100) {
+    notifications.update({
+      id: ATTACHMENT_UPLOAD_NOTIFICATION_ID,
+      color: 'blue',
+      title: 'Scanning for Malware',
+      message: renderMalwareScanMessage(label),
+      loading: true,
+      autoClose: false,
+      withCloseButton: false,
+      position: LONG_TASK_NOTIFICATION_POSITION,
+    });
+    return;
+  }
+
   notifications.update({
     id: ATTACHMENT_UPLOAD_NOTIFICATION_ID,
     color: 'blue',
     title: 'Uploading attachment',
     message: renderUploadProgressMessage(label, percent),
-    loading: percent < 100,
+    loading: true,
     autoClose: false,
     withCloseButton: false,
     position: LONG_TASK_NOTIFICATION_POSITION,

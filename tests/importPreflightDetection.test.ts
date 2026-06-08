@@ -31,6 +31,7 @@ describe('import preflight detection', () => {
     const preflight = buildWekanImportPreflight(raw);
     expect(preflight.source).toBe('wekan');
     expect(preflight.users.users).toHaveLength(1);
+    expect(preflight.sourceBoardRoles.roles).toEqual(['normal']);
     expect(preflight.wekanButtons?.buttons).toHaveLength(1);
     expect(preflight.wekanButtons?.buttons[0].iconSrc).toBe('/cdn/storage/icons/old-icon.png');
   });
@@ -45,6 +46,7 @@ describe('import preflight detection', () => {
 
     const preflight = buildTrelloImportPreflight(raw);
     expect(preflight.source).toBe('trello');
+    expect(preflight.sourceBoardRoles.roles).toEqual(['member']);
     expect(preflight.users.users).toEqual([
       {
         sourceUserId: 'm1',

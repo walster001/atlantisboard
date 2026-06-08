@@ -7,6 +7,10 @@ import {
   decodeWekanHtmlEntities,
   LEGACY_WEKAN_INLINE_BUTTON_RES,
 } from './wekanLegacyInlineHtmlPatterns.js';
+import {
+  extractDistinctTrelloSourceBoardRoles,
+  extractDistinctWekanSourceBoardRoles,
+} from './importSourceBoardRoles.js';
 
 export type ImportSourceType = 'trello' | 'wekan';
 
@@ -29,6 +33,10 @@ export interface ImportUserPreflight {
   readonly users: readonly ImportPreflightUser[];
 }
 
+export interface ImportSourceBoardRolesPreflight {
+  readonly roles: readonly string[];
+}
+
 export interface WekanLegacyInlineButtonCandidate {
   readonly id: string;
   readonly cardId: string;
@@ -49,6 +57,11 @@ export interface InlineButtonIconReplacement {
   readonly replacementDataUrl?: string;
 }
 
+export interface ImportSourceRoleMapping {
+  readonly sourceRoleKey: string;
+  readonly targetRoleKey: string;
+}
+
 /** Board-wide legacy inline-button colour overrides applied to every imported button. */
 export interface InlineButtonImportColorOverrides {
   readonly textColor?: string;
@@ -58,6 +71,7 @@ export interface InlineButtonImportColorOverrides {
 export interface ImportPreflightPayload {
   readonly userDecisions: readonly ImportUserDecision[];
   readonly unmappedUserPolicy: UnmappedUserPolicy;
+  readonly sourceRoleMappings?: readonly ImportSourceRoleMapping[];
   readonly inlineButtonIconReplacements?: readonly InlineButtonIconReplacement[];
   readonly inlineButtonImportColorOverrides?: InlineButtonImportColorOverrides;
 }
@@ -65,6 +79,7 @@ export interface ImportPreflightPayload {
 export interface ImportPreflightResult {
   readonly source: ImportSourceType;
   readonly users: ImportUserPreflight;
+  readonly sourceBoardRoles: ImportSourceBoardRolesPreflight;
   readonly wekanButtons?: WekanButtonsPreflight;
 }
 
@@ -323,6 +338,7 @@ export function buildWekanImportPreflight(raw: unknown): ImportPreflightResult {
   return {
     source: 'wekan',
     users: { users },
+    sourceBoardRoles: { roles: extractDistinctWekanSourceBoardRoles(raw) },
     ...(buttons.length > 0 ? { wekanButtons: { buttons } } : {}),
   };
 }
@@ -336,6 +352,7 @@ export function buildTrelloImportPreflight(raw: unknown): ImportPreflightResult 
   return {
     source: 'trello',
     users: { users },
+    sourceBoardRoles: { roles: extractDistinctTrelloSourceBoardRoles(raw) },
   };
 }
 

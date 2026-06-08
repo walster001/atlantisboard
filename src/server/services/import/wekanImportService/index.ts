@@ -2,6 +2,7 @@ import { ImportJob } from '../../../models/ImportJob.js';
 import { logger } from '../../../utils/logger.js';
 import { emitToUser } from '../../../utils/socketIO.js';
 import type { ImportPreflightPayloadParsed } from '../../../../shared/import/importPreflightSchema.js';
+import { validateImportPreflightRoleKeys } from '../validateImportRoleKeys.js';
 import { executeWekanImportJob } from './execution.js';
 
 export async function importWekan(
@@ -10,6 +11,7 @@ export async function importWekan(
   defaultUncolouredCardColour?: string,
   preflight?: ImportPreflightPayloadParsed,
 ): Promise<string> {
+  await validateImportPreflightRoleKeys(preflight);
   const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
   const importJob = new ImportJob({
     userId,

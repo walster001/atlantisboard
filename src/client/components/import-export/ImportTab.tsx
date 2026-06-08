@@ -59,6 +59,9 @@ export function ImportTab({ wizard, onClose }: ImportTabProps) {
     setInlineButtonColorOverrides,
     importUsersAsPlaceholders,
     setImportUsersAsPlaceholders,
+    sourceRoleMappings,
+    setSourceRoleMappings,
+    targetRoleOptions,
     wekanButtons,
     needsReplaceButtons,
     showUserManagementTab,
@@ -120,6 +123,9 @@ export function ImportTab({ wizard, onClose }: ImportTabProps) {
             preflight={preflight}
             importUsersAsPlaceholders={importUsersAsPlaceholders}
             onImportUsersAsPlaceholdersChange={setImportUsersAsPlaceholders}
+            sourceRoleMappings={sourceRoleMappings}
+            onSourceRoleMappingsChange={setSourceRoleMappings}
+            targetRoleOptions={targetRoleOptions}
           />
         </Box>
         <Group justify="flex-end" gap="sm" style={PANEL_FOOTER_STYLE}>

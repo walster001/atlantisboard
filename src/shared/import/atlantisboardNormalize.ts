@@ -132,6 +132,16 @@ const inlineAssetEntrySchema = z.object({
   contentType: z.string().min(1),
 });
 
+const exportUserSchema = z
+  .object({
+    id: z.string().min(1),
+    email: z.string().optional(),
+    username: z.string().optional(),
+    displayName: z.string().optional(),
+    boardRoleKey: z.string().min(1).optional(),
+  })
+  .passthrough();
+
 const exportSchema = z
   .object({
     format: z.string().optional(),
@@ -139,6 +149,7 @@ const exportSchema = z
     lists: z.array(listSchema).min(1),
     cards: z.array(cardSchema).optional().default([]),
     labels: z.array(labelSchema).optional().default([]),
+    users: z.array(exportUserSchema).optional().default([]),
     inlineAssets: z.record(z.string(), inlineAssetEntrySchema).optional().default({}),
     exportedAt: z.string().optional(),
   })

@@ -2,6 +2,7 @@ import { ImportJob } from '../../../models/ImportJob.js';
 import { logger } from '../../../utils/logger.js';
 import { emitToUser } from '../../../utils/socketIO.js';
 import type { ImportPreflightPayloadParsed } from '../../../../shared/import/importPreflightSchema.js';
+import { validateImportPreflightRoleKeys } from '../validateImportRoleKeys.js';
 import { executeTrelloImportJob } from './execution.js';
 
 export async function importTrello(
@@ -11,6 +12,7 @@ export async function importTrello(
   defaultUncolouredCardColour?: string,
   _preflight?: ImportPreflightPayloadParsed,
 ): Promise<string> {
+  await validateImportPreflightRoleKeys(_preflight);
   const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
   const importJob = new ImportJob({
     userId,

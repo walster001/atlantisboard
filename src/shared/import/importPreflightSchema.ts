@@ -12,6 +12,11 @@ export const importUserDecisionSchema = z.object({
   discard: z.boolean().optional(),
 });
 
+export const importSourceRoleMappingSchema = z.object({
+  sourceRoleKey: z.string().trim().min(1).max(80),
+  targetRoleKey: z.string().trim().min(1).max(80),
+});
+
 const importInlineButtonColorSchema = z
   .string()
   .trim()
@@ -41,6 +46,7 @@ export const inlineButtonImportColorOverridesSchema = z
 export const importPreflightPayloadSchema = z.object({
   userDecisions: z.array(importUserDecisionSchema).default([]),
   unmappedUserPolicy: unmappedUserPolicySchema.default('discard_unmapped'),
+  sourceRoleMappings: z.array(importSourceRoleMappingSchema).optional(),
   inlineButtonIconReplacements: z.array(inlineButtonIconReplacementSchema).optional(),
   inlineButtonImportColorOverrides: inlineButtonImportColorOverridesSchema.optional(),
 });

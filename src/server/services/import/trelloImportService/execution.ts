@@ -20,8 +20,8 @@ import {
 } from '../importUserMapService.js';
 import {
   collectTrelloMemberIdsForBoard,
-  mapTrelloBoardMemberToBoardRoleKey,
 } from '../../../../shared/import/trelloBoardMemberRoles.js';
+import { buildTrelloImportBoardRoleResolver } from '../trelloImportBoardRoleResolver.js';
 import { objectToRecord } from '../../../utils/objectRecord.js';
 import { logger } from '../../../utils/logger.js';
 import { createActivity } from '../../activityService.js';
@@ -156,6 +156,7 @@ export async function executeTrelloImportJob(params: {
       const trelloMemberIds = collectTrelloMemberIdsForBoard(trelloBoard.id, cardsOrdered);
       const boardSourceUsersById = extendSourceUsersById(sourceUsers, trelloMemberIds);
       const boardActorMap = new Map(realUserMap);
+      const resolveBoardRoleKey = buildTrelloImportBoardRoleResolver(trelloBoard.id, jsonData, preflight);
       await ensureBoardImportPlaceholdersSeeded({
         boardId: atlBoardId,
         sourceUsersById: boardSourceUsersById,
@@ -165,6 +166,7 @@ export async function executeTrelloImportJob(params: {
         policy: unmappedPolicy,
         importerUserId: userId,
         preflight,
+        resolveBoardRoleKey,
       });
       const seenMemberIds = new Set<string>([userId]);
       for (const trelloMemberId of trelloMemberIds) {
@@ -174,7 +176,7 @@ export async function executeTrelloImportJob(params: {
           sourceUsersById: boardSourceUsersById,
           actorMap: boardActorMap,
           source: 'trello',
-          roleKey: mapTrelloBoardMemberToBoardRoleKey(),
+          roleKey: resolveBoardRoleKey(trelloMemberId),
           policy: unmappedPolicy,
           importerUserId: userId,
           preflight,
@@ -189,7 +191,7 @@ export async function executeTrelloImportJob(params: {
         seenMemberIds.add(actorId);
         board.members.push({
           userId: new mongoose.Types.ObjectId(actorId),
-          roleKey: mapTrelloBoardMemberToBoardRoleKey(),
+          roleKey: resolveBoardRoleKey(trelloMemberId),
           addedAt: new Date(),
         });
       }

@@ -113,6 +113,7 @@ export async function ensureBoardImportPlaceholdersSeeded(params: {
   readonly policy: UnmappedUserPolicy;
   readonly importerUserId: string;
   readonly preflight?: ImportPreflightPayloadParsed | undefined;
+  readonly resolveBoardRoleKey: (sourceUserId: string) => string;
 }): Promise<void> {
   if (params.policy !== 'create_placeholders') {
     return;
@@ -155,7 +156,10 @@ export async function ensureBoardImportPlaceholdersSeeded(params: {
       case 'create_placeholder': {
         const placeholderSource =
           sourceUser ?? params.sourceUsersById.get(trimmed) ?? stubImportPreflightUser(trimmed);
-        placeholderEntries.push({ sourceUser: placeholderSource, roleKey: 'viewer' });
+        placeholderEntries.push({
+          sourceUser: placeholderSource,
+          roleKey: params.resolveBoardRoleKey(sourceUserId),
+        });
         break;
       }
     }

@@ -1,6 +1,7 @@
 import { Card } from '../models/Card.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
+import { recordBoardActivityDeferred } from './boardActivityTracking.js';
 import { hasPermission } from '../utils/permissions.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
 import type { Document } from 'mongoose';
@@ -65,6 +66,16 @@ export async function createChecklist(input: CreateChecklistInput, userId: strin
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId: input.cardId,
+    userId,
+    category: 'checklists',
+    type: 'checklist.created',
+    description: `Checklist "${input.title}" created`,
+    metadata: { entityId: checklistId, entityName: input.title, cardId: input.cardId },
+  });
+
   logger.info({ checklistId, cardId: input.cardId }, 'Checklist created');
   return card;
 }
@@ -108,6 +119,16 @@ export async function updateChecklist(
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'checklists',
+    type: 'checklist.updated',
+    description: `Checklist "${checklist.title}" updated`,
+    metadata: { entityId: checklistId, entityName: checklist.title, cardId },
+  });
+
   return card;
 }
 
@@ -123,6 +144,8 @@ export async function deleteChecklist(cardId: string, checklistId: string, userI
     throw new ForbiddenError('Insufficient permissions to delete checklist');
   }
 
+  const checklist = card.checklists.find((c) => c.id === checklistId);
+  const checklistTitle = checklist?.title ?? 'Checklist';
   card.checklists = card.checklists.filter((c) => c.id !== checklistId);
   await card.save();
 
@@ -135,6 +158,16 @@ export async function deleteChecklist(cardId: string, checklistId: string, userI
     resourceId: cardId,
     metadata: { checklistId, boardId: card.boardId.toString() },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'checklists',
+    type: 'checklist.deleted',
+    description: `Checklist "${checklistTitle}" deleted`,
+    metadata: { entityId: checklistId, entityName: checklistTitle, cardId },
   });
 
   return true;
@@ -184,6 +217,16 @@ export async function createChecklistItem(
     resourceId: input.cardId,
     metadata: { checklistId: input.checklistId, itemId, boardId: card.boardId.toString() },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId: input.cardId,
+    userId,
+    category: 'checklists',
+    type: 'checklist.item.created',
+    description: `Checklist item created`,
+    metadata: { entityId: itemId, entityName: input.text, cardId: input.cardId },
   });
 
   return card;
@@ -241,6 +284,16 @@ export async function updateChecklistItem(
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'checklists',
+    type: 'checklist.item.updated',
+    description: `Checklist item updated`,
+    metadata: { entityId: itemId, entityName: item.text, cardId },
+  });
+
   return card;
 }
 
@@ -266,6 +319,8 @@ export async function deleteChecklistItem(
     return false;
   }
 
+  const item = checklist.items.find((i) => i.id === itemId);
+  const itemText = item?.text ?? 'Item';
   checklist.items = checklist.items.filter((i) => i.id !== itemId);
   await card.save();
 
@@ -278,6 +333,16 @@ export async function deleteChecklistItem(
     resourceId: cardId,
     metadata: { checklistId, itemId, boardId: card.boardId.toString() },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'checklists',
+    type: 'checklist.item.deleted',
+    description: `Checklist item deleted`,
+    metadata: { entityId: itemId, entityName: itemText, cardId },
   });
 
   return true;

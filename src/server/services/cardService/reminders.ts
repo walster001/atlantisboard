@@ -2,6 +2,7 @@ import { type Document } from 'mongoose';
 import { Card, type ICard } from '../../models/Card.js';
 import { Board } from '../../models/Board.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
+import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { emitToBoard } from '../../utils/socketIO.js';
 import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
@@ -84,6 +85,17 @@ export async function addCardReminder(
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'reminders',
+    type: 'card.reminder.created',
+    description: `Reminder created on "${card.title}"`,
+    metadata: { entityId: reminderId, cardId, cardTitle: card.title },
+    boardSettings: board.settings,
+  });
+
   return card;
 }
 
@@ -139,6 +151,17 @@ export async function updateCardReminder(
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'reminders',
+    type: 'card.reminder.updated',
+    description: `Reminder updated on "${card.title}"`,
+    metadata: { entityId: reminderId, cardId, cardTitle: card.title },
+    boardSettings: board.settings,
+  });
+
   return card;
 }
 
@@ -189,6 +212,17 @@ export async function deleteCardReminder(
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'reminders',
+    type: 'card.reminder.deleted',
+    description: `Reminder deleted on "${card.title}"`,
+    metadata: { entityId: reminderId, cardId, cardTitle: card.title },
+    boardSettings: board.settings,
+  });
+
   return card;
 }
 
@@ -227,6 +261,16 @@ export async function dismissCardReminder(
     resourceId: cardId,
     metadata: { reminderId },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'reminders',
+    type: 'card.reminder.dismissed',
+    description: `Reminder dismissed on "${card.title}"`,
+    metadata: { entityId: reminderId, cardId, cardTitle: card.title },
   });
 
   return card;

@@ -86,6 +86,22 @@ export const updateBoardSchema = z.object({
       listColumnWidthAuto: z.boolean().optional(),
       listColumnWidthPx: z.number().min(140).max(800).optional(),
       memberActivityLogRetentionDays: z.number().int().min(1).max(3650).nullable().optional(),
+      activityLogEnabled: z.boolean().optional(),
+      activityLogRetentionDays: z.number().int().min(1).max(3650).nullable().optional(),
+      activityLogTracking: z
+        .object({
+          lists: z.boolean().optional(),
+          cards: z.boolean().optional(),
+          cardDescriptions: z.boolean().optional(),
+          checklists: z.boolean().optional(),
+          attachments: z.boolean().optional(),
+          labels: z.boolean().optional(),
+          comments: z.boolean().optional(),
+          assignees: z.boolean().optional(),
+          reminders: z.boolean().optional(),
+          dates: z.boolean().optional(),
+        })
+        .optional(),
     })
     .optional(),
 });

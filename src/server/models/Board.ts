@@ -4,6 +4,7 @@ import {
   BOARD_NAME_MAX_LENGTH,
 } from '../../shared/constants/entityTextLimits.js';
 import type { BoardThemeSettings, BoardThemeSettingsStored } from '../../shared/boardTheme.js';
+import type { BoardActivityTrackingSettings } from '../../shared/constants/boardContentActivities.js';
 
 export type BoardVisibility = 'private' | 'workspace' | 'public';
 export type BoardRole = 'admin' | 'manager' | 'viewer';
@@ -44,6 +45,12 @@ export interface IBoardSettings {
   listColumnWidthPx?: number;
   /** When set, member activity log entries older than this many days may be purged (worker TBD). */
   memberActivityLogRetentionDays?: number;
+  /** When true, board content activities are recorded per category toggles. Default false (opt-in). */
+  activityLogEnabled?: boolean;
+  /** When set, board content activity rows older than this many days may be purged. */
+  activityLogRetentionDays?: number;
+  /** Per-category tracking toggles for board content activities. */
+  activityLogTracking?: BoardActivityTrackingSettings;
 }
 
 export interface IBoard extends Document {
@@ -105,6 +112,20 @@ const BoardSettingsSchema = new Schema<IBoardSettings>(
     listColumnWidthAuto: { type: Boolean, default: true },
     listColumnWidthPx: { type: Number, min: 140, max: 800 },
     memberActivityLogRetentionDays: { type: Number, min: 1, max: 3650 },
+    activityLogEnabled: { type: Boolean, default: false },
+    activityLogRetentionDays: { type: Number, min: 1, max: 3650 },
+    activityLogTracking: {
+      lists: { type: Boolean },
+      cards: { type: Boolean },
+      cardDescriptions: { type: Boolean },
+      checklists: { type: Boolean },
+      attachments: { type: Boolean },
+      labels: { type: Boolean },
+      comments: { type: Boolean },
+      assignees: { type: Boolean },
+      reminders: { type: Boolean },
+      dates: { type: Boolean },
+    },
   },
   { _id: false }
 );

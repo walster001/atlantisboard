@@ -54,4 +54,21 @@ describe('board settings permission gate', () => {
     expect(gate.canManageCustomThemes).toBe(true);
     expect(gate.canChangeTheme).toBe(false);
   });
+
+  it('opens settings for activity log viewers without other settings permissions', () => {
+    const gate = resolveBoardSettingsGate(
+      canFromKeys(['boards.view', 'boards.settings.activitylog']),
+    );
+    expect(gate.canOpenSettings).toBe(true);
+    expect(gate.canViewActivityLog).toBe(true);
+    expect(gate.canManageBoardSettings).toBe(false);
+    expect(gate.canManageBoardMembers).toBe(false);
+  });
+
+  it('does not grant activity log visibility without boards.settings.activitylog', () => {
+    const gate = resolveBoardSettingsGate(
+      canFromKeys(['boards.view', 'boards.settings.update']),
+    );
+    expect(gate.canViewActivityLog).toBe(false);
+  });
 });

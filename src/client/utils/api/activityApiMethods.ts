@@ -10,6 +10,7 @@ export interface ActivityApiMethods {
       cardId?: string;
       cursor?: string;
       memberAudit?: boolean;
+      boardActivity?: boolean;
       dayStartMs?: number;
       dayEndMs?: number;
     }
@@ -35,6 +36,7 @@ export const activityApiMethods: ActivityApiMethods = {
     if (o.cardId !== undefined && o.cardId !== '') params.append('cardId', o.cardId);
     if (o.cursor !== undefined && o.cursor !== '') params.append('cursor', o.cursor);
     if (o.memberAudit === true) params.append('memberAudit', 'true');
+    if (o.boardActivity === true) params.append('boardActivity', 'true');
     if (o.dayStartMs !== undefined) params.append('dayStart', String(o.dayStartMs));
     if (o.dayEndMs !== undefined) params.append('dayEnd', String(o.dayEndMs));
     const response = await this.client.get(`/activities/boards/${boardId}?${params.toString()}`);

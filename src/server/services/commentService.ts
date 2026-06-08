@@ -1,6 +1,7 @@
 import { Card } from '../models/Card.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
+import { recordBoardActivityDeferred } from './boardActivityTracking.js';
 import { hasPermission } from '../utils/permissions.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
 import type { Document } from 'mongoose';
@@ -55,6 +56,16 @@ export async function createComment(input: CreateCommentInput, userId: string): 
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId: input.cardId,
+    userId,
+    category: 'comments',
+    type: 'comment.created',
+    description: `Comment added on "${card.title}"`,
+    metadata: { entityId: commentId, cardId: input.cardId, cardTitle: card.title },
+  });
+
   logger.info({ commentId, cardId: input.cardId }, 'Comment created');
   return card;
 }
@@ -95,6 +106,16 @@ export async function updateComment(
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'comments',
+    type: 'comment.updated',
+    description: `Comment updated on "${card.title}"`,
+    metadata: { entityId: commentId, cardId, cardTitle: card.title },
+  });
+
   return card;
 }
 
@@ -129,6 +150,16 @@ export async function deleteComment(cardId: string, commentId: string, userId: s
     resourceId: cardId,
     metadata: { commentId, boardId: card.boardId.toString() },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'comments',
+    type: 'comment.deleted',
+    description: `Comment deleted on "${card.title}"`,
+    metadata: { entityId: commentId, cardId, cardTitle: card.title },
   });
 
   return true;

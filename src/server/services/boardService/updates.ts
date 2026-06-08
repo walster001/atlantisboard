@@ -210,6 +210,26 @@ export async function updateBoard(
         board.settings.memberActivityLogRetentionDays = input.settings.memberActivityLogRetentionDays;
       }
     }
+    if (input.settings.activityLogEnabled !== undefined) {
+      board.settings.activityLogEnabled = input.settings.activityLogEnabled;
+    }
+    if (input.settings.activityLogRetentionDays !== undefined) {
+      if (input.settings.activityLogRetentionDays === null) {
+        await Board.updateOne(
+          { _id: board._id },
+          { $unset: { 'settings.activityLogRetentionDays': '' } },
+        );
+        delete board.settings.activityLogRetentionDays;
+      } else {
+        board.settings.activityLogRetentionDays = input.settings.activityLogRetentionDays;
+      }
+    }
+    if (input.settings.activityLogTracking !== undefined) {
+      board.settings.activityLogTracking = {
+        ...board.settings.activityLogTracking,
+        ...input.settings.activityLogTracking,
+      };
+    }
   }
 
   await board.save();

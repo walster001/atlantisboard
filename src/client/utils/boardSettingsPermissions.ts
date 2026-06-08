@@ -5,6 +5,7 @@ type BoardSettingsGate = {
   canManageBoardMembers: boolean;
   canChangeTheme: boolean;
   canManageCustomThemes: boolean;
+  canViewActivityLog: boolean;
   canOpenSettings: boolean;
 };
 
@@ -16,11 +17,13 @@ export function resolveBoardSettingsGate(
   const canManageBoardSettings = can('boards.update') || can('boards.settings.update') || canChangeTheme;
   const canManageBoardMembers =
     can('boards.members.add') || can('boards.members.remove') || can('boards.members.role.update');
+  const canViewActivityLog = can('boards.settings.activitylog');
   return {
     canManageBoardSettings,
     canManageBoardMembers,
     canChangeTheme,
     canManageCustomThemes,
-    canOpenSettings: canManageBoardSettings || canManageBoardMembers,
+    canViewActivityLog,
+    canOpenSettings: canManageBoardSettings || canManageBoardMembers || canViewActivityLog,
   };
 }

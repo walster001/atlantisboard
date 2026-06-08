@@ -3,6 +3,7 @@ import { List, type IList } from '../models/List.js';
 import { Card, type ICard } from '../models/Card.js';
 import { Board } from '../models/Board.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
+import { recordBoardActivityDeferred } from './boardActivityTracking.js';
 import { hasPermission } from '../utils/permissions.js';
 import { createList, updateList } from './listService.js';
 import { duplicateCardsBatch } from './cardService/cardDuplication.js';
@@ -117,6 +118,20 @@ export async function duplicateList(
       cardCount: cardsToCopy.length,
     },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: targetBoardId,
+    userId,
+    category: 'lists',
+    type: 'list.duplicated',
+    description: `List "${listName}" duplicated`,
+    metadata: {
+      entityId: newListId,
+      entityName: listName,
+      previous: sourceListId,
+    },
+    boardSettings: targetBoard.settings,
   });
 
   const refreshed = await List.findById(newListId);

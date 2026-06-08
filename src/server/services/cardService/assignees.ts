@@ -2,6 +2,7 @@ import { Types, type Document } from 'mongoose';
 import { Card, type ICard } from '../../models/Card.js';
 import { Board } from '../../models/Board.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
+import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
 import {
@@ -48,6 +49,17 @@ export async function addCardAssignee(
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'assignees',
+    type: 'card.assignee.added',
+    description: `Assignee added to "${card.title}"`,
+    metadata: { entityId: assigneeId, cardId, cardTitle: card.title },
+    boardSettings: board.settings,
+  });
+
   return card;
 }
 
@@ -86,6 +98,17 @@ export async function removeCardAssignee(
     resourceId: cardId,
     metadata: { assigneeId },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'assignees',
+    type: 'card.assignee.removed',
+    description: `Assignee removed from "${card.title}"`,
+    metadata: { entityId: assigneeId, cardId, cardTitle: card.title },
+    boardSettings: board.settings,
   });
 
   return card;

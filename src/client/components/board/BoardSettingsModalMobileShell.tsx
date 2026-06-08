@@ -10,6 +10,7 @@ import {
 import {
   IconAdjustmentsHorizontal,
   IconArrowLeft,
+  IconHeartRateMonitor,
   IconHistory,
   IconPalette,
   IconUsers,
@@ -21,9 +22,10 @@ import { BoardSettingsListSettingsPanel } from './BoardSettingsListSettingsPanel
 import { BoardSettingsCardSettingsPanel } from './BoardSettingsCardSettingsPanel.js';
 import { BoardThemeBackgroundTab } from './BoardThemeBackgroundTab.js';
 import {
-  ActivityLog,
+  BoardActivityLog,
   BoardMemberManagement,
   LabelManagement,
+  MemberAuditLog,
   TabPanelFallback,
   type MobileDetail,
   type TopTab,
@@ -196,6 +198,22 @@ export function BoardSettingsModalMobileShell({
               <IconHistory size={20} stroke={1.6} />
             </ActionIcon>
           ) : null}
+          {allowed.includes('activity') ? (
+            <ActionIcon
+              type="button"
+              size={44}
+              radius="sm"
+              variant={effectiveTopTab === 'activity' ? 'filled' : 'light'}
+              color={effectiveTopTab === 'activity' ? 'blue' : 'gray'}
+              aria-label="Activity log"
+              onClick={() => {
+                setTopTab('activity');
+                setMobileDetail({ kind: 'activity' });
+              }}
+            >
+              <IconHeartRateMonitor size={20} stroke={1.6} />
+            </ActionIcon>
+          ) : null}
         </Group>
 
         {mobileDetail == null ? (
@@ -249,7 +267,7 @@ export function BoardSettingsModalMobileShell({
             className={
               mobileDetail.kind === 'users'
                 ? 'board-settings-modal__mobile-content board-settings-modal__mobile-content--users'
-                : mobileDetail.kind === 'audit'
+                : mobileDetail.kind === 'audit' || mobileDetail.kind === 'activity'
                   ? 'board-settings-modal__mobile-content board-settings-modal__mobile-content--audit'
                   : mobileDetail.kind === 'board' &&
                       (mobileDetail.section === 'card-settings' ||
@@ -295,7 +313,16 @@ export function BoardSettingsModalMobileShell({
             ) : null}
             {mobileDetail.kind === 'audit' ? (
               <Suspense fallback={<TabPanelFallback />}>
-                <ActivityLog
+                <MemberAuditLog
+                  boardId={boardId}
+                  mobileLayout={touchLayout}
+                  {...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {})}
+                />
+              </Suspense>
+            ) : null}
+            {mobileDetail.kind === 'activity' ? (
+              <Suspense fallback={<TabPanelFallback />}>
+                <BoardActivityLog
                   boardId={boardId}
                   mobileLayout={touchLayout}
                   {...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {})}

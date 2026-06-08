@@ -14,6 +14,7 @@ const permissionProbeKeys = [
   'boards.view',
   'boards.update',
   'boards.settings.update',
+  'boards.settings.activitylog',
   'boards.themes.changetheme',
   'boards.themes.customtheme',
   'boards.members.view',

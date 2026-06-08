@@ -3,7 +3,7 @@ import { Card, type ICard } from '../../models/Card.js';
 import { List } from '../../models/List.js';
 import { Board } from '../../models/Board.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
-import { createActivity } from '../activityService.js';
+import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { emitToBoard } from '../../utils/socketIO.js';
 import {
@@ -180,12 +180,20 @@ export async function moveCard(
     timestamp: new Date(),
   });
 
-  createActivity({
+  recordBoardActivityDeferred({
     boardId: card.boardId.toString(),
     cardId,
     userId,
+    category: 'cards',
     type: 'card.moved',
     description: `Card moved to list "${targetList.name}"`,
+    metadata: {
+      entityId: cardId,
+      listId: targetListId,
+      listName: targetList.name,
+      previous: originalListId,
+      next: targetListId,
+    },
   });
 
   return card;
@@ -251,6 +259,16 @@ export async function reorderCards(
     resourceId: listId,
     metadata: { cardIds, mode: 'bulk_reflow' },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: list.boardId.toString(),
+    userId,
+    category: 'cards',
+    type: 'card.reordered',
+    description: `Cards reordered in "${list.name}"`,
+    metadata: { entityId: listId, entityName: list.name, listId },
+    boardSettings: board.settings,
   });
 
   return true;

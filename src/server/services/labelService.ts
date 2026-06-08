@@ -4,6 +4,7 @@ import { Board } from '../models/Board.js';
 import { assertMongoObjectId } from '../utils/mongoObjectId.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
+import { recordBoardActivityDeferred } from './boardActivityTracking.js';
 import { hasPermission } from '../utils/permissions.js';
 import { emitToBoard } from '../utils/socketIO.js';
 import { emitCardUpdatedRealtime } from '../utils/cardSocketEmit.js';
@@ -63,6 +64,16 @@ export async function createLabel(input: CreateLabelInput, userId: string): Prom
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: input.boardId,
+    userId,
+    category: 'labels',
+    type: 'label.created',
+    description: `Label "${input.name}" created`,
+    metadata: { entityId: label._id.toString(), entityName: input.name },
+    boardSettings: board.settings,
+  });
+
   logger.info({ labelId: label._id.toString(), boardId: input.boardId }, 'Label created');
   return label;
 }
@@ -116,6 +127,15 @@ export async function updateLabel(
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: label.boardId.toString(),
+    userId,
+    category: 'labels',
+    type: 'label.updated',
+    description: `Label "${label.name}" updated`,
+    metadata: { entityId: labelId, entityName: label.name },
+  });
+
   return label;
 }
 
@@ -138,6 +158,16 @@ export async function deleteLabel(labelId: string, userId: string): Promise<bool
   const affectedCardIds = affectedCards.map((card) => String(card._id));
 
   const boardIdStr = label.boardId.toString();
+  const labelName = label.name;
+  recordBoardActivityDeferred({
+    boardId: boardIdStr,
+    userId,
+    category: 'labels',
+    type: 'label.deleted',
+    description: `Label "${labelName}" deleted`,
+    metadata: { entityId: labelId, entityName: labelName },
+  });
+
   emitToBoard(boardIdStr, 'label:deleted', {
     labelId,
     boardId: boardIdStr,
@@ -215,6 +245,21 @@ export async function assignLabelToCard(cardId: string, labelId: string, userId:
     timestamp: new Date(),
   });
 
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'labels',
+    type: 'label.assigned',
+    description: `Label "${label.name}" assigned to "${card.title}"`,
+    metadata: {
+      entityId: labelId,
+      entityName: label.name,
+      cardId,
+      cardTitle: card.title,
+    },
+  });
+
   return card;
 }
 
@@ -243,6 +288,16 @@ export async function removeLabelFromCard(cardId: string, labelId: string, userI
     resourceId: cardId,
     metadata: { labelId, boardId: card.boardId.toString() },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: card.boardId.toString(),
+    cardId,
+    userId,
+    category: 'labels',
+    type: 'label.removed',
+    description: `Label removed from "${card.title}"`,
+    metadata: { entityId: labelId, cardId, cardTitle: card.title },
   });
 
   return card;

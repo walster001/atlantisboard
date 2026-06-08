@@ -1,7 +1,7 @@
 import type { Document } from 'mongoose';
 import type { ICard } from '../../models/Card.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
-import { createActivity } from '../activityService.js';
+import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { emitToBoard } from '../../utils/socketIO.js';
 import type { SourceCardForDuplicate } from './cardDuplicationTypes.js';
 
@@ -91,12 +91,18 @@ export function logDuplicationAuditAndActivities(args: {
 
   if (skipActivities !== true) {
     for (const card of created) {
-      createActivity({
+      recordBoardActivityDeferred({
         boardId: targetBoardId,
         cardId: card._id.toString(),
         userId,
-        type: 'card.created',
+        category: 'cards',
+        type: 'card.duplicated',
         description: `Card duplicated: "${card.title}"`,
+        metadata: {
+          entityId: card._id.toString(),
+          entityName: card.title,
+          listId: targetListId,
+        },
       });
     }
   }

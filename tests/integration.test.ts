@@ -62,6 +62,7 @@ describe('Integration Tests', () => {
     it('should have cron jobs defined', async () => {
       const cronJobs = await import('../src/server/workers/cronJobs.js');
       expect(cronJobs.cleanupActivityLogs).toBeDefined();
+      expect(cronJobs.cleanupBoardContentActivityRetention).toBeDefined();
       expect(cronJobs.cleanupImportJobs).toBeDefined();
       expect(cronJobs.cleanupOrphanedAttachments).toBeDefined();
       expect(cronJobs.checkReminders).toBeDefined();

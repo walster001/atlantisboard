@@ -8,6 +8,10 @@ import {
   BOARD_MEMBER_AUDIT_ACTIVITY_TYPES,
   BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS,
 } from '../../shared/constants/boardMemberAuditActivities.js';
+import {
+  BOARD_CONTENT_ACTIVITY_TYPES,
+  BOARD_CONTENT_DEFAULT_RETENTION_DAYS,
+} from '../../shared/constants/boardContentActivities.js';
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { runScheduledBackupIfDue } from '../services/backupService.js';
@@ -54,6 +58,9 @@ export async function cleanupActivityLogs(): Promise<void> {
 
       const result = await Activity.deleteMany({
         boardId: { $in: boardIds },
+        type: {
+          $nin: [...BOARD_MEMBER_AUDIT_ACTIVITY_TYPES, ...BOARD_CONTENT_ACTIVITY_TYPES],
+        },
         createdAt: { $lt: cutoffDate },
       });
 
@@ -120,6 +127,52 @@ export async function cleanupBoardMemberAuditRetention(): Promise<void> {
     });
   } catch (error) {
     logger.error({ error }, 'Board member activity audit retention cleanup failed');
+    throw error;
+  }
+}
+
+/**
+ * Deletes old **board content** activity rows per board
+ * `settings.activityLogRetentionDays` (Activity Log retention).
+ */
+export async function cleanupBoardContentActivityRetention(): Promise<void> {
+  logger.info('Starting board content activity retention cleanup');
+
+  try {
+    const cursor = Board.find({})
+      .select('_id settings.activityLogRetentionDays')
+      .lean()
+      .cursor();
+
+    let totalDeleted = 0;
+    for await (const b of cursor) {
+      const configured = b.settings?.activityLogRetentionDays;
+      const days =
+        typeof configured === 'number' && configured >= 1 && configured <= 3650
+          ? configured
+          : BOARD_CONTENT_DEFAULT_RETENTION_DAYS;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      const result = await Activity.deleteMany({
+        boardId: b._id,
+        type: { $in: [...BOARD_CONTENT_ACTIVITY_TYPES] },
+        createdAt: { $lt: cutoff },
+      });
+      totalDeleted += result.deletedCount ?? 0;
+    }
+
+    logger.info({ totalDeleted }, 'Board content activity retention cleanup completed');
+
+    logAuditEvent({
+      userId: 'system',
+      action: 'cleanup.board.content.activity',
+      resourceType: 'system',
+      resourceId: 'system',
+      metadata: { totalDeleted },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    logger.error({ error }, 'Board content activity retention cleanup failed');
     throw error;
   }
 }
@@ -288,6 +341,7 @@ let lastActivityLogRun = 0;
 let lastImportJobRun = 0;
 let lastAttachmentRun = 0;
 let lastMemberAuditRetentionRun = 0;
+let lastBoardContentActivityRetentionRun = 0;
 let lastScheduledBackupCheckRun = 0;
 export function scheduleCronJobs(): void {
   if (intervalIds.length > 0) {
@@ -347,6 +401,22 @@ export function scheduleCronJobs(): void {
     }
   }, 5 * 60 * 1000);
   intervalIds.push(memberAuditRetentionInterval);
+
+  // Board content activity log retention (board.settings.activityLogRetentionDays) — daily ~3:20 AM
+  const boardContentActivityRetentionInterval = setInterval(() => {
+    const now = new Date();
+    const hour = now.getHours();
+    const minutes = now.getMinutes();
+    const timeKey = now.getTime();
+
+    if (hour === 3 && minutes === 20 && timeKey - lastBoardContentActivityRetentionRun > 60000) {
+      lastBoardContentActivityRetentionRun = timeKey;
+      cleanupBoardContentActivityRetention().catch((error) => {
+        logger.error({ error }, 'Scheduled board content activity retention cleanup failed');
+      });
+    }
+  }, 5 * 60 * 1000);
+  intervalIds.push(boardContentActivityRetentionInterval);
 
   // Orphaned attachments cleanup - daily at 5 AM
   const attachmentInterval = setInterval(() => {

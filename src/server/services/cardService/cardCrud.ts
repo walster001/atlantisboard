@@ -4,7 +4,7 @@ import { List } from '../../models/List.js';
 import { Board } from '../../models/Board.js';
 import { logger } from '../../utils/logger.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
-import { createActivity } from '../activityService.js';
+import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { emitToBoard } from '../../utils/socketIO.js';
 import { deriveCardDescriptionPreview } from '../cardViewService.js';
@@ -102,12 +102,14 @@ export async function createCard(input: CreateCardInput, userId: string): Promis
     timestamp: new Date(),
   });
 
-  createActivity({
+  recordBoardActivityDeferred({
     boardId: input.boardId,
     cardId: card._id.toString(),
     userId,
+    category: 'cards',
     type: 'card.created',
     description: `Card "${input.title}" created`,
+    metadata: { entityId: card._id.toString(), entityName: input.title, listId: input.listId },
   });
 
   logger.info({ cardId: card._id.toString(), listId: input.listId }, 'Card created');
@@ -174,6 +176,13 @@ export async function updateCard(
   await assertDateEditIfChanged('start', card.startDate, input.startDate);
   await assertDateEditIfChanged('end', card.endDate, input.endDate);
 
+  const prevTitle = card.title;
+  const prevDescription = card.description;
+  const prevDue = card.dueDate;
+  const prevStart = card.startDate;
+  const prevEnd = card.endDate;
+  const prevCompleted = card.completed;
+
   if (input.title !== undefined) card.title = input.title;
   if (input.description !== undefined) {
     card.description = input.description;
@@ -233,7 +242,72 @@ export async function updateCard(
     timestamp: new Date(),
   });
 
-  emitToBoard(card.boardId.toString(), 'card:updated', {
+  const cardTitle = card.title;
+  const boardSettings = board.settings;
+
+  if (input.description !== undefined && input.description !== prevDescription) {
+    recordBoardActivityDeferred({
+      boardId: boardIdStr,
+      cardId,
+      userId,
+      category: 'cardDescriptions',
+      type: 'card.description.updated',
+      description: `Updated description on "${cardTitle}"`,
+      metadata: { entityId: cardId, entityName: cardTitle },
+      boardSettings,
+    });
+  }
+
+  const dateFieldsChanged =
+    (input.dueDate !== undefined && cardDateFieldChanged(prevDue, input.dueDate)) ||
+    (input.startDate !== undefined && cardDateFieldChanged(prevStart, input.startDate)) ||
+    (input.endDate !== undefined && cardDateFieldChanged(prevEnd, input.endDate)) ||
+    (input.completed !== undefined && input.completed !== prevCompleted);
+
+  if (dateFieldsChanged) {
+    recordBoardActivityDeferred({
+      boardId: boardIdStr,
+      cardId,
+      userId,
+      category: 'dates',
+      type: 'card.dates.updated',
+      description: `Updated dates on "${cardTitle}"`,
+      metadata: {
+        entityId: cardId,
+        entityName: cardTitle,
+        field: 'dates',
+      },
+      boardSettings,
+    });
+  }
+
+  const generalUpdated =
+    (input.title !== undefined && input.title !== prevTitle) ||
+    input.color !== undefined ||
+    input.cover !== undefined ||
+    input.listId !== undefined ||
+    input.position !== undefined;
+
+  if (generalUpdated && input.description === undefined) {
+    recordBoardActivityDeferred({
+      boardId: boardIdStr,
+      cardId,
+      userId,
+      category: 'cards',
+      type: 'card.updated',
+      description: `Updated card "${cardTitle}"`,
+      metadata: {
+        entityId: cardId,
+        entityName: cardTitle,
+        ...(input.title !== undefined && input.title !== prevTitle
+          ? { field: 'title', previous: prevTitle, next: card.title }
+          : {}),
+      },
+      boardSettings,
+    });
+  }
+
+  emitToBoard(boardIdStr, 'card:updated', {
     cardId,
     boardId: card.boardId.toString(),
     data: card.toObject(),
@@ -263,6 +337,18 @@ export async function deleteCard(cardId: string, userId: string): Promise<boolea
   }
 
   const boardIdStr = card.boardId.toString();
+  const cardTitle = card.title;
+  recordBoardActivityDeferred({
+    boardId: boardIdStr,
+    cardId,
+    userId,
+    category: 'cards',
+    type: 'card.deleted',
+    description: `Deleted card "${cardTitle}"`,
+    metadata: { entityId: cardId, entityName: cardTitle },
+    boardSettings: board.settings,
+  });
+
   await removeImportInlineObjectsForCardFields(card.description, card.descriptionHtml);
   await Card.findByIdAndDelete(cardId);
 

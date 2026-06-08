@@ -9,6 +9,7 @@ import {
 } from '@mantine/core';
 import {
   IconAdjustmentsHorizontal,
+  IconHeartRateMonitor,
   IconHistory,
   IconList,
   IconTag,
@@ -23,9 +24,10 @@ import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { useIsPwa } from '../../hooks/usePwaDisplayMode.js';
 import { BoardSettingsModalMobileShell } from './BoardSettingsModalMobileShell.js';
 import {
-  ActivityLog,
+  BoardActivityLog,
   BoardMemberManagement,
   LabelManagement,
+  MemberAuditLog,
   TabPanelFallback,
   type BoardSideNav,
   type MobileDetail,
@@ -59,7 +61,7 @@ export function BoardSettingsModal({
   const [topTab, setTopTab] = useState<TopTab>('board');
   const [boardSideNav, setBoardSideNav] = useState<BoardSideNav>('labels');
   const [mobileDetail, setMobileDetail] = useState<MobileDetail>(null);
-  const allowed = allowedTopTabs ?? (['board', 'users', 'theme', 'audit'] as const);
+  const allowed = allowedTopTabs ?? (['board', 'users', 'theme', 'audit', 'activity'] as const);
   const effectiveTopTab = allowed.includes(topTab) ? topTab : (allowed[0] as TopTab);
 
   const mobileHeaderTitle = (() => {
@@ -74,6 +76,9 @@ export function BoardSettingsModal({
     }
     if (mobileDetail.kind === 'audit') {
       return 'Audit Log';
+    }
+    if (mobileDetail.kind === 'activity') {
+      return 'Activity Log';
     }
     return mobileDetail.section === 'card-settings'
       ? 'Card settings'
@@ -144,6 +149,11 @@ export function BoardSettingsModal({
             {allowed.includes('audit') ? (
               <Tabs.Tab value="audit" leftSection={<IconHistory size={18} stroke={1.5} />}>
                 Audit Log
+              </Tabs.Tab>
+            ) : null}
+            {allowed.includes('activity') ? (
+              <Tabs.Tab value="activity" leftSection={<IconHeartRateMonitor size={18} stroke={1.5} />}>
+                Activity Log
               </Tabs.Tab>
             ) : null}
           </Tabs.List>
@@ -228,7 +238,22 @@ export function BoardSettingsModal({
           >
             <Box className="board-settings-modal__users-panel-inner">
               <Suspense fallback={<TabPanelFallback />}>
-                <ActivityLog
+                <MemberAuditLog
+                  boardId={boardId}
+                  {...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {})}
+                />
+              </Suspense>
+            </Box>
+          </Tabs.Panel>
+
+          <Tabs.Panel
+            value="activity"
+            pt="md"
+            className="board-settings-modal__tab-panel board-settings-modal__tab-panel--fill"
+          >
+            <Box className="board-settings-modal__users-panel-inner">
+              <Suspense fallback={<TabPanelFallback />}>
+                <BoardActivityLog
                   boardId={boardId}
                   {...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {})}
                 />

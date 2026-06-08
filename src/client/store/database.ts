@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { BoardThemeSettings } from '../../shared/boardTheme.js';
+import type { BoardActivityTrackingSettings } from '../../shared/constants/boardContentActivities.js';
 
 // Database interfaces
 export interface WorkspaceDB {
@@ -60,17 +61,21 @@ export interface BoardDB {
     /** Preferred list column width (px) on wide viewports; UI scales down on narrower screens. */
     listColumnWidthPx?: number;
     memberActivityLogRetentionDays?: number;
+    activityLogEnabled?: boolean;
+    activityLogRetentionDays?: number;
+    activityLogTracking?: BoardActivityTrackingSettings;
   };
   createdAt: Date;
   updatedAt: Date;
 }
 
-/** Client merge helper: `memberActivityLogRetentionDays: null` clears the stored preference. */
+/** Client merge helper: nullable retention fields clear the stored preference when `null`. */
 export type BoardSettingsLivePatch = Omit<
   Partial<BoardDB['settings']>,
-  'memberActivityLogRetentionDays'
+  'memberActivityLogRetentionDays' | 'activityLogRetentionDays'
 > & {
   memberActivityLogRetentionDays?: number | null;
+  activityLogRetentionDays?: number | null;
 };
 
 export interface ListDB {

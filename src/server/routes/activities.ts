@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { BOARD_MEMBER_AUDIT_ACTIVITY_TYPES } from '../../shared/constants/boardMemberAuditActivities.js';
+import { BOARD_CONTENT_ACTIVITY_TYPES } from '../../shared/constants/boardContentActivities.js';
 import { Activity } from '../models/Activity.js';
 import { hasPermission } from '../utils/permissions.js';
 import { sanitizeActivitySearchInput } from '../../shared/utils/escapeRegex.js';
@@ -16,11 +17,12 @@ router.use(requireAuth as RequestHandler);
 router.use(apiRateLimiter);
 
 /** Upper bound for one local calendar day (DST can exceed 24h wall span in UTC). */
-const MEMBER_AUDIT_MAX_SPAN_MS = 49 * 60 * 60 * 1000;
+const DAY_LOG_MAX_SPAN_MS = 49 * 60 * 60 * 1000;
 
-const boardActivitiesQuerySchema = z
+export const boardActivitiesQuerySchema = z
   .object({
     memberAudit: z.enum(['1', 'true']).optional(),
+    boardActivity: z.enum(['1', 'true']).optional(),
     dayStart: z.coerce.number().finite().optional(),
     dayEnd: z.coerce.number().finite().optional(),
     limit: z.coerce.number().int().min(1).max(1000).optional(),
@@ -31,14 +33,27 @@ const boardActivitiesQuerySchema = z
   })
   .superRefine((data, ctx) => {
     const memberAudit = data.memberAudit === '1' || data.memberAudit === 'true';
-    if (!memberAudit) {
+    const boardActivity = data.boardActivity === '1' || data.boardActivity === 'true';
+
+    if (memberAudit && boardActivity) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'memberAudit and boardActivity cannot be used together.',
+        path: ['boardActivity'],
+      });
       return;
     }
+
+    const dayWindowMode = memberAudit || boardActivity;
+    if (!dayWindowMode) {
+      return;
+    }
+
     if (data.dayStart === undefined || data.dayEnd === undefined) {
       ctx.addIssue({
         code: 'custom',
         message:
-          'Member audit log requires dayStart and dayEnd (epoch milliseconds, local calendar day bounds).',
+          'Day-window activity log requires dayStart and dayEnd (epoch milliseconds, local calendar day bounds).',
         path: ['dayStart'],
       });
       return;
@@ -51,10 +66,10 @@ const boardActivitiesQuerySchema = z
       });
       return;
     }
-    if (data.dayEnd - data.dayStart > MEMBER_AUDIT_MAX_SPAN_MS) {
+    if (data.dayEnd - data.dayStart > DAY_LOG_MAX_SPAN_MS) {
       ctx.addIssue({
         code: 'custom',
-        message: 'dayStart/dayEnd span is too large for a single-day member audit query.',
+        message: 'dayStart/dayEnd span is too large for a single-day activity log query.',
         path: ['dayEnd'],
       });
     }
@@ -67,8 +82,13 @@ router.get('/boards/:boardId', async (req, res, next) => {
     const { boardId } = req.params;
     const query = parseOrThrow(boardActivitiesQuerySchema, req.query);
 
-    // Check permissions (admin/manager surfaces only)
-    const allowed = await hasPermission(authReq.user, boardId, 'boards.members.view');
+    const memberAudit = query.memberAudit === '1' || query.memberAudit === 'true';
+    const boardActivity = query.boardActivity === '1' || query.boardActivity === 'true';
+
+    const requiredPermission = boardActivity
+      ? 'boards.settings.activitylog'
+      : 'boards.members.view';
+    const allowed = await hasPermission(authReq.user, boardId, requiredPermission);
     if (!allowed) {
       res.status(403).json({
         error: {
@@ -80,15 +100,17 @@ router.get('/boards/:boardId', async (req, res, next) => {
       return;
     }
 
-    const memberAudit = query.memberAudit === '1' || query.memberAudit === 'true';
-
-    if (memberAudit) {
+    if (memberAudit || boardActivity) {
       const dayStartMs = query.dayStart as number;
       const dayEndMs = query.dayEnd as number;
 
       const dayStart = new Date(dayStartMs);
       const dayEnd = new Date(dayEndMs);
-      const memberAuditDayFetchLimit = 10_000;
+      const dayFetchLimit = 10_000;
+
+      const activityTypes = memberAudit
+        ? BOARD_MEMBER_AUDIT_ACTIVITY_TYPES
+        : BOARD_CONTENT_ACTIVITY_TYPES;
 
       const filter: {
         boardId: string;
@@ -96,7 +118,7 @@ router.get('/boards/:boardId', async (req, res, next) => {
         createdAt: { $gte: Date; $lte: Date };
       } = {
         boardId,
-        type: { $in: BOARD_MEMBER_AUDIT_ACTIVITY_TYPES },
+        type: { $in: activityTypes },
         createdAt: { $gte: dayStart, $lte: dayEnd },
       };
 
@@ -104,7 +126,7 @@ router.get('/boards/:boardId', async (req, res, next) => {
         Activity.countDocuments(filter),
         Activity.find(filter)
           .sort({ createdAt: -1 })
-          .limit(memberAuditDayFetchLimit)
+          .limit(dayFetchLimit)
           .populate('userId', 'displayName email profilePicture'),
       ]);
 

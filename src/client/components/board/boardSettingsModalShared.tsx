@@ -11,9 +11,17 @@ export const BoardMemberManagement = lazy(async () => {
   return { default: m.BoardMemberManagement };
 });
 
-export const ActivityLog = lazy(async () => {
-  const m = await import('../activities/ActivityLog.js');
-  return { default: m.ActivityLog };
+export const MemberAuditLog = lazy(async () => {
+  const m = await import('../activities/MemberAuditLog.js');
+  return { default: m.MemberAuditLog };
+});
+
+/** @deprecated Use MemberAuditLog */
+export const ActivityLog = MemberAuditLog;
+
+export const BoardActivityLog = lazy(async () => {
+  const m = await import('../activities/BoardActivityLog.js');
+  return { default: m.BoardActivityLog };
 });
 
 export function TabPanelFallback() {
@@ -24,7 +32,7 @@ export function TabPanelFallback() {
   );
 }
 
-export type TopTab = 'board' | 'users' | 'theme' | 'audit';
+export type TopTab = 'board' | 'users' | 'theme' | 'audit' | 'activity';
 export type BoardSideNav = 'card-settings' | 'list-settings' | 'labels';
 export type ThemeSideNav = 'theme-colouring' | 'background';
 export type MobileDetail =
@@ -32,4 +40,5 @@ export type MobileDetail =
   | { readonly kind: 'board'; readonly section: BoardSideNav }
   | { readonly kind: 'users' }
   | { readonly kind: 'theme'; readonly section: ThemeSideNav }
-  | { readonly kind: 'audit' };
+  | { readonly kind: 'audit' }
+  | { readonly kind: 'activity' };

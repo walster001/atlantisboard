@@ -31,7 +31,7 @@ export interface BoardPageController {
   readonly can: ReturnType<typeof useBoardPermissions>['can'];
   readonly canOpenSettings: boolean;
   readonly canManageCustomThemes: boolean;
-  readonly allowedSettingsTabs: readonly ('board' | 'users' | 'theme' | 'audit')[];
+  readonly allowedSettingsTabs: readonly ('board' | 'users' | 'theme' | 'audit' | 'activity')[];
   readonly kanbanCaps: ReturnType<typeof buildKanbanBoardEditCaps>;
   readonly boardThemeStyle: ReturnType<typeof getBoardPageThemeStyle> | undefined;
   readonly overlayInitialCardForId: CardDB | undefined;
@@ -75,18 +75,35 @@ export function useBoardPageController({
     [permissionsLoaded, permissions],
   );
   const boardSettingsGate = useMemo(() => resolveBoardSettingsGate(can), [can]);
-  const { canManageBoardSettings, canManageBoardMembers, canChangeTheme, canManageCustomThemes, canOpenSettings } =
-    boardSettingsGate;
+  const {
+    canManageBoardSettings,
+    canManageBoardMembers,
+    canChangeTheme,
+    canManageCustomThemes,
+    canViewActivityLog,
+    canOpenSettings,
+  } = boardSettingsGate;
   const allowedSettingsTabs = useMemo(() => {
-    if (!canManageBoardSettings && canManageBoardMembers) {
+    if (!canManageBoardSettings && canManageBoardMembers && !canViewActivityLog) {
       return ['users'] as const;
     }
-    const tabs: Array<'board' | 'users' | 'theme' | 'audit'> = ['board', 'users', 'audit'];
-    if (canChangeTheme) {
-      tabs.splice(2, 0, 'theme');
+    if (!canManageBoardSettings && !canManageBoardMembers && canViewActivityLog) {
+      return ['activity'] as const;
+    }
+    const tabs: Array<'board' | 'users' | 'theme' | 'audit' | 'activity'> = [];
+    if (canManageBoardSettings) {
+      tabs.push('board', 'users', 'audit');
+      if (canChangeTheme) {
+        tabs.splice(2, 0, 'theme');
+      }
+    } else if (canManageBoardMembers) {
+      tabs.push('users');
+    }
+    if (canViewActivityLog) {
+      tabs.push('activity');
     }
     return tabs;
-  }, [canManageBoardSettings, canManageBoardMembers, canChangeTheme]);
+  }, [canManageBoardSettings, canManageBoardMembers, canChangeTheme, canViewActivityLog]);
 
   const loadData = useCallback(
     async (options?: { mode?: 'initial' | 'quiet'; signal?: AbortSignal }) => {

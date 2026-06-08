@@ -195,6 +195,17 @@ export async function migrateRoleDefinitionPermissions(): Promise<void> {
   ).catch(() => undefined);
 
   await RoleDefinition.updateMany(
+    { key: { $in: ['admin', 'manager'] }, isBuiltIn: true },
+    {
+      $addToSet: {
+        permissions: {
+          $each: ['boards.settings.activitylog'],
+        },
+      },
+    },
+  ).catch(() => undefined);
+
+  await RoleDefinition.updateMany(
     { key: 'admin', isBuiltIn: true },
     {
       $addToSet: {

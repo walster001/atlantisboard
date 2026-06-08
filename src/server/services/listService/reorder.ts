@@ -4,6 +4,7 @@ import { emitToBoard } from '../../utils/socketIO.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { hasPermission } from '../../utils/permissions.js';
 import type { Document } from 'mongoose';
+import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { ForbiddenError, NotFoundError } from '../../../shared/errors/domainErrors.js';
 import {
   ensureListsHavePosForBoard,
@@ -53,6 +54,16 @@ export async function reorderLists(boardId: string, listIds: string[], userId: s
     resourceId: boardId,
     metadata: { listIds },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId,
+    userId,
+    category: 'lists',
+    type: 'list.reordered',
+    description: 'Lists reordered',
+    metadata: { entityId: boardId, listIds },
+    boardSettings: board.settings,
   });
 
   return true;
@@ -150,6 +161,21 @@ export async function moveList(
     resourceId: listId,
     metadata: { boardId, position: desiredTargetPosition },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId,
+    userId,
+    category: 'lists',
+    type: 'list.reordered',
+    description: `List "${list.name}" moved`,
+    metadata: {
+      entityId: listId,
+      entityName: list.name,
+      field: 'position',
+      next: desiredTargetPosition,
+    },
+    boardSettings: board.settings,
   });
 
   return list;

@@ -1,6 +1,7 @@
 import type { BoardVisibility } from '../../models/Board.js';
 import type { BoardSummaryDTO } from '../../../shared/types/viewModels.js';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
+import type { BoardActivityTrackingSettings } from '../../../shared/constants/boardContentActivities.js';
 
 export interface CreateBoardInput {
   workspaceId: string;
@@ -40,6 +41,9 @@ export interface UpdateBoardInput {
     listColumnWidthAuto?: boolean | undefined;
     listColumnWidthPx?: number | undefined;
     memberActivityLogRetentionDays?: number | null | undefined;
+    activityLogEnabled?: boolean | undefined;
+    activityLogRetentionDays?: number | null | undefined;
+    activityLogTracking?: BoardActivityTrackingSettings | undefined;
   } | undefined;
 }
 

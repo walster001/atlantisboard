@@ -268,6 +268,13 @@ export function toBoardSummary(board: Document & IBoard): BoardSummaryDTO {
       !Number.isNaN(s.memberActivityLogRetentionDays)
         ? { memberActivityLogRetentionDays: s.memberActivityLogRetentionDays }
         : {}),
+      ...(s.activityLogEnabled === true ? { activityLogEnabled: true } : {}),
+      ...(typeof s.activityLogRetentionDays === 'number' && !Number.isNaN(s.activityLogRetentionDays)
+        ? { activityLogRetentionDays: s.activityLogRetentionDays }
+        : {}),
+      ...(s.activityLogTracking != null && Object.keys(s.activityLogTracking).length > 0
+        ? { activityLogTracking: { ...s.activityLogTracking } }
+        : {}),
     },
     createdAt: board.createdAt,
     updatedAt: board.updatedAt,

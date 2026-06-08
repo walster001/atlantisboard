@@ -113,6 +113,9 @@ export interface BoardApiMethods {
       listColumnWidthAuto?: boolean;
       listColumnWidthPx?: number;
       memberActivityLogRetentionDays?: number | null;
+      activityLogEnabled?: boolean;
+      activityLogRetentionDays?: number | null;
+      activityLogTracking?: import('../../../shared/constants/boardContentActivities.js').BoardActivityTrackingSettings;
     };
   }): Promise<BoardApiResponse>;
   uploadBoardBackgroundImage(

@@ -9,6 +9,7 @@ import { Card } from '../../models/Card.js';
 import { Types } from 'mongoose';
 import { logger } from '../../utils/logger.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
+import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
 import { BUCKET_NAME, extractObjectNameFromAttachmentUrl } from './minioPaths.js';
 import {
@@ -99,6 +100,21 @@ export async function deleteCardAttachment(
       resourceId: cardId,
       metadata: { attachmentId, fileName: attachment.name },
       timestamp: new Date(),
+    });
+
+    recordBoardActivityDeferred({
+      boardId: card.boardId.toString(),
+      cardId,
+      userId,
+      category: 'attachments',
+      type: 'attachment.deleted',
+      description: `Attachment "${attachment.name}" deleted from "${card.title}"`,
+      metadata: {
+        entityId: attachmentId,
+        entityName: attachment.name,
+        cardId,
+        cardTitle: card.title,
+      },
     });
 
     logger.info({ cardId, attachmentId }, 'Attachment deleted successfully');

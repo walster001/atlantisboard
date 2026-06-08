@@ -3,6 +3,7 @@ import { Card } from '../../models/Card.js';
 import { Types } from 'mongoose';
 import { logger } from '../../utils/logger.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
+import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
 import crypto from 'crypto';
 import { createReadStream } from 'node:fs';
@@ -144,6 +145,21 @@ export async function uploadCardAttachment(
       resourceId: cardId,
       metadata: { fileName, fileSize: byteLength, fileType: mimeType },
       timestamp: new Date(),
+    });
+
+    recordBoardActivityDeferred({
+      boardId: card.boardId.toString(),
+      cardId,
+      userId,
+      category: 'attachments',
+      type: 'attachment.uploaded',
+      description: `Attachment "${fileName}" uploaded to "${card.title}"`,
+      metadata: {
+        entityId: fileId,
+        entityName: fileName,
+        cardId,
+        cardTitle: card.title,
+      },
     });
 
     logger.info({ cardId, fileName, fileId }, 'File uploaded successfully');

@@ -8,6 +8,7 @@ import { logAuditEvent } from '../../utils/auditLogger.js';
 import { hasPermission } from '../../utils/permissions.js';
 import type { Document } from 'mongoose';
 import mongoose from 'mongoose';
+import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { ForbiddenError, NotFoundError } from '../../../shared/errors/domainErrors.js';
 import { compareBoardListOrder } from '../../../shared/utils/listPos.js';
 import {
@@ -67,6 +68,16 @@ export async function createList(input: CreateListInput, userId: string): Promis
     resourceId: list._id.toString(),
     metadata: { boardId: input.boardId },
     timestamp: new Date(),
+  });
+
+  recordBoardActivityDeferred({
+    boardId: input.boardId,
+    userId,
+    category: 'lists',
+    type: 'list.created',
+    description: `List "${input.name}" created`,
+    metadata: { entityId: list._id.toString(), entityName: input.name },
+    boardSettings: board.settings,
   });
 
   logger.info({ listId: list._id.toString(), boardId: input.boardId }, 'List created');
@@ -138,6 +149,7 @@ export async function updateList(
     }
   }
 
+  const prevName = list.name;
   if (input.name !== undefined) list.name = input.name;
   if (input.position !== undefined) {
     const normalizedPosition = Math.max(0, Math.floor(input.position));
@@ -159,7 +171,24 @@ export async function updateList(
     timestamp: new Date(),
   });
 
-  emitToBoard(list.boardId.toString(), 'list:updated', {
+  const boardIdStr = list.boardId.toString();
+  recordBoardActivityDeferred({
+    boardId: boardIdStr,
+    userId,
+    category: 'lists',
+    type: 'list.updated',
+    description: `List "${list.name}" updated`,
+    metadata: {
+      entityId: listId,
+      entityName: list.name,
+      ...(input.name !== undefined && input.name !== prevName
+        ? { field: 'name', previous: prevName, next: list.name }
+        : {}),
+    },
+    boardSettings: board.settings,
+  });
+
+  emitToBoard(boardIdStr, 'list:updated', {
     listId,
     boardId: list.boardId.toString(),
     data: list.toObject(),
@@ -251,9 +280,21 @@ export async function deleteList(listId: string, userId: string): Promise<boolea
   await removeStoredImportInlineObjectsForListIds([list._id]);
   await Card.deleteMany({ listId: list._id });
 
+  const listName = list.name;
+  const boardIdStr = list.boardId.toString();
+  recordBoardActivityDeferred({
+    boardId: boardIdStr,
+    userId,
+    category: 'lists',
+    type: 'list.deleted',
+    description: `List "${listName}" deleted`,
+    metadata: { entityId: trimmed, entityName: listName },
+    boardSettings: board.settings,
+  });
+
   await List.findByIdAndDelete(trimmed);
 
-  emitToBoard(list.boardId.toString(), 'list:deleted', {
+  emitToBoard(boardIdStr, 'list:deleted', {
     listId: trimmed,
     boardId: list.boardId.toString(),
   });

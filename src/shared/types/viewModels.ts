@@ -1,5 +1,6 @@
 export type EntityViewMode = 'summary' | 'detail';
 import type { BoardThemeSettings, BoardThemeSettingsStored } from '../boardTheme.js';
+import type { BoardActivityTrackingSettings } from '../constants/boardContentActivities.js';
 
 export interface WorkspaceSummaryDTO {
   id: string;
@@ -42,6 +43,9 @@ export interface BoardSettingsDTO {
   listColumnWidthAuto?: boolean;
   listColumnWidthPx?: number;
   memberActivityLogRetentionDays?: number;
+  activityLogEnabled?: boolean;
+  activityLogRetentionDays?: number;
+  activityLogTracking?: BoardActivityTrackingSettings;
 }
 
 export interface BoardSummaryDTO {

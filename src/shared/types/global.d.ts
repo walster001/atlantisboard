@@ -29,6 +29,7 @@ declare global {
   }
 
   interface BunGlobal {
+    file(arg0: string): unknown;
     CSRF?: BunCsrfApi;
     SQL: BunSqlConstructor;
     password: {

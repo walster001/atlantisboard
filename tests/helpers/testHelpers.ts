@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import type { Express } from 'express';
 import { User } from '../../src/server/models/User.js';
+import { ACCOUNT_CAPABILITY_WORKSPACES_CREATE } from '../../src/shared/accountCapabilities.js';
 import { initializeAdminConfig } from '../../src/server/models/AdminConfig.js';
 import { createMockUser } from './mockData.js';
 import {
@@ -135,6 +136,64 @@ export function createAuthHeaders(token: string): Record<string, string> {
 export type HttpIntegrationAuthPair = { readonly token: string; readonly userId: string };
 
 const HTTP_INTEGRATION_TEST_PASSWORD = 'TestPassword123!';
+
+/** API entities may expose `id` or `_id` depending on serializer settings. */
+export function readApiEntityId(entity: { id?: string; _id?: unknown }): string {
+  if (typeof entity.id === 'string' && entity.id.trim() !== '') {
+    return entity.id;
+  }
+  if (typeof entity._id === 'string' && entity._id.trim() !== '') {
+    return entity._id;
+  }
+  if (entity._id != null && typeof entity._id === 'object' && 'toString' in entity._id) {
+    return (entity._id as { toString(): string }).toString();
+  }
+  return '';
+}
+
+/**
+ * Create a verified user in the server MongoDB and return a bearer token.
+ * Set `canCreateWorkspace` to mirror the admin Users tab "Workspace" checkbox (`workspaces.create`).
+ */
+export async function createHttpIntegrationAuthUser(options: {
+  readonly email: string;
+  readonly username: string;
+  readonly canCreateWorkspace?: boolean;
+  readonly isAppAdmin?: boolean;
+}): Promise<HttpIntegrationAuthPair> {
+  await ensureMongooseConnectedForHttpIntegration();
+  const emailNorm = options.email.trim().toLowerCase();
+  const user = await createMockUser({
+    email: emailNorm,
+    username: options.username,
+    displayName: 'Test User',
+  });
+  const accountCapabilities =
+    options.canCreateWorkspace === true ? [ACCOUNT_CAPABILITY_WORKSPACES_CREATE] : [];
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        emailVerified: true,
+        isAppAdmin: options.isAppAdmin === true,
+        accountCapabilities,
+      },
+    },
+  );
+  const saved = await User.findById(user._id);
+  if (saved == null) {
+    throw new Error(`Failed to create HTTP integration test user for ${emailNorm}`);
+  }
+  const userId = saved._id.toString();
+  const { generateToken } = await import('../../src/server/utils/jwt.js');
+  const token = generateToken({
+    userId,
+    email: saved.email,
+    username: saved.username,
+    isAppAdmin: saved.isAppAdmin,
+  });
+  return { token, userId };
+}
 
 async function jwtAuthForExistingOrNewUser(
   email: string,

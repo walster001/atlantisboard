@@ -13,12 +13,15 @@ export type AdminFileStorageBucketsResponse = {
 
 /** One row in the object browser (file or folder prefix). */
 export type AdminFileStorageObjectEntry = {
+  /** Storage object key segment shown in the current folder (often a UUID filename). */
   readonly name: string;
   readonly key: string;
   readonly isFolder: boolean;
   readonly size: number | null;
   readonly lastModified: string | null;
   readonly contentType: string | null;
+  /** Human-friendly label from card attachments or MinIO metadata when available. */
+  readonly displayName?: string;
 };
 
 /** JSON from `GET /api/v1/admin/file-storage/objects`. */

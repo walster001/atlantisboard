@@ -105,9 +105,11 @@ export const cardApiMethods: CardApiMethods = {
   },
 
   async postBoardCardDescriptionsBatch(this: ApiClient, boardId, cardIds) {
-    const response = await this.client.post(`/boards/${boardId}/cards/descriptions-batch`, {
-      cardIds: [...cardIds],
-    });
+    const params = new URLSearchParams();
+    params.set('cardIds', [...cardIds].join(','));
+    const response = await this.client.get(
+      `/boards/${boardId}/cards/descriptions-batch?${params.toString()}`,
+    );
     const data = response.data;
     if (data == null || typeof data !== 'object' || !('cards' in data)) return { cards: [] };
     const cards = (data as { cards: unknown }).cards;

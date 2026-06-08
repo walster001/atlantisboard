@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  buildImportPlaceholderRegistrationMatch,
   DEFAULT_REGISTRATION_MODE,
   isRegistrationModeBlocking,
   registrationBlockReason,
@@ -27,5 +28,22 @@ describe('registrationPolicy', () => {
   test('registrationBlockReason maps modes', () => {
     expect(registrationBlockReason('disabled')).toBe('REGISTRATION_DISABLED');
     expect(registrationBlockReason('invite-only')).toBe('REGISTRATION_INVITE_ONLY');
+  });
+
+  test('buildImportPlaceholderRegistrationMatch matches email and distinct username', () => {
+    const clauses = buildImportPlaceholderRegistrationMatch('amelia@company.com', 'amelia');
+    expect(clauses).toEqual([
+      { email: 'amelia@company.com' },
+      { importUsername: 'amelia@company.com' },
+      { importUsername: 'amelia' },
+    ]);
+  });
+
+  test('buildImportPlaceholderRegistrationMatch avoids duplicate username clause', () => {
+    const clauses = buildImportPlaceholderRegistrationMatch('user@example.com', 'user@example.com');
+    expect(clauses).toEqual([
+      { email: 'user@example.com' },
+      { importUsername: 'user@example.com' },
+    ]);
   });
 });

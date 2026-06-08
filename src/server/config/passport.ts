@@ -226,7 +226,7 @@ export async function configureGoogleStrategy(): Promise<void> {
                   user = existingUser;
                 }
               } else {
-                const registration = await assertNewUserRegistrationAllowed();
+                const registration = await assertNewUserRegistrationAllowed({ email });
                 if (!registration.allowed) {
                   logger.warn(
                     { email, mode: registration.mode, reason: registration.reason },

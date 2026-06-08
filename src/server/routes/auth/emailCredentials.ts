@@ -30,11 +30,18 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
     if (!(await assertEmailPasswordAllowed(res))) {
       return;
     }
-    if (!(await assertRegistrationAllowed(res))) {
-      return;
-    }
 
     const validated = parseOrThrow(registerSchema, req.body);
+
+    const emailNorm = validated.email.trim().toLowerCase();
+    if (
+      !(await assertRegistrationAllowed(res, {
+        email: emailNorm,
+        username: validated.username,
+      }))
+    ) {
+      return;
+    }
 
     const passwordValidation = validatePassword(validated.password);
     if (!passwordValidation.valid) {
@@ -49,7 +56,6 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
       return;
     }
 
-    const emailNorm = validated.email.trim().toLowerCase();
     const existingUser = await User.findOne({
       $or: [{ email: emailNorm }, { username: validated.username }],
     }).select('+passwordHash');

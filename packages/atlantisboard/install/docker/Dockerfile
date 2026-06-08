@@ -58,8 +58,10 @@ RUN apk add --no-cache ca-certificates curl clamav su-exec \
   && addgroup -g 1001 -S nodejs \
   && adduser -S bunjs -u 1001 -G nodejs \
   && chown bunjs:nodejs /app \
-  && mkdir -p /var/lib/clamav \
-  && chown -R bunjs:nodejs /var/lib/clamav
+  && mkdir -p /var/lib/clamav /opt/clamav-seed \
+  && freshclam --stdout || true \
+  && cp -a /var/lib/clamav/. /opt/clamav-seed/ 2>/dev/null || true \
+  && chown -R bunjs:nodejs /var/lib/clamav /opt/clamav-seed
 COPY install/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 COPY --chown=bunjs:nodejs package.json bun.lock ./

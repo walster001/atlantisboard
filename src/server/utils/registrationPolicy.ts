@@ -1,5 +1,6 @@
 import type { RegistrationMode } from '../models/AdminConfig.js';
 import { AdminConfig } from '../models/AdminConfig.js';
+import { BoardImportPlaceholder } from '../models/BoardImportPlaceholder.js';
 import { User } from '../models/User.js';
 
 export const DEFAULT_REGISTRATION_MODE: RegistrationMode = 'open';
@@ -33,6 +34,54 @@ export async function countNonPlaceholderUsers(): Promise<number> {
   return User.countDocuments({ isPlaceholder: { $ne: true } });
 }
 
+/** OR clauses matching a board-import placeholder or legacy User placeholder by email/username. */
+export function buildImportPlaceholderRegistrationMatch(
+  emailNorm: string,
+  usernameNorm?: string,
+): Record<string, unknown>[] {
+  const or: Record<string, unknown>[] = [];
+  const email = emailNorm.trim().toLowerCase();
+  if (email.length > 0) {
+    or.push({ email });
+    or.push({ importUsername: email });
+  }
+  const username = usernameNorm?.trim().toLowerCase() ?? '';
+  if (username.length >= 3 && username !== email) {
+    or.push({ importUsername: username });
+  }
+  return or;
+}
+
+export async function hasImportPlaceholderForRegistrationIdentity(
+  emailNorm: string,
+  usernameNorm?: string,
+): Promise<boolean> {
+  const email = emailNorm.trim().toLowerCase();
+  if (email.length > 0) {
+    const legacyUser = await User.exists({
+      isPlaceholder: true,
+      $or: [{ placeholderEmail: email }, { email }],
+    });
+    if (legacyUser != null) {
+      return true;
+    }
+  }
+
+  const boardMatch = buildImportPlaceholderRegistrationMatch(email, usernameNorm);
+  if (boardMatch.length === 0) {
+    return false;
+  }
+  return (await BoardImportPlaceholder.exists({ $or: boardMatch })) != null;
+}
+
+export async function hasAnyBoardImportPlaceholders(): Promise<boolean> {
+  const legacyPlaceholder = await User.exists({ isPlaceholder: true });
+  if (legacyPlaceholder != null) {
+    return true;
+  }
+  return (await BoardImportPlaceholder.exists({})) != null;
+}
+
 export async function getRegistrationModeFromConfig(): Promise<RegistrationMode> {
   const cfg = await AdminConfig.findOne();
   return resolveRegistrationMode(cfg?.registrationMode);
@@ -44,10 +93,23 @@ export async function isNewUserRegistrationOpen(): Promise<boolean> {
     return true;
   }
   const mode = await getRegistrationModeFromConfig();
-  return mode === 'open';
+  if (mode === 'open') {
+    return true;
+  }
+  if (mode === 'invite-only') {
+    return hasAnyBoardImportPlaceholders();
+  }
+  return false;
 }
 
-export async function assertNewUserRegistrationAllowed(): Promise<{
+export interface NewUserRegistrationIdentity {
+  readonly email?: string;
+  readonly username?: string;
+}
+
+export async function assertNewUserRegistrationAllowed(
+  identity?: NewUserRegistrationIdentity,
+): Promise<{
   allowed: true;
 } | {
   allowed: false;
@@ -61,6 +123,15 @@ export async function assertNewUserRegistrationAllowed(): Promise<{
   const mode = await getRegistrationModeFromConfig();
   if (mode === 'open') {
     return { allowed: true };
+  }
+  if (mode === 'invite-only' && identity?.email != null && identity.email.trim() !== '') {
+    const placeholderMatch = await hasImportPlaceholderForRegistrationIdentity(
+      identity.email,
+      identity.username,
+    );
+    if (placeholderMatch) {
+      return { allowed: true };
+    }
   }
   return {
     allowed: false,

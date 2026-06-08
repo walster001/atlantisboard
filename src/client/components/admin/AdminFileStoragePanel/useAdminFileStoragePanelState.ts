@@ -6,6 +6,7 @@ import type {
   AdminFileStorageObjectEntry,
 } from '../../../../shared/types/adminFileStorage.js';
 import { api } from '../../../utils/api.js';
+import { parentPrefix } from './helpers.js';
 
 export function useAdminFileStoragePanelState() {
   const [buckets, setBuckets] = useState<readonly AdminFileStorageBucketInfo[]>([]);
@@ -85,8 +86,17 @@ export function useAdminFileStoragePanelState() {
     await loadObjects({ silent: true });
   }, [loadObjects]);
 
+  const selectBucket = useCallback((bucket: MinioBucketName | null) => {
+    setSelectedBucket(bucket);
+    setPrefix('');
+  }, []);
+
   const openFolder = useCallback((key: string) => {
     setPrefix(key);
+  }, []);
+
+  const navigateUp = useCallback(() => {
+    setPrefix((current) => parentPrefix(current));
   }, []);
 
   const uploadFile = useCallback(
@@ -202,8 +212,9 @@ export function useAdminFileStoragePanelState() {
   return {
     buckets,
     selectedBucket,
-    setSelectedBucket,
+    selectBucket,
     prefix,
+    canNavigateUp: prefix.trim() !== '',
     entries,
     loading,
     refreshing,
@@ -213,6 +224,7 @@ export function useAdminFileStoragePanelState() {
     downloadingKey,
     refresh,
     openFolder,
+    navigateUp,
     uploadFile,
     createFolder,
     downloadObject,

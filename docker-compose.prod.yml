@@ -1,3 +1,8 @@
+# Production full-stack Compose (repo root). For installer-based deploys, use
+# packages/atlantisboard/install/docker/docker-compose.fullstack.yml instead.
+#
+# Malware scanning: clamscan runs inside the app image on each upload (no clamd sidecar).
+# Signatures live in clamav-sigs-prod; first upload or container start may run freshclam.
 services:
   mongodb:
     image: mongo:8.0.4
@@ -149,6 +154,11 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       APP_URL: ${APP_URL:-http://localhost:3000}
+      POMPELMI_SKIP_SCAN: ${POMPELMI_SKIP_SCAN:-false}
+      CLAMAV_DB_DIR: /var/lib/clamav
+      POMPELMI_FAIL_OPEN: ${POMPELMI_FAIL_OPEN:-false}
+    volumes:
+      - clamav-sigs-prod:/var/lib/clamav
     depends_on:
       mongodb:
         condition: service_healthy
@@ -174,6 +184,7 @@ volumes:
   mongo-config-prod:
   redis-data-prod:
   minio-data-prod:
+  clamav-sigs-prod:
 
 networks:
   kanboard-network-prod:

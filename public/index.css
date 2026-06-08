@@ -14513,18 +14513,67 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   min-height: 0;
 }
 
-.admin-file-storage-panel__table-scroll {
+.admin-file-storage-panel__split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 34%);
+  gap: var(--mantine-spacing-sm);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
   flex: auto;
   min-height: 180px;
   max-height: min(52vh, 560px);
 }
 
-.admin-file-storage-panel__table-scroll .mantine-ScrollArea-root {
-  flex: auto;
+.admin-file-storage-panel__list-column {
+  overflow: hidden;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  min-width: 0;
   min-height: 0;
+}
+
+.admin-file-storage-panel__list-column .mantine-ScrollArea-root {
+  height: 100%;
+}
+
+.admin-file-storage-panel__preview-pane {
+  overflow: auto;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  padding: var(--mantine-spacing-sm);
+  background: var(--mantine-color-gray-0);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.admin-file-storage-panel__preview-pane--empty {
+  justify-content: center;
+  align-items:  center;
+}
+
+.admin-file-storage-panel__preview-media {
+  display: flex;
+  overflow: hidden;
+  flex: auto;
+  justify-content: center;
+  align-items:  center;
+  min-height: 120px;
+}
+
+.admin-file-storage-panel__row--selected {
+  background-color: var(--mantine-color-blue-0);
+}
+
+@media (max-width: 48em) {
+  .admin-file-storage-panel__split {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .admin-file-storage-panel__preview-pane {
+    max-height: 220px;
+  }
 }
 
 /* src/client/styles/index.processed.css */

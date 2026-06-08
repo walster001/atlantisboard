@@ -28,8 +28,11 @@ export async function assertEmailPasswordAllowed(res: Response): Promise<boolean
   return true;
 }
 
-export async function assertRegistrationAllowed(res: Response): Promise<boolean> {
-  const registration = await assertNewUserRegistrationAllowed();
+export async function assertRegistrationAllowed(
+  res: Response,
+  identity?: { readonly email?: string; readonly username?: string },
+): Promise<boolean> {
+  const registration = await assertNewUserRegistrationAllowed(identity);
   if (registration.allowed) {
     return true;
   }

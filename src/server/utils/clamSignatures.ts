@@ -1,11 +1,13 @@
 import { access } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
+import { ValidationError } from '../../shared/errors/domainErrors.js';
 import { logger } from './logger.js';
 
 const DB_DIR = process.env.CLAMAV_DB_DIR?.trim() || '/var/lib/clamav';
 
-const SIGNATURE_FILES = ['main.cvd', 'main.cld', 'daily.cvd', 'daily.cld'] as const;
+export const CLAMAV_SIGNATURE_FILES = ['main.cvd', 'main.cld', 'daily.cvd', 'daily.cld'] as const;
+const SIGNATURE_FILES = CLAMAV_SIGNATURE_FILES;
 
 let updateInFlight: Promise<void> | null = null;
 
@@ -13,10 +15,10 @@ export function shouldSkipMalwareScan(): boolean {
   return process.env.POMPELMI_SKIP_SCAN === 'true';
 }
 
-export async function hasClamSignatureDatabase(): Promise<boolean> {
+export async function hasClamSignatureDatabaseInDir(dir: string): Promise<boolean> {
   for (const name of SIGNATURE_FILES) {
     try {
-      await access(join(DB_DIR, name));
+      await access(join(dir, name));
       return true;
     } catch {
       // try next candidate
@@ -25,23 +27,31 @@ export async function hasClamSignatureDatabase(): Promise<boolean> {
   return false;
 }
 
+export async function hasClamSignatureDatabase(): Promise<boolean> {
+  return hasClamSignatureDatabaseInDir(DB_DIR);
+}
+
 async function runFreshclam(): Promise<void> {
   let stderr = '';
-  const exitCode = await new Promise<number>((resolve, reject) => {
-    const child = spawn('freshclam', ['--stdout'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false,
+  try {
+    const exitCode = await new Promise<number>((resolve, reject) => {
+      const child = spawn('freshclam', ['--stdout'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+      });
+      child.stderr?.on('data', (chunk: Buffer | string) => {
+        stderr += String(chunk);
+      });
+      child.on('error', reject);
+      child.on('close', (code) => {
+        resolve(code ?? 1);
+      });
     });
-    child.stderr?.on('data', (chunk: Buffer | string) => {
-      stderr += String(chunk);
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      resolve(code ?? 1);
-    });
-  });
-  if (exitCode !== 0) {
-    logger.warn({ exitCode, stderr: stderr.trim() }, 'freshclam exited non-zero');
+    if (exitCode !== 0) {
+      logger.warn({ exitCode, stderr: stderr.trim() }, 'freshclam exited non-zero');
+    }
+  } catch (error) {
+    logger.warn({ error, stderr: stderr.trim() }, 'freshclam could not run');
   }
 }
 
@@ -86,6 +96,8 @@ export async function ensureClamScanReady(): Promise<void> {
   }
   await updateClamSignaturesIfNeeded();
   if (!(await hasClamSignatureDatabase())) {
-    throw new Error('ClamAV signature database is not available');
+    throw new ValidationError(
+      'Upload blocked: security scan is not ready. Wait a moment and try again.',
+    );
   }
 }

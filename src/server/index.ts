@@ -25,6 +25,10 @@ import {
   getMinioPublicOrigin,
   isSignedAttachmentDeliveryEnabled,
 } from './config/attachmentDelivery.js';
+import {
+  buildDevelopmentCspDirectives,
+  buildProductionCspDirectives,
+} from './config/contentSecurityPolicy.js';
 import { assertProductionCorsConfig, expressCorsOptions } from './config/cors.js';
 import { assertProductionSecrets } from './utils/productionSecrets.js';
 import { isProductionAuthMode } from './utils/authCookie.js';
@@ -69,8 +73,6 @@ const isProduction = process.env.NODE_ENV === 'production';
 const appOrigin = (process.env.APP_URL ?? process.env.CORS_ORIGIN ?? '').replace(/\/$/, '');
 const minioPublicOrigin =
   isSignedAttachmentDeliveryEnabled() ? getMinioPublicOrigin() : null;
-const cspMediaAndConnectExtras =
-  minioPublicOrigin != null && minioPublicOrigin !== '' ? [minioPublicOrigin] : [];
 
 function cspNonceDirective(_req: IncomingMessage, res: ServerResponse): string {
   return `'nonce-${getCspNonceFromResponse(res as express.Response)}'`;
@@ -80,41 +82,14 @@ app.use(
   helmet({
     contentSecurityPolicy: isProduction
       ? {
-          directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", cspNonceDirective],
-            scriptSrc: ["'self'"],
-            imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
-            connectSrc: [
-              "'self'",
-              ...(appOrigin !== '' ? [appOrigin] : []),
-              ...cspMediaAndConnectExtras,
-              'wss:',
-            ],
-            fontSrc: ["'self'", 'data:'],
-            objectSrc: ["'none'"],
-            mediaSrc: [
-              "'self'",
-              ...(appOrigin !== '' ? [appOrigin] : []),
-              ...cspMediaAndConnectExtras,
-            ],
-            frameSrc: ["'none'"],
-            upgradeInsecureRequests: [],
-          },
+          directives: buildProductionCspDirectives({
+            appOrigin,
+            minioPublicOrigin: minioPublicOrigin,
+            styleSrcNonce: cspNonceDirective,
+          }),
         }
       : {
-          directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-            imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
-            connectSrc: ["'self'", 'ws:', 'wss:'],
-            fontSrc: ["'self'", 'data:'],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'self'"],
-            frameSrc: ["'none'"],
-            upgradeInsecureRequests: null,
-          },
+          directives: buildDevelopmentCspDirectives(),
         },
     strictTransportSecurity: isProduction
       ? { maxAge: 31_536_000, includeSubDomains: true, preload: true }

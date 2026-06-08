@@ -5,6 +5,7 @@ import type {
   AdminFileStorageObjectEntry,
 } from '../../../shared/types/adminFileStorage.js';
 import { getMinIOClient } from '../../config/minio.js';
+import { enrichAdminFileStorageEntries } from './enrichDisplayNames.js';
 import { assertAllowedBucket, getMinioBucketLabel, normalizeStoragePrefix } from './validation.js';
 
 type ListedItem = {
@@ -112,12 +113,16 @@ export async function listAdminFileStorageObjects(
     }
   }
 
-  entries.sort((a, b) => {
+  const enrichedEntries = await enrichAdminFileStorageEntries(bucket, entries);
+
+  const sortedEntries = [...enrichedEntries].sort((a, b) => {
     if (a.isFolder !== b.isFolder) {
       return a.isFolder ? -1 : 1;
     }
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    const aLabel = a.displayName ?? a.name;
+    const bLabel = b.displayName ?? b.name;
+    return aLabel.localeCompare(bLabel, undefined, { sensitivity: 'base' });
   });
 
-  return { bucket, prefix, entries };
+  return { bucket, prefix, entries: sortedEntries };
 }

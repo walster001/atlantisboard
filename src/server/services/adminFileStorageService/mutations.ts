@@ -64,10 +64,12 @@ export async function uploadAdminFileStorageObject(params: {
   const safeName = sanitizeUploadFileName(params.fileName);
   const key = buildObjectKey(params.prefix ?? '', safeName);
   const client = getMinIOClient();
-  const meta =
-    params.contentType != null && params.contentType.trim() !== ''
-      ? { 'Content-Type': params.contentType.trim() }
-      : undefined;
+  const meta: Record<string, string> = {
+    'X-File-Name': encodeURIComponent(safeName),
+  };
+  if (params.contentType != null && params.contentType.trim() !== '') {
+    meta['Content-Type'] = params.contentType.trim();
+  }
   await client.putObject(bucket, key, params.buffer, params.buffer.length, meta);
   logAuditEvent({
     userId: params.adminUserId,

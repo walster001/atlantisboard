@@ -108,8 +108,27 @@ export const boardSnapshotQuerySchema = z.object({
   listLimit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
-export const cardDescriptionsBatchBodySchema = z.object({
-  cardIds: z.array(z.string().min(1)).min(1).max(200),
+function parseCardIdsQueryParam(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .flatMap((entry) => (typeof entry === 'string' ? entry.split(',') : []))
+      .map((id) => id.trim())
+      .filter((id) => id !== '');
+  }
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return [];
+  }
+  return raw
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id !== '');
+}
+
+export const cardDescriptionsBatchQuerySchema = z.object({
+  cardIds: z.preprocess(
+    parseCardIdsQueryParam,
+    z.array(z.string().min(1)).min(1).max(200),
+  ),
 });
 
 export const bulkListColorBodySchema = z.object({

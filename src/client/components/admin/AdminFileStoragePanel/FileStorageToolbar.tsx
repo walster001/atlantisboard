@@ -3,8 +3,11 @@ import {
   FileButton,
   Group,
   Select,
+  Stack,
+  Text,
 } from '@mantine/core';
 import {
+  IconArrowLeft,
   IconFolderPlus,
   IconRefresh,
   IconTrash,
@@ -17,9 +20,12 @@ import { bucketSelectData } from './helpers.js';
 type FileStorageToolbarProps = {
   readonly buckets: readonly AdminFileStorageBucketInfo[];
   readonly selectedBucket: MinioBucketName | null;
+  readonly prefix: string;
+  readonly canNavigateUp: boolean;
   readonly refreshing: boolean;
   readonly uploading: boolean;
   readonly onBucketChange: (bucket: MinioBucketName | null) => void;
+  readonly onNavigateUp: () => void;
   readonly onRefresh: () => void;
   readonly onOpenOrphanCleanup: () => void;
   readonly onUpload: (file: File | null) => void;
@@ -29,26 +35,32 @@ type FileStorageToolbarProps = {
 export function FileStorageToolbar({
   buckets,
   selectedBucket,
+  prefix,
+  canNavigateUp,
   refreshing,
   uploading,
   onBucketChange,
+  onNavigateUp,
   onRefresh,
   onOpenOrphanCleanup,
   onUpload,
   onCreateFolderClick,
 }: FileStorageToolbarProps) {
+  const folderLabel = prefix.trim() === '' ? 'Bucket root' : prefix.replace(/\/$/, '');
+
   return (
-    <Group justify="space-between" align="flex-end" wrap="wrap">
-      <Select
-        label="Bucket"
-        description="Application MinIO buckets managed by this server."
-        data={bucketSelectData(buckets)}
-        value={selectedBucket}
-        onChange={(value) => onBucketChange(value as MinioBucketName | null)}
-        allowDeselect={false}
-        w={{ base: '100%', sm: 320 }}
-        searchable
-      />
+    <Stack gap="xs">
+      <Group justify="space-between" align="flex-end" wrap="wrap">
+        <Select
+          label="Bucket"
+          description="Application MinIO buckets managed by this server."
+          data={bucketSelectData(buckets)}
+          value={selectedBucket}
+          onChange={(value) => onBucketChange(value as MinioBucketName | null)}
+          allowDeselect={false}
+          w={{ base: '100%', sm: 320 }}
+          searchable
+        />
       <Group gap="xs">
         <Button
           variant="light"
@@ -88,6 +100,22 @@ export function FileStorageToolbar({
           New folder
         </Button>
       </Group>
-    </Group>
+      </Group>
+      {canNavigateUp ? (
+        <Group gap="xs" wrap="nowrap">
+          <Button
+            variant="subtle"
+            size="compact-sm"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={onNavigateUp}
+          >
+            Back
+          </Button>
+          <Text size="xs" c="dimmed" ff="monospace" lineClamp={1}>
+            {folderLabel}
+          </Text>
+        </Group>
+      ) : null}
+    </Stack>
   );
 }

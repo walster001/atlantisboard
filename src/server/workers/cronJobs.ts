@@ -15,6 +15,9 @@ import {
 import { logger } from '../utils/logger.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import { runScheduledBackupIfDue } from '../services/backupService.js';
+import { sendBoardActivityWeeklyRoundup } from '../services/boardActivityWeeklyRoundupService.js';
+
+export { sendBoardActivityWeeklyRoundup };
 
 /**
  * Activity log cleanup job
@@ -343,6 +346,7 @@ let lastAttachmentRun = 0;
 let lastMemberAuditRetentionRun = 0;
 let lastBoardContentActivityRetentionRun = 0;
 let lastScheduledBackupCheckRun = 0;
+let lastBoardActivityRoundupRun = 0;
 export function scheduleCronJobs(): void {
   if (intervalIds.length > 0) {
     logger.warn('Cron jobs already scheduled; skipping duplicate scheduleCronJobs() call');
@@ -441,6 +445,23 @@ export function scheduleCronJobs(): void {
     });
   }, 15 * 60 * 1000);
   intervalIds.push(reminderInterval);
+
+  // Board activity weekly email roundup — Monday at 8:00 AM
+  const boardActivityRoundupInterval = setInterval(() => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const hour = now.getHours();
+    const minutes = now.getMinutes();
+    const timeKey = now.getTime();
+
+    if (dayOfWeek === 1 && hour === 8 && minutes === 0 && timeKey - lastBoardActivityRoundupRun > 60000) {
+      lastBoardActivityRoundupRun = timeKey;
+      sendBoardActivityWeeklyRoundup().catch((error) => {
+        logger.error({ error }, 'Scheduled board activity weekly roundup failed');
+      });
+    }
+  }, 5 * 60 * 1000);
+  intervalIds.push(boardActivityRoundupInterval);
 
   // Scheduled backup run check - every 30 minutes
   const scheduledBackupInterval = setInterval(() => {

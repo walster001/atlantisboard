@@ -23,7 +23,9 @@ import { emitBoardUpdatedRealtime, emitWorkspaceTransitionsOnBoardMove } from '.
 import {
   ForbiddenError,
   NotFoundError,
+  ValidationError,
 } from '../../../shared/errors/domainErrors.js';
+import { boardMemberUserIdSet } from '../boardActivityWeeklyRoundup/recipients.js';
 
 export async function updateBoard(
   boardId: string,
@@ -229,6 +231,23 @@ export async function updateBoard(
         ...board.settings.activityLogTracking,
         ...input.settings.activityLogTracking,
       };
+    }
+    if (input.settings.activityLogEmailRoundupEnabled !== undefined) {
+      board.settings.activityLogEmailRoundupEnabled = input.settings.activityLogEmailRoundupEnabled;
+    }
+    if (input.settings.activityLogEmailRoundupUserIds !== undefined) {
+      const allowedMembers = boardMemberUserIdSet(board);
+      const invalidIds = input.settings.activityLogEmailRoundupUserIds.filter(
+        (userId) => !allowedMembers.has(userId),
+      );
+      if (invalidIds.length > 0) {
+        throw new ValidationError(
+          'Activity log email roundup recipients must be board members',
+        );
+      }
+      board.settings.activityLogEmailRoundupUserIds = input.settings.activityLogEmailRoundupUserIds.map(
+        (userId) => new mongoose.Types.ObjectId(userId),
+      );
     }
   }
 

@@ -6,7 +6,7 @@ import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
 import { BoardDayLogPanel } from '../board-logs/BoardDayLogPanel.js';
 import { useBoardActivityLog } from '../../hooks/activities/useBoardActivityLog.js';
 import { BoardActivityEntryRow } from './boardActivityLogParts.js';
-import { BoardActivityTrackingModal } from './BoardActivityTrackingModal.js';
+import { BoardActivityConfigModal } from './BoardActivityConfigModal.js';
 
 interface BoardActivityLogProps {
   boardId: string;
@@ -37,9 +37,16 @@ export function BoardActivityLog({ boardId, onSettingsLivePatch, mobileLayout = 
     dayLabel,
     activityLogEnabled,
     activityLogTracking,
+    activityLogEmailRoundupEnabled,
+    activityLogEmailRoundupUserIds,
     savingEnabled,
+    savingEmailRoundupEnabled,
+    sendingManualRoundup,
     handleEnabledChange,
     handleTrackingSave,
+    handleEmailRoundupEnabledChange,
+    handleEmailRoundupUserIdsChange,
+    handleSendManualRoundup,
   } = useBoardActivityLog(boardId, onSettingsLivePatch);
 
   if (forbidden) {
@@ -126,15 +133,23 @@ export function BoardActivityLog({ boardId, onSettingsLivePatch, mobileLayout = 
         dayLabel={dayLabel}
       />
 
-      <BoardActivityTrackingModal
+      <BoardActivityConfigModal
         opened={trackingModalOpen}
         onClose={() => {
           setTrackingModalOpen(false);
         }}
+        boardId={boardId}
         tracking={activityLogTracking}
         canEdit={canEditSettings}
         logEnabled={activityLogEnabled}
-        onSave={handleTrackingSave}
+        onTrackingSave={handleTrackingSave}
+        emailRoundupEnabled={activityLogEmailRoundupEnabled}
+        emailRoundupUserIds={activityLogEmailRoundupUserIds}
+        savingEmailRoundupEnabled={savingEmailRoundupEnabled}
+        sendingManualRoundup={sendingManualRoundup}
+        onEmailRoundupEnabledChange={handleEmailRoundupEnabledChange}
+        onEmailRoundupUserIdsChange={handleEmailRoundupUserIdsChange}
+        onSendManualRoundup={handleSendManualRoundup}
       />
     </>
   );

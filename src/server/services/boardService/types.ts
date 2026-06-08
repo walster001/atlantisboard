@@ -44,6 +44,8 @@ export interface UpdateBoardInput {
     activityLogEnabled?: boolean | undefined;
     activityLogRetentionDays?: number | null | undefined;
     activityLogTracking?: BoardActivityTrackingSettings | undefined;
+    activityLogEmailRoundupEnabled?: boolean | undefined;
+    activityLogEmailRoundupUserIds?: string[] | undefined;
   } | undefined;
 }
 

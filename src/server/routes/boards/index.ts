@@ -15,6 +15,7 @@ import {
 } from './membersRoutes.js';
 import { registerReorderRoutes } from './reorderRoutes.js';
 import { registerBackgroundImageRoutes } from './backgroundImageRoutes.js';
+import { registerActivityRoundupRoutes } from './activityRoundupRoutes.js';
 
 const router = Router();
 
@@ -28,6 +29,7 @@ registerPermissionsRoutes(router);
 registerMembersListRoute(router);
 registerReorderRoutes(router);
 registerBoardItemReadUpdateRoutes(router);
+registerActivityRoundupRoutes(router);
 registerBackgroundImageRoutes(router);
 registerMemberManagementRoutes(router);
 registerBoardDeleteRoute(router);

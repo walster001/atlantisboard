@@ -275,6 +275,17 @@ export function toBoardSummary(board: Document & IBoard): BoardSummaryDTO {
       ...(s.activityLogTracking != null && Object.keys(s.activityLogTracking).length > 0
         ? { activityLogTracking: { ...s.activityLogTracking } }
         : {}),
+      ...(s.activityLogEmailRoundupEnabled === true
+        ? { activityLogEmailRoundupEnabled: true }
+        : {}),
+      ...(Array.isArray(s.activityLogEmailRoundupUserIds) &&
+      s.activityLogEmailRoundupUserIds.length > 0
+        ? {
+            activityLogEmailRoundupUserIds: s.activityLogEmailRoundupUserIds.map((id) =>
+              id.toString(),
+            ),
+          }
+        : {}),
     },
     createdAt: board.createdAt,
     updatedAt: board.updatedAt,

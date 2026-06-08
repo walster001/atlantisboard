@@ -66,6 +66,7 @@ describe('Integration Tests', () => {
       expect(cronJobs.cleanupImportJobs).toBeDefined();
       expect(cronJobs.cleanupOrphanedAttachments).toBeDefined();
       expect(cronJobs.checkReminders).toBeDefined();
+      expect(cronJobs.sendBoardActivityWeeklyRoundup).toBeDefined();
       expect(cronJobs.scheduleCronJobs).toBeDefined();
     });
   });

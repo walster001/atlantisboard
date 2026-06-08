@@ -64,6 +64,8 @@ export interface BoardDB {
     activityLogEnabled?: boolean;
     activityLogRetentionDays?: number;
     activityLogTracking?: BoardActivityTrackingSettings;
+    activityLogEmailRoundupEnabled?: boolean;
+    activityLogEmailRoundupUserIds?: string[];
   };
   createdAt: Date;
   updatedAt: Date;

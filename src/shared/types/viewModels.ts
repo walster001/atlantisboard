@@ -46,6 +46,8 @@ export interface BoardSettingsDTO {
   activityLogEnabled?: boolean;
   activityLogRetentionDays?: number;
   activityLogTracking?: BoardActivityTrackingSettings;
+  activityLogEmailRoundupEnabled?: boolean;
+  activityLogEmailRoundupUserIds?: string[];
 }
 
 export interface BoardSummaryDTO {

@@ -12569,6 +12569,89 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   padding-right: var(--mantine-spacing-sm);
 }
 
+/* src/client/components/activities/boardActivityConfigModal.css */
+.board-activity-config-modal__inner {
+  --board-settings-modal-gutter: clamp(12px, 3vmin, 28px);
+  padding: var(--board-settings-modal-gutter);
+}
+
+.board-activity-config-modal__content {
+  overflow: hidden;
+  flex-direction: column;
+  width: min(63vw, calc(100vw - 2 * var(--board-settings-modal-gutter))) !important;
+  height: min(80vh, calc(100vh - 2 * var(--board-settings-modal-gutter))) !important;
+  max-width: min(63vw, calc(100vw - 2 * var(--board-settings-modal-gutter))) !important;
+  max-height: min(80vh, calc(100vh - 2 * var(--board-settings-modal-gutter))) !important;
+  display: flex !important;
+}
+
+.board-activity-config-modal__header {
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+  padding-bottom: var(--mantine-spacing-xs);
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.board-activity-config-modal__body {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+  padding: 0 !important;
+}
+
+.board-activity-config-modal__scroll {
+  display: flex;
+  overflow: hidden;
+  padding: var(--mantine-spacing-md);
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.board-activity-config-modal__tabs {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.board-activity-config-modal__tabs-list {
+  flex-shrink: 0;
+}
+
+.board-activity-config-modal__tab-panel {
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.board-activity-config-modal__tab-panel--fill {
+  overflow: hidden;
+}
+
+.board-activity-config-modal__panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.board-activity-config-modal__panel--fill {
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.board-activity-config-modal__footer {
+  padding-top: var(--mantine-spacing-md);
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
 /* src/client/components/board/boardView.base.css */
 .board-page {
   --board-nav-bg: #1a5b99;

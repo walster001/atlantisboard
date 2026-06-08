@@ -51,6 +51,10 @@ export interface IBoardSettings {
   activityLogRetentionDays?: number;
   /** Per-category tracking toggles for board content activities. */
   activityLogTracking?: BoardActivityTrackingSettings;
+  /** When true, configured recipients receive a weekly board content activity email roundup. */
+  activityLogEmailRoundupEnabled?: boolean;
+  /** Board member user IDs that receive the weekly activity roundup email. */
+  activityLogEmailRoundupUserIds?: mongoose.Types.ObjectId[];
 }
 
 export interface IBoard extends Document {
@@ -126,6 +130,13 @@ const BoardSettingsSchema = new Schema<IBoardSettings>(
       reminders: { type: Boolean },
       dates: { type: Boolean },
     },
+    activityLogEmailRoundupEnabled: { type: Boolean, default: false },
+    activityLogEmailRoundupUserIds: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   { _id: false }
 );

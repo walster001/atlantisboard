@@ -4,6 +4,10 @@ import {
   BOARD_DESCRIPTION_MAX_LENGTH,
   BOARD_NAME_MAX_LENGTH,
 } from '../../../shared/constants/entityTextLimits.js';
+import { BOARD_ACTIVITY_ROUNDUP_MAX_RECIPIENTS } from '../../../shared/constants/boardActivityEmailRoundup.js';
+import { MONGO_OBJECT_ID_HEX } from '../../utils/mongoObjectId.js';
+
+const mongoObjectIdSchema = z.string().trim().regex(MONGO_OBJECT_ID_HEX, 'Invalid user id');
 
 const boardThemePaletteSchema = z.object({
   navbarBg: z.string().min(1),
@@ -101,6 +105,11 @@ export const updateBoardSchema = z.object({
           reminders: z.boolean().optional(),
           dates: z.boolean().optional(),
         })
+        .optional(),
+      activityLogEmailRoundupEnabled: z.boolean().optional(),
+      activityLogEmailRoundupUserIds: z
+        .array(mongoObjectIdSchema)
+        .max(BOARD_ACTIVITY_ROUNDUP_MAX_RECIPIENTS)
         .optional(),
     })
     .optional(),

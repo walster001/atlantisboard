@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Box, Select, Text } from '@mantine/core';
 
-export type EmailTemplateType = 'test' | 'password-reset' | 'verify-email';
+export type EmailTemplateType = 'test' | 'password-reset' | 'verify-email' | 'board-activity-roundup';
 
 interface EmailBrandingPreviewPaneProps {
   readonly backgroundColor: string;
@@ -20,6 +20,7 @@ const TEMPLATE_OPTIONS: ReadonlyArray<{ readonly value: EmailTemplateType; reado
   { value: 'test', label: 'Test Email' },
   { value: 'password-reset', label: 'Password Reset' },
   { value: 'verify-email', label: 'Verify Email' },
+  { value: 'board-activity-roundup', label: 'Board Activity Roundup' },
 ];
 
 function buildTemplateBody(
@@ -87,6 +88,61 @@ function buildTemplateBody(
           </tr>
         </table>`;
 
+    case 'board-activity-roundup':
+      return `
+        <h2 style="margin:0 0 8px;font-size:22px;font-weight:600;color:${textColor};">Weekly board activity</h2>
+        <p style="margin:0 0 16px;font-size:15px;color:${textColor};line-height:1.6;">
+          Here is the complete activity log for <strong>Product Roadmap</strong> for Jan 1, 2026 – Jan 7, 2026.
+          Scroll within the log below to review every event from the week.
+        </p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+               style="margin:0 0 16px;background-color:${infoBoxBg};border-radius:8px;">
+          <tr>
+            <td style="padding:16px 20px;">
+              <p style="margin:0;font-size:14px;color:${textColor};font-weight:500;">
+                12 activity events
+              </p>
+            </td>
+          </tr>
+        </table>
+        <div style="width:100%;max-width:100%;box-sizing:border-box;max-height:420px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;border:1px solid ${separatorColor};border-radius:8px;padding:2px 10px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;margin:0;">
+            <colgroup>
+              <col style="width:188px;" />
+              <col />
+            </colgroup>
+            <tr>
+              <td style="vertical-align:top;padding:10px 14px 10px 0;border-bottom:1px solid ${separatorColor};font-size:12px;line-height:1.45;color:${textColor};opacity:0.7;white-space:nowrap;">Wed, Jan 7, 2026, 4:30 PM</td>
+              <td style="vertical-align:top;padding:10px 0;border-bottom:1px solid ${separatorColor};font-size:13px;line-height:1.55;color:${textColor};word-break:break-word;"><strong>Alex Rivera</strong> — moved card &quot;Launch checklist&quot; to Done</td>
+            </tr>
+            <tr>
+              <td style="vertical-align:top;padding:10px 14px 10px 0;border-bottom:1px solid ${separatorColor};font-size:12px;line-height:1.45;color:${textColor};opacity:0.7;white-space:nowrap;">Tue, Jan 6, 2026, 11:15 AM</td>
+              <td style="vertical-align:top;padding:10px 0;border-bottom:1px solid ${separatorColor};font-size:13px;line-height:1.55;color:${textColor};word-break:break-word;"><strong>Jordan Lee</strong> — added comment on &quot;Q1 planning&quot;</td>
+            </tr>
+            <tr>
+              <td style="vertical-align:top;padding:10px 14px 10px 0;border-bottom:1px solid ${separatorColor};font-size:12px;line-height:1.45;color:${textColor};opacity:0.7;white-space:nowrap;">Mon, Jan 5, 2026, 9:02 AM</td>
+              <td style="vertical-align:top;padding:10px 0;border-bottom:1px solid ${separatorColor};font-size:13px;line-height:1.55;color:${textColor};word-break:break-word;"><strong>Sam Patel</strong> — created list &quot;Backlog&quot;</td>
+            </tr>
+            <tr>
+              <td style="vertical-align:top;padding:10px 14px 10px 0;border-bottom:1px solid ${separatorColor};font-size:12px;line-height:1.45;color:${textColor};opacity:0.7;white-space:nowrap;">Sun, Jan 4, 2026, 3:48 PM</td>
+              <td style="vertical-align:top;padding:10px 0;border-bottom:1px solid ${separatorColor};font-size:13px;line-height:1.55;color:${textColor};word-break:break-word;"><strong>Jordan Lee</strong> — archived card &quot;Old draft&quot;</td>
+            </tr>
+            <tr>
+              <td style="vertical-align:top;padding:10px 14px 10px 0;border-bottom:1px solid ${separatorColor};font-size:12px;line-height:1.45;color:${textColor};opacity:0.7;white-space:nowrap;">Sat, Jan 3, 2026, 1:20 PM</td>
+              <td style="vertical-align:top;padding:10px 0;border-bottom:1px solid ${separatorColor};font-size:13px;line-height:1.55;color:${textColor};word-break:break-word;"><strong>Alex Rivera</strong> — added label &quot;Priority&quot; to &quot;Launch checklist&quot;</td>
+            </tr>
+          </table>
+        </div>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+          <tr>
+            <td align="center" style="background-color:${buttonColor};border-radius:6px;">
+              <span style="display:inline-block;padding:14px 32px;font-size:13px;font-weight:600;color:${buttonTextColor};text-transform:uppercase;letter-spacing:1.2px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                Open board
+              </span>
+            </td>
+          </tr>
+        </table>`;
+
     case 'verify-email':
       return `
         <h2 style="margin:0 0 8px;font-size:22px;font-weight:600;color:${textColor};">Verify Your Email</h2>
@@ -142,6 +198,9 @@ function buildPreviewHtml(
 ): string {
   const body = buildTemplateBody(selectedTemplate, textColor, buttonColor, buttonTextColor, linkColor, backgroundColor, appName);
   const footerContent = footerText.trim() || `This email was sent by ${appName}.`;
+  const containerWidthPx = selectedTemplate === 'board-activity-roundup' ? 920 : 600;
+  const bodyPadding = selectedTemplate === 'board-activity-roundup' ? '20px 16px 28px' : '24px 40px 32px';
+  const headerPadding = selectedTemplate === 'board-activity-roundup' ? '28px 20px 0' : '28px 40px 0';
 
   return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
@@ -156,15 +215,15 @@ function buildPreviewHtml(
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ffffff;">
     <tr>
       <td align="center" style="padding:0;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:${backgroundColor};border-radius:12px;overflow:hidden;">
+        <table role="presentation" width="${containerWidthPx}" cellpadding="0" cellspacing="0" style="max-width:${containerWidthPx}px;width:100%;background-color:${backgroundColor};border-radius:12px;overflow:hidden;">
           <tr>
-            <td align="center" style="padding:28px 40px 0;">
+            <td align="center" style="padding:${headerPadding};">
               ${logoUrl ? `<img src="${logoUrl}" alt="" width="100" height="100" style="display:block;margin:0 auto 8px;width:100px;height:100px;object-fit:contain;border:0;" />` : ''}
               <span style="font-size:40px;font-weight:600;color:${textColor};letter-spacing:0.3px;">${appName}</span>
             </td>
           </tr>
           <tr>
-            <td style="padding:24px 40px 32px;">
+            <td style="padding:${bodyPadding};">
               ${body}
             </td>
           </tr>
@@ -209,7 +268,12 @@ export const EmailBrandingPreviewPane = memo(function EmailBrandingPreviewPane({
         data={TEMPLATE_OPTIONS}
         value={selectedTemplate}
         onChange={(v) => {
-          if (v === 'test' || v === 'password-reset' || v === 'verify-email') {
+          if (
+            v === 'test' ||
+            v === 'password-reset' ||
+            v === 'verify-email' ||
+            v === 'board-activity-roundup'
+          ) {
             onTemplateChange(v);
           }
         }}

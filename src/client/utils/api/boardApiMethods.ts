@@ -116,6 +116,8 @@ export interface BoardApiMethods {
       activityLogEnabled?: boolean;
       activityLogRetentionDays?: number | null;
       activityLogTracking?: import('../../../shared/constants/boardContentActivities.js').BoardActivityTrackingSettings;
+      activityLogEmailRoundupEnabled?: boolean;
+      activityLogEmailRoundupUserIds?: string[];
     };
   }): Promise<BoardApiResponse>;
   uploadBoardBackgroundImage(
@@ -151,6 +153,13 @@ export interface BoardApiMethods {
     placeholderId: string,
     roleKey: string,
   ): Promise<{ roleKey: string }>;
+  sendBoardActivityRoundup(boardId: string): Promise<{
+    sent: number;
+    skipped: number;
+    activityCount: number;
+    recipientCount: number;
+    periodLabel: string;
+  }>;
 }
 
 export const boardApiMethods: BoardApiMethods = {
@@ -273,5 +282,16 @@ export const boardApiMethods: BoardApiMethods = {
       roleKey,
     });
     return response.data as { roleKey: string };
+  },
+
+  async sendBoardActivityRoundup(this: ApiClient, boardId) {
+    const response = await this.client.post(`/boards/${boardId}/activity-roundup/send`);
+    return response.data as {
+      sent: number;
+      skipped: number;
+      activityCount: number;
+      recipientCount: number;
+      periodLabel: string;
+    };
   },
 };

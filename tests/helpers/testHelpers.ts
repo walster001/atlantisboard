@@ -31,6 +31,19 @@ const TEST_MONGO_CONNECT_OPTIONS: mongoose.ConnectOptions = {
   socketTimeoutMS: 30_000,
 };
 
+/** Ensure the test process shares the running server's MongoDB connection (MONGODB_URI). */
+export async function ensureMongooseConnectedForHttpIntegration(): Promise<void> {
+  await ensureTestServer();
+  const { connectDatabase } = await import('../../src/server/config/database.js');
+  await connectDatabase();
+  if (mongoose.connection.readyState !== 1) {
+    await mongoose.connection.asPromise();
+  }
+  if (mongoose.connection.readyState !== 1) {
+    throw new Error('MongoDB is not connected for HTTP integration tests');
+  }
+}
+
 export async function connectTestDatabase(): Promise<void> {
   const uri = resolveTestMongoUri();
   if (!uri) {
@@ -77,7 +90,7 @@ export async function getAuthToken(
   password: string = 'TestPassword123!',
 ): Promise<TestAuthToken> {
   resetIntegrationHttpSession();
-  await ensureTestServer();
+  await ensureMongooseConnectedForHttpIntegration();
 
   let user = await User.findOne({ email });
   if (!user) {
@@ -128,6 +141,7 @@ async function jwtAuthForExistingOrNewUser(
   username: string,
   password: string,
 ): Promise<HttpIntegrationAuthPair> {
+  await ensureMongooseConnectedForHttpIntegration();
   const emailNorm = email.trim().toLowerCase();
   const existing = await User.findOne({ email: emailNorm });
   const user =
@@ -158,7 +172,7 @@ export async function registerHttpIntegrationUser(
   username: string,
   password: string = HTTP_INTEGRATION_TEST_PASSWORD,
 ): Promise<HttpIntegrationAuthPair> {
-  await ensureTestServer();
+  await ensureMongooseConnectedForHttpIntegration();
   resetIntegrationHttpSession();
 
   const res = await apiInject({
@@ -176,7 +190,7 @@ export async function registerHttpIntegrationUser(
     return { token: '', userId: '' };
   }
 
-  if (res.statusCode === 409) {
+  if (res.statusCode === 409 || res.statusCode === 500) {
     resetIntegrationHttpSession();
     const login = await apiInject({
       method: 'POST',

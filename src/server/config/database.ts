@@ -60,8 +60,8 @@ function registerConnectionListenersOnce(): void {
 export async function connectDatabase(): Promise<void> {
   registerConnectionListenersOnce();
 
-  if (isConnected && mongoose.connection.readyState === 1) {
-    logger.info('Database already connected');
+  if (mongoose.connection.readyState === 1) {
+    isConnected = true;
     return;
   }
 

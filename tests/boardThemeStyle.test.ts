@@ -1,9 +1,14 @@
 import { describe, expect, test } from 'bun:test';
+import type { CSSProperties } from 'react';
 import type { BoardDB } from '../src/client/store/database.js';
 import { getBoardPageThemeStyle } from '../src/client/utils/boardThemeStyle.js';
 import { createDefaultBoardThemeSettings } from '../src/shared/boardTheme.js';
 import { buildBoardThemeCatalog } from '../src/shared/boardThemeCatalog.js';
 import { SYSTEM_BOARD_THEME_SEEDS } from '../src/shared/boardThemeSeedData.js';
+
+function getBoardThemeCssVar(style: CSSProperties, variable: string): string | undefined {
+  return (style as Record<string, string | undefined>)[variable];
+}
 
 function sampleBoard(themeSettings: NonNullable<BoardDB['themeSettings']>): BoardDB {
   return {
@@ -49,20 +54,22 @@ describe('getBoardPageThemeStyle', () => {
     const styleA = getBoardPageThemeStyle(boardA);
     const styleB = getBoardPageThemeStyle(boardB);
 
-    expect(styleA['--board-canvas-bg-image']).toBe(
+    expect(getBoardThemeCssVar(styleA, '--board-canvas-bg-image')).toBe(
       'url("/api/v1/board-backgrounds/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.png")',
     );
-    expect(styleB['--board-canvas-bg-image']).toBe(
+    expect(getBoardThemeCssVar(styleB, '--board-canvas-bg-image')).toBe(
       'url("/api/v1/board-backgrounds/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.png")',
     );
-    expect(styleA['--board-canvas-bg-image']).not.toBe(styleB['--board-canvas-bg-image']);
+    expect(getBoardThemeCssVar(styleA, '--board-canvas-bg-image')).not.toBe(
+      getBoardThemeCssVar(styleB, '--board-canvas-bg-image'),
+    );
   });
 
   test('applies board opacity to lists only, not navbar', () => {
     const board = sampleBoard(imageThemeSettings('/api/v1/board-backgrounds/cccccccc-cccc-cccc-cccc-cccccccccccc.jpg', 0.6));
     const style = getBoardPageThemeStyle(board);
 
-    expect(style['--board-nav-bg-opacity']).toBe('1');
-    expect(style['--board-list-bg-opacity']).toBe('0.6');
+    expect(getBoardThemeCssVar(style, '--board-nav-bg-opacity')).toBe('1');
+    expect(getBoardThemeCssVar(style, '--board-list-bg-opacity')).toBe('0.6');
   });
 });

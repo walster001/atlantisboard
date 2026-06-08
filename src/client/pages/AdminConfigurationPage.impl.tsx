@@ -60,7 +60,7 @@ export default function AdminConfigurationPage() {
   }, [authLoading, user, navigate]);
 
   const [mainTab, setMainTab] = useState<'configuration' | 'customisation'>('configuration');
-  const [configSubtab, setConfigSubtab] = useState<ConfigurationSubtab>('general');
+  const [configSubtab, setConfigSubtab] = useState<ConfigurationSubtab>('login-options');
   const [mobileConfigOpen, setMobileConfigOpen] = useState<ConfigurationSubtab | null>(null);
   const [customisationSubtab, setCustomisationSubtab] =
     useState<CustomisationSubtab>('login-branding');

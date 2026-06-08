@@ -18,7 +18,7 @@
     "start": "bun run dist/server/index.js",
     "start:worker": "bun run dist/workers/index.js",
     "test": "bun test",
-    "test:installer": "bun test tests/installerLib.test.ts",
+    "test:installer": "bun test tests/installerLib.test.ts && bash packages/atlantisboard/install/test-idempotent-repair.sh",
     "lint": "eslint src",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
     "typecheck": "tsc --noEmit",

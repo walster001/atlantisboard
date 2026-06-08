@@ -37,6 +37,21 @@ atl_require_cmd() {
 }
 
 
+## atl_unzip_quiet
+# Extract a zip without streaming the per-file list to the terminal.
+# Arguments:
+#   $1 zip file path, $2 destination directory, $3 optional infobox message.
+atl_unzip_quiet() {
+  local zip_file="$1" dest_dir="$2"
+  local msg="${3:-Extracting package...}"
+  atl_require_cmd unzip
+  atl_sudo_mkdir_p "$dest_dir"
+  atl_whiptail_display --title "Extracting package" --infobox \
+    "$msg" 8 60
+  atl_sudo unzip -o -q "$zip_file" -d "$dest_dir"
+}
+
+
 atl_get_install_user() {
   logname 2>/dev/null || echo "${SUDO_USER:-${USER:-root}}"
 }
@@ -169,6 +184,31 @@ atl_env_get() {
 
 # Read a single KEY=value from the install .env on disk
 # (authoritative after atl_write_env_file).
+
+## atl_load_env_file_into_values
+# Load all KEY=value pairs from an install .env into ENV_VALUES.
+# Existing ENV_VALUES entries are overwritten when present in the file.
+# Arguments:
+#   $1 env file path.
+atl_load_env_file_into_values() {
+  local env_file="$1"
+  local line key value
+  [[ -n "$env_file" ]] || return 1
+  atl_sudo test -f "$env_file" 2>/dev/null || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    value="${value%$'\r'}"
+    if [[ "$value" =~ ^\"(.*)\"$ ]]; then
+      value="${BASH_REMATCH[1]}"
+    elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+      value="${BASH_REMATCH[1]}"
+    fi
+    ENV_VALUES["$key"]="$value"
+  done < <(atl_sudo cat "$env_file" 2>/dev/null || true)
+}
+
 
 ## atl_env_get_from_file
 # Read a single KEY=value from a stored .env file.
@@ -523,6 +563,44 @@ atl_prompt_env_fields() {
       atl_prompt_validated "$key" "$label" "$desc" "$default" \
         "$secret" "$optional" "$vtype" || exit 1
       first_promptable=false
+    done
+  done < <(jq -c '.sections[]' "$ENV_FIELDS")
+}
+
+
+## atl_prompt_missing_env_fields
+# Prompt only for non-auto-generated fields missing from ENV_VALUES.
+# Sets ATL_ENV_FIELDS_PROMPTED=true when at least one field is prompted.
+# Arguments:
+#   $1 install mode.
+# Returns:
+#   0 when complete; exits installer on cancel.
+atl_prompt_missing_env_fields() {
+  local mode="$1"
+  ATL_ENV_FIELDS_PROMPTED=false
+  if ! atl_env_fields_jq_ready; then
+    return 0
+  fi
+
+  local section field key label desc default secret optional vtype auto_gen
+  while IFS= read -r section; do
+    atl_section_applies_to_mode "$section" "$mode" || continue
+    mapfile -t fields < <(jq -c '.fields[]' <<<"$section")
+    for field in "${fields[@]}"; do
+      atl_field_applies_to_mode "$field" "$mode" || continue
+      auto_gen="$(jq -r '.auto_generate // false' <<<"$field")"
+      [[ "$auto_gen" != "true" ]] || continue
+      key="$(jq -r '.key' <<<"$field")"
+      [[ -n "${ENV_VALUES[$key]:-}" ]] && continue
+      ATL_ENV_FIELDS_PROMPTED=true
+      label="$(jq -r '.label' <<<"$field")"
+      desc="$(jq -r '.description' <<<"$field")"
+      default="$(jq -r '.default' <<<"$field")"
+      secret="$(jq -r '.secret // false' <<<"$field")"
+      optional="$(jq -r '.optional // false' <<<"$field")"
+      vtype="$(jq -r '.validation // empty' <<<"$field")"
+      atl_prompt_validated "$key" "$label" "$desc" "$default" \
+        "$secret" "$optional" "$vtype" || exit 1
     done
   done < <(jq -c '.sections[]' "$ENV_FIELDS")
 }

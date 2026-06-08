@@ -27,6 +27,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck:ci
+      - name: Installer integrity tests
+        run: bun run test:installer
 
   test:
     runs-on: ubuntu-latest

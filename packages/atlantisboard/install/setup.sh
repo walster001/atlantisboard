@@ -8,6 +8,11 @@ ATL_REVERSE_PROXY_KIND=none
 INSTALL_DIR=""
 BUN_BIN=""
 BACKUP_DIR=""
+INSTALL_ACTION="fresh"
+APP_FILES_CHANGED=false
+ENV_FILE=""
+PRIOR_ENV=""
+ENV_NEEDS_WRITE=false
 
 # Resolve package root from env override or script location.
 _resolve_pkg_root() {
@@ -42,9 +47,135 @@ atl_render_systemd_unit() {
     "$src" | atl_sudo tee "$dest" >/dev/null
 }
 
+atl_setup_install_systemd() {
+  local install_user="$1"
+  if ! atl_require_systemctl; then
+    local systemd_skip_msg
+    systemd_skip_msg="$(cat <<EOF
+systemd is not available on this host.
+
+Start Atlantisboard manually from ${INSTALL_DIR}
+after setup completes.
+EOF
+)"
+    atl_whiptail_msgbox --title "systemd skipped" --msgbox \
+      "$systemd_skip_msg" 10 72 || true
+    return 0
+  fi
+
+  ATL_SYSTEMD_INSTALLED=true
+  if ! id atlantisboard >/dev/null 2>&1; then
+    atl_sudo useradd --system --create-home \
+      --shell /usr/sbin/nologin atlantisboard || true
+  fi
+  atl_sudo chown -R atlantisboard:atlantisboard \
+    "$INSTALL_DIR" "$BACKUP_DIR"
+
+  atl_render_systemd_unit \
+    "${INSTALL_DIR}/install/systemd/atlantisboard.service.template" \
+    /etc/systemd/system/atlantisboard.service
+  if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
+    local worker_template
+    worker_template="${INSTALL_DIR}/install/systemd/"
+    worker_template+="atlantisboard-worker.service.template"
+    atl_render_systemd_unit \
+      "$worker_template" \
+      /etc/systemd/system/atlantisboard-worker.service
+  fi
+
+  atl_sudo systemctl daemon-reload
+  atl_sudo systemctl enable atlantisboard.service
+  if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
+    atl_sudo systemctl enable atlantisboard-worker.service
+  fi
+
+  if [[ "$MODE" == "docker" ]]; then
+    atl_wait_for_docker_deps_or_continue "$MODE" 30
+  fi
+
+  atl_systemctl_restart_or_fail atlantisboard.service
+  if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
+    atl_systemctl_restart_or_fail atlantisboard-worker.service
+  fi
+}
+
+atl_setup_repair_systemd() {
+  if [[ "$MODE" == "fullstack" ]]; then
+    return 0
+  fi
+  if [[ "$APP_FILES_CHANGED" != true ]]; then
+    return 0
+  fi
+  if ! atl_sudo test -f /etc/systemd/system/atlantisboard.service 2>/dev/null; then
+    atl_setup_install_systemd "$(atl_get_install_user)"
+    return 0
+  fi
+  if atl_require_systemctl; then
+    ATL_SYSTEMD_INSTALLED=true
+    atl_sudo systemctl daemon-reload
+    atl_systemctl_restart_or_fail atlantisboard.service
+    if atl_sudo test -f \
+      /etc/systemd/system/atlantisboard-worker.service 2>/dev/null; then
+      atl_systemctl_restart_or_fail atlantisboard-worker.service
+    fi
+  fi
+}
+
+atl_run_bun_production_install() {
+  local install_user="$1"
+  info "==> Installing production dependencies"
+  (
+    cd "$INSTALL_DIR"
+    atl_sudo -u "$install_user" env \
+      ATLANTISBOARD_SKIP_SETUP=1 PATH="/usr/local/bin:${PATH}" \
+      "$BUN_BIN" install --frozen-lockfile --production --ignore-scripts
+  )
+}
+
+atl_start_docker_stack() {
+  local build_flag=()
+  if [[ "$1" == "fullstack" && "$APP_FILES_CHANGED" == true ]]; then
+    build_flag=(--build)
+  fi
+
+  if [[ "$1" == "docker" ]]; then
+    if [[ "$INSTALL_ACTION" != "repair" ]]; then
+      atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
+    fi
+    atl_whiptail_display --title "Starting dependencies" --infobox \
+      "Starting MongoDB, Redis, and MinIO containers..." 8 60
+    atl_docker_compose_or_continue \
+      "${INSTALL_DIR}/install/docker" \
+      docker-compose.deps.yml up -d
+    atl_wait_for_docker_deps_or_continue "$MODE"
+    return 0
+  fi
+
+  if [[ "$1" == "fullstack" ]]; then
+    local fullstack_msg
+    if [[ "$INSTALL_ACTION" != "repair" ]]; then
+      atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
+    fi
+    fullstack_msg="$(cat <<'EOF'
+Building the Atlantisboard image and starting all containers.
+
+Malware scanning uses on-demand clamscan inside the app container.
+The first attachment upload (or clicking Add) may download virus
+definitions; signatures are stored in the clamav-sigs volume.
+EOF
+)"
+    atl_whiptail_display --title "Building full stack" --infobox \
+      "$fullstack_msg" 10 70
+    atl_docker_compose_or_continue \
+      "${INSTALL_DIR}/install/docker" \
+      docker-compose.fullstack.yml up -d "${build_flag[@]}"
+    atl_wait_for_docker_deps_or_continue "$MODE"
+  fi
+}
+
 # Run the interactive installer flow.
 main() {
-  local pkg_root
+  local pkg_root existing_state repair_count saved_mode
   pkg_root="$(_resolve_pkg_root)"
   readonly PKG_ROOT="$pkg_root"
   # Used by sourced install/lib/common-env.sh (not referenced in this file).
@@ -136,176 +267,206 @@ EOF
   atl_prompt_install_dir "$INSTALL_DIR"
   atl_finalize_install_dir
 
+  existing_state="$(atl_detect_existing_install "$INSTALL_DIR")"
+  INSTALL_ACTION="fresh"
+  if [[ "$existing_state" == "partial" || "$existing_state" == "complete" ]]; then
+    if ! INSTALL_ACTION="$(atl_prompt_install_action "$existing_state")"; then
+      info "Setup cancelled."
+      exit 0
+    fi
+  fi
+
   declare -A ENV_VALUES
   ENV_VALUES["PORT"]="3000"
+  ENV_FILE="${INSTALL_DIR}/.env"
+  PRIOR_ENV=""
 
-  atl_preflight_check "$MODE"
-  atl_generate_install_secrets "$MODE"
-  atl_prompt_env_fields "$MODE"
+  if [[ "$INSTALL_ACTION" == "repair" ]]; then
+    local env_loaded=false
+    if atl_sudo test -f "$ENV_FILE"; then
+      atl_load_env_file_into_values "$ENV_FILE"
+      env_loaded=true
+      saved_mode="$(
+        atl_env_get_from_file ATLANTISBOARD_INSTALL_MODE "$ENV_FILE" \
+          2>/dev/null || true
+      )"
+      if [[ "$saved_mode" == "fullstack" \
+        || "$saved_mode" == "docker" \
+        || "$saved_mode" == "manual" ]]; then
+        MODE="$saved_mode"
+      fi
+    fi
+    atl_preflight_check "$MODE"
+    atl_prompt_missing_env_fields "$MODE"
+    if [[ "${ATL_ENV_FIELDS_PROMPTED:-false}" == true ]]; then
+      ENV_NEEDS_WRITE=true
+    fi
+    atl_sync_cors_with_app_url
+    atl_verify_app_port "$MODE"
+    if [[ "$env_loaded" != true ]]; then
+      atl_apply_mode_defaults "$MODE"
+    fi
+    if [[ "$MODE" == "manual" ]]; then
+      atl_preflight_manual_services
+    fi
+  else
+    atl_preflight_check "$MODE"
+    atl_generate_install_secrets "$MODE"
+    atl_prompt_env_fields "$MODE"
 
-  while [[ -n "${ENV_VALUES[GOOGLE_CLIENT_ID]:-}" \
-    && -z "${ENV_VALUES[GOOGLE_CLIENT_SECRET]:-}" ]]; do
-    local google_secret_msg
-    google_secret_msg="$(cat <<'EOF'
+    while [[ -n "${ENV_VALUES[GOOGLE_CLIENT_ID]:-}" \
+      && -z "${ENV_VALUES[GOOGLE_CLIENT_SECRET]:-}" ]]; do
+      local google_secret_msg
+      google_secret_msg="$(cat <<'EOF'
 You entered a Google OAuth Client ID but no Client Secret.
 
 Both are required for Google sign-in,
 or leave both blank to skip.
 EOF
 )"
-    atl_whiptail_display --title "Google sign-in" --msgbox \
-      "$google_secret_msg" 12 70 || true
-    atl_prompt_validated "GOOGLE_CLIENT_SECRET" \
-      "Google OAuth Client Secret" \
-      "The secret from Google Cloud Console next to your OAuth client." \
-      "" "true" "false" "" || exit 1
-  done
+      atl_whiptail_display --title "Google sign-in" --msgbox \
+        "$google_secret_msg" 12 70 || true
+      atl_prompt_validated "GOOGLE_CLIENT_SECRET" \
+        "Google OAuth Client Secret" \
+        "The secret from Google Cloud Console next to your OAuth client." \
+        "" "true" "false" "" || exit 1
+    done
 
-  atl_sync_cors_with_app_url
-  atl_validate_google_oauth_config
-  atl_verify_app_port "$MODE"
-  atl_apply_mode_defaults "$MODE"
+    atl_sync_cors_with_app_url
+    atl_validate_google_oauth_config
+    atl_verify_app_port "$MODE"
+    atl_apply_mode_defaults "$MODE"
 
-  if [[ "$MODE" == "manual" ]]; then
-    atl_preflight_manual_services
+    if [[ "$MODE" == "manual" ]]; then
+      atl_preflight_manual_services
+    fi
   fi
 
+  local INSTALL_USER
   INSTALL_USER="$(atl_get_install_user)"
-  PRIOR_ENV=""
-  ENV_FILE="${INSTALL_DIR}/.env"
 
-  if atl_sudo test -f "$ENV_FILE"; then
-    PRIOR_ENV="$(mktemp)"
-    atl_sudo cp "$ENV_FILE" "$PRIOR_ENV"
-    atl_sudo chmod 644 "$PRIOR_ENV"
+  if [[ "$INSTALL_ACTION" == "repair" ]]; then
+    local missing_files mismatched_files ok_files
+    atl_sudo_mkdir_p "$INSTALL_DIR"
+    info "==> Verifying installation at ${INSTALL_DIR}"
+    read -r missing_files mismatched_files ok_files \
+      <<< "$(atl_verify_install_integrity "$PKG_ROOT" "$INSTALL_DIR")"
+    if [[ "${missing_files:-0}" -gt 0 || "${mismatched_files:-0}" -gt 0 ]]; then
+      APP_FILES_CHANGED=true
+    fi
+    repair_count="$(atl_repair_install_files "$PKG_ROOT" "$INSTALL_DIR")"
+    if [[ "${repair_count:-0}" -gt 0 ]]; then
+      APP_FILES_CHANGED=true
+    fi
+    if atl_sudo test -f "${PKG_ROOT}/.env.example" \
+      && ! atl_sudo test -f "$ENV_FILE"; then
+      atl_sudo cp "${PKG_ROOT}/.env.example" "$ENV_FILE"
+      atl_load_env_file_into_values "$ENV_FILE"
+      atl_prompt_missing_env_fields "$MODE"
+      atl_apply_mode_defaults "$MODE"
+      ENV_NEEDS_WRITE=true
+    fi
+    local repair_summary
+    repair_summary="Verified installation integrity at:\n${INSTALL_DIR}\n\n"
+    if [[ "${repair_count:-0}" -gt 0 ]]; then
+      repair_summary+="Repaired ${repair_count} file(s).\n\n"
+    else
+      repair_summary+="All required files are present.\n\n"
+    fi
+    repair_summary+="Existing .env and data volumes were preserved."
+    atl_whiptail_msgbox --title "Repair complete" --msgbox \
+      "$repair_summary" 14 72 || true
+  else
+    if [[ "$INSTALL_ACTION" == "reinstall" ]] \
+      && atl_sudo test -f "$ENV_FILE"; then
+      atl_backup_env_file "$ENV_FILE"
+    fi
+
+    if atl_sudo test -f "$ENV_FILE"; then
+      PRIOR_ENV="$(mktemp)"
+      atl_sudo cp "$ENV_FILE" "$PRIOR_ENV"
+      atl_sudo chmod 644 "$PRIOR_ENV"
+    fi
+
+    atl_sudo_mkdir_p "$INSTALL_DIR"
+    info "==> Copying package to ${INSTALL_DIR}"
+    atl_sudo rsync -a --delete \
+      --exclude node_modules \
+      --exclude .env \
+      "${PKG_ROOT}/" "${INSTALL_DIR}/"
+    APP_FILES_CHANGED=true
+
+    if atl_sudo test -f "${PKG_ROOT}/.env.example" \
+      && ! atl_sudo test -f "$ENV_FILE"; then
+      atl_sudo cp "${PKG_ROOT}/.env.example" "$ENV_FILE"
+    fi
+
+    atl_write_env_file "$ENV_FILE"
+
+    if [[ "$INSTALL_ACTION" == "reinstall" \
+      && ( "$MODE" == "docker" || "$MODE" == "fullstack" ) ]]; then
+      atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
+      atl_offer_docker_data_reset "$MODE" || true
+    fi
   fi
-
-  atl_sudo_mkdir_p "$INSTALL_DIR"
-  info "==> Copying package to ${INSTALL_DIR}"
-  atl_sudo rsync -a --delete \
-    --exclude node_modules \
-    --exclude .env \
-    "${PKG_ROOT}/" "${INSTALL_DIR}/"
-
-  if atl_sudo test -f "${PKG_ROOT}/.env.example" \
-    && ! atl_sudo test -f "$ENV_FILE"; then
-    atl_sudo cp "${PKG_ROOT}/.env.example" "$ENV_FILE"
-  fi
-
-  atl_write_env_file "$ENV_FILE"
 
   BUN_BIN=""
   if [[ "$MODE" != "fullstack" ]]; then
     atl_sudo chown -R "${INSTALL_USER}:${INSTALL_USER}" "$INSTALL_DIR"
     BUN_BIN="$(atl_ensure_bun)"
 
-    info "==> Installing production dependencies"
-    (
-      cd "$INSTALL_DIR"
-      atl_sudo -u "$INSTALL_USER" env \
-        ATLANTISBOARD_SKIP_SETUP=1 PATH="/usr/local/bin:${PATH}" \
-        "$BUN_BIN" install --frozen-lockfile --production --ignore-scripts
-    )
+    if [[ "$INSTALL_ACTION" == "repair" ]]; then
+      if atl_needs_bun_install "$INSTALL_DIR" "$PKG_ROOT"; then
+        atl_run_bun_production_install "$INSTALL_USER"
+        APP_FILES_CHANGED=true
+      fi
+    else
+      atl_run_bun_production_install "$INSTALL_USER"
+    fi
   fi
 
-  if [[ "$MODE" == "docker" ]]; then
-    atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
-    atl_whiptail_display --title "Starting dependencies" --infobox \
-      "Starting MongoDB, Redis, and MinIO containers..." 8 60
-    atl_docker_compose_or_continue \
-      "${INSTALL_DIR}/install/docker" \
-      docker-compose.deps.yml up -d
-    atl_wait_for_docker_deps_or_continue "$MODE"
-  fi
-
-  if [[ "$MODE" == "fullstack" ]]; then
-    local fullstack_msg
-    atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
-    fullstack_msg="$(cat <<'EOF'
-Building the Atlantisboard image and starting all containers.
-
-Malware scanning uses on-demand clamscan inside the app container.
-The first attachment upload (or clicking Add) may download virus
-definitions; signatures are stored in the clamav-sigs volume.
-EOF
-)"
-    atl_whiptail_display --title "Building full stack" --infobox \
-      "$fullstack_msg" 10 70
-    atl_docker_compose_or_continue \
-      "${INSTALL_DIR}/install/docker" \
-      docker-compose.fullstack.yml up -d --build
-    atl_wait_for_docker_deps_or_continue "$MODE"
+  if [[ "$MODE" == "docker" || "$MODE" == "fullstack" ]]; then
+    atl_start_docker_stack "$MODE"
   fi
 
   rm -f "$PRIOR_ENV"
+  PRIOR_ENV=""
 
   BACKUP_DIR="$(
     atl_normalize_backup_dir \
       "$(atl_env_get BACKUP_LOCATION /var/backups/atlantisboard)"
   )"
   ENV_VALUES["BACKUP_LOCATION"]="$BACKUP_DIR"
-  atl_write_env_file "$ENV_FILE"
+  if [[ "$INSTALL_ACTION" != "repair" ]]; then
+    ENV_NEEDS_WRITE=true
+  elif [[ -z "$(atl_env_get_from_file BACKUP_LOCATION "$ENV_FILE" 2>/dev/null || true)" ]]; then
+    ENV_NEEDS_WRITE=true
+  fi
   if [[ "$MODE" != "fullstack" ]]; then
     atl_sudo_mkdir_p "$BACKUP_DIR"
   fi
 
   if [[ "$MODE" != "fullstack" ]]; then
-    if atl_require_systemctl; then
-      ATL_SYSTEMD_INSTALLED=true
-      if ! id atlantisboard >/dev/null 2>&1; then
-        atl_sudo useradd --system --create-home \
-          --shell /usr/sbin/nologin atlantisboard || true
-      fi
-      atl_sudo chown -R atlantisboard:atlantisboard \
-        "$INSTALL_DIR" "$BACKUP_DIR"
-
-      atl_render_systemd_unit \
-        "${INSTALL_DIR}/install/systemd/atlantisboard.service.template" \
-        /etc/systemd/system/atlantisboard.service
-      if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
-        local worker_template
-        worker_template="${INSTALL_DIR}/install/systemd/"
-        worker_template+="atlantisboard-worker.service.template"
-        atl_render_systemd_unit \
-          "$worker_template" \
-          /etc/systemd/system/atlantisboard-worker.service
-      fi
-
-      atl_sudo systemctl daemon-reload
-      atl_sudo systemctl enable atlantisboard.service
-      if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
-        atl_sudo systemctl enable atlantisboard-worker.service
-      fi
-
-      if [[ "$MODE" == "docker" ]]; then
-        atl_wait_for_docker_deps_or_continue "$MODE" 30
-      fi
-
-      atl_systemctl_restart_or_fail atlantisboard.service
-      if [[ "${ENV_VALUES[ENABLE_CRON_JOBS_IN_MAIN]:-false}" != "true" ]]; then
-        atl_systemctl_restart_or_fail atlantisboard-worker.service
-      fi
+    if [[ "$INSTALL_ACTION" == "repair" ]]; then
+      atl_setup_repair_systemd
     else
-      local systemd_skip_msg
-      systemd_skip_msg="$(cat <<EOF
-systemd is not available on this host.
-
-Start Atlantisboard manually from ${INSTALL_DIR}
-after setup completes.
-EOF
-)"
-      atl_whiptail_msgbox --title "systemd skipped" --msgbox \
-        "$systemd_skip_msg" 10 72 || true
+      atl_setup_install_systemd "$INSTALL_USER"
     fi
   fi
 
-  # shellcheck source=reverse-proxy.sh
-  source "${PKG_ROOT}/install/reverse-proxy.sh"
-  run_reverse_proxy_wizard
+  if [[ "$INSTALL_ACTION" != "repair" ]]; then
+    # shellcheck source=reverse-proxy.sh
+    source "${PKG_ROOT}/install/reverse-proxy.sh"
+    run_reverse_proxy_wizard
+  fi
 
   ENV_VALUES["ATLANTISBOARD_INSTALL_MODE"]="$MODE"
-  atl_write_env_file "$ENV_FILE"
-  atl_restart_after_config "$MODE" "$INSTALL_DIR"
+  if [[ "$ENV_NEEDS_WRITE" == true ]]; then
+    atl_write_env_file "$ENV_FILE"
+  fi
+  if [[ "$INSTALL_ACTION" != "repair" ]]; then
+    atl_restart_after_config "$MODE" "$INSTALL_DIR"
+  fi
 
   worker_installed=false
   if [[ "$ATL_SYSTEMD_INSTALLED" == true \

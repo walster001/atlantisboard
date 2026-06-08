@@ -126,7 +126,7 @@ atl_pkg_install_packages() {
       local pkg install_ok=true
       for pkg in "${pkgs[@]}"; do
         if ! atl_sudo env DEBIAN_FRONTEND=noninteractive \
-          apt-get install -y "$pkg"; then
+          apt-get install -y -qq "$pkg"; then
           install_ok=false
           err "warning: package install failed: ${pkg}"
         fi

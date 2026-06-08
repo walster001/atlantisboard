@@ -35,6 +35,8 @@ source "${PKG_ROOT}/install/lib/common-env.sh"
 source "${PKG_ROOT}/install/lib/common-docker.sh"
 # shellcheck source=lib/common-systemd.sh
 source "${PKG_ROOT}/install/lib/common-systemd.sh"
+# shellcheck source=lib/common-install-integrity.sh
+source "${PKG_ROOT}/install/lib/common-install-integrity.sh"
 
 # Backward-compatibility hints for static tests and grep-based guards:
 # atl_whiptail_capture()
@@ -52,6 +54,9 @@ source "${PKG_ROOT}/install/lib/common-systemd.sh"
 # whiptail "$@" </dev/tty 2>"$tmp" 1>"$tty"
 # --passwordbox "$prompt_text" 14 78 ""
 # atl_env_get_from_file()
+# atl_load_env_file_into_values()
+# atl_unzip_quiet()
+# atl_detect_existing_install()
 # atl_docker_compose_or_continue()
 # Docker Compose failed
 # image-defaults.env

@@ -36,14 +36,14 @@ jobs:
         id: ver
         run: echo "version=$(bun -e 'console.log((await Bun.file("package.json").json()).version)')" >> "$GITHUB_OUTPUT"
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: atlantisboard-${{ steps.ver.outputs.version }}-installer
           path: release/staging-installer/
           retention-days: 30
           if-no-files-found: error
       - name: Upload runtime artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: atlantisboard-${{ steps.ver.outputs.version }}-runtime
           path: release/staging-runtime/

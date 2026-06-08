@@ -3,7 +3,6 @@ export const MAIN_TAB_ICON_SIZE = 22;
 export const MAIN_TAB_ICON_STROKE = 1.5;
 
 export const CONFIGURATION_SUBTABS = [
-  { value: 'general', label: 'General' },
   { value: 'login-options', label: 'Login options' },
   { value: 'permissions', label: 'Permissions' },
   { value: 'users', label: 'Users' },
@@ -20,7 +19,6 @@ export const CUSTOMISATION_SUBTABS = [
   { value: 'app-branding', label: 'App branding' },
   { value: 'email-branding', label: 'Email branding' },
   { value: 'custom-fonts', label: 'Custom fonts' },
-  { value: 'templates', label: 'Templates' },
 ] as const;
 
 export type ConfigurationSubtab = (typeof CONFIGURATION_SUBTABS)[number]['value'];

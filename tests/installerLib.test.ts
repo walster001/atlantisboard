@@ -177,6 +177,26 @@ describe('installer shell static guards', () => {
     expect(setup).toContain('atl_preflight_manual_services');
     expect(setup).toContain('--exclude .env');
     expect(setup).toContain('${INSTALL_DIR}/install/systemd/');
+    expect(setup).toContain('atl_detect_existing_install');
+    expect(setup).toContain('INSTALL_ACTION');
+    expect(setup).toContain('atl_repair_install_files');
+    expect(setup).toContain('ENV_NEEDS_WRITE');
+    expect(setup).toContain('atl_backup_env_file');
+  });
+
+  test('common.sh exports idempotent install helpers', () => {
+    const common = readFileSync(join(INSTALL_DIR, 'lib', 'common.sh'), 'utf8');
+    expect(common).toContain('atl_detect_existing_install()');
+    expect(common).toContain('atl_load_env_file_into_values()');
+    const integrity = readFileSync(
+      join(INSTALL_DIR, 'lib', 'common-install-integrity.sh'),
+      'utf8',
+    );
+    expect(integrity).toContain('atl_detect_existing_install()');
+    expect(integrity).toContain('atl_repair_install_files()');
+    const envLib = readFileSync(join(INSTALL_DIR, 'lib', 'common-env.sh'), 'utf8');
+    expect(envLib).toContain('atl_load_env_file_into_values()');
+    expect(envLib).toContain('atl_prompt_missing_env_fields()');
   });
 
   test('setup.sh records install mode and writes uninstall manifest', () => {

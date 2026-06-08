@@ -292,6 +292,37 @@ assert_install_manifest_write() {
   return 0
 }
 
+assert_detect_existing_install_states() {
+  local tmp state
+  tmp="$(mktemp -d)"
+  state="$(atl_detect_existing_install "$tmp")"
+  [[ "$state" == "none" ]] || fail "empty dir expected none, got ${state}"
+  touch "${tmp}/package.json"
+  state="$(atl_detect_existing_install "$tmp")"
+  [[ "$state" == "partial" ]] || fail "package.json expected partial, got ${state}"
+  mkdir -p "${tmp}/dist/server" "${tmp}/install"
+  touch "${tmp}/.env" "${tmp}/dist/server/index.js"
+  touch "${tmp}/install/setup.sh"
+  state="$(atl_detect_existing_install "$tmp")"
+  [[ "$state" == "complete" ]] || fail "markers expected complete, got ${state}"
+  rm -rf "$tmp"
+  return 0
+}
+
+assert_load_env_file_into_values() {
+  local tmp
+  tmp="$(mktemp -d)"
+  printf '%s\n' 'APP_URL=https://example.com' 'PORT=8080' >"${tmp}/.env"
+  ENV_VALUES=()
+  atl_load_env_file_into_values "${tmp}/.env"
+  [[ "${ENV_VALUES[APP_URL]:-}" == "https://example.com" ]] \
+    || fail "APP_URL not loaded"
+  [[ "${ENV_VALUES[PORT]:-}" == "8080" ]] \
+    || fail "PORT not loaded"
+  rm -rf "$tmp"
+  return 0
+}
+
 assert_path_rejects_garbled
 assert_path_accepts_valid
 assert_backup_dir_defaults
@@ -307,5 +338,7 @@ assert_uninstall_tracked_paths
 assert_env_get_from_file_reads_disk
 assert_app_url_local_detection
 assert_install_manifest_write
+assert_detect_existing_install_states
+assert_load_env_file_into_values
 
 echo "installer-lib.harness: all checks passed"

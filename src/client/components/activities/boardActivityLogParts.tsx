@@ -45,6 +45,20 @@ function readId(raw: Record<string, unknown>): string {
   return id != null ? String(id) : '';
 }
 
+const MONGO_OBJECT_ID_RE = /^[a-f0-9]{24}$/i;
+
+/** Hide raw Mongo ids in user-facing log text (legacy rows may store ids in previous/next). */
+export function humanReadableLabel(value: string | undefined, fallback = '—'): string {
+  if (value == null || value.trim() === '') {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  if (MONGO_OBJECT_ID_RE.test(trimmed)) {
+    return fallback;
+  }
+  return trimmed;
+}
+
 function entityName(meta: Record<string, unknown>, fallback = 'item'): string {
   return (
     readString(meta, 'entityName') ??
@@ -55,6 +69,21 @@ function entityName(meta: Record<string, unknown>, fallback = 'item'): string {
     readString(meta, 'fileName') ??
     fallback
   );
+}
+
+export function listLabelFromMeta(
+  meta: Record<string, unknown>,
+  nameKey: 'previousListName' | 'nextListName' | 'listName',
+  idFallbackKey?: 'previous' | 'next',
+): string {
+  const named = readString(meta, nameKey);
+  if (named != null) {
+    return humanReadableLabel(named, 'Unknown list');
+  }
+  if (idFallbackKey != null) {
+    return humanReadableLabel(readString(meta, idFallbackKey), 'Unknown list');
+  }
+  return 'Unknown list';
 }
 
 function formatFieldLabel(field: string | undefined): string | undefined {
@@ -89,11 +118,23 @@ function Entity({ name }: { name: string }) {
   );
 }
 
-function ValueText({ value }: { value: string | undefined }) {
+function Verb({ text }: { text: string }) {
+  return (
+    <Text component="span" fw={600}>
+      {text}
+    </Text>
+  );
+}
+
+function Highlight({ value }: { value: string | undefined }) {
   if (value == null || value === '') {
     return <Text component="span">—</Text>;
   }
-  return <Text component="span">{value}</Text>;
+  return (
+    <Text component="span" fw={600}>
+      {value}
+    </Text>
+  );
 }
 
 const ACTIVITY_VERB: Partial<Record<BoardContentActivityType, string>> = {
@@ -179,17 +220,20 @@ const EntryBody = memo(function EntryBody({ row }: { row: ParsedBoardActivityRow
   const field = formatFieldLabel(readString(row.meta, 'field'));
   const previous = readString(row.meta, 'previous');
   const next = readString(row.meta, 'next');
-  const listName = readString(row.meta, 'listName');
   const assigneeName = readString(row.meta, 'assigneeDisplayName') ?? readString(row.meta, 'targetDisplayName');
   const verb = ACTIVITY_VERB[row.type] ?? row.type.replace(/\./g, ' ');
 
-  if (row.type === 'card.moved' && listName != null) {
-    const fromList = readString(row.meta, 'previousListName') ?? previous;
-    const toList = readString(row.meta, 'nextListName') ?? next ?? listName;
+  if (row.type === 'card.moved') {
+    const fromList = listLabelFromMeta(row.meta, 'previousListName', 'previous');
+    const toList = listLabelFromMeta(row.meta, 'nextListName', 'next');
+    const cardTitle = humanReadableLabel(
+      readString(row.meta, 'cardTitle') ?? readString(row.meta, 'entityName') ?? name,
+      'Untitled card',
+    );
     return (
       <Text component="div" size="sm">
-        <Actor name={row.actorName} /> moved <Entity name={name} /> from <ValueText value={fromList} /> to{' '}
-        <ValueText value={toList} />
+        <Actor name={row.actorName} /> <Verb text="moved" /> <Entity name={cardTitle} /> from{' '}
+        <Highlight value={fromList} /> to <Highlight value={toList} />
       </Text>
     );
   }
@@ -197,8 +241,8 @@ const EntryBody = memo(function EntryBody({ row }: { row: ParsedBoardActivityRow
   if (row.type === 'card.dates.updated' && field != null) {
     return (
       <Text component="div" size="sm">
-        <Actor name={row.actorName} /> changed <Text component="span" fw={600}>{field}</Text> on <Entity name={name} />{' '}
-        from <ValueText value={previous} /> to <ValueText value={next} />
+        <Actor name={row.actorName} /> <Verb text="changed" /> <Highlight value={field} /> on <Entity name={name} /> from{' '}
+        <Highlight value={previous} /> to <Highlight value={next} />
       </Text>
     );
   }
@@ -210,18 +254,46 @@ const EntryBody = memo(function EntryBody({ row }: { row: ParsedBoardActivityRow
   ) {
     return (
       <Text component="div" size="sm">
-        <Actor name={row.actorName} /> changed <Text component="span" fw={600}>{field}</Text> on <Entity name={name} />{' '}
-        from <ValueText value={previous} /> to <ValueText value={next} />
+        <Actor name={row.actorName} /> <Verb text="changed" /> <Highlight value={field} /> on <Entity name={name} /> from{' '}
+        <Highlight value={previous} /> to <Highlight value={next} />
+      </Text>
+    );
+  }
+
+  if (row.type.startsWith('checklist.item.')) {
+    const itemText = humanReadableLabel(readString(row.meta, 'entityName'), 'item');
+    const cardTitle = humanReadableLabel(readString(row.meta, 'cardTitle'), 'Untitled card');
+    if (row.type === 'checklist.item.created') {
+      return (
+        <Text component="div" size="sm">
+          <Actor name={row.actorName} /> <Verb text="added" /> <Entity name={itemText} /> to <Entity name={cardTitle} />
+        </Text>
+      );
+    }
+    if (row.type === 'checklist.item.updated') {
+      return (
+        <Text component="div" size="sm">
+          <Actor name={row.actorName} /> <Verb text="updated" /> <Entity name={itemText} /> on <Entity name={cardTitle} />
+        </Text>
+      );
+    }
+    return (
+      <Text component="div" size="sm">
+        <Actor name={row.actorName} /> <Verb text="removed" /> <Entity name={itemText} /> from <Entity name={cardTitle} />
       </Text>
     );
   }
 
   if (row.type === 'card.assignee.added' || row.type === 'card.assignee.removed') {
     const action = row.type === 'card.assignee.added' ? 'assigned' : 'unassigned';
+    const cardTitle = humanReadableLabel(
+      readString(row.meta, 'cardTitle') ?? readString(row.meta, 'entityName') ?? name,
+      'Untitled card',
+    );
     return (
       <Text component="div" size="sm">
-        <Actor name={row.actorName} /> {action}{' '}
-        {assigneeName != null ? <Entity name={assigneeName} /> : 'a member'} on <Entity name={name} />
+        <Actor name={row.actorName} /> <Verb text={action} />{' '}
+        {assigneeName != null ? <Entity name={assigneeName} /> : 'a member'} on <Entity name={cardTitle} />
       </Text>
     );
   }
@@ -229,10 +301,11 @@ const EntryBody = memo(function EntryBody({ row }: { row: ParsedBoardActivityRow
   if (row.type === 'label.assigned' || row.type === 'label.removed') {
     const label = readString(row.meta, 'labelName') ?? name;
     const card = readString(row.meta, 'cardTitle') ?? readString(row.meta, 'entityName');
+    const action = row.type === 'label.assigned' ? 'assigned' : 'removed';
     return (
       <Text component="div" size="sm">
-        <Actor name={row.actorName} /> {row.type === 'label.assigned' ? 'assigned' : 'removed'}{' '}
-        <Entity name={label} /> {row.type === 'label.assigned' ? 'to' : 'from'}{' '}
+        <Actor name={row.actorName} /> <Verb text={action} /> <Entity name={label} />{' '}
+        {row.type === 'label.assigned' ? 'to' : 'from'}{' '}
         {card != null ? <Entity name={card} /> : 'a card'}
       </Text>
     );
@@ -241,7 +314,7 @@ const EntryBody = memo(function EntryBody({ row }: { row: ParsedBoardActivityRow
   if (row.type.endsWith('.deleted')) {
     return (
       <Text component="div" size="sm">
-        <Actor name={row.actorName} /> {verb} <Entity name={name} />
+        <Actor name={row.actorName} /> <Verb text={verb} /> <Entity name={name} />
       </Text>
     );
   }
@@ -249,14 +322,14 @@ const EntryBody = memo(function EntryBody({ row }: { row: ParsedBoardActivityRow
   if (row.type.endsWith('.created') || row.type.endsWith('.uploaded')) {
     return (
       <Text component="div" size="sm">
-        <Actor name={row.actorName} /> {verb} <Entity name={name} />
+        <Actor name={row.actorName} /> <Verb text={verb} /> <Entity name={name} />
       </Text>
     );
   }
 
   return (
     <Text component="div" size="sm">
-      <Actor name={row.actorName} /> {verb} <Entity name={name} />
+      <Actor name={row.actorName} /> <Verb text={verb} /> <Entity name={name} />
     </Text>
   );
 });

@@ -13,7 +13,7 @@ export function useMemberAuditLog(
     boardId,
     defaultRetentionDays: BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS,
     retentionField: 'memberActivityLogRetentionDays',
-    fetchMode: { memberAudit: true },
+    mode: 'memberAudit',
     parseRow: parseMemberAuditRow,
     ...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {}),
   });

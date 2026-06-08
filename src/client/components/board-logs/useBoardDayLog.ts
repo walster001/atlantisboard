@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AxiosError } from 'axios';
 import { eachDayOfInterval, endOfDay, format, startOfDay, subDays } from 'date-fns';
 import { api } from '../../utils/api.js';
@@ -12,35 +12,39 @@ export type BoardDayLogRetentionField =
   | 'memberActivityLogRetentionDays'
   | 'activityLogRetentionDays';
 
-export type BoardDayLogFetchMode =
-  | { readonly memberAudit: true }
-  | { readonly boardActivity: true };
+export type BoardDayLogMode = 'memberAudit' | 'boardActivity';
 
 export interface UseBoardDayLogOptions<TRow> {
   readonly boardId: string;
   readonly defaultRetentionDays: number;
   readonly retentionField: BoardDayLogRetentionField;
-  readonly fetchMode: BoardDayLogFetchMode;
+  /** Stable string — do not pass inline objects (avoids refetch loops). */
+  readonly mode: BoardDayLogMode;
   readonly parseRow: (raw: unknown) => TRow | null;
   readonly onSettingsLivePatch?: (patch: BoardSettingsLivePatch) => void;
+  /** When true, parent loads retention via {@link applyRetentionFromBoard}. */
+  readonly skipRetentionFetch?: boolean;
 }
 
 export function useBoardDayLog<TRow>({
   boardId,
   defaultRetentionDays,
   retentionField,
-  fetchMode,
+  mode,
   parseRow,
   onSettingsLivePatch,
+  skipRetentionFetch = false,
 }: UseBoardDayLogOptions<TRow>) {
   const [calendarAnchor, setCalendarAnchor] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
   const [activities, setActivities] = useState<TRow[]>([]);
   const [totalForDay, setTotalForDay] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [retentionValue, setRetentionValue] = useState<string>(String(defaultRetentionDays));
   const [savingRetention, setSavingRetention] = useState(false);
+  const activitiesFetchGenRef = useRef(0);
 
   const retentionSpanDays = useMemo(
     () => boardDayLogRetentionSpanDays(retentionValue, defaultRetentionDays),
@@ -101,6 +105,7 @@ export function useBoardDayLog<TRow>({
   }, [datePages, selectedDayIndex]);
 
   const loadActivities = useCallback(async () => {
+    const fetchId = ++activitiesFetchGenRef.current;
     if (!Number.isFinite(selectedDayStartMs)) {
       setActivities([]);
       setTotalForDay(0);
@@ -110,13 +115,17 @@ export function useBoardDayLog<TRow>({
     try {
       setLoading(true);
       setForbidden(false);
+      setRateLimited(false);
       const dayStart = new Date(selectedDayStartMs);
       const dayEnd = endOfDay(dayStart);
       const data = await api.getBoardActivities(boardId, {
-        ...fetchMode,
+        ...(mode === 'memberAudit' ? { memberAudit: true } : { boardActivity: true }),
         dayStartMs: dayStart.getTime(),
         dayEndMs: dayEnd.getTime(),
       });
+      if (fetchId !== activitiesFetchGenRef.current) {
+        return;
+      }
       if (!('total' in data)) {
         setActivities([]);
         setTotalForDay(0);
@@ -126,20 +135,40 @@ export function useBoardDayLog<TRow>({
       setActivities(rows);
       setTotalForDay(data.total);
     } catch (err: unknown) {
+      if (fetchId !== activitiesFetchGenRef.current) {
+        return;
+      }
       const ax = err as AxiosError;
       if (ax.response?.status === 403) {
         setForbidden(true);
+      } else if (ax.response?.status === 429) {
+        setRateLimited(true);
       }
       setActivities([]);
       setTotalForDay(0);
     } finally {
-      setLoading(false);
+      if (fetchId === activitiesFetchGenRef.current) {
+        setLoading(false);
+      }
     }
-  }, [boardId, selectedDayStartMs, fetchMode, parseRow]);
+  }, [boardId, selectedDayStartMs, mode, parseRow]);
+
+  const applyRetentionFromBoard = useCallback(
+    (days: number | null | undefined) => {
+      if (days === undefined) {
+        setRetentionValue(String(defaultRetentionDays));
+      } else {
+        setRetentionValue(days === null ? 'never' : String(days));
+      }
+    },
+    [defaultRetentionDays],
+  );
 
   useEffect(() => {
-    void loadBoardRetention();
-  }, [loadBoardRetention]);
+    if (!skipRetentionFetch) {
+      void loadBoardRetention();
+    }
+  }, [loadBoardRetention, skipRetentionFetch]);
 
   useEffect(() => {
     void loadActivities();
@@ -186,6 +215,7 @@ export function useBoardDayLog<TRow>({
 
   return {
     forbidden,
+    rateLimited,
     loading,
     activities,
     totalForDay,
@@ -200,5 +230,6 @@ export function useBoardDayLog<TRow>({
     canGoOlder,
     dayLabel,
     reloadActivities: loadActivities,
+    applyRetentionFromBoard,
   };
 }

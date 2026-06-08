@@ -1,6 +1,7 @@
 import { Types, type Document } from 'mongoose';
 import { Card, type ICard } from '../../models/Card.js';
 import { Board } from '../../models/Board.js';
+import { User } from '../../models/User.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { hasPermission } from '../../utils/permissions.js';
@@ -49,14 +50,23 @@ export async function addCardAssignee(
     timestamp: new Date(),
   });
 
+  const assigneeUser = await User.findById(assigneeId).select('displayName').lean();
+  const assigneeDisplayName = assigneeUser?.displayName ?? 'Unknown user';
+
   recordBoardActivityDeferred({
     boardId: card.boardId.toString(),
     cardId,
     userId,
     category: 'assignees',
     type: 'card.assignee.added',
-    description: `Assignee added to "${card.title}"`,
-    metadata: { entityId: assigneeId, cardId, cardTitle: card.title },
+    description: `Assigned ${assigneeDisplayName} to "${card.title}"`,
+    metadata: {
+      entityId: assigneeId,
+      assigneeDisplayName,
+      cardId,
+      cardTitle: card.title,
+      entityName: card.title,
+    },
     boardSettings: board.settings,
   });
 
@@ -100,14 +110,23 @@ export async function removeCardAssignee(
     timestamp: new Date(),
   });
 
+  const assigneeUser = await User.findById(assigneeId).select('displayName').lean();
+  const assigneeDisplayName = assigneeUser?.displayName ?? 'Unknown user';
+
   recordBoardActivityDeferred({
     boardId: card.boardId.toString(),
     cardId,
     userId,
     category: 'assignees',
     type: 'card.assignee.removed',
-    description: `Assignee removed from "${card.title}"`,
-    metadata: { entityId: assigneeId, cardId, cardTitle: card.title },
+    description: `Unassigned ${assigneeDisplayName} from "${card.title}"`,
+    metadata: {
+      entityId: assigneeId,
+      assigneeDisplayName,
+      cardId,
+      cardTitle: card.title,
+      entityName: card.title,
+    },
     boardSettings: board.settings,
   });
 

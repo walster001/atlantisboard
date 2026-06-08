@@ -180,20 +180,38 @@ export async function moveCard(
     timestamp: new Date(),
   });
 
+  const originalListDoc =
+    originalListId === targetListId
+      ? targetList
+      : await List.findById(originalListId).select('name').lean();
+  const originalListName =
+    originalListDoc != null &&
+    typeof originalListDoc.name === 'string' &&
+    originalListDoc.name.trim() !== ''
+      ? originalListDoc.name.trim()
+      : 'Unknown list';
+  const cardTitle =
+    typeof card.title === 'string' && card.title.trim() !== '' ? card.title.trim() : 'Untitled card';
+
   recordBoardActivityDeferred({
     boardId: card.boardId.toString(),
     cardId,
     userId,
     category: 'cards',
     type: 'card.moved',
-    description: `Card moved to list "${targetList.name}"`,
+    description: `Moved "${cardTitle}" from "${originalListName}" to "${targetList.name}"`,
     metadata: {
       entityId: cardId,
+      entityName: cardTitle,
+      cardTitle,
       listId: targetListId,
       listName: targetList.name,
-      previous: originalListId,
-      next: targetListId,
+      previousListId: originalListId,
+      previousListName: originalListName,
+      nextListId: targetListId,
+      nextListName: targetList.name,
     },
+    boardSettings: board.settings,
   });
 
   return card;

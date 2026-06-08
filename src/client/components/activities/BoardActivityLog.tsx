@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ActionIcon, Alert, Badge, Group, Stack, Switch, Text, ThemeIcon, Title, Tooltip } from '@mantine/core';
-import { IconHeartRateMonitor, IconSettings } from '@tabler/icons-react';
+import { Alert, Badge, Button, Group, Stack, Switch, Text, ThemeIcon, Title } from '@mantine/core';
+import { IconHeartRateMonitor } from '@tabler/icons-react';
 import type { BoardSettingsLivePatch } from '../../store/database.js';
 import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
 import { BoardDayLogPanel } from '../board-logs/BoardDayLogPanel.js';
@@ -21,6 +21,7 @@ export function BoardActivityLog({ boardId, onSettingsLivePatch, mobileLayout = 
 
   const {
     forbidden,
+    rateLimited,
     loading,
     activities,
     totalForDay,
@@ -55,55 +56,54 @@ export function BoardActivityLog({ boardId, onSettingsLivePatch, mobileLayout = 
 
   return (
     <>
+      {rateLimited ? (
+        <Alert color="orange" title="Too many requests" mb="sm">
+          Activity log requests were rate limited. Wait a moment and switch days or reopen this tab to
+          try again.
+        </Alert>
+      ) : null}
       <BoardDayLogPanel
         mobileLayout={mobileLayout}
         header={
-          <Group gap="sm" align="flex-start" wrap="nowrap">
-            <ThemeIcon size="lg" radius="md" variant="light" color="teal" aria-hidden>
-              <IconHeartRateMonitor size={22} stroke={1.5} />
-            </ThemeIcon>
-            <Stack gap={2}>
-              <Title order={4}>Activity Log</Title>
-              <Text size="sm" c="dimmed">
-                Track create, update, move, and delete actions on this board
-              </Text>
-            </Stack>
-          </Group>
-        }
-        headerControls={
-          <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-            <Group gap="sm" wrap="nowrap" align="center">
-              <Switch
-                label="Activity log enabled"
-                checked={activityLogEnabled}
-                disabled={!canEditSettings || savingEnabled}
-                onChange={(event) => {
-                  void handleEnabledChange(event.currentTarget.checked);
-                }}
-              />
-              {!activityLogEnabled ? (
-                <Badge size="sm" variant="light" color="gray">
-                  Logging off
-                </Badge>
-              ) : null}
+          <Stack gap={4}>
+            <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+              <Group gap="sm" wrap="nowrap" align="center">
+                <ThemeIcon size="lg" radius="md" variant="light" color="teal" aria-hidden>
+                  <IconHeartRateMonitor size={22} stroke={1.5} />
+                </ThemeIcon>
+                <Title order={4}>Activity Log</Title>
+              </Group>
+              <Group gap="sm" wrap="nowrap" align="center">
+                <Switch
+                  label="Activity log enabled"
+                  checked={activityLogEnabled}
+                  disabled={!canEditSettings || savingEnabled}
+                  withThumbIndicator={false}
+                  onChange={(event) => {
+                    void handleEnabledChange(event.currentTarget.checked);
+                  }}
+                />
+                {!activityLogEnabled ? (
+                  <Badge size="sm" variant="light" color="gray">
+                    Logging off
+                  </Badge>
+                ) : null}
+                <Button
+                  size="sm"
+                  color="blue"
+                  disabled={!canEditSettings}
+                  onClick={() => {
+                    setTrackingModalOpen(true);
+                  }}
+                >
+                  Configure
+                </Button>
+              </Group>
             </Group>
-            <Tooltip label="Configure tracked categories" withArrow>
-              <ActionIcon
-                type="button"
-                variant="subtle"
-                color="gray"
-                size="lg"
-                radius="md"
-                aria-label="Configure activity tracking categories"
-                disabled={!canEditSettings}
-                onClick={() => {
-                  setTrackingModalOpen(true);
-                }}
-              >
-                <IconSettings size={20} stroke={1.5} />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
+            <Text size="sm" c="dimmed">
+              Track create, update, move, and delete actions on this board
+            </Text>
+          </Stack>
         }
         retentionAriaLabel="Board activity log retention"
         retentionSelectData={retentionSelectData}

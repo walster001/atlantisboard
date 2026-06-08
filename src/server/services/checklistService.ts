@@ -226,7 +226,12 @@ export async function createChecklistItem(
     category: 'checklists',
     type: 'checklist.item.created',
     description: `Checklist item created`,
-    metadata: { entityId: itemId, entityName: input.text, cardId: input.cardId },
+    metadata: {
+      entityId: itemId,
+      entityName: input.text,
+      cardId: input.cardId,
+      cardTitle: card.title,
+    },
   });
 
   return card;
@@ -291,7 +296,7 @@ export async function updateChecklistItem(
     category: 'checklists',
     type: 'checklist.item.updated',
     description: `Checklist item updated`,
-    metadata: { entityId: itemId, entityName: item.text, cardId },
+    metadata: { entityId: itemId, entityName: item.text, cardId, cardTitle: card.title },
   });
 
   return card;
@@ -342,7 +347,7 @@ export async function deleteChecklistItem(
     category: 'checklists',
     type: 'checklist.item.deleted',
     description: `Checklist item deleted`,
-    metadata: { entityId: itemId, entityName: itemText, cardId },
+    metadata: { entityId: itemId, entityName: itemText, cardId, cardTitle: card.title },
   });
 
   return true;

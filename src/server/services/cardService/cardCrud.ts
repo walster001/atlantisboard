@@ -109,7 +109,13 @@ export async function createCard(input: CreateCardInput, userId: string): Promis
     category: 'cards',
     type: 'card.created',
     description: `Card "${input.title}" created`,
-    metadata: { entityId: card._id.toString(), entityName: input.title, listId: input.listId },
+    metadata: {
+      entityId: card._id.toString(),
+      entityName: input.title,
+      cardTitle: input.title,
+      listId: input.listId,
+      listName: list.name,
+    },
   });
 
   logger.info({ cardId: card._id.toString(), listId: input.listId }, 'Card created');

@@ -23,10 +23,13 @@ export function useBoardActivityLog(
     boardId,
     defaultRetentionDays: BOARD_CONTENT_DEFAULT_RETENTION_DAYS,
     retentionField: 'activityLogRetentionDays',
-    fetchMode: { boardActivity: true },
+    mode: 'boardActivity',
     parseRow: parseBoardActivityRow,
+    skipRetentionFetch: true,
     ...(onSettingsLivePatch !== undefined ? { onSettingsLivePatch } : {}),
   });
+
+  const { applyRetentionFromBoard } = dayLog;
 
   const loadBoardSettings = useCallback(async () => {
     try {
@@ -34,10 +37,12 @@ export function useBoardActivityLog(
       const board = res.board as {
         settings?: {
           activityLogEnabled?: boolean;
+          activityLogRetentionDays?: number | null;
           activityLogTracking?: BoardActivityTrackingSettings;
         };
       } | null;
       setActivityLogEnabled(board?.settings?.activityLogEnabled === true);
+      applyRetentionFromBoard(board?.settings?.activityLogRetentionDays);
       const tracking = board?.settings?.activityLogTracking;
       setActivityLogTracking({
         ...DEFAULT_BOARD_ACTIVITY_TRACKING,
@@ -45,9 +50,10 @@ export function useBoardActivityLog(
       });
     } catch {
       setActivityLogEnabled(false);
+      applyRetentionFromBoard(undefined);
       setActivityLogTracking(DEFAULT_BOARD_ACTIVITY_TRACKING);
     }
-  }, [boardId]);
+  }, [boardId, applyRetentionFromBoard]);
 
   useEffect(() => {
     void loadBoardSettings();

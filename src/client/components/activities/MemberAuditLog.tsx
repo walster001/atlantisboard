@@ -14,6 +14,7 @@ interface MemberAuditLogProps {
 export function MemberAuditLog({ boardId, onSettingsLivePatch, mobileLayout = false }: MemberAuditLogProps) {
   const {
     forbidden,
+    rateLimited,
     loading,
     activities,
     totalForDay,
@@ -39,6 +40,13 @@ export function MemberAuditLog({ boardId, onSettingsLivePatch, mobileLayout = fa
   }
 
   return (
+    <>
+      {rateLimited ? (
+        <Alert color="orange" title="Too many requests" mb="sm">
+          Activity log requests were rate limited. Wait a moment and switch days or reopen this tab to
+          try again.
+        </Alert>
+      ) : null}
     <BoardDayLogPanel
       mobileLayout={mobileLayout}
       header={
@@ -73,5 +81,6 @@ export function MemberAuditLog({ boardId, onSettingsLivePatch, mobileLayout = fa
       canGoOlder={canGoOlder}
       dayLabel={dayLabel}
     />
+    </>
   );
 }

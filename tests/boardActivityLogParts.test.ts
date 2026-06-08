@@ -1,6 +1,10 @@
 /// <reference types="bun-types" />
 import { describe, expect, it } from 'bun:test';
-import { parseBoardActivityRow } from '../src/client/components/activities/boardActivityLogParts.js';
+import {
+  humanReadableLabel,
+  listLabelFromMeta,
+  parseBoardActivityRow,
+} from '../src/client/components/activities/boardActivityLogParts.js';
 
 describe('board activity log row parsing', () => {
   it('parses a card.created row with actor and metadata', () => {
@@ -30,14 +34,27 @@ describe('board activity log row parsing', () => {
       userId: { displayName: 'Bob' },
       metadata: {
         entityName: 'Fix bug',
+        cardTitle: 'Fix bug',
         listName: 'Done',
-        previous: 'todo-list',
-        next: 'done-list',
+        previousListName: 'To Do',
+        nextListName: 'Done',
       },
     });
 
     expect(row?.type).toBe('card.moved');
     expect(row?.meta.listName).toBe('Done');
+    expect(listLabelFromMeta(row!.meta, 'previousListName', 'previous')).toBe('To Do');
+    expect(listLabelFromMeta(row!.meta, 'nextListName', 'next')).toBe('Done');
+  });
+
+  it('hides legacy mongo object ids in list labels', () => {
+    const legacyMeta = {
+      previous: '6a183a4f8e328e550a76d285',
+      next: '6a183a4f8e328e550a76d286',
+    };
+    expect(listLabelFromMeta(legacyMeta, 'previousListName', 'previous')).toBe('Unknown list');
+    expect(listLabelFromMeta(legacyMeta, 'nextListName', 'next')).toBe('Unknown list');
+    expect(humanReadableLabel('6a183a4f8e328e550a76d285', 'Unknown list')).toBe('Unknown list');
   });
 
   it('parses card.dates.updated rows', () => {

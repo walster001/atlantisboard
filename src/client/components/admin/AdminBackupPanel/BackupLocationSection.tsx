@@ -39,10 +39,6 @@ export const BackupLocationSection = memo(function BackupLocationSection({
       <Text size="sm" fw={500}>
         Backup path ({BACKUP_LOCATION_ENV_NAME})
       </Text>
-      <Text size="sm" c="dimmed">
-        Absolute directory on the server where backup ZIP archives are stored. Saving updates the running
-        server and your deployment <Text span ff="monospace">.env</Text> when writable.
-      </Text>
       {dockerFullstack ? (
         <Alert color="blue" variant="light" title="Docker fullstack">
           {BACKUP_LOCATION_DOCKER_HINT}

@@ -46,6 +46,10 @@ export async function listBackupsCatalog(): Promise<BackupListEntry[]> {
       const fallbackFolderId = `${formatBackupFolderTimestamp(job.createdAt)}_pending-${String(job._id)}`;
       const fallbackLocation = typeof job.location === 'string' && job.location.trim() !== '' ? job.location : '/unknown-location';
       const fallbackFilename = typeof job.filename === 'string' && job.filename.trim() !== '' ? job.filename : 'backup.zip';
+      const backupSource =
+        job.backupSource === 'manual' || job.backupSource === 'scheduled' || job.backupSource === 'imported'
+          ? job.backupSource
+          : undefined;
       return {
         folderId: result?.folderId ?? fallbackFolderId,
         filePath: result?.filePath ?? buildBackupFilePath(fallbackLocation, fallbackFolderId, fallbackFilename),
@@ -54,6 +58,7 @@ export async function listBackupsCatalog(): Promise<BackupListEntry[]> {
         status: job.status,
         progress: job.progress,
         jobId: String(job._id),
+        ...(backupSource != null ? { backupSource } : {}),
       };
     });
 }

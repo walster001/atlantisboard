@@ -2,6 +2,7 @@ import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
 export type BackupJobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export type BackupJobKind = 'backup' | 'restore';
+export type BackupJobSource = 'manual' | 'scheduled' | 'imported';
 
 export interface IBackupJobResult {
   folderId: string;
@@ -13,6 +14,7 @@ export interface IBackupJobResult {
 export interface IBackupJob extends Document {
   userId: mongoose.Types.ObjectId;
   jobKind: BackupJobKind;
+  backupSource?: BackupJobSource;
   sourceFolderId?: string;
   status: BackupJobStatus;
   progress: number;
@@ -54,6 +56,11 @@ const BackupJobSchema = new Schema<IBackupJob>(
       enum: ['backup', 'restore'],
       default: 'backup',
       index: true,
+    },
+    backupSource: {
+      type: String,
+      enum: ['manual', 'scheduled', 'imported'],
+      required: false,
     },
     sourceFolderId: { type: String, trim: true, maxlength: 240 },
     status: {

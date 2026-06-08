@@ -159,6 +159,7 @@ export async function startBackupJobImpl(params: {
   readonly userId: string;
   readonly ipAddress?: string | undefined;
   readonly filename: string;
+  readonly backupSource?: 'manual' | 'scheduled';
 }): Promise<{ jobId: string; reusedExisting: boolean }> {
   await purgeMalformedActiveBackupJobs();
   const location = requireBackupLocationFromEnv();
@@ -179,6 +180,7 @@ export async function startBackupJobImpl(params: {
   const doc = await BackupJob.create({
     userId: userOid,
     jobKind: 'backup',
+    backupSource: params.backupSource ?? 'manual',
     status: 'pending',
     progress: 0,
     totalItems: BACKUP_PHASE_TOTAL,

@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import { Badge, Button, Group, Loader, NativeSelect, Progress, Stack, Table, Text, Title } from '@mantine/core';
-import { IconDatabase } from '@tabler/icons-react';
+import { Badge, Button, FileButton, Group, Loader, NativeSelect, Progress, Stack, Table, Text, Title } from '@mantine/core';
+import { IconDatabase, IconUpload } from '@tabler/icons-react';
 import { BACKUP_RETENTION_OPTIONS, parseBackupRetentionSelectValue } from '../../../shared/constants/backupRetention.js';
 import { formatBackupScheduleLabel } from '../../../shared/constants/backupScheduleInterval.js';
 import { buildDefaultBackupFilename } from '../../../shared/utils/backupFolderNaming.js';
@@ -64,6 +64,8 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     saveBackupLocation,
     downloadBackup,
     downloadingBackupId,
+    importingBackup,
+    importBackup,
   } = useAdminBackupPanelState();
 
   return (
@@ -121,6 +123,21 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         <Button variant="default" onClick={() => setScheduleOpen(true)}>
           Create Scheduled Backup
         </Button>
+        <FileButton
+          accept="application/zip,.zip,application/x-zip-compressed"
+          onChange={(file) => void importBackup(file)}
+        >
+          {(props) => (
+            <Button
+              {...props}
+              variant="default"
+              leftSection={<IconUpload size={18} />}
+              loading={importingBackup}
+            >
+              Import Backup
+            </Button>
+          )}
+        </FileButton>
       </Group>
 
       {loading ? (

@@ -47,6 +47,7 @@ export async function startBackupJob(params: {
   readonly userId: string;
   readonly ipAddress?: string | undefined;
   readonly filename: string;
+  readonly backupSource?: 'manual' | 'scheduled';
 }): Promise<{ jobId: string; reusedExisting: boolean }> {
   return await startBackupJobImpl(params);
 }
@@ -78,6 +79,7 @@ export async function startRestoreJob(params: {
 }
 
 export { resolveBackupDownloadTarget } from './backupDownload.js';
+export { importBackupArchive, cleanupImportedBackupTempFile } from './importBackup.js';
 
 export async function runScheduledBackupIfDue(): Promise<void> {
   const cfg = await getAdminConfig();
@@ -95,6 +97,7 @@ export async function runScheduledBackupIfDue(): Promise<void> {
   const { reusedExisting } = await startBackupJob({
     userId,
     filename: `scheduled-backup-${new Date().toISOString().slice(0, 10)}.zip`,
+    backupSource: 'scheduled',
   });
   if (!reusedExisting) {
     if (cfg.backupSettings) {

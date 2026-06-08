@@ -4,6 +4,7 @@
  */
 
 import {
+  resolveBackupImportMaxBytes,
   resolveBoardImportMaxBytes,
   resolveCardAttachmentMaxBytes,
 } from '../../shared/constants/uploadLimits.js';
@@ -29,4 +30,12 @@ export function getCardAttachmentMaxBytes(): number {
  */
 export function getBoardImportUploadMaxBytes(): number {
   return resolveBoardImportMaxBytes({ BOARD_IMPORT_MAX_MB: process.env.BOARD_IMPORT_MAX_MB });
+}
+
+/**
+ * External backup ZIP import byte cap from `BACKUP_IMPORT_MAX_MB`. Default 1024 MB; clamp 10–4000 MB.
+ * Must match multer `limits.fileSize` on admin backup import route.
+ */
+export function getBackupImportMaxBytes(): number {
+  return resolveBackupImportMaxBytes({ BACKUP_IMPORT_MAX_MB: process.env.BACKUP_IMPORT_MAX_MB });
 }

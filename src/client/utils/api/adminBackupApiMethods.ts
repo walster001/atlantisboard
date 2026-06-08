@@ -35,6 +35,18 @@ export interface AdminBackupApiMethods {
     folderId: string,
     confirmFolder: string
   ): Promise<{ message: string; jobId: string; reusedExisting: boolean }>;
+  importAdminBackup(
+    file: File,
+    onProgress?: (progress: number) => void,
+  ): Promise<AdminBackupImportResponse>;
+}
+
+export interface AdminBackupImportResponse {
+  readonly message: string;
+  readonly folderId: string;
+  readonly sizeBytes: number;
+  readonly jobId: string;
+  readonly backupSource: 'imported';
 }
 
 export const adminBackupApiMethods: AdminBackupApiMethods = {
@@ -101,6 +113,25 @@ export const adminBackupApiMethods: AdminBackupApiMethods = {
       `/admin/backup/${encodeURIComponent(folderId)}/restore`,
       { confirmFolder },
       { timeout: 60_000 }
+    );
+    return response.data;
+  },
+
+  async importAdminBackup(this: ApiClient, file, onProgress) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.client.postForm<AdminBackupImportResponse>(
+      '/admin/backup/import',
+      formData,
+      {
+        timeout: 0,
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total != null && progressEvent.total > 0 && onProgress != null) {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(progress);
+          }
+        },
+      },
     );
     return response.data;
   },

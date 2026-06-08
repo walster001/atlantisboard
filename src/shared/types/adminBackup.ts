@@ -1,3 +1,5 @@
+export type AdminBackupSource = 'manual' | 'scheduled' | 'imported';
+
 export interface AdminBackupListItem {
   readonly folderId: string;
   readonly filePath: string;
@@ -6,4 +8,5 @@ export interface AdminBackupListItem {
   readonly status?: 'completed' | 'processing' | 'pending' | 'failed' | 'cancelled';
   readonly progress?: number;
   readonly jobId?: string;
+  readonly backupSource?: AdminBackupSource;
 }

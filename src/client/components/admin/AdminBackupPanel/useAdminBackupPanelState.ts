@@ -26,7 +26,14 @@ import {
   formatBackupFolderDisplayLabel,
 } from '../../../../shared/utils/backupFolderNaming.js';
 import { api } from '../../../utils/api.js';
-import { readApiErrorMessage } from '../AdminBackupPanel/helpers.js';
+import {
+  beginBackupImportNotification,
+  completeBackupImportNotification,
+  failBackupImportNotification,
+  updateBackupImportNotification,
+} from '../../../utils/backupImportNotifications.js';
+import { prewarmMalwareScannerOnUploadIntent } from '../../../utils/prewarmMalwareScanner.js';
+import { isZipBackupFile, readApiErrorMessage } from '../AdminBackupPanel/helpers.js';
 import { useRestoreJobPolling } from './useRestoreJobPolling.js';
 
 export type RestoreStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
@@ -81,6 +88,8 @@ interface UseAdminBackupPanelStateResult {
   readonly saveBackupLocation: () => Promise<void>;
   readonly downloadBackup: (folderId: string) => Promise<void>;
   readonly downloadingBackupId: string | null;
+  readonly importingBackup: boolean;
+  readonly importBackup: (file: File | null) => Promise<void>;
 }
 
 export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
@@ -115,6 +124,7 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
   const [checkingLocation, setCheckingLocation] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
   const [downloadingBackupId, setDownloadingBackupId] = useState<string | null>(null);
+  const [importingBackup, setImportingBackup] = useState(false);
 
   const refreshBackupList = useCallback(async (): Promise<void> => {
     try {
@@ -471,6 +481,51 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     await persistBackupLocation(path, shouldCreate);
   };
 
+  const importBackup = async (file: File | null): Promise<void> => {
+    if (file == null || importingBackup) {
+      return;
+    }
+    if (!isZipBackupFile(file)) {
+      notifications.show({
+        title: 'Invalid file',
+        message: 'Choose a .zip backup archive.',
+        color: 'red',
+      });
+      return;
+    }
+    if (!backupLocationConfigured) {
+      notifications.show({
+        title: 'Backup location not configured',
+        message: BACKUP_LOCATION_SETUP_GUIDANCE,
+        color: 'red',
+      });
+      return;
+    }
+
+    const label = file.name;
+    prewarmMalwareScannerOnUploadIntent();
+    setImportingBackup(true);
+    beginBackupImportNotification(label);
+    try {
+      const result = await api.importAdminBackup(file, (progress) => {
+        updateBackupImportNotification(label, progress);
+      });
+      updateBackupImportNotification(label, 100);
+      completeBackupImportNotification(formatBackupFolderDisplayLabel(result.folderId));
+      await refreshBackupList();
+    } catch (error: unknown) {
+      const message = readApiErrorMessage(error, 'Could not import backup.');
+      failBackupImportNotification(message);
+      notifications.show({
+        title: 'Import failed',
+        message,
+        color: 'red',
+      });
+    } finally {
+      setImportingBackup(false);
+    }
+  };
+
   const downloadBackup = async (folderId: string): Promise<void> => {
     setDownloadingBackupId(folderId);
     try {
@@ -541,5 +596,7 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     saveBackupLocation,
     downloadBackup,
     downloadingBackupId,
+    importingBackup,
+    importBackup,
   };
 }

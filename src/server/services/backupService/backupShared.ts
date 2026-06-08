@@ -33,6 +33,8 @@ export const MONGO_BACKUP_EXCLUDE = new Set<string>(['backupjobs']);
 export const BACKUP_PHASE_TOTAL = 5;
 export const RESTORE_PHASE_TOTAL = 4;
 
+export type BackupSource = 'manual' | 'scheduled' | 'imported';
+
 export interface BackupListEntry {
   readonly folderId: string;
   readonly filePath: string;
@@ -41,6 +43,7 @@ export interface BackupListEntry {
   readonly status: 'completed' | 'processing' | 'pending' | 'failed' | 'cancelled';
   readonly progress?: number;
   readonly jobId?: string;
+  readonly backupSource?: BackupSource;
 }
 
 export interface BackupProgressReporter {

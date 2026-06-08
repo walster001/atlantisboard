@@ -1,15 +1,22 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import mongoose from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
+import { tmpdir } from 'node:os';
 import type { Response } from 'express';
 import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../shared/adminDestructiveConfirmation.js';
 import type { AuthenticatedRequest } from '../types/express.js';
+import { getBackupImportMaxBytes } from '../constants/uploads.js';
 import { BackupJob } from '../models/BackupJob.js';
+import { fileUploadRateLimiter } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
 import {
   cancelBackupJob,
+  cleanupImportedBackupTempFile,
   deleteBackupFolder,
+  importBackupArchive,
   listBackups,
   resolveBackupDownloadTarget,
   startBackupJob,
@@ -26,6 +33,26 @@ import { parseOrThrow } from '../utils/zodValidation.js';
 import { isValidBackupFolderId } from '../../shared/utils/backupFolderNaming.js';
 
 const router = Router();
+
+const backupImportUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      cb(null, tmpdir());
+    },
+    filename: (_req, file, cb) => {
+      const ext = file.originalname.toLowerCase().endsWith('.zip') ? '.zip' : '';
+      cb(null, `atlboard-backup-import-${randomUUID()}${ext}`);
+    },
+  }),
+  limits: {
+    fileSize: getBackupImportMaxBytes(),
+  },
+});
+
+const backupImportBodySchema = z.object({
+  filename: z.string().trim().min(1).max(240).optional(),
+});
+
 const backupFolderIdSchema = z
   .string()
   .min(8)
@@ -140,6 +167,53 @@ router.get('/:folderId/download', async (req, res, next) => {
     handleApiRouteError(res, error, next);
   }
 });
+
+router.post(
+  '/import',
+  fileUploadRateLimiter,
+  backupImportUpload.single('file'),
+  async (req, res, next) => {
+    const uploaded = req.file;
+    const tempPath =
+      uploaded !== undefined && typeof uploaded.path === 'string' && uploaded.path.length > 0
+        ? uploaded.path
+        : undefined;
+    try {
+      const authReq = req as AuthenticatedRequest;
+      if (uploaded == null) {
+        res.status(400).json({
+          error: {
+            message: 'Backup ZIP file is required',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+      const body = parseOrThrow(backupImportBodySchema, req.body);
+      const result = await importBackupArchive({
+        userId: authReq.user.id,
+        ipAddress: req.ip || undefined,
+        tempFilePath: uploaded.path,
+        originalFileName: uploaded.originalname,
+        mimeType: uploaded.mimetype,
+        sizeBytes: uploaded.size,
+        filenameOverride: body.filename,
+      });
+      res.status(201).json({
+        message: 'Backup imported',
+        folderId: result.folderId,
+        sizeBytes: result.sizeBytes,
+        jobId: result.jobId,
+        backupSource: result.backupSource,
+      });
+    } catch (error) {
+      handleApiRouteError(res, error, next);
+    } finally {
+      await cleanupImportedBackupTempFile(tempPath);
+    }
+  },
+);
 
 router.post('/run', async (req, res, next) => {
   try {

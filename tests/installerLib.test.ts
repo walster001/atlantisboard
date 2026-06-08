@@ -301,6 +301,10 @@ describe('installer shell static guards', () => {
     );
     expect(fullstack).toContain('target: production');
     expect(fullstack).toContain('clamav-sigs-full');
+    expect(fullstack).toContain('target: /data/backups');
+    expect(fullstack).toContain('ATLANTISBOARD_BACKUP_HOST_DIR');
+    expect(fullstack).toContain('target: /app/.env');
+    expect(fullstack).toContain('BACKUP_LOCATION: ${BACKUP_LOCATION:-/data/backups}');
     expect(fullstack).not.toMatch(/\n  clamav:/);
     expect(fullstack).not.toContain('POMPELMI_CLAMD_HOST');
     expect(dockerfile).toContain('clamav');

@@ -434,9 +434,21 @@ EOF
 
   BACKUP_DIR="$(
     atl_normalize_backup_dir \
-      "$(atl_env_get BACKUP_LOCATION /var/backups/atlantisboard)"
+      "$(atl_env_get BACKUP_LOCATION \
+        "$([[ "$MODE" == "fullstack" ]] && printf '%s' "/data/backups" || printf '%s' "/var/backups/atlantisboard")")"
   )"
   ENV_VALUES["BACKUP_LOCATION"]="$BACKUP_DIR"
+  if [[ "$MODE" == "fullstack" ]]; then
+    local host_backup_raw host_backup_dir
+    host_backup_raw="$(atl_env_get ATLANTISBOARD_BACKUP_HOST_DIR ../../backups)"
+    if [[ "$host_backup_raw" != /* ]]; then
+      host_backup_dir="${INSTALL_DIR}/install/docker/${host_backup_raw}"
+    else
+      host_backup_dir="$host_backup_raw"
+    fi
+    ENV_VALUES["ATLANTISBOARD_BACKUP_HOST_DIR"]="$host_backup_dir"
+    ENV_NEEDS_WRITE=true
+  fi
   if [[ "$INSTALL_ACTION" != "repair" ]]; then
     ENV_NEEDS_WRITE=true
   elif [[ -z "$(atl_env_get_from_file BACKUP_LOCATION "$ENV_FILE" 2>/dev/null || true)" ]]; then
@@ -444,6 +456,8 @@ EOF
   fi
   if [[ "$MODE" != "fullstack" ]]; then
     atl_sudo_mkdir_p "$BACKUP_DIR"
+  else
+    atl_sudo_mkdir_p "${ENV_VALUES[ATLANTISBOARD_BACKUP_HOST_DIR]}"
   fi
 
   if [[ "$MODE" != "fullstack" ]]; then

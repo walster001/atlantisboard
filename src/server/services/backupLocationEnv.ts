@@ -1,6 +1,6 @@
 import { access, constants as fsConstants, mkdir, stat } from 'node:fs/promises';
 import { isAbsolute, normalize, resolve } from 'node:path';
-import { BACKUP_LOCATION_ENV_NAME, BACKUP_LOCATION_SETUP_GUIDANCE } from '../../shared/constants/backupLocationEnv.js';
+import { BACKUP_LOCATION_ENV_NAME, BACKUP_LOCATION_SETUP_GUIDANCE, DOCKER_FULLSTACK_BACKUP_LOCATION, isDockerFullstackDeployment } from '../../shared/constants/backupLocationEnv.js';
 import type {
   AdminBackupLocationCheckResult,
   AdminBackupLocationStatus,
@@ -93,6 +93,7 @@ export async function checkBackupLocationPath(input: string): Promise<AdminBacku
 
 export function getBackupLocationStatus(): AdminBackupLocationStatus {
   const path = getResolvedBackupLocationFromEnv();
+  const dockerFullstack = isDockerFullstackDeployment();
   if (path == null) {
     return {
       configured: false,
@@ -101,6 +102,8 @@ export function getBackupLocationStatus(): AdminBackupLocationStatus {
       isDirectory: false,
       writable: false,
       persistedToEnvFile: false,
+      dockerFullstack,
+      suggestedPath: dockerFullstack ? DOCKER_FULLSTACK_BACKUP_LOCATION : null,
     };
   }
   return {
@@ -110,11 +113,15 @@ export function getBackupLocationStatus(): AdminBackupLocationStatus {
     isDirectory: false,
     writable: false,
     persistedToEnvFile: false,
+    dockerFullstack,
+    suggestedPath: dockerFullstack ? DOCKER_FULLSTACK_BACKUP_LOCATION : null,
   };
 }
 
 export async function getBackupLocationStatusAsync(): Promise<AdminBackupLocationStatus> {
   const path = getResolvedBackupLocationFromEnv();
+  const dockerFullstack = isDockerFullstackDeployment();
+  const suggestedPath = dockerFullstack ? DOCKER_FULLSTACK_BACKUP_LOCATION : null;
   if (path == null) {
     return getBackupLocationStatus();
   }
@@ -126,6 +133,8 @@ export async function getBackupLocationStatusAsync(): Promise<AdminBackupLocatio
     isDirectory: disk.isDirectory,
     writable: disk.writable,
     persistedToEnvFile: false,
+    dockerFullstack,
+    suggestedPath,
   };
 }
 
@@ -159,6 +168,7 @@ export async function applyBackupLocation(params: {
 
   process.env.BACKUP_LOCATION = normalized;
   const persistedToEnvFile = upsertEnvFileVariable(BACKUP_LOCATION_ENV_NAME, normalized);
+  const dockerFullstack = isDockerFullstackDeployment();
 
   return {
     configured: true,
@@ -167,5 +177,7 @@ export async function applyBackupLocation(params: {
     isDirectory: disk.isDirectory,
     writable: disk.writable,
     persistedToEnvFile,
+    dockerFullstack,
+    suggestedPath: dockerFullstack ? DOCKER_FULLSTACK_BACKUP_LOCATION : null,
   };
 }

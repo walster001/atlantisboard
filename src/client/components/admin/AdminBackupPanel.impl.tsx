@@ -23,6 +23,8 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     savingRetention,
     defaultLocation,
     backupLocationConfigured,
+    dockerFullstack,
+    suggestedBackupPath,
     scheduleAmount,
     setScheduleAmount,
     scheduleUnit,
@@ -77,6 +79,8 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         setLocationInput={setLocationInput}
         defaultLocation={defaultLocation}
         backupLocationConfigured={backupLocationConfigured}
+        dockerFullstack={dockerFullstack}
+        suggestedPath={suggestedBackupPath}
         locationCheck={locationCheck}
         checkingLocation={checkingLocation}
         savingLocation={savingLocation}

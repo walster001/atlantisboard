@@ -40,6 +40,8 @@ interface UseAdminBackupPanelStateResult {
   readonly savingRetention: boolean;
   readonly defaultLocation: string;
   readonly backupLocationConfigured: boolean;
+  readonly dockerFullstack: boolean;
+  readonly suggestedBackupPath: string | null;
   readonly scheduleAmount: number;
   readonly setScheduleAmount: Dispatch<SetStateAction<number>>;
   readonly scheduleUnit: BackupScheduleUnit;
@@ -89,6 +91,8 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
   const [savingRetention, setSavingRetention] = useState(false);
   const [defaultLocation, setDefaultLocation] = useState('');
   const [backupLocationConfigured, setBackupLocationConfigured] = useState(false);
+  const [dockerFullstack, setDockerFullstack] = useState(false);
+  const [suggestedBackupPath, setSuggestedBackupPath] = useState<string | null>(null);
   const [scheduleAmount, setScheduleAmount] = useState(14);
   const [scheduleUnit, setScheduleUnit] = useState<BackupScheduleUnit>('days');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
@@ -139,6 +143,8 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
           scheduleEnabled?: boolean;
           environmentBackupLocation?: string | null;
           environmentBackupLocationConfigured?: boolean;
+          dockerFullstackDeployment?: boolean;
+          suggestedBackupLocation?: string | null;
         };
       };
       const retentionDays = cfg.backupSettings?.retentionDays;
@@ -146,12 +152,24 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
         setRetention(normalizeBackupRetentionDays(retentionDays));
       }
       setBackupLocationConfigured(cfg.backupSettings?.environmentBackupLocationConfigured === true);
+      setDockerFullstack(cfg.backupSettings?.dockerFullstackDeployment === true);
+      setSuggestedBackupPath(
+        typeof cfg.backupSettings?.suggestedBackupLocation === 'string'
+          ? cfg.backupSettings.suggestedBackupLocation
+          : null,
+      );
       const envLocation =
         typeof cfg.backupSettings?.environmentBackupLocation === 'string'
           ? cfg.backupSettings.environmentBackupLocation
           : '';
-      setDefaultLocation(envLocation);
-      setLocationInput((prev) => (prev.trim() === '' ? envLocation : prev));
+      const fallbackLocation =
+        envLocation !== ''
+          ? envLocation
+          : typeof cfg.backupSettings?.suggestedBackupLocation === 'string'
+            ? cfg.backupSettings.suggestedBackupLocation
+            : '';
+      setDefaultLocation(envLocation !== '' ? envLocation : fallbackLocation);
+      setLocationInput((prev) => (prev.trim() === '' ? fallbackLocation : prev));
       const schedule = resolveBackupScheduleInterval(cfg.backupSettings ?? {});
       setScheduleAmount(schedule.amount);
       setScheduleUnit(schedule.unit);
@@ -324,8 +342,16 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
       exists: boolean;
       isDirectory: boolean;
       writable: boolean;
+      dockerFullstack?: boolean;
+      suggestedPath?: string | null;
     }): void => {
       setBackupLocationConfigured(status.configured && status.path != null);
+      if (status.dockerFullstack === true) {
+        setDockerFullstack(true);
+      }
+      if (status.suggestedPath != null) {
+        setSuggestedBackupPath(status.suggestedPath);
+      }
       if (status.path != null) {
         setDefaultLocation(status.path);
         setLocationInput(status.path);
@@ -474,6 +500,8 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     savingRetention,
     defaultLocation,
     backupLocationConfigured,
+    dockerFullstack,
+    suggestedBackupPath,
     scheduleAmount,
     setScheduleAmount,
     scheduleUnit,

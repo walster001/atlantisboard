@@ -6,6 +6,7 @@ import type mongoose from 'mongoose';
 import { DEFAULT_VERIFICATION_QUERY } from './mysqlService.js';
 import { normalizeGoogleOAuthCallbackUrl } from '../../shared/utils/googleOAuthCallbackUrl.js';
 import { normalizeDefaultUiFontFamilyInput } from './fontService.js';
+import { DOCKER_FULLSTACK_BACKUP_LOCATION, isDockerFullstackDeployment } from '../../shared/constants/backupLocationEnv.js';
 import { BackupLocationNotConfiguredError, getResolvedBackupLocationFromEnv } from './backupLocationEnv.js';
 import {
   backupScheduleToMs,
@@ -76,6 +77,8 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
   }
 
   const envPath = getResolvedBackupLocationFromEnv();
+  const dockerFullstack = isDockerFullstackDeployment();
+  const suggestedBackupPath = dockerFullstack ? DOCKER_FULLSTACK_BACKUP_LOCATION : null;
   const rawBs = o.backupSettings;
   const resolvedSchedule = rawBs ? resolveBackupScheduleInterval(rawBs) : resolveBackupScheduleInterval({});
   const safeBackupSettings: Record<string, unknown> = rawBs
@@ -88,6 +91,8 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
         lastScheduledRunAt: rawBs.lastScheduledRunAt,
         environmentBackupLocation: envPath,
         environmentBackupLocationConfigured: envPath !== null,
+        dockerFullstackDeployment: dockerFullstack,
+        suggestedBackupLocation: suggestedBackupPath,
       }
     : {
         retentionDays: 14,
@@ -96,6 +101,8 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
         scheduleIntervalUnit: resolvedSchedule.unit,
         environmentBackupLocation: envPath,
         environmentBackupLocationConfigured: envPath !== null,
+        dockerFullstackDeployment: dockerFullstack,
+        suggestedBackupLocation: suggestedBackupPath,
       };
 
   const rawSmtp = o.smtp;

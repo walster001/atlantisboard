@@ -5,6 +5,8 @@ export interface AdminBackupLocationStatus {
   readonly isDirectory: boolean;
   readonly writable: boolean;
   readonly persistedToEnvFile: boolean;
+  readonly dockerFullstack: boolean;
+  readonly suggestedPath: string | null;
 }
 
 export interface AdminBackupLocationCheckResult {

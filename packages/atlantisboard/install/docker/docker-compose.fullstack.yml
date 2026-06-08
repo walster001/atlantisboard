@@ -7,6 +7,10 @@
 # Malware scanning: clamscan runs inside the app image on each upload (no clamd sidecar).
 # Signatures live in clamav-sigs-full; first upload or pre-warm may run freshclam.
 #
+# Backups: app writes to BACKUP_LOCATION (default /data/backups in-container). Host files live under
+# ATLANTISBOARD_BACKUP_HOST_DIR (default ../../backups relative to this file → install root/backups).
+# The install .env is bind-mounted to /app/.env so the admin panel can persist BACKUP_LOCATION.
+#
 # VOLUME RESET (reinstall / new secrets):
 #   cd install/docker && docker compose --env-file ../../.env -f docker-compose.fullstack.yml down -v
 # Or run: install/docker/reset-docker-data.sh fullstack
@@ -159,8 +163,19 @@ services:
       POMPELMI_SKIP_SCAN: ${POMPELMI_SKIP_SCAN:-false}
       CLAMAV_DB_DIR: /var/lib/clamav
       POMPELMI_FAIL_OPEN: ${POMPELMI_FAIL_OPEN:-false}
+      BACKUP_LOCATION: ${BACKUP_LOCATION:-/data/backups}
+      ATL_ENV_FILE: /app/.env
+      ATL_DOCKER_FULLSTACK: "true"
     volumes:
       - clamav-sigs-full:/var/lib/clamav
+      - type: bind
+        source: ${ATLANTISBOARD_BACKUP_HOST_DIR:-../../backups}
+        target: /data/backups
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ../../.env
+        target: /app/.env
     depends_on:
       mongodb:
         condition: service_healthy

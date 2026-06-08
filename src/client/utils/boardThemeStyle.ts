@@ -225,8 +225,8 @@ export function getBoardPageThemeStyle(board: BoardDB): CSSProperties {
     typeof themeSettings.boardOpacity === 'number' && Number.isFinite(themeSettings.boardOpacity)
       ? Math.max(0.1, Math.min(1, themeSettings.boardOpacity))
       : 0.8;
-  const surfaceAlpha = isImage ? boardOpacity : 1;
-  const surfaceOpacityPct = `${Math.round(Math.max(0, Math.min(1, surfaceAlpha)) * 100)}%`;
+  const listSurfaceAlpha = isImage ? boardOpacity : 1;
+  const listSurfaceOpacityPct = `${Math.round(Math.max(0, Math.min(1, listSurfaceAlpha)) * 100)}%`;
   const imageScale = themeSettings.backgroundImageScale ?? 'fill';
   const imageSize = 'cover';
   const imageRepeat = 'no-repeat';
@@ -240,19 +240,21 @@ export function getBoardPageThemeStyle(board: BoardDB): CSSProperties {
         : 'center';
   const derived = getDerivedBoardTextColors(palette, themeSettings.selectedTheme.id);
   const sb = getBoardPaletteScrollbarColors(palette);
-  const signature = boardThemeStyleSignature(themeSettings, palette, canvasBg);
+  // Image URLs must be part of the cache key; canvasBg alone is the theme palette color for images.
+  const signatureBackground = isImage ? (bg?.trim() ?? '') : canvasBg;
+  const signature = boardThemeStyleSignature(themeSettings, palette, signatureBackground);
   const cachedStyle = BOARD_THEME_STYLE_CACHE.get(signature);
   if (cachedStyle != null) {
     return cachedStyle;
   }
   const style = {
     '--board-nav-bg': palette.navbarBg,
-    '--board-nav-bg-opacity': String(surfaceAlpha),
+    '--board-nav-bg-opacity': '1',
     '--board-nav-fg': derived.navFg,
     '--board-nav-border': palette.navbarBorder,
     '--board-canvas-bg': canvasBg,
     '--board-list-bg': palette.listBg,
-    '--board-list-bg-opacity': String(surfaceAlpha),
+    '--board-list-bg-opacity': String(listSurfaceAlpha),
     '--board-list-header-text': palette.listHeaderText,
     '--board-list-muted': palette.listMuted,
     '--board-list-muted-strong': palette.listMutedStrong,
@@ -264,7 +266,7 @@ export function getBoardPageThemeStyle(board: BoardDB): CSSProperties {
     '--board-canvas-bg-image-size': imageSize,
     '--board-canvas-bg-image-repeat': imageRepeat,
     '--board-canvas-bg-image-position': imagePosition,
-    '--board-surface-opacity-pct': surfaceOpacityPct,
+    '--board-surface-opacity-pct': listSurfaceOpacityPct,
     '--board-scrollbar-color': sb.thumb,
     '--board-scrollbar-track-color': sb.track,
     '--board-body-scrollbar-color': sb.thumb,

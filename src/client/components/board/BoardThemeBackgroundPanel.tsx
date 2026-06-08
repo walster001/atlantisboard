@@ -37,14 +37,11 @@ export function BoardThemeBackgroundPanel({
   const [opacityEditing, setOpacityEditing] = useState(false);
   const displayedOpacityInput = opacityEditing ? opacityInput : boardOpacityPercent;
 
-  const surfacePct = `${draft.backgroundMode === 'image' ? boardOpacityPercent : 100}%`;
-  const navBgSurface =
-    draft.backgroundMode === 'image'
-      ? `color-mix(in srgb, ${draft.selectedTheme.palette.navbarBg} ${surfacePct}, transparent)`
-      : draft.selectedTheme.palette.navbarBg;
+  const listSurfacePct = `${draft.backgroundMode === 'image' ? boardOpacityPercent : 100}%`;
+  const navBgSurface = draft.selectedTheme.palette.navbarBg;
   const listBgSurface =
     draft.backgroundMode === 'image'
-      ? `color-mix(in srgb, ${draft.selectedTheme.palette.listBg} ${surfacePct}, transparent)`
+      ? `color-mix(in srgb, ${draft.selectedTheme.palette.listBg} ${listSurfacePct}, transparent)`
       : draft.selectedTheme.palette.listBg;
   return (
     <Stack gap="md">

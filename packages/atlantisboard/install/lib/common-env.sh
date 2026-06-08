@@ -782,6 +782,8 @@ atl_apply_mode_defaults() {
       fi
       ENV_VALUES["MINIO_ROOT_ACCESS_KEY"]="$minio_root_access_key"
       ENV_VALUES["MINIO_ROOT_SECRET_KEY"]="$minio_root_secret_key"
+      ENV_VALUES["BACKUP_LOCATION"]="${ENV_VALUES[BACKUP_LOCATION]:-/data/backups}"
+      ENV_VALUES["ATLANTISBOARD_BACKUP_HOST_DIR"]="${ENV_VALUES[ATLANTISBOARD_BACKUP_HOST_DIR]:-../../backups}"
       ;;
   esac
   atl_apply_pompelmi_defaults "$mode"

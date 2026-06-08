@@ -80,7 +80,7 @@ export interface BoardThemeSettings {
   backgroundFocalX?: number | undefined;
   backgroundFocalY?: number | undefined;
   /**
-   * Opacity for board chrome surfaces (navbar + lists/cards) when an image background is active.
+   * Opacity for list/card surfaces when an image background is active (navbar stays opaque).
    * Stored as 0..1. When unset, defaults to 0.8 for image backgrounds.
    */
   boardOpacity?: number | undefined;

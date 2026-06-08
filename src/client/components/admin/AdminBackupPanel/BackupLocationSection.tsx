@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Alert, Badge, Button, Group, Stack, Text, TextInput } from '@mantine/core';
 import { IconFolder, IconFolderPlus } from '@tabler/icons-react';
-import { BACKUP_LOCATION_ENV_NAME } from '../../../../shared/constants/backupLocationEnv.js';
+import { BACKUP_LOCATION_DOCKER_HINT, BACKUP_LOCATION_ENV_NAME } from '../../../../shared/constants/backupLocationEnv.js';
 import type { AdminBackupLocationCheckResult } from '../../../../shared/types/adminBackupLocation.js';
 
 interface BackupLocationSectionProps {
@@ -9,6 +9,8 @@ interface BackupLocationSectionProps {
   readonly setLocationInput: (value: string) => void;
   readonly defaultLocation: string;
   readonly backupLocationConfigured: boolean;
+  readonly dockerFullstack: boolean;
+  readonly suggestedPath: string | null;
   readonly locationCheck: AdminBackupLocationCheckResult | null;
   readonly checkingLocation: boolean;
   readonly savingLocation: boolean;
@@ -21,6 +23,8 @@ export const BackupLocationSection = memo(function BackupLocationSection({
   setLocationInput,
   defaultLocation,
   backupLocationConfigured,
+  dockerFullstack,
+  suggestedPath,
   locationCheck,
   checkingLocation,
   savingLocation,
@@ -28,6 +32,7 @@ export const BackupLocationSection = memo(function BackupLocationSection({
   onSaveLocation,
 }: BackupLocationSectionProps) {
   const checkedPath = locationInput.trim();
+  const pathPlaceholder = suggestedPath ?? '/var/backups/atlboard';
 
   return (
     <Stack gap="xs">
@@ -38,10 +43,15 @@ export const BackupLocationSection = memo(function BackupLocationSection({
         Absolute directory on the server where backup ZIP archives are stored. Saving updates the running
         server and your deployment <Text span ff="monospace">.env</Text> when writable.
       </Text>
+      {dockerFullstack ? (
+        <Alert color="blue" variant="light" title="Docker fullstack">
+          {BACKUP_LOCATION_DOCKER_HINT}
+        </Alert>
+      ) : null}
       <Group align="flex-end" wrap="wrap">
         <TextInput
           label="Path"
-          placeholder="/var/backups/atlboard"
+          placeholder={pathPlaceholder}
           value={locationInput}
           onChange={(event) => setLocationInput(event.currentTarget.value)}
           style={{ flex: '1 1 280px' }}

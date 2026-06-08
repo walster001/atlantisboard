@@ -283,6 +283,23 @@
           "description": "MongoDB database name.",
           "default": "kanboard",
           "secret": false
+        },
+        {
+          "key": "BACKUP_LOCATION",
+          "label": "Backup folder (container path)",
+          "description": "Absolute path inside the app container where backup ZIP files are stored. Use /data/backups (default). The host folder is configured separately as ATLANTISBOARD_BACKUP_HOST_DIR.",
+          "default": "/data/backups",
+          "secret": false,
+          "validation": "path_absolute",
+          "applies_to": ["fullstack"]
+        },
+        {
+          "key": "ATLANTISBOARD_BACKUP_HOST_DIR",
+          "label": "Backup host directory",
+          "description": "Host folder bind-mounted to /data/backups in the app container. Relative paths are resolved from install/docker/ (same as docker-compose.fullstack.yml). Use an absolute path outside the install tree for production.",
+          "default": "../../backups",
+          "secret": false,
+          "applies_to": ["fullstack"]
         }
       ]
     }

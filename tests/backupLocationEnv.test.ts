@@ -10,7 +10,8 @@ import {
 } from '../src/server/services/backupLocationEnv.js';
 import { assertBackupFileUnderLocation } from '../src/server/services/backupService/backupDownload.js';
 import { ForbiddenError } from '../src/shared/errors/domainErrors.js';
-import { upsertEnvFileVariable } from '../src/server/utils/envFileWriter.js';
+import { DOCKER_FULLSTACK_BACKUP_LOCATION, isDockerFullstackDeployment } from '../src/shared/constants/backupLocationEnv.js';
+import { resolveEnvFilePath, upsertEnvFileVariable } from '../src/server/utils/envFileWriter.js';
 
 describe('normalizeBackupLocationPath', () => {
   it('requires absolute paths', () => {
@@ -20,6 +21,23 @@ describe('normalizeBackupLocationPath', () => {
   it('normalizes absolute paths', () => {
     const normalized = normalizeBackupLocationPath('/var/backups/atlboard/');
     expect(normalized.endsWith('/var/backups/atlboard') || normalized.includes('backups')).toBe(true);
+  });
+
+  it('accepts the Docker fullstack default container path', () => {
+    expect(normalizeBackupLocationPath(DOCKER_FULLSTACK_BACKUP_LOCATION)).toBe('/data/backups');
+  });
+});
+
+describe('isDockerFullstackDeployment', () => {
+  afterEach(() => {
+    delete process.env.ATL_DOCKER_FULLSTACK;
+  });
+
+  it('detects Docker fullstack via ATL_DOCKER_FULLSTACK', () => {
+    process.env.ATL_DOCKER_FULLSTACK = 'true';
+    expect(isDockerFullstackDeployment()).toBe(true);
+    delete process.env.ATL_DOCKER_FULLSTACK;
+    expect(isDockerFullstackDeployment()).toBe(false);
   });
 });
 
@@ -43,6 +61,8 @@ describe('applyBackupLocation', () => {
     expect(status.path).toBe(normalizeBackupLocationPath(target));
     expect(status.exists).toBe(true);
     expect(status.writable).toBe(true);
+    expect(status.dockerFullstack).toBe(false);
+    expect(status.suggestedPath).toBeNull();
     expect(getResolvedBackupLocationFromEnv()).toBe(status.path);
   });
 
@@ -101,6 +121,12 @@ describe('upsertEnvFileVariable', () => {
   afterEach(() => {
     delete process.env.ATL_ENV_FILE;
     rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  it('resolves ATL_ENV_FILE before cwd .env', () => {
+    const envFile = process.env.ATL_ENV_FILE;
+    expect(envFile).toBeDefined();
+    expect(resolveEnvFilePath()).toBe(envFile);
   });
 
   it('updates an existing key', async () => {

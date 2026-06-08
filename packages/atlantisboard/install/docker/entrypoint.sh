@@ -24,6 +24,16 @@ if [ "${POMPELMI_SKIP_SCAN:-false}" != "true" ]; then
   fi
 fi
 
+backup_dir="${BACKUP_LOCATION:-/data/backups}"
+if [ "$(id -u)" = "0" ]; then
+  mkdir -p "$backup_dir"
+  chown bunjs:nodejs "$backup_dir"
+  if [ -f /app/.env ]; then
+    chown bunjs:nodejs /app/.env
+    chmod u+w /app/.env
+  fi
+fi
+
 if [ "$(id -u)" = "0" ]; then
   exec su-exec bunjs:nodejs "$@"
 fi

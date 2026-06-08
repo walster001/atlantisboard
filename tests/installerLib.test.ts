@@ -179,6 +179,8 @@ describe('installer shell static guards', () => {
     expect(setup).toContain('${INSTALL_DIR}/install/systemd/');
     expect(setup).toContain('atl_detect_existing_install');
     expect(setup).toContain('INSTALL_ACTION');
+    expect(setup).toContain('"update"');
+    expect(setup).toContain('up -d --build app');
     expect(setup).toContain('atl_repair_install_files');
     expect(setup).toContain('ENV_NEEDS_WRITE');
     expect(setup).toContain('atl_backup_env_file');
@@ -193,6 +195,8 @@ describe('installer shell static guards', () => {
       'utf8',
     );
     expect(integrity).toContain('atl_detect_existing_install()');
+    expect(integrity).toContain('atl_offer_fullstack_docker_update()');
+    expect(integrity).toContain('Update app — sync files and rebuild Docker app container only');
     expect(integrity).toContain('atl_repair_install_files()');
     const envLib = readFileSync(join(INSTALL_DIR, 'lib', 'common-env.sh'), 'utf8');
     expect(envLib).toContain('atl_load_env_file_into_values()');

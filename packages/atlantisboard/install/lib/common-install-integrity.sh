@@ -71,18 +71,56 @@ atl_detect_existing_install() {
 }
 
 
+## atl_saved_install_mode
+# Read ATLANTISBOARD_INSTALL_MODE from an existing install .env.
+# Arguments:
+#   $1 install directory.
+# Outputs:
+#   fullstack | docker | manual | empty
+atl_saved_install_mode() {
+  local install_dir="$1"
+  local env_file="${install_dir}/.env"
+  local mode=""
+  if atl_sudo test -f "$env_file" 2>/dev/null; then
+    mode="$(atl_env_get_from_file ATLANTISBOARD_INSTALL_MODE "$env_file" \
+      2>/dev/null || true)"
+    mode="$(atl_sanitize_input "$mode")"
+  fi
+  printf '%s' "$mode"
+}
+
+
+## atl_offer_fullstack_docker_update
+# Return success when an in-place Docker app rebuild is appropriate.
+# Arguments:
+#   $1 existing state (partial | complete).
+#   $2 install directory.
+#   $3 selected install mode for this run.
+atl_offer_fullstack_docker_update() {
+  local state="$1"
+  local install_dir="$2"
+  local selected_mode="$3"
+  local saved_mode
+  [[ "$state" == "complete" && "$selected_mode" == "fullstack" ]] || return 1
+  saved_mode="$(atl_saved_install_mode "$install_dir")"
+  [[ "$saved_mode" == "fullstack" ]]
+}
+
+
 ## atl_prompt_install_action
 # Ask how to proceed when an existing install is detected.
 # Arguments:
 #   $1 existing state (partial | complete).
 #   $2 install directory path.
+#   $3 selected install mode for this run (fullstack | docker | manual).
 # Outputs:
-#   reinstall | repair
+#   update | reinstall | repair
 # Returns:
 #   0 on choice, 1 on cancel.
 atl_prompt_install_action() {
   local state="$1"
   local install_dir="$2"
+  local selected_mode="${3:-}"
   local intro msg choice
   case "$state" in
     complete)
@@ -98,18 +136,31 @@ atl_prompt_install_action() {
   msg="${intro}\n${install_dir}\n\n"
   msg+="Choose how to continue:"
 
-  choice="$(atl_whiptail_capture --title "Existing installation" --menu \
-    "$msg" 18 78 3 \
-    "repair" \
-      "Keep and repair — verify files, fix missing only" \
-    "reinstall" \
-      "Reinstall — replace app files and reconfigure" \
-    "cancel" \
-      "Cancel setup")" || return 1
+  if atl_offer_fullstack_docker_update "$state" "$install_dir" "$selected_mode"; then
+    choice="$(atl_whiptail_capture --title "Existing installation" --menu \
+      "$msg" 20 78 4 \
+      "update" \
+        "Update app — sync files and rebuild Docker app container only" \
+      "repair" \
+        "Keep and repair — verify files, fix missing only" \
+      "reinstall" \
+        "Reinstall — replace app files and reconfigure" \
+      "cancel" \
+        "Cancel setup")" || return 1
+  else
+    choice="$(atl_whiptail_capture --title "Existing installation" --menu \
+      "$msg" 18 78 3 \
+      "repair" \
+        "Keep and repair — verify files, fix missing only" \
+      "reinstall" \
+        "Reinstall — replace app files and reconfigure" \
+      "cancel" \
+        "Cancel setup")" || return 1
+  fi
 
   choice="$(atl_sanitize_input "$choice")"
   case "$choice" in
-    repair | reinstall)
+    update | repair | reinstall)
       printf '%s' "$choice"
       return 0
       ;;
@@ -328,6 +379,11 @@ atl_repair_install_files() {
   if atl_sudo test -d "${pkg_root}/public" 2>/dev/null; then
     atl_sudo rsync -a \
       "${pkg_root}/public/" "${install_dir}/public/"
+  fi
+  if atl_sudo test -d "${pkg_root}/src/server/emails" 2>/dev/null; then
+    atl_sudo_mkdir_p "${install_dir}/src/server"
+    atl_sudo rsync -a \
+      "${pkg_root}/src/server/emails/" "${install_dir}/src/server/emails/"
   fi
 
   printf '%s' "$repaired"

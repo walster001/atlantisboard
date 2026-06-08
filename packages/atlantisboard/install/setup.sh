@@ -134,12 +134,14 @@ atl_run_bun_production_install() {
 
 atl_start_docker_stack() {
   local build_flag=()
-  if [[ "$1" == "fullstack" && "$APP_FILES_CHANGED" == true ]]; then
+  if [[ "$1" == "fullstack" && "$INSTALL_ACTION" == "update" ]]; then
+    build_flag=(--build)
+  elif [[ "$1" == "fullstack" && "$APP_FILES_CHANGED" == true ]]; then
     build_flag=(--build)
   fi
 
   if [[ "$1" == "docker" ]]; then
-    if [[ "$INSTALL_ACTION" != "repair" ]]; then
+    if [[ "$INSTALL_ACTION" != "repair" && "$INSTALL_ACTION" != "update" ]]; then
       atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
     fi
     atl_whiptail_display --title "Starting dependencies" --infobox \
@@ -152,11 +154,23 @@ atl_start_docker_stack() {
   fi
 
   if [[ "$1" == "fullstack" ]]; then
-    local fullstack_msg
-    if [[ "$INSTALL_ACTION" != "repair" ]]; then
+    local fullstack_msg compose_args=(up -d)
+    if [[ "$INSTALL_ACTION" != "repair" && "$INSTALL_ACTION" != "update" ]]; then
       atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
     fi
-    fullstack_msg="$(cat <<'EOF'
+    if [[ "$INSTALL_ACTION" == "update" ]]; then
+      fullstack_msg="$(cat <<'EOF'
+Updating the Atlantisboard app container with the latest package files.
+
+MongoDB, Redis, MinIO, and your data volumes stay as they are.
+Only the app image is rebuilt and restarted.
+EOF
+)"
+      compose_args=(up -d --build app)
+      atl_whiptail_display --title "Updating app container" --infobox \
+        "$fullstack_msg" 12 70
+    else
+      fullstack_msg="$(cat <<'EOF'
 Building the Atlantisboard image and starting all containers.
 
 Malware scanning uses on-demand clamscan inside the app container.
@@ -164,11 +178,15 @@ The first attachment upload (or clicking Add) may download virus
 definitions; signatures are stored in the clamav-sigs volume.
 EOF
 )"
-    atl_whiptail_display --title "Building full stack" --infobox \
-      "$fullstack_msg" 10 70
+      atl_whiptail_display --title "Building full stack" --infobox \
+        "$fullstack_msg" 10 70
+      if [[ "${#build_flag[@]}" -gt 0 ]]; then
+        compose_args+=(--build)
+      fi
+    fi
     atl_docker_compose_or_continue \
       "${INSTALL_DIR}/install/docker" \
-      docker-compose.fullstack.yml up -d "${build_flag[@]}"
+      docker-compose.fullstack.yml "${compose_args[@]}"
     atl_wait_for_docker_deps_or_continue "$MODE"
   fi
 }
@@ -270,7 +288,8 @@ EOF
   existing_state="$(atl_detect_existing_install "$INSTALL_DIR")"
   INSTALL_ACTION="fresh"
   if [[ "$existing_state" == "partial" || "$existing_state" == "complete" ]]; then
-    if ! INSTALL_ACTION="$(atl_prompt_install_action "$existing_state" "$INSTALL_DIR")"; then
+    if ! INSTALL_ACTION="$(atl_prompt_install_action \
+      "$existing_state" "$INSTALL_DIR" "$MODE")"; then
       info "Setup cancelled."
       exit 0
     fi
@@ -281,7 +300,7 @@ EOF
   ENV_FILE="${INSTALL_DIR}/.env"
   PRIOR_ENV=""
 
-  if [[ "$INSTALL_ACTION" == "repair" ]]; then
+  if [[ "$INSTALL_ACTION" == "repair" || "$INSTALL_ACTION" == "update" ]]; then
     local env_loaded=false
     if atl_sudo test -f "$ENV_FILE"; then
       atl_load_env_file_into_values "$ENV_FILE"
@@ -345,10 +364,18 @@ EOF
   local INSTALL_USER
   INSTALL_USER="$(atl_get_install_user)"
 
-  if [[ "$INSTALL_ACTION" == "repair" ]]; then
-    local missing_files mismatched_files
+  if [[ "$INSTALL_ACTION" == "repair" || "$INSTALL_ACTION" == "update" ]]; then
+    local missing_files mismatched_files action_summary action_title
     atl_sudo_mkdir_p "$INSTALL_DIR"
-    info "==> Verifying installation at ${INSTALL_DIR}"
+    if [[ "$INSTALL_ACTION" == "update" ]]; then
+      info "==> Updating app files at ${INSTALL_DIR}"
+      action_title="Update ready"
+      action_summary="Synced the latest package files to:\n${INSTALL_DIR}\n\n"
+    else
+      info "==> Verifying installation at ${INSTALL_DIR}"
+      action_title="Repair complete"
+      action_summary="Verified installation integrity at:\n${INSTALL_DIR}\n\n"
+    fi
     read -r missing_files mismatched_files _ \
       <<< "$(atl_verify_install_integrity "$PKG_ROOT" "$INSTALL_DIR")"
     if [[ "${missing_files:-0}" -gt 0 || "${mismatched_files:-0}" -gt 0 ]]; then
@@ -356,6 +383,9 @@ EOF
     fi
     repair_count="$(atl_repair_install_files "$PKG_ROOT" "$INSTALL_DIR")"
     if [[ "${repair_count:-0}" -gt 0 ]]; then
+      APP_FILES_CHANGED=true
+    fi
+    if [[ "$INSTALL_ACTION" == "update" ]]; then
       APP_FILES_CHANGED=true
     fi
     if atl_sudo test -f "${PKG_ROOT}/.env.example" \
@@ -366,16 +396,24 @@ EOF
       atl_apply_mode_defaults "$MODE"
       ENV_NEEDS_WRITE=true
     fi
-    local repair_summary
-    repair_summary="Verified installation integrity at:\n${INSTALL_DIR}\n\n"
-    if [[ "${repair_count:-0}" -gt 0 ]]; then
-      repair_summary+="Repaired ${repair_count} file(s).\n\n"
+    if [[ "$INSTALL_ACTION" == "update" ]]; then
+      if [[ "${repair_count:-0}" -gt 0 ]]; then
+        action_summary+="Updated ${repair_count} file(s).\n\n"
+      else
+        action_summary+="Package files are up to date.\n\n"
+      fi
+      action_summary+="Existing .env and Docker data volumes were preserved.\n"
+      action_summary+="The app container will be rebuilt next."
     else
-      repair_summary+="All required files are present.\n\n"
+      if [[ "${repair_count:-0}" -gt 0 ]]; then
+        action_summary+="Repaired ${repair_count} file(s).\n\n"
+      else
+        action_summary+="All required files are present.\n\n"
+      fi
+      action_summary+="Existing .env and data volumes were preserved."
     fi
-    repair_summary+="Existing .env and data volumes were preserved."
-    atl_whiptail_msgbox --title "Repair complete" --msgbox \
-      "$repair_summary" 14 72 || true
+    atl_whiptail_msgbox --title "$action_title" --msgbox \
+      "$action_summary" 14 72 || true
   else
     if [[ "$INSTALL_ACTION" == "reinstall" ]] \
       && atl_sudo test -f "$ENV_FILE"; then
@@ -449,7 +487,7 @@ EOF
     ENV_VALUES["ATLANTISBOARD_BACKUP_HOST_DIR"]="$host_backup_dir"
     ENV_NEEDS_WRITE=true
   fi
-  if [[ "$INSTALL_ACTION" != "repair" ]]; then
+  if [[ "$INSTALL_ACTION" != "repair" && "$INSTALL_ACTION" != "update" ]]; then
     ENV_NEEDS_WRITE=true
   elif [[ -z "$(atl_env_get_from_file BACKUP_LOCATION "$ENV_FILE" 2>/dev/null || true)" ]]; then
     ENV_NEEDS_WRITE=true
@@ -468,7 +506,7 @@ EOF
     fi
   fi
 
-  if [[ "$INSTALL_ACTION" != "repair" ]]; then
+  if [[ "$INSTALL_ACTION" != "repair" && "$INSTALL_ACTION" != "update" ]]; then
     # shellcheck source=reverse-proxy.sh
     source "${PKG_ROOT}/install/reverse-proxy.sh"
     run_reverse_proxy_wizard
@@ -478,7 +516,7 @@ EOF
   if [[ "$ENV_NEEDS_WRITE" == true ]]; then
     atl_write_env_file "$ENV_FILE"
   fi
-  if [[ "$INSTALL_ACTION" != "repair" ]]; then
+  if [[ "$INSTALL_ACTION" != "repair" && "$INSTALL_ACTION" != "update" ]]; then
     atl_restart_after_config "$MODE" "$INSTALL_DIR"
   fi
 

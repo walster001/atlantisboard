@@ -1,33 +1,122 @@
+import { useMemo } from 'react';
 import { Box, Grid, Group, Paper, Stack, Text, Tooltip } from '@mantine/core';
 import { LineChart } from '@mantine/charts';
 import { IconHelpCircle } from '@tabler/icons-react';
+import type { TooltipProps } from 'recharts';
 import type { AdminSystemMetricsSnapshot } from '../../../../shared/types/adminSystemMetrics.js';
 import type { MonitorPoint } from './types.js';
-import { formatBytesPerSecond, formatUptimeCompact } from './utils.js';
+import {
+  CPU_TREND_Y_TICKS,
+  buildEvenAxisTicks,
+  capacityGbFromMb,
+  formatBytesPerSecond,
+  formatCapacityAxisTick,
+  formatDiskUsedTotalLabelGb,
+  formatGbOneDecimal,
+  formatMemoryUsedTotalLabel,
+  formatTrendAxisTime,
+  formatUptimeCompact,
+} from './utils.js';
+
+const DISK_CHART_MARGIN = { top: 4, right: 12, bottom: 0, left: 64 };
+
+const DISK_Y_AXIS_PROPS = {
+  width: 58,
+  tickFormatter: (value: number) => formatCapacityAxisTick(value),
+} as const;
+
+const TREND_X_AXIS_PROPS = {
+  type: 'number' as const,
+  domain: ['dataMin', 'dataMax'] as ['dataMin', 'dataMax'],
+  tickFormatter: (value: number) => formatTrendAxisTime(value),
+};
+
+function UsedTotalTrendTooltip({
+  active,
+  payload,
+  formatValue,
+}: {
+  readonly active: boolean | undefined;
+  readonly payload: TooltipProps<number, string>['payload'] | undefined;
+  readonly formatValue: (row: MonitorPoint) => string;
+}) {
+  if (active !== true || payload == null || payload.length === 0) {
+    return null;
+  }
+  const row = payload[0]?.payload as MonitorPoint | undefined;
+  if (row == null) {
+    return null;
+  }
+  return (
+    <Paper withBorder p="xs" radius="sm" shadow="sm">
+      <Text size="xs" c="dimmed">
+        {formatTrendAxisTime(row.ts)}
+      </Text>
+      <Text size="sm" fw={600}>
+        {formatValue(row)}
+      </Text>
+    </Paper>
+  );
+}
 
 export function TrendsAndRuntimeSection(props: {
   latest: AdminSystemMetricsSnapshot | null;
   history: readonly MonitorPoint[];
 }) {
   const { latest, history } = props;
+  const chartData = useMemo(() => [...history], [history]);
+
+  const memoryCapacityGb = useMemo(() => {
+    const fromLatest = latest?.system?.memTotalMb ?? 0;
+    const fromHistory = chartData.reduce((max, point) => Math.max(max, point.hostMemTotalMb), 0);
+    return capacityGbFromMb(Math.max(fromLatest, fromHistory, 1));
+  }, [chartData, latest]);
+
+  const diskCapacityGb = useMemo(() => {
+    const fromLatest = latest?.system?.diskTotalMb ?? 0;
+    const fromHistory = chartData.reduce((max, point) => Math.max(max, point.diskTotalMb), 0);
+    return capacityGbFromMb(Math.max(fromLatest, fromHistory, 1));
+  }, [chartData, latest]);
+
+  const memoryYTicks = useMemo(
+    () => buildEvenAxisTicks(memoryCapacityGb),
+    [memoryCapacityGb],
+  );
+
+  const diskYTicks = useMemo(() => buildEvenAxisTicks(diskCapacityGb), [diskCapacityGb]);
+
   return (
     <>
       <Grid gutter="md">
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Paper withBorder p="sm" radius="md">
             <Text size="xs" c="dimmed" mb="xs">CPU Trend</Text>
-            <Box h={140}>
+            <Box h={140} style={{ overflow: 'hidden' }}>
               <LineChart
                 h={140}
-                data={[...history]}
-                dataKey="t"
+                data={chartData}
+                dataKey="ts"
                 withDots
                 dotProps={{ r: 2.5, strokeWidth: 1 }}
                 activeDotProps={{ r: 5, strokeWidth: 2 }}
                 withLegend={false}
-                curveType="natural"
-                yAxisProps={{ domain: [0, 'dataMax + 5'] }}
-                valueFormatter={(v) => `${v.toFixed(1)}%`}
+                curveType="monotone"
+                xAxisProps={TREND_X_AXIS_PROPS}
+                yAxisProps={{
+                  domain: [0, 100],
+                  ticks: [...CPU_TREND_Y_TICKS],
+                  allowDecimals: false,
+                }}
+                valueFormatter={(v) => `${Math.round(v)}%`}
+                tooltipProps={{
+                  content: ({ active, payload }) => (
+                    <UsedTotalTrendTooltip
+                      active={active}
+                      payload={payload}
+                      formatValue={(row) => `${Math.round(row.cpuPercent)}%`}
+                    />
+                  ),
+                }}
                 series={[{ name: 'cpuPercent', label: 'CPU %', color: 'orange' }]}
               />
             </Box>
@@ -36,19 +125,36 @@ export function TrendsAndRuntimeSection(props: {
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Paper withBorder p="sm" radius="md">
             <Text size="xs" c="dimmed" mb="xs">Memory Trend</Text>
-            <Box h={140}>
+            <Box h={140} style={{ overflow: 'hidden' }}>
               <LineChart
                 h={140}
-                data={[...history]}
-                dataKey="t"
+                data={chartData}
+                dataKey="ts"
                 withDots
                 dotProps={{ r: 2.5, strokeWidth: 1 }}
                 activeDotProps={{ r: 5, strokeWidth: 2 }}
                 withLegend={false}
-                curveType="natural"
-                yAxisProps={{ domain: [0, 100] }}
-                valueFormatter={(v) => `${v.toFixed(1)}%`}
-                series={[{ name: 'hostMemUsedPercent', label: 'Mem %', color: 'blue' }]}
+                curveType="monotone"
+                xAxisProps={TREND_X_AXIS_PROPS}
+                yAxisProps={{
+                  domain: [0, memoryCapacityGb],
+                  ticks: memoryYTicks,
+                  allowDecimals: true,
+                  tickFormatter: (value: number) => formatGbOneDecimal(value),
+                }}
+                valueFormatter={(v) => formatGbOneDecimal(v)}
+                tooltipProps={{
+                  content: ({ active, payload }) => (
+                    <UsedTotalTrendTooltip
+                      active={active}
+                      payload={payload}
+                      formatValue={(row) =>
+                        formatMemoryUsedTotalLabel(row.hostMemUsedMb, row.hostMemTotalMb)
+                      }
+                    />
+                  ),
+                }}
+                series={[{ name: 'hostMemUsedGb', label: 'Memory', color: 'blue' }]}
               />
             </Box>
           </Paper>
@@ -56,19 +162,38 @@ export function TrendsAndRuntimeSection(props: {
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Paper withBorder p="sm" radius="md">
             <Text size="xs" c="dimmed" mb="xs">Disk Trend</Text>
-            <Box h={140}>
+            <Box h={140} style={{ overflow: 'hidden' }}>
               <LineChart
                 h={140}
-                data={[...history]}
-                dataKey="t"
+                data={chartData}
+                dataKey="ts"
+                unit="GB"
                 withDots
                 dotProps={{ r: 2.5, strokeWidth: 1 }}
                 activeDotProps={{ r: 5, strokeWidth: 2 }}
                 withLegend={false}
-                curveType="natural"
-                yAxisProps={{ domain: [0, 100] }}
-                valueFormatter={(v) => `${v.toFixed(1)}%`}
-                series={[{ name: 'diskUsedPercent', label: 'Disk %', color: 'teal' }]}
+                curveType="monotone"
+                lineChartProps={{ margin: DISK_CHART_MARGIN }}
+                xAxisProps={TREND_X_AXIS_PROPS}
+                yAxisProps={{
+                  ...DISK_Y_AXIS_PROPS,
+                  domain: [0, diskCapacityGb],
+                  ticks: diskYTicks,
+                  allowDecimals: false,
+                }}
+                valueFormatter={(v) => formatGbOneDecimal(v)}
+                tooltipProps={{
+                  content: ({ active, payload }) => (
+                    <UsedTotalTrendTooltip
+                      active={active}
+                      payload={payload}
+                      formatValue={(row) =>
+                        formatDiskUsedTotalLabelGb(row.diskUsedMb, row.diskTotalMb)
+                      }
+                    />
+                  ),
+                }}
+                series={[{ name: 'diskUsedGb', label: 'Disk', color: 'teal' }]}
               />
             </Box>
           </Paper>

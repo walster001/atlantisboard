@@ -3,7 +3,11 @@ export interface MetricsHistoryEntry {
   readonly timestamp: string;
   readonly cpuPercent: number;
   readonly hostMemUsedPercent: number;
+  readonly hostMemUsedMb: number;
+  readonly hostMemTotalMb: number;
   readonly diskUsedPercent: number;
+  readonly diskUsedMb: number;
+  readonly diskTotalMb: number;
   readonly rssMb: number;
 }
 

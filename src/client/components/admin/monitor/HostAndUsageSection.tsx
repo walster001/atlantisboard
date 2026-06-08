@@ -2,7 +2,7 @@ import { Grid, Group, Paper, Progress, Text } from '@mantine/core';
 import { IconCpu, IconDatabase, IconLayoutBottombar } from '@tabler/icons-react';
 import type { AdminSystemMetricsSnapshot } from '../../../../shared/types/adminSystemMetrics.js';
 import type { RuntimeSummary } from './types.js';
-import { displayStorageFromMb, formatNumber } from './utils.js';
+import { displayStorageFromMb, formatGbOneDecimalFromMb, formatNumber } from './utils.js';
 
 export function HostAndUsageSection(props: {
   latest: AdminSystemMetricsSnapshot | null;
@@ -63,7 +63,7 @@ export function HostAndUsageSection(props: {
             <Progress mt="sm" value={runtimeSummary.memory} color="blue" animated />
             <Text size="xs" mt="xs" c="dimmed">
               {latest?.system != null
-                ? `${displayStorageFromMb((latest.system.memTotalMb ?? 0) - (latest.system.memAvailableMb ?? 0))} used / ${displayStorageFromMb(latest.system.memTotalMb ?? 0)} total`
+                ? `${formatGbOneDecimalFromMb((latest.system.memTotalMb ?? 0) - (latest.system.memAvailableMb ?? 0))} used / ${formatGbOneDecimalFromMb(latest.system.memTotalMb ?? 0)} total`
                 : 'Host memory metrics unavailable'}
             </Text>
           </Paper>

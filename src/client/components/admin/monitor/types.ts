@@ -5,6 +5,14 @@ export interface MonitorPoint {
   readonly memoryUsedPercent: number;
   readonly diskUsedPercent: number;
   readonly hostMemUsedPercent: number;
+  readonly hostMemUsedMb: number;
+  readonly hostMemTotalMb: number;
+  readonly hostMemUsedGb: number;
+  readonly hostMemTotalGb: number;
+  readonly diskUsedMb: number;
+  readonly diskTotalMb: number;
+  readonly diskUsedGb: number;
+  readonly diskTotalGb: number;
 }
 
 export interface RuntimeSummary {

@@ -20,24 +20,36 @@ function collectSample(): void {
   const linuxMem = readLinuxMeminfoMb();
 
   let hostMemUsedPercent = 0;
+  let hostMemUsedMb = 0;
+  let hostMemTotalMb = 0;
   if (linuxMem != null && linuxMem.memTotalMb > 0) {
+    hostMemUsedMb = Math.max(0, linuxMem.memTotalMb - linuxMem.memAvailableMb);
+    hostMemTotalMb = linuxMem.memTotalMb;
     hostMemUsedPercent = Math.max(
       0,
-      Math.min(100, ((linuxMem.memTotalMb - linuxMem.memAvailableMb) / linuxMem.memTotalMb) * 100),
+      Math.min(100, (hostMemUsedMb / hostMemTotalMb) * 100),
     );
   }
 
   let diskUsedPercent = 0;
+  let diskUsedMb = 0;
+  let diskTotalMb = 0;
   const disk = lastSlowMetricsSample?.disk;
   if (disk != null && disk.totalMb > 0) {
-    diskUsedPercent = Math.max(0, Math.min(100, (disk.usedMb / disk.totalMb) * 100));
+    diskUsedMb = disk.usedMb;
+    diskTotalMb = disk.totalMb;
+    diskUsedPercent = Math.max(0, Math.min(100, (diskUsedMb / diskTotalMb) * 100));
   }
 
   const entry: MetricsHistoryEntry = {
     timestamp: new Date().toISOString(),
     cpuPercent: cpu.cpuPercentOfSystem,
     hostMemUsedPercent,
+    hostMemUsedMb,
+    hostMemTotalMb,
     diskUsedPercent,
+    diskUsedMb,
+    diskTotalMb,
     rssMb: mem.rss / (1024 * 1024),
   };
 

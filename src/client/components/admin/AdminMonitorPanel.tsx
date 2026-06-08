@@ -6,41 +6,18 @@ import { socketClient } from '../../utils/socket.js';
 import { HostAndUsageSection } from './monitor/HostAndUsageSection.js';
 import { TrendsAndRuntimeSection } from './monitor/TrendsAndRuntimeSection.js';
 import type { MonitorPoint } from './monitor/types.js';
-import { COLLECTION_INTERVAL_S, HISTORY_CAP, appendTrendPoint, formatShortTime, hostDiskUsedPercent, hostMemUsedPercent } from './monitor/utils.js';
-
-function buildZeroFilledHistory(): MonitorPoint[] {
-  const now = Date.now();
-  const intervalMs = COLLECTION_INTERVAL_S * 1000;
-  const points: MonitorPoint[] = [];
-  for (let i = HISTORY_CAP - 1; i >= 0; i--) {
-    const ts = now - i * intervalMs;
-    points.push({
-      t: formatShortTime(new Date(ts).toISOString()),
-      ts,
-      cpuPercent: 0,
-      memoryUsedPercent: 0,
-      diskUsedPercent: 0,
-      hostMemUsedPercent: 0,
-    });
-  }
-  return points;
-}
+import {
+  COLLECTION_INTERVAL_S,
+  appendTrendPoint,
+  hostDiskUsedPercent,
+  hostMemUsedPercent,
+  metricsEntryToMonitorPoint,
+  normalizeMonitorHistory,
+  toMonitorPointFields,
+} from './monitor/utils.js';
 
 function historyEntriesToPoints(entries: readonly MetricsHistoryEntry[]): MonitorPoint[] {
-  const filled = buildZeroFilledHistory();
-  if (entries.length === 0) {
-    return filled;
-  }
-  const real = entries.map((e) => ({
-    t: formatShortTime(e.timestamp),
-    ts: Date.parse(e.timestamp),
-    cpuPercent: e.cpuPercent,
-    memoryUsedPercent: e.hostMemUsedPercent,
-    diskUsedPercent: e.diskUsedPercent,
-    hostMemUsedPercent: e.hostMemUsedPercent,
-  }));
-  const merged = [...filled, ...real];
-  return merged.slice(merged.length - HISTORY_CAP);
+  return normalizeMonitorHistory(entries.map(metricsEntryToMonitorPoint));
 }
 
 interface MonitorStatsPayload {
@@ -51,7 +28,7 @@ interface MonitorStatsPayload {
 
 export const AdminMonitorPanel = memo(function AdminMonitorPanel() {
   const [latest, setLatest] = useState<AdminSystemMetricsSnapshot | null>(null);
-  const [history, setHistory] = useState<MonitorPoint[]>(buildZeroFilledHistory);
+  const [history, setHistory] = useState<MonitorPoint[]>([]);
   const historyLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -81,10 +58,7 @@ export const AdminMonitorPanel = memo(function AdminMonitorPanel() {
           appendTrendPoint(prev, {
             isoTime: data.entry.timestamp,
             ts: Date.parse(data.entry.timestamp),
-            cpuPercent: data.entry.cpuPercent,
-            memoryUsedPercent: data.entry.hostMemUsedPercent,
-            diskUsedPercent: data.entry.diskUsedPercent,
-            hostMemUsedPercent: data.entry.hostMemUsedPercent,
+            ...toMonitorPointFields(data.entry),
           }),
         );
       }

@@ -10,6 +10,7 @@ import { emitToBoard } from '../../utils/socketIO.js';
 import { deriveCardDescriptionPreview } from '../cardViewService.js';
 import { renderCardDescriptionHtml } from '../../utils/cardDescriptionHtml.js';
 import { removeImportInlineObjectsForCardFields } from '../importInlineAssetService.js';
+import { normalizeCardDescriptionAttachmentUrls } from '../../../shared/cardDescriptionAttachmentRefs.js';
 import { CARD_POS_STEP, spreadPosForIndex } from '../../../shared/utils/cardListPos.js';
 import { ensureCardsHavePosForList } from './positioning.js';
 import type { CreateCardInput, UpdateCardInput } from './types.js';
@@ -191,11 +192,15 @@ export async function updateCard(
 
   if (input.title !== undefined) card.title = input.title;
   if (input.description !== undefined) {
-    card.description = input.description;
-    const descriptionPreviewData = deriveCardDescriptionPreview(input.description);
+    const normalizedDescription =
+      input.description === ''
+        ? ''
+        : normalizeCardDescriptionAttachmentUrls(input.description);
+    card.description = normalizedDescription;
+    const descriptionPreviewData = deriveCardDescriptionPreview(normalizedDescription);
     card.descriptionPreview = descriptionPreviewData.preview;
     card.descriptionCharCount = descriptionPreviewData.charCount;
-    card.descriptionHtml = renderCardDescriptionHtml(input.description);
+    card.descriptionHtml = renderCardDescriptionHtml(normalizedDescription);
   }
   if (input.listId !== undefined) {
     const targetList = await List.findById(input.listId).select('boardId').lean();

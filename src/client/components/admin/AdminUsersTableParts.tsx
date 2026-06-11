@@ -2,7 +2,6 @@ import {
   memo,
   forwardRef,
   type ComponentPropsWithoutRef,
-  type ReactElement,
 } from 'react';
 import { Box, Button, Checkbox, Text, Tooltip } from '@mantine/core';
 import {
@@ -17,6 +16,7 @@ import {
   type AdminUserRow,
   type UserCapabilityDraft,
 } from './adminUsersTabUtils.js';
+import { AdminUsersTableCapabilityCells } from './AdminUsersCapabilityFields.js';
 
 export const AdminUsersDataTable = forwardRef<HTMLTableElement, ComponentPropsWithoutRef<'table'>>(
   ({ style, className, children, ...props }, ref) => (
@@ -88,23 +88,9 @@ export const AdminUserTableCells = memo(function AdminUserTableCells(props: {
     onCreateWorkspaceChange,
     onDeleteClick,
   } = props;
-  const capsDisabled = user.isAppAdmin;
   const striped = rowIndex % 2 === 1;
   const tdClass = (extra?: string): string =>
     ['admin-users-tab__td', striped ? 'admin-users-tab__td--striped' : '', extra].filter(Boolean).join(' ');
-
-  const capabilityCheckbox = (checked: boolean, onChange: (next: boolean) => void): ReactElement => {
-    if (capsDisabled) {
-      return (
-        <Tooltip label="App admins always have this capability." position="top">
-          <span>
-            <Checkbox checked={true} disabled readOnly aria-label="Always enabled for app admin" />
-          </span>
-        </Tooltip>
-      );
-    }
-    return <Checkbox checked={checked} onChange={(event) => onChange(event.currentTarget.checked)} />;
-  };
 
   const deleteButton = (
     <Button
@@ -120,16 +106,13 @@ export const AdminUserTableCells = memo(function AdminUserTableCells(props: {
 
   return (
     <>
-      <td className={tdClass(CAP_COL_CLASS)}>
-        <Box className={CAP_CELL_CLASS}>
-          {capabilityCheckbox(draft.canImportBoards, (next) => onImportChange(user._id, next))}
-        </Box>
-      </td>
-      <td className={tdClass(CAP_COL_CLASS)}>
-        <Box className={CAP_CELL_CLASS}>
-          {capabilityCheckbox(draft.canCreateWorkspace, (next) => onCreateWorkspaceChange(user._id, next))}
-        </Box>
-      </td>
+      <AdminUsersTableCapabilityCells
+        user={user}
+        draft={draft}
+        tdClass={tdClass}
+        onImportChange={onImportChange}
+        onCreateWorkspaceChange={onCreateWorkspaceChange}
+      />
       <td className={tdClass()}>{user.displayName}</td>
       <td className={tdClass()}>{user.email}</td>
       <td className={tdClass()}>{user.username}</td>

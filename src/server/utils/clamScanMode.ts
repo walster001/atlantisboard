@@ -3,6 +3,7 @@ import { freemem } from 'node:os';
 import type { ScanOptions } from 'pompelmi';
 import { logger } from './logger.js';
 import { shouldSkipMalwareScan } from './clamSignatures.js';
+import { isClamdAvailableForScan } from './clamdReachability.js';
 
 const DEFAULT_CLAMD_HOST = '127.0.0.1';
 const DEFAULT_CLAMD_PORT = 3310;
@@ -54,12 +55,7 @@ function parseUseClamdEnv(): 'true' | 'false' | 'auto' {
   return 'auto';
 }
 
-/** True when Pompelmi should scan via clamd TCP/socket instead of per-upload clamscan. */
-export async function resolveUseClamd(): Promise<boolean> {
-  if (shouldSkipMalwareScan()) {
-    return false;
-  }
-
+async function clamdConfiguredByEnv(): Promise<boolean> {
   const explicitHost = process.env.POMPELMI_CLAMD_HOST?.trim();
   if (explicitHost != null && explicitHost !== '') {
     return true;
@@ -80,6 +76,19 @@ export async function resolveUseClamd(): Promise<boolean> {
 
   const minKb = getClamdMinRamMb() * BYTES_PER_KB;
   return availableKb >= minKb;
+}
+
+/** True when Pompelmi should scan via clamd TCP/socket instead of per-upload clamscan. */
+export async function resolveUseClamd(): Promise<boolean> {
+  if (shouldSkipMalwareScan()) {
+    return false;
+  }
+
+  if (!(await clamdConfiguredByEnv())) {
+    return false;
+  }
+
+  return isClamdAvailableForScan();
 }
 
 export async function resolveClamScanMode(): Promise<ClamScanMode> {

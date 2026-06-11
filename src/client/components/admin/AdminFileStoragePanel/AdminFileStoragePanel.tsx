@@ -2,6 +2,7 @@ import { memo, useCallback, useState } from 'react';
 import { Box, Paper, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import type { MinioBucketName } from '../../../../shared/constants/minioBuckets.js';
 import type { AdminFileStorageObjectEntry } from '../../../../shared/types/adminFileStorage.js';
+import { useResponsiveTier } from '../../../hooks/useResponsiveTier.js';
 import { FileStorageDialogs } from './FileStorageDialogs.js';
 import { FileStorageObjectTable } from './FileStorageObjectTable.js';
 import { FileStoragePreviewPane } from './FileStoragePreviewPane.js';
@@ -11,6 +12,7 @@ import { useAdminFileStoragePanelState } from './useAdminFileStoragePanelState.j
 import './adminFileStoragePanel.css';
 
 export const AdminFileStoragePanel = memo(function AdminFileStoragePanel() {
+  const hideMetaColumns = useResponsiveTier() === 'mobile';
   const {
     buckets,
     selectedBucket,
@@ -102,6 +104,7 @@ export const AdminFileStoragePanel = memo(function AdminFileStoragePanel() {
                   selectedKey={selectedEntry?.key ?? null}
                   deletingKey={deletingKey}
                   downloadingKey={downloadingKey}
+                  hideMetaColumns={hideMetaColumns}
                   onOpenFolder={handleOpenFolder}
                   onSelectFile={setSelectedEntry}
                   onDownload={(key) => void downloadObject(key)}

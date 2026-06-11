@@ -38,6 +38,9 @@ export interface AdminSystemMetricsSnapshot {
     readonly memAvailableMb?: number;
     readonly diskTotalMb?: number;
     readonly diskUsedMb?: number;
+    /** `df` for `CLAMAV_DB_DIR` when it differs from the root filesystem mount. */
+    readonly clamavDiskTotalMb?: number;
+    readonly clamavDiskUsedMb?: number;
     readonly diskReadBytesPerSec?: number;
     readonly diskWriteBytesPerSec?: number;
     readonly networkRxBytesPerSec?: number;

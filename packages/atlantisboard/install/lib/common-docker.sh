@@ -380,6 +380,14 @@ atl_docker_compose_log_excerpt() {
 }
 
 
+## atl_docker_prune_after_deploy
+# Remove dangling images and old build cache (does not affect running containers).
+atl_docker_prune_after_deploy() {
+  atl_sudo docker image prune -f >/dev/null 2>&1 || true
+  atl_sudo docker builder prune -f --filter until=168h >/dev/null 2>&1 || true
+}
+
+
 ## atl_docker_compose_cleanup_log
 # Remove temporary compose log file and reset path variable.
 atl_docker_compose_cleanup_log() {
@@ -413,6 +421,7 @@ atl_docker_compose() {
   local attempt=1 delay="${ATL_DOCKER_COMPOSE_RETRY_BASE_DELAY}"
   while [[ "$attempt" -le "$max_attempts" ]]; do
     if atl_docker_compose_run "$compose_dir" "$compose_file" "$@"; then
+      atl_docker_prune_after_deploy
       atl_docker_compose_cleanup_log
       return 0
     fi

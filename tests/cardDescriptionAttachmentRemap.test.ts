@@ -2,6 +2,8 @@ import { describe, it, expect } from 'bun:test';
 import {
   collectAttachmentIdsFromDescriptionJson,
   collectReferencedAttachmentIdsFromDescriptionJson,
+  extractAttachmentIdFromMediaSrc,
+  normalizeCardDescriptionAttachmentUrls,
   remapAttachmentRefsInDescriptionHtmlString,
   remapAttachmentRefsInDescriptionJsonString,
 } from '../src/shared/cardDescriptionAttachmentRefs.js';
@@ -124,5 +126,28 @@ describe('remapAttachmentRefsInDescriptionHtmlString', () => {
     expect(out).toContain(NEW_ID);
     expect(out).not.toContain(OLD_URL);
     expect(out).not.toContain(OLD_ID);
+  });
+});
+
+describe('legacy attachment media paths', () => {
+  it('extracts attachment id from card-scoped legacy file URLs', () => {
+    const id = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeee1111';
+    expect(extractAttachmentIdFromMediaSrc(`/api/v1/cards/card-1/attachments/${id}/file`)).toBe(id);
+  });
+
+  it('normalizes legacy card-scoped paths to canonical proxy URLs', () => {
+    const id = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeee1111';
+    const raw = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'video',
+          attrs: { src: `/api/v1/cards/card-1/attachments/${id}/file` },
+        },
+      ],
+    });
+    const normalized = normalizeCardDescriptionAttachmentUrls(raw);
+    expect(normalized).toContain(`/api/v1/attachments/${id}/file`);
+    expect(normalized).not.toContain('/cards/card-1/attachments/');
   });
 });

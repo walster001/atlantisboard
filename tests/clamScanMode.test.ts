@@ -21,6 +21,7 @@ describe('clamScanMode', () => {
   it('uses clamd when POMPELMI_USE_CLAMD=true regardless of RAM', async () => {
     process.env.POMPELMI_SKIP_SCAN = 'false';
     process.env.POMPELMI_USE_CLAMD = 'true';
+    process.env.POMPELMI_TEST_CLAMD_REACHABLE = 'true';
     process.env.POMPELMI_TEST_AVAILABLE_RAM_KB = '512000';
     delete process.env.POMPELMI_CLAMD_HOST;
 
@@ -46,6 +47,7 @@ describe('clamScanMode', () => {
   it('auto mode uses clamd when MemAvailable meets threshold', async () => {
     process.env.POMPELMI_SKIP_SCAN = 'false';
     process.env.POMPELMI_USE_CLAMD = 'auto';
+    process.env.POMPELMI_TEST_CLAMD_REACHABLE = 'true';
     process.env.POMPELMI_CLAMD_MIN_RAM_MB = '2048';
     process.env.POMPELMI_TEST_AVAILABLE_RAM_KB = String(2048 * 1024);
     delete process.env.POMPELMI_CLAMD_HOST;
@@ -56,6 +58,7 @@ describe('clamScanMode', () => {
   it('auto mode uses clamscan when MemAvailable is below threshold', async () => {
     process.env.POMPELMI_SKIP_SCAN = 'false';
     process.env.POMPELMI_USE_CLAMD = 'auto';
+    process.env.POMPELMI_TEST_CLAMD_REACHABLE = 'true';
     process.env.POMPELMI_CLAMD_MIN_RAM_MB = '2048';
     process.env.POMPELMI_TEST_AVAILABLE_RAM_KB = String(1024 * 1024);
     delete process.env.POMPELMI_CLAMD_HOST;
@@ -66,6 +69,7 @@ describe('clamScanMode', () => {
   it('uses clamd when POMPELMI_CLAMD_HOST is set explicitly', async () => {
     process.env.POMPELMI_SKIP_SCAN = 'false';
     process.env.POMPELMI_USE_CLAMD = 'false';
+    process.env.POMPELMI_TEST_CLAMD_REACHABLE = 'true';
     process.env.POMPELMI_CLAMD_HOST = 'clamav.internal';
     process.env.POMPELMI_CLAMD_PORT = '3311';
 

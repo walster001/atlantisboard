@@ -8,6 +8,7 @@ clamd_conf="/tmp/clamd.conf"
 clamd_pid_file="/tmp/clamd.pid"
 clamd_min_ram_mb="${POMPELMI_CLAMD_MIN_RAM_MB:-2048}"
 clamd_port="${POMPELMI_CLAMD_PORT:-3310}"
+freshclam_min_interval_ms="${POMPELMI_SIGNATURE_REFRESH_MS:-86400000}"
 
 has_sigs_in() {
   dir="$1"
@@ -32,6 +33,33 @@ seed_clamav_db_from_image() {
   fi
   cp -a "$clamav_seed_dir/." "$clamav_db_dir/"
   return 0
+}
+
+freshclam_recently_updated() {
+  dat="$clamav_db_dir/freshclam.dat"
+  if [ ! -f "$dat" ]; then
+    return 1
+  fi
+  now="$(date +%s)"
+  mtime="$(stat -c %Y "$dat" 2>/dev/null || echo 0)"
+  age_ms=$(( (now - mtime) * 1000 ))
+  if [ "$age_ms" -lt "$freshclam_min_interval_ms" ]; then
+    return 0
+  fi
+  return 1
+}
+
+cleanup_clamav_db_dir() {
+  for f in "$clamav_db_dir"/*.cud "$clamav_db_dir"/*.tmp \
+    "$clamav_db_dir"/*.part "$clamav_db_dir"/*.lock "$clamav_db_dir"/*~; do
+    [ -e "$f" ] || continue
+    rm -f "$f"
+  done
+  for base in main daily bytecode; do
+    if [ -f "$clamav_db_dir/${base}.cvd" ] && [ -f "$clamav_db_dir/${base}.cld" ]; then
+      rm -f "$clamav_db_dir/${base}.cld"
+    fi
+  done
 }
 
 read_mem_available_kb() {
@@ -128,8 +156,10 @@ if [ "${POMPELMI_SKIP_SCAN:-false}" != "true" ]; then
     if ! has_sigs; then
       seed_clamav_db_from_image || true
     fi
-    if ! has_sigs; then
-      freshclam --stdout || true
+    if ! has_sigs && ! freshclam_recently_updated; then
+      if freshclam --stdout; then
+        cleanup_clamav_db_dir
+      fi
       chown -R bunjs:nodejs "$clamav_db_dir"
     fi
     if ! has_sigs; then

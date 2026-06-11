@@ -40,6 +40,7 @@ import { renderSpaIndexHtml } from './utils/spaIndex.js';
 import { scheduleCronJobs } from './workers/cronJobs.js';
 import { startClamSignatureRefreshScheduler } from './utils/clamSignatureScheduler.js';
 import { logMalwareScanModeAtStartup } from './utils/clamScanMode.js';
+import { cleanupStaleAtlboardTempFiles } from './utils/tmpJanitor.js';
 import {
   migrateLegacyUserPlaceholdersToBoardCollection,
   repairWekanEmailStoredInImportUsername,
@@ -202,6 +203,11 @@ if (process.env.ENABLE_CRON_JOBS_IN_MAIN === 'true') {
 
 startClamSignatureRefreshScheduler();
 void logMalwareScanModeAtStartup();
+if (process.env.NODE_ENV !== 'test') {
+  void cleanupStaleAtlboardTempFiles().catch((error: unknown) => {
+    logger.warn({ error }, 'tmp janitor failed during startup');
+  });
+}
 
 let httpServerStartPromise: Promise<number> | null = null;
 let changeStreamsStarted = false;

@@ -14,10 +14,18 @@
 # VOLUME RESET (reinstall / new secrets):
 #   cd install/docker && docker compose --env-file ../../.env -f docker-compose.fullstack.yml down -v
 # Or run: install/docker/reset-docker-data.sh fullstack
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   mongodb:
     image: ${ATLANTISBOARD_MONGO_IMAGE:?Set ATLANTISBOARD_MONGO_IMAGE — see install/docker/image-defaults.env}
     container_name: atlantisboard-mongodb-full
+    logging: *default-logging
     restart: unless-stopped
     environment:
       MONGO_INITDB_DATABASE: ${MONGODB_DB_NAME:-kanboard}
@@ -72,6 +80,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: atlantisboard-redis-full
+    logging: *default-logging
     restart: unless-stopped
     command: >
       sh -c "
@@ -99,6 +108,7 @@ services:
   minio:
     image: ${ATLANTISBOARD_MINIO_IMAGE:?Set ATLANTISBOARD_MINIO_IMAGE — see install/docker/image-defaults.env}
     container_name: atlantisboard-minio-full
+    logging: *default-logging
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_ACCESS_KEY:-${MINIO_ACCESS_KEY:?Set MINIO_ACCESS_KEY in .env}}
@@ -142,6 +152,7 @@ services:
       args:
         MC_RELEASE: ${ATLANTISBOARD_MC_RELEASE:-RELEASE.2025-08-13T08-35-41Z}
     container_name: atlantisboard-app-full
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:3000"

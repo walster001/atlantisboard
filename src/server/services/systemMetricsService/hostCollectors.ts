@@ -86,26 +86,46 @@ export function readProcessCountLinux(): number | undefined {
   }
 }
 
+function parseDfTotalsMb(stdout: string): { totalMb: number; usedMb: number } | undefined {
+  const lines = stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+  if (lines.length < 2) {
+    return undefined;
+  }
+  const cols = lines[1]!.split(/\s+/);
+  const totalKb = Number(cols[1]);
+  const usedKb = Number(cols[2]);
+  if (!Number.isFinite(totalKb) || !Number.isFinite(usedKb) || totalKb <= 0 || usedKb < 0) {
+    return undefined;
+  }
+  return { totalMb: totalKb / 1024, usedMb: usedKb / 1024 };
+}
+
 export async function readDiskTotalsMb(): Promise<{ totalMb: number; usedMb: number } | undefined> {
   try {
     const { stdout } = await execFileAsync('df', ['-k', '/']);
-    const lines = stdout
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l !== '');
-    if (lines.length < 2) {
-      return undefined;
-    }
-    const cols = lines[1]!.split(/\s+/);
-    const totalKb = Number(cols[1]);
-    const usedKb = Number(cols[2]);
-    if (!Number.isFinite(totalKb) || !Number.isFinite(usedKb) || totalKb <= 0 || usedKb < 0) {
-      return undefined;
-    }
-    return { totalMb: totalKb / 1024, usedMb: usedKb / 1024 };
+    return parseDfTotalsMb(stdout);
   } catch {
     return undefined;
   }
+}
+
+export async function readDiskTotalsMbForPath(
+  mountPath: string,
+): Promise<{ totalMb: number; usedMb: number } | undefined> {
+  try {
+    const { stdout } = await execFileAsync('df', ['-k', mountPath]);
+    return parseDfTotalsMb(stdout);
+  } catch {
+    return undefined;
+  }
+}
+
+export function getClamAvDbDirForMetrics(): string {
+  const configured = process.env.CLAMAV_DB_DIR?.trim();
+  return configured != null && configured !== '' ? configured : '/var/lib/clamav';
 }
 
 function readLinuxDiskIoBytes(): { readBytes: number; writeBytes: number } | undefined {

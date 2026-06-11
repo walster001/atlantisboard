@@ -84,6 +84,9 @@ docker compose up -d >> "$LOG_FILE" 2>&1 || {
   exit 1
 }
 echo -e "${GREEN}✓${NC} Docker services started"
+log "Pruning unused Docker images and build cache..."
+docker image prune -f >> "$LOG_FILE" 2>&1 || true
+docker builder prune -f --filter until=168h >> "$LOG_FILE" 2>&1 || true
 echo ""
 
 # Step 4: Wait for services to be healthy

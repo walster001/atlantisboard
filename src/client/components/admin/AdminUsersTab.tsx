@@ -2,12 +2,14 @@ import { memo, useCallback } from 'react';
 import { Alert, Box, Button, Group, Loader, Paper, Stack, Text } from '@mantine/core';
 import { TableVirtuoso } from 'react-virtuoso';
 import { BoardMemberEnterToSearchField } from '../board/BoardMemberEnterToSearchField.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import {
   AdminUserTableCells,
   AdminUsersTableHeader,
   adminUsersTableVirtuosoComponents,
 } from './AdminUsersTableParts.js';
 import { AdminUsersDeleteModal } from './AdminUsersDeleteModal.js';
+import { AdminUsersMobileList } from './AdminUsersMobileList.js';
 import {
   ADMIN_USER_ROW_PX,
   ADMIN_USER_VIRTUOSO_OVERSCAN,
@@ -22,6 +24,7 @@ interface AdminUsersTabProps {
 
 export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabProps) {
   const { currentUserId } = props;
+  const isMobile = useResponsiveTier() === 'mobile';
   const {
     draftCaps,
     loading,
@@ -68,7 +71,7 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
             View and manage all application users.
           </Text>
         </Box>
-        <Group align="end" wrap="nowrap">
+        <Group align="end" wrap={isMobile ? 'wrap' : 'nowrap'}>
           <Button
             variant="filled"
             disabled={!hasUnsavedCapabilityChanges}
@@ -98,6 +101,21 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
           <Text c="dimmed" ta="center" py="md">
             No users found.
           </Text>
+        ) : isMobile ? (
+          <AdminUsersMobileList
+            sortedUsers={sortedUsers}
+            draftCaps={draftCaps}
+            currentUserId={currentUserId}
+            loadingMore={loadingMore}
+            importMaster={importMaster}
+            createWorkspaceMaster={createWorkspaceMaster}
+            onMasterImportChange={(checked) => setMasterCapability('canImportBoards', checked)}
+            onMasterCreateWorkspaceChange={(checked) => setMasterCapability('canCreateWorkspace', checked)}
+            onImportChange={handleImportChange}
+            onCreateWorkspaceChange={handleCreateWorkspaceChange}
+            onDeleteClick={handleDeleteClick}
+            onEndReached={handleEndReached}
+          />
         ) : (
           <Box className="admin-users-tab__table-scroll">
             <TableVirtuoso

@@ -25,13 +25,25 @@ export function validateMediaSrc(src: unknown): boolean {
     return false;
   }
   const t = src.trim();
-  return (
-    t.startsWith('https://') ||
-    t.startsWith('http://') ||
-    t.startsWith('/') ||
-    t.startsWith('./') ||
-    t.startsWith('../')
-  );
+  if (t.startsWith('blob:')) {
+    return false;
+  }
+  if (t.startsWith('https://') || t.startsWith('http://')) {
+    return true;
+  }
+  if (t.startsWith('./') || t.startsWith('../')) {
+    return true;
+  }
+  if (t.startsWith('/api/v1/')) {
+    return (
+      /\/attachments\/[^/?#]+\/file(?:\?|#|$)/.test(t) ||
+      /\/cards\/[^/]+\/attachments\/[^/?#]+\/file(?:\?|#|$)/.test(t)
+    );
+  }
+  if (t.startsWith('/')) {
+    return true;
+  }
+  return false;
 }
 
 export function validateInlineButtonIconSrc(src: unknown): boolean {

@@ -21,6 +21,7 @@ export let lastSlowMetricsSample:
       readonly mongoVersion: string | null;
       readonly minioVersion: string | null;
       readonly disk?: { readonly totalMb: number; readonly usedMb: number };
+      readonly clamavDisk?: { readonly totalMb: number; readonly usedMb: number };
       readonly databaseSizeMb?: number;
       readonly backupCount?: number;
       readonly hostTemperatureC?: number;

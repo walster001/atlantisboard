@@ -7,7 +7,9 @@ import {
 } from './state.js';
 import { APP_VERSION } from './versionAndEnv.js';
 import {
+  getClamAvDbDirForMetrics,
   readDiskTotalsMb,
+  readDiskTotalsMbForPath,
   readHostTemperatureC,
   readLinuxMeminfoMb,
   readProcessCountLinux,
@@ -28,11 +30,13 @@ async function getSlowMetricsSample(): Promise<NonNullable<typeof lastSlowMetric
   if (lastSlowMetricsSample != null && now - lastSlowMetricsSample.fetchedAt < SLOW_METRICS_REFRESH_MS) {
     return lastSlowMetricsSample;
   }
-  const [mongoVersion, minioVersion, disk, databaseSizeMb, backupCount, dockerRunningContainers] =
+  const clamavDbDir = getClamAvDbDirForMetrics();
+  const [mongoVersion, minioVersion, disk, clamavDisk, databaseSizeMb, backupCount, dockerRunningContainers] =
     await Promise.all([
       readMongoDbVersion(),
       readMinioVersionLabel(),
       readDiskTotalsMb(),
+      readDiskTotalsMbForPath(clamavDbDir),
       readDatabaseSizeMb(),
       readBackupCount(),
       readDockerRunningContainerNames(),
@@ -48,6 +52,7 @@ async function getSlowMetricsSample(): Promise<NonNullable<typeof lastSlowMetric
     mongoVersion,
     minioVersion,
     ...(disk !== undefined ? { disk } : {}),
+    ...(clamavDisk !== undefined ? { clamavDisk } : {}),
     ...(databaseSizeMb !== undefined ? { databaseSizeMb } : {}),
     ...(backupCount !== undefined ? { backupCount } : {}),
     ...(hostTemperatureC !== undefined ? { hostTemperatureC } : {}),
@@ -85,6 +90,12 @@ export async function getAdminSystemMetricsSnapshot(): Promise<AdminSystemMetric
           load5m,
           ...(slow.disk !== undefined
             ? { diskTotalMb: slow.disk.totalMb, diskUsedMb: slow.disk.usedMb }
+            : {}),
+          ...(slow.clamavDisk !== undefined
+            ? {
+                clamavDiskTotalMb: slow.clamavDisk.totalMb,
+                clamavDiskUsedMb: slow.clamavDisk.usedMb,
+              }
             : {}),
           ...(ioRates.diskReadBytesPerSec !== undefined ? { diskReadBytesPerSec: ioRates.diskReadBytesPerSec } : {}),
           ...(ioRates.diskWriteBytesPerSec !== undefined ? { diskWriteBytesPerSec: ioRates.diskWriteBytesPerSec } : {}),

@@ -128,3 +128,38 @@
   display: inline-flex;
   justify-content: center;
 }
+
+.admin-users-tab__mobile-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-users-tab__mobile-master {
+  flex-shrink: 0;
+}
+
+.admin-users-tab__mobile-scroll {
+  flex: 1 1 auto;
+  min-height: 280px;
+  max-height: min(62vh, 680px);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-users-tab__mobile-virtuoso {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.admin-users-tab__mobile-footer {
+  flex-shrink: 0;
+  padding: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-users-tab__mobile-card {
+  min-width: 0;
+}

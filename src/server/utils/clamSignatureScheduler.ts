@@ -2,21 +2,14 @@ import { logger } from './logger.js';
 import { invalidateClamDbPageCacheWarmState, warmClamDbPageCache } from './clamDbPageCache.js';
 import { reloadClamdSignaturesIfActive } from './clamdReload.js';
 import { resolveUseClamd } from './clamScanMode.js';
-import { shouldSkipMalwareScan, updateClamSignaturesIfNeeded } from './clamSignatures.js';
+import { getSignatureRefreshIntervalMs } from './clamSignatureConfig.js';
+import {
+  shouldRunFreshclam,
+  shouldSkipMalwareScan,
+  updateClamSignaturesIfNeeded,
+} from './clamSignatures.js';
 
-const DEFAULT_REFRESH_MS = 86_400_000;
-
-function parsePositiveInt(raw: string | undefined, fallback: number): number {
-  if (raw == null || raw.trim() === '') {
-    return fallback;
-  }
-  const parsed = Number.parseInt(raw.trim(), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-export function getSignatureRefreshIntervalMs(): number {
-  return parsePositiveInt(process.env.POMPELMI_SIGNATURE_REFRESH_MS, DEFAULT_REFRESH_MS);
-}
+export { getSignatureRefreshIntervalMs } from './clamSignatureConfig.js';
 
 export function isSignatureRefreshSchedulerEnabled(): boolean {
   return process.env.POMPELMI_SIGNATURE_REFRESH !== 'false';
@@ -26,6 +19,11 @@ let schedulerIntervalId: ReturnType<typeof setInterval> | null = null;
 
 export async function runScheduledClamSignatureRefresh(): Promise<void> {
   if (shouldSkipMalwareScan()) {
+    return;
+  }
+
+  if (!(await shouldRunFreshclam())) {
+    logger.info('Skipping scheduled ClamAV signature refresh; signatures are still fresh');
     return;
   }
 

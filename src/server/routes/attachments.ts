@@ -16,6 +16,7 @@ import {
   uploadCardAttachment,
   deleteCardAttachment,
   buildAttachmentStreamUrl,
+  buildAttachmentProxyUrl,
   openAttachmentReadStream,
   type CardAttachmentUploadPayload,
 } from '../services/attachmentService.js';
@@ -341,7 +342,21 @@ router.get(
  * Stream attachment content through API (authenticated)
  * GET /api/v1/attachments/:attachmentId/file
  */
-router.get('/attachments/:attachmentId/file', attachmentStreamRateLimiter, async (req, res, next) => {
+router.get('/attachments/:attachmentId/file', attachmentStreamRateLimiter, streamAttachmentFileHandler);
+
+/**
+ * Legacy card-scoped attachment file URL (redirect to canonical route).
+ * GET /api/v1/cards/:cardId/attachments/:attachmentId/file
+ */
+router.get(
+  '/cards/:cardId/attachments/:attachmentId/file',
+  attachmentStreamRateLimiter,
+  (req, res) => {
+    res.redirect(307, buildAttachmentProxyUrl(req.params.attachmentId));
+  },
+);
+
+async function streamAttachmentFileHandler(req: import('express').Request, res: Response, next: import('express').NextFunction): Promise<void> {
   try {
     const authReq = req as AuthenticatedRequest;
     const { attachmentId } = req.params;
@@ -409,7 +424,7 @@ router.get('/attachments/:attachmentId/file', attachmentStreamRateLimiter, async
   } catch (error) {
     next(error);
   }
-});
+}
 
 export { router as attachmentRoutes };
 

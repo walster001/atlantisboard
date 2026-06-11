@@ -4,13 +4,22 @@ import { isValidCardDescriptionJsonString } from './validation/cardDescriptionDo
 const ATTACHMENT_FILE_PATH =
   /\/attachments\/([^/?#]+)\/file(?:\?|#|$)/;
 
+/** Legacy card-scoped path: .../cards/:cardId/attachments/:id/file */
+const LEGACY_CARD_ATTACHMENT_FILE_PATH =
+  /\/cards\/[^/]+\/attachments\/([^/?#]+)\/file(?:\?|#|$)/;
+
+export function buildAttachmentProxyMediaPath(attachmentId: string): string {
+  return `/api/v1/attachments/${encodeURIComponent(attachmentId)}/file`;
+}
+
 export function extractAttachmentIdFromMediaSrc(src: string): string | null {
   const trimmed = src.trim();
   if (trimmed === '') {
     return null;
   }
-  const match = ATTACHMENT_FILE_PATH.exec(trimmed);
-  if (!match) {
+  const match =
+    ATTACHMENT_FILE_PATH.exec(trimmed) ?? LEGACY_CARD_ATTACHMENT_FILE_PATH.exec(trimmed);
+  if (!match?.[1]) {
     return null;
   }
   try {
@@ -18,6 +27,57 @@ export function extractAttachmentIdFromMediaSrc(src: string): string | null {
   } catch {
     return match[1];
   }
+}
+
+export function normalizeAttachmentMediaSrcToProxyPath(src: string): string {
+  const trimmed = src.trim();
+  if (trimmed === '') {
+    return trimmed;
+  }
+  const attachmentId = extractAttachmentIdFromMediaSrc(trimmed);
+  if (attachmentId == null) {
+    return trimmed;
+  }
+  return buildAttachmentProxyMediaPath(attachmentId);
+}
+
+/** Normalize attachment media URLs in a description JSON string to canonical /api/v1/attachments/:id/file paths. */
+export function normalizeCardDescriptionAttachmentUrls(rawJson: string): string {
+  const trimmed = rawJson.trim();
+  if (trimmed === '') {
+    return rawJson;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed) as unknown;
+  } catch {
+    return rawJson;
+  }
+
+  const normalizeNode = (node: unknown): unknown => {
+    if (!isRecord(node) || typeof node.type !== 'string') {
+      return node;
+    }
+    const type = node.type;
+    if ((type === 'image' || type === 'imageResize' || type === 'video') && isRecord(node.attrs)) {
+      const attrs = { ...node.attrs } as Record<string, unknown>;
+      if (typeof attrs.src === 'string' && attrs.src.trim() !== '') {
+        attrs.src = normalizeAttachmentMediaSrcToProxyPath(attrs.src);
+      }
+      if (type === 'video' && typeof attrs.poster === 'string' && attrs.poster.trim() !== '') {
+        attrs.poster = normalizeAttachmentMediaSrcToProxyPath(attrs.poster);
+      }
+      return { ...node, attrs };
+    }
+    if (Array.isArray(node.content)) {
+      return { ...node, content: node.content.map((child) => normalizeNode(child)) };
+    }
+    return node;
+  };
+
+  const normalized = normalizeNode(parsed);
+  const str = JSON.stringify(normalized);
+  return isValidCardDescriptionJsonString(str) ? str : rawJson;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

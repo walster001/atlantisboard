@@ -126,6 +126,13 @@ docker compose -f docker-compose.prod.yml up -d >> "$LOG_FILE" 2>&1 || {
 echo -e "${GREEN}✓${NC} Production services started"
 echo ""
 
+# Step 5b: Prune unused Docker images and build cache (safe for running containers)
+log "Pruning unused Docker images and build cache..."
+docker image prune -f >> "$LOG_FILE" 2>&1 || true
+docker builder prune -f --filter until=168h >> "$LOG_FILE" 2>&1 || true
+echo -e "${GREEN}✓${NC} Docker image/build cache pruned"
+echo ""
+
 # Step 6: Wait for services to be healthy
 log "Waiting for services to be ready..."
 APP_URL="http://localhost:${PORT:-3000}"

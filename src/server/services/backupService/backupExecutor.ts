@@ -1,5 +1,6 @@
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { finished, pipeline } from 'node:stream/promises';
@@ -26,6 +27,22 @@ import {
   mirrorMinioBucketsToWorkdir,
   mirrorMinioBucketsToWorkdirWithSdk,
 } from './minioIo.js';
+
+async function resolveBackupStagingRoot(location: string): Promise<string> {
+  const normalized = normalizeLocationPath(location);
+  const stagingRoot = join(normalized, '.staging');
+  try {
+    await mkdir(stagingRoot, { recursive: true });
+    await access(stagingRoot, fsConstants.W_OK);
+    return stagingRoot;
+  } catch (error) {
+    logger.warn(
+      { error, location: normalized },
+      'Backup staging under BACKUP_LOCATION unavailable; falling back to /tmp',
+    );
+    return tmpdir();
+  }
+}
 
 async function copyFileWithProgress(params: {
   readonly sourcePath: string;
@@ -67,9 +84,10 @@ export async function executeFullBackupWithProgressImpl(params: {
   readonly onProgress: BackupProgressReporter;
 }): Promise<{ folderId: string; filePath: string; sizeBytes: number; prunedCount: number }> {
   const { onProgress: reporter } = params;
-  const mongoDir = await mkdtemp(join(tmpdir(), 'atlboard-mongo-'));
-  const minioMirrorDir = await mkdtemp(join(tmpdir(), 'atlboard-minio-mirror-'));
-  const zipPath = join(tmpdir(), `atlboard-backup-${Date.now()}.zip`);
+  const stagingRoot = await resolveBackupStagingRoot(params.location);
+  const mongoDir = await mkdtemp(join(stagingRoot, 'atlboard-mongo-'));
+  const minioMirrorDir = await mkdtemp(join(stagingRoot, 'atlboard-minio-mirror-'));
+  const zipPath = join(stagingRoot, `atlboard-backup-${Date.now()}.zip`);
   let minioArchiveMethod: MinioArchiveMethod = 'mc-mirror-v1';
   try {
     throwIfCancelled(params.signal);

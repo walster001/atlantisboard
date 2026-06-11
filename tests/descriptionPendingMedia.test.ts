@@ -23,11 +23,11 @@ describe('descriptionPendingMedia', () => {
     const uploaded: string[] = [];
     const result = await flushPendingDescriptionMediaInJson(jsonString, registry, async (uploadedFile) => {
       uploaded.push(uploadedFile.name);
-      return '/api/v1/cards/card-1/attachments/att-1/file';
+      return '/api/v1/attachments/att-1/file';
     });
 
     expect(uploaded).toEqual(['photo.png']);
-    expect(result).toContain('/api/v1/cards/card-1/attachments/att-1/file');
+    expect(result).toContain('/api/v1/attachments/att-1/file');
     expect(result).not.toContain('blob:');
     expect(registry.size).toBe(0);
   });

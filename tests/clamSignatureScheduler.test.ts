@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'bun:test';
+import { getSignatureRefreshIntervalMs } from '../src/server/utils/clamSignatureConfig.js';
 import {
-  getSignatureRefreshIntervalMs,
   isSignatureRefreshSchedulerEnabled,
   startClamSignatureRefreshScheduler,
   stopClamSignatureRefreshSchedulerForTests,

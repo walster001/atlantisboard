@@ -17,6 +17,8 @@ type FileStorageObjectTableProps = {
   readonly selectedKey: string | null;
   readonly deletingKey: string | null;
   readonly downloadingKey: string | null;
+  /** Mobile admin: hide size/modified columns; name wraps for readability. */
+  readonly hideMetaColumns?: boolean;
   readonly onOpenFolder: (key: string) => void;
   readonly onSelectFile: (entry: AdminFileStorageObjectEntry) => void;
   readonly onDownload: (key: string) => void;
@@ -29,6 +31,7 @@ export function FileStorageObjectTable({
   selectedKey,
   deletingKey,
   downloadingKey,
+  hideMetaColumns = false,
   onOpenFolder,
   onSelectFile,
   onDownload,
@@ -54,12 +57,26 @@ export function FileStorageObjectTable({
   }
 
   return (
-    <Table striped highlightOnHover withTableBorder layout="fixed">
+    <Table
+      striped
+      highlightOnHover
+      withTableBorder
+      layout="fixed"
+      className={
+        hideMetaColumns
+          ? 'admin-file-storage-panel__object-table admin-file-storage-panel__object-table--mobile'
+          : 'admin-file-storage-panel__object-table'
+      }
+    >
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
-          <Table.Th w={88}>Size</Table.Th>
-          <Table.Th w={120}>Modified</Table.Th>
+          {!hideMetaColumns ? (
+            <>
+              <Table.Th w={88}>Size</Table.Th>
+              <Table.Th w={120}>Modified</Table.Th>
+            </>
+          ) : null}
           <Table.Th w={88}>Actions</Table.Th>
         </Table.Tr>
       </Table.Thead>
@@ -79,7 +96,7 @@ export function FileStorageObjectTable({
             {...(!entry.isFolder ? { style: { cursor: 'pointer' as const } } : {})}
           >
             <Table.Td>
-              <Group gap="xs" wrap="nowrap">
+              <Group gap="xs" wrap={hideMetaColumns ? 'wrap' : 'nowrap'}>
                 {entry.isFolder ? <IconFolder size={18} stroke={1.5} /> : null}
                 {entry.isFolder ? (
                   <Text
@@ -87,6 +104,9 @@ export function FileStorageObjectTable({
                     type="button"
                     size="sm"
                     ff="monospace"
+                    {...(hideMetaColumns
+                      ? { className: 'admin-file-storage-panel__object-name--wrap' }
+                      : {})}
                     style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -96,16 +116,20 @@ export function FileStorageObjectTable({
                     {entry.name}
                   </Text>
                 ) : (
-                  <FileStorageObjectName entry={entry} />
+                  <FileStorageObjectName entry={entry} wrapName={hideMetaColumns} />
                 )}
               </Group>
             </Table.Td>
-            <Table.Td>{entry.isFolder ? '—' : formatFileSize(entry.size)}</Table.Td>
-            <Table.Td>
-              <Text size="xs" lineClamp={1}>
-                {formatModifiedAt(entry.lastModified)}
-              </Text>
-            </Table.Td>
+            {!hideMetaColumns ? (
+              <>
+                <Table.Td>{entry.isFolder ? '—' : formatFileSize(entry.size)}</Table.Td>
+                <Table.Td>
+                  <Text size="xs" lineClamp={1}>
+                    {formatModifiedAt(entry.lastModified)}
+                  </Text>
+                </Table.Td>
+              </>
+            ) : null}
             <Table.Td>
               <Group gap={4} wrap="nowrap" onClick={(event) => event.stopPropagation()}>
                 {!entry.isFolder ? (

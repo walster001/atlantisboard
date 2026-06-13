@@ -8,8 +8,9 @@
 #   chmod +x scripts/prod-staging-remote-deploy.sh
 #
 # Examples:
-#   ./scripts/prod-staging-remote-deploy.sh
+#   ./scripts/prod-staging-remote-deploy.sh --quick
 #   ./scripts/prod-staging-remote-deploy.sh --local --skip-ci
+#   ./scripts/prod-staging-remote-deploy.sh            # needs GitHub CLI (gh) for CI + Staging
 #   ./scripts/prod-staging-remote-deploy.sh --action repair --dry-run
 #
 set -euo pipefail
@@ -78,6 +79,7 @@ Options:
   --ssh user@host       Remote SSH target (overrides config)
   --install-dir PATH    Remote install dir (overrides config)
   --local               Build package locally (skip Staging workflow)
+  --quick               Same as --local --skip-ci (no GitHub CLI required)
   --skip-ci             Do not wait for/trigger CI
   --skip-staging        Use existing local artifact dir (--artifact-dir required unless --local)
   --artifact-dir PATH   Use this installer tree instead of downloading
@@ -130,6 +132,12 @@ parse_args() {
         SKIP_STAGING=true
         shift
         ;;
+      --quick)
+        LOCAL_BUILD=true
+        SKIP_STAGING=true
+        SKIP_CI=true
+        shift
+        ;;
       --skip-ci)
         SKIP_CI=true
         shift
@@ -162,20 +170,35 @@ parse_args() {
 }
 
 require_tools() {
-  local missing=()
+  local -a missing=()
+  local -A seen=()
+  need_cmd() {
+    local cmd="$1"
+    command -v "$cmd" >/dev/null 2>&1 && return 0
+    [[ -n "${seen[$cmd]:-}" ]] && return 0
+    seen[$cmd]=1
+    missing+=("$cmd")
+  }
+
   for cmd in git ssh rsync; do
-    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+    need_cmd "$cmd"
   done
   if [[ "$LOCAL_BUILD" == true ]]; then
-    command -v bun >/dev/null 2>&1 || missing+=("bun")
+    need_cmd bun
   fi
   if [[ "$SKIP_STAGING" != true && -z "$ARTIFACT_DIR" ]]; then
-    command -v gh >/dev/null 2>&1 || missing+=("gh")
+    need_cmd gh
   fi
   if [[ "$SKIP_CI" != true && "$LOCAL_BUILD" != true ]]; then
-    command -v gh >/dev/null 2>&1 || missing+=("gh")
+    need_cmd gh
   fi
   if [[ "${#missing[@]}" -gt 0 ]]; then
+    if [[ " ${missing[*]} " == *" gh "* ]]; then
+      die "Missing required tools: ${missing[*]}
+
+Install GitHub CLI (https://cli.github.com/) for CI + Staging workflows, or deploy without it:
+  ./scripts/prod-staging-remote-deploy.sh --quick"
+    fi
     die "Missing required tools: ${missing[*]}"
   fi
 }

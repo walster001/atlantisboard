@@ -35,7 +35,6 @@ MEDIA_SIGN_SECRET=passwordpasswordpasswordpasswordpassw
 EOF
 
 export PKG_ROOT
-readonly ENV_FIELDS="${PKG_ROOT}/install/env-fields.json"
 # shellcheck source=lib/common.sh
 source "${PKG_ROOT}/install/lib/common.sh"
 

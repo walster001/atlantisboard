@@ -93,3 +93,4 @@ public/index.js
 snap-migration.md
 useeffect-report.md
 scripts/prod-remote-deploy.env copy.example
+public/index.js

@@ -14585,6 +14585,41 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   justify-content: center;
 }
 
+.admin-users-tab__mobile-list {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-users-tab__mobile-master {
+  flex-shrink: 0;
+}
+
+.admin-users-tab__mobile-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-width: 0;
+  min-height: 280px;
+  max-height: min(62vh, 680px);
+}
+
+.admin-users-tab__mobile-virtuoso {
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-users-tab__mobile-footer {
+  padding: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--mantine-color-gray-2);
+  flex-shrink: 0;
+}
+
+.admin-users-tab__mobile-card {
+  min-width: 0;
+}
+
 /* src/client/components/admin/AdminFileStoragePanel/adminFileStoragePanel.css */
 .admin-file-storage-panel {
   display: flex;
@@ -14653,7 +14688,23 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   background-color: var(--mantine-color-blue-0);
 }
 
+.admin-file-storage-panel__object-table--mobile .admin-file-storage-panel__object-name--wrap {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: left;
+}
+
 @media (max-width: 48em) {
+  .admin-file-storage-panel__object-table--mobile {
+    table-layout: auto;
+  }
+
+  .admin-file-storage-panel__object-table--mobile th:first-child, .admin-file-storage-panel__object-table--mobile td:first-child {
+    width: auto;
+    min-width: 0;
+  }
+
   .admin-file-storage-panel__split {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) auto;

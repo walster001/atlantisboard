@@ -344,18 +344,19 @@ run_remote_upgrade() {
 set -euo pipefail
 cd '$PROD_REMOTE_PACKAGE_DIR'
 chmod +x atlantisboard-setup
-export ATL_NONINTERACTIVE=1
-export INSTALL_ACTION='$PROD_REMOTE_INSTALL_ACTION'
-export ATLANTISBOARD_INSTALL_DIR='$PROD_REMOTE_INSTALL_DIR'
-sudo -E ./atlantisboard-setup --non-interactive --action '$PROD_REMOTE_INSTALL_ACTION' --install-dir '$PROD_REMOTE_INSTALL_DIR'
+sudo env \
+  ATL_NONINTERACTIVE=1 \
+  INSTALL_ACTION='$PROD_REMOTE_INSTALL_ACTION' \
+  ATLANTISBOARD_INSTALL_DIR='$PROD_REMOTE_INSTALL_DIR' \
+  ./atlantisboard-setup --non-interactive --action '$PROD_REMOTE_INSTALL_ACTION' --install-dir '$PROD_REMOTE_INSTALL_DIR'
 REMOTE
 )"
 
   if [[ -n "$PROD_REMOTE_SSH_OPTS" ]]; then
     # shellcheck disable=SC2086
-    ssh $PROD_REMOTE_SSH_OPTS -t "$PROD_REMOTE_SSH" bash -s <<<"$remote_script"
+    ssh $PROD_REMOTE_SSH_OPTS -T "$PROD_REMOTE_SSH" bash -s <<<"$remote_script"
   else
-    ssh -t "$PROD_REMOTE_SSH" bash -s <<<"$remote_script"
+    ssh -T "$PROD_REMOTE_SSH" bash -s <<<"$remote_script"
   fi
 }
 

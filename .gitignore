@@ -21,6 +21,7 @@ packages/atlantisboard/README.md
 .env
 .env.local
 .env.*.local
+scripts/prod-remote-deploy.env
 
 # Logs
 logs/
@@ -91,3 +92,4 @@ docs/DOCKER-DEV-DATA.md
 public/index.js
 snap-migration.md
 useeffect-report.md
+scripts/prod-remote-deploy.env copy.example

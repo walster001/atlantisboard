@@ -144,8 +144,12 @@ atl_start_docker_stack() {
     if [[ "$INSTALL_ACTION" != "repair" && "$INSTALL_ACTION" != "update" ]]; then
       atl_warn_docker_volume_desync "$MODE" "$PRIOR_ENV"
     fi
-    atl_whiptail_display --title "Starting dependencies" --infobox \
-      "Starting MongoDB, Redis, and MinIO containers..." 8 60
+    if atl_is_noninteractive; then
+      info "Starting MongoDB, Redis, and MinIO containers..."
+    else
+      atl_whiptail_display --title "Starting dependencies" --infobox \
+        "Starting MongoDB, Redis, and MinIO containers..." 8 60
+    fi
     atl_docker_compose_or_continue \
       "${INSTALL_DIR}/install/docker" \
       docker-compose.deps.yml up -d
@@ -167,8 +171,12 @@ Only the app image is rebuilt and restarted.
 EOF
 )"
       compose_args=(up -d --build app)
-      atl_whiptail_display --title "Updating app container" --infobox \
-        "$fullstack_msg" 12 70
+      if atl_is_noninteractive; then
+        info "$fullstack_msg"
+      else
+        atl_whiptail_display --title "Updating app container" --infobox \
+          "$fullstack_msg" 12 70
+      fi
     else
       fullstack_msg="$(cat <<'EOF'
 Building the Atlantisboard image and starting all containers.
@@ -178,8 +186,12 @@ The first attachment upload (or clicking Add) may download virus
 definitions; signatures are stored in the clamav-sigs volume.
 EOF
 )"
-      atl_whiptail_display --title "Building full stack" --infobox \
-        "$fullstack_msg" 10 70
+      if atl_is_noninteractive; then
+        info "$fullstack_msg"
+      else
+        atl_whiptail_display --title "Building full stack" --infobox \
+          "$fullstack_msg" 10 70
+      fi
       if [[ "${#build_flag[@]}" -gt 0 ]]; then
         compose_args+=(--build)
       fi
@@ -219,27 +231,33 @@ main() {
   fi
 
   if [[ "$(uname -s)" != "Linux" ]]; then
-    err "atlantisboard-setup requires Linux (whiptail)."
+    err "atlantisboard-setup requires Linux."
     err "On macOS use Docker or manual install."
     err "See docs/wiki/npm-install.md."
     exit 1
   fi
 
-  if ! command -v whiptail >/dev/null 2>&1; then
-    if ! atl_bootstrap_whiptail; then
-      err "atlantisboard-setup requires whiptail."
-      err "Install it and retry:"
-      err "  Debian/Ubuntu: sudo apt install whiptail"
-      err "  Fedora: sudo dnf install newt"
-      exit 1
-    fi
-  fi
-
-  atl_apply_theme
   atl_require_sudo_access
 
-  local welcome_msg
-  welcome_msg="$(cat <<'EOF'
+  if atl_is_noninteractive; then
+    if ! atl_init_noninteractive_upgrade "$INSTALL_DIR"; then
+      exit 1
+    fi
+  else
+    if ! command -v whiptail >/dev/null 2>&1; then
+      if ! atl_bootstrap_whiptail; then
+        err "atlantisboard-setup requires whiptail."
+        err "Install it and retry:"
+        err "  Debian/Ubuntu: sudo apt install whiptail"
+        err "  Fedora: sudo dnf install newt"
+        exit 1
+      fi
+    fi
+
+    atl_apply_theme
+
+    local welcome_msg
+    welcome_msg="$(cat <<'EOF'
 This installer sets up Atlantisboard end to end:
 
 - App and dependencies (Docker or Bun)
@@ -251,47 +269,48 @@ When it finishes, open the public site URL you enter.
 Press OK to start.
 EOF
 )"
-  atl_whiptail_msgbox --title "Welcome to Atlantisboard" --msgbox \
-    "$welcome_msg" 16 72 || exit 0
+    atl_whiptail_msgbox --title "Welcome to Atlantisboard" --msgbox \
+      "$welcome_msg" 16 72 || exit 0
 
-  local install_menu_prompt
-  install_menu_prompt="How should Atlantisboard run on this server?"
-  MODE="$(atl_whiptail_capture --title "Installation type" --menu \
-    "$install_menu_prompt" 18 78 3 \
-    "fullstack" \
-      "Docker full stack - app, database, Redis, and storage (easiest)" \
-    "docker" \
-      "Docker dependencies only - app runs on this server with Bun" \
-    "manual" \
-      "Bring your own MongoDB, Redis, and MinIO")" || exit 1
-  MODE="$(atl_sanitize_input "$MODE")"
-  case "$MODE" in
-    fullstack | docker | manual) ;;
-    *)
-      local invalid_mode_msg
-      invalid_mode_msg="$(cat <<'EOF'
+    local install_menu_prompt
+    install_menu_prompt="How should Atlantisboard run on this server?"
+    MODE="$(atl_whiptail_capture --title "Installation type" --menu \
+      "$install_menu_prompt" 18 78 3 \
+      "fullstack" \
+        "Docker full stack - app, database, Redis, and storage (easiest)" \
+      "docker" \
+        "Docker dependencies only - app runs on this server with Bun" \
+      "manual" \
+        "Bring your own MongoDB, Redis, and MinIO")" || exit 1
+    MODE="$(atl_sanitize_input "$MODE")"
+    case "$MODE" in
+      fullstack | docker | manual) ;;
+      *)
+        local invalid_mode_msg
+        invalid_mode_msg="$(cat <<'EOF'
 Could not read the selected installation type.
 
 Run atlantisboard-setup from an interactive terminal
 (not piped or redirected).
 EOF
 )"
-      atl_whiptail_display --title "Installation type" --msgbox \
-        "$invalid_mode_msg" 12 72 || true
-      exit 1
-      ;;
-  esac
+        atl_whiptail_display --title "Installation type" --msgbox \
+          "$invalid_mode_msg" 12 72 || true
+        exit 1
+        ;;
+    esac
 
-  atl_prompt_install_dir "$INSTALL_DIR"
-  atl_finalize_install_dir
+    atl_prompt_install_dir "$INSTALL_DIR"
+    atl_finalize_install_dir
 
-  existing_state="$(atl_detect_existing_install "$INSTALL_DIR")"
-  INSTALL_ACTION="fresh"
-  if [[ "$existing_state" == "partial" || "$existing_state" == "complete" ]]; then
-    if ! INSTALL_ACTION="$(atl_prompt_install_action \
-      "$existing_state" "$INSTALL_DIR" "$MODE")"; then
-      info "Setup cancelled."
-      exit 0
+    existing_state="$(atl_detect_existing_install "$INSTALL_DIR")"
+    INSTALL_ACTION="fresh"
+    if [[ "$existing_state" == "partial" || "$existing_state" == "complete" ]]; then
+      if ! INSTALL_ACTION="$(atl_prompt_install_action \
+        "$existing_state" "$INSTALL_DIR" "$MODE")"; then
+        info "Setup cancelled."
+        exit 0
+      fi
     fi
   fi
 
@@ -412,8 +431,12 @@ EOF
       fi
       action_summary+="Existing .env and data volumes were preserved."
     fi
-    atl_whiptail_msgbox --title "$action_title" --msgbox \
-      "$action_summary" 14 72 || true
+    if atl_is_noninteractive; then
+      info "$action_title: $(printf '%b' "$action_summary")"
+    else
+      atl_whiptail_msgbox --title "$action_title" --msgbox \
+        "$action_summary" 14 72 || true
+    fi
   else
     if [[ "$INSTALL_ACTION" == "reinstall" ]] \
       && atl_sudo test -f "$ENV_FILE"; then
@@ -561,8 +584,12 @@ If the page does not load yet, wait a minute for TLS certificates (Caddy)
 or check that DNS points to this server.
 EOF
 )"
-  atl_whiptail_msgbox --title "Installation complete" --msgbox \
-    "$complete_msg" 16 72 || true
+  if atl_is_noninteractive; then
+    info "$complete_msg"
+  else
+    atl_whiptail_msgbox --title "Installation complete" --msgbox \
+      "$complete_msg" 16 72 || true
+  fi
 }
 
 main "$@"

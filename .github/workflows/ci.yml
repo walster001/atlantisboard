@@ -5,6 +5,12 @@ on:
     branches: ["main", "master"]
   pull_request:
     branches: ["main", "master"]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Optional note (e.g. prod remote deploy)"
+        required: false
+        type: string
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}

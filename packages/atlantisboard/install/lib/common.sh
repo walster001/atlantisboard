@@ -37,6 +37,8 @@ source "${PKG_ROOT}/install/lib/common-docker.sh"
 source "${PKG_ROOT}/install/lib/common-systemd.sh"
 # shellcheck source=lib/common-install-integrity.sh
 source "${PKG_ROOT}/install/lib/common-install-integrity.sh"
+# shellcheck source=lib/common-noninteractive.sh
+source "${PKG_ROOT}/install/lib/common-noninteractive.sh"
 
 # Backward-compatibility hints for static tests and grep-based guards:
 # atl_whiptail_capture()

@@ -578,6 +578,10 @@ atl_prompt_env_fields() {
 atl_prompt_missing_env_fields() {
   local mode="$1"
   export ATL_ENV_FIELDS_PROMPTED=false
+  if atl_is_noninteractive; then
+    atl_assert_required_env_fields "$mode" || exit 1
+    return 0
+  fi
   if ! atl_env_fields_jq_ready; then
     return 0
   fi

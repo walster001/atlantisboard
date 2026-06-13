@@ -455,6 +455,11 @@ atl_docker_compose_or_continue() {
   local compose_label="${compose_file}"
   local install_hint="${INSTALL_DIR:-/opt/atlantisboard}"
 
+  if atl_is_noninteractive; then
+    atl_docker_compose "$compose_dir" "$compose_file" "$@" || exit 1
+    return 0
+  fi
+
   if atl_docker_compose "$compose_dir" "$compose_file" "$@"; then
     return 0
   fi
@@ -494,6 +499,10 @@ atl_wait_for_docker_deps_or_continue() {
   fi
   if atl_wait_for_docker_deps "$mode" "$timeout"; then
     return 0
+  fi
+  if atl_is_noninteractive; then
+    err "Docker dependencies did not become healthy within ${timeout} seconds"
+    exit 1
   fi
   local msg
   msg="Docker dependencies did not become healthy within ${timeout} "

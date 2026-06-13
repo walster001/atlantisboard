@@ -42,6 +42,12 @@ describe('repo-root production Docker', () => {
     expect(entrypoint).toContain('POMPELMI_CLAMD_MIN_RAM_MB');
   });
 
+  test('entrypoint keeps Docker fullstack backup bind mount writable', () => {
+    const entrypoint = readFileSync(join(REPO_ROOT, 'docker', 'entrypoint.sh'), 'utf8');
+    expect(entrypoint).toContain('ATL_DOCKER_FULLSTACK');
+    expect(entrypoint).toContain('chown bunjs:nodejs /data/backups');
+  });
+
   test('repo-root entrypoint matches installer fullstack entrypoint', () => {
     const repoEntrypoint = readFileSync(join(REPO_ROOT, 'docker', 'entrypoint.sh'), 'utf8');
     const installEntrypoint = readFileSync(INSTALL_ENTRYPOINT, 'utf8');

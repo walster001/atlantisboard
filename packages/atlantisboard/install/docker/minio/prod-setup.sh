@@ -15,7 +15,8 @@ for bucket in import-inline card-attachments branding fonts user-avatars backgro
 done
 
 if [ "$APP_KEY" != "$ROOT_KEY" ] || [ "$APP_SECRET" != "$ROOT_SECRET" ]; then
-  mc admin policy create myminio kanboard-app-rw /policy/app-readwrite-policy.json 2>/dev/null || true
+  mc admin policy rm myminio kanboard-app-rw 2>/dev/null || true
+  mc admin policy create myminio kanboard-app-rw /policy/app-readwrite-policy.json
   mc admin user add myminio "$APP_KEY" "$APP_SECRET" 2>/dev/null || true
   mc admin policy attach myminio kanboard-app-rw --user "$APP_KEY" 2>/dev/null || true
   echo "scoped MinIO application user configured"

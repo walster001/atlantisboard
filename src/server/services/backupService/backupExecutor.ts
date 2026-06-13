@@ -108,15 +108,7 @@ export async function executeFullBackupWithProgressImpl(params: {
       });
       minioArchiveMethod = 'mc-mirror-v1';
     } catch (error) {
-      const isMcUnavailable =
-        error != null &&
-        typeof error === 'object' &&
-        'code' in error &&
-        (error as { code?: unknown }).code === 'ENOENT';
-      if (!isMcUnavailable) {
-        throw error;
-      }
-      logger.warn({ error }, 'mc binary unavailable; falling back to MinIO SDK mirror');
+      logger.warn({ error }, 'mc mirror failed; falling back to MinIO SDK mirror');
       await mirrorMinioBucketsToWorkdirWithSdk({
         minioRoot: minioMirrorDir,
         signal: params.signal,

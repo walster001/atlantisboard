@@ -173,6 +173,9 @@ backup_dir="${BACKUP_LOCATION:-/data/backups}"
 if [ "$(id -u)" = "0" ]; then
   mkdir -p "$backup_dir"
   chown bunjs:nodejs "$backup_dir"
+  if [ "${ATL_DOCKER_FULLSTACK:-}" = "true" ] && [ -d /data/backups ]; then
+    chown bunjs:nodejs /data/backups
+  fi
   if [ -f /app/.env ]; then
     chown bunjs:nodejs /app/.env
     chmod u+w /app/.env

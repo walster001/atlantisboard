@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
+import { appendAttachmentListCoverPreviewQuery } from '../../../shared/attachmentPreviewAsset.js';
 
 /** Same as IntersectionObserver `rootMargin` below (px on each side). */
 const RICH_CONTENT_NEAR_VIEWPORT_MARGIN_PX = 240;
@@ -112,7 +113,7 @@ export function resolveCardCoverRenderUrl(card: CardDB): string {
   const coverPath = normalizeObjectPath(cover);
   const coverAttachment = card.attachments.find((att) => normalizeObjectPath(att.url) === coverPath);
   if (coverAttachment != null) {
-    return api.getAttachmentFileUrl(coverAttachment.id);
+    return appendAttachmentListCoverPreviewQuery(api.getAttachmentFileUrl(coverAttachment.id));
   }
-  return api.resolveAttachmentUrl(cover);
+  return appendAttachmentListCoverPreviewQuery(api.resolveAttachmentUrl(cover));
 }

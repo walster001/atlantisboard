@@ -1,13 +1,14 @@
+import {
+  CARD_TILE_IMAGE_PREVIEW,
+  appendCardTileImagePreviewQuery,
+  parseCardTileImagePreviewPreset,
+} from './imagePreviewPreset.js';
+
 /** Public API path for a stored board background object (MinIO). */
 export const BOARD_BACKGROUND_API_PATH =
   /^\/api\/v1\/board-backgrounds\/([a-f0-9-]{36}\.(png|jpg|jpeg|webp|gif))$/i;
 
-export const BOARD_BACKGROUND_CARD_PREVIEW = {
-  queryKey: 'preview',
-  queryValue: 'card',
-  maxWidth: 520,
-  quality: 72,
-} as const;
+export const BOARD_BACKGROUND_CARD_PREVIEW = CARD_TILE_IMAGE_PREVIEW;
 
 export function isBoardBackgroundAssetPath(pathname: string): boolean {
   const trimmed = pathname.trim();
@@ -21,15 +22,7 @@ export function appendBoardBackgroundPreviewQuery(url: string): string {
   if (trimmed === '' || !isBoardBackgroundAssetUrl(trimmed)) {
     return trimmed;
   }
-  const hashIndex = trimmed.indexOf('#');
-  const hash = hashIndex >= 0 ? trimmed.slice(hashIndex) : '';
-  const withoutHash = hashIndex >= 0 ? trimmed.slice(0, hashIndex) : trimmed;
-  const { queryKey, queryValue } = BOARD_BACKGROUND_CARD_PREVIEW;
-  if (new RegExp(`[?&]${queryKey}=`).test(withoutHash)) {
-    return trimmed;
-  }
-  const separator = withoutHash.includes('?') ? '&' : '?';
-  return `${withoutHash}${separator}${queryKey}=${queryValue}${hash}`;
+  return appendCardTileImagePreviewQuery(trimmed);
 }
 
 export function isBoardBackgroundAssetUrl(input: string): boolean {
@@ -47,11 +40,5 @@ export function isBoardBackgroundAssetUrl(input: string): boolean {
 export function parseBoardBackgroundPreviewPreset(
   previewRaw: string | undefined,
 ): { readonly maxWidth: number; readonly quality: number } | null {
-  if (previewRaw !== BOARD_BACKGROUND_CARD_PREVIEW.queryValue) {
-    return null;
-  }
-  return {
-    maxWidth: BOARD_BACKGROUND_CARD_PREVIEW.maxWidth,
-    quality: BOARD_BACKGROUND_CARD_PREVIEW.quality,
-  };
+  return parseCardTileImagePreviewPreset(previewRaw);
 }

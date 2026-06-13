@@ -25,6 +25,8 @@ import { Card } from '../models/Card.js';
 import { hasPermission } from '../utils/permissions.js';
 import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import { logger } from '../utils/logger.js';
+import { parseCardTileImagePreviewPreset } from '../../shared/imagePreviewPreset.js';
+import { getAttachmentPreviewBuffer } from '../services/attachmentService/preview.js';
 import {
   ValidationError,
 } from '../../shared/errors/domainErrors.js';
@@ -374,6 +376,26 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
     }
 
     const meta = resolved.objectMeta;
+    const previewPreset = parseCardTileImagePreviewPreset(
+      typeof req.query.preview === 'string' ? req.query.preview : undefined,
+    );
+    if (previewPreset != null) {
+      const preview = await getAttachmentPreviewBuffer(
+        resolved.attachment.url,
+        meta.contentType,
+        previewPreset.maxWidth,
+        previewPreset.quality,
+      );
+      if (preview != null) {
+        res.setHeader('Accept-Ranges', 'none');
+        res.setHeader('Cache-Control', 'private, max-age=86400');
+        res.setHeader('Content-Type', preview.contentType);
+        res.setHeader('Content-Length', String(preview.buffer.length));
+        res.status(200).send(preview.buffer);
+        return;
+      }
+    }
+
     const rangeHeader = req.headers.range;
     const rangeRaw = Array.isArray(rangeHeader) ? rangeHeader[0] : rangeHeader;
     const parsed = parseSingleHttpBytesRange(

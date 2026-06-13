@@ -79,6 +79,6 @@ export async function executeBackupJobById(params: {
     return 1;
   } finally {
     activeJobControllers.delete(jobId);
-    runBunGarbageCollection('backup-job-complete');
+    runBunGarbageCollection('backup-job-complete', 'backup');
   }
 }

@@ -14173,7 +14173,15 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
 @media (max-width: 767px) {
   .admin-configuration-page--mobile {
+    display: flex;
+    box-sizing: border-box;
     padding: calc(8px + env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  .admin-configuration-page--mobile .admin-configuration-page__header {
+    flex-shrink: 0;
   }
 
   .admin-configuration-page--pwa {
@@ -14185,7 +14193,11 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
   .admin-configuration-page__mobile-top-icons {
     display: flex;
+    overflow-x: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     flex-wrap: nowrap;
+    flex-shrink: 0;
     justify-content: flex-start;
     align-items:  center;
     gap: 10px;
@@ -14224,6 +14236,44 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   .admin-configuration-page__mobile-content:has(.roles-permissions-tab--mobile-nav) .roles-permissions-tab {
     flex: auto;
     min-height: 0;
+  }
+
+  .admin-configuration-page__mobile-content:has(.admin-users-tab--mobile) {
+    display: flex;
+    overflow: hidden;
+    flex-direction: column;
+    flex: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .admin-configuration-page__mobile-content:has(.admin-users-tab--mobile) .admin-users-tab--mobile {
+    flex: auto;
+    min-height: 0;
+  }
+
+  .admin-configuration-page__mobile-content:has(.admin-reporting-section--mobile) {
+    display: flex;
+    overflow: auto;
+    overscroll-behavior: contain;
+    flex-direction: column;
+    flex: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .admin-configuration-page__mobile-content:has(.admin-reporting-section--mobile) .admin-reporting-section--mobile {
+    flex: auto;
+    width: 100%;
+    min-height: 0;
+  }
+
+  .admin-reporting-section__mobile-list {
+    overflow: auto;
+    overscroll-behavior: contain;
+    flex: auto;
+    min-height: 0;
+    margin-top: 8px;
   }
 }
 
@@ -14331,6 +14381,387 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   display: block;
   object-fit: contain;
   flex-shrink: 0;
+}
+
+/* src/client/components/admin/AdminReportingBoardActivity/adminReportingBoardActivity.css */
+.admin-reporting-board-activity {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-reporting-board-activity__surface {
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-white);
+  overflow: hidden;
+  flex: auto;
+  min-height: 280px;
+}
+
+.admin-reporting-board-activity__virtuoso {
+  height: 100%;
+  min-height: 280px;
+}
+
+.admin-reporting-board-activity__virtuoso .board-day-log__entry {
+  border: none;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+  background-color: var(--mantine-color-white);
+  border-radius: 0;
+  padding: 12px 16px;
+}
+
+.admin-configuration-page__layout--reporting-board-activity {
+  min-height: calc(100vh - 220px);
+  max-height: calc(100vh - 160px);
+}
+
+.admin-configuration-page__layout--reporting-board-activity .admin-configuration-page__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-activity {
+  min-height: calc(100dvh - 140px);
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-activity__surface, .admin-reporting-section--mobile .admin-reporting-board-activity__virtuoso {
+  min-height: calc(100dvh - 240px);
+}
+
+/* src/client/components/admin/AdminReportingBoardList/adminReportingBoardList.css */
+.admin-reporting-board-list, .admin-reporting-board-list__table-panel {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-reporting-board-list__table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-sm);
+  background-color: var(--mantine-color-white);
+  flex-direction: column;
+  flex: auto;
+  min-height: 280px;
+  max-height: min(62vh, 680px);
+}
+
+.admin-reporting-board-list__virtuoso-root {
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-reporting-board-list__table-footer {
+  padding: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--mantine-color-gray-2);
+  flex-shrink: 0;
+}
+
+.admin-reporting-board-list__data-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 1292px;
+}
+
+.admin-reporting-board-list__data-table tbody tr {
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-reporting-board-list__data-table tbody tr:hover .admin-reporting-board-list__td {
+  background-color: var(--mantine-color-gray-1);
+}
+
+.admin-reporting-board-list__th {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--mantine-font-size-sm);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+  border-right: 1px solid var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-gray-0);
+  white-space: nowrap;
+}
+
+.admin-reporting-board-list__th:last-child {
+  border-right: none;
+}
+
+.admin-reporting-board-list__td {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  vertical-align: middle;
+  font-size: var(--mantine-font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-right: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-reporting-board-list__td:last-child {
+  border-right: none;
+}
+
+.admin-reporting-board-list__td--striped {
+  background-color: var(--mantine-color-gray-0);
+}
+
+.admin-reporting-board-list__td--numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-reporting-board-list__th--actions, .admin-reporting-board-list__td--actions {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.admin-reporting-board-list__mobile-list {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-reporting-board-list__mobile-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-width: 0;
+  min-height: 280px;
+  max-height: min(62vh, 680px);
+}
+
+.admin-reporting-board-list__mobile-virtuoso {
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-reporting-board-list__mobile-footer {
+  padding: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--mantine-color-gray-2);
+  flex-shrink: 0;
+}
+
+.admin-reporting-board-list__mobile-card {
+  min-width: 0;
+}
+
+.admin-configuration-page__layout--reporting-board-list {
+  min-height: calc(100vh - 220px);
+  max-height: calc(100vh - 160px);
+}
+
+.admin-configuration-page__layout--reporting-board-list .admin-configuration-page__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-list {
+  min-height: calc(100dvh - 140px);
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-list__table-panel--mobile {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-list__mobile-scroll {
+  overflow: hidden;
+  flex: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+@media (max-width: 767px) {
+  .admin-reporting-board-list--mobile {
+    flex: auto;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .admin-reporting-board-list--mobile > :not(.admin-reporting-board-list__table-panel--mobile) {
+    flex-shrink: 0;
+  }
+}
+
+/* src/client/components/admin/AdminReportingCardList/adminReportingCardList.css */
+.admin-reporting-card-list, .admin-reporting-card-list__table-panel {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-reporting-card-list__table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-sm);
+  background-color: var(--mantine-color-white);
+  flex-direction: column;
+  flex: auto;
+  min-height: 280px;
+  max-height: min(62vh, 680px);
+}
+
+.admin-reporting-card-list__virtuoso-root {
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-reporting-card-list__table-footer {
+  padding: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--mantine-color-gray-2);
+  flex-shrink: 0;
+}
+
+.admin-reporting-card-list__data-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 1180px;
+}
+
+.admin-reporting-card-list__data-table tbody tr {
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-reporting-card-list__data-table tbody tr:hover .admin-reporting-card-list__td {
+  background-color: var(--mantine-color-gray-1);
+}
+
+.admin-reporting-card-list__th {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--mantine-font-size-sm);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+  border-right: 1px solid var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-gray-0);
+  white-space: nowrap;
+}
+
+.admin-reporting-card-list__th:last-child {
+  border-right: none;
+}
+
+.admin-reporting-card-list__td {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  vertical-align: middle;
+  font-size: var(--mantine-font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-right: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-reporting-card-list__td:last-child {
+  border-right: none;
+}
+
+.admin-reporting-card-list__td--striped {
+  background-color: var(--mantine-color-gray-0);
+}
+
+.admin-reporting-card-list__td--mono {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+}
+
+.admin-reporting-card-list__td--numeric {
+  text-align: center;
+}
+
+.admin-reporting-card-list__mobile-virtuoso {
+  min-height: 280px;
+  max-height: min(62vh, 680px);
+}
+
+.admin-reporting-card-list__mobile-card {
+  margin-bottom: var(--mantine-spacing-sm);
+}
+
+.admin-configuration-page__layout--reporting-card-list {
+  min-height: calc(100vh - 220px);
+  max-height: calc(100vh - 160px);
+}
+
+.admin-configuration-page__layout--reporting-card-list .admin-configuration-page__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-reporting-section--mobile .admin-reporting-card-list {
+  min-height: calc(100dvh - 140px);
+}
+
+.admin-reporting-section--mobile .admin-reporting-card-list__table-scroll, .admin-reporting-section--mobile .admin-reporting-card-list__mobile-virtuoso {
+  min-height: calc(100dvh - 260px);
+  max-height: none;
+}
+
+/* src/client/components/admin/AdminReportingMemberActivity/adminReportingMemberActivity.css */
+.admin-reporting-member-activity {
+  display: flex;
+  flex-direction: column;
+  flex: auto;
+  min-height: 0;
+}
+
+.admin-reporting-member-activity__surface {
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-white);
+  overflow: hidden;
+  flex: auto;
+  min-height: 280px;
+}
+
+.admin-reporting-member-activity__virtuoso {
+  height: 100%;
+  min-height: 280px;
+}
+
+.admin-reporting-member-activity__virtuoso .board-day-log__entry {
+  border: none;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+  background-color: var(--mantine-color-white);
+  border-radius: 0;
+  padding: 12px 16px;
+}
+
+.admin-configuration-page__layout--reporting-member-activity {
+  min-height: calc(100vh - 220px);
+  max-height: calc(100vh - 160px);
+}
+
+.admin-configuration-page__layout--reporting-member-activity .admin-configuration-page__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-reporting-section--mobile .admin-reporting-member-activity {
+  min-height: calc(100dvh - 140px);
+}
+
+.admin-reporting-section--mobile .admin-reporting-member-activity__surface, .admin-reporting-section--mobile .admin-reporting-member-activity__virtuoso {
+  min-height: calc(100dvh - 240px);
 }
 
 /* src/client/components/admin/rolesPermissionsTab.css */
@@ -14618,6 +15049,39 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 
 .admin-users-tab__mobile-card {
   min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .admin-users-tab--mobile {
+    flex: auto;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .admin-users-tab--mobile > :not(.admin-users-tab__table-panel--mobile) {
+    flex-shrink: 0;
+  }
+
+  .admin-users-tab__table-panel--mobile {
+    display: flex;
+    overflow: hidden;
+    flex-direction: column;
+    flex: auto;
+    min-height: 0;
+  }
+
+  .admin-users-tab__table-panel--mobile .admin-users-tab__mobile-list {
+    overflow: hidden;
+    flex: auto;
+    min-height: 0;
+  }
+
+  .admin-users-tab__mobile-scroll {
+    overflow: hidden;
+    flex: auto;
+    min-height: 0;
+    max-height: none;
+  }
 }
 
 /* src/client/components/admin/AdminFileStoragePanel/adminFileStoragePanel.css */

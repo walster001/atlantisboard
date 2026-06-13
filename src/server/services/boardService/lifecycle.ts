@@ -113,17 +113,12 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
   return hydrateBoardDocumentForUser(board, input.ownerId);
 }
 
-export async function deleteBoard(boardId: string, userId: string): Promise<boolean> {
-  const board = await Board.findById(boardId);
-  if (!board) {
-    return false;
-  }
-
-  // Only owner can delete
-  if (board.ownerId.toString() !== userId) {
-    throw new ForbiddenError('Only board owner can delete board');
-  }
-
+async function performBoardDeletion(
+  board: Document & IBoard,
+  actingUserId: string,
+  auditAction: string,
+): Promise<void> {
+  const boardId = board._id.toString();
   const placeholderUserIds = await collectImportPlaceholderUserIdsOnBoards([board._id]);
 
   await deleteAllMongoAndStorageForBoardIds([board._id]);
@@ -155,12 +150,38 @@ export async function deleteBoard(boardId: string, userId: string): Promise<bool
   }
 
   logAuditEvent({
-    userId,
-    action: 'board.delete',
+    userId: actingUserId,
+    action: auditAction,
     resourceType: 'board',
     resourceId: boardId,
+    metadata: { boardName: board.name },
     timestamp: new Date(),
   });
+}
 
+export async function deleteBoard(boardId: string, userId: string): Promise<boolean> {
+  const board = await Board.findById(boardId);
+  if (!board) {
+    return false;
+  }
+
+  // Only owner can delete
+  if (board.ownerId.toString() !== userId) {
+    throw new ForbiddenError('Only board owner can delete board');
+  }
+
+  await performBoardDeletion(board, userId, 'board.delete');
+  return true;
+}
+
+/** App-admin master delete: same cleanup as {@link deleteBoard} without owner check. */
+export async function adminMasterDeleteBoard(boardId: string, adminUserId: string): Promise<boolean> {
+  const board = await Board.findById(boardId);
+  if (!board) {
+    return false;
+  }
+
+  await performBoardDeletion(board, adminUserId, 'board.admin.master_delete');
+  logger.info({ boardId, adminUserId, boardName: board.name }, 'Board master deleted by app admin');
   return true;
 }

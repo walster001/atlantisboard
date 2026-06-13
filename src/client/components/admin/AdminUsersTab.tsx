@@ -61,7 +61,7 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
   );
 
   return (
-    <Stack gap="md" className="admin-users-tab">
+    <Stack gap="md" className={isMobile ? 'admin-users-tab admin-users-tab--mobile' : 'admin-users-tab'}>
       <Group justify="space-between" align="end" wrap="wrap">
         <Box>
           <Text fw={700} size="lg">
@@ -92,7 +92,16 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
 
       {error ? <Alert color="red">{error}</Alert> : null}
 
-      <Paper withBorder radius="md" p="sm" className="admin-users-tab__table-panel">
+      <Paper
+        withBorder
+        radius="md"
+        p="sm"
+        className={
+          isMobile
+            ? 'admin-users-tab__table-panel admin-users-tab__table-panel--mobile'
+            : 'admin-users-tab__table-panel'
+        }
+      >
         {loading ? (
           <Group justify="center" py="lg">
             <Loader size="sm" />

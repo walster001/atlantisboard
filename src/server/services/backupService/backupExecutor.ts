@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { finished, pipeline } from 'node:stream/promises';
 import archiver from 'archiver';
-import { MINIO_BUCKET_BACKUPS, MINIO_BUCKET_NAMES } from '../../../shared/constants/minioBuckets.js';
+import { MINIO_BUCKET_NAMES } from '../../../shared/constants/minioBuckets.js';
 import { getAdminConfig } from '../adminService.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { logger } from '../../utils/logger.js';
@@ -148,12 +148,10 @@ export async function executeFullBackupWithProgressImpl(params: {
       mongoExportFormat: 'bson-v1',
       minioArchiveMethod,
       mongoCollections: collectionNames,
-      minioBuckets: MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS),
+      minioBuckets: [...MINIO_BUCKET_NAMES],
       minioMetadataFile: 'minio-metadata.json',
     };
-    const minioObjectMetadata = await collectMinioObjectMetadataByBucket(
-      MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS),
-    );
+    const minioObjectMetadata = await collectMinioObjectMetadataByBucket([...MINIO_BUCKET_NAMES]);
 
     const output = createWriteStream(zipPath);
     const archive = archiver('zip', { zlib: { level: 1 } });

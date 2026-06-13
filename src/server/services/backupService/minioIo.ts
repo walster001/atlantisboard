@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readdir, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { MINIO_BUCKET_BACKUPS, MINIO_BUCKET_NAMES } from '../../../shared/constants/minioBuckets.js';
+import { MINIO_BUCKET_NAMES } from '../../../shared/constants/minioBuckets.js';
 import { getMinIOClient } from '../../config/minio.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -90,7 +90,7 @@ export async function mirrorMinioBucketsToWorkdir(params: {
   const { minioRoot, signal, onBucketMirrored } = params;
   await ensureMcMirrorAliasConfigured(signal);
   const { mcPath, mirrorAlias } = getMcMirrorConfig();
-  const buckets = MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS);
+  const buckets = [...MINIO_BUCKET_NAMES];
   if (buckets.length === 0) {
     return;
   }
@@ -193,7 +193,7 @@ export async function mirrorMinioBucketsToWorkdirWithSdk(params: {
 }): Promise<void> {
   const { minioRoot, signal, onBucketMirrored } = params;
   const client = getMinIOClient();
-  const buckets = MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS);
+  const buckets = [...MINIO_BUCKET_NAMES];
   if (buckets.length === 0) {
     return;
   }
@@ -229,7 +229,7 @@ export async function restoreMinioBucketsWithMcMirror(minioRoot: string, signal:
     return;
   }
   for (const bucket of entries) {
-    if (!allowed.has(bucket) || bucket === MINIO_BUCKET_BACKUPS) {
+    if (!allowed.has(bucket)) {
       continue;
     }
     const localBucketPath = join(minioRoot, bucket);

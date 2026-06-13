@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readdir } from 'node:fs/promises';
-import { MINIO_BUCKET_BACKUPS, MINIO_BUCKET_NAMES } from '../src/shared/constants/minioBuckets.js';
+import { MINIO_BUCKET_NAMES } from '../src/shared/constants/minioBuckets.js';
 import { connectDatabase, disconnectDatabase } from '../src/server/config/database.js';
 import { getMinIOClient } from '../src/server/config/minio.js';
 import { restoreMongoFromDir } from '../src/server/services/backupService/mongoArchive.js';
@@ -95,7 +95,7 @@ async function restoreMinioFromDir(extractRoot: string, minioObjectMetadata: Min
         return false;
       }
       const bucket = norm.slice(0, slash);
-      return allowed.has(bucket) && bucket !== MINIO_BUCKET_BACKUPS;
+      return allowed.has(bucket);
     });
 
   for (const norm of objects) {

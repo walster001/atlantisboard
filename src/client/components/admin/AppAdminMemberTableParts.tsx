@@ -206,7 +206,14 @@ export const AppAdminUserTableCells = memo(function AppAdminUserTableCells(props
     <>
       <td className="board-member-management__td board-member-management__td--user">
         <Group gap={compactLayout ? 6 : 'sm'} wrap="nowrap" align="flex-start">
-          <Avatar size={avatarSize} color="gray" mt={compactLayout ? 0 : 2}>
+          <Avatar
+            size={avatarSize}
+            color="gray"
+            mt={compactLayout ? 0 : 2}
+            {...(user.profilePicture != null && user.profilePicture !== ''
+              ? { src: user.profilePicture }
+              : {})}
+          >
             {userMenuStyleAvatarInitials(user.displayName, user.email)}
           </Avatar>
           <AppAdminUserIdentityStack user={user} compact={compactLayout} showAdminBadge={compactLayout} />

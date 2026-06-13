@@ -16,11 +16,9 @@ export const MINIO_BUCKET_USER_AVATARS = 'user-avatars' as const;
 /** MinIO bucket for board background images uploaded via board theme settings. */
 export const MINIO_BUCKET_BACKGROUNDS = 'backgrounds' as const;
 
-/** MinIO bucket for application backups (private). */
-export const MINIO_BUCKET_BACKUPS = 'backups' as const;
-
 /**
  * All buckets ensured by {@link initializeMinIOBuckets} on server startup.
+ * Application backup ZIPs are stored on disk at {@link BACKUP_LOCATION}, not in MinIO.
  * Keep Docker `mc mb` lists in sync when adding a bucket.
  */
 export const MINIO_BUCKET_NAMES = [
@@ -30,7 +28,6 @@ export const MINIO_BUCKET_NAMES = [
   MINIO_BUCKET_FONTS,
   MINIO_BUCKET_USER_AVATARS,
   MINIO_BUCKET_BACKGROUNDS,
-  MINIO_BUCKET_BACKUPS,
 ] as const;
 
 export type MinioBucketName = (typeof MINIO_BUCKET_NAMES)[number];

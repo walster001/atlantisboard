@@ -1,5 +1,4 @@
 import {
-  MINIO_BUCKET_BACKUPS,
   MINIO_BUCKET_BACKGROUNDS,
   MINIO_BUCKET_BRANDING,
   MINIO_BUCKET_CARD_ATTACHMENTS,
@@ -22,7 +21,6 @@ const BUCKET_LABELS: Record<MinioBucketName, string> = {
   [MINIO_BUCKET_FONTS]: 'Custom fonts',
   [MINIO_BUCKET_USER_AVATARS]: 'User avatars',
   [MINIO_BUCKET_BACKGROUNDS]: 'Board backgrounds',
-  [MINIO_BUCKET_BACKUPS]: 'Application backups',
 };
 
 export function getMinioBucketLabel(name: MinioBucketName): string {

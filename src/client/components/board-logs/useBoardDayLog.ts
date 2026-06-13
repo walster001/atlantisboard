@@ -4,8 +4,10 @@ import { eachDayOfInterval, endOfDay, format, startOfDay, subDays } from 'date-f
 import { api } from '../../utils/api.js';
 import type { BoardSettingsLivePatch } from '../../store/database.js';
 import {
-  BOARD_DAY_LOG_RETENTION_OPTIONS,
   boardDayLogRetentionSpanDays,
+  buildBoardDayLogRetentionSelectData,
+  parseRetentionSelectValueToStorageDays,
+  retentionValueFromBoardSetting,
 } from './boardDayLogRetention.js';
 
 export type BoardDayLogRetentionField =
@@ -66,18 +68,10 @@ export function useBoardDayLog<TRow>({
     setSelectedDayIndex((i) => Math.min(Math.max(0, i), Math.max(0, datePages.length - 1)));
   }, [datePages]);
 
-  const retentionSelectData = useMemo(() => {
-    const preset = new Set<string>(
-      BOARD_DAY_LOG_RETENTION_OPTIONS.map((o: { value: string }) => o.value),
-    );
-    if (retentionValue !== 'never' && !preset.has(retentionValue)) {
-      return [
-        ...BOARD_DAY_LOG_RETENTION_OPTIONS,
-        { value: retentionValue, label: `${retentionValue} days` },
-      ];
-    }
-    return [...BOARD_DAY_LOG_RETENTION_OPTIONS];
-  }, [retentionValue]);
+  const retentionSelectData = useMemo(
+    () => buildBoardDayLogRetentionSelectData(retentionValue),
+    [retentionValue],
+  );
 
   const loadBoardRetention = useCallback(async () => {
     try {
@@ -89,11 +83,7 @@ export function useBoardDayLog<TRow>({
         };
       } | null;
       const days = board?.settings?.[retentionField];
-      if (days === undefined) {
-        setRetentionValue(String(defaultRetentionDays));
-      } else {
-        setRetentionValue(days === null ? 'never' : String(days));
-      }
+      setRetentionValue(retentionValueFromBoardSetting(days, defaultRetentionDays));
     } catch {
       setRetentionValue(String(defaultRetentionDays));
     }
@@ -155,11 +145,7 @@ export function useBoardDayLog<TRow>({
 
   const applyRetentionFromBoard = useCallback(
     (days: number | null | undefined) => {
-      if (days === undefined) {
-        setRetentionValue(String(defaultRetentionDays));
-      } else {
-        setRetentionValue(days === null ? 'never' : String(days));
-      }
+      setRetentionValue(retentionValueFromBoardSetting(days, defaultRetentionDays));
     },
     [defaultRetentionDays],
   );
@@ -182,8 +168,8 @@ export function useBoardDayLog<TRow>({
     setRetentionValue(value);
     setSavingRetention(true);
     try {
-      const days = value === 'never' ? null : parseInt(value, 10);
-      if (value !== 'never' && !Number.isFinite(days)) {
+      const days = parseRetentionSelectValueToStorageDays(value, defaultRetentionDays);
+      if (value !== 'never' && days === null) {
         setRetentionValue(prev);
         return;
       }

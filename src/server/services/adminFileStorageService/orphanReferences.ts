@@ -1,6 +1,5 @@
 import {
   MINIO_BUCKET_BACKGROUNDS,
-  MINIO_BUCKET_BACKUPS,
   MINIO_BUCKET_BRANDING,
   MINIO_BUCKET_CARD_ATTACHMENTS,
   MINIO_BUCKET_FONTS,
@@ -27,10 +26,8 @@ const USER_AVATAR_PATH_RE = /\/users\/avatar\/([a-f0-9]{24})(?:[/?]|$)/i;
 
 const CARD_ATTACHMENT_OBJECT_KEY_RE = /^[a-f0-9]{24}\/[a-f0-9-]{36}\.[^/]+$/i;
 
-/** Buckets scanned for orphans (excludes `backups` — no app DB references to MinIO keys there). */
-export const ORPHAN_SCAN_BUCKET_NAMES = MINIO_BUCKET_NAMES.filter(
-  (name) => name !== MINIO_BUCKET_BACKUPS,
-) as readonly MinioBucketName[];
+/** Buckets scanned for orphan objects (MinIO keys with no matching app DB reference). */
+export const ORPHAN_SCAN_BUCKET_NAMES = MINIO_BUCKET_NAMES;
 
 export function pathnameFromAssetInput(input: string): string {
   const trimmed = input.trim();

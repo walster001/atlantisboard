@@ -52,10 +52,12 @@ export interface AdminUserApiMethods {
     };
   }>;
   getAppAdmins(): Promise<{
-    appAdmins: Array<{ _id: string; displayName: string; email: string }>;
+    appAdmins: Array<{ _id: string; displayName: string; email: string; profilePicture?: string }>;
     bootstrapAppAdminId: string | null;
   }>;
-  addAppAdmin(userId: string): Promise<{ appAdmin: { _id: string; displayName: string; email: string } }>;
+  addAppAdmin(userId: string): Promise<{
+    appAdmin: { _id: string; displayName: string; email: string; profilePicture?: string };
+  }>;
   removeAppAdmin(userId: string): Promise<void>;
 }
 

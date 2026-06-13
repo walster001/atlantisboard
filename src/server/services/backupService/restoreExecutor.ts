@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pipeline } from 'node:stream/promises';
 import unzipper from 'unzipper';
-import { MINIO_BUCKET_BACKUPS, MINIO_BUCKET_NAMES } from '../../../shared/constants/minioBuckets.js';
+import { MINIO_BUCKET_NAMES } from '../../../shared/constants/minioBuckets.js';
 import { getMinIOClient } from '../../config/minio.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { logger } from '../../utils/logger.js';
@@ -159,7 +159,7 @@ async function restoreMinioFromDir(
         return false;
       }
       const bucket = norm.slice(0, slash);
-      return allowed.has(bucket) && bucket !== MINIO_BUCKET_BACKUPS;
+      return allowed.has(bucket);
     });
   const totalObjects = objects.length;
   let restoredObjects = 0;

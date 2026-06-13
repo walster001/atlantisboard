@@ -14,8 +14,7 @@
         "arn:aws:s3:::branding",
         "arn:aws:s3:::fonts",
         "arn:aws:s3:::user-avatars",
-        "arn:aws:s3:::backgrounds",
-        "arn:aws:s3:::backups"
+        "arn:aws:s3:::backgrounds"
       ]
     },
     {
@@ -33,8 +32,7 @@
         "arn:aws:s3:::branding/*",
         "arn:aws:s3:::fonts/*",
         "arn:aws:s3:::user-avatars/*",
-        "arn:aws:s3:::backgrounds/*",
-        "arn:aws:s3:::backups/*"
+        "arn:aws:s3:::backgrounds/*"
       ]
     }
   ]

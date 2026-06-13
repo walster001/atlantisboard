@@ -163,3 +163,36 @@
 .admin-users-tab__mobile-card {
   min-width: 0;
 }
+
+@media (max-width: 767px) {
+  .admin-users-tab--mobile {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .admin-users-tab--mobile > :not(.admin-users-tab__table-panel--mobile) {
+    flex-shrink: 0;
+  }
+
+  .admin-users-tab__table-panel--mobile {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .admin-users-tab__table-panel--mobile .admin-users-tab__mobile-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .admin-users-tab__mobile-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+  }
+}

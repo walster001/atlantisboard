@@ -10,7 +10,7 @@ APP_SECRET="${MINIO_SECRET_KEY:-minioadmin}"
 sleep 5
 mc alias set myminio "http://minio:9000" "$ROOT_KEY" "$ROOT_SECRET"
 
-for bucket in import-inline card-attachments branding fonts user-avatars backgrounds backups; do
+for bucket in import-inline card-attachments branding fonts user-avatars backgrounds; do
   mc mb "myminio/${bucket}" --ignore-existing
 done
 

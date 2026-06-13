@@ -14,6 +14,7 @@ import { registerPlaceholderUserRoutes } from './placeholderUserRoutes.js';
 import { registerRolesRoutes } from './rolesRoutes.js';
 import { registerUserSecurityRoutes } from './userSecurityRoutes.js';
 import { registerUsersRoutes } from './usersRoutes.js';
+import { registerReportingRoutes } from './reportingRoutes.js';
 
 const router = Router();
 
@@ -35,6 +36,7 @@ registerPlaceholderUserRoutes(router);
 registerPermissionsRoutes(router);
 registerRolesRoutes(router);
 registerAppAdminRoutes(router);
+registerReportingRoutes(router);
 
 export { router as adminRoutes };
 

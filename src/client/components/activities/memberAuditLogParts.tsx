@@ -194,15 +194,22 @@ function EntryIcon({ type }: { type: MemberAuditActivityType }) {
 export const MemberAuditEntryRow = memo(function MemberAuditEntryRow({
   row,
   resolveRoleLabel,
+  boardLabel,
 }: {
   readonly row: ParsedMemberAuditRow;
   readonly resolveRoleLabel: (roleKey: string) => string;
+  readonly boardLabel?: string;
 }) {
   return (
     <Box className="board-day-log__entry">
       <Group align="flex-start" gap="md" wrap="nowrap">
         <EntryIcon type={row.type} />
         <Stack gap={4} style={{ minWidth: 0 }}>
+          {boardLabel != null && boardLabel.trim() !== '' ? (
+            <Text size="xs" c="dimmed" fw={600} truncate="end">
+              {boardLabel}
+            </Text>
+          ) : null}
           <EntryBody row={row} resolveRoleLabel={resolveRoleLabel} />
           <Text size="xs" c="dimmed">
             {format(row.createdAt, 'MMM d, yyyy, h:mm a')}

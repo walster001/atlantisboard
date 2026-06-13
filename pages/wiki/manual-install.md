@@ -149,14 +149,13 @@ sudo mv mc /usr/local/bin/
 # Configure the alias
 mc alias set local http://localhost:9000 your-access-key your-secret-key
 
-# Create all 7 required buckets
+# Create all 6 required buckets
 mc mb local/import-inline
 mc mb local/card-attachments
 mc mb local/branding
 mc mb local/fonts
 mc mb local/user-avatars
 mc mb local/backgrounds
-mc mb local/backups
 ```
 
 > **Tip:** For production, run MinIO as a systemd service. See the [MinIO documentation](https://min.io/docs/minio/linux/operations/install-deploy-manage/deploy-minio-single-node-single-drive.html) for service configuration examples.

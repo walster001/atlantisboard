@@ -145,7 +145,15 @@
 
 @media (max-width: 767px) {
   .admin-configuration-page--mobile {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    box-sizing: border-box;
     padding: calc(8px + env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .admin-configuration-page--mobile .admin-configuration-page__header {
+    flex-shrink: 0;
   }
 
   /* PWA fullscreen: avoid browser UI reappearing from overscroll/bounce. */
@@ -159,11 +167,15 @@
   .admin-configuration-page__mobile-top-icons {
     display: flex;
     flex-wrap: nowrap;
+    flex-shrink: 0;
     align-items: center;
     gap: 10px;
     width: 100%;
     justify-content: flex-start;
     margin-top: 2px;
+    overflow-x: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .admin-configuration-page__mobile-row {
@@ -197,5 +209,44 @@
   .admin-configuration-page__mobile-content:has(.roles-permissions-tab--mobile-nav) .roles-permissions-tab {
     flex: 1 1 auto;
     min-height: 0;
+  }
+
+  .admin-configuration-page__mobile-content:has(.admin-users-tab--mobile) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+  }
+
+  .admin-configuration-page__mobile-content:has(.admin-users-tab--mobile) .admin-users-tab--mobile {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .admin-configuration-page__mobile-content:has(.admin-reporting-section--mobile) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .admin-configuration-page__mobile-content:has(.admin-reporting-section--mobile)
+    .admin-reporting-section--mobile {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .admin-reporting-section__mobile-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    margin-top: 8px;
   }
 }

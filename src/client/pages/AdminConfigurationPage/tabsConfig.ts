@@ -21,5 +21,14 @@ export const CUSTOMISATION_SUBTABS = [
   { value: 'custom-fonts', label: 'Custom fonts' },
 ] as const;
 
+export const REPORTING_SUBTABS = [
+  { value: 'member-activity', label: 'Member Activity' },
+  { value: 'board-activity', label: 'Board Activity' },
+  { value: 'board-list', label: 'Board List' },
+  { value: 'card-list', label: 'Card List' },
+] as const;
+
 export type ConfigurationSubtab = (typeof CONFIGURATION_SUBTABS)[number]['value'];
 export type CustomisationSubtab = (typeof CUSTOMISATION_SUBTABS)[number]['value'];
+export type ReportingSubtab = (typeof REPORTING_SUBTABS)[number]['value'];
+export type AdminMainTab = 'configuration' | 'customisation' | 'reporting';

@@ -7,7 +7,12 @@ export type RoleRow = {
   isBuiltIn: boolean;
 };
 
-export type AppAdminRow = { _id: string; displayName: string; email: string };
+export type AppAdminRow = {
+  readonly _id: string;
+  readonly displayName: string;
+  readonly email: string;
+  readonly profilePicture?: string;
+};
 
 export type PermissionCategoryKey =
   | 'workspaces'

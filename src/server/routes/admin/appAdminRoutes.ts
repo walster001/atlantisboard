@@ -36,7 +36,7 @@ export function registerAppAdminRoutes(router: Router): void {
   router.get('/app-admins', async (_req, res, next) => {
     try {
       const admins = await User.find({ isAppAdmin: true })
-        .select('_id displayName email')
+        .select('_id displayName email profilePicture')
         .sort({ createdAt: 1 })
         .lean();
       const bootstrapAppAdminId = await resolveBootstrapAppAdminId();
@@ -64,7 +64,16 @@ export function registerAppAdminRoutes(router: Router): void {
           reason: 'app_admin.granted',
         });
       }
-      res.status(200).json({ appAdmin: { _id: user._id, displayName: user.displayName, email: user.email } });
+      res.status(200).json({
+        appAdmin: {
+          _id: user._id,
+          displayName: user.displayName,
+          email: user.email,
+          ...(typeof user.profilePicture === 'string' && user.profilePicture.trim() !== ''
+            ? { profilePicture: user.profilePicture }
+            : {}),
+        },
+      });
     } catch (error) {
       if (respondZodValidationError(res, error)) {
         return;

@@ -204,7 +204,7 @@
     {
       "id": "minio",
       "title": "File storage (MinIO / S3)",
-      "intro": "MinIO (or S3-compatible storage) holds attachments, backups, and branding files.\n\nAccess credentials were generated automatically in the Security step.",
+      "intro": "MinIO (or S3-compatible storage) holds attachments, branding assets, fonts, avatars, and board backgrounds. Backup ZIP archives are stored on disk at BACKUP_LOCATION, not in MinIO.\n\nAccess credentials were generated automatically in the Security step.",
       "applies_to": ["manual"],
       "fields": [
         {

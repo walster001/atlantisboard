@@ -21,6 +21,10 @@ import {
   adminFileStorageApiMethods,
   type AdminFileStorageApiMethods,
 } from './api/adminFileStorageApiMethods.js';
+import {
+  adminReportingApiMethods,
+  type AdminReportingApiMethods,
+} from './api/adminReportingApiMethods.js';
 import { userApiMethods, type UserApiMethods } from './api/userApiMethods.js';
 import { importExportApiMethods, type ImportExportApiMethods } from './api/importExportApiMethods.js';
 import { attachmentApiMethods, type AttachmentApiMethods } from './api/attachmentApiMethods.js';
@@ -231,6 +235,7 @@ export interface ApiClient
     AdminBackupApiMethods,
     AdminDatabaseApiMethods,
     AdminFileStorageApiMethods,
+    AdminReportingApiMethods,
     UserApiMethods,
     ImportExportApiMethods,
     AttachmentApiMethods,
@@ -251,6 +256,7 @@ Object.assign(ApiClient.prototype, adminSystemApiMethods);
 Object.assign(ApiClient.prototype, adminBackupApiMethods);
 Object.assign(ApiClient.prototype, adminDatabaseApiMethods);
 Object.assign(ApiClient.prototype, adminFileStorageApiMethods);
+Object.assign(ApiClient.prototype, adminReportingApiMethods);
 Object.assign(ApiClient.prototype, userApiMethods);
 Object.assign(ApiClient.prototype, importExportApiMethods);
 Object.assign(ApiClient.prototype, attachmentApiMethods);

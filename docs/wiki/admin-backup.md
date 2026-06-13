@@ -61,9 +61,9 @@ Each backup ZIP archive contains:
   - `branding` — login and app branding assets (logos, favicons, backgrounds).
   - `user-avatars` — user profile pictures.
   - `fonts` — uploaded custom font files.
-  - `backgrounds` — board and homepage background images.
-  - `backups` — any previously stored backup metadata.
   - `import-inline` — temporary import staging files.
+
+Backup ZIP files themselves are written to **`BACKUP_LOCATION`** on the server filesystem (not to a MinIO bucket).
 
 ---
 

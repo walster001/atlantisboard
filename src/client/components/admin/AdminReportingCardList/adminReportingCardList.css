@@ -1,0 +1,125 @@
+.admin-reporting-card-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-reporting-card-list__table-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-reporting-card-list__table-scroll {
+  flex: 1 1 auto;
+  min-height: 280px;
+  max-height: min(62vh, 680px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-sm);
+  background-color: var(--mantine-color-white);
+}
+
+.admin-reporting-card-list__virtuoso-root {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.admin-reporting-card-list__table-footer {
+  flex-shrink: 0;
+  padding: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-reporting-card-list__data-table {
+  width: 100%;
+  min-width: 1180px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.admin-reporting-card-list__data-table tbody tr {
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-reporting-card-list__data-table tbody tr:hover .admin-reporting-card-list__td {
+  background-color: var(--mantine-color-gray-1);
+}
+
+.admin-reporting-card-list__th {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--mantine-font-size-sm);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+  border-right: 1px solid var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-gray-0);
+  white-space: nowrap;
+}
+
+.admin-reporting-card-list__th:last-child {
+  border-right: none;
+}
+
+.admin-reporting-card-list__td {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  vertical-align: middle;
+  font-size: var(--mantine-font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-right: 1px solid var(--mantine-color-gray-2);
+}
+
+.admin-reporting-card-list__td:last-child {
+  border-right: none;
+}
+
+.admin-reporting-card-list__td--striped {
+  background-color: var(--mantine-color-gray-0);
+}
+
+.admin-reporting-card-list__td--mono {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+}
+
+.admin-reporting-card-list__td--numeric {
+  text-align: center;
+}
+
+.admin-reporting-card-list__mobile-virtuoso {
+  min-height: 280px;
+  max-height: min(62vh, 680px);
+}
+
+.admin-reporting-card-list__mobile-card {
+  margin-bottom: var(--mantine-spacing-sm);
+}
+
+.admin-configuration-page__layout--reporting-card-list {
+  min-height: calc(100vh - 220px);
+  max-height: calc(100vh - 160px);
+}
+
+.admin-configuration-page__layout--reporting-card-list .admin-configuration-page__content {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-reporting-section--mobile .admin-reporting-card-list {
+  min-height: calc(100dvh - 140px);
+}
+
+.admin-reporting-section--mobile .admin-reporting-card-list__table-scroll,
+.admin-reporting-section--mobile .admin-reporting-card-list__mobile-virtuoso {
+  min-height: calc(100dvh - 260px);
+  max-height: none;
+}

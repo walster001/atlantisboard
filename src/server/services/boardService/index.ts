@@ -30,5 +30,5 @@ export {
 export { getBoardMembersPage } from './memberQueries.js';
 
 export { reorderBoardsInHomeScope } from './homeOrdering.js';
-export { createBoard, deleteBoard } from './lifecycle.js';
+export { createBoard, deleteBoard, adminMasterDeleteBoard } from './lifecycle.js';
 export { updateBoard } from './updates.js';

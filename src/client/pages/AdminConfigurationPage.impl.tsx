@@ -12,6 +12,7 @@ import {
 import {
   IconArrowLeft,
   IconBuildingCog,
+  IconReportAnalytics,
   IconSparkles,
   IconTool,
 } from '@tabler/icons-react';
@@ -21,6 +22,11 @@ import { LoginBrandingSection } from '../components/admin/LoginBrandingSection.j
 import { AppBrandingSection } from '../components/admin/AppBrandingSection.js';
 import { EmailBrandingSection } from '../components/admin/EmailBrandingSection.js';
 import { CustomFontsSection } from '../components/admin/CustomFontsSection.js';
+import {
+  AdminReportingMobileContent,
+  AdminReportingMobileList,
+  AdminReportingSection,
+} from '../components/admin/AdminReportingSection.js';
 import { RolesPermissionsTab } from '../components/admin/RolesPermissionsTab.js';
 import { useAuthContext } from '../contexts/AuthContext.js';
 import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
@@ -37,10 +43,13 @@ import {
 import {
   CONFIGURATION_SUBTABS,
   CUSTOMISATION_SUBTABS,
+  REPORTING_SUBTABS,
   MAIN_TAB_ICON_SIZE,
   MAIN_TAB_ICON_STROKE,
+  type AdminMainTab,
   type ConfigurationSubtab,
   type CustomisationSubtab,
+  type ReportingSubtab,
 } from './AdminConfigurationPage/tabsConfig.js';
 
 export default function AdminConfigurationPage() {
@@ -59,13 +68,15 @@ export default function AdminConfigurationPage() {
     }
   }, [authLoading, user, navigate]);
 
-  const [mainTab, setMainTab] = useState<'configuration' | 'customisation'>('configuration');
+  const [mainTab, setMainTab] = useState<AdminMainTab>('configuration');
   const [configSubtab, setConfigSubtab] = useState<ConfigurationSubtab>('login-options');
   const [mobileConfigOpen, setMobileConfigOpen] = useState<ConfigurationSubtab | null>(null);
   const [customisationSubtab, setCustomisationSubtab] =
     useState<CustomisationSubtab>('login-branding');
   const [mobileCustomisationOpen, setMobileCustomisationOpen] =
     useState<CustomisationSubtab | null>(null);
+  const [reportingSubtab, setReportingSubtab] = useState<ReportingSubtab>('member-activity');
+  const [mobileReportingOpen, setMobileReportingOpen] = useState<ReportingSubtab | null>(null);
 
   const handleBack = (): void => {
     if (window.history.length > 1) {
@@ -92,12 +103,16 @@ export default function AdminConfigurationPage() {
     const customisationSectionLabel =
       CUSTOMISATION_SUBTABS.find((t) => t.value === mobileCustomisationOpen)?.label ??
       mobileCustomisationOpen;
+    const reportingSectionLabel =
+      REPORTING_SUBTABS.find((t) => t.value === mobileReportingOpen)?.label ?? mobileReportingOpen;
     const mobileDrillTitle =
       mobileConfigOpen != null
         ? sectionLabel
         : mobileCustomisationOpen != null
           ? customisationSectionLabel
-          : null;
+          : mobileReportingOpen != null
+            ? reportingSectionLabel
+            : null;
     return (
       <Box
         className={`admin-configuration-page admin-configuration-page--mobile${
@@ -120,7 +135,11 @@ export default function AdminConfigurationPage() {
                 setMobileCustomisationOpen(null);
                 return;
               }
-              if (mainTab === 'customisation') {
+              if (mobileReportingOpen != null) {
+                setMobileReportingOpen(null);
+                return;
+              }
+              if (mainTab === 'customisation' || mainTab === 'reporting') {
                 startTransition(() => setMainTab('configuration'));
                 return;
               }
@@ -134,7 +153,7 @@ export default function AdminConfigurationPage() {
             {mobileDrillTitle ?? 'Admin Configuration'}
           </Title>
         </Group>
-        {mobileConfigOpen == null && mobileCustomisationOpen == null ? (
+        {mobileConfigOpen == null && mobileCustomisationOpen == null && mobileReportingOpen == null ? (
           <Group className="admin-configuration-page__mobile-top-icons" gap={10} wrap="nowrap">
             <ActionIcon
               type="button"
@@ -149,6 +168,7 @@ export default function AdminConfigurationPage() {
                 }
                 setMobileConfigOpen(null);
                 setMobileCustomisationOpen(null);
+                setMobileReportingOpen(null);
               }}
             >
               <IconTool size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
@@ -166,9 +186,28 @@ export default function AdminConfigurationPage() {
                 }
                 setMobileConfigOpen(null);
                 setMobileCustomisationOpen(null);
+                setMobileReportingOpen(null);
               }}
             >
               <IconSparkles size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
+            </ActionIcon>
+            <ActionIcon
+              type="button"
+              size={44}
+              radius="sm"
+              variant={mainTab === 'reporting' ? 'filled' : 'light'}
+              color={mainTab === 'reporting' ? 'blue' : 'gray'}
+              aria-label="Reporting"
+              onClick={() => {
+                if (mainTab !== 'reporting') {
+                  startTransition(() => setMainTab('reporting'));
+                }
+                setMobileConfigOpen(null);
+                setMobileCustomisationOpen(null);
+                setMobileReportingOpen(null);
+              }}
+            >
+              <IconReportAnalytics size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
             </ActionIcon>
           </Group>
         ) : null}
@@ -226,7 +265,8 @@ export default function AdminConfigurationPage() {
               )}
             </Box>
           )
-        ) : mobileCustomisationOpen == null ? (
+        ) : mainTab === 'customisation' ? (
+          mobileCustomisationOpen == null ? (
           <Stack gap="xs">
             {CUSTOMISATION_SUBTABS.map((tab) => (
               <button
@@ -257,6 +297,17 @@ export default function AdminConfigurationPage() {
                 </Text>
               </Stack>
             )}
+          </Box>
+        )
+        ) : mobileReportingOpen == null ? (
+          <AdminReportingMobileList
+            onSelect={(value) => {
+              setMobileReportingOpen(value);
+            }}
+          />
+        ) : (
+          <Box className="admin-configuration-page__mobile-content">
+            <AdminReportingMobileContent subtab={mobileReportingOpen} />
           </Box>
         )}
       </Box>
@@ -291,7 +342,7 @@ export default function AdminConfigurationPage() {
         variant="pills"
         radius="sm"
         onChange={(v: string | null) => {
-          if (v === 'configuration' || v === 'customisation') {
+          if (v === 'configuration' || v === 'customisation' || v === 'reporting') {
             startTransition(() => setMainTab(v));
           }
         }}
@@ -311,6 +362,14 @@ export default function AdminConfigurationPage() {
             }
           >
             Customisation
+          </Tabs.Tab>
+          <Tabs.Tab
+            value="reporting"
+            leftSection={
+              <IconReportAnalytics size={MAIN_TAB_ICON_SIZE} stroke={MAIN_TAB_ICON_STROKE} />
+            }
+          >
+            Reporting
           </Tabs.Tab>
         </Tabs.List>
 
@@ -422,6 +481,13 @@ export default function AdminConfigurationPage() {
               )}
             </Box>
           </div>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="reporting" pt="md">
+          <AdminReportingSection
+            subtab={reportingSubtab}
+            onSubtabChange={setReportingSubtab}
+          />
         </Tabs.Panel>
       </Tabs>
     </Box>

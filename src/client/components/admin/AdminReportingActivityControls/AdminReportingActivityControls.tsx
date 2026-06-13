@@ -30,7 +30,13 @@ export const AdminReportingActivityControls = memo(function AdminReportingActivi
   onClearBoardFilter,
 }: AdminReportingActivityControlsProps) {
   return (
-    <Group justify="flex-start" align="center" wrap="wrap" gap="lg">
+    <Group
+      justify="flex-start"
+      align="center"
+      wrap="wrap"
+      gap="lg"
+      className="admin-reporting-activity-controls"
+    >
       <AdminReportingBoardNameFilter
         boardFilterId={boardFilterId}
         boardFilterLabel={boardFilterLabel}

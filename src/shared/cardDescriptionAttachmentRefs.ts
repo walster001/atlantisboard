@@ -327,6 +327,11 @@ export function stripAttachmentFromDescriptionJsonString(
   })();
   const str = JSON.stringify(stripped);
   if (!isValidCardDescriptionJsonString(str)) {
+    // Keep the prior saved description when stripping would leave server-invalid JSON
+    // (for example live editor state with blob: preview URLs).
+    if (isValidCardDescriptionJsonString(trimmed)) {
+      return trimmed;
+    }
     return JSON.stringify(emptyDoc());
   }
   return str;

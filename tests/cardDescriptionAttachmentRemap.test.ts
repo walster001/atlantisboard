@@ -6,7 +6,9 @@ import {
   normalizeCardDescriptionAttachmentUrls,
   remapAttachmentRefsInDescriptionHtmlString,
   remapAttachmentRefsInDescriptionJsonString,
+  stripAttachmentFromDescriptionJsonString,
 } from '../src/shared/cardDescriptionAttachmentRefs.js';
+import { isValidCardDescriptionJsonString } from '../src/shared/validation/cardDescriptionDoc.js';
 
 const OLD_ID = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeee1111';
 const NEW_ID = 'ffffffff-uuuu-4vvv-wwww-xxxxxxxx2222';
@@ -149,5 +151,24 @@ describe('legacy attachment media paths', () => {
     const normalized = normalizeCardDescriptionAttachmentUrls(raw);
     expect(normalized).toContain(`/api/v1/attachments/${id}/file`);
     expect(normalized).not.toContain('/cards/card-1/attachments/');
+  });
+});
+
+describe('stripAttachmentFromDescriptionJsonString', () => {
+  const attId = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeee1111';
+  const attUrl = 'https://storage.example/bucket/file.jpg?token=1';
+
+  it('removes only the matching attachment and keeps surrounding text', () => {
+    const raw = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Hello world' }] },
+        { type: 'imageResize', attrs: { src: `/api/v1/attachments/${attId}/file`, alt: 'img' } },
+      ],
+    });
+    const stripped = stripAttachmentFromDescriptionJsonString(raw, attId, attUrl);
+    expect(isValidCardDescriptionJsonString(stripped)).toBe(true);
+    expect(stripped).toContain('Hello world');
+    expect(stripped).not.toContain(attId);
   });
 });

@@ -3,11 +3,48 @@ import {
   collectReferencedAttachmentIdsFromDescriptionJson,
   stripAttachmentFromDescriptionJsonString,
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
+import { isValidCardDescriptionJsonString } from '../../../../shared/validation/cardDescriptionDoc.js';
 import { api } from '../../../utils/api.js';
+import { descriptionJsonHasBlobUrls } from '../../../utils/descriptionPendingMedia.js';
 import { normalizeCardFromApi } from '../../../utils/transform.js';
 import { serializeCardDescriptionEditor } from '../cardDescriptionEditorSerialize.js';
 import { isCardDescriptionEmpty, parseCardDescriptionJson } from '../cardDescriptionTiptap.js';
+import type { Editor } from '@tiptap/core';
 import type { DeleteAttachmentPreflightArgs } from './cardDetailViewHandlerTypes.js';
+
+function resolveDescriptionJsonForAttachmentStrip(
+  savedDescription: string,
+  editor: Editor | null,
+): string {
+  if (editor == null || editor.isDestroyed) {
+    return savedDescription;
+  }
+  const serialized = serializeCardDescriptionEditor(editor);
+  if (!serialized.ok) {
+    return savedDescription;
+  }
+  const liveJson = serialized.jsonString;
+  if (
+    descriptionJsonHasBlobUrls(liveJson) ||
+    !isValidCardDescriptionJsonString(liveJson)
+  ) {
+    return savedDescription;
+  }
+  return liveJson;
+}
+
+function syncDescriptionEditorAfterAttachmentStrip(
+  editor: Editor,
+  descriptionPayload: string,
+): void {
+  const nextDoc = parseCardDescriptionJson(descriptionPayload);
+  requestAnimationFrame(() => {
+    if (editor.isDestroyed) {
+      return;
+    }
+    editor.commands.setContent(nextDoc, { emitUpdate: false });
+  });
+}
 
 export async function runBeforeDeleteAttachment({
   cardRef,
@@ -43,16 +80,11 @@ export async function runBeforeDeleteAttachment({
     return;
   }
 
-  const rawJsonForStrip = (() => {
-    const editor = descriptionEditorRef.current;
-    if (editor != null && !editor.isDestroyed) {
-      const serialized = serializeCardDescriptionEditor(editor);
-      if (serialized.ok) {
-        return serialized.jsonString;
-      }
-    }
-    return currentCard.description ?? '';
-  })();
+  const savedDescription = currentCard.description ?? '';
+  const rawJsonForStrip = resolveDescriptionJsonForAttachmentStrip(
+    savedDescription,
+    descriptionEditorRef.current,
+  );
 
   const stripped = stripAttachmentFromDescriptionJsonString(rawJsonForStrip, attachmentId, attachment.url);
   const doc = parseCardDescriptionJson(stripped);
@@ -69,7 +101,7 @@ export async function runBeforeDeleteAttachment({
     });
     const editor = descriptionEditorRef.current;
     if (editor != null && !editor.isDestroyed) {
-      editor.commands.setContent(parseCardDescriptionJson(descriptionPayload));
+      syncDescriptionEditorAfterAttachmentStrip(editor, descriptionPayload);
     }
     syncCardToBoardAndDexie(normalized);
   } catch {

@@ -2,7 +2,9 @@ import { isAxiosError } from 'axios';
 import {
   collectAttachmentIdsFromDescriptionJson,
   collectReferencedAttachmentIdsFromDescriptionJson,
+  normalizeCardDescriptionAttachmentUrls,
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
+import { isValidCardDescriptionJsonString } from '../../../../shared/validation/cardDescriptionDoc.js';
 import { api } from '../../../utils/api.js';
 import { requireUploadedAttachmentId } from '../../../utils/api/attachmentApiMethods.js';
 import {
@@ -12,7 +14,9 @@ import {
 } from '../../../utils/attachmentUploadNotifications.js';
 import { finalizeAttachmentUploadNotification } from '../../../utils/attachmentUploadFlow.js';
 import {
+  descriptionJsonHasBlobUrls,
   discardPendingDescriptionMedia,
+  findOrphanedBlobUrlsInDescriptionJson,
   flushPendingDescriptionMediaInJson,
 } from '../../../utils/descriptionPendingMedia.js';
 import { normalizeCardFromApi } from '../../../utils/transform.js';
@@ -35,36 +39,58 @@ export async function runDescriptionUpdate({
   const isEmpty = isCardDescriptionEmpty(doc);
   let descriptionPayload = isEmpty ? '' : serialized.jsonString;
 
-  if (!isEmpty && pendingDescriptionMedia.size > 0) {
-    try {
-      descriptionPayload = await flushPendingDescriptionMediaInJson(
-        serialized.jsonString,
-        pendingDescriptionMedia,
-        async (file, onProgress) => {
-          const label = file.name.trim() !== '' ? file.name : 'Attachment';
-          beginAttachmentUploadNotification(label);
-          try {
-            const response = await api.uploadCardAttachment(card.id, file, (progress) => {
-              updateAttachmentUploadNotification(label, progress);
-              onProgress?.(progress);
-            });
-            const attachmentId = requireUploadedAttachmentId(response);
-            await finalizeAttachmentUploadNotification({
-              cardId: card.id,
-              label,
-              uploadResponse: response,
-            });
-            return api.getAttachmentFileUrl(attachmentId);
-          } catch (error) {
-            failAttachmentUploadNotification(
-              error instanceof Error ? error.message : 'Could not upload file.',
-            );
-            throw error;
-          }
-        },
-      );
-    } catch {
-      return { ok: false, reason: 'Could not upload description media.' };
+  if (!isEmpty) {
+    const orphanedBlobUrls = findOrphanedBlobUrlsInDescriptionJson(
+      serialized.jsonString,
+      pendingDescriptionMedia,
+    );
+    if (orphanedBlobUrls.length > 0) {
+      return {
+        ok: false,
+        reason:
+          'Description still has images or videos loading in the editor. Remove them and add again, then save.',
+      };
+    }
+
+    if (descriptionJsonHasBlobUrls(serialized.jsonString) || pendingDescriptionMedia.size > 0) {
+      try {
+        descriptionPayload = await flushPendingDescriptionMediaInJson(
+          serialized.jsonString,
+          pendingDescriptionMedia,
+          async (file, onProgress) => {
+            const label = file.name.trim() !== '' ? file.name : 'Attachment';
+            beginAttachmentUploadNotification(label);
+            try {
+              const response = await api.uploadCardAttachment(card.id, file, (progress) => {
+                updateAttachmentUploadNotification(label, progress);
+                onProgress?.(progress);
+              });
+              const attachmentId = requireUploadedAttachmentId(response);
+              await finalizeAttachmentUploadNotification({
+                cardId: card.id,
+                label,
+                uploadResponse: response,
+              });
+              return api.getAttachmentFileUrl(attachmentId);
+            } catch (error) {
+              failAttachmentUploadNotification(
+                error instanceof Error ? error.message : 'Could not upload file.',
+              );
+              throw error;
+            }
+          },
+        );
+      } catch {
+        return { ok: false, reason: 'Could not upload description media.' };
+      }
+    }
+
+    descriptionPayload = normalizeCardDescriptionAttachmentUrls(descriptionPayload);
+    if (!isValidCardDescriptionJsonString(descriptionPayload)) {
+      return {
+        ok: false,
+        reason: 'Description format is invalid. Check links and embedded media, then try again.',
+      };
     }
   }
 

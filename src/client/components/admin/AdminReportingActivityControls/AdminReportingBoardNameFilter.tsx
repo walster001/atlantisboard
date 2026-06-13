@@ -20,8 +20,14 @@ export const AdminReportingBoardNameFilter = memo(function AdminReportingBoardNa
   onClearBoardFilter,
 }: AdminReportingBoardNameFilterProps) {
   return (
-    <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
-      <Text fw={600} size="sm" style={{ flexShrink: 0 }}>
+    <Group
+      gap="xs"
+      align="center"
+      wrap="nowrap"
+      className="admin-reporting-board-name-filter"
+      style={{ minWidth: 0 }}
+    >
+      <Text fw={600} size="sm" className="admin-reporting-board-name-filter__label" style={{ flexShrink: 0 }}>
         Board name
       </Text>
       {boardFilterId != null && boardFilterLabel != null ? (
@@ -29,15 +35,17 @@ export const AdminReportingBoardNameFilter = memo(function AdminReportingBoardNa
           variant="light"
           size="sm"
           color="blue"
+          className="admin-reporting-board-name-filter__badge"
           rightSection={
             <ActionIcon
               size="xs"
               variant="transparent"
               color="blue"
+              className="admin-reporting-board-name-filter__clear"
               aria-label="Clear board filter"
               onClick={onClearBoardFilter}
             >
-              <IconX size={12} stroke={2} />
+              <IconX size={12} stroke={2} className="admin-reporting-board-name-filter__clear-icon" />
             </ActionIcon>
           }
         >
@@ -49,10 +57,11 @@ export const AdminReportingBoardNameFilter = memo(function AdminReportingBoardNa
           <ActionIcon
             variant={boardFilterId != null ? 'light' : 'subtle'}
             color={boardFilterId != null ? 'blue' : 'gray'}
+            className="admin-reporting-board-name-filter__filter"
             aria-label="Filter activity by board"
             disabled={loadingOptions}
           >
-            <IconFilter size={18} stroke={1.75} />
+            <IconFilter size={18} stroke={1.75} className="admin-reporting-board-name-filter__filter-icon" />
           </ActionIcon>
         </Menu.Target>
         <Menu.Dropdown>

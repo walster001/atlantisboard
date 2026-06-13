@@ -13,6 +13,7 @@ import {
   type AdminReportingBoardNameFilterControls,
 } from './AdminReportingActivityControls/useAdminReportingBoardNameFilter.js';
 import './AdminReportingBoardActivity/adminReportingBoardActivity.css';
+import './AdminReportingActivityControls/adminReportingActivityControls.css';
 import './AdminReportingBoardList/adminReportingBoardList.css';
 import './AdminReportingCardList/adminReportingCardList.css';
 import './AdminReportingMemberActivity/adminReportingMemberActivity.css';

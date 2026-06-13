@@ -14794,6 +14794,46 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   min-height: calc(100dvh - 240px);
 }
 
+/* src/client/components/admin/AdminReportingActivityControls/adminReportingActivityControls.css */
+.admin-reporting-section--mobile .admin-reporting-board-name-filter {
+  gap: var(--mantine-spacing-sm);
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-name-filter__label {
+  font-size: var(--mantine-font-size-md);
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-name-filter__badge {
+  --badge-fz: var(--mantine-font-size-md);
+  --badge-padding-x: 12px;
+  --badge-height: 36px;
+  max-width: min(52vw, 220px);
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-name-filter__badge .mantine-Badge-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-name-filter__clear {
+  --ai-size: 32px;
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-name-filter__clear-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-name-filter__filter {
+  --ai-size: 44px;
+}
+
+.admin-reporting-section--mobile .admin-reporting-board-name-filter__filter-icon {
+  width: 22px;
+  height: 22px;
+}
+
 /* src/client/components/admin/rolesPermissionsTab.css */
 .roles-permissions-tab {
   display: flex;

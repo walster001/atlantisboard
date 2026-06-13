@@ -8,7 +8,7 @@ import {
 import { validateRoleKeyExists } from '../src/server/services/roleService.js';
 import { ValidationError } from '../src/shared/errors/domainErrors.js';
 import { describeMongoTest } from './helpers/integrationEnv.js';
-import { connectTestDatabase, disconnectTestDatabase } from './helpers/testHelpers.js';
+import { connectTestDatabase } from './helpers/testHelpers.js';
 
 describe('validateRoleKeyExists (unit)', () => {
   it('rejects malformed role keys without a database lookup', async () => {
@@ -32,7 +32,6 @@ describeMongoTest('validateImportRoleKeys', () => {
 
   afterAll(async () => {
     await RoleDefinition.deleteMany({ key: 'custom:test-import-role' });
-    await disconnectTestDatabase();
   });
 
   it('accepts built-in and persisted custom role keys', async () => {

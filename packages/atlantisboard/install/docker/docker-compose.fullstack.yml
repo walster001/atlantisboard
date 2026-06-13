@@ -175,6 +175,9 @@ services:
       CLAMAV_DB_DIR: /var/lib/clamav
       POMPELMI_FAIL_OPEN: ${POMPELMI_FAIL_OPEN:-false}
       BACKUP_LOCATION: ${BACKUP_LOCATION:-/data/backups}
+      BACKUP_MC_PATH: ${BACKUP_MC_PATH:-/usr/local/bin/mc}
+      BACKUP_MC_MIRROR_ALIAS: ${BACKUP_MC_MIRROR_ALIAS:-local}
+      BACKUP_MC_ENDPOINT: ${BACKUP_MC_ENDPOINT:-http://minio:9000}
       ATL_ENV_FILE: /app/.env
       ATL_DOCKER_FULLSTACK: "true"
     volumes:

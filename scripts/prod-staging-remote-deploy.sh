@@ -383,6 +383,28 @@ REMOTE
   fi
 }
 
+remote_docker_prune_after_deploy() {
+  log "Pruning unused Docker images and build cache on remote..."
+  if [[ "$DRY_RUN" == true ]]; then
+    log "[dry-run] remote: docker image prune -f && docker builder prune -f"
+    return 0
+  fi
+
+  remote_ssh bash -s <<'EOF'
+set -euo pipefail
+docker_cmd() {
+  if docker info >/dev/null 2>&1; then
+    docker "$@"
+  else
+    sudo docker "$@"
+  fi
+}
+docker_cmd image prune -f >/dev/null 2>&1 || true
+builder_out="$(docker_cmd builder prune -f 2>&1 || true)"
+printf '%s\n' "$builder_out" | grep -E 'Total reclaimed space' | tail -1 || true
+EOF
+}
+
 remote_health_check() {
   local health_url="${PROD_REMOTE_HEALTH_URL:-}"
 
@@ -451,6 +473,7 @@ main() {
 
   rsync_to_remote
   run_remote_upgrade
+  remote_docker_prune_after_deploy
   remote_health_check
 
   echo ""

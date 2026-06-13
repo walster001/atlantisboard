@@ -381,10 +381,16 @@ atl_docker_compose_log_excerpt() {
 
 
 ## atl_docker_prune_after_deploy
-# Remove dangling images and old build cache (does not affect running containers).
+# Remove dangling images and unused build cache (does not affect running containers).
 atl_docker_prune_after_deploy() {
+  local reclaimed=""
   atl_sudo docker image prune -f >/dev/null 2>&1 || true
-  atl_sudo docker builder prune -f --filter until=168h >/dev/null 2>&1 || true
+  reclaimed="$(atl_sudo docker builder prune -f 2>&1 | grep -E 'Total reclaimed space' | tail -1 || true)"
+  if [[ -n "$reclaimed" ]]; then
+    info "Docker build cache pruned (${reclaimed})"
+  else
+    info "Docker build cache pruned"
+  fi
 }
 
 

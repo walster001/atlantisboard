@@ -16,7 +16,7 @@ import {
 } from '../src/shared/permissions/catalog.js';
 import { describeMongoTest } from './helpers/integrationEnv.js';
 import { INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationHooks.js';
-import { connectTestDatabase, disconnectTestDatabase } from './helpers/testHelpers.js';
+import { connectTestDatabase } from './helpers/testHelpers.js';
 
 const REPO_ROOT = process.cwd();
 
@@ -130,7 +130,6 @@ describeMongoTest('role definition initialization', () => {
     if (mongoose.connection.readyState === 1) {
       await RoleDefinition.deleteMany({});
     }
-    await disconnectTestDatabase();
   });
 
   it('seeds fresh database roles to match catalog', async () => {

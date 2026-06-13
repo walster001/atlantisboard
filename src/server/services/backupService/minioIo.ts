@@ -19,6 +19,46 @@ function getMcMirrorConfig(): { readonly mcPath: string; readonly mirrorAlias: s
   return { mcPath, mirrorAlias };
 }
 
+function buildMcMirrorEndpoint(): string {
+  const explicit = process.env.BACKUP_MC_ENDPOINT?.trim();
+  if (explicit != null && explicit !== '') {
+    return explicit;
+  }
+  const host = process.env.MINIO_ENDPOINT?.trim() || 'localhost';
+  const port = process.env.MINIO_PORT?.trim() || '9000';
+  const ssl = process.env.MINIO_USE_SSL === 'true';
+  return `${ssl ? 'https' : 'http'}://${host}:${port}`;
+}
+
+let mcMirrorAliasConfigured = false;
+
+/** Test-only reset for alias configuration state. */
+export function resetMcMirrorAliasConfiguredForTests(): void {
+  mcMirrorAliasConfigured = false;
+}
+
+export async function ensureMcMirrorAliasConfigured(signal: AbortSignal): Promise<void> {
+  if (mcMirrorAliasConfigured) {
+    return;
+  }
+  const accessKey = process.env.MINIO_ACCESS_KEY?.trim() ?? '';
+  const secretKey = process.env.MINIO_SECRET_KEY?.trim() ?? '';
+  if (accessKey === '' || secretKey === '') {
+    logger.warn('MinIO credentials missing; mc mirror alias not configured');
+    mcMirrorAliasConfigured = true;
+    return;
+  }
+  const { mcPath, mirrorAlias } = getMcMirrorConfig();
+  const endpoint = buildMcMirrorEndpoint();
+  try {
+    await runMcCommand(mcPath, ['alias', 'set', mirrorAlias, endpoint, accessKey, secretKey], { signal });
+    logger.info({ mirrorAlias, endpoint }, 'Configured mc mirror alias');
+  } catch (error) {
+    logger.warn({ error, mirrorAlias, endpoint }, 'Failed to configure mc mirror alias');
+  }
+  mcMirrorAliasConfigured = true;
+}
+
 function runMcCommand(mcPath: string, args: readonly string[], options: { readonly signal: AbortSignal }): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(mcPath, [...args], {
@@ -48,6 +88,7 @@ export async function mirrorMinioBucketsToWorkdir(params: {
   readonly onBucketMirrored?: (completed: number, total: number, bucket: string) => Promise<void> | void;
 }): Promise<void> {
   const { minioRoot, signal, onBucketMirrored } = params;
+  await ensureMcMirrorAliasConfigured(signal);
   const { mcPath, mirrorAlias } = getMcMirrorConfig();
   const buckets = MINIO_BUCKET_NAMES.filter((b) => b !== MINIO_BUCKET_BACKUPS);
   if (buckets.length === 0) {
@@ -178,6 +219,7 @@ export async function mirrorMinioBucketsToWorkdirWithSdk(params: {
 }
 
 export async function restoreMinioBucketsWithMcMirror(minioRoot: string, signal: AbortSignal): Promise<void> {
+  await ensureMcMirrorAliasConfigured(signal);
   const { mcPath, mirrorAlias } = getMcMirrorConfig();
   const allowed = new Set<string>([...MINIO_BUCKET_NAMES]);
   let entries: string[];

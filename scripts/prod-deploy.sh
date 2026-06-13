@@ -129,7 +129,7 @@ echo ""
 # Step 5b: Prune unused Docker images and build cache (safe for running containers)
 log "Pruning unused Docker images and build cache..."
 docker image prune -f >> "$LOG_FILE" 2>&1 || true
-docker builder prune -f --filter until=168h >> "$LOG_FILE" 2>&1 || true
+docker builder prune -f >> "$LOG_FILE" 2>&1 || true
 echo -e "${GREEN}✓${NC} Docker image/build cache pruned"
 echo ""
 

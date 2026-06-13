@@ -68,6 +68,7 @@ export async function clearTestDatabase(options?: { waitForHttp?: boolean }): Pr
   if (options?.waitForHttp === true) {
     await ensureTestServer();
   }
+  await connectTestDatabase();
   const { readyState, collections, db } = mongoose.connection;
   if (readyState !== 1) {
     return;
@@ -84,6 +85,12 @@ export async function clearTestDatabase(options?: { waitForHttp?: boolean }): Pr
   }
 
   await initializeAdminConfig();
+}
+
+/** Shared per-test reset for HTTP + Mongoose integration suites. */
+export async function prepareIntegrationTestDatabase(): Promise<void> {
+  await ensureMongooseConnectedForHttpIntegration();
+  await clearTestDatabase({ waitForHttp: false });
 }
 
 export async function getAuthToken(

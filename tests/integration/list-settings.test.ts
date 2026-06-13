@@ -1,7 +1,7 @@
 import { it, expect, beforeEach } from 'bun:test';
 import { describeDbIntegration } from '../helpers/integrationEnv.js';
 import { beforeAllEnsureTestServer } from '../helpers/integrationHooks.js';
-import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
+import { getAuthToken, prepareIntegrationTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import { createMockUser, createMockBoardForUser, createMockList } from '../helpers/mockData.js';
 
 describeDbIntegration('Board-wide list card limits', () => {
@@ -12,7 +12,7 @@ describeDbIntegration('Board-wide list card limits', () => {
   let listId: string;
 
   beforeEach(async () => {
-    await clearTestDatabase({ waitForHttp: false });
+    await prepareIntegrationTestDatabase();
     const user = await createMockUser();
     const tokenData = await getAuthToken(user.email, 'TestPassword123!');
     authToken = tokenData.token;

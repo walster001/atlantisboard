@@ -30,7 +30,8 @@ bun run build
 
 "${SCRIPT_DIR}/assert-bundle-no-host-paths.sh" \
   "${PROJECT_ROOT}/dist/server/index.js" \
-  "${PROJECT_ROOT}/dist/workers/index.js"
+  "${PROJECT_ROOT}/dist/workers/index.js" \
+  "${PROJECT_ROOT}/dist/workers/backupJobRunner.js"
 
 "${SCRIPT_DIR}/prepare-atlantisboard-package.sh"
 

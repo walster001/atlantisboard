@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { resolveMongoPoolConfig } from './mongoPool.js';
 import { logger } from '../utils/logger.js';
 
 function resolveMongoUri(): string {
@@ -17,9 +18,11 @@ function mongoDatabaseNameFromUri(uri: string): string {
   }
 }
 
+const { maxPoolSize, minPoolSize } = resolveMongoPoolConfig();
+
 const connectionOptions: mongoose.ConnectOptions = {
-  maxPoolSize: 50,
-  minPoolSize: 10,
+  maxPoolSize,
+  minPoolSize,
   serverSelectionTimeoutMS: 30000,
   socketTimeoutMS: 30000,
   connectTimeoutMS: 30000,

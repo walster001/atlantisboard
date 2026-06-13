@@ -10,7 +10,9 @@ import {
   seedScanResultCacheEntryForTests,
   sha256HexFromBuffer,
   scanBufferWithClamScan,
+  shouldUseSinglePassFileScan,
 } from '../src/server/utils/clamScanRunner.js';
+import { CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES } from '../src/server/constants/uploads.js';
 
 describe('clamScanRunner', () => {
   const originalEnv = { ...process.env };
@@ -107,6 +109,21 @@ describe('clamScanRunner', () => {
       process.env.POMPELMI_MEDIA_SKIP_PUA = 'false';
       const args = buildClamScanArgs('media', '-');
       expect(args).not.toContain('--detect-pua=no');
+    });
+  });
+
+  describe('file scan strategy', () => {
+    it('uses single-pass when cache is disabled', () => {
+      expect(shouldUseSinglePassFileScan(false, 1024)).toBe(true);
+    });
+
+    it('uses single-pass for files above disk upload threshold', () => {
+      const large = CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES + 1;
+      expect(shouldUseSinglePassFileScan(true, large)).toBe(true);
+    });
+
+    it('uses hash-first for small files when cache is enabled', () => {
+      expect(shouldUseSinglePassFileScan(true, CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES)).toBe(false);
     });
   });
 

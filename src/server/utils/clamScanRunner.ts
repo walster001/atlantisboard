@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { Verdict, type VerdictValue } from 'pompelmi';
 import {
@@ -7,7 +8,7 @@ import {
   resolveClamScanProfile,
   type ClamScanProfile,
 } from '../../shared/clamScanProfiles.js';
-import { getCardAttachmentMaxBytes } from '../constants/uploads.js';
+import { CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES, getCardAttachmentMaxBytes } from '../constants/uploads.js';
 import { CLAMAV_SIGNATURE_FILES } from './clamSignatures.js';
 
 export type { ClamScanProfile };
@@ -92,6 +93,11 @@ export function formatClamAvSizeLimit(bytes: number): string {
 
 export function isScanResultCacheEnabled(): boolean {
   return process.env.POMPELMI_SCAN_CACHE !== 'false';
+}
+
+/** Exported for tests — large disk uploads stream once; small files hash first for cache hits. */
+export function shouldUseSinglePassFileScan(cacheEnabled: boolean, fileSizeBytes: number): boolean {
+  return !cacheEnabled || fileSizeBytes > CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES;
 }
 
 type CacheEntry = {
@@ -303,15 +309,112 @@ export async function scanBufferWithClamScan(
   return scanWithOptionalCache(sha256, () => runClamScanProcess(args, buffer));
 }
 
+async function scanFileSinglePassHashAndScan(
+  filePath: string,
+  mimeType: string,
+): Promise<{ readonly verdict: VerdictValue; readonly sha256: string | null }> {
+  const profile = resolveClamScanProfile(mimeType);
+  const args = buildClamScanArgs(profile, '-');
+  const hash = isScanResultCacheEnabled() ? createHash('sha256') : null;
+  const timeoutMs = getScanProcessTimeoutMs();
+
+  return new Promise((resolve) => {
+    const child = spawn('clamscan', [...args], {
+      stdio: ['pipe', 'ignore', 'pipe'],
+      shell: false,
+    });
+
+    let timedOut = false;
+    const timer =
+      timeoutMs > 0
+        ? setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGKILL');
+          }, timeoutMs)
+        : null;
+
+    const stream = createReadStream(filePath);
+    stream.on('data', (chunk: Buffer | string) => {
+      if (hash != null) {
+        hash.update(chunk);
+      }
+    });
+    stream.on('error', () => {
+      if (timer != null) {
+        clearTimeout(timer);
+      }
+      stream.destroy();
+      resolve({ verdict: Verdict.ScanError, sha256: null });
+    });
+
+    stream.pipe(child.stdin);
+    child.stdin.on('error', () => {
+      // EPIPE after stdin closed is expected once clamscan exits.
+    });
+
+    child.on('error', () => {
+      if (timer != null) {
+        clearTimeout(timer);
+      }
+      resolve({
+        verdict: Verdict.ScanError,
+        sha256: hash != null ? hash.digest('hex') : null,
+      });
+    });
+
+    child.on('close', (code, signal) => {
+      if (timer != null) {
+        clearTimeout(timer);
+      }
+      if (timedOut) {
+        resolve({
+          verdict: Verdict.ScanError,
+          sha256: hash != null ? hash.digest('hex') : null,
+        });
+        return;
+      }
+      resolve({
+        verdict: mapExitCodeToVerdict(code, signal),
+        sha256: hash != null ? hash.digest('hex') : null,
+      });
+    });
+  });
+}
+
 export async function scanFileWithClamScan(
   filePath: string,
   mimeType: string,
 ): Promise<VerdictValue> {
-  const profile = resolveClamScanProfile(mimeType);
-  const sha256 = isScanResultCacheEnabled() ? await sha256HexFromFile(filePath) : null;
-  const args = buildClamScanArgs(profile, filePath);
+  const cacheEnabled = isScanResultCacheEnabled();
+  let fileSize = 0;
+  try {
+    const fileStat = await stat(filePath);
+    fileSize = fileStat.size;
+  } catch {
+    return Verdict.ScanError;
+  }
 
-  return scanWithOptionalCache(sha256, () => runClamScanProcess(args));
+  if (shouldUseSinglePassFileScan(cacheEnabled, fileSize)) {
+    const { verdict, sha256 } = await scanFileSinglePassHashAndScan(filePath, mimeType);
+    if (cacheEnabled && sha256 != null && verdict !== Verdict.ScanError) {
+      setCachedVerdict(sha256, verdict);
+    }
+    return verdict;
+  }
+
+  const sha256 = await sha256HexFromFile(filePath);
+  const cached = getCachedVerdict(sha256);
+  if (cached != null) {
+    return cached;
+  }
+
+  const profile = resolveClamScanProfile(mimeType);
+  const args = buildClamScanArgs(profile, filePath);
+  const verdict = await runClamScanProcess(args);
+  if (verdict !== Verdict.ScanError) {
+    setCachedVerdict(sha256, verdict);
+  }
+  return verdict;
 }
 
 /** Signature filenames used when seeding Docker images (for tests / docs alignment). */

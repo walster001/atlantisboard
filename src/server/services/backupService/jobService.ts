@@ -10,85 +10,35 @@ import {
   normalizeLocationPath,
 } from './backupShared.js';
 import { purgeMalformedActiveBackupJobs } from './backupCatalog.js';
-import { executeFullBackupWithProgressImpl } from './backupExecutor.js';
+import { executeBackupJobById } from './backupJobWorker.js';
+import {
+  shouldRunBackupInSmolSubprocess,
+  spawnBackupJobInSmolProcess,
+  terminateBackupJobProcess,
+} from './backupJobProcess.js';
 import { restoreFullBackupImpl } from './restoreExecutor.js';
 import {
   NotFoundError,
 } from '../../../shared/errors/domainErrors.js';
 
-async function runBackupJobWorker(
+function dispatchBackupJob(
   jobId: string,
-  adminUserId: string,
+  userId: string,
   ipAddress: string | undefined,
-): Promise<void> {
-  const report = async (
-    phase: string,
-    progress: number,
-    processedItems: number,
-    totalItems: number,
-  ): Promise<void> => {
-    await BackupJob.findByIdAndUpdate(jobId, {
-      status: 'processing',
-      startedAt: new Date(),
-      currentPhase: phase,
-      progress,
-      processedItems,
-      totalItems,
-    });
-  };
-  try {
-    const job = await BackupJob.findById(jobId).lean();
-    if (!job) {
-      return;
-    }
-    const loc = typeof job.location === 'string' ? job.location.trim() : '';
-    const fn = typeof job.filename === 'string' ? job.filename.trim() : '';
-    if (loc === '' || fn === '') {
-      await BackupJob.deleteOne({ _id: jobId });
-      logger.warn({ jobId }, 'Removed backup job missing location/filename (cannot run)');
-      return;
-    }
-    const controller = new AbortController();
-    activeJobControllers.set(jobId, controller);
-    await report('queued', 2, 0, BACKUP_PHASE_TOTAL);
-    const result = await executeFullBackupWithProgressImpl({
-      adminUserId,
-      ipAddress,
-      filename: job.filename,
-      location: job.location,
-      signal: controller.signal,
-      onProgress: { report },
-    });
-    await BackupJob.findByIdAndUpdate(jobId, {
-      status: 'completed',
-      progress: 100,
-      processedItems: BACKUP_PHASE_TOTAL,
-      totalItems: BACKUP_PHASE_TOTAL,
-      currentPhase: 'done',
-      result,
-      completedAt: new Date(),
-    });
-  } catch (error) {
-    const failureMessage = error instanceof Error ? error.message : String(error);
-    if (failureMessage === 'BACKUP_CANCELLED') {
-      await BackupJob.findByIdAndUpdate(jobId, {
-        status: 'cancelled',
-        currentPhase: 'cancelled',
-        failureMessage: 'Backup was cancelled.',
-        completedAt: new Date(),
-      });
-      return;
-    }
-    logger.error({ error, jobId }, 'Backup job failed');
-    await BackupJob.findByIdAndUpdate(jobId, {
+): void {
+  if (shouldRunBackupInSmolSubprocess()) {
+    spawnBackupJobInSmolProcess({ jobId, userId, ipAddress });
+    return;
+  }
+  void executeBackupJobById({ jobId, userId, ipAddress }).catch((err: unknown) => {
+    logger.error({ err, jobId }, 'Backup job worker crashed');
+    void BackupJob.findByIdAndUpdate(jobId, {
       status: 'failed',
       currentPhase: 'failed',
-      failureMessage,
+      failureMessage: err instanceof Error ? err.message : String(err),
       progress: 0,
     });
-  } finally {
-    activeJobControllers.delete(jobId);
-  }
+  });
 }
 
 async function runRestoreJobWorker(
@@ -191,15 +141,7 @@ export async function startBackupJobImpl(params: {
     expiresAt,
   });
   const jobId = doc._id.toString();
-  void runBackupJobWorker(jobId, params.userId, params.ipAddress).catch((err: unknown) => {
-    logger.error({ err, jobId }, 'Backup job worker crashed');
-    void BackupJob.findByIdAndUpdate(jobId, {
-      status: 'failed',
-      currentPhase: 'failed',
-      failureMessage: err instanceof Error ? err.message : String(err),
-      progress: 0,
-    });
-  });
+  dispatchBackupJob(jobId, params.userId, params.ipAddress);
   return { jobId, reusedExisting: false };
 }
 
@@ -228,9 +170,11 @@ export async function cancelBackupJobImpl(jobId: string, userId: string): Promis
   if (updated == null) {
     return false;
   }
-  const controller = activeJobControllers.get(jobId);
-  if (controller) {
-    controller.abort();
+  if (!terminateBackupJobProcess(jobId)) {
+    const controller = activeJobControllers.get(jobId);
+    if (controller) {
+      controller.abort();
+    }
   }
   return true;
 }

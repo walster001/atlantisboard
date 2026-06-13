@@ -36,6 +36,8 @@ declare global {
     file(path: string): BunFile;
     CSRF?: BunCsrfApi;
     SQL: BunSqlConstructor;
+    /** Trigger garbage collection (Bun runtime). */
+    gc?: (sync: boolean) => void;
     password: {
       hash(
         password: string,

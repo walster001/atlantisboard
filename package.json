@@ -13,7 +13,7 @@
     "build:emoji-sheet": "bun run scripts/build-extended-emoji-spritesheet.ts",
     "build:client": "bun run scripts/build-client-with-css.ts",
     "build:client:watch": "bun run scripts/build-client-watch.ts",
-    "build": "bun build src/server/index.ts --outdir dist/server --target bun --packages=external && bun build src/client/index.tsx --outdir dist/client --target browser --define process.env.NODE_ENV=\\\"production\\\" --external mongoose --external ioredis --external mongodb --external minio --external express --external socket.io --external passport && bun build src/server/workers/index.ts --outdir dist/workers --target bun --packages=external",
+    "build": "bun build src/server/index.ts --outdir dist/server --target bun --packages=external && bun build src/client/index.tsx --outdir dist/client --target browser --define process.env.NODE_ENV=\\\"production\\\" --external mongoose --external ioredis --external mongodb --external minio --external express --external socket.io --external passport && bun build src/server/workers/index.ts --outdir dist/workers --target bun --packages=external && bun build src/server/workers/backupJobRunner.ts --outdir dist/workers --target bun --packages=external",
     "build:analyze": "bun build src/client/index.tsx --outdir dist/client --target browser --analyze",
     "start": "bun run dist/server/index.js",
     "start:worker": "bun run dist/workers/index.js",

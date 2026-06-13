@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { describeDbIntegration } from '../helpers/integrationEnv.js';
 import { beforeAllEnsureTestServer } from '../helpers/integrationHooks.js';
-import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
+import { getAuthToken, prepareIntegrationTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import {
   createMockUser,
   createMockBoardForUser,
@@ -27,7 +27,7 @@ describeDbIntegration('Reminders', () => {
   let cardDueDate: Date;
 
   beforeEach(async () => {
-    await clearTestDatabase({ waitForHttp: false });
+    await prepareIntegrationTestDatabase();
     const user = await createMockUser();
     userId = user._id.toString();
     const tokenData = await getAuthToken(user.email, 'TestPassword123!');

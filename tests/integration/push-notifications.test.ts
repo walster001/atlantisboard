@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { describeDbIntegration } from '../helpers/integrationEnv.js';
 import { beforeAllEnsureTestServer } from '../helpers/integrationHooks.js';
-import { getAuthToken, clearTestDatabase, injectApp } from '../helpers/testHelpers.js';
+import { getAuthToken, prepareIntegrationTestDatabase, injectApp } from '../helpers/testHelpers.js';
 import { createMockUser } from '../helpers/mockData.js';
 import { User } from '../../src/server/models/User.js';
 import { getVapidPublicKey } from '../../src/server/config/vapid.js';
@@ -12,7 +12,7 @@ describeDbIntegration('Push Notifications', () => {
   let userId: string;
 
   beforeEach(async () => {
-    await clearTestDatabase({ waitForHttp: false });
+    await prepareIntegrationTestDatabase();
     const user = await createMockUser();
     userId = user._id.toString();
     const tokenData = await getAuthToken(user.email, 'TestPassword123!');

@@ -182,6 +182,38 @@ if [ "$(id -u)" = "0" ]; then
   fi
 fi
 
+configure_mc_mirror_alias() {
+  if [ -z "${MINIO_ACCESS_KEY:-}" ] || [ -z "${MINIO_SECRET_KEY:-}" ]; then
+    return 0
+  fi
+  mc_path="${BACKUP_MC_PATH:-/usr/local/bin/mc}"
+  if [ ! -x "$mc_path" ]; then
+    mc_path="mc"
+  fi
+  if ! command -v "$mc_path" >/dev/null 2>&1; then
+    echo "warning: mc not found; backup mirror alias not configured" >&2
+    return 0
+  fi
+  mc_alias="${BACKUP_MC_MIRROR_ALIAS:-local}"
+  if [ -n "${BACKUP_MC_ENDPOINT:-}" ]; then
+    mc_endpoint="$BACKUP_MC_ENDPOINT"
+  else
+    minio_host="${MINIO_ENDPOINT:-localhost}"
+    minio_port="${MINIO_PORT:-9000}"
+    if [ "${MINIO_USE_SSL:-false}" = "true" ]; then
+      mc_endpoint="https://${minio_host}:${minio_port}"
+    else
+      mc_endpoint="http://${minio_host}:${minio_port}"
+    fi
+  fi
+  su-exec bunjs:nodejs "$mc_path" alias set "$mc_alias" "$mc_endpoint" "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY" \
+    || echo "warning: failed to configure mc mirror alias" >&2
+}
+
+if [ "$(id -u)" = "0" ]; then
+  configure_mc_mirror_alias
+fi
+
 if [ "$(id -u)" = "0" ]; then
   exec su-exec bunjs:nodejs "$@"
 fi

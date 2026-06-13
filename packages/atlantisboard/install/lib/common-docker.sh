@@ -471,7 +471,7 @@ atl_docker_compose_or_continue() {
   msg+="Last output:\n${excerpt}\n\n"
   msg+="You can fix containers later with:\n"
   msg+="  cd ${install_hint}/install/docker\n"
-  msg+="  sudo docker compose --env-file ../../.env "
+  msg+="  sudo docker compose --env-file image-defaults.env --env-file ../../.env "
   msg+="-f ${compose_label} logs\n\n"
   msg+="Continue setup anyway (HTTPS reverse proxy and remaining steps)?"
 

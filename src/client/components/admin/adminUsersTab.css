@@ -171,6 +171,24 @@
     height: 100%;
   }
 
+  .admin-users-tab__mobile-toolbar {
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  .admin-users-tab__mobile-search {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .admin-users-tab__mobile-search form {
+    width: 100%;
+  }
+
+  .admin-users-tab__mobile-save {
+    flex-shrink: 0;
+  }
+
   .admin-users-tab--mobile > :not(.admin-users-tab__table-panel--mobile) {
     flex-shrink: 0;
   }

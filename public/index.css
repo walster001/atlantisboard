@@ -9267,11 +9267,40 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   background-color: var(--mantine-color-gray-7);
 }
 
+.home-page__board-card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items:  flex-end;
+  gap: var(--mantine-spacing-xs, .625rem);
+  flex-wrap: nowrap;
+  width: 100%;
+  min-width: 0;
+}
+
+.home-page__board-card-menu-slot {
+  flex: 0 0 var(--ai-size-sm, 2.125rem);
+  width: var(--ai-size-sm, 2.125rem);
+  min-height: var(--ai-size-sm, 2.125rem);
+  display: flex;
+  justify-content: center;
+  align-items:  center;
+}
+
 .home-page__board-card-title {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
   font-weight: 700;
+  font-size: var(--mantine-font-size-xl, 1.25rem);
+  height: calc(2.7 * var(--mantine-font-size-xl, 1.25rem));
+  max-height: calc(2.7 * var(--mantine-font-size-xl, 1.25rem));
+  overflow-wrap: break-word;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+  flex: auto;
+  min-width: 0;
+  margin: 0;
   line-height: 1.35;
 }
 
@@ -14245,6 +14274,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     flex: auto;
     min-height: 0;
     max-height: none;
+    margin-top: 0;
   }
 
   .admin-configuration-page__mobile-content:has(.admin-users-tab--mobile) .admin-users-tab--mobile {
@@ -15058,7 +15088,21 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
     min-height: 0;
   }
 
-  .admin-users-tab--mobile > :not(.admin-users-tab__table-panel--mobile) {
+  .admin-users-tab__mobile-toolbar {
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  .admin-users-tab__mobile-search {
+    flex: auto;
+    min-width: 0;
+  }
+
+  .admin-users-tab__mobile-search form {
+    width: 100%;
+  }
+
+  .admin-users-tab__mobile-save, .admin-users-tab--mobile > :not(.admin-users-tab__table-panel--mobile) {
     flex-shrink: 0;
   }
 

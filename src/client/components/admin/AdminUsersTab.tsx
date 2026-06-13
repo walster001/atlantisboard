@@ -61,34 +61,57 @@ export const AdminUsersTab = memo(function AdminUsersTab(props: AdminUsersTabPro
   );
 
   return (
-    <Stack gap="md" className={isMobile ? 'admin-users-tab admin-users-tab--mobile' : 'admin-users-tab'}>
-      <Group justify="space-between" align="end" wrap="wrap">
-        <Box>
-          <Text fw={700} size="lg">
-            Users
-          </Text>
-          <Text size="sm" c="dimmed">
-            View and manage all application users.
-          </Text>
-        </Box>
-        <Group align="end" wrap={isMobile ? 'wrap' : 'nowrap'}>
+    <Stack gap={isMobile ? 'xs' : 'md'} className={isMobile ? 'admin-users-tab admin-users-tab--mobile' : 'admin-users-tab'}>
+      {isMobile ? (
+        <Group className="admin-users-tab__mobile-toolbar" gap="xs" wrap="nowrap" align="flex-end">
+          <Box className="admin-users-tab__mobile-search">
+            <BoardMemberEnterToSearchField
+              ariaLabel="Search users"
+              placeholder="Search users..."
+              onCommit={setQuery}
+            />
+          </Box>
           <Button
             variant="filled"
             disabled={!hasUnsavedCapabilityChanges}
             loading={savingCaps}
+            className="admin-users-tab__mobile-save"
             onClick={() => {
               void handleSaveCapabilities();
             }}
           >
             Save changes
           </Button>
-          <BoardMemberEnterToSearchField
-            ariaLabel="Search users"
-            placeholder="Search users..."
-            onCommit={setQuery}
-          />
         </Group>
-      </Group>
+      ) : (
+        <Group justify="space-between" align="end" wrap="wrap">
+          <Box>
+            <Text fw={700} size="lg">
+              Users
+            </Text>
+            <Text size="sm" c="dimmed">
+              View and manage all application users.
+            </Text>
+          </Box>
+          <Group align="end" wrap="nowrap">
+            <Button
+              variant="filled"
+              disabled={!hasUnsavedCapabilityChanges}
+              loading={savingCaps}
+              onClick={() => {
+                void handleSaveCapabilities();
+              }}
+            >
+              Save changes
+            </Button>
+            <BoardMemberEnterToSearchField
+              ariaLabel="Search users"
+              placeholder="Search users..."
+              onCommit={setQuery}
+            />
+          </Group>
+        </Group>
+      )}
 
       {error ? <Alert color="red">{error}</Alert> : null}
 

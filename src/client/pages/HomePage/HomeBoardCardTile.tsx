@@ -1,4 +1,4 @@
-import { Box, Card, Group, Text } from '@mantine/core';
+import { Box, Card, Text } from '@mantine/core';
 import type { MutableRefObject } from 'react';
 import type { BoardDB } from '../../store/database.js';
 import { BoardCardMenu } from '../../components/board/BoardCardMenu.js';
@@ -74,35 +74,36 @@ export function HomeBoardCardTile({
     >
       <Box
         p="md"
+        w="100%"
         className={`home-page__board-card-header${cover.isImageBackground ? ' home-page__board-card-header--image' : ''}`}
         style={cover.headerStyle}
       >
-        <Group justify="space-between" align="end" wrap="nowrap" gap="xs" w="100%">
-          <Text
-            fw={700}
-            fz="xl"
-            c={cover.headerTextColor}
+        <div className="home-page__board-card-title-row">
+          <span
             className="home-page__board-card-title"
             style={{
-              flex: 1,
-              minWidth: 0,
+              color: cover.headerTextColor,
               ...(boardDraggable
                 ? { WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }
                 : {}),
             }}
           >
             {board.name}
-          </Text>
-          {showBoardCardMenu ? (
-            <Box
-              data-home-board-no-drag="1"
-              style={{ flexShrink: 0, opacity: hoveredBoardId === board.id ? 1 : 0 }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-            >
+          </span>
+          <div
+            className="home-page__board-card-menu-slot"
+            data-home-board-no-drag="1"
+            style={{
+              opacity: showBoardCardMenu && hoveredBoardId === board.id ? 1 : 0,
+              pointerEvents: showBoardCardMenu ? 'auto' : 'none',
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            {showBoardCardMenu ? (
               <BoardCardMenu
                 boardId={board.id}
                 boardName={board.name}
@@ -112,9 +113,9 @@ export function HomeBoardCardTile({
                 onBoardUpdated={onRefresh}
                 onBoardDeleted={onRefresh}
               />
-            </Box>
-          ) : null}
-        </Group>
+            ) : null}
+          </div>
+        </div>
       </Box>
       <Box p="md" className="home-page__board-card-body">
         {board.description?.trim() ? (

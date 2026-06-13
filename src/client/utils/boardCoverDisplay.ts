@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { appendBoardBackgroundPreviewQuery } from '../../shared/boardBackgroundAsset.js';
 
 function isNearWhiteHexColor(value: string): boolean {
   const trimmed = value.trim();
@@ -34,11 +35,12 @@ export function resolveHomeBoardTileCoverDisplay(
   const rawBg = background?.trim() ?? '';
   const isImageBg = Boolean(rawBg && /^(https?:|\/|data:)/i.test(rawBg));
   const solidBg = rawBg && !isImageBg ? rawBg : null;
+  const imageBgUrl = isImageBg ? appendBoardBackgroundPreviewQuery(rawBg) : null;
   const headerStyle: CSSProperties =
     solidBg != null
       ? { backgroundColor: solidBg }
-      : isImageBg
-        ? { backgroundImage: `url(${rawBg})` }
+      : imageBgUrl != null
+        ? { backgroundImage: `url(${imageBgUrl})` }
         : { backgroundColor: 'var(--mantine-color-blue-6)' };
   const headerTextColor = isNearWhiteHexColor(solidBg ?? '')
     ? 'var(--mantine-color-gray-7)'

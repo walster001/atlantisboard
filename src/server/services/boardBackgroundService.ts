@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 import type { Types } from 'mongoose';
+import sharp from 'sharp';
+import { BOARD_BACKGROUND_API_PATH } from '../../shared/boardBackgroundAsset.js';
 import { MINIO_BUCKET_BACKGROUNDS } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { Board } from '../models/Board.js';
@@ -83,6 +85,44 @@ export async function uploadBoardBackgroundAsset(
   return `/api/v1/board-backgrounds/${objectName}`;
 }
 
+async function readBoardBackgroundBuffer(fileName: string): Promise<Buffer | null> {
+  const result = await getBoardBackgroundObjectStream(fileName);
+  if (result == null) {
+    return null;
+  }
+  const chunks: Buffer[] = [];
+  await new Promise<void>((resolve, reject) => {
+    result.stream.on('data', (chunk: Buffer | string) => {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    });
+    result.stream.on('end', () => resolve());
+    result.stream.on('error', reject);
+  });
+  return Buffer.concat(chunks);
+}
+
+export async function getBoardBackgroundPreviewBuffer(
+  fileName: string,
+  maxWidth: number,
+  quality: number,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  const input = await readBoardBackgroundBuffer(fileName);
+  if (input == null) {
+    return null;
+  }
+  try {
+    const buffer = await sharp(input)
+      .rotate()
+      .resize({ width: maxWidth, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality })
+      .toBuffer();
+    return { buffer, contentType: 'image/webp' };
+  } catch (error: unknown) {
+    logger.warn({ error, fileName }, 'Failed to generate board background preview');
+    return null;
+  }
+}
+
 export async function getBoardBackgroundObjectStream(
   fileName: string,
 ): Promise<{ stream: NodeJS.ReadableStream; contentType: string } | null> {
@@ -121,11 +161,9 @@ function isMinioNotFound(err: unknown): boolean {
   return code === 'NotFound' || code === 'NoSuchKey';
 }
 
-const BOARD_BACKGROUND_PATH = /^\/api\/v1\/board-backgrounds\/([a-f0-9-]{36}\.(png|jpg|jpeg|webp|gif))$/i;
-
 export async function deleteBoardBackgroundByPublicUrl(url: string): Promise<boolean> {
   const pathname = pathnameFromInput(url);
-  const match = pathname.match(BOARD_BACKGROUND_PATH);
+  const match = pathname.match(BOARD_BACKGROUND_API_PATH);
   if (!match?.[1]) {
     return false;
   }
@@ -156,7 +194,7 @@ export async function removeStoredBackgroundObjectsForBoardIds(boardIds: Types.O
     if (typeof bg !== 'string' || bg.trim() === '') {
       continue;
     }
-    const match = pathnameFromInput(bg).match(BOARD_BACKGROUND_PATH);
+    const match = pathnameFromInput(bg).match(BOARD_BACKGROUND_API_PATH);
     if (!match?.[1]) {
       continue;
     }

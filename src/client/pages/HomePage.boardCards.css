@@ -54,11 +54,41 @@
   background-color: var(--mantine-color-gray-7);
 }
 
+.home-page__board-card-title-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: var(--mantine-spacing-xs, 0.625rem);
+  width: 100%;
+  min-width: 0;
+}
+
+.home-page__board-card-menu-slot {
+  flex: 0 0 var(--ai-size-sm, 2.125rem);
+  width: var(--ai-size-sm, 2.125rem);
+  min-height: var(--ai-size-sm, 2.125rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .home-page__board-card-title {
+  /* Static clamp + fixed 2-line box — no Mantine Text/lineClamp FOUC or width reflow */
+  flex: 1 1 auto;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  margin: 0;
   font-weight: 700;
+  font-size: var(--mantine-font-size-xl, 1.25rem);
   line-height: 1.35;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  height: calc(2.7 * var(--mantine-font-size-xl, 1.25rem));
+  max-height: calc(2.7 * var(--mantine-font-size-xl, 1.25rem));
+  min-width: 0;
+  overflow-wrap: break-word;
   word-break: break-word;
 }
 

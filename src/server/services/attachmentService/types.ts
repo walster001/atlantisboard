@@ -1,4 +1,5 @@
 import type { AttachmentDeliveryKind } from '../../config/attachmentDelivery.js';
+import type { AttachmentScanStatus } from '../../../shared/attachmentScanStatus.js';
 
 export interface FileUploadResult {
   id: string;
@@ -8,6 +9,7 @@ export interface FileUploadResult {
   size: number;
   uploadedAt: Date;
   uploadedBy: string;
+  scanStatus: AttachmentScanStatus;
 }
 
 export interface UploadProgress {

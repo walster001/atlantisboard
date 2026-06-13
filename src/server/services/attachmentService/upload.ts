@@ -1,3 +1,4 @@
+import { createReadStream } from 'node:fs';
 import { getMinIOClient } from '../../config/minio.js';
 import { Card } from '../../models/Card.js';
 import { Types } from 'mongoose';
@@ -6,9 +7,10 @@ import { logAuditEvent } from '../../utils/auditLogger.js';
 import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
 import crypto from 'crypto';
-import { createReadStream } from 'node:fs';
-import { scanUploadForMalware } from '../../utils/uploadMalwareScan.js';
+import { shouldSkipMalwareScan } from '../../utils/clamSignatures.js';
+import { initialAttachmentScanStatus } from '../../../shared/attachmentScanStatus.js';
 import { isBlockedSvgUpload } from '../../utils/sanitizeHtml.js';
+import { scheduleAttachmentMalwareScan } from './malwareScan.js';
 import {
   BUCKET_NAME,
   buildAttachmentProxyUrl,
@@ -62,7 +64,7 @@ export async function uploadCardAttachment(
     throw new ValidationError(`File type not allowed: ${normalizedMime || 'unknown'}`);
   }
 
-  await scanUploadForMalware(file, fileName, normalizedMime);
+  const scanStatus = initialAttachmentScanStatus(shouldSkipMalwareScan());
 
   // Generate unique file ID
   const fileId = crypto.randomUUID();
@@ -115,6 +117,7 @@ export async function uploadCardAttachment(
       size: byteLength,
       uploadedAt: new Date(),
       uploadedBy: userId,
+      scanStatus,
     };
 
     // Add attachment to card
@@ -128,6 +131,7 @@ export async function uploadCardAttachment(
       name: fileName,
       url: storedUrl,
       isPlaceholder: false,
+      scanStatus,
       type: mimeType,
       size: byteLength,
       uploadedAt: new Date(),
@@ -137,6 +141,15 @@ export async function uploadCardAttachment(
     await card.save();
 
     emitCardUpdatedRealtime(card);
+
+    scheduleAttachmentMalwareScan({
+      cardId,
+      attachmentId: fileId,
+      objectName,
+      fileName,
+      mimeType: normalizedMime,
+      uploadedByUserId: userId,
+    });
 
     logAuditEvent({
       userId,

@@ -4,6 +4,10 @@ import { notifications } from '@mantine/notifications';
 import { Text } from '@mantine/core';
 import { useAttachmentStreamUrl } from '../../hooks/useAttachmentStreamUrl.js';
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
+import {
+  attachmentScanBlockedMessage,
+  isAttachmentViewable,
+} from '../../../shared/attachmentScanStatus.js';
 import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import {
@@ -172,7 +176,11 @@ export function useAttachmentSection({
   const listImageUrls = useMemo(() => {
     const next: Record<string, string> = {};
     for (const attachment of card.attachments ?? []) {
-      if (!isPlaceholderCardAttachment(attachment) && attachment.type.startsWith('image/')) {
+      if (
+        !isPlaceholderCardAttachment(attachment) &&
+        isAttachmentViewable(attachment.scanStatus) &&
+        attachment.type.startsWith('image/')
+      ) {
         next[attachment.id] = api.getAttachmentFileUrl(attachment.id);
       }
     }
@@ -200,6 +208,15 @@ export function useAttachmentSection({
     setLinkPreviewImageSize(null);
   }, []);
 
+  const linkPreviewScanBlocked =
+    linkPreviewAttachment != null &&
+    !isPlaceholderCardAttachment(linkPreviewAttachment) &&
+    !isAttachmentViewable(linkPreviewAttachment.scanStatus);
+  const linkPreviewScanMessage =
+    linkPreviewAttachment != null && linkPreviewScanBlocked
+      ? attachmentScanBlockedMessage(linkPreviewAttachment.scanStatus)
+      : '';
+
   useEffect(() => {
     setLinkPreviewImageSize(null);
     if (linkPreviewAttachmentId == null) {
@@ -212,6 +229,12 @@ export function useAttachmentSection({
       setLinkPreviewAttachmentId(null);
       setLinkPreviewImageSize(null);
       setLinkPreviewStreamUrl('');
+      return;
+    }
+
+    if (!isAttachmentViewable(att.scanStatus)) {
+      setLinkPreviewStreamUrl('');
+      setLinkPreviewStreamLoading(false);
       return;
     }
 
@@ -299,6 +322,8 @@ export function useAttachmentSection({
     isLinkPreviewImage,
     isLinkPreviewVideo,
     isLinkPreviewPdf,
+    linkPreviewScanBlocked,
+    linkPreviewScanMessage,
     previewModalProps,
     handleSetCoverFromAttachment,
     handleFileSelect,

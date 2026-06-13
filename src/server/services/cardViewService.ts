@@ -138,6 +138,7 @@ export function toCardDetail(card: ICard): CardDetailDTO {
         ? { originalFileName: attachment.originalFileName.trim() }
         : {}),
       ...(attachment.isPlaceholder === true ? { isPlaceholder: true } : {}),
+      ...(attachment.scanStatus !== undefined ? { scanStatus: attachment.scanStatus } : {}),
       type: attachment.type,
       size: attachment.size,
       uploadedAt: attachment.uploadedAt,

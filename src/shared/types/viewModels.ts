@@ -1,4 +1,5 @@
 export type EntityViewMode = 'summary' | 'detail';
+import type { AttachmentScanStatus } from '../attachmentScanStatus.js';
 import type { BoardThemeSettings, BoardThemeSettingsStored } from '../boardTheme.js';
 import type { BoardActivityTrackingSettings } from '../constants/boardContentActivities.js';
 
@@ -146,6 +147,7 @@ export interface CardDetailDTO {
     /** Import source filename for matching after upload. */
     originalFileName?: string;
     isPlaceholder?: boolean;
+    scanStatus?: AttachmentScanStatus;
     type: string;
     size: number;
     uploadedAt: Date;

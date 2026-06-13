@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
+import type { AttachmentScanStatus } from '../../shared/attachmentScanStatus.js';
 import { CARD_ATTACHMENT_ORIGINAL_NAME_MAX_LENGTH, CARD_TITLE_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
 
 export interface ICardLabel {
@@ -25,6 +26,8 @@ export interface ICardAttachment {
   originalFileName?: string;
   /** True when no object exists in storage yet (import placeholder). */
   isPlaceholder?: boolean;
+  /** Post-upload malware scan state; omitted on legacy rows (treated as clean). */
+  scanStatus?: AttachmentScanStatus;
   type: string;
   size: number;
   uploadedAt: Date;
@@ -132,6 +135,10 @@ const CardAttachmentSchema = new Schema<ICardAttachment>(
       trim: true,
     },
     isPlaceholder: { type: Boolean, default: false },
+    scanStatus: {
+      type: String,
+      enum: ['pending', 'clean', 'infected', 'failed', 'skipped'],
+    },
     type: { type: String, required: true },
     size: { type: Number, required: true },
     uploadedAt: { type: Date, default: Date.now },

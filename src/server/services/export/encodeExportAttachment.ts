@@ -1,4 +1,5 @@
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
+import { isAttachmentViewable } from '../../../shared/attachmentScanStatus.js';
 import { BOARD_EXPORT_INLINE_ATTACHMENT_MAX_BYTES } from '../../../shared/export/boardExportFormats.js';
 import type { ICardAttachment } from '../../models/Card.js';
 import { readAttachmentObjectBytes } from '../attachmentService.js';
@@ -42,6 +43,10 @@ export async function encodeExportAttachment(
   };
 
   if (isPlaceholderCardAttachment(attachment)) {
+    return base;
+  }
+
+  if (!isAttachmentViewable(attachment.scanStatus)) {
     return base;
   }
 

@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import type { AttachmentScanStatus } from '../../shared/attachmentScanStatus.js';
 import type { BoardThemeSettings } from '../../shared/boardTheme.js';
 import type { BoardActivityTrackingSettings } from '../../shared/constants/boardContentActivities.js';
 
@@ -131,6 +132,7 @@ export interface CardDB {
     url: string;
     originalFileName?: string;
     isPlaceholder?: boolean;
+    scanStatus?: AttachmentScanStatus;
     type: string;
     size: number;
     uploadedAt: Date;

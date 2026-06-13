@@ -8,6 +8,8 @@ interface AttachmentPreviewModalProps {
   readonly attachment: NonNullable<CardDB['attachments']>[number] | null;
   readonly linkPreviewUrl: string;
   readonly linkPreviewStreamLoading: boolean;
+  readonly linkPreviewScanBlocked: boolean;
+  readonly linkPreviewScanMessage: string;
   readonly linkPreviewImageSize: { readonly width: number; readonly height: number } | null;
   readonly isLinkPreviewImage: boolean;
   readonly isLinkPreviewVideo: boolean;
@@ -20,6 +22,8 @@ export function AttachmentPreviewModal({
   attachment,
   linkPreviewUrl,
   linkPreviewStreamLoading,
+  linkPreviewScanBlocked,
+  linkPreviewScanMessage,
   linkPreviewImageSize,
   isLinkPreviewImage,
   isLinkPreviewVideo,
@@ -53,7 +57,11 @@ export function AttachmentPreviewModal({
           >
             <IconX size={16} aria-hidden />
           </UnstyledButton>
-          {linkPreviewStreamLoading ? (
+          {linkPreviewScanBlocked ? (
+            <Text size="sm" c="dimmed">
+              {linkPreviewScanMessage}
+            </Text>
+          ) : linkPreviewStreamLoading ? (
             <Text size="sm" c="dimmed">
               Loading preview…
             </Text>

@@ -36,6 +36,8 @@ export function AttachmentSection({
     linkPreviewAttachment,
     linkPreviewUrl,
     linkPreviewStreamLoading,
+    linkPreviewScanBlocked,
+    linkPreviewScanMessage,
     linkPreviewImageSize,
     isLinkPreviewImage,
     isLinkPreviewVideo,
@@ -122,6 +124,8 @@ export function AttachmentSection({
         attachment={linkPreviewAttachment}
         linkPreviewUrl={linkPreviewUrl}
         linkPreviewStreamLoading={linkPreviewStreamLoading}
+        linkPreviewScanBlocked={linkPreviewScanBlocked}
+        linkPreviewScanMessage={linkPreviewScanMessage}
         linkPreviewImageSize={linkPreviewImageSize}
         isLinkPreviewImage={isLinkPreviewImage}
         isLinkPreviewVideo={isLinkPreviewVideo}

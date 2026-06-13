@@ -5,6 +5,10 @@ import { hasPermission, type AuthUser } from '../utils/permissions.js';
 import { logger } from '../utils/logger.js';
 import { isPlaceholderCardAttachment } from '../../shared/cardAttachmentPlaceholder.js';
 import {
+  evaluateAttachmentScanAccess,
+  type AttachmentScanStatus,
+} from '../../shared/attachmentScanStatus.js';
+import {
   getAttachmentObjectMeta,
   type AttachmentObjectMeta,
 } from './attachmentService.js';
@@ -20,21 +24,30 @@ export interface CachedAttachmentLocation {
   readonly contentType: string;
   readonly size: number;
   readonly storedUrl: string;
+  readonly scanStatus?: AttachmentScanStatus;
   readonly attachment: Pick<
     ICardAttachment,
-    'id' | 'name' | 'url' | 'type' | 'size' | 'isPlaceholder'
+    'id' | 'name' | 'url' | 'type' | 'size' | 'isPlaceholder' | 'scanStatus'
   >;
 }
 
 export interface ResolvedAttachmentAccess {
   readonly boardId: string;
-  readonly attachment: Pick<ICardAttachment, 'id' | 'name' | 'url' | 'type' | 'size'>;
+  readonly attachment: Pick<
+    ICardAttachment,
+    'id' | 'name' | 'url' | 'type' | 'size' | 'scanStatus'
+  >;
   readonly objectMeta: AttachmentObjectMeta;
 }
 
 export type AttachmentAccessFailure = {
   readonly status: 404 | 403;
-  readonly code: 'NOT_FOUND' | 'FORBIDDEN' | 'ATTACHMENT_PLACEHOLDER';
+  readonly code:
+    | 'NOT_FOUND'
+    | 'FORBIDDEN'
+    | 'ATTACHMENT_PLACEHOLDER'
+    | 'ATTACHMENT_SCAN_PENDING'
+    | 'ATTACHMENT_SCAN_BLOCKED';
   readonly message: string;
 };
 
@@ -133,6 +146,11 @@ async function loadAttachmentLocationFromDb(
     };
   }
 
+  const scanFailure = evaluateAttachmentScanAccess(attachment.scanStatus);
+  if (scanFailure != null) {
+    return scanFailure;
+  }
+
   const objectMeta = await getAttachmentObjectMeta(attachment.url);
   const boardId = card.boardId.toString();
 
@@ -142,6 +160,7 @@ async function loadAttachmentLocationFromDb(
     contentType: objectMeta.contentType,
     size: objectMeta.size,
     storedUrl: attachment.url,
+    ...(attachment.scanStatus !== undefined ? { scanStatus: attachment.scanStatus } : {}),
     attachment: {
       id: attachment.id,
       name: attachment.name,
@@ -149,6 +168,7 @@ async function loadAttachmentLocationFromDb(
       type: attachment.type,
       size: attachment.size,
       ...(attachment.isPlaceholder === true ? { isPlaceholder: true as const } : {}),
+      ...(attachment.scanStatus !== undefined ? { scanStatus: attachment.scanStatus } : {}),
     },
   };
 
@@ -184,6 +204,11 @@ export async function resolveAttachmentForUser(
       return loaded;
     }
     location = loaded;
+  } else {
+    const scanFailure = evaluateAttachmentScanAccess(location.scanStatus);
+    if (scanFailure != null) {
+      return scanFailure;
+    }
   }
 
   const allowed = await ensureBoardViewPermission(user, location.boardId);

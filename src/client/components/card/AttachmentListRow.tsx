@@ -12,6 +12,10 @@ import {
 } from '@mantine/core';
 import { IconPlayerPlay, IconTrash } from '@tabler/icons-react';
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
+import {
+  attachmentScanBlockedMessage,
+  isAttachmentViewable,
+} from '../../../shared/attachmentScanStatus.js';
 import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import { isCoverAttachment } from '../../utils/attachmentCoverUtils.js';
@@ -41,6 +45,9 @@ export const AttachmentListRow = memo(function AttachmentListRow({
   onDelete,
 }: AttachmentListRowProps) {
   const isPh = isPlaceholderCardAttachment(attachment);
+  const scanBlocked = !isPh && !isAttachmentViewable(attachment.scanStatus);
+  const scanMessage = scanBlocked ? attachmentScanBlockedMessage(attachment.scanStatus) : '';
+  const canPreview = !isPh && !scanBlocked;
   const displayNameStyle = {
     display: 'block',
     overflow: 'hidden',
@@ -67,9 +74,9 @@ export const AttachmentListRow = memo(function AttachmentListRow({
           <UnstyledButton
             type="button"
             aria-label={`Preview ${attachment.name}`}
-            disabled={isPh}
+            disabled={!canPreview}
             onClick={() => {
-              if (!isPh) {
+              if (canPreview) {
                 onPreview(attachment.id);
               }
             }}
@@ -85,12 +92,16 @@ export const AttachmentListRow = memo(function AttachmentListRow({
               alignItems: 'center',
               justifyContent: 'center',
               padding: 0,
-              cursor: isPh ? 'default' : 'pointer',
+              cursor: canPreview ? 'pointer' : 'default',
             }}
           >
             {isPh ? (
               <Text size="xs" c="dimmed" ta="center" px="xs">
                 No preview — file not in storage
+              </Text>
+            ) : scanBlocked ? (
+              <Text size="xs" c="dimmed" ta="center" px="xs">
+                Scan in progress
               </Text>
             ) : (
               <Image
@@ -107,9 +118,9 @@ export const AttachmentListRow = memo(function AttachmentListRow({
           <UnstyledButton
             type="button"
             aria-label={`Preview ${attachment.name}`}
-            disabled={isPh}
+            disabled={!canPreview}
             onClick={() => {
-              if (!isPh) {
+              if (canPreview) {
                 onPreview(attachment.id);
               }
             }}
@@ -125,12 +136,16 @@ export const AttachmentListRow = memo(function AttachmentListRow({
               alignItems: 'center',
               justifyContent: 'center',
               padding: 0,
-              cursor: isPh ? 'default' : 'pointer',
+              cursor: canPreview ? 'pointer' : 'default',
             }}
           >
             {isPh ? (
               <Text size="xs" c="dimmed" ta="center" px="xs">
                 No preview — file not in storage
+              </Text>
+            ) : scanBlocked ? (
+              <Text size="xs" c="dimmed" ta="center" px="xs">
+                Scan in progress
               </Text>
             ) : (
               <IconPlayerPlay
@@ -162,6 +177,10 @@ export const AttachmentListRow = memo(function AttachmentListRow({
             <Text fw={500} style={displayNameStyle}>
               {attachment.name}
             </Text>
+          ) : scanBlocked ? (
+            <Text fw={500} style={displayNameStyle}>
+              {attachment.name}
+            </Text>
           ) : (
             <Anchor
               href="#"
@@ -179,6 +198,19 @@ export const AttachmentListRow = memo(function AttachmentListRow({
             <Badge size="xs" variant="light" color="gray" mt={6}>
               Import placeholder
             </Badge>
+          ) : scanBlocked ? (
+            <Badge size="xs" variant="light" color={attachment.scanStatus === 'infected' ? 'red' : 'yellow'} mt={6}>
+              {attachment.scanStatus === 'infected'
+                ? 'Blocked'
+                : attachment.scanStatus === 'failed'
+                  ? 'Scan failed'
+                  : 'Scan pending'}
+            </Badge>
+          ) : null}
+          {scanBlocked && scanMessage !== '' ? (
+            <Text size="xs" c="dimmed" mt={4}>
+              {scanMessage}
+            </Text>
           ) : null}
           <Text size="xs" c="dimmed">
             {formatFileSize(attachment.size)} • {new Date(attachment.uploadedAt).toLocaleDateString()}
@@ -188,7 +220,7 @@ export const AttachmentListRow = memo(function AttachmentListRow({
               Original filename (for mapping): {mappingName}
             </Text>
           ) : null}
-          {canEdit && attachment.type.startsWith('image/') && !isPh ? (
+          {canEdit && attachment.type.startsWith('image/') && canPreview ? (
             <Button
               size="xs"
               variant="light"

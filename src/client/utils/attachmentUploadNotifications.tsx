@@ -22,7 +22,6 @@ function renderMalwareScanMessage(label: string): ReactElement {
   return (
     <Stack gap={6}>
       <Text size="sm">{label}</Text>
-      <Text size="sm">Scanning for Malware</Text>
       <Progress value={100} radius="md" size="sm" animated />
     </Stack>
   );
@@ -48,7 +47,7 @@ export function updateAttachmentUploadNotification(label: string, percent: numbe
       color: 'blue',
       title: 'Scanning for Malware',
       message: renderMalwareScanMessage(label),
-      loading: true,
+      loading: false,
       autoClose: false,
       withCloseButton: false,
       position: LONG_TASK_NOTIFICATION_POSITION,

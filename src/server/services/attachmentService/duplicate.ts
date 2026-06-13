@@ -39,6 +39,7 @@ function clonedStorageAttachmentRow(
     id: newId,
     name: att.name,
     url: destObjectName,
+    scanStatus: 'clean',
     ...(typeof att.originalFileName === 'string' && att.originalFileName.trim() !== ''
       ? { originalFileName: att.originalFileName }
       : {}),

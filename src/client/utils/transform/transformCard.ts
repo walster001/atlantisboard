@@ -1,4 +1,5 @@
 import type { CardDB } from '../../store/database.js';
+import type { AttachmentScanStatus } from '../../../shared/attachmentScanStatus.js';
 import { extractMongoStringId } from '../../../shared/mongoId.js';
 
 export function transformCard(card: unknown): CardDB {
@@ -44,6 +45,7 @@ export function transformCard(card: unknown): CardDB {
       url: string;
       originalFileName?: string;
       isPlaceholder?: boolean;
+      scanStatus?: AttachmentScanStatus;
       type: string;
       size: number;
       uploadedAt: Date | string;
@@ -135,6 +137,7 @@ export function transformCard(card: unknown): CardDB {
         ? { originalFileName: attachment.originalFileName.trim() }
         : {}),
       ...(attachment.isPlaceholder === true ? { isPlaceholder: true } : {}),
+      ...(typeof attachment.scanStatus === 'string' ? { scanStatus: attachment.scanStatus } : {}),
       type: attachment.type,
       size: attachment.size,
       uploadedAt: typeof attachment.uploadedAt === 'string' ? new Date(attachment.uploadedAt) : attachment.uploadedAt,

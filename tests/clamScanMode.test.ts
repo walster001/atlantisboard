@@ -13,9 +13,9 @@ describe('clamScanMode', () => {
     process.env = { ...originalEnv };
   });
 
-  it('defaults min RAM threshold to 2048 MB', () => {
+  it('defaults min RAM threshold to 4096 MB', () => {
     delete process.env.POMPELMI_CLAMD_MIN_RAM_MB;
-    expect(getClamdMinRamMb()).toBe(2048);
+    expect(getClamdMinRamMb()).toBe(4096);
   });
 
   it('uses clamd when POMPELMI_USE_CLAMD=true regardless of RAM', async () => {

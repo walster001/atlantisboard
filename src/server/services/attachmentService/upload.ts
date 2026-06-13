@@ -24,6 +24,7 @@ import {
   cardAttachmentPayloadBytes,
   type CardAttachmentUploadPayload,
   type FileUploadResult,
+  type UploadCardAttachmentOptions,
   type UploadProgress,
 } from './types.js';
 
@@ -37,6 +38,7 @@ export async function uploadCardAttachment(
   mimeType: string,
   userId: string,
   onProgress?: (progress: UploadProgress) => void,
+  options?: UploadCardAttachmentOptions,
 ): Promise<FileUploadResult> {
   const client = getMinIOClient();
   const byteLength = cardAttachmentPayloadBytes(file);
@@ -65,6 +67,11 @@ export async function uploadCardAttachment(
   }
 
   const scanStatus = initialAttachmentScanStatus(shouldSkipMalwareScan());
+  const localScanPath = options?.localScanPath?.trim();
+  const handoffTempToScan =
+    localScanPath != null &&
+    localScanPath !== '' &&
+    scanStatus === 'pending';
 
   // Generate unique file ID
   const fileId = crypto.randomUUID();
@@ -118,6 +125,7 @@ export async function uploadCardAttachment(
       uploadedAt: new Date(),
       uploadedBy: userId,
       scanStatus,
+      ...(handoffTempToScan ? { releaseLocalUploadTemp: false as const } : {}),
     };
 
     // Add attachment to card
@@ -149,6 +157,7 @@ export async function uploadCardAttachment(
       fileName,
       mimeType: normalizedMime,
       uploadedByUserId: userId,
+      ...(handoffTempToScan && localScanPath != null ? { localScanPath } : {}),
     });
 
     logAuditEvent({

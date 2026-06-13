@@ -2,7 +2,16 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { Verdict, type VerdictValue } from 'pompelmi';
+import {
+  isLowRiskMediaMimeType,
+  resolveClamScanProfile,
+  type ClamScanProfile,
+} from '../../shared/clamScanProfiles.js';
+import { getCardAttachmentMaxBytes } from '../constants/uploads.js';
 import { CLAMAV_SIGNATURE_FILES } from './clamSignatures.js';
+
+export type { ClamScanProfile };
+export { isLowRiskMediaMimeType, resolveClamScanProfile };
 
 const DEFAULT_DB_DIR = '/var/lib/clamav';
 
@@ -12,24 +21,9 @@ const SCAN_EXIT_CODES: Readonly<Record<number, VerdictValue>> = {
   2: Verdict.ScanError,
 };
 
-export type ClamScanProfile = 'media' | 'standard';
-
 export function getClamAvDbDir(): string {
   const configured = process.env.CLAMAV_DB_DIR?.trim();
   return configured != null && configured !== '' ? configured : DEFAULT_DB_DIR;
-}
-
-/** Images and videos: no embedded archive extraction needed; safe for faster clamscan flags. */
-export function isLowRiskMediaMimeType(mimeType: string): boolean {
-  const normalized = mimeType.split(';')[0]?.trim().toLowerCase() ?? '';
-  return normalized.startsWith('image/') || normalized.startsWith('video/');
-}
-
-export function resolveClamScanProfile(mimeType: string): ClamScanProfile {
-  if (process.env.POMPELMI_MEDIA_FAST_SCAN === 'false') {
-    return 'standard';
-  }
-  return isLowRiskMediaMimeType(mimeType) ? 'media' : 'standard';
 }
 
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
@@ -56,12 +50,44 @@ function getMediaMaxScantimeMs(): number {
   return parseNonNegativeInt(process.env.POMPELMI_MEDIA_MAX_SCANTIME_MS, 30_000);
 }
 
+function getTextMaxScantimeMs(): number {
+  return parseNonNegativeInt(process.env.POMPELMI_TEXT_MAX_SCANTIME_MS, 15_000);
+}
+
+function getOfficeMaxScantimeMs(): number {
+  return parseNonNegativeInt(process.env.POMPELMI_OFFICE_MAX_SCANTIME_MS, 90_000);
+}
+
+function getPdfMaxScantimeMs(): number {
+  return parseNonNegativeInt(process.env.POMPELMI_PDF_MAX_SCANTIME_MS, 120_000);
+}
+
 function getCacheMaxSize(): number {
   return parsePositiveInt(process.env.POMPELMI_SCAN_CACHE_MAX, 1_000);
 }
 
 function getCacheTtlMs(): number {
   return parsePositiveInt(process.env.POMPELMI_SCAN_CACHE_TTL_MS, 3_600_000);
+}
+
+/** When true (default), omit PUA/heuristic categories on attachment scans. */
+function shouldSkipPuaDetection(): boolean {
+  const unified = process.env.POMPELMI_SKIP_PUA?.trim().toLowerCase();
+  if (unified === 'false') {
+    return false;
+  }
+  if (unified === 'true') {
+    return true;
+  }
+  return process.env.POMPELMI_MEDIA_SKIP_PUA !== 'false';
+}
+
+/** ClamAV size limit format (`100M`, `512K`). */
+export function formatClamAvSizeLimit(bytes: number): string {
+  if (bytes >= 1024 * 1024) {
+    return `${Math.ceil(bytes / (1024 * 1024))}M`;
+  }
+  return `${Math.ceil(bytes / 1024)}K`;
 }
 
 export function isScanResultCacheEnabled(): boolean {
@@ -133,6 +159,24 @@ export async function sha256HexFromFile(path: string): Promise<string> {
   });
 }
 
+function appendMaxScantime(args: string[], maxScantimeMs: number): void {
+  if (maxScantimeMs > 0) {
+    args.push(`--max-scantime=${maxScantimeMs}`);
+  }
+}
+
+function appendSkipPua(args: string[]): void {
+  if (shouldSkipPuaDetection()) {
+    args.push('--detect-pua=no');
+  }
+}
+
+function appendAttachmentSizeCaps(args: string[]): void {
+  const limit = formatClamAvSizeLimit(getCardAttachmentMaxBytes());
+  args.push(`--max-filesize=${limit}`);
+  args.push(`--max-scansize=${limit}`);
+}
+
 /** Build clamscan argv for a file path or stdin (`-`). Exported for tests. */
 export function buildClamScanArgs(profile: ClamScanProfile, target: string): readonly string[] {
   const args: string[] = [
@@ -141,15 +185,29 @@ export function buildClamScanArgs(profile: ClamScanProfile, target: string): rea
     `--database=${getClamAvDbDir()}`,
   ];
 
-  if (profile === 'media') {
-    args.push('--scan-archive=no');
-    const maxScantimeMs = getMediaMaxScantimeMs();
-    if (maxScantimeMs > 0) {
-      args.push(`--max-scantime=${maxScantimeMs}`);
-    }
-    if (process.env.POMPELMI_MEDIA_SKIP_PUA !== 'false') {
-      args.push('--detect-pua=no');
-    }
+  switch (profile) {
+    case 'media':
+      args.push('--scan-archive=no');
+      appendMaxScantime(args, getMediaMaxScantimeMs());
+      appendSkipPua(args);
+      break;
+    case 'text':
+      args.push('--scan-archive=no');
+      args.push('--scan-ole2=no');
+      appendMaxScantime(args, getTextMaxScantimeMs());
+      appendSkipPua(args);
+      break;
+    case 'pdf':
+      appendMaxScantime(args, getPdfMaxScantimeMs());
+      appendAttachmentSizeCaps(args);
+      appendSkipPua(args);
+      break;
+    case 'office':
+      appendMaxScantime(args, getOfficeMaxScantimeMs());
+      appendAttachmentSizeCaps(args);
+      args.push('--max-recursion=2');
+      appendSkipPua(args);
+      break;
   }
 
   args.push(target);

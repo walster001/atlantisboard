@@ -10,6 +10,13 @@ export interface FileUploadResult {
   uploadedAt: Date;
   uploadedBy: string;
   scanStatus: AttachmentScanStatus;
+  /** When false, route must not unlink `localScanPath` — the scan worker deletes it. */
+  releaseLocalUploadTemp?: boolean;
+}
+
+export interface UploadCardAttachmentOptions {
+  /** Multer disk temp path; reused for post-upload scan when pending (avoids MinIO re-download). */
+  readonly localScanPath?: string;
 }
 
 export interface UploadProgress {

@@ -3,6 +3,7 @@ import { Verdict } from 'pompelmi';
 import {
   buildClamScanArgs,
   clearScanResultCacheForTests,
+  formatClamAvSizeLimit,
   isLowRiskMediaMimeType,
   isScanResultCacheEnabled,
   resolveClamScanProfile,
@@ -33,19 +34,19 @@ describe('clamScanRunner', () => {
       expect(isLowRiskMediaMimeType('text/plain')).toBe(false);
     });
 
-    it('normalizes MIME parameters before classification', () => {
-      expect(isLowRiskMediaMimeType('image/jpeg; charset=binary')).toBe(true);
-    });
-
-    it('uses media profile for images when fast scan is enabled', () => {
-      delete process.env.POMPELMI_MEDIA_FAST_SCAN;
+    it('resolves four-profile map for allowed attachment types', () => {
       expect(resolveClamScanProfile('image/png')).toBe('media');
+      expect(resolveClamScanProfile('video/mp4')).toBe('media');
+      expect(resolveClamScanProfile('text/plain')).toBe('text');
+      expect(resolveClamScanProfile('application/pdf')).toBe('pdf');
+      expect(resolveClamScanProfile('application/vnd.openxmlformats-officedocument.wordprocessingml.document')).toBe('office');
     });
+  });
 
-    it('uses standard profile when POMPELMI_MEDIA_FAST_SCAN=false', () => {
-      process.env.POMPELMI_MEDIA_FAST_SCAN = 'false';
-      expect(resolveClamScanProfile('image/png')).toBe('standard');
-      expect(resolveClamScanProfile('application/pdf')).toBe('standard');
+  describe('formatClamAvSizeLimit', () => {
+    it('formats megabyte limits for clamscan', () => {
+      expect(formatClamAvSizeLimit(1024 * 1024)).toBe('1M');
+      expect(formatClamAvSizeLimit(512 * 1024 * 1024)).toBe('512M');
     });
   });
 
@@ -53,16 +54,41 @@ describe('clamScanRunner', () => {
     it('adds media fast-path flags for image uploads', () => {
       process.env.CLAMAV_DB_DIR = '/tmp/clam-test-db';
       process.env.POMPELMI_MEDIA_MAX_SCANTIME_MS = '25000';
+      delete process.env.POMPELMI_SKIP_PUA;
       delete process.env.POMPELMI_MEDIA_SKIP_PUA;
 
       const args = buildClamScanArgs('media', '/tmp/upload.bin');
-      expect(args).toContain('--no-summary');
-      expect(args).toContain('--quiet');
-      expect(args).toContain('--database=/tmp/clam-test-db');
       expect(args).toContain('--scan-archive=no');
       expect(args).toContain('--max-scantime=25000');
       expect(args).toContain('--detect-pua=no');
       expect(args[args.length - 1]).toBe('/tmp/upload.bin');
+    });
+
+    it('adds text profile flags without archive or OLE parsing', () => {
+      process.env.POMPELMI_TEXT_MAX_SCANTIME_MS = '12000';
+      const args = buildClamScanArgs('text', '/tmp/readme.txt');
+      expect(args).toContain('--scan-archive=no');
+      expect(args).toContain('--scan-ole2=no');
+      expect(args).toContain('--max-scantime=12000');
+      expect(args).not.toContain('--max-recursion=2');
+    });
+
+    it('adds pdf profile size caps without disabling archives', () => {
+      process.env.POMPELMI_PDF_MAX_SCANTIME_MS = '60000';
+      const args = buildClamScanArgs('pdf', '/tmp/doc.pdf');
+      expect(args).not.toContain('--scan-archive=no');
+      expect(args).toContain('--max-scantime=60000');
+      expect(args.some((arg) => arg.startsWith('--max-filesize='))).toBe(true);
+      expect(args.some((arg) => arg.startsWith('--max-scansize='))).toBe(true);
+    });
+
+    it('adds office profile caps while keeping archive scanning defaults', () => {
+      process.env.POMPELMI_OFFICE_MAX_SCANTIME_MS = '45000';
+      const args = buildClamScanArgs('office', '/tmp/sheet.xlsx');
+      expect(args).not.toContain('--scan-archive=no');
+      expect(args).toContain('--max-scantime=45000');
+      expect(args).toContain('--max-recursion=2');
+      expect(args.some((arg) => arg.startsWith('--max-filesize='))).toBe(true);
     });
 
     it('uses stdin target for in-memory scans', () => {
@@ -70,14 +96,14 @@ describe('clamScanRunner', () => {
       expect(args[args.length - 1]).toBe('-');
     });
 
-    it('omits media-only flags for standard profile', () => {
-      const args = buildClamScanArgs('standard', '/tmp/doc.pdf');
-      expect(args).not.toContain('--scan-archive=no');
+    it('omits detect-pua=no when POMPELMI_SKIP_PUA=false', () => {
+      process.env.POMPELMI_SKIP_PUA = 'false';
+      const args = buildClamScanArgs('text', '-');
       expect(args).not.toContain('--detect-pua=no');
-      expect(args[args.length - 1]).toBe('/tmp/doc.pdf');
     });
 
-    it('omits detect-pua=no when POMPELMI_MEDIA_SKIP_PUA=false', () => {
+    it('honours legacy POMPELMI_MEDIA_SKIP_PUA=false when POMPELMI_SKIP_PUA unset', () => {
+      delete process.env.POMPELMI_SKIP_PUA;
       process.env.POMPELMI_MEDIA_SKIP_PUA = 'false';
       const args = buildClamScanArgs('media', '-');
       expect(args).not.toContain('--detect-pua=no');

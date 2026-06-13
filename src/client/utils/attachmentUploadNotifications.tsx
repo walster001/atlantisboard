@@ -23,6 +23,9 @@ function renderMalwareScanMessage(label: string): ReactElement {
     <Stack gap={6}>
       <Text size="sm">{label}</Text>
       <Progress value={100} radius="md" size="sm" animated />
+      <Text size="xs" c="dimmed">
+        Scanning for malware…
+      </Text>
     </Stack>
   );
 }
@@ -33,7 +36,7 @@ export function beginAttachmentUploadNotification(label: string): void {
     color: 'blue',
     title: 'Uploading attachment',
     message: renderUploadProgressMessage(label, 0),
-    loading: true,
+    loading: false,
     autoClose: false,
     withCloseButton: false,
     position: LONG_TASK_NOTIFICATION_POSITION,
@@ -45,7 +48,7 @@ export function updateAttachmentUploadNotification(label: string, percent: numbe
     notifications.update({
       id: ATTACHMENT_UPLOAD_NOTIFICATION_ID,
       color: 'blue',
-      title: 'Scanning for Malware',
+      title: 'Scanning for malware',
       message: renderMalwareScanMessage(label),
       loading: false,
       autoClose: false,
@@ -60,7 +63,20 @@ export function updateAttachmentUploadNotification(label: string, percent: numbe
     color: 'blue',
     title: 'Uploading attachment',
     message: renderUploadProgressMessage(label, percent),
-    loading: true,
+    loading: false,
+    autoClose: false,
+    withCloseButton: false,
+    position: LONG_TASK_NOTIFICATION_POSITION,
+  });
+}
+
+export function showMalwareScanNotification(label: string): void {
+  notifications.update({
+    id: ATTACHMENT_UPLOAD_NOTIFICATION_ID,
+    color: 'blue',
+    title: 'Scanning for malware',
+    message: renderMalwareScanMessage(label),
+    loading: false,
     autoClose: false,
     withCloseButton: false,
     position: LONG_TASK_NOTIFICATION_POSITION,
@@ -71,10 +87,10 @@ export function completeAttachmentUploadNotification(fileName: string): void {
   notifications.update({
     id: ATTACHMENT_UPLOAD_NOTIFICATION_ID,
     color: 'green',
-    title: 'Upload complete',
+    title: 'Attachment ready',
     message: fileName,
     loading: false,
-    autoClose: 1000,
+    autoClose: 2500,
     withCloseButton: true,
     position: LONG_TASK_NOTIFICATION_POSITION,
   });

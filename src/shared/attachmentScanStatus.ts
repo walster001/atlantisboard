@@ -68,3 +68,9 @@ export function evaluateAttachmentScanAccess(
 export function initialAttachmentScanStatus(skipScan: boolean): AttachmentScanStatus {
   return skipScan ? 'skipped' : 'pending';
 }
+
+/** True once background scan finished (success, skip, block, or error). */
+export function isAttachmentScanSettled(scanStatus: AttachmentScanStatus | undefined | null): boolean {
+  const resolved = resolveAttachmentScanStatus(scanStatus);
+  return resolved !== 'pending';
+}

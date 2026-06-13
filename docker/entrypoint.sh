@@ -6,7 +6,7 @@ clamav_db_dir="${CLAMAV_DB_DIR:-/var/lib/clamav}"
 clamav_seed_dir="/opt/clamav-seed"
 clamd_conf="/tmp/clamd.conf"
 clamd_pid_file="/tmp/clamd.pid"
-clamd_min_ram_mb="${POMPELMI_CLAMD_MIN_RAM_MB:-2048}"
+clamd_min_ram_mb="${POMPELMI_CLAMD_MIN_RAM_MB:-4096}"
 clamd_port="${POMPELMI_CLAMD_PORT:-3310}"
 freshclam_min_interval_ms="${POMPELMI_SIGNATURE_REFRESH_MS:-86400000}"
 

@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import type { ApiClient } from '../api.js';
 import { API_BASE_URL } from './shared.js';
+import {
+  ATTACHMENT_SCAN_STATUSES,
+  isAttachmentViewable,
+  type AttachmentScanStatus,
+} from '../../../shared/attachmentScanStatus.js';
 
 export type AttachmentDeliveryKind = 'signed' | 'proxy';
 
@@ -11,7 +16,13 @@ export interface AttachmentStreamUrlResponse {
 }
 
 export const attachmentUploadResponseSchema = z.object({
-  attachment: z.unknown().optional(),
+  attachment: z
+    .object({
+      id: z.string().optional(),
+      scanStatus: z.enum(ATTACHMENT_SCAN_STATUSES).optional(),
+    })
+    .passthrough()
+    .optional(),
 });
 
 export type AttachmentUploadResponse = z.infer<typeof attachmentUploadResponseSchema>;
@@ -24,11 +35,22 @@ export function requireUploadedAttachmentId(response: AttachmentUploadResponse):
   if (response.attachment == null || typeof response.attachment !== 'object') {
     throw new Error('Upload succeeded but attachment id was missing.');
   }
-  const id = (response.attachment as { id?: unknown }).id;
+  const id = response.attachment.id;
   if (typeof id !== 'string' || id.trim() === '') {
     throw new Error('Upload succeeded but attachment id was missing.');
   }
   return id;
+}
+
+export function uploadedAttachmentScanStatus(
+  response: AttachmentUploadResponse,
+): AttachmentScanStatus | undefined {
+  return response.attachment?.scanStatus;
+}
+
+export function uploadScanCompletesImmediately(response: AttachmentUploadResponse): boolean {
+  const status = uploadedAttachmentScanStatus(response);
+  return status == null || isAttachmentViewable(status);
 }
 
 export interface AttachmentApiMethods {

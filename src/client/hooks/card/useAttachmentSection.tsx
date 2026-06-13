@@ -17,10 +17,13 @@ import {
 import { normalizeCardFromApi } from '../../utils/transform.js';
 import {
   beginAttachmentUploadNotification,
-  completeAttachmentUploadNotification,
   failAttachmentUploadNotification,
   updateAttachmentUploadNotification,
 } from '../../utils/attachmentUploadNotifications.js';
+import {
+  finalizeAttachmentUploadNotification,
+  refreshCardAfterUpload,
+} from '../../utils/attachmentUploadFlow.js';
 import { isCoverAttachment } from '../../utils/attachmentCoverUtils.js';
 import { maybeCompressImageForAttachment } from '../../utils/imageCompression.js';
 import { buildPreviewModalProps } from '../../components/card/buildPreviewModalProps.js';
@@ -116,15 +119,18 @@ export function useAttachmentSection({
               ? `${uploadFile.name} (${index + 1}/${fileList.length})`
               : uploadFile.name;
           beginAttachmentUploadNotification(label);
-          await api.uploadCardAttachment(card.id, uploadFile, (progress: number) => {
+          const uploadResponse = await api.uploadCardAttachment(card.id, uploadFile, (progress: number) => {
             updateAttachmentUploadNotification(label, progress);
           });
-          completeAttachmentUploadNotification(uploadFile.name);
+          await finalizeAttachmentUploadNotification({
+            cardId: card.id,
+            label: uploadFile.name,
+            uploadResponse,
+          });
         }),
       );
 
-      const response = await api.getCard(card.id);
-      const updatedCard = normalizeCardFromApi(response.card, card.id);
+      const updatedCard = await refreshCardAfterUpload(card.id, card.id);
       onCardUpdate(updatedCard);
     } catch (err) {
       if (err instanceof Error) {

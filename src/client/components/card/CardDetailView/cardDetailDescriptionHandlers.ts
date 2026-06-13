@@ -7,10 +7,10 @@ import { api } from '../../../utils/api.js';
 import { requireUploadedAttachmentId } from '../../../utils/api/attachmentApiMethods.js';
 import {
   beginAttachmentUploadNotification,
-  completeAttachmentUploadNotification,
   failAttachmentUploadNotification,
   updateAttachmentUploadNotification,
 } from '../../../utils/attachmentUploadNotifications.js';
+import { finalizeAttachmentUploadNotification } from '../../../utils/attachmentUploadFlow.js';
 import {
   discardPendingDescriptionMedia,
   flushPendingDescriptionMediaInJson,
@@ -49,7 +49,11 @@ export async function runDescriptionUpdate({
               onProgress?.(progress);
             });
             const attachmentId = requireUploadedAttachmentId(response);
-            completeAttachmentUploadNotification(label);
+            await finalizeAttachmentUploadNotification({
+              cardId: card.id,
+              label,
+              uploadResponse: response,
+            });
             return api.getAttachmentFileUrl(attachmentId);
           } catch (error) {
             failAttachmentUploadNotification(

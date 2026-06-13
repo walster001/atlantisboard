@@ -171,6 +171,7 @@ router.post('/cards/:cardId/attachments', fileUploadRateLimiter, cardAttachmentM
     uploaded !== undefined && typeof uploaded.path === 'string' && uploaded.path.length > 0
       ? uploaded.path
       : undefined;
+  let releaseTempPath = true;
   try {
     const authReq = req as AuthenticatedRequest;
     const { cardId } = req.params;
@@ -216,14 +217,19 @@ router.post('/cards/:cardId/attachments', fileUploadRateLimiter, cardAttachmentM
       payloadFromMulterFile(uploaded),
       uploaded.originalname,
       uploaded.mimetype,
-      authReq.user.id
+      authReq.user.id,
+      undefined,
+      tempPath != null ? { localScanPath: tempPath } : undefined,
     );
+    if (result.releaseLocalUploadTemp === false) {
+      releaseTempPath = false;
+    }
 
     res.status(201).json({ attachment: result });
   } catch (error) {
     handleApiRouteError(res, error, next);
   } finally {
-    if (tempPath !== undefined) {
+    if (tempPath !== undefined && releaseTempPath) {
       await unlink(tempPath).catch(() => {});
     }
   }

@@ -43,6 +43,8 @@ export const clientAuthUserSchema = z.object({
     customBoardThemes: z.array(z.unknown()).optional(),
   }),
   emailVerified: z.boolean(),
+  privacyPolicyAcceptedVersion: z.string().nullable().optional(),
+  requiresPrivacyPolicyAcceptance: z.boolean(),
 });
 
 export interface ClientAuthUser {
@@ -62,6 +64,8 @@ export interface ClientAuthUser {
     customBoardThemes?: BoardThemeDefinition[];
   };
   emailVerified: boolean;
+  privacyPolicyAcceptedVersion?: string | null;
+  requiresPrivacyPolicyAcceptance: boolean;
 }
 
 export function parseClientAuthUser(user: unknown): ClientAuthUser {
@@ -78,7 +82,11 @@ export function parseClientAuthUser(user: unknown): ClientAuthUser {
       notificationPreferences: parsed.preferences.notificationPreferences,
     },
     emailVerified: parsed.emailVerified,
+    requiresPrivacyPolicyAcceptance: parsed.requiresPrivacyPolicyAcceptance,
   };
+  if (parsed.privacyPolicyAcceptedVersion !== undefined) {
+    result.privacyPolicyAcceptedVersion = parsed.privacyPolicyAcceptedVersion;
+  }
   if (parsed.profilePicture !== undefined) {
     result.profilePicture = parsed.profilePicture;
   }

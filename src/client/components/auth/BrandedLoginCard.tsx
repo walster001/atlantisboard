@@ -417,6 +417,11 @@ export function BrandedLoginCard({
         {showDivider ? <Divider label="OR" labelPosition="center" my="xs" /> : null}
         {showGoogle ? googleBtn : null}
         {variant === 'live' ? footerLive : footerPreview}
+        <Text ta="center" size="xs" c="dimmed" mt="sm">
+          <Anchor component={Link} to="/legal/privacy-policy" size="xs" style={{ color: linkTitleColor }}>
+            Privacy Notice
+          </Anchor>
+        </Text>
       </Stack>
     </Card>
   );

@@ -1,5 +1,4 @@
 import { Router, type RequestHandler } from 'express';
-import { z } from 'zod';
 import mongoose from 'mongoose';
 import { User } from '../../models/User.js';
 import { requireAuth } from '../../middleware/auth.js';
@@ -22,78 +21,13 @@ import {
 import { parseOrThrow } from '../../utils/zodValidation.js';
 import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import { normalizeBoardThemeSettings } from '../../../shared/boardTheme.js';
+import {
+  collectBoardOccupantUserIds,
+  updatePreferencesSchema,
+  updateUserProfileSchema,
+} from './schemas.js';
 
 const router = Router();
-
-// Validation schema for updating user profile
-const updateUserProfileSchema = z.object({
-  displayName: z.string().min(1).max(100).optional(),
-});
-
-const updatePreferencesSchema = z
-  .object({
-    language: z.string().min(2).max(20).optional(),
-    homeWorkspaceOrder: z.array(z.string().min(1)).max(500).optional(),
-    homeBoardOrderPatch: z
-      .object({
-        workspaceId: z.string().min(1).max(128),
-        orderedBoardIds: z.array(z.string().min(1)).max(500),
-      })
-      .optional(),
-    customBoardThemes: z
-      .array(
-        z.object({
-          id: z.string().min(1).max(80),
-          name: z.string().min(1).max(80),
-          palette: z.object({
-            navbarBg: z.string().min(1),
-            navbarBorder: z.string().min(1),
-            canvasBg: z.string().min(1),
-            listBg: z.string().min(1),
-            listHeaderText: z.string().min(1),
-            listMuted: z.string().min(1),
-            listMutedStrong: z.string().min(1),
-            listControlHoverBg: z.string().min(1),
-            listShadow: z.string().min(1),
-            addListBg: z.string().min(1),
-            addListBgHover: z.string().min(1),
-            cardDetailBg: z.string().min(1),
-            cardDetailTitleText: z.string().min(1),
-            cardDetailText: z.string().min(1),
-            cardDetailButtonBg: z.string().min(1),
-            cardDetailButtonText: z.string().min(1),
-            cardDetailButtonHoverBg: z.string().min(1),
-            cardDetailButtonHoverText: z.string().min(1),
-            scrollbarColor: z.string().min(1),
-            scrollbarTrackColor: z.string().min(1),
-          }),
-        }),
-      )
-      .max(250)
-      .optional(),
-  })
-  .strict();
-
-function collectBoardOccupantUserIds(
-  board: NonNullable<Awaited<ReturnType<typeof getBoardById>>>
-): string[] {
-  const ids: string[] = [];
-  const owner = board.ownerId as unknown;
-  if (owner && typeof owner === 'object' && owner !== null && '_id' in owner) {
-    ids.push(String((owner as { _id: mongoose.Types.ObjectId })._id));
-  } else {
-    ids.push(String(owner));
-  }
-  for (const m of board.members) {
-    const u = m.userId as unknown;
-    if (u && typeof u === 'object' && u !== null && '_id' in u) {
-      ids.push(String((u as { _id: mongoose.Types.ObjectId })._id));
-    } else {
-      ids.push(String(u));
-    }
-  }
-  return ids;
-}
 
 /** Search registered users (directory / board member picker). Optional boardId excludes current board occupants. */
 router.get('/search', apiRateLimiter, requireAuth as RequestHandler, async (req, res, next) => {

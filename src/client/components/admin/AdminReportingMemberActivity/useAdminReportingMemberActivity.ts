@@ -1,9 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { AdminReportingDaysFilterValue } from '../../../../shared/constants/adminReporting.js';
 import { ADMIN_REPORTING_MEMBER_ACTIVITY_PAGE_SIZE } from '../../../../shared/constants/adminReporting.js';
-import { BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS } from '../../../../shared/constants/boardMemberAuditActivities.js';
-import {
-  buildBoardDayLogRetentionSelectData,
-} from '../../board-logs/boardDayLogRetention.js';
 import { api } from '../../../utils/api.js';
 import {
   parseAdminMemberAuditRow,
@@ -34,22 +31,17 @@ function buildRoleLabelMap(roles: readonly unknown[]): Record<string, string> {
   return mapped;
 }
 
-export function useAdminReportingMemberActivity(boardFilterId: string | null) {
+export function useAdminReportingMemberActivity(
+  boardFilterId: string | null,
+  daysFilter: AdminReportingDaysFilterValue,
+) {
   const [rows, setRows] = useState<readonly ParsedAdminMemberAuditRow[]>([]);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleLabelByKey, setRoleLabelByKey] = useState<Record<string, string>>(DEFAULT_ROLE_LABELS);
-  const [retentionValue, setRetentionValue] = useState<string>(
-    String(BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS),
-  );
   const pagingLockRef = useRef(false);
-
-  const retentionSelectData = useMemo(
-    () => buildBoardDayLogRetentionSelectData(retentionValue),
-    [retentionValue],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +66,7 @@ export function useAdminReportingMemberActivity(boardFilterId: string | null) {
   const loadPage = useCallback(
     async (
       cursor?: string,
-      retention = retentionValue,
+      days = daysFilter,
       boardId = boardFilterId,
     ): Promise<void> => {
       const isMore = cursor != null;
@@ -86,7 +78,7 @@ export function useAdminReportingMemberActivity(boardFilterId: string | null) {
       try {
         const response = await api.getAdminReportingMemberActivity({
           limit: ADMIN_REPORTING_MEMBER_ACTIVITY_PAGE_SIZE,
-          retention,
+          days,
           ...(cursor !== undefined ? { cursor } : {}),
           ...(boardId != null ? { boardId } : {}),
         });
@@ -108,19 +100,12 @@ export function useAdminReportingMemberActivity(boardFilterId: string | null) {
         setLoadingMore(false);
       }
     },
-    [boardFilterId, retentionValue],
+    [boardFilterId, daysFilter],
   );
 
   useEffect(() => {
-    void loadPage(undefined, retentionValue, boardFilterId);
-  }, [boardFilterId, loadPage, retentionValue]);
-
-  const handleRetentionChange = useCallback((value: string | null): void => {
-    if (value == null) {
-      return;
-    }
-    setRetentionValue(value);
-  }, []);
+    void loadPage(undefined, daysFilter, boardFilterId);
+  }, [boardFilterId, daysFilter, loadPage]);
 
   const resolveRoleLabel = useCallback(
     (roleKey: string) => roleLabelByKey[roleKey] ?? roleKey,
@@ -134,12 +119,16 @@ export function useAdminReportingMemberActivity(boardFilterId: string | null) {
     pagingLockRef.current = true;
     void (async () => {
       try {
-        await loadPage(nextCursor, retentionValue, boardFilterId);
+        await loadPage(nextCursor, daysFilter, boardFilterId);
       } finally {
         pagingLockRef.current = false;
       }
     })();
-  }, [boardFilterId, loadPage, loading, loadingMore, nextCursor, retentionValue]);
+  }, [boardFilterId, daysFilter, loadPage, loading, loadingMore, nextCursor]);
+
+  const refresh = useCallback((): void => {
+    void loadPage(undefined, daysFilter, boardFilterId);
+  }, [boardFilterId, daysFilter, loadPage]);
 
   return {
     rows,
@@ -149,8 +138,6 @@ export function useAdminReportingMemberActivity(boardFilterId: string | null) {
     resolveRoleLabel,
     handleEndReached,
     hasMore: nextCursor != null,
-    retentionValue,
-    retentionSelectData,
-    handleRetentionChange,
+    refresh,
   };
 }

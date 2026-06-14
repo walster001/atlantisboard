@@ -7,7 +7,7 @@ import { DEFAULT_VERIFICATION_QUERY } from './mysqlService.js';
 import { normalizeGoogleOAuthCallbackUrl } from '../../shared/utils/googleOAuthCallbackUrl.js';
 import { normalizeDefaultUiFontFamilyInput } from './fontService.js';
 import { DOCKER_FULLSTACK_BACKUP_LOCATION, isDockerFullstackDeployment } from '../../shared/constants/backupLocationEnv.js';
-import { BackupLocationNotConfiguredError, getResolvedBackupLocationFromEnv } from './backupLocationEnv.js';
+import { BackupLocationNotConfiguredError, getResolvedBackupLocationFromEnv, normalizeBackupLocationPath } from './backupLocationEnv.js';
 import {
   backupScheduleToMs,
   clampBackupScheduleAmount,
@@ -80,6 +80,18 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
   const dockerFullstack = isDockerFullstackDeployment();
   const suggestedBackupPath = dockerFullstack ? DOCKER_FULLSTACK_BACKUP_LOCATION : null;
   const rawBs = o.backupSettings;
+  const storedBackupLocation =
+    typeof rawBs?.location === 'string' && rawBs.location.trim() !== ''
+      ? rawBs.location.trim()
+      : null;
+  let effectiveBackupPath = envPath;
+  if (effectiveBackupPath == null && storedBackupLocation != null) {
+    try {
+      effectiveBackupPath = normalizeBackupLocationPath(storedBackupLocation);
+    } catch {
+      effectiveBackupPath = null;
+    }
+  }
   const resolvedSchedule = rawBs ? resolveBackupScheduleInterval(rawBs) : resolveBackupScheduleInterval({});
   const safeBackupSettings: Record<string, unknown> = rawBs
     ? {
@@ -89,8 +101,9 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
         scheduleIntervalUnit: resolvedSchedule.unit,
         scheduleEnabled: rawBs.scheduleEnabled === true,
         lastScheduledRunAt: rawBs.lastScheduledRunAt,
-        environmentBackupLocation: envPath,
-        environmentBackupLocationConfigured: envPath !== null,
+        environmentBackupLocation: effectiveBackupPath,
+        environmentBackupLocationConfigured: effectiveBackupPath !== null,
+        storedBackupLocation,
         dockerFullstackDeployment: dockerFullstack,
         suggestedBackupLocation: suggestedBackupPath,
       }
@@ -99,8 +112,9 @@ export function sanitizeAdminConfigForClient(config: IAdminConfig): Record<strin
         scheduleEnabled: false,
         scheduleIntervalAmount: resolvedSchedule.amount,
         scheduleIntervalUnit: resolvedSchedule.unit,
-        environmentBackupLocation: envPath,
-        environmentBackupLocationConfigured: envPath !== null,
+        environmentBackupLocation: effectiveBackupPath,
+        environmentBackupLocationConfigured: effectiveBackupPath !== null,
+        storedBackupLocation,
         dockerFullstackDeployment: dockerFullstack,
         suggestedBackupLocation: suggestedBackupPath,
       };
@@ -366,6 +380,7 @@ export async function updateAdminConfig(
   if (u.backupSettings) {
     const bs = u.backupSettings as {
       retentionDays?: number;
+      location?: string;
       scheduleFrequencyDays?: number;
       scheduleIntervalAmount?: number;
       scheduleIntervalUnit?: string;
@@ -374,6 +389,14 @@ export async function updateAdminConfig(
     };
     if (!config.backupSettings) {
       config.backupSettings = { retentionDays: 14, scheduleEnabled: false };
+    }
+    if (bs.location !== undefined) {
+      const trimmed = typeof bs.location === 'string' ? bs.location.trim() : '';
+      if (trimmed === '') {
+        delete config.backupSettings.location;
+      } else {
+        config.backupSettings.location = normalizeBackupLocationPath(trimmed);
+      }
     }
     if (bs.retentionDays !== undefined) {
       const d = Math.floor(Number(bs.retentionDays));

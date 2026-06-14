@@ -12,6 +12,10 @@ import {
   useAdminReportingBoardNameFilter,
   type AdminReportingBoardNameFilterControls,
 } from './AdminReportingActivityControls/useAdminReportingBoardNameFilter.js';
+import {
+  useAdminReportingDaysFilter,
+  type AdminReportingDaysFilterControls,
+} from './AdminReportingActivityControls/useAdminReportingDaysFilter.js';
 import './AdminReportingBoardActivity/adminReportingBoardActivity.css';
 import './AdminReportingActivityControls/adminReportingActivityControls.css';
 import './AdminReportingBoardList/adminReportingBoardList.css';
@@ -36,15 +40,27 @@ function ReportingPlaceholder({ label }: { readonly label: string }) {
 function ReportingPanelContent({
   subtab,
   boardNameFilter,
+  daysFilter,
 }: {
   readonly subtab: ReportingSubtab;
   readonly boardNameFilter: AdminReportingBoardNameFilterControls;
+  readonly daysFilter: AdminReportingDaysFilterControls;
 }) {
   if (subtab === 'member-activity') {
-    return <AdminReportingMemberActivityPanel boardNameFilter={boardNameFilter} />;
+    return (
+      <AdminReportingMemberActivityPanel
+        boardNameFilter={boardNameFilter}
+        daysFilter={daysFilter}
+      />
+    );
   }
   if (subtab === 'board-activity') {
-    return <AdminReportingBoardActivityPanel boardNameFilter={boardNameFilter} />;
+    return (
+      <AdminReportingBoardActivityPanel
+        boardNameFilter={boardNameFilter}
+        daysFilter={daysFilter}
+      />
+    );
   }
   if (subtab === 'board-list') {
     return <AdminReportingBoardListPanel />;
@@ -62,6 +78,7 @@ interface AdminReportingSectionProps {
 
 export function AdminReportingSection({ subtab, onSubtabChange }: AdminReportingSectionProps) {
   const boardNameFilter = useAdminReportingBoardNameFilter();
+  const daysFilter = useAdminReportingDaysFilter();
   const layoutClassName =
     subtab === 'member-activity'
       ? 'admin-configuration-page__layout admin-configuration-page__layout--reporting-member-activity'
@@ -93,7 +110,11 @@ export function AdminReportingSection({ subtab, onSubtabChange }: AdminReporting
         ))}
       </nav>
       <Box className="admin-configuration-page__content">
-        <ReportingPanelContent subtab={subtab} boardNameFilter={boardNameFilter} />
+        <ReportingPanelContent
+          subtab={subtab}
+          boardNameFilter={boardNameFilter}
+          daysFilter={daysFilter}
+        />
       </Box>
     </div>
   );
@@ -124,9 +145,14 @@ export function AdminReportingMobileList(props: {
 export function AdminReportingMobileContent(props: { readonly subtab: ReportingSubtab }) {
   const { subtab } = props;
   const boardNameFilter = useAdminReportingBoardNameFilter();
+  const daysFilter = useAdminReportingDaysFilter();
   return (
     <Box className="admin-reporting-section--mobile">
-      <ReportingPanelContent subtab={subtab} boardNameFilter={boardNameFilter} />
+      <ReportingPanelContent
+        subtab={subtab}
+        boardNameFilter={boardNameFilter}
+        daysFilter={daysFilter}
+      />
     </Box>
   );
 }

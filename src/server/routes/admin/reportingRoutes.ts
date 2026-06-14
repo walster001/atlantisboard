@@ -5,11 +5,17 @@ import { listAdminBoardListReport } from '../../services/adminReportingService/b
 import { listAdminReportingBoardOptions } from '../../services/adminReportingService/boardOptions.js';
 import { listAdminCardListReport } from '../../services/adminReportingService/cardList.js';
 import { listAdminMemberActivityReport } from '../../services/adminReportingService/memberActivity.js';
+import {
+  manualCleanupAdminBoardActivity,
+  manualCleanupAdminMemberActivity,
+} from '../../services/adminReportingService/manualCleanup.js';
+import { parseAdminReportingDaysFilter } from '../../../shared/adminReportingActivityRetention.js';
 import type { AuthenticatedRequest } from '../../types/express.js';
 import { parseOrThrow } from '../../utils/zodValidation.js';
 import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import {
   boardActivityQuerySchema,
+  activityCleanupBodySchema,
   boardListQuerySchema,
   cardListQuerySchema,
   memberActivityQuerySchema,
@@ -29,10 +35,11 @@ export function registerReportingRoutes(router: Router): void {
   router.get('/reporting/member-activity', async (req, res, next) => {
     try {
       const query = parseOrThrow(memberActivityQuerySchema, req.query);
+      const parsedDays = parseAdminReportingDaysFilter(query.days);
       const result = await listAdminMemberActivityReport({
         ...(query.limit !== undefined ? { limit: query.limit } : {}),
         ...(query.cursor !== undefined ? { cursor: query.cursor } : {}),
-        ...(query.retention !== undefined ? { retention: query.retention } : {}),
+        ...(parsedDays !== undefined ? { days: parsedDays } : {}),
         ...(query.boardId !== undefined ? { boardId: query.boardId } : {}),
       });
       res.json(result);
@@ -44,12 +51,33 @@ export function registerReportingRoutes(router: Router): void {
   router.get('/reporting/board-activity', async (req, res, next) => {
     try {
       const query = parseOrThrow(boardActivityQuerySchema, req.query);
+      const parsedDays = parseAdminReportingDaysFilter(query.days);
       const result = await listAdminBoardActivityReport({
         ...(query.limit !== undefined ? { limit: query.limit } : {}),
         ...(query.cursor !== undefined ? { cursor: query.cursor } : {}),
-        ...(query.retention !== undefined ? { retention: query.retention } : {}),
+        ...(parsedDays !== undefined ? { days: parsedDays } : {}),
         ...(query.boardId !== undefined ? { boardId: query.boardId } : {}),
       });
+      res.json(result);
+    } catch (error) {
+      handleApiRouteError(res, error, next);
+    }
+  });
+
+  router.post('/reporting/member-activity/cleanup', async (req, res, next) => {
+    try {
+      const body = parseOrThrow(activityCleanupBodySchema, req.body);
+      const result = await manualCleanupAdminMemberActivity(body.olderThanDays);
+      res.json(result);
+    } catch (error) {
+      handleApiRouteError(res, error, next);
+    }
+  });
+
+  router.post('/reporting/board-activity/cleanup', async (req, res, next) => {
+    try {
+      const body = parseOrThrow(activityCleanupBodySchema, req.body);
+      const result = await manualCleanupAdminBoardActivity(body.olderThanDays);
       res.json(result);
     } catch (error) {
       handleApiRouteError(res, error, next);

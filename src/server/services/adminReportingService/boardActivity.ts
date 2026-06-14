@@ -1,7 +1,5 @@
 import { Types } from 'mongoose';
-import { Activity } from '../../models/Activity.js';
 import { Board } from '../../models/Board.js';
-import { retentionLowerBoundDate } from '../../../shared/boardDayLogRetention.js';
 import {
   ADMIN_REPORTING_BOARD_ACTIVITY_MAX_PAGE_SIZE,
   ADMIN_REPORTING_BOARD_ACTIVITY_PAGE_SIZE,
@@ -14,6 +12,7 @@ import type {
   AdminBoardActivityReportResponse,
   AdminBoardActivityReportRow,
 } from '../../../shared/types/adminReporting.js';
+import { queryAdminReportingActivities } from './activityQuery.js';
 
 function resolveLimit(limit: number | undefined): number {
   const raw = limit ?? ADMIN_REPORTING_BOARD_ACTIVITY_PAGE_SIZE;
@@ -21,32 +20,6 @@ function resolveLimit(limit: number | undefined): number {
     Math.max(raw, 1),
     ADMIN_REPORTING_BOARD_ACTIVITY_MAX_PAGE_SIZE,
   );
-}
-
-function buildCreatedAtFilter(options: {
-  readonly cursor?: string | undefined;
-  readonly retention?: string | undefined;
-}): { $lt?: Date; $gte?: Date } | undefined {
-  let createdAt: { $lt?: Date; $gte?: Date } | undefined;
-
-  const lowerBound = retentionLowerBoundDate(
-    options.retention ?? String(BOARD_CONTENT_DEFAULT_RETENTION_DAYS),
-  );
-  if (lowerBound != null) {
-    createdAt = { $gte: lowerBound };
-  }
-
-  if (options.cursor != null && options.cursor.trim() !== '') {
-    const cursorTs = Number.parseInt(options.cursor, 10);
-    if (Number.isFinite(cursorTs) && cursorTs > 0) {
-      createdAt = {
-        ...(createdAt ?? {}),
-        $lt: new Date(cursorTs),
-      };
-    }
-  }
-
-  return createdAt;
 }
 
 function serializeActivityRow(
@@ -83,32 +56,21 @@ function parseBoardIdFilter(boardId: string | undefined): Types.ObjectId | undef
 export async function listAdminBoardActivityReport(options?: {
   readonly limit?: number | undefined;
   readonly cursor?: string | undefined;
-  readonly retention?: string | undefined;
+  readonly days?: number | undefined;
   readonly boardId?: string | undefined;
 }): Promise<AdminBoardActivityReportResponse> {
   const limit = resolveLimit(options?.limit);
-  const createdAt = buildCreatedAtFilter({
-    ...(options?.cursor !== undefined ? { cursor: options.cursor } : {}),
-    ...(options?.retention !== undefined ? { retention: options.retention } : {}),
-  });
-
   const boardObjectId = parseBoardIdFilter(options?.boardId);
 
-  const filter: {
-    type: { $in: readonly string[] };
-    boardId?: Types.ObjectId;
-    createdAt?: { $lt?: Date; $gte?: Date };
-  } = {
-    type: { $in: [...BOARD_CONTENT_ACTIVITY_TYPES] },
+  const docs = await queryAdminReportingActivities({
+    activityTypes: [...BOARD_CONTENT_ACTIVITY_TYPES],
+    retentionField: 'activityLogRetentionDays',
+    defaultBoardDays: BOARD_CONTENT_DEFAULT_RETENTION_DAYS,
+    limit,
+    ...(options?.cursor !== undefined ? { cursor: options.cursor } : {}),
+    ...(options?.days !== undefined ? { userFilterDays: options.days } : {}),
     ...(boardObjectId !== undefined ? { boardId: boardObjectId } : {}),
-    ...(createdAt !== undefined ? { createdAt } : {}),
-  };
-
-  const docs = await Activity.find(filter)
-    .sort({ createdAt: -1 })
-    .limit(limit + 1)
-    .populate('userId', 'displayName email profilePicture')
-    .lean();
+  });
 
   const page = docs.slice(0, limit);
   const boardIds = [...new Set(page.map((row) => row.boardId.toString()))];

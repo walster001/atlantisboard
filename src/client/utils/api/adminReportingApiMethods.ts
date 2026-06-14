@@ -5,6 +5,7 @@ import type {
   AdminMemberActivityReportResponse,
   AdminReportingBoardOptionsResponse,
 } from '../../../shared/types/adminReporting.js';
+import type { AdminReportingDaysFilterValue } from '../../../shared/constants/adminReporting.js';
 import type { ApiClient } from '../api.js';
 
 function appendReportingQueryParams(
@@ -12,7 +13,7 @@ function appendReportingQueryParams(
   options?: {
     readonly limit?: number;
     readonly cursor?: string;
-    readonly retention?: string;
+    readonly days?: AdminReportingDaysFilterValue;
     readonly boardId?: string | null;
   },
 ): void {
@@ -22,8 +23,8 @@ function appendReportingQueryParams(
   if (options?.cursor !== undefined && options.cursor.trim() !== '') {
     params.set('cursor', options.cursor.trim());
   }
-  if (options?.retention !== undefined && options.retention.trim() !== '') {
-    params.set('retention', options.retention.trim());
+  if (options?.days !== undefined && options.days !== 'all') {
+    params.set('days', options.days);
   }
   if (options?.boardId != null && options.boardId.trim() !== '') {
     params.set('boardId', options.boardId.trim());
@@ -45,20 +46,31 @@ function appendPaginationQueryParams(
   }
 }
 
+export interface AdminReportingActivityCleanupResponse {
+  readonly deletedCount: number;
+  readonly olderThanDays: number;
+}
+
 export interface AdminReportingApiMethods {
   getAdminReportingBoardOptions(): Promise<AdminReportingBoardOptionsResponse>;
   getAdminReportingMemberActivity(options?: {
     readonly limit?: number;
     readonly cursor?: string;
-    readonly retention?: string;
+    readonly days?: AdminReportingDaysFilterValue;
     readonly boardId?: string | null;
   }): Promise<AdminMemberActivityReportResponse>;
   getAdminReportingBoardActivity(options?: {
     readonly limit?: number;
     readonly cursor?: string;
-    readonly retention?: string;
+    readonly days?: AdminReportingDaysFilterValue;
     readonly boardId?: string | null;
   }): Promise<AdminBoardActivityReportResponse>;
+  cleanupAdminReportingMemberActivity(
+    olderThanDays: number,
+  ): Promise<AdminReportingActivityCleanupResponse>;
+  cleanupAdminReportingBoardActivity(
+    olderThanDays: number,
+  ): Promise<AdminReportingActivityCleanupResponse>;
   getAdminReportingBoardList(options?: {
     readonly limit?: number;
     readonly cursor?: string;
@@ -94,6 +106,20 @@ export const adminReportingApiMethods: AdminReportingApiMethods = {
       `/admin/reporting/board-activity${suffix === '' ? '' : `?${suffix}`}`,
     );
     return response.data as AdminBoardActivityReportResponse;
+  },
+
+  async cleanupAdminReportingMemberActivity(this: ApiClient, olderThanDays) {
+    const response = await this.client.post('/admin/reporting/member-activity/cleanup', {
+      olderThanDays,
+    });
+    return response.data as AdminReportingActivityCleanupResponse;
+  },
+
+  async cleanupAdminReportingBoardActivity(this: ApiClient, olderThanDays) {
+    const response = await this.client.post('/admin/reporting/board-activity/cleanup', {
+      olderThanDays,
+    });
+    return response.data as AdminReportingActivityCleanupResponse;
   },
 
   async getAdminReportingBoardList(this: ApiClient, options) {

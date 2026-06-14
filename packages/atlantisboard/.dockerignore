@@ -13,6 +13,7 @@ node_modules
 .cursor
 *.md
 !DEPLOYMENT.md
+!public/legal/privacy-policy.md
 README.md
 
 # CI / dev-only sources (not in release zip; see strip-release-docker-sources.sh)

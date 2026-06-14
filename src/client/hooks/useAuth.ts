@@ -23,7 +23,7 @@ export function useAuth() {
   const aliveRef = useRef(true);
   const loadGenRef = useRef(0);
 
-  const loadUser = useCallback(async () => {
+  const loadUser = useCallback(async (): Promise<ClientAuthUser | null> => {
     const runGen = ++loadGenRef.current;
     const useCookies = usesHttpOnlyAuth();
     try {
@@ -32,7 +32,7 @@ export function useAuth() {
         if (aliveRef.current && loadGenRef.current === runGen) {
           setAuthState({ user: null, loading: false, authenticated: false });
         }
-        return;
+        return null;
       }
 
       const response = await api.getCurrentUser();
@@ -73,6 +73,7 @@ export function useAuth() {
       if (aliveRef.current && loadGenRef.current === runGen) {
         setAuthState({ user, loading: false, authenticated: true });
       }
+      return user;
     } catch (error) {
       console.error('Error loading user:', error);
       // Clear token and user data
@@ -89,6 +90,7 @@ export function useAuth() {
       if (!isPublicPath(window.location.pathname)) {
         window.location.href = '/login';
       }
+      return null;
     }
   }, []);
 
@@ -101,7 +103,7 @@ export function useAuth() {
     };
   }, [loadUser]);
 
-  const login = useCallback(async (email: string, password: string): Promise<void> => {
+  const login = useCallback(async (email: string, password: string): Promise<ClientAuthUser> => {
     const response = await api.login(email, password);
     const user = parseClientAuthUser(response.user);
 
@@ -134,6 +136,7 @@ export function useAuth() {
     }
 
     setAuthState({ user, loading: false, authenticated: true });
+    return user;
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
@@ -170,12 +173,41 @@ export function useAuth() {
     [loadUser]
   );
 
+  const acceptPrivacyPolicy = useCallback(async (): Promise<void> => {
+    const response = await api.acceptPrivacyPolicy();
+    const user = parseClientAuthUser((response as { user: unknown }).user);
+
+    const userDB: UserDB = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+      preferences: toUserDbPreferences(user.preferences),
+      emailVerified: user.emailVerified,
+      lastSyncAt: new Date(),
+    };
+    if (user.isAppAdmin === true) {
+      userDB.isAppAdmin = true;
+    }
+    if (user.profilePicture) {
+      userDB.profilePicture = user.profilePicture;
+    }
+    await db.users.put(userDB);
+
+    setAuthState({ user, loading: false, authenticated: true });
+  }, []);
+
+  const requiresPrivacyPolicyAcceptance =
+    authState.user?.requiresPrivacyPolicyAcceptance === true;
+
   return {
     ...authState,
+    requiresPrivacyPolicyAcceptance,
     login,
     logout,
     register,
     refreshUser: loadUser,
+    acceptPrivacyPolicy,
   };
 }
 

@@ -45,6 +45,7 @@ const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPage.js'));
 // Lazy load additional auth pages
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const WorkspacePage = lazy(() => import('./pages/WorkspacePage'));
 const AdminConfigurationPage = lazy(() => import('./pages/AdminConfigurationPage'));
 
@@ -85,6 +86,7 @@ function App() {
                 <Route path="/forgot-password" element={<Navigate to="/login?forgot=1" replace />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/verify-email" element={<VerifyEmailPage />} />
+                <Route path="/legal/privacy-policy" element={<PrivacyPolicyPage />} />
                 <Route
                   path="/"
                   element={

@@ -28,8 +28,12 @@ import { logger } from '../utils/logger.js';
 import { parseCardTileImagePreviewPreset } from '../../shared/imagePreviewPreset.js';
 import { getAttachmentPreviewBuffer } from '../services/attachmentService/preview.js';
 import {
-  ValidationError,
-} from '../../shared/errors/domainErrors.js';
+  mintPresignedAttachmentRedirectUrl,
+  shouldPresignRedirectAttachmentStream,
+} from '../services/attachmentService/streamDelivery.js';
+import { pipeReadableToServerResponse } from '../utils/pipeReadableToServerResponse.js';
+import type { Readable } from 'node:stream';
+import { ValidationError } from '../../shared/errors/domainErrors.js';
 
 const router = Router();
 
@@ -379,6 +383,20 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
     const previewPreset = parseCardTileImagePreviewPreset(
       typeof req.query.preview === 'string' ? req.query.preview : undefined,
     );
+    if (
+      shouldPresignRedirectAttachmentStream({
+        contentType: meta.contentType,
+        size: meta.size,
+        hasImagePreviewQuery: previewPreset != null,
+      })
+    ) {
+      const redirectUrl = await mintPresignedAttachmentRedirectUrl(attachmentId, meta);
+      if (redirectUrl != null) {
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.redirect(307, redirectUrl);
+        return;
+      }
+    }
     if (previewPreset != null) {
       const preview = await getAttachmentPreviewBuffer(
         resolved.attachment.url,
@@ -414,17 +432,27 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
       return;
     }
 
-    logger.info(
-      {
-        event: 'attachment.proxy_stream',
-        attachmentId,
-        rangeKind: parsed.kind,
-        contentType: meta.contentType,
-        size: meta.size,
-        userId: authReq.user.id,
-      },
-      'Attachment proxy stream',
-    );
+    const logPayload = {
+      event: 'attachment.proxy_stream',
+      attachmentId,
+      rangeKind: parsed.kind,
+      contentType: meta.contentType,
+      size: meta.size,
+      userId: authReq.user.id,
+    };
+    if (parsed.kind === 'partial') {
+      logger.debug(logPayload, 'Attachment proxy stream');
+    } else {
+      logger.info(logPayload, 'Attachment proxy stream');
+    }
+
+    const pipeSource = (stream: NodeJS.ReadableStream): void => {
+      pipeReadableToServerResponse(req, res, stream as Readable, {
+        onStreamError: (error) => {
+          next(error);
+        },
+      });
+    };
 
     if (parsed.kind === 'full') {
       res.status(200);
@@ -434,8 +462,7 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
         return;
       }
       const stream = await openAttachmentReadStream(meta.objectName, null);
-      stream.on('error', next);
-      stream.pipe(res);
+      pipeSource(stream);
       return;
     }
 
@@ -447,8 +474,7 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
       start: parsed.start,
       endInclusive: parsed.endInclusive,
     });
-    stream.on('error', next);
-    stream.pipe(res);
+    pipeSource(stream);
   } catch (error) {
     next(error);
   }

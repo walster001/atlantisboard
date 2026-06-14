@@ -6,6 +6,8 @@ import type {
   AdminBackupLocationStatus,
 } from '../../shared/types/adminBackupLocation.js';
 import { ValidationError } from '../../shared/errors/domainErrors.js';
+import { AdminConfig } from '../models/AdminConfig.js';
+import { logger } from '../utils/logger.js';
 import { upsertEnvFileVariable } from '../utils/envFileWriter.js';
 
 /** Thrown when BACKUP_LOCATION is missing or not a valid absolute path (operator-safe message). */
@@ -29,6 +31,38 @@ export function normalizeBackupLocationPath(input: string): string {
     throw new ValidationError('BACKUP_LOCATION must be an absolute local filesystem path');
   }
   return normalize(resolve(trimmed));
+}
+
+async function persistBackupLocationToAdminConfig(normalizedPath: string): Promise<void> {
+  const config = await AdminConfig.findOne();
+  if (config == null) {
+    return;
+  }
+  if (config.backupSettings == null) {
+    config.backupSettings = { retentionDays: 14, scheduleEnabled: false };
+  }
+  config.backupSettings.location = normalizedPath;
+  config.markModified('backupSettings');
+  await config.save();
+}
+
+/**
+ * Loads BACKUP_LOCATION from AdminConfig when the process env is unset (e.g. after container rebuild).
+ */
+export async function hydrateBackupLocationFromAdminConfig(): Promise<void> {
+  if (process.env.BACKUP_LOCATION?.trim()) {
+    return;
+  }
+  const config = await AdminConfig.findOne().select('backupSettings.location').lean();
+  const raw = config?.backupSettings?.location;
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return;
+  }
+  try {
+    process.env.BACKUP_LOCATION = normalizeBackupLocationPath(raw);
+  } catch (error: unknown) {
+    logger.warn({ error, raw }, 'Ignoring invalid stored backup location in AdminConfig');
+  }
 }
 
 /**
@@ -168,6 +202,7 @@ export async function applyBackupLocation(params: {
 
   process.env.BACKUP_LOCATION = normalized;
   const persistedToEnvFile = upsertEnvFileVariable(BACKUP_LOCATION_ENV_NAME, normalized);
+  await persistBackupLocationToAdminConfig(normalized);
   const dockerFullstack = isDockerFullstackDeployment();
 
   return {

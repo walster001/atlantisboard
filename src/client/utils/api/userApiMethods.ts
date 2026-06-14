@@ -1,4 +1,6 @@
 import type { BoardThemeDefinition } from '../../../shared/boardTheme.js';
+import { PRIVACY_POLICY_VERSION } from '../../../shared/legal/privacyPolicy.js';
+import { parseClientAuthUser } from './authApiMethods.js';
 import type { ApiClient } from '../api.js';
 
 export interface UserApiMethods {
@@ -44,6 +46,7 @@ export interface UserApiMethods {
     };
     serverTs: number;
   }>;
+  acceptPrivacyPolicy(): Promise<{ user: unknown }>;
 }
 
 export const userApiMethods: UserApiMethods = {
@@ -125,5 +128,16 @@ export const userApiMethods: UserApiMethods = {
       };
       serverTs: number;
     };
+  },
+
+  async acceptPrivacyPolicy(this: ApiClient) {
+    const response = await this.client.post('/users/me/privacy-policy-acceptance', {
+      version: PRIVACY_POLICY_VERSION,
+    });
+    const data = response.data as { user?: unknown };
+    if (data.user != null) {
+      parseClientAuthUser(data.user);
+    }
+    return data;
   },
 };

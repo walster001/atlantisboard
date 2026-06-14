@@ -1,7 +1,9 @@
-import { memo } from 'react';
-import { Alert, Box, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { memo, useState } from 'react';
+import { Alert, Box, Button, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import { Virtuoso } from 'react-virtuoso';
+import { AdminReportingActivityCleanupModal } from '../AdminReportingActivityControls/AdminReportingActivityCleanupModal.js';
 import { AdminReportingActivityControls } from '../AdminReportingActivityControls/AdminReportingActivityControls.js';
+import type { AdminReportingDaysFilterControls } from '../AdminReportingActivityControls/useAdminReportingDaysFilter.js';
 import type { AdminReportingBoardNameFilterControls } from '../AdminReportingActivityControls/useAdminReportingBoardNameFilter.js';
 import { BoardActivityEntryRow } from '../../activities/boardActivityLogParts.js';
 import { useAdminReportingBoardActivity } from './useAdminReportingBoardActivity.js';
@@ -9,10 +11,12 @@ import './adminReportingBoardActivity.css';
 
 interface AdminReportingBoardActivityPanelProps {
   readonly boardNameFilter: AdminReportingBoardNameFilterControls;
+  readonly daysFilter: AdminReportingDaysFilterControls;
 }
 
 export const AdminReportingBoardActivityPanel = memo(function AdminReportingBoardActivityPanel({
   boardNameFilter,
+  daysFilter,
 }: AdminReportingBoardActivityPanelProps) {
   const {
     boardFilterId,
@@ -22,6 +26,8 @@ export const AdminReportingBoardActivityPanel = memo(function AdminReportingBoar
     handleBoardFilterSelect,
     clearBoardFilter,
   } = boardNameFilter;
+  const { daysFilter: daysFilterValue, daysFilterOptions, handleDaysFilterChange } = daysFilter;
+  const [cleanupOpen, setCleanupOpen] = useState(false);
   const {
     rows,
     loading,
@@ -29,10 +35,8 @@ export const AdminReportingBoardActivityPanel = memo(function AdminReportingBoar
     error,
     handleEndReached,
     hasMore,
-    retentionValue,
-    retentionSelectData,
-    handleRetentionChange,
-  } = useAdminReportingBoardActivity(boardFilterId);
+    refresh,
+  } = useAdminReportingBoardActivity(boardFilterId, daysFilterValue);
 
   const emptyMessage =
     boardFilterId != null
@@ -42,16 +46,20 @@ export const AdminReportingBoardActivityPanel = memo(function AdminReportingBoar
   return (
     <Stack gap="md" className="admin-reporting-board-activity">
       <Stack gap="sm">
-        <Title order={3}>Board Activity</Title>
+        <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+          <Title order={3}>Board Activity</Title>
+          <Button variant="light" size="compact-sm" onClick={() => setCleanupOpen(true)}>
+            Cleanup Old Records
+          </Button>
+        </Group>
         <Text size="sm" c="dimmed">
-          Board content activity from every board in the application, newest first.
+          Board content activity from every board in the application, newest first. Visible history
+          respects each board&apos;s activity log retention setting.
         </Text>
         <AdminReportingActivityControls
-          retentionAriaLabel="Board activity report retention"
-          retentionValue={retentionValue}
-          retentionSelectData={retentionSelectData}
-          savingRetention={loading}
-          onRetentionChange={handleRetentionChange}
+          daysFilter={daysFilterValue}
+          daysFilterOptions={daysFilterOptions}
+          onDaysFilterChange={handleDaysFilterChange}
           boardFilterId={boardFilterId}
           boardFilterLabel={boardFilterLabel}
           boardOptions={boardOptions}
@@ -108,6 +116,15 @@ export const AdminReportingBoardActivityPanel = memo(function AdminReportingBoar
           />
         )}
       </Box>
+
+      <AdminReportingActivityCleanupModal
+        kind="board"
+        opened={cleanupOpen}
+        onClose={() => {
+          setCleanupOpen(false);
+          refresh();
+        }}
+      />
     </Stack>
   );
 });

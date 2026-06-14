@@ -1,35 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { AdminReportingDaysFilterValue } from '../../../../shared/constants/adminReporting.js';
 import { ADMIN_REPORTING_BOARD_ACTIVITY_PAGE_SIZE } from '../../../../shared/constants/adminReporting.js';
-import { BOARD_CONTENT_DEFAULT_RETENTION_DAYS } from '../../../../shared/constants/boardContentActivities.js';
-import {
-  buildBoardDayLogRetentionSelectData,
-} from '../../board-logs/boardDayLogRetention.js';
 import { api } from '../../../utils/api.js';
 import {
   parseAdminBoardActivityRow,
   type ParsedAdminBoardActivityRow,
 } from './adminReportingBoardActivityUtils.js';
 
-export function useAdminReportingBoardActivity(boardFilterId: string | null) {
+export function useAdminReportingBoardActivity(
+  boardFilterId: string | null,
+  daysFilter: AdminReportingDaysFilterValue,
+) {
   const [rows, setRows] = useState<readonly ParsedAdminBoardActivityRow[]>([]);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retentionValue, setRetentionValue] = useState<string>(
-    String(BOARD_CONTENT_DEFAULT_RETENTION_DAYS),
-  );
   const pagingLockRef = useRef(false);
-
-  const retentionSelectData = useMemo(
-    () => buildBoardDayLogRetentionSelectData(retentionValue),
-    [retentionValue],
-  );
 
   const loadPage = useCallback(
     async (
       cursor?: string,
-      retention = retentionValue,
+      days = daysFilter,
       boardId = boardFilterId,
     ): Promise<void> => {
       const isMore = cursor != null;
@@ -41,7 +33,7 @@ export function useAdminReportingBoardActivity(boardFilterId: string | null) {
       try {
         const response = await api.getAdminReportingBoardActivity({
           limit: ADMIN_REPORTING_BOARD_ACTIVITY_PAGE_SIZE,
-          retention,
+          days,
           ...(cursor !== undefined ? { cursor } : {}),
           ...(boardId != null ? { boardId } : {}),
         });
@@ -63,19 +55,12 @@ export function useAdminReportingBoardActivity(boardFilterId: string | null) {
         setLoadingMore(false);
       }
     },
-    [boardFilterId, retentionValue],
+    [boardFilterId, daysFilter],
   );
 
   useEffect(() => {
-    void loadPage(undefined, retentionValue, boardFilterId);
-  }, [boardFilterId, loadPage, retentionValue]);
-
-  const handleRetentionChange = useCallback((value: string | null): void => {
-    if (value == null) {
-      return;
-    }
-    setRetentionValue(value);
-  }, []);
+    void loadPage(undefined, daysFilter, boardFilterId);
+  }, [boardFilterId, daysFilter, loadPage]);
 
   const handleEndReached = useCallback((): void => {
     if (nextCursor == null || loading || loadingMore || pagingLockRef.current) {
@@ -84,12 +69,16 @@ export function useAdminReportingBoardActivity(boardFilterId: string | null) {
     pagingLockRef.current = true;
     void (async () => {
       try {
-        await loadPage(nextCursor, retentionValue, boardFilterId);
+        await loadPage(nextCursor, daysFilter, boardFilterId);
       } finally {
         pagingLockRef.current = false;
       }
     })();
-  }, [boardFilterId, loadPage, loading, loadingMore, nextCursor, retentionValue]);
+  }, [boardFilterId, daysFilter, loadPage, loading, loadingMore, nextCursor]);
+
+  const refresh = useCallback((): void => {
+    void loadPage(undefined, daysFilter, boardFilterId);
+  }, [boardFilterId, daysFilter, loadPage]);
 
   return {
     rows,
@@ -98,8 +87,6 @@ export function useAdminReportingBoardActivity(boardFilterId: string | null) {
     error,
     handleEndReached,
     hasMore: nextCursor != null,
-    retentionValue,
-    retentionSelectData,
-    handleRetentionChange,
+    refresh,
   };
 }

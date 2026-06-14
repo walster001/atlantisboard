@@ -384,9 +384,9 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
       notifications.show({
         title: 'Backup path saved',
         message: status.persistedToEnvFile
-          ? `${status.path} (written to .env)`
-          : `${status.path} (active until server restart — could not update .env)`,
-        color: status.persistedToEnvFile ? 'green' : 'yellow',
+          ? `${status.path} (saved to admin config and .env)`
+          : `${status.path} (saved to admin config — .env not updated)`,
+        color: 'green',
       });
     } catch (error: unknown) {
       notifications.show({

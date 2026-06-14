@@ -11,6 +11,7 @@ import { logAuditEvent } from '../../utils/auditLogger.js';
 import { claimImportPlaceholderMembershipsForUser } from '../../services/importPlaceholderUserService.js';
 import { claimPlaceholderAsRealUser } from '../../services/claimPlaceholderUserService.js';
 import { attachCustomBoardThemesToPreferences } from '../../services/boardThemeService.js';
+import { buildAuthUserPayload } from '../../utils/authUserPayload.js';
 import { issueCSRFToken } from '../../middleware/csrf.js';
 import {
   authRateLimiter,
@@ -154,16 +155,10 @@ router.post('/register', authRateLimiter, async (req, res, next) => {
 
       logger.info({ userId: user._id.toString(), email: user.email }, 'User registered (verification not required)');
 
-      sendAuthSuccess(res, 201, token, {
-        id: user._id.toString(),
-        email: user.email,
-        username: user.username,
-        displayName: user.displayName,
-        profilePicture: user.profilePicture,
-        isAppAdmin: user.isAppAdmin,
-        preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
-        emailVerified: true,
-      });
+      sendAuthSuccess(res, 201, token, buildAuthUserPayload(
+        user,
+        await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+      ));
       return;
     }
 
@@ -336,16 +331,10 @@ router.post('/login', authRateLimiter, loginIpRateLimiter, async (req, res, next
 
     issueCSRFToken(req, res);
 
-    sendAuthSuccess(res, 200, token, {
-      id: user._id.toString(),
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      profilePicture: user.profilePicture,
-      isAppAdmin: user.isAppAdmin,
-      preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
-      emailVerified: user.emailVerified,
-    });
+    sendAuthSuccess(res, 200, token, buildAuthUserPayload(
+      user,
+      await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+    ));
   } catch (error) {
     handleApiRouteError(res, error, next);
   }

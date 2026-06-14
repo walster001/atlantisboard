@@ -21,6 +21,7 @@ import {
   resolveRegistrationMode,
 } from '../../utils/registrationPolicy.js';
 import { attachCustomBoardThemesToPreferences } from '../../services/boardThemeService.js';
+import { buildAuthUserPayload } from '../../utils/authUserPayload.js';
 import { googleOAuthAuthorizeStartUrl } from '../../../shared/utils/googleOAuthCallbackUrl.js';
 import type { AuthenticatedRequest } from '../../types/express.js';
 import { clearAuthCookie } from '../../utils/authCookie.js';
@@ -125,16 +126,10 @@ router.get('/me', apiRateLimiter, requireAuth as RequestHandler, async (req, res
     }
 
     res.json({
-      user: {
-        id: user._id.toString(),
-        email: user.email,
-        username: user.username,
-        displayName: user.displayName,
-        profilePicture: user.profilePicture,
-        isAppAdmin: user.isAppAdmin,
-        preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
-        emailVerified: user.emailVerified,
-      },
+      user: buildAuthUserPayload(
+        user,
+        await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+      ),
     });
   } catch (error) {
     next(error);

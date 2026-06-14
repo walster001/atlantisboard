@@ -1,13 +1,12 @@
 import { Group, Select, Text } from '@mantine/core';
 import { memo } from 'react';
+import type { AdminReportingDaysFilterValue } from '../../../../shared/constants/adminReporting.js';
 import { AdminReportingBoardNameFilter } from './AdminReportingBoardNameFilter.js';
 
 interface AdminReportingActivityControlsProps {
-  readonly retentionAriaLabel: string;
-  readonly retentionValue: string;
-  readonly retentionSelectData: ReadonlyArray<{ value: string; label: string }>;
-  readonly savingRetention: boolean;
-  readonly onRetentionChange: (value: string | null) => void;
+  readonly daysFilter: AdminReportingDaysFilterValue;
+  readonly daysFilterOptions: ReadonlyArray<{ readonly value: string; readonly label: string }>;
+  readonly onDaysFilterChange: (value: string | null) => void;
   readonly boardFilterId: string | null;
   readonly boardFilterLabel: string | null;
   readonly boardOptions: readonly { readonly value: string; readonly label: string }[];
@@ -17,11 +16,9 @@ interface AdminReportingActivityControlsProps {
 }
 
 export const AdminReportingActivityControls = memo(function AdminReportingActivityControls({
-  retentionAriaLabel,
-  retentionValue,
-  retentionSelectData,
-  savingRetention,
-  onRetentionChange,
+  daysFilter,
+  daysFilterOptions,
+  onDaysFilterChange,
   boardFilterId,
   boardFilterLabel,
   boardOptions,
@@ -47,16 +44,13 @@ export const AdminReportingActivityControls = memo(function AdminReportingActivi
       />
       <Group gap="sm" align="center" wrap="nowrap">
         <Text fw={600} size="sm">
-          Retention
+          Days
         </Text>
         <Select
-          aria-label={retentionAriaLabel}
-          data={[...retentionSelectData]}
-          value={retentionValue}
-          onChange={(value) => {
-            void onRetentionChange(value);
-          }}
-          disabled={savingRetention}
+          aria-label="Activity report days filter"
+          data={[...daysFilterOptions]}
+          value={daysFilter}
+          onChange={onDaysFilterChange}
           w={{ base: '100%', sm: 200 }}
           miw={160}
         />

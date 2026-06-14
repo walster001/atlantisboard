@@ -8,6 +8,7 @@ import { usesHttpOnlyAuth } from '../config/env.js';
 import { BrandedLoginCard } from '../components/auth/BrandedLoginCard.js';
 import { RegisterModal } from '../components/auth/RegisterModal.js';
 import { ForgotPasswordModal } from '../components/auth/ForgotPasswordModal.js';
+import { useLoginPrivacyAcceptance } from '../hooks/useLoginPrivacyAcceptance.js';
 import {
   consumePostLoginRedirect,
   isSafeAppInternalPath,
@@ -23,7 +24,8 @@ const loginSchema = z.object({
 export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { login, refreshUser } = useAuthContext();
+  const { login, refreshUser, acceptPrivacyPolicy, requiresPrivacyPolicyAcceptance, authenticated } =
+    useAuthContext();
   const { branding, loginBrandingReady } = useAppBranding();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +115,19 @@ export default function LoginPage() {
     };
   }, []);
 
+  const completePostAuthNavigation = (): void => {
+    const target = consumePostLoginRedirect() ?? '/';
+    navigate(target, { replace: true });
+  };
+
+  const { requirePrivacyAcceptanceIfNeeded, privacyAcceptanceView } = useLoginPrivacyAcceptance({
+    authenticated,
+    requiresPrivacyPolicyAcceptance,
+    acceptPrivacyPolicy,
+    onAccepted: completePostAuthNavigation,
+    privacyQueryParam: searchParams.get('privacy'),
+  });
+
   useEffect(() => {
     const oauth = searchParams.get('oauth');
     if (oauth !== '1') {
@@ -129,9 +144,11 @@ export default function LoginPage() {
       void api
         .oauthExchange()
         .then(() => refreshUser())
-        .then(() => {
-          const target = consumePostLoginRedirect() ?? '/';
-          navigate(target, { replace: true });
+        .then((user) => {
+          if (requirePrivacyAcceptanceIfNeeded(user)) {
+            return;
+          }
+          completePostAuthNavigation();
         })
         .catch(() => {
           setError('Google sign-in could not be completed. Please try again.');
@@ -146,9 +163,12 @@ export default function LoginPage() {
       searchParams.delete('oauth');
       searchParams.delete('next');
       setSearchParams(searchParams, { replace: true });
-      const stored = consumePostLoginRedirect();
-      const target = stored ?? '/';
-      void refreshUser().then(() => navigate(target, { replace: true }));
+      void refreshUser().then((user) => {
+        if (requirePrivacyAcceptanceIfNeeded(user)) {
+          return;
+        }
+        completePostAuthNavigation();
+      });
     }
   }, [searchParams, setSearchParams, navigate, refreshUser]);
 
@@ -197,9 +217,11 @@ export default function LoginPage() {
 
     try {
       const validated = loginSchema.parse(formData);
-      await login(validated.email, validated.password);
-      const target = consumePostLoginRedirect() ?? '/';
-      navigate(target, { replace: true });
+      const user = await login(validated.email, validated.password);
+      if (requirePrivacyAcceptanceIfNeeded(user)) {
+        return;
+      }
+      completePostAuthNavigation();
     } catch (err) {
       if (err instanceof z.ZodError) {
         setError(err.issues[0]?.message || 'Validation error');
@@ -227,11 +249,11 @@ export default function LoginPage() {
   };
 
   if (!loginBrandingReady || loginOptionsLoading) {
-    return (
-      <Box className="kb-login-host min-h-screen flex items-center justify-center">
-        <Loader />
-      </Box>
-    );
+    return <Box className="kb-login-host min-h-screen flex items-center justify-center"><Loader /></Box>;
+  }
+
+  if (privacyAcceptanceView) {
+    return privacyAcceptanceView;
   }
 
   return (
@@ -261,9 +283,12 @@ export default function LoginPage() {
       <RegisterModal
         opened={registerModalOpen}
         onClose={() => setRegisterModalOpen(false)}
-        onSuccess={() => {
-          const target = consumePostLoginRedirect() ?? '/';
-          navigate(target, { replace: true });
+        onSuccess={async () => {
+          const user = await refreshUser();
+          if (requirePrivacyAcceptanceIfNeeded(user)) {
+            return;
+          }
+          completePostAuthNavigation();
         }}
       />
     </>

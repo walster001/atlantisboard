@@ -11,6 +11,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { apiRoutes } from './routes/index.js';
 import { connectDatabase } from './config/database.js';
 import { initializeAdminConfig } from './models/AdminConfig.js';
+import { hydrateBackupLocationFromAdminConfig } from './services/backupLocationEnv.js';
 import { connectSessionRedis } from './config/redis.js';
 import { sessionMiddleware } from './middleware/session.js';
 import { configureGoogleStrategy, passport } from './config/passport.js';
@@ -257,6 +258,7 @@ export async function startHttpServer(options?: {
       await migrateLegacyCardDescriptionHtmlBatch();
       await initializeBoardThemes();
       await initializeAdminConfig();
+      await hydrateBackupLocationFromAdminConfig();
       await initializeRoleDefinitions();
       await configureGoogleStrategy();
     } catch (err) {

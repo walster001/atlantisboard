@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { authenticated, loading } = useAuthContext();
+  const { authenticated, loading, requiresPrivacyPolicyAcceptance } = useAuthContext();
   const location = useLocation();
 
   if (loading) {
@@ -23,6 +23,11 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (!authenticated) {
     storePostLoginRedirect(`${location.pathname}${location.search}`);
     return <Navigate to="/login" replace />;
+  }
+
+  if (requiresPrivacyPolicyAcceptance) {
+    storePostLoginRedirect(`${location.pathname}${location.search}`);
+    return <Navigate to="/login?privacy=1" replace />;
   }
 
   return <>{children}</>;

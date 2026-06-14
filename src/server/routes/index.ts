@@ -21,6 +21,7 @@ import { boardBackgroundRoutes } from './boardBackgrounds.js';
 import { fontRoutes } from './fonts.js';
 import { importInlineRoutes } from './importInline.js';
 import { themesRoutes } from './themes.js';
+import { legalRoutes } from './legal.js';
 import { csrfProtection } from '../middleware/csrf.js';
 
 export const apiRoutes = Router();
@@ -53,6 +54,9 @@ apiRoutes.use('/fonts', fontRoutes);
 
 // Board theme catalog (system + user + board scoped)
 apiRoutes.use('/themes', themesRoutes);
+
+// Bundled legal documents (privacy notice)
+apiRoutes.use('/legal', legalRoutes);
 
 // CSRF protection for all state-changing requests below (OAuth + CSRF token routes excluded)
 apiRoutes.use(csrfProtectionUnlessExcluded);

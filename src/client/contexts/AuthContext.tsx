@@ -6,7 +6,8 @@ interface AuthContextType {
   user: ClientAuthUser | null;
   loading: boolean;
   authenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  requiresPrivacyPolicyAcceptance: boolean;
+  login: (email: string, password: string) => Promise<ClientAuthUser>;
   logout: () => Promise<void>;
   register: (data: {
     email: string;
@@ -14,7 +15,8 @@ interface AuthContextType {
     password: string;
     displayName: string;
   }) => Promise<unknown>;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<ClientAuthUser | null>;
+  acceptPrivacyPolicy: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

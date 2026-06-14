@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger.js';
 import { sendVerificationEmail } from '../../services/emailService.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { attachCustomBoardThemesToPreferences } from '../../services/boardThemeService.js';
+import { buildAuthUserPayload } from '../../utils/authUserPayload.js';
 import { authRateLimiter, sendAuthSuccess, verifyEmailSchema } from './_helpers.js';
 import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import { parseOrThrow } from '../../utils/zodValidation.js';
@@ -63,16 +64,10 @@ router.post('/verify-email', authRateLimiter, async (req, res, next) => {
       isAppAdmin: user.isAppAdmin,
     });
 
-    sendAuthSuccess(res, 200, jwt, {
-      id: user._id.toString(),
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      profilePicture: user.profilePicture,
-      isAppAdmin: user.isAppAdmin,
-      preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
-      emailVerified: true,
-    });
+    sendAuthSuccess(res, 200, jwt, buildAuthUserPayload(
+      user,
+      await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+    ));
   } catch (error) {
     handleApiRouteError(res, error, next);
   }

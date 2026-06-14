@@ -27,6 +27,11 @@ for rel in "${REQUIRED_EMAIL_TEMPLATES[@]}"; do
   fi
 done
 
+if [[ ! -s "${PKG}/public/legal/privacy-policy.md" ]]; then
+  echo "error: ${PKG}/public/legal/privacy-policy.md missing — copy from Privacy Policy.md" >&2
+  exit 1
+fi
+
 echo "==> Docker build --target production (release / staging artifact)"
 prod_id="$(
   docker build --target production -f "${DOCKERFILE}" -q "${PKG}"
@@ -50,6 +55,12 @@ docker run --rm --entrypoint sh "${prod_id}" -c '
   do
     test -f "$f" || { echo "missing email template: $f" >&2; exit 1; }
   done
+'
+
+echo "==> Assert production image includes bundled privacy policy"
+docker run --rm --entrypoint sh "${prod_id}" -c '
+  test -s /app/public/legal/privacy-policy.md \
+    || { echo "missing privacy policy: /app/public/legal/privacy-policy.md" >&2; exit 1; }
 '
 
 echo "==> Docker build --target development (CI source compile)"

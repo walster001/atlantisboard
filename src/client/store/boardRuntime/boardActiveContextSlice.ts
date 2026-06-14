@@ -85,14 +85,14 @@ export const createBoardActiveContextSlice: StateCreator<
       } = patch;
       const nextSettings: import('../database.js').BoardDB['settings'] = { ...s.board.settings, ...restPatch };
       if (Object.prototype.hasOwnProperty.call(patch, 'memberActivityLogRetentionDays')) {
-        if (memberRetentionPatch === null || memberRetentionPatch === undefined) {
+        if (memberRetentionPatch === undefined) {
           delete nextSettings.memberActivityLogRetentionDays;
         } else {
           nextSettings.memberActivityLogRetentionDays = memberRetentionPatch;
         }
       }
       if (Object.prototype.hasOwnProperty.call(patch, 'activityLogRetentionDays')) {
-        if (activityRetentionPatch === null || activityRetentionPatch === undefined) {
+        if (activityRetentionPatch === undefined) {
           delete nextSettings.activityLogRetentionDays;
         } else {
           nextSettings.activityLogRetentionDays = activityRetentionPatch;

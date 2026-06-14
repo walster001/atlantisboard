@@ -12,6 +12,7 @@ import { logger } from '../../utils/logger.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { isGoogleOAuthStrategyRegistered } from '../../config/passport.js';
 import { attachCustomBoardThemesToPreferences } from '../../services/boardThemeService.js';
+import { buildAuthUserPayload } from '../../utils/authUserPayload.js';
 import { googleOAuthLanDeviceParamsForHostHeader } from '../../../shared/utils/googleOAuthPrivateIp.js';
 import { googleOAuthRedirectToBrowserOriginIfNeeded } from '../../../shared/utils/googleOAuthCallbackUrl.js';
 import {
@@ -232,16 +233,10 @@ router.post('/oauth/exchange', authRateLimiter, async (req, res, next) => {
       metadata: { method: 'google-oauth' },
     });
 
-    sendAuthSuccess(res, 200, token, {
-      id: user._id.toString(),
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      profilePicture: user.profilePicture,
-      isAppAdmin: user.isAppAdmin,
-      preferences: await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
-      emailVerified: user.emailVerified,
-    });
+    sendAuthSuccess(res, 200, token, buildAuthUserPayload(
+      user,
+      await attachCustomBoardThemesToPreferences(user._id.toString(), user.preferences),
+    ));
   } catch (error) {
     next(error);
   }

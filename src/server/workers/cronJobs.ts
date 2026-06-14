@@ -104,6 +104,9 @@ export async function cleanupBoardMemberAuditRetention(): Promise<void> {
     let totalDeleted = 0;
     for await (const b of cursor) {
       const configured = b.settings?.memberActivityLogRetentionDays;
+      if (configured === null) {
+        continue;
+      }
       const days =
         typeof configured === 'number' && configured >= 1 && configured <= 3650
           ? configured
@@ -150,6 +153,9 @@ export async function cleanupBoardContentActivityRetention(): Promise<void> {
     let totalDeleted = 0;
     for await (const b of cursor) {
       const configured = b.settings?.activityLogRetentionDays;
+      if (configured === null) {
+        continue;
+      }
       const days =
         typeof configured === 'number' && configured >= 1 && configured <= 3650
           ? configured

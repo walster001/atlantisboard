@@ -43,12 +43,12 @@ export interface IBoardSettings {
   listColumnWidthAuto?: boolean;
   /** Fixed column width in px when listColumnWidthAuto is false. */
   listColumnWidthPx?: number;
-  /** When set, member activity log entries older than this many days may be purged (worker TBD). */
-  memberActivityLogRetentionDays?: number;
+  /** When set, member activity log entries older than this many days may be purged; `null` = never expire. */
+  memberActivityLogRetentionDays?: number | null;
   /** When true, board content activities are recorded per category toggles. Default false (opt-in). */
   activityLogEnabled?: boolean;
-  /** When set, board content activity rows older than this many days may be purged. */
-  activityLogRetentionDays?: number;
+  /** When set, board content activity rows older than this many days may be purged; `null` = never expire. */
+  activityLogRetentionDays?: number | null;
   /** Per-category tracking toggles for board content activities. */
   activityLogTracking?: BoardActivityTrackingSettings;
   /** When true, configured recipients receive a weekly board content activity email roundup. */
@@ -115,9 +115,9 @@ const BoardSettingsSchema = new Schema<IBoardSettings>(
     listEnforceMaxCards: { type: Boolean, default: true },
     listColumnWidthAuto: { type: Boolean, default: true },
     listColumnWidthPx: { type: Number, min: 140, max: 800 },
-    memberActivityLogRetentionDays: { type: Number, min: 1, max: 3650 },
+    memberActivityLogRetentionDays: { type: Schema.Types.Mixed, default: undefined },
     activityLogEnabled: { type: Boolean, default: false },
-    activityLogRetentionDays: { type: Number, min: 1, max: 3650 },
+    activityLogRetentionDays: { type: Schema.Types.Mixed, default: undefined },
     activityLogTracking: {
       lists: { type: Boolean },
       cards: { type: Boolean },

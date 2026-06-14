@@ -12,6 +12,7 @@ import {
   upgradeHttpOriginToHttps,
 } from '../../../shared/utils/googleOAuthCallbackUrl.js';
 import { resolveHostOrigin } from '../../utils/resolveHostOrigin.js';
+import type { AuthUserPayload } from '../../utils/authUserPayload.js';
 
 export async function assertEmailPasswordAllowed(res: Response): Promise<boolean> {
   const cfg = await AdminConfig.findOne();
@@ -60,7 +61,7 @@ export function sendAuthSuccess(
   res: Response,
   statusCode: number,
   token: string,
-  user: Record<string, unknown>,
+  user: AuthUserPayload,
 ): void {
   setAuthCookie(res, token);
   res.status(statusCode).json({

@@ -71,6 +71,9 @@ export interface IUser extends Document {
       auth: string;
     };
   };
+  /** Version string of the bundled privacy notice the user accepted (see shared/legal/privacyPolicy). */
+  privacyPolicyAcceptedVersion?: string;
+  privacyPolicyAcceptedAt?: Date;
 }
 
 const NotificationPreferencesSchema = new Schema(
@@ -243,6 +246,12 @@ const UserSchema = new Schema<IUser>(
         auth: String,
       },
     },
+    privacyPolicyAcceptedVersion: {
+      type: String,
+      trim: true,
+      maxlength: 32,
+    },
+    privacyPolicyAcceptedAt: Date,
   },
   {
     timestamps: true,

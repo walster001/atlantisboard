@@ -61,9 +61,9 @@ export interface BoardDB {
     listColumnWidthAuto?: boolean;
     /** Preferred list column width (px) on wide viewports; UI scales down on narrower screens. */
     listColumnWidthPx?: number;
-    memberActivityLogRetentionDays?: number;
+    memberActivityLogRetentionDays?: number | null;
     activityLogEnabled?: boolean;
-    activityLogRetentionDays?: number;
+    activityLogRetentionDays?: number | null;
     activityLogTracking?: BoardActivityTrackingSettings;
     activityLogEmailRoundupEnabled?: boolean;
     activityLogEmailRoundupUserIds?: string[];

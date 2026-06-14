@@ -1,0 +1,51 @@
+.kb-privacy-policy-content {
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.5;
+  color: var(--mantine-color-text);
+}
+
+.kb-privacy-policy-content h1,
+.kb-privacy-policy-content h2,
+.kb-privacy-policy-content h3 {
+  margin: 1rem 0 0.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.kb-privacy-policy-content p,
+.kb-privacy-policy-content ul,
+.kb-privacy-policy-content ol {
+  margin: 0.5rem 0;
+}
+
+.kb-privacy-policy-content ul,
+.kb-privacy-policy-content ol {
+  padding-left: 1.25rem;
+}
+
+.kb-privacy-policy-content a {
+  color: var(--mantine-color-blue-filled);
+  text-decoration: underline;
+}
+
+.kb-privacy-policy-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: var(--mantine-font-size-xs);
+}
+
+.kb-privacy-policy-content th,
+.kb-privacy-policy-content td {
+  border: 1px solid var(--mantine-color-gray-3);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.kb-privacy-policy-content blockquote {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--mantine-color-gray-4);
+  background: var(--mantine-color-gray-0);
+}

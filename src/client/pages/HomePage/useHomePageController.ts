@@ -213,6 +213,10 @@ export function useHomePageController(): HomePageController {
     [refreshUser],
   );
 
+  const refreshUserAfterBoardMove = useCallback(async (): Promise<void> => {
+    await refreshUser();
+  }, [refreshUser]);
+
   const moveWorkspaceUp = useCallback(
     async (workspaceId: string) => {
       const ids = orderedWorkspaces.map((w) => w.id);
@@ -254,7 +258,7 @@ export function useHomePageController(): HomePageController {
     setBoardGridDropTarget: setBoardGridDropTargetDeduped,
     setHomeDraggingClass: setHomePageDragging,
     canDragBoard: (board) => user != null && homePerms.canDragBoardOnHome(board),
-    refreshUserAfterBoardMove: refreshUser,
+    refreshUserAfterBoardMove: refreshUserAfterBoardMove,
     hasBoardUpdate: homePerms.hasBoardUpdate,
     hasWorkspaceUpdate: (workspaceId) =>
       user != null && wsPerms.loaded && wsPerms.can(workspaceId, 'workspaces.update'),

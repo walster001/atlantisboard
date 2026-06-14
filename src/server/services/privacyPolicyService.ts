@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import MarkdownIt from 'markdown-it';
 import { PRIVACY_POLICY_VERSION } from '../../shared/legal/privacyPolicy.js';
@@ -12,11 +12,27 @@ const markdownRenderer = new MarkdownIt({
 
 let cachedMarkdown: string | null = null;
 
+async function resolvePrivacyPolicyMarkdownPath(): Promise<string> {
+  const candidates = [
+    join(process.cwd(), 'public', 'legal', 'privacy-policy.md'),
+    join(process.cwd(), 'src', 'server', 'legal', 'privacy-policy.md'),
+  ];
+  for (const filePath of candidates) {
+    try {
+      await access(filePath);
+      return filePath;
+    } catch {
+      // try next candidate
+    }
+  }
+  throw new Error('Bundled privacy policy markdown not found');
+}
+
 async function loadPrivacyPolicyMarkdown(): Promise<string> {
   if (cachedMarkdown !== null) {
     return cachedMarkdown;
   }
-  const filePath = join(process.cwd(), 'public', 'legal', 'privacy-policy.md');
+  const filePath = await resolvePrivacyPolicyMarkdownPath();
   cachedMarkdown = await readFile(filePath, 'utf8');
   return cachedMarkdown;
 }

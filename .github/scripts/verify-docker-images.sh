@@ -28,7 +28,7 @@ for rel in "${REQUIRED_EMAIL_TEMPLATES[@]}"; do
 done
 
 if [[ ! -s "${PKG}/public/legal/privacy-policy.md" ]]; then
-  echo "error: ${PKG}/public/legal/privacy-policy.md missing — copy from Privacy Policy.md" >&2
+  echo "error: ${PKG}/public/legal/privacy-policy.md missing — run build-npm-package.sh (copy-privacy-policy.sh)" >&2
   exit 1
 fi
 

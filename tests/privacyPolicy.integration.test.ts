@@ -1,9 +1,11 @@
 import crypto from 'node:crypto';
-import { expect, it } from 'bun:test';
+import { beforeAll, expect, it } from 'bun:test';
 import { describeHttpIntegration } from './helpers/integrationEnv.js';
-import { beforeAllEnsureTestServer } from './helpers/integrationHooks.js';
+import { beforeAllEnsureTestServer, INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationHooks.js';
 import { apiInject, resetIntegrationHttpSession } from './helpers/integrationHttp.js';
+import { ensureMongooseConnectedForHttpIntegration } from './helpers/testHelpers.js';
 import { User } from '../src/server/models/User.js';
+import { initializeAdminConfig } from '../src/server/models/AdminConfig.js';
 import { hashPassword } from '../src/server/utils/password.js';
 import { PRIVACY_POLICY_VERSION } from '../src/shared/legal/privacyPolicy.js';
 
@@ -31,6 +33,11 @@ async function createVerifiedUserWithoutPrivacyAcceptance(): Promise<{
 
 describeHttpIntegration('Privacy policy API', () => {
   beforeAllEnsureTestServer();
+
+  beforeAll(async () => {
+    await ensureMongooseConnectedForHttpIntegration();
+    await initializeAdminConfig();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   it('returns bundled privacy policy document', async () => {
     resetIntegrationHttpSession();

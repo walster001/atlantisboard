@@ -25,6 +25,8 @@ fi
 echo "==> build:client"
 bun run build:client
 
+"${SCRIPT_DIR}/copy-privacy-policy.sh"
+
 echo "==> build"
 bun run build
 

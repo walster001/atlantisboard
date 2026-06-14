@@ -135,9 +135,10 @@ export const userApiMethods: UserApiMethods = {
       version: PRIVACY_POLICY_VERSION,
     });
     const data = response.data as { user?: unknown };
-    if (data.user != null) {
-      parseClientAuthUser(data.user);
+    if (data.user == null) {
+      throw new Error('Privacy policy acceptance response missing user');
     }
-    return data;
+    parseClientAuthUser(data.user);
+    return { user: data.user };
   },
 };

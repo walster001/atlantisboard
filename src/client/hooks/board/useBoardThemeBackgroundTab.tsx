@@ -29,6 +29,9 @@ export function useBoardThemeBackgroundTab({
   initialNav,
 }: UseBoardThemeBackgroundTabOptions) {
   const { refreshUser } = useAuthContext();
+  const refreshUserForThemeTab = useCallback(async (): Promise<void> => {
+    await refreshUser();
+  }, [refreshUser]);
   const { catalog, systemThemes, reload: reloadThemes } = useBoardThemes();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -104,7 +107,7 @@ export function useBoardThemeBackgroundTab({
     setThemeEditorSaving,
     setThemeEditorError,
     patchLive,
-    refreshUser,
+    refreshUser: refreshUserForThemeTab,
     reloadThemes,
   });
 

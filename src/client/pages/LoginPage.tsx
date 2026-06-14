@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Loader } from '@mantine/core';
 import { useAuthContext } from '../contexts/AuthContext.js';
@@ -115,10 +115,10 @@ export default function LoginPage() {
     };
   }, []);
 
-  const completePostAuthNavigation = (): void => {
+  const completePostAuthNavigation = useCallback((): void => {
     const target = consumePostLoginRedirect() ?? '/';
     navigate(target, { replace: true });
-  };
+  }, [navigate]);
 
   const { requirePrivacyAcceptanceIfNeeded, privacyAcceptanceView } = useLoginPrivacyAcceptance({
     authenticated,
@@ -170,7 +170,7 @@ export default function LoginPage() {
         completePostAuthNavigation();
       });
     }
-  }, [searchParams, setSearchParams, navigate, refreshUser]);
+  }, [searchParams, setSearchParams, refreshUser, completePostAuthNavigation, requirePrivacyAcceptanceIfNeeded]);
 
   useEffect(() => {
     const err = searchParams.get('error');

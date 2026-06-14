@@ -62,6 +62,7 @@ export function hasNonTextRenderableContent(node: JSONContent | undefined): bool
     node.type === 'image' ||
     node.type === 'imageResize' ||
     node.type === 'video' ||
+    node.type === 'audio' ||
     node.type === 'inlineButton' ||
     node.type === 'twemojiEmoji' ||
     node.type === 'horizontalRule'

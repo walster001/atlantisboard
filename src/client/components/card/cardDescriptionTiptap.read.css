@@ -23,6 +23,11 @@
   align-self: stretch;
 }
 
+.card-desc-tiptap-read--detail .card-desc-audio-layout-shell {
+  align-self: flex-start;
+  max-width: 100%;
+}
+
 .card-desc-tiptap-read:not(.card-desc-tiptap-read--detail) > * + * {
   margin-top: 0.45em;
 }

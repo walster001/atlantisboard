@@ -31,11 +31,18 @@ describe('attachmentDelivery config', () => {
     expect(clampAttachmentSignedUrlTtlSec('1200')).toBe(1200);
   });
 
-  it('hybrid prefers signed for video and proxy for PDF', () => {
+  it('hybrid prefers signed for video and audio and proxy for PDF', () => {
     expect(
       resolveAttachmentDeliveryKind({
         mode: 'hybrid',
         contentType: 'video/mp4',
+        size: 1000,
+      }),
+    ).toBe('signed');
+    expect(
+      resolveAttachmentDeliveryKind({
+        mode: 'hybrid',
+        contentType: 'audio/mpeg',
         size: 1000,
       }),
     ).toBe('signed');
@@ -48,11 +55,18 @@ describe('attachmentDelivery config', () => {
     ).toBe('proxy');
   });
 
-  it('always signs video even when delivery mode is proxy', () => {
+  it('always signs video and audio even when delivery mode is proxy', () => {
     expect(
       resolveAttachmentDeliveryKind({
         mode: 'proxy',
         contentType: 'video/webm',
+        size: 500,
+      }),
+    ).toBe('signed');
+    expect(
+      resolveAttachmentDeliveryKind({
+        mode: 'proxy',
+        contentType: 'audio/webm',
         size: 500,
       }),
     ).toBe('signed');

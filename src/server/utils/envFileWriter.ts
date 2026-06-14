@@ -23,7 +23,15 @@ function parseEnvLineValue(raw: string): string {
   return trimmed;
 }
 
-/** Reads a single KEY from the deployment .env file (not process.env). */
+function escapeRegExp(key: string): string {
+  return key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function keyAssignmentPattern(key: string): RegExp {
+  return new RegExp(`^${escapeRegExp(key)}=.*$`, 'gm');
+}
+
+/** Reads a single KEY from the deployment .env file (not process.env). First assignment wins. */
 export function readEnvFileVariable(key: string): string | null {
   const envPath = resolveEnvFilePath();
   let contents = '';
@@ -32,12 +40,17 @@ export function readEnvFileVariable(key: string): string | null {
   } catch {
     return null;
   }
-  const pattern = new RegExp(`^${key}=(.*)$`, 'm');
+  const pattern = new RegExp(`^${escapeRegExp(key)}=(.*)$`, 'm');
   const match = pattern.exec(contents);
   if (match == null) {
     return null;
   }
   return parseEnvLineValue(match[1] ?? '');
+}
+
+function stripAllKeyAssignments(contents: string, key: string): string {
+  const stripped = contents.replace(keyAssignmentPattern(key), '');
+  return stripped.replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '').replace(/\n+$/, '\n');
 }
 
 function formatEnvLine(key: string, value: string): string {
@@ -62,10 +75,10 @@ export function upsertEnvFileVariable(key: string, value: string): boolean {
   }
 
   const line = formatEnvLine(key, value);
-  const pattern = new RegExp(`^${key}=.*$`, 'm');
-  const nextContents = pattern.test(contents)
-    ? contents.replace(pattern, line)
-    : `${contents.endsWith('\n') || contents === '' ? contents : `${contents}\n`}${line}\n`;
+  const hadKey = keyAssignmentPattern(key).test(contents);
+  const stripped = hadKey ? stripAllKeyAssignments(contents, key) : contents;
+  const nextContents =
+    stripped === '' ? `${line}\n` : `${stripped.endsWith('\n') ? stripped : `${stripped}\n`}${line}\n`;
 
   try {
     writeFileSync(envPath, nextContents, 'utf8');

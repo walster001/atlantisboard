@@ -21,6 +21,16 @@ describe('contentSecurityPolicy config', () => {
     const directives = buildDevelopmentCspDirectives();
     expect(directives.mediaSrc).toContain('blob:');
     expect(directives.imgSrc).toContain('blob:');
+    expect(directives.connectSrc).toContain('blob:');
+  });
+
+  it('allows blob: in production connect-src for staged media fetch', () => {
+    const directives = buildProductionCspDirectives({
+      appOrigin: 'https://baseimage.atlantis.social',
+      minioPublicOrigin: 'https://cdn.example.com',
+      styleSrcNonce: () => "'nonce-test'",
+    });
+    expect(directives.connectSrc).toContain('blob:');
   });
 
   it('omits MinIO origin from media-src when public presign is not configured', () => {

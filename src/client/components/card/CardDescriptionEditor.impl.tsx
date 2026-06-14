@@ -9,6 +9,7 @@ import {
   getCardDescriptionEditorExtensions,
 } from './cardDescriptionTiptap.js';
 import { CardDescriptionInlineButtonEditModal } from './CardDescriptionInlineButtonEditModal.js';
+import { CardDescriptionAudioEditModal } from './CardDescriptionAudioEditModal.js';
 import { DescriptionCharLimitHint } from './CardDescriptionEditor/descriptionCharLimitHint.js';
 import { CardDescriptionEditorToolbar } from './CardDescriptionEditor/Toolbar.js';
 import './cardDescriptionTiptap.css';
@@ -36,8 +37,12 @@ export function CardDescriptionEditor({
   pendingDescriptionMediaRef,
 }: CardDescriptionEditorProps) {
   const [inlineButtonEditPos, setInlineButtonEditPos] = useState<number | null>(null);
+  const [audioEditPos, setAudioEditPos] = useState<number | null>(null);
   const closeInlineButtonModal = useCallback(() => {
     setInlineButtonEditPos(null);
+  }, []);
+  const closeAudioModal = useCallback(() => {
+    setAudioEditPos(null);
   }, []);
 
   const initialContent = useMemo(
@@ -93,6 +98,23 @@ export function CardDescriptionEditor({
     if (!editor) {
       return;
     }
+    const storage = editor.storage.audio;
+    if (!storage) {
+      return;
+    }
+    const prev = storage.openEditModal;
+    storage.openEditModal = (pos: number) => {
+      setAudioEditPos(pos);
+    };
+    return () => {
+      storage.openEditModal = prev;
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
     if (!onJsonByteLengthChange && !onTextLengthChange) {
       return;
     }
@@ -132,6 +154,14 @@ export function CardDescriptionEditor({
         opened={inlineButtonEditPos !== null}
         nodePos={inlineButtonEditPos}
         onClose={closeInlineButtonModal}
+        editor={editor}
+        cardId={cardId}
+      />
+      <CardDescriptionAudioEditModal
+        key={audioEditPos ?? 'audio-closed'}
+        opened={audioEditPos !== null}
+        nodePos={audioEditPos}
+        onClose={closeAudioModal}
         editor={editor}
         cardId={cardId}
       />

@@ -9,6 +9,7 @@
         "@atlaskit/pragmatic-drag-and-drop-hitbox": "1.1.0",
         "@emoji-mart/data": "1.2.1",
         "@emoji-mart/react": "1.1.1",
+        "@gfazioli/mantine-audio": "1.0.2",
         "@mantine/charts": "8.3.0",
         "@mantine/core": "8.3.0",
         "@mantine/dates": "8.3.0",
@@ -234,6 +235,8 @@
     "@floating-ui/react-dom": ["@floating-ui/react-dom@2.1.6", "", { "dependencies": { "@floating-ui/dom": "^1.7.4" }, "peerDependencies": { "react": ">=16.8.0", "react-dom": ">=16.8.0" } }, "sha512-4JX6rEatQEvlmgU80wZyq9RT96HZJa88q8hp0pBd+LrczeDI4o6uA2M+uvxngVHo4Ihr8uibXxH6+70zhAFrVw=="],
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.10", "", {}, "sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ=="],
+
+    "@gfazioli/mantine-audio": ["@gfazioli/mantine-audio@1.0.2", "", { "peerDependencies": { "@mantine/core": ">=9.0.0", "@mantine/hooks": ">=9.0.0", "@tabler/icons-react": ">=3.0.0", "react": "^18.x || ^19.x", "react-dom": "^18.x || ^19.x" }, "optionalPeers": ["@tabler/icons-react"] }, "sha512-2E3tBEuZXwldjrc5KCBc1KmCbBJ8sr96oqUR5P7qozkMkNUeyu4L8s9NC53alnhg8Mno4xiVXMa4JAzRAmFxsw=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.1", "", {}, "sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA=="],
 

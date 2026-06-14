@@ -15,6 +15,7 @@ import { useResponsiveTier } from './hooks/useResponsiveTier.js';
 import '@mantine/core/styles.css';
 import '@mantine/charts/styles.css';
 import '@mantine/notifications/styles.css';
+import '@gfazioli/mantine-audio/styles.css';
 import './styles/notificationsMobileSafeArea.css';
 
 const MANTINE_MODALS_PROVIDER_PROPS = { centered: true } as const;

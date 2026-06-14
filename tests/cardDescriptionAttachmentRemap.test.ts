@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'bun:test';
 import {
   collectAttachmentIdsFromDescriptionJson,
+  collectDescriptionDecorationAttachmentIdsFromDescriptionJson,
   collectReferencedAttachmentIdsFromDescriptionJson,
+  collectReferencedDecorationAttachmentIdsFromDescriptionJson,
   extractAttachmentIdFromMediaSrc,
   normalizeCardDescriptionAttachmentUrls,
   remapAttachmentRefsInDescriptionHtmlString,
@@ -16,6 +18,23 @@ const OLD_URL = 'https://storage.example/board/old-card/file.jpg?token=1';
 const NEW_URL = 'https://storage.example/board/new-card/file.jpg?token=2';
 
 describe('collectAttachmentIdsFromDescriptionJson', () => {
+  it('collects audio src ids from file URLs without an attachments list', () => {
+    const audioId = 'cccccccc-dddd-4eee-ffff-gggggggg3333';
+    const doc = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'audio',
+          attrs: {
+            src: `/api/v1/attachments/${audioId}/file`,
+          },
+        },
+      ],
+    });
+    const ids = collectAttachmentIdsFromDescriptionJson(doc);
+    expect(ids.has(audioId)).toBe(true);
+  });
+
   it('collects video src and poster ids from file URLs without an attachments list', () => {
     const videoId = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeee1111';
     const posterId = 'bbbbbbbb-cccc-4ddd-eeee-ffffffff2222';
@@ -60,6 +79,58 @@ describe('collectReferencedAttachmentIdsFromDescriptionJson', () => {
     const refs = collectReferencedAttachmentIdsFromDescriptionJson(doc, attachments);
     expect(refs.has(videoId)).toBe(true);
     expect(refs.has(posterId)).toBe(true);
+  });
+});
+
+describe('collectDescriptionDecorationAttachmentIdsFromDescriptionJson', () => {
+  it('collects inline button iconSrc and audio coverSrc but not primary audio src', () => {
+    const iconId = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeee1111';
+    const coverId = 'bbbbbbbb-cccc-4ddd-eeee-ffffffff2222';
+    const audioId = 'cccccccc-dddd-4eee-ffff-gggggggg3333';
+    const doc = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'inlineButton',
+          attrs: { iconSrc: `/api/v1/attachments/${iconId}/file`, href: 'https://example.com', buttonText: 'Go' },
+        },
+        {
+          type: 'audio',
+          attrs: {
+            src: `/api/v1/attachments/${audioId}/file`,
+            coverSrc: `/api/v1/attachments/${coverId}/file`,
+          },
+        },
+      ],
+    });
+    const decorationIds = collectDescriptionDecorationAttachmentIdsFromDescriptionJson(doc);
+    expect(decorationIds.has(iconId)).toBe(true);
+    expect(decorationIds.has(coverId)).toBe(true);
+    expect(decorationIds.has(audioId)).toBe(false);
+
+    const primaryIds = collectAttachmentIdsFromDescriptionJson(doc);
+    expect(primaryIds.has(audioId)).toBe(true);
+    expect(primaryIds.has(coverId)).toBe(false);
+    expect(primaryIds.has(iconId)).toBe(false);
+  });
+
+  it('matches decoration refs to attachment rows by object url', () => {
+    const coverId = 'bbbbbbbb-cccc-4ddd-eeee-ffffffff2222';
+    const doc = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'audio',
+          attrs: {
+            src: '/api/v1/attachments/aaaaaaaa-bbbb-4ccc-dddd-eeeeeeee1111/file',
+            coverSrc: 'https://storage.example/board/cover.jpg?token=1',
+          },
+        },
+      ],
+    });
+    const attachments = [{ id: coverId, url: 'https://storage.example/board/cover.jpg?token=1' }];
+    const refs = collectReferencedDecorationAttachmentIdsFromDescriptionJson(doc, attachments);
+    expect(refs.has(coverId)).toBe(true);
   });
 });
 
@@ -157,6 +228,20 @@ describe('legacy attachment media paths', () => {
 describe('stripAttachmentFromDescriptionJsonString', () => {
   const attId = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeee1111';
   const attUrl = 'https://storage.example/bucket/file.jpg?token=1';
+
+  it('removes audio nodes that reference the deleted attachment', () => {
+    const raw = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Listen' }] },
+        { type: 'audio', attrs: { src: `/api/v1/attachments/${attId}/file` } },
+      ],
+    });
+    const stripped = stripAttachmentFromDescriptionJsonString(raw, attId, attUrl);
+    expect(isValidCardDescriptionJsonString(stripped)).toBe(true);
+    expect(stripped).toContain('Listen');
+    expect(stripped).not.toContain(attId);
+  });
 
   it('removes only the matching attachment and keeps surrounding text', () => {
     const raw = JSON.stringify({

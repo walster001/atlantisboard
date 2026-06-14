@@ -4,6 +4,7 @@ import {
   CARD_DESCRIPTION_TEXT_MAX_LENGTH,
 } from '../../../shared/constants/cardDescription.js';
 import { getCardDescriptionTextLength } from './cardDescriptionTiptap.js';
+import { flushPendingCardDescriptionAudioLayouts } from './tiptapAudioLayout.js';
 
 export function serializeCardDescriptionEditor(
   editor: Editor | null,
@@ -11,6 +12,7 @@ export function serializeCardDescriptionEditor(
   if (editor == null || editor.isDestroyed) {
     return { ok: false, reason: 'Editor not ready.' };
   }
+  flushPendingCardDescriptionAudioLayouts(editor);
   const jsonString = JSON.stringify(editor.getJSON());
   const bytes = new TextEncoder().encode(jsonString).length;
   if (bytes > CARD_DESCRIPTION_JSON_MAX_LENGTH) {

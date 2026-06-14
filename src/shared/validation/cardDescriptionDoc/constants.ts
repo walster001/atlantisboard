@@ -12,6 +12,7 @@ export const ALLOWED_BLOCK_NODES = new Set<string>([
   'image',
   'imageResize',
   'video',
+  'audio',
   'inlineButton',
   'twemojiEmoji',
 ]);

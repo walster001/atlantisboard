@@ -65,7 +65,7 @@ export function validateNode(node: unknown, depth: number): boolean {
     }
   }
 
-  if (type === 'image' || type === 'imageResize' || type === 'video') {
+  if (type === 'image' || type === 'imageResize' || type === 'video' || type === 'audio') {
     return validateMediaBlockNode(type, node);
   }
 

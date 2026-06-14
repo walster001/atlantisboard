@@ -11,11 +11,11 @@ import {
   getContainerStyle,
   getDotStyle,
   getWrapperStyle,
-  isMobile,
   parseTranslatePx,
   readOffsetAttrs,
   removeResizeElements,
   stripTransformFromStyle,
+  dismissCardDescriptionEditorKeyboardOnMobile,
 } from './tiptapInlineButtonHelpers.js';
 
 export type NodeViewContext = {
@@ -287,10 +287,7 @@ class InlineButtonNodeView {
       return;
     }
     this.onContainerClick = () => {
-      const proseMirror = document.querySelector('.ProseMirror-focused');
-      if (isMobile() && proseMirror instanceof HTMLElement) {
-        proseMirror.blur();
-      }
+      dismissCardDescriptionEditorKeyboardOnMobile(this.context.editor.view.dom);
       removeResizeElements(this.elements.container);
       const baseContainerStyle =
         typeof this.context.node.attrs.containerStyle === 'string' ? this.context.node.attrs.containerStyle : '';

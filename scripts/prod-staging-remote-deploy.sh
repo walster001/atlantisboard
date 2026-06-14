@@ -380,10 +380,16 @@ merge_remote_env_from_example() {
   remote_ssh "mkdir -p '$PROD_REMOTE_PACKAGE_DIR/scripts'"
   local rsync_ssh
   rsync_ssh="$(remote_rsync_ssh)"
-  rsync -az -e "$rsync_ssh"     "$merge_script" "${PROD_REMOTE_SSH}:${remote_merge}"
+  rsync -az -e "$rsync_ssh" \
+    "$merge_script" "${PROD_REMOTE_SSH}:${remote_merge}"
+  if [[ -f "$SCRIPT_DIR/dedupe-env-file.sh" ]]; then
+    rsync -az -e "$rsync_ssh" \
+      "$SCRIPT_DIR/dedupe-env-file.sh" "${PROD_REMOTE_SSH}:${PROD_REMOTE_PACKAGE_DIR}/scripts/dedupe-env-file.sh"
+  fi
 
   remote_ssh bash -s <<REMOTE
 set -euo pipefail
+chmod +x '$remote_merge' '$PROD_REMOTE_PACKAGE_DIR/scripts/dedupe-env-file.sh' 2>/dev/null || true
 chmod +x '$remote_merge'
 sudo bash '$remote_merge' --template '$remote_template' --target '$remote_target'
 REMOTE

@@ -1,4 +1,4 @@
-/* Tiptap card description — inline buttons, video, emoji sprites */
+/* Tiptap card description — inline buttons, video, audio, emoji sprites */
 
 .card-desc-inline-button-wrapper {
   max-width: 100%;
@@ -108,4 +108,395 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
 .card-desc-video-node-view {
   margin: 0;
   max-width: 100%;
+}
+
+.card-desc-audio-resize-container,
+.card-desc-audio-layout-shell {
+  display: block;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.card-desc-audio-layout-shell .card-desc-audio-player-inner,
+.card-desc-audio-layout-shell .card-desc-audio-player-shell {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.card-desc-audio-player-shell--sized {
+  overflow: hidden;
+}
+
+.card-desc-audio-player-shell--sized .card-desc-audio-player {
+  height: 100%;
+}
+
+.card-desc-audio-player--non-interactive,
+.card-desc-tiptap-editor .ProseMirror .card-desc-audio-player--non-interactive {
+  pointer-events: none;
+  user-select: none;
+}
+
+.card-desc-audio-player-inner {
+  display: block;
+}
+
+.card-desc-audio-move-handle {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  z-index: 1001;
+  width: 40px;
+  height: 10px;
+  transform: translate(-50%, -110%);
+  border: 1px solid #6c6c6c;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.95);
+  cursor: move;
+  box-sizing: border-box;
+  touch-action: none;
+}
+
+.card-desc-audio-player-shell {
+  display: block;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.card-desc-audio-player.card-desc-audio-player {
+  max-width: 100%;
+}
+
+.card-desc-tiptap-read .card-desc-audio-layout-shell,
+.card-desc-tiptap-read .card-desc-audio-player-shell {
+  margin: 0;
+}
+
+.card-desc-tiptap-read .card-desc-audio-podcast.card-desc-audio-player {
+  border-radius: var(--mantine-radius-md);
+  box-shadow: var(--mantine-shadow-xs);
+  overflow: hidden;
+}
+
+.card-desc-audio-node-view {
+  margin: 0;
+  max-width: 100%;
+}
+
+.card-desc-tiptap-editor .card-desc-audio-node-view {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.card-desc-tiptap-editor .card-desc-audio-node-view .card-desc-audio-layout-shell {
+  min-height: 120px;
+}
+
+.card-desc-audio-podcast--skeleton {
+  pointer-events: none;
+  user-select: none;
+  --audio-color: var(--mantine-color-blue-filled);
+  --audio-padding-y: 12px;
+  --audio-padding-x: 12px;
+  --audio-row-gap: 8px;
+  --audio-control-gap: 8px;
+  --audio-font-size: var(--mantine-font-size-sm);
+  --audio-icon-size: 18px;
+  --audio-action-size: 36px;
+  --audio-play-size: 38px;
+  --audio-timeline-thumb-size: 12px;
+  --audio-timeline-color: var(--audio-color);
+  --audio-timeline-thumb-color: var(--audio-color);
+  --audio-time-display-min-width: 0;
+  --audio-volume-slider-width: 90px;
+  background: var(--mantine-color-default);
+  border-radius: var(--mantine-radius-md);
+  box-shadow: var(--mantine-shadow-xs);
+  color: var(--mantine-color-text);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--audio-font-size);
+  gap: var(--audio-row-gap);
+  padding: var(--audio-padding-y) var(--audio-padding-x);
+}
+
+.card-desc-audio-podcast__time-display {
+  flex: 0 0 auto;
+  font-size: clamp(0.65rem, 11cqh, 1.05rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.card-desc-audio-podcast__speed-control,
+.card-desc-audio-podcast__controls button[aria-label^='Playback speed'] {
+  background: transparent;
+  border-radius: var(--mantine-radius-sm);
+  color: currentColor;
+  font-size: var(--audio-font-size, var(--mantine-font-size-sm));
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  padding: 4px 8px;
+  flex-shrink: 0;
+  transition: color 150ms ease;
+}
+
+.card-desc-audio-podcast__controls .card-desc-audio-podcast__speed-control:hover,
+.card-desc-audio-podcast__controls button[aria-label^='Playback speed']:hover {
+  background: transparent;
+  color: var(--audio-button-hover-color, var(--audio-color, var(--mantine-color-blue-filled)));
+}
+
+.card-desc-audio-podcast__volume-slider {
+  width: var(--audio-volume-slider-width, 90px);
+  flex: 0 0 auto;
+}
+
+.card-desc-audio-podcast__controls-cluster--compact-secondary {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.card-desc-audio-podcast__volume-popover {
+  padding: 0;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  box-shadow: var(--mantine-shadow-md);
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.card-desc-audio-podcast__volume-popover-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.card-desc-audio-podcast__volume-popover-value {
+  font-size: var(--mantine-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+  color: currentColor;
+}
+
+.card-desc-audio-podcast__volume-popover-track {
+  position: relative;
+  width: 48px;
+  height: 160px;
+  flex: 0 0 auto;
+  touch-action: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+}
+
+.card-desc-audio-podcast__volume-popover-rail {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 20%, transparent);
+  pointer-events: none;
+}
+
+.card-desc-audio-podcast__volume-popover-fill {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 8px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--audio-color, currentColor);
+  pointer-events: none;
+}
+
+.card-desc-audio-podcast__volume-popover-thumb {
+  --audio-volume-thumb-radius: 12px;
+  position: absolute;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--audio-color, currentColor);
+  border: 2px solid var(--mantine-color-body);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.22);
+  pointer-events: none;
+}
+
+.card-desc-audio-podcast__controls .mantine-ActionIcon-root.card-desc-audio-podcast__action-button,
+.card-desc-audio-podcast__controls .mantine-ActionIcon-root.card-desc-audio-podcast__play-button {
+  --ai-bg: transparent;
+  --ai-hover: transparent;
+  --ai-hover-color: var(--audio-button-hover-color, var(--audio-color, var(--mantine-color-blue-filled)));
+  --ai-bd: transparent;
+  --ai-color: currentColor;
+  background-color: transparent !important;
+  color: currentColor;
+}
+
+@media (hover: hover) {
+  .card-desc-audio-podcast__controls .mantine-ActionIcon-root.card-desc-audio-podcast__action-button:hover,
+  .card-desc-audio-podcast__controls .mantine-ActionIcon-root.card-desc-audio-podcast__play-button:hover {
+    background-color: transparent !important;
+    color: var(--audio-button-hover-color, var(--audio-color, var(--mantine-color-blue-filled))) !important;
+  }
+}
+
+.card-desc-audio-podcast__action-button {
+  width: var(--audio-action-size, 36px);
+  height: var(--audio-action-size, 36px);
+}
+
+.card-desc-audio-podcast__play-button {
+  width: var(--audio-play-size, 38px);
+  height: var(--audio-play-size, 38px);
+}
+
+.card-desc-audio-podcast__controls-cluster {
+  gap: var(--audio-control-gap, 8px);
+}
+
+.card-desc-audio-podcast__controls-cluster--secondary {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.card-desc-audio-resize-container.card-desc-audio-layout-shell,
+.card-desc-audio-layout-shell {
+  container-type: size;
+  container-name: card-desc-audio;
+}
+
+.card-desc-audio-player-shell--editable {
+  pointer-events: auto;
+}
+
+.card-desc-audio-podcast.card-desc-audio-player {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+}
+
+.card-desc-audio-podcast__layout {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: clamp(6px, 2.5cqh, 14px);
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  padding: clamp(4px, 2cqh, 12px);
+  box-sizing: border-box;
+}
+
+.card-desc-audio-podcast__cover {
+  flex: 0 0 auto;
+  align-self: stretch;
+  aspect-ratio: 1;
+  height: auto;
+  max-height: 100%;
+  width: auto;
+  min-width: 0;
+  border-radius: clamp(4px, 1.5cqh, 10px);
+  background: var(--mantine-color-violet-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.card-desc-audio-podcast__cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.card-desc-audio-podcast__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--audio-row-gap, clamp(2px, 1.5cqh, 8px));
+}
+
+.card-desc-audio-podcast__meta {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: clamp(4px, 2cqh, 10px);
+}
+
+.card-desc-audio-podcast__meta--time-only {
+  justify-content: flex-end;
+}
+
+.card-desc-audio-podcast__meta-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.card-desc-audio-podcast__title {
+  font-size: clamp(0.65rem, 11cqh, 1.05rem);
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-desc-audio-podcast__description {
+  font-size: clamp(0.55rem, 8.5cqh, 0.85rem);
+  color: color-mix(in srgb, currentColor 70%, transparent);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-desc-audio-podcast__timeline {
+  flex: 0 0 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.card-desc-audio-podcast__controls {
+  flex: 0 0 auto;
+  min-height: 0;
+  font-size: var(--audio-font-size, clamp(0.55rem, 8cqh, 0.875rem));
+  gap: var(--audio-control-gap, 8px);
+}
+
+.card-desc-audio-podcast__controls .mantine-ActionIcon-root.card-desc-audio-podcast__action-button {
+  --ai-size: var(--audio-action-size, 36px);
+}
+
+.card-desc-audio-podcast__controls .mantine-ActionIcon-root.card-desc-audio-podcast__play-button {
+  --ai-size: var(--audio-play-size, 38px);
+}
+
+.card-desc-audio-podcast__controls .mantine-Slider-root {
+  --slider-size: clamp(2px, 1.2cqh, 6px);
 }

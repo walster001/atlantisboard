@@ -46,6 +46,18 @@ export function isVideoAttachmentContentType(contentType: string): boolean {
   return normalizedType.startsWith('video/');
 }
 
+export function isAudioAttachmentContentType(contentType: string): boolean {
+  const normalizedType = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
+  return normalizedType.startsWith('audio/');
+}
+
+export function isStreamingMediaAttachmentContentType(contentType: string): boolean {
+  return (
+    isVideoAttachmentContentType(contentType) ||
+    isAudioAttachmentContentType(contentType)
+  );
+}
+
 /**
  * Whether this attachment should be delivered via a presigned MinIO URL (vs API proxy).
  */
@@ -55,7 +67,7 @@ export function resolveAttachmentDeliveryKind(args: {
   readonly size: number;
 }): AttachmentDeliveryKind {
   const { mode, contentType, size } = args;
-  if (isVideoAttachmentContentType(contentType)) {
+  if (isStreamingMediaAttachmentContentType(contentType)) {
     return 'signed';
   }
   if (mode === 'proxy') {

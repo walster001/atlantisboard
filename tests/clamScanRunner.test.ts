@@ -23,11 +23,13 @@ describe('clamScanRunner', () => {
   });
 
   describe('MIME profiles', () => {
-    it('treats image and video MIME types as low-risk media', () => {
+    it('treats image, video, and audio MIME types as low-risk media', () => {
       expect(isLowRiskMediaMimeType('image/jpeg')).toBe(true);
       expect(isLowRiskMediaMimeType('image/png')).toBe(true);
       expect(isLowRiskMediaMimeType('video/mp4')).toBe(true);
       expect(isLowRiskMediaMimeType('video/webm')).toBe(true);
+      expect(isLowRiskMediaMimeType('audio/mpeg')).toBe(true);
+      expect(isLowRiskMediaMimeType('audio/mp4')).toBe(true);
     });
 
     it('does not treat documents as low-risk media', () => {

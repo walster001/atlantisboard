@@ -32,6 +32,7 @@ export function AttachmentSection({
     coverBusy,
     fileInputRef,
     attachmentMaxMb,
+    panelAttachments,
     listImageUrls,
     linkPreviewAttachment,
     linkPreviewUrl,
@@ -53,6 +54,7 @@ export function AttachmentSection({
     card,
     canEdit,
     onCardUpdate,
+    ...(card.description !== undefined ? { descriptionJson: card.description } : {}),
     ...(onBeforeDeleteAttachment !== undefined ? { onBeforeDeleteAttachment } : {}),
   });
 
@@ -89,9 +91,9 @@ export function AttachmentSection({
 
       {error ? <Alert color="red">{error}</Alert> : null}
 
-      {card.attachments && card.attachments.length > 0 ? (
+      {panelAttachments.length > 0 ? (
         <Stack gap="xs">
-          {card.attachments.map((attachment) => (
+          {panelAttachments.map((attachment) => (
             <AttachmentListRow
               key={attachment.id}
               attachment={attachment}

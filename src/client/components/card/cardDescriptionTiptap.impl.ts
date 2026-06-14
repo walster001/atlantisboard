@@ -17,7 +17,9 @@ import {
 } from './cardDescriptionBlockLineHeight.js';
 import { TwemojiEmoji } from './tiptapTwemojiExtension.js';
 import { TiptapInlineButton } from './tiptapInlineButtonExtension.js';
+import { CardDescriptionAudioNodeView } from './CardDescriptionAudioNodeView.js';
 import { CardDescriptionVideoNodeView } from './CardDescriptionVideoNodeView.js';
+import { TiptapAudio } from './tiptapAudioExtension.js';
 import { TiptapVideo } from './tiptapVideoExtension.js';
 import {
   countHardBreaksInJson,
@@ -34,6 +36,7 @@ export const emptyCardDescriptionJson: JSONContent = {
 };
 
 let cachedExtensionsReadonly: Extensions | undefined;
+let cachedAudioEditorExtension: Extensions[number] | undefined;
 let cachedVideoEditorExtension: Extensions[number] | undefined;
 
 function getTiptapVideoExtension(options: { readonly editorNodeView: boolean }): Extensions[number] {
@@ -57,6 +60,35 @@ function getTiptapVideoExtension(options: { readonly editorNodeView: boolean }):
     },
   });
   return cachedVideoEditorExtension;
+}
+
+function getTiptapAudioExtension(options: { readonly editorNodeView: boolean }): Extensions[number] {
+  const configured = TiptapAudio.configure({
+    HTMLAttributes: {
+      preload: 'metadata',
+      class: 'card-desc-audio-player',
+    },
+  });
+  if (!options.editorNodeView) {
+    return configured;
+  }
+  if (cachedAudioEditorExtension) {
+    return cachedAudioEditorExtension;
+  }
+  cachedAudioEditorExtension = configured.extend({
+    addNodeView() {
+      return ReactNodeViewRenderer(CardDescriptionAudioNodeView, {
+        stopEvent: ({ event }) => {
+          const target = event.target;
+          if (!(target instanceof HTMLElement)) {
+            return false;
+          }
+          return target.closest('.card-desc-audio-node-view') != null;
+        },
+      });
+    },
+  });
+  return cachedAudioEditorExtension;
 }
 
 /** Extensions for static render, plain-text preview, and validation parity (no placeholder / no limit UI). */
@@ -93,6 +125,7 @@ export function getCardDescriptionExtensions(): Extensions {
       maxWidth: 1400,
     }),
     getTiptapVideoExtension({ editorNodeView: false }),
+    getTiptapAudioExtension({ editorNodeView: false }),
     TiptapInlineButton.configure({
       inline: false,
       minWidth: 80,
@@ -106,10 +139,13 @@ export function getCardDescriptionExtensions(): Extensions {
 
 /** Editor extensions: schema + placeholder. */
 export function getCardDescriptionEditorExtensions(placeholder: string): Extensions {
-  const base = getCardDescriptionExtensions().filter((ext) => ext.name !== 'video');
+  const base = getCardDescriptionExtensions().filter(
+    (ext) => ext.name !== 'video' && ext.name !== 'audio',
+  );
   return [
     ...base,
     getTiptapVideoExtension({ editorNodeView: true }),
+    getTiptapAudioExtension({ editorNodeView: true }),
     Placeholder.configure({ placeholder }),
   ];
 }

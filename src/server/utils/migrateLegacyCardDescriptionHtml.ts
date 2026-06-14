@@ -47,7 +47,7 @@ function docHasRenderableContent(node: unknown): boolean {
   if (record.type === 'text' && typeof record.text === 'string' && record.text.trim() !== '') {
     return true;
   }
-  const mediaTypes = new Set(['image', 'imageResize', 'video', 'inlineButton', 'twemojiEmoji']);
+  const mediaTypes = new Set(['image', 'imageResize', 'video', 'audio', 'inlineButton', 'twemojiEmoji']);
   if (typeof record.type === 'string' && mediaTypes.has(record.type)) {
     return true;
   }

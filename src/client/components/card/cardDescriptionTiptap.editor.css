@@ -166,7 +166,8 @@
 
 .card-desc-tiptap-editor .ProseMirror img.ProseMirror-selectednode,
 .card-desc-tiptap-editor .ProseMirror video.ProseMirror-selectednode,
-.card-desc-tiptap-editor .ProseMirror .card-desc-inline-button-wrapper.ProseMirror-selectednode {
+.card-desc-tiptap-editor .ProseMirror .card-desc-inline-button-wrapper.ProseMirror-selectednode,
+.card-desc-tiptap-editor .ProseMirror .card-desc-audio-node-view.ProseMirror-selectednode {
   outline: 2px solid var(--mantine-color-blue-5);
   cursor: grab;
 }

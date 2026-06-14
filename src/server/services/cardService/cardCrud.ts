@@ -192,7 +192,7 @@ export async function updateCard(
 
   if (input.title !== undefined) card.title = input.title;
   if (input.description !== undefined) {
-    const normalizedDescription =
+    let normalizedDescription =
       input.description === ''
         ? ''
         : normalizeCardDescriptionAttachmentUrls(input.description);

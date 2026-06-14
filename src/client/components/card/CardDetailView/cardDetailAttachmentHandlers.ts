@@ -1,6 +1,6 @@
 import {
   cardCoverReferencesAttachment,
-  collectReferencedAttachmentIdsFromDescriptionJson,
+  collectDescriptionAttachmentIdsForLifecycle,
   stripAttachmentFromDescriptionJsonString,
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
 import { isValidCardDescriptionJsonString } from '../../../../shared/validation/cardDescriptionDoc.js';
@@ -58,7 +58,7 @@ export async function runBeforeDeleteAttachment({
   if (attachment == null) {
     return;
   }
-  const referencedInSavedDescription = collectReferencedAttachmentIdsFromDescriptionJson(
+  const referencedInSavedDescription = collectDescriptionAttachmentIdsForLifecycle(
     currentCard.description ?? '',
     currentCard.attachments,
   ).has(attachmentId);
@@ -71,7 +71,7 @@ export async function runBeforeDeleteAttachment({
     if (!serialized.ok) {
       return false;
     }
-    return collectReferencedAttachmentIdsFromDescriptionJson(serialized.jsonString, currentCard.attachments).has(
+    return collectDescriptionAttachmentIdsForLifecycle(serialized.jsonString, currentCard.attachments).has(
       attachmentId,
     );
   })();

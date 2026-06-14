@@ -8,6 +8,23 @@ describe('shouldPresignRedirectAttachmentStream', () => {
     process.env = { ...originalEnv };
   });
 
+  test('redirects audio when public MinIO presign is configured', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.ATTACHMENT_DELIVERY_MODE = 'hybrid';
+    process.env.MINIO_ENDPOINT = '127.0.0.1';
+    process.env.MINIO_PUBLIC_ENDPOINT = 'localhost';
+    process.env.MINIO_PUBLIC_PORT = '9000';
+    process.env.MINIO_PUBLIC_USE_SSL = 'false';
+
+    expect(
+      shouldPresignRedirectAttachmentStream({
+        contentType: 'audio/mpeg',
+        size: 12_000_000,
+        hasPreviewQuery: false,
+      }),
+    ).toBe(true);
+  });
+
   test('redirects video when public MinIO presign is configured', () => {
     process.env.NODE_ENV = 'development';
     process.env.ATTACHMENT_DELIVERY_MODE = 'hybrid';

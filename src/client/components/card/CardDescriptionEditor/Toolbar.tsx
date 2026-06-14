@@ -187,6 +187,22 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
     input.click();
   };
 
+  const handleInsertAudio = (): void => {
+    prewarmMalwareScannerOnUploadIntent();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'audio/*';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file == null) {
+        return;
+      }
+      const src = registerPendingDescriptionMediaFile(pendingDescriptionMediaRef.current, file);
+      editor.chain().focus().setAudio({ src }).run();
+    };
+    input.click();
+  };
+
   const handleEmojiPick = (payload: unknown): void => {
     if (typeof payload !== 'object' || payload == null) {
       return;
@@ -226,6 +242,7 @@ export const CardDescriptionEditorToolbar = memo(function CardDescriptionEditorT
       onEmojiPick={handleEmojiPick}
       onInsertImage={handleInsertImage}
       onInsertVideo={handleInsertVideo}
+      onInsertAudio={handleInsertAudio}
     />
   );
 });

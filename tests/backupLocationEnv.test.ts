@@ -145,4 +145,17 @@ describe('upsertEnvFileVariable', () => {
     const text = await Bun.file(process.env.ATL_ENV_FILE!).text();
     expect(text).toContain('BACKUP_LOCATION=/var/backups');
   });
+
+  it('removes duplicate key lines when upserting', async () => {
+    writeFileSync(
+      process.env.ATL_ENV_FILE!,
+      'BACKUP_LOCATION=/first\n# comment\nBACKUP_LOCATION=/duplicate\n',
+    );
+    expect(upsertEnvFileVariable('BACKUP_LOCATION', '/final')).toBe(true);
+    const text = await Bun.file(process.env.ATL_ENV_FILE!).text();
+    expect(text).toContain('BACKUP_LOCATION=/final');
+    expect(text).not.toContain('/first');
+    expect(text).not.toContain('/duplicate');
+    expect(text.match(/^BACKUP_LOCATION=/gm)?.length).toBe(1);
+  });
 });

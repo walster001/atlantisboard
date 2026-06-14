@@ -59,13 +59,16 @@ export function normalizeCardDescriptionAttachmentUrls(rawJson: string): string 
       return node;
     }
     const type = node.type;
-    if ((type === 'image' || type === 'imageResize' || type === 'video') && isRecord(node.attrs)) {
+    if ((type === 'image' || type === 'imageResize' || type === 'video' || type === 'audio') && isRecord(node.attrs)) {
       const attrs = { ...node.attrs } as Record<string, unknown>;
       if (typeof attrs.src === 'string' && attrs.src.trim() !== '') {
         attrs.src = normalizeAttachmentMediaSrcToProxyPath(attrs.src);
       }
       if (type === 'video' && typeof attrs.poster === 'string' && attrs.poster.trim() !== '') {
         attrs.poster = normalizeAttachmentMediaSrcToProxyPath(attrs.poster);
+      }
+      if (type === 'audio' && typeof attrs.coverSrc === 'string' && attrs.coverSrc.trim() !== '') {
+        attrs.coverSrc = normalizeAttachmentMediaSrcToProxyPath(attrs.coverSrc);
       }
       return { ...node, attrs };
     }
@@ -166,12 +169,37 @@ function collectMediaAttachmentRefsFromAttrs(
   }
 }
 
+function collectDecorationAttachmentRefsFromAttrs(
+  attrs: Record<string, unknown>,
+  attachments: ReadonlyArray<AttachmentLike>,
+  referenced: Set<string>,
+): void {
+  const coverSrc = typeof attrs.coverSrc === 'string' ? attrs.coverSrc : '';
+  if (coverSrc !== '') {
+    for (const attachment of attachments) {
+      if (mediaRefMatchesAttachment(coverSrc, attachment.id, attachment.url)) {
+        referenced.add(attachment.id);
+        break;
+      }
+    }
+  }
+  const iconSrc = typeof attrs.iconSrc === 'string' ? attrs.iconSrc : '';
+  if (iconSrc !== '') {
+    for (const attachment of attachments) {
+      if (mediaRefMatchesAttachment(iconSrc, attachment.id, attachment.url)) {
+        referenced.add(attachment.id);
+        break;
+      }
+    }
+  }
+}
+
 function walkCollectAttachmentIds(node: unknown, ids: Set<string>): void {
   if (!isRecord(node) || typeof node.type !== 'string') {
     return;
   }
   const type = node.type;
-  if (type === 'image' || type === 'imageResize' || type === 'video') {
+  if (type === 'image' || type === 'imageResize' || type === 'video' || type === 'audio') {
     const attrs = node.attrs;
     if (isRecord(attrs)) {
       if (typeof attrs.src === 'string') {
@@ -189,7 +217,31 @@ function walkCollectAttachmentIds(node: unknown, ids: Set<string>): void {
   }
 }
 
-/** Collects attachment ids referenced by inline image / imageResize / video nodes in a Tiptap JSON string. */
+function walkCollectDecorationAttachmentIds(node: unknown, ids: Set<string>): void {
+  if (!isRecord(node) || typeof node.type !== 'string') {
+    return;
+  }
+  const type = node.type;
+  if (type === 'inlineButton') {
+    const attrs = node.attrs;
+    if (isRecord(attrs) && typeof attrs.iconSrc === 'string') {
+      addAttachmentIdFromMediaSrc(ids, attrs.iconSrc);
+    }
+  }
+  if (type === 'audio') {
+    const attrs = node.attrs;
+    if (isRecord(attrs) && typeof attrs.coverSrc === 'string') {
+      addAttachmentIdFromMediaSrc(ids, attrs.coverSrc);
+    }
+  }
+  if (Array.isArray(node.content)) {
+    for (const child of node.content) {
+      walkCollectDecorationAttachmentIds(child, ids);
+    }
+  }
+}
+
+/** Collects attachment ids referenced by inline image / imageResize / video / audio nodes in a Tiptap JSON string. */
 export function collectAttachmentIdsFromDescriptionJson(
   rawJson: string | undefined | null,
 ): Set<string> {
@@ -204,6 +256,27 @@ export function collectAttachmentIdsFromDescriptionJson(
     return ids;
   }
   walkCollectAttachmentIds(parsed, ids);
+  return ids;
+}
+
+/**
+ * Attachment ids used only as inline-button icons or audio cover art — hidden from the card
+ * attachments panel but kept on the card while referenced in the description.
+ */
+export function collectDescriptionDecorationAttachmentIdsFromDescriptionJson(
+  rawJson: string | undefined | null,
+): Set<string> {
+  const ids = new Set<string>();
+  if (rawJson == null || rawJson.trim() === '') {
+    return ids;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson) as unknown;
+  } catch {
+    return ids;
+  }
+  walkCollectDecorationAttachmentIds(parsed, ids);
   return ids;
 }
 
@@ -236,7 +309,7 @@ export function collectReferencedAttachmentIdsFromDescriptionJson(
       return;
     }
     const type = node.type;
-    if (type === 'image' || type === 'imageResize' || type === 'video') {
+    if (type === 'image' || type === 'imageResize' || type === 'video' || type === 'audio') {
       const attrs = node.attrs;
       if (isRecord(attrs)) {
         collectMediaAttachmentRefsFromAttrs(attrs, attachments, referenced);
@@ -253,12 +326,63 @@ export function collectReferencedAttachmentIdsFromDescriptionJson(
   return referenced;
 }
 
+/** Matches decoration-only refs (inline button iconSrc, audio coverSrc) to card attachment rows. */
+export function collectReferencedDecorationAttachmentIdsFromDescriptionJson(
+  rawJson: string | undefined | null,
+  attachments: ReadonlyArray<AttachmentLike>,
+): Set<string> {
+  const referenced = new Set<string>();
+  if (rawJson == null || rawJson.trim() === '' || attachments.length === 0) {
+    return referenced;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson) as unknown;
+  } catch {
+    return referenced;
+  }
+
+  const walk = (node: unknown): void => {
+    if (!isRecord(node) || typeof node.type !== 'string') {
+      return;
+    }
+    const type = node.type;
+    if (type === 'inlineButton' || type === 'audio') {
+      const attrs = node.attrs;
+      if (isRecord(attrs)) {
+        collectDecorationAttachmentRefsFromAttrs(attrs, attachments, referenced);
+      }
+    }
+    if (Array.isArray(node.content)) {
+      for (const child of node.content) {
+        walk(child);
+      }
+    }
+  };
+
+  walk(parsed);
+  return referenced;
+}
+
+/** Primary media + decoration refs — used when deciding whether an attachment is still in use. */
+export function collectDescriptionAttachmentIdsForLifecycle(
+  rawJson: string | undefined | null,
+  attachments: ReadonlyArray<AttachmentLike>,
+): Set<string> {
+  return new Set<string>([
+    ...collectAttachmentIdsFromDescriptionJson(rawJson),
+    ...collectReferencedAttachmentIdsFromDescriptionJson(rawJson, attachments),
+    ...collectDescriptionDecorationAttachmentIdsFromDescriptionJson(rawJson),
+    ...collectReferencedDecorationAttachmentIdsFromDescriptionJson(rawJson, attachments),
+  ]);
+}
+
 function emptyDoc(): unknown {
   return { type: 'doc', content: [{ type: 'paragraph' }] };
 }
 
 /**
- * Removes inline image / imageResize / video nodes that reference the given attachment id.
+ * Removes inline image / imageResize / video / audio nodes that reference the given attachment id.
  * Returns a valid description JSON string (falls back to empty doc if validation fails).
  */
 export function stripAttachmentFromDescriptionJsonString(
@@ -281,7 +405,7 @@ export function stripAttachmentFromDescriptionJsonString(
       return node;
     }
     const type = node.type;
-    if (type === 'image' || type === 'imageResize' || type === 'video') {
+    if (type === 'image' || type === 'imageResize' || type === 'video' || type === 'audio') {
       const attrs = node.attrs;
       if (!isRecord(attrs)) {
         return node;
@@ -294,6 +418,13 @@ export function stripAttachmentFromDescriptionJsonString(
         const poster = typeof attrs.poster === 'string' ? attrs.poster : '';
         if (poster !== '' && mediaRefMatchesAttachment(poster, attachmentId, attachmentUrl)) {
           const { poster: _removed, ...restAttrs } = attrs;
+          return { ...node, attrs: restAttrs };
+        }
+      }
+      if (type === 'audio') {
+        const coverSrc = typeof attrs.coverSrc === 'string' ? attrs.coverSrc : '';
+        if (coverSrc !== '' && mediaRefMatchesAttachment(coverSrc, attachmentId, attachmentUrl)) {
+          const { coverSrc: _removed, ...restAttrs } = attrs;
           return { ...node, attrs: restAttrs };
         }
       }
@@ -365,7 +496,7 @@ function remapMediaSrcForDuplicate(
 }
 
 /**
- * Rewrites `image` / `imageResize` / `video` node `attrs.src` values after card attachments were
+ * Rewrites `image` / `imageResize` / `video` / `audio` node `attrs.src` values after card attachments were
  * duplicated (parallel `sourceAttachments` / `newAttachments` rows, same order as `duplicateCardAttachmentsForNewCard`).
  */
 export function remapAttachmentRefsInDescriptionJsonString(
@@ -393,12 +524,16 @@ export function remapAttachmentRefsInDescriptionJsonString(
       return node;
     }
     const type = node.type;
-    if ((type === 'image' || type === 'imageResize' || type === 'video') && isRecord(node.attrs)) {
+    if ((type === 'image' || type === 'imageResize' || type === 'video' || type === 'audio') && isRecord(node.attrs)) {
       const attrs = { ...node.attrs } as Record<string, unknown>;
       if (typeof attrs.src === 'string' && attrs.src.trim() !== '') {
         attrs.src = remapMediaSrcForDuplicate(attrs.src, sourceAttachments, newAttachments);
       }
-      if (type === 'video' && typeof attrs.poster === 'string' && attrs.poster.trim() !== '') {
+      if (type === 'audio') {
+        if (typeof attrs.coverSrc === 'string' && attrs.coverSrc.trim() !== '') {
+          attrs.coverSrc = remapMediaSrcForDuplicate(attrs.coverSrc, sourceAttachments, newAttachments);
+        }
+      } else if (type === 'video' && typeof attrs.poster === 'string' && attrs.poster.trim() !== '') {
         attrs.poster = remapMediaSrcForDuplicate(attrs.poster, sourceAttachments, newAttachments);
       }
       return { ...node, attrs };

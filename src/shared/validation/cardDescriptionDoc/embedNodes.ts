@@ -10,7 +10,7 @@ import {
 } from './primitives.js';
 
 export function validateMediaBlockNode(
-  type: 'image' | 'imageResize' | 'video',
+  type: 'image' | 'imageResize' | 'video' | 'audio',
   node: Record<string, unknown>,
 ): boolean {
   const attrs = node.attrs;
@@ -24,6 +24,59 @@ export function validateMediaBlockNode(
     const poster = attrs.poster;
     if (poster !== undefined && poster !== null && poster !== '') {
       if (typeof poster !== 'string' || !validateMediaSrc(poster)) {
+        return false;
+      }
+    }
+  }
+  if (type === 'audio') {
+    const width = attrs.width;
+    if (width !== null && width !== undefined) {
+      if (typeof width !== 'string' || !/^[0-9]{1,4}$/.test(width.trim())) {
+        return false;
+      }
+    }
+    const height = attrs.height;
+    if (height !== null && height !== undefined) {
+      if (typeof height !== 'string' || !/^[0-9]{1,4}$/.test(height.trim())) {
+        return false;
+      }
+    }
+    const displayTitle = attrs.displayTitle;
+    if (displayTitle !== null && displayTitle !== undefined) {
+      if (typeof displayTitle !== 'string' || displayTitle.length > 200) {
+        return false;
+      }
+    }
+    const displayDescription = attrs.displayDescription;
+    if (displayDescription !== null && displayDescription !== undefined) {
+      if (typeof displayDescription !== 'string' || displayDescription.length > 500) {
+        return false;
+      }
+    }
+    const coverSrc = attrs.coverSrc;
+    if (coverSrc !== null && coverSrc !== undefined && coverSrc !== '') {
+      if (typeof coverSrc !== 'string' || !validateInlineButtonIconSrc(coverSrc)) {
+        return false;
+      }
+    }
+    if (!isSafeInlineStyleString(attrs.containerStyle)) {
+      return false;
+    }
+    const textColor = attrs.textColor;
+    if (textColor !== null && textColor !== undefined && textColor !== '') {
+      if (!isAllowedTextStyleColor(textColor)) {
+        return false;
+      }
+    }
+    const bgColor = attrs.bgColor;
+    if (bgColor !== null && bgColor !== undefined && bgColor !== '') {
+      if (!isAllowedTextStyleColor(bgColor)) {
+        return false;
+      }
+    }
+    const buttonHoverColor = attrs.buttonHoverColor;
+    if (buttonHoverColor !== null && buttonHoverColor !== undefined && buttonHoverColor !== '') {
+      if (!isAllowedTextStyleColor(buttonHoverColor)) {
         return false;
       }
     }

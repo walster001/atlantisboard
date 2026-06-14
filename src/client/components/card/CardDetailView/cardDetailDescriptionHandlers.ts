@@ -1,14 +1,14 @@
 import { isAxiosError } from 'axios';
 import {
-  collectAttachmentIdsFromDescriptionJson,
-  collectReferencedAttachmentIdsFromDescriptionJson,
+  collectDescriptionAttachmentIdsForLifecycle,
   normalizeCardDescriptionAttachmentUrls,
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
 import { isValidCardDescriptionJsonString } from '../../../../shared/validation/cardDescriptionDoc.js';
 import { api } from '../../../utils/api.js';
-import { requireUploadedAttachmentId } from '../../../utils/api/attachmentApiMethods.js';
+import { requireUploadedAttachmentId, uploadScanCompletesImmediately } from '../../../utils/api/attachmentApiMethods.js';
 import {
   beginAttachmentUploadNotification,
+  completeAttachmentUploadNotification,
   failAttachmentUploadNotification,
   updateAttachmentUploadNotification,
 } from '../../../utils/attachmentUploadNotifications.js';
@@ -48,7 +48,7 @@ export async function runDescriptionUpdate({
       return {
         ok: false,
         reason:
-          'Description still has images or videos loading in the editor. Remove them and add again, then save.',
+          'Description still has images, videos, or audio loading in the editor. Remove them and add again, then save.',
       };
     }
 
@@ -66,12 +66,17 @@ export async function runDescriptionUpdate({
                 onProgress?.(progress);
               });
               const attachmentId = requireUploadedAttachmentId(response);
-              await finalizeAttachmentUploadNotification({
-                cardId: card.id,
-                label,
-                uploadResponse: response,
-              });
-              return api.getAttachmentFileUrl(attachmentId);
+              const attachmentUrl = api.getAttachmentFileUrl(attachmentId);
+              if (uploadScanCompletesImmediately(response)) {
+                await finalizeAttachmentUploadNotification({
+                  cardId: card.id,
+                  label,
+                  uploadResponse: response,
+                });
+              } else {
+                completeAttachmentUploadNotification(label);
+              }
+              return attachmentUrl;
             } catch (error) {
               failAttachmentUploadNotification(
                 error instanceof Error ? error.message : 'Could not upload file.',
@@ -95,10 +100,10 @@ export async function runDescriptionUpdate({
   }
 
   discardPendingDescriptionMedia(pendingDescriptionMedia);
-  const previousAttachmentIds = new Set<string>([
-    ...collectAttachmentIdsFromDescriptionJson(card.description ?? ''),
-    ...collectReferencedAttachmentIdsFromDescriptionJson(card.description ?? '', card.attachments),
-  ]);
+  const previousAttachmentIds = collectDescriptionAttachmentIdsForLifecycle(
+    card.description ?? '',
+    card.attachments,
+  );
   const response = await api.updateCard(card.id, { description: descriptionPayload });
 
   let normalized = normalizeCardFromApi(response.card, card.id, {
@@ -108,10 +113,10 @@ export async function runDescriptionUpdate({
     ...(typeof card.pos === 'number' && Number.isFinite(card.pos) ? { pos: card.pos } : {}),
   });
   const descriptionForNextRefs = isEmpty ? '' : descriptionPayload;
-  const nextAttachmentIds = new Set<string>([
-    ...collectAttachmentIdsFromDescriptionJson(descriptionForNextRefs),
-    ...collectReferencedAttachmentIdsFromDescriptionJson(descriptionForNextRefs, normalized.attachments),
-  ]);
+  const nextAttachmentIds = collectDescriptionAttachmentIdsForLifecycle(
+    descriptionForNextRefs,
+    normalized.attachments,
+  );
   const attachmentIdsRemovedFromDescription = [...previousAttachmentIds].filter((id) => !nextAttachmentIds.has(id));
 
   for (const attachmentId of attachmentIdsRemovedFromDescription) {

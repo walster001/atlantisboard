@@ -5,6 +5,10 @@ import { Text } from '@mantine/core';
 import { useAttachmentStreamUrl } from '../../hooks/useAttachmentStreamUrl.js';
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
 import {
+  collectDescriptionDecorationAttachmentIdsFromDescriptionJson,
+  collectReferencedDecorationAttachmentIdsFromDescriptionJson,
+} from '../../../shared/cardDescriptionAttachmentRefs.js';
+import {
   attachmentScanBlockedMessage,
   isAttachmentViewable,
 } from '../../../shared/attachmentScanStatus.js';
@@ -34,6 +38,8 @@ export interface UseAttachmentSectionOptions {
   readonly canEdit: boolean;
   readonly onCardUpdate: (card: CardDB) => void;
   readonly onBeforeDeleteAttachment?: (attachmentId: string) => Promise<void>;
+  /** Saved description JSON — when set, inline-button icons and audio covers are omitted from the list. */
+  readonly descriptionJson?: string;
 }
 
 export function useAttachmentSection({
@@ -41,6 +47,7 @@ export function useAttachmentSection({
   canEdit,
   onCardUpdate,
   onBeforeDeleteAttachment,
+  descriptionJson,
 }: UseAttachmentSectionOptions) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +65,21 @@ export function useAttachmentSection({
     () => formatCardAttachmentMaxMb(getClientCardAttachmentMaxBytes()),
     [],
   );
+
+  const panelAttachments = useMemo(() => {
+    const attachments = card.attachments ?? [];
+    if (descriptionJson == null) {
+      return attachments;
+    }
+    const hiddenIds = new Set<string>([
+      ...collectDescriptionDecorationAttachmentIdsFromDescriptionJson(descriptionJson),
+      ...collectReferencedDecorationAttachmentIdsFromDescriptionJson(descriptionJson, attachments),
+    ]);
+    if (hiddenIds.size === 0) {
+      return attachments;
+    }
+    return attachments.filter((attachment) => !hiddenIds.has(attachment.id));
+  }, [card.attachments, descriptionJson]);
 
   const handleSetCoverFromAttachment = async (attachmentId: string, imageUrl: string) => {
     setCoverBusy(true);
@@ -181,7 +203,7 @@ export function useAttachmentSection({
 
   const listImageUrls = useMemo(() => {
     const next: Record<string, string> = {};
-    for (const attachment of card.attachments ?? []) {
+    for (const attachment of panelAttachments) {
       if (
         !isPlaceholderCardAttachment(attachment) &&
         isAttachmentViewable(attachment.scanStatus) &&
@@ -191,12 +213,14 @@ export function useAttachmentSection({
       }
     }
     return next;
-  }, [card.attachments]);
+  }, [panelAttachments]);
 
   const linkPreviewAttachment =
     linkPreviewAttachmentId == null
       ? null
-      : card.attachments.find((att) => att.id === linkPreviewAttachmentId) ?? null;
+      : panelAttachments.find((att) => att.id === linkPreviewAttachmentId) ??
+        card.attachments.find((att) => att.id === linkPreviewAttachmentId) ??
+        null;
   const linkPreviewUrl = linkPreviewStreamUrl;
   const isLinkPreviewImage =
     linkPreviewAttachment != null && linkPreviewAttachment.type.startsWith('image/');
@@ -320,6 +344,7 @@ export function useAttachmentSection({
     coverBusy,
     fileInputRef,
     attachmentMaxMb,
+    panelAttachments,
     listImageUrls,
     linkPreviewAttachment,
     linkPreviewUrl,

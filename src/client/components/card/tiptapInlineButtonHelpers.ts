@@ -11,6 +11,22 @@ export function isMobile(): boolean {
   return document.documentElement.clientWidth < MOBILE_BREAKPOINT;
 }
 
+/** Dismiss the virtual keyboard when interacting with non-text editor chrome on mobile/PWA. */
+export function dismissCardDescriptionEditorKeyboardOnMobile(
+  editorDom?: HTMLElement | null,
+): void {
+  if (!isMobile()) {
+    return;
+  }
+  if (editorDom instanceof HTMLElement) {
+    editorDom.blur();
+  }
+  const focused = document.querySelector('.ProseMirror-focused');
+  if (focused instanceof HTMLElement) {
+    focused.blur();
+  }
+}
+
 function getDotPosition(): string {
   return isMobile() ? DOT_POS_MOBILE : DOT_POS_DESKTOP;
 }

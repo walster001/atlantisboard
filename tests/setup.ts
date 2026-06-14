@@ -10,6 +10,8 @@ import { INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationHooks.js';
 import { connectTestDatabase, clearTestDatabase } from './helpers/testHelpers.js';
 import { ensureTestServer } from './helpers/testServer.js';
 
+let dbIntegrationHooksActive = false;
+
 beforeAll(async () => {
   if (!hasDbIntegrationDeps()) {
     console.info(`tests/setup.ts: skipping DB hooks (${DB_INTEGRATION_ENV_DOCS})`);
@@ -33,10 +35,11 @@ beforeAll(async () => {
   await ensureTestServer();
   await connectTestDatabase();
   await clearTestDatabase({ waitForHttp: false });
+  dbIntegrationHooksActive = true;
 }, INTEGRATION_HOOK_TIMEOUT_MS);
 
 afterAll(async () => {
-  if (!hasDbIntegrationDeps()) {
+  if (!dbIntegrationHooksActive) {
     return;
   }
   await clearTestDatabase({ waitForHttp: false });

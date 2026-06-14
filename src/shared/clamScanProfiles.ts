@@ -26,10 +26,14 @@ export function normalizeAttachmentMime(mimeType: string): string {
   return mimeType.split(';')[0]?.trim().toLowerCase() ?? '';
 }
 
-/** Images and videos: no embedded archive extraction needed; safe for faster clamscan flags. */
+/** Images, videos, and audio: no embedded archive extraction needed; safe for faster clamscan flags. */
 export function isLowRiskMediaMimeType(mimeType: string): boolean {
   const normalized = normalizeAttachmentMime(mimeType);
-  return normalized.startsWith('image/') || normalized.startsWith('video/');
+  return (
+    normalized.startsWith('image/') ||
+    normalized.startsWith('video/') ||
+    normalized.startsWith('audio/')
+  );
 }
 
 /**

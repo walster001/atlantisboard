@@ -16,7 +16,7 @@ function collectBlobMediaSrcsFromDescriptionNode(node: unknown, blobs: string[])
   }
   const attrs = node.attrs;
   if (isRecord(attrs)) {
-    for (const key of ['src', 'poster', 'iconSrc'] as const) {
+    for (const key of ['src', 'poster', 'iconSrc', 'coverSrc'] as const) {
       const value = attrs[key];
       if (typeof value === 'string' && isPendingDescriptionMediaSrc(value)) {
         blobs.push(value);

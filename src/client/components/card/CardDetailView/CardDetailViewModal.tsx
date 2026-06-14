@@ -262,7 +262,7 @@ export function CardDetailViewModal({
                           if (target instanceof Element) {
                             if (
                               target.closest(
-                                'video, .card-desc-video-player-shell, a, button, input, textarea, [contenteditable="true"]',
+                                'video, audio, .card-desc-video-player-shell, .card-desc-audio-player-shell, .card-desc-audio-layout-shell, a, button, input, textarea, [contenteditable="true"]',
                               ) != null
                             ) {
                               return;

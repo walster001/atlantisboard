@@ -51,6 +51,8 @@ export async function uploadCardAttachment(
   const allowedMimeTypes = new Set([
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
     'video/mp4', 'video/webm', 'video/quicktime', 'video/ogg',
+    'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/ogg', 'audio/wav', 'audio/x-wav',
+    'audio/x-m4a', 'audio/m4a', 'audio/aac', 'audio/flac', 'audio/x-flac',
     'application/pdf',
     'text/plain', 'text/csv', 'text/markdown',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

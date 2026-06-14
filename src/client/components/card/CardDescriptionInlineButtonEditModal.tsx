@@ -4,7 +4,6 @@ import {
   ActionIcon,
   Box,
   Button,
-  ColorInput,
   Group,
   Modal,
   Stack,
@@ -22,6 +21,7 @@ import {
   KB_IOS_MODAL_HEADER_SAFE_CLASS,
   modalStylesFullscreenSafeBody,
 } from '../../constants/iosModalSafeArea.js';
+import { CardDescriptionTextBackgroundColorPickers } from './CardDescriptionTextBackgroundColorPickers.js';
 import './cardInlineButtonEditModal.css';
 
 type InlineButtonDraft = {
@@ -324,10 +324,12 @@ export function CardDescriptionInlineButtonEditModal({
 
       <TextInput label="Button text" value={buttonText} onChange={(e) => setButtonText(e.currentTarget.value)} />
 
-      <Group grow align="flex-start">
-        <ColorInput label="Text color" value={textColor} onChange={setTextColor} format="hex" />
-        <ColorInput label="Background color" value={bgColor} onChange={setBgColor} format="hex" />
-      </Group>
+      <CardDescriptionTextBackgroundColorPickers
+        textColor={textColor}
+        bgColor={bgColor}
+        onTextColorChange={setTextColor}
+        onBgColorChange={setBgColor}
+      />
 
       <TextInput
         label="Roundness"

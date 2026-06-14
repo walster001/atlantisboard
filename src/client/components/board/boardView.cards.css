@@ -179,6 +179,12 @@
   display: none;
 }
 
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview .card-desc-audio-player-shell,
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview .card-desc-audio-layout-shell,
+.board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview audio.card-desc-audio-player {
+  display: none;
+}
+
 .board-card__kanban-desc-board-preview .card-desc-tiptap-read--board-preview img:not(.card-desc-twemoji) {
   max-height: 1.15em;
   width: auto;

@@ -7,10 +7,12 @@ import {
 } from '../src/shared/clamScanProfiles.js';
 
 describe('clamScanProfiles', () => {
-  it('maps image and video MIME types to media profile', () => {
+  it('maps image, video, and audio MIME types to media profile', () => {
     expect(resolveClamScanProfile('image/png')).toBe('media');
     expect(resolveClamScanProfile('video/mp4')).toBe('media');
+    expect(resolveClamScanProfile('audio/mpeg')).toBe('media');
     expect(isLowRiskMediaMimeType('image/jpeg; charset=binary')).toBe(true);
+    expect(isLowRiskMediaMimeType('audio/webm')).toBe(true);
   });
 
   it('maps plain-text attachment MIME types to text profile', () => {

@@ -27,6 +27,7 @@ import {
   IconList,
   IconListNumbers,
   IconPalette,
+  IconMicrophone,
   IconPhoto,
   IconRowInsertTop,
   IconSeparator,
@@ -65,6 +66,7 @@ interface ToolbarContentProps {
   readonly onEmojiPick: (payload: unknown) => void;
   readonly onInsertImage: () => void;
   readonly onInsertVideo: () => void;
+  readonly onInsertAudio: () => void;
 }
 
 export function ToolbarContent({
@@ -86,6 +88,7 @@ export function ToolbarContent({
   onEmojiPick,
   onInsertImage,
   onInsertVideo,
+  onInsertAudio,
 }: ToolbarContentProps) {
   const toolbarStyle = useMemo((): CSSProperties => {
     return { borderBottom: '1px solid var(--mantine-color-gray-3)' };
@@ -431,6 +434,18 @@ export function ToolbarContent({
           disabled={isMediaUploadBusy}
         >
           <IconVideo size={TOOLBAR_ICON_SIZE} />
+        </ActionIcon>
+      </Tooltip>
+      <Tooltip label="Insert audio">
+        <ActionIcon
+          size={TOOLBAR_BUTTON_SIZE}
+          color="gray"
+          variant="subtle"
+          onClick={onInsertAudio}
+          aria-label="Insert audio"
+          disabled={isMediaUploadBusy}
+        >
+          <IconMicrophone size={TOOLBAR_ICON_SIZE} />
         </ActionIcon>
       </Tooltip>
       <Tooltip label="Insert Inline Button (Double-click inserted button to configure)">

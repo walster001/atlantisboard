@@ -94,3 +94,4 @@ snap-migration.md
 useeffect-report.md
 scripts/prod-remote-deploy.env copy.example
 public/index.js
+docs/security-audit-tests-sockets.md

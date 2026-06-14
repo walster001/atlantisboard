@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import type { Request } from 'express';
 import { extractAuthToken } from '../src/server/middleware/auth.js';
 
+/** Public jwt.io HS256 example — not a real session token; used only to test extraction shape. */
 const VALID_JWT =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
 

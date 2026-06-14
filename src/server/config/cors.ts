@@ -80,6 +80,15 @@ export function assertProductionCorsConfig(): void {
     );
   }
 
+  for (const origin of origins) {
+    if (!origin.startsWith('https://')) {
+      throw new Error(
+        `Production startup blocked: CORS_ORIGIN entries must use https:// (got "${origin}"). ` +
+          'Browsers send credentialed requests and WebSocket upgrades to these origins.',
+      );
+    }
+  }
+
   if (process.env.CORS_ALLOW_MISSING_ORIGIN === 'true') {
     throw new Error(
       'Production startup blocked: CORS_ALLOW_MISSING_ORIGIN must not be true in production. ' +

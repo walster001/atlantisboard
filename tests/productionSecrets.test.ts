@@ -8,7 +8,7 @@ describe('mongoUriHasCredentials', () => {
   it('returns true when username and password are present', () => {
     expect(
       mongoUriHasCredentials(
-        'mongodb://kanboard_app:secret@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0',
+        'mongodb://kanboard_app:test-db-password-not-real@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0',
       ),
     ).toBe(true);
   });
@@ -29,6 +29,7 @@ describe('assertProductionSecrets', () => {
     const secure = 'a'.repeat(48);
     const media = 'b'.repeat(48);
     process.env.NODE_ENV = 'production';
+    process.env.APP_URL = 'https://boards.example.com';
     process.env.JWT_SECRET = secure;
     process.env.SESSION_SECRET = secure;
     process.env.CSRF_SECRET = secure;
@@ -38,7 +39,7 @@ describe('assertProductionSecrets', () => {
     process.env.MINIO_ACCESS_KEY = secure;
     process.env.MINIO_SECRET_KEY = secure;
     process.env.MONGODB_URI =
-      'mongodb://kanboard_app:secret@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0';
+      'mongodb://kanboard_app:test-db-password-not-real@mongodb:27017/kanboard?authSource=kanboard&replicaSet=rs0';
     process.env.MYSQL_ALLOWED_HOSTS = 'db.example.com';
     delete process.env.POMPELMI_SKIP_SCAN;
   }
@@ -98,5 +99,17 @@ describe('assertProductionSecrets', () => {
     setSecureProductionSecrets();
     process.env.MYSQL_ALLOWED_HOSTS = 'db.example.com';
     expect(() => assertProductionSecrets()).not.toThrow();
+  });
+
+  it('blocks cleartext APP_URL in production', () => {
+    setSecureProductionSecrets();
+    process.env.APP_URL = 'http://boards.example.com';
+    expect(() => assertProductionSecrets()).toThrow(/APP_URL must use https:\/\//);
+  });
+
+  it('blocks missing APP_URL in production', () => {
+    setSecureProductionSecrets();
+    delete process.env.APP_URL;
+    expect(() => assertProductionSecrets()).toThrow(/APP_URL is required/);
   });
 });

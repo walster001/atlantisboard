@@ -38,4 +38,10 @@ describe('assertProductionCorsConfig', () => {
     process.env.CORS_ALLOW_MISSING_ORIGIN = 'true';
     expect(() => assertProductionCorsConfig()).toThrow(/CORS_ALLOW_MISSING_ORIGIN must not be true/);
   });
+
+  it('throws when production CORS_ORIGIN uses cleartext http', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.CORS_ORIGIN = 'http://app.atlantis.social';
+    expect(() => assertProductionCorsConfig()).toThrow(/must use https:\/\//);
+  });
 });

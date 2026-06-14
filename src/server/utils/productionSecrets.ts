@@ -126,8 +126,25 @@ export function assertProductionSecrets(): void {
   }
 
   assertMediaSignSecretDistinctFromJwt();
+  assertProductionAppUrlHttps();
   assertProductionMongoUri();
   assertProductionMysqlAllowedHosts();
+}
+
+/** Cleartext APP_URL enables MITM theft of HttpOnly JWT cookies and Socket.io handshake tokens. */
+function assertProductionAppUrlHttps(): void {
+  const appUrl = process.env.APP_URL?.trim();
+  if (appUrl == null || appUrl === '') {
+    throw new Error(
+      'Production startup blocked: APP_URL is required and must use https://. ' +
+        'Terminate TLS at your reverse proxy and set APP_URL to the public HTTPS origin.',
+    );
+  }
+  if (!appUrl.startsWith('https://')) {
+    throw new Error(
+      'Production startup blocked: APP_URL must use https:// (cleartext HTTP enables MITM on auth cookies and WebSockets).',
+    );
+  }
 }
 
 function assertProductionMysqlAllowedHosts(): void {

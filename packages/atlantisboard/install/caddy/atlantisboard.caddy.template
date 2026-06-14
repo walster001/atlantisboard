@@ -2,24 +2,39 @@
 # Site: @DOMAIN@
 
 @DOMAIN@ {
-    reverse_proxy @BACKEND_HOST@:@BACKEND_PORT@ {
-        flush_interval -1
-    }
-
-    encode gzip zstd
-
-    request_body {
-        max_size @MAX_BODY@
-    }
-
-    header {
-        X-Content-Type-Options  nosniff
-        X-Frame-Options         SAMEORIGIN
-        Referrer-Policy         strict-origin-when-cross-origin
-    }
-
     log {
         output file @LOG_FILE@
         format json
+    }
+
+    # MinIO CDN proxy — presigned attachment GET/HEAD (+ Range); no response compression.
+    handle @CDN_PATH@/* {
+        reverse_proxy @BACKEND_HOST@:@BACKEND_PORT@ {
+            flush_interval -1
+        }
+    }
+
+    handle /socket.io/* {
+        reverse_proxy @BACKEND_HOST@:@BACKEND_PORT@ {
+            flush_interval -1
+        }
+    }
+
+    handle {
+        reverse_proxy @BACKEND_HOST@:@BACKEND_PORT@ {
+            flush_interval -1
+        }
+
+        encode gzip zstd
+
+        request_body {
+            max_size @MAX_BODY@
+        }
+
+        header {
+            X-Content-Type-Options  nosniff
+            X-Frame-Options         SAMEORIGIN
+            Referrer-Policy         strict-origin-when-cross-origin
+        }
     }
 }

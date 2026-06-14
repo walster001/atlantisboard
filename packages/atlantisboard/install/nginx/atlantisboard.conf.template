@@ -37,6 +37,15 @@ server {
     proxy_send_timeout    60s;
     proxy_read_timeout    60s;
 
+    # MinIO CDN proxy — presigned attachment GET/HEAD via app (@CDN_PATH@ → internal MinIO).
+    location @CDN_PATH@/ {
+        proxy_pass http://atlantisboard_app;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
     location /socket.io/ {
         proxy_pass http://atlantisboard_app;
         proxy_http_version 1.1;

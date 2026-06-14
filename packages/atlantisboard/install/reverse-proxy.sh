@@ -10,6 +10,20 @@ _proxy_sed_escape() {
   printf '%s' "$1" | sed -e 's/[&|]/\\&/g'
 }
 
+# Browser-facing MinIO CDN path (must match MINIO_CDN_PATH_PREFIX in .env).
+_proxy_resolve_cdn_path() {
+  local raw="${ENV_VALUES[MINIO_CDN_PATH_PREFIX]:-/cdn}"
+  raw="${raw// /}"
+  if [[ "$raw" != /* ]]; then
+    raw="/${raw}"
+  fi
+  raw="${raw%/}"
+  if [[ -z "$raw" ]]; then
+    raw="/cdn"
+  fi
+  printf '%s' "$raw"
+}
+
 _prompt_proxy_field() {
   local key="$1"
   local label="$2"
@@ -146,6 +160,8 @@ _render_nginx_site() {
   local backend_port="${PROXY_VALUES[PROXY_BACKEND_PORT]}"
   local ssl_options="${PROXY_VALUES[NGINX_SSL_OPTIONS]}"
   local ssl_dhparam="${PROXY_VALUES[NGINX_SSL_DHPARAM]}"
+  local cdn_path
+  cdn_path="$(_proxy_resolve_cdn_path)"
 
   atl_sudo sed \
     -e "s|@DOMAIN@|$(_proxy_sed_escape "$domain")|g" \
@@ -156,6 +172,7 @@ _render_nginx_site() {
     -e "s|@SSL_KEY@|$(_proxy_sed_escape "$ssl_key")|g" \
     -e "s|@SSL_OPTIONS@|$(_proxy_sed_escape "$ssl_options")|g" \
     -e "s|@SSL_DHPARAM@|$(_proxy_sed_escape "$ssl_dhparam")|g" \
+    -e "s|@CDN_PATH@|$(_proxy_sed_escape "$cdn_path")|g" \
     "$tpl" | atl_sudo tee "$dest" >/dev/null
 }
 
@@ -285,6 +302,8 @@ _configure_caddy() {
   local backend_host="${PROXY_VALUES[PROXY_BACKEND_HOST]}"
   local backend_port="${PROXY_VALUES[PROXY_BACKEND_PORT]}"
   local log_file="${PROXY_VALUES[CADDY_LOG_FILE]}"
+  local cdn_path
+  cdn_path="$(_proxy_resolve_cdn_path)"
 
   if ! _install_proxy_packages caddy; then
     return 1
@@ -308,6 +327,7 @@ _configure_caddy() {
     -e "s|@BACKEND_PORT@|$(_proxy_sed_escape "$backend_port")|g" \
     -e "s|@MAX_BODY@|$(_proxy_sed_escape "$max_body")|g" \
     -e "s|@LOG_FILE@|$(_proxy_sed_escape "$log_file")|g" \
+    -e "s|@CDN_PATH@|$(_proxy_sed_escape "$cdn_path")|g" \
     "$tpl" | atl_sudo tee "$site_file" >/dev/null
 
   _atl_write_caddy_mainfile

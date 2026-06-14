@@ -230,6 +230,14 @@
           "default": "false",
           "secret": false,
           "validation": "boolean"
+        },
+        {
+          "key": "MINIO_CDN_PATH_PREFIX",
+          "label": "CDN path prefix",
+          "description": "Same-origin path where the app proxies presigned MinIO objects (e.g. /cdn). Must match the reverse-proxy /cdn route.",
+          "default": "/cdn",
+          "secret": false,
+          "validation": "path_absolute"
         }
       ]
     },

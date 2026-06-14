@@ -20,8 +20,15 @@ import {
 import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import { isCoverAttachment } from '../../utils/attachmentCoverUtils.js';
-import { formatFileSize, getFileIcon } from '../../utils/fileUtils.js';
+import { formatFileSize } from '../../utils/fileUtils.js';
 import { appendVideoPosterPreviewQuery } from '../../../shared/attachmentPreviewAsset.js';
+import {
+  cardDetailAttachmentFilenameStyle,
+  cardDetailAttachmentMetaProps,
+  cardDetailAttachmentRowStyle,
+  cardDetailSoftButtonStyles,
+} from './cardDetailSectionUi.js';
+import { AttachmentFileTypeIcon } from './AttachmentFileTypeIcon.js';
 import { AttachmentVideoThumbnail } from './AttachmentVideoThumbnail.js';
 
 interface AttachmentListRowProps {
@@ -51,12 +58,6 @@ export const AttachmentListRow = memo(function AttachmentListRow({
   const scanBlocked = !isPh && !isAttachmentViewable(attachment.scanStatus);
   const scanMessage = scanBlocked ? attachmentScanBlockedMessage(attachment.scanStatus) : '';
   const canPreview = !isPh && !scanBlocked;
-  const displayNameStyle = {
-    display: 'block',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  } as const;
   const mappingName =
     typeof attachment.originalFileName === 'string' && attachment.originalFileName.trim() !== ''
       ? attachment.originalFileName.trim()
@@ -67,10 +68,7 @@ export const AttachmentListRow = memo(function AttachmentListRow({
       justify="space-between"
       align="center"
       p="md"
-      style={{
-        backgroundColor: 'var(--mantine-color-gray-1)',
-        borderRadius: 'var(--mantine-radius-md)',
-      }}
+      style={cardDetailAttachmentRowStyle}
     >
       <Group gap="md" style={{ flex: 1, minWidth: 0, alignItems: 'flex-start' }} wrap="nowrap">
         {attachment.type.startsWith('image/') ? (
@@ -99,11 +97,11 @@ export const AttachmentListRow = memo(function AttachmentListRow({
             }}
           >
             {isPh ? (
-              <Text size="xs" c="dimmed" ta="center" px="xs">
+              <Text {...cardDetailAttachmentMetaProps} ta="center" px="xs">
                 No preview — file not in storage
               </Text>
             ) : scanBlocked ? (
-              <Text size="xs" c="dimmed" ta="center" px="xs">
+              <Text {...cardDetailAttachmentMetaProps} ta="center" px="xs">
                 Scan in progress
               </Text>
             ) : (
@@ -173,7 +171,7 @@ export const AttachmentListRow = memo(function AttachmentListRow({
                 cursor: 'default',
               }}
             >
-              <Text size="xs" c="dimmed" ta="center" px="xs">
+              <Text {...cardDetailAttachmentMetaProps} ta="center" px="xs">
                 Scan in progress
               </Text>
             </UnstyledButton>
@@ -191,23 +189,22 @@ export const AttachmentListRow = memo(function AttachmentListRow({
               width: 40,
               minWidth: 40,
               height: 40,
-              borderRadius: 8,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: 'var(--mantine-color-gray-2)',
+              flexShrink: 0,
             }}
           >
-            <Text size="xl">{getFileIcon(attachment.type)}</Text>
+            <AttachmentFileTypeIcon mimeType={attachment.type} />
           </Box>
         )}
         <Box style={{ flex: 1, minWidth: 0, alignSelf: 'center' }}>
           {isPh ? (
-            <Text fw={500} style={displayNameStyle}>
+            <Text fw={500} style={cardDetailAttachmentFilenameStyle}>
               {attachment.name}
             </Text>
           ) : scanBlocked ? (
-            <Text fw={500} style={displayNameStyle}>
+            <Text fw={500} style={cardDetailAttachmentFilenameStyle}>
               {attachment.name}
             </Text>
           ) : (
@@ -218,7 +215,7 @@ export const AttachmentListRow = memo(function AttachmentListRow({
                 event.preventDefault();
                 onPreview(attachment.id);
               }}
-              style={displayNameStyle}
+              style={cardDetailAttachmentFilenameStyle}
             >
               {attachment.name}
             </Anchor>
@@ -237,15 +234,15 @@ export const AttachmentListRow = memo(function AttachmentListRow({
             </Badge>
           ) : null}
           {scanBlocked && scanMessage !== '' ? (
-            <Text size="xs" c="dimmed" mt={4}>
+            <Text {...cardDetailAttachmentMetaProps} mt={4}>
               {scanMessage}
             </Text>
           ) : null}
-          <Text size="xs" c="dimmed">
+          <Text {...cardDetailAttachmentMetaProps}>
             {formatFileSize(attachment.size)} • {new Date(attachment.uploadedAt).toLocaleDateString()}
           </Text>
           {isPh ? (
-            <Text size="xs" c="dimmed" mt={4}>
+            <Text {...cardDetailAttachmentMetaProps} mt={4}>
               Original filename (for mapping): {mappingName}
             </Text>
           ) : null}
@@ -254,6 +251,7 @@ export const AttachmentListRow = memo(function AttachmentListRow({
               size="xs"
               variant="light"
               mt={6}
+              styles={cardDetailSoftButtonStyles}
               disabled={coverBusy || uploading}
               onClick={() => void onSetCover(attachment.id, attachment.url)}
             >

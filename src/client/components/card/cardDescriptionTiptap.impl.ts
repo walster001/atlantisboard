@@ -1,5 +1,7 @@
+import { createRequire } from 'node:module';
+import type { ComponentType } from 'react';
 import { generateText, type Extensions, type JSONContent } from '@tiptap/core';
-import { ReactNodeViewRenderer } from '@tiptap/react';
+import { ReactNodeViewRenderer, type ReactNodeViewProps } from '@tiptap/react';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { Color } from '@tiptap/extension-color';
 import Image from '@tiptap/extension-image';
@@ -17,8 +19,6 @@ import {
 } from './cardDescriptionBlockLineHeight.js';
 import { TwemojiEmoji } from './tiptapTwemojiExtension.js';
 import { TiptapInlineButton } from './tiptapInlineButtonExtension.js';
-import { CardDescriptionAudioNodeView } from './CardDescriptionAudioNodeView.js';
-import { CardDescriptionVideoNodeView } from './CardDescriptionVideoNodeView.js';
 import { TiptapAudio } from './tiptapAudioExtension.js';
 import { TiptapVideo } from './tiptapVideoExtension.js';
 import {
@@ -29,6 +29,15 @@ import {
 } from './cardDescriptionTiptapDoc.js';
 
 const lowlight = createLowlight(common);
+const requireModule = createRequire(import.meta.url);
+
+function loadCardDescriptionVideoNodeView(): ComponentType<ReactNodeViewProps> {
+  return requireModule('./CardDescriptionVideoNodeView.js').CardDescriptionVideoNodeView;
+}
+
+function loadCardDescriptionAudioNodeView(): ComponentType<ReactNodeViewProps> {
+  return requireModule('./CardDescriptionAudioNodeView.js').CardDescriptionAudioNodeView;
+}
 
 export const emptyCardDescriptionJson: JSONContent = {
   type: 'doc',
@@ -56,7 +65,7 @@ function getTiptapVideoExtension(options: { readonly editorNodeView: boolean }):
   }
   cachedVideoEditorExtension = configured.extend({
     addNodeView() {
-      return ReactNodeViewRenderer(CardDescriptionVideoNodeView);
+      return ReactNodeViewRenderer(loadCardDescriptionVideoNodeView());
     },
   });
   return cachedVideoEditorExtension;
@@ -77,7 +86,7 @@ function getTiptapAudioExtension(options: { readonly editorNodeView: boolean }):
   }
   cachedAudioEditorExtension = configured.extend({
     addNodeView() {
-      return ReactNodeViewRenderer(CardDescriptionAudioNodeView, {
+      return ReactNodeViewRenderer(loadCardDescriptionAudioNodeView(), {
         stopEvent: ({ event }) => {
           const target = event.target;
           if (!(target instanceof HTMLElement)) {

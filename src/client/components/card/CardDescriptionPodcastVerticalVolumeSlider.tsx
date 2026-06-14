@@ -1,7 +1,8 @@
 import {
   useCallback,
-  useLayoutEffect,
+  useEffect,
   useRef,
+  useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 
@@ -11,12 +12,8 @@ export interface CardDescriptionPodcastVerticalVolumeSliderProps {
   readonly onDragChange?: (dragging: boolean) => void;
 }
 
-type DocumentDragListeners = {
-  readonly pointerMove: (event: PointerEvent) => void;
-  readonly pointerEnd: () => void;
-  readonly touchMove: (event: TouchEvent) => void;
-  readonly touchEnd: () => void;
-};
+/** iOS may synthesize a click/pointerdown after touchend; ignore brief window. */
+const POST_DRAG_SUPPRESS_MS = 400;
 
 function clampVolumePercent(value: number): number {
   return Math.round(Math.max(0, Math.min(100, value)));
@@ -31,7 +28,8 @@ export function CardDescriptionPodcastVerticalVolumeSlider({
   const onChangeRef = useRef(onChange);
   const onDragChangeRef = useRef(onDragChange);
   const dragActiveRef = useRef(false);
-  const listenersRef = useRef<DocumentDragListeners | null>(null);
+  const suppressPointerUntilRef = useRef(0);
+  const [dragValue, setDragValue] = useState<number | null>(null);
 
   onChangeRef.current = onChange;
   onDragChangeRef.current = onDragChange;
@@ -49,120 +47,86 @@ export function CardDescriptionPodcastVerticalVolumeSlider({
     return clampVolumePercent(ratio * 100);
   }, []);
 
-  const endDocumentDrag = useCallback(() => {
+  const endDrag = useCallback(() => {
     if (!dragActiveRef.current) {
       return;
     }
     dragActiveRef.current = false;
+    suppressPointerUntilRef.current = performance.now() + POST_DRAG_SUPPRESS_MS;
     onDragChangeRef.current?.(false);
-    const listeners = listenersRef.current;
-    if (listeners == null) {
-      return;
-    }
-    document.removeEventListener('pointermove', listeners.pointerMove);
-    document.removeEventListener('pointerup', listeners.pointerEnd);
-    document.removeEventListener('pointercancel', listeners.pointerEnd);
-    document.removeEventListener('touchmove', listeners.touchMove);
-    document.removeEventListener('touchend', listeners.touchEnd);
-    document.removeEventListener('touchcancel', listeners.touchEnd);
-    listenersRef.current = null;
   }, []);
 
-  const startDocumentDrag = useCallback(
-    (clientY: number) => {
-      onChangeRef.current(valueFromClientY(clientY));
-      if (dragActiveRef.current) {
-        return;
-      }
-      dragActiveRef.current = true;
-      onDragChangeRef.current?.(true);
-
-      const pointerMove = (event: PointerEvent): void => {
-        event.preventDefault();
-        onChangeRef.current(valueFromClientY(event.clientY));
-      };
-      const pointerEnd = (): void => {
-        endDocumentDrag();
-      };
-      const touchMove = (event: TouchEvent): void => {
-        if (event.cancelable) {
-          event.preventDefault();
-        }
-        const touch = event.touches[0];
-        if (touch == null) {
-          return;
-        }
-        onChangeRef.current(valueFromClientY(touch.clientY));
-      };
-      const touchEnd = (): void => {
-        endDocumentDrag();
-      };
-
-      listenersRef.current = {
-        pointerMove,
-        pointerEnd,
-        touchMove,
-        touchEnd,
-      };
-
-      document.addEventListener('pointermove', pointerMove, { passive: false });
-      document.addEventListener('pointerup', pointerEnd);
-      document.addEventListener('pointercancel', pointerEnd);
-      document.addEventListener('touchmove', touchMove, { passive: false });
-      document.addEventListener('touchend', touchEnd);
-      document.addEventListener('touchcancel', touchEnd);
-    },
-    [endDocumentDrag, valueFromClientY],
-  );
+  useEffect(() => {
+    if (dragActiveRef.current || dragValue == null) {
+      return;
+    }
+    if (value === dragValue) {
+      setDragValue(null);
+    }
+  }, [dragValue, value]);
 
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      event.stopPropagation();
-      if (event.pointerType === 'touch') {
+      if (performance.now() < suppressPointerUntilRef.current) {
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
+
       event.preventDefault();
-      startDocumentDrag(event.clientY);
+      event.stopPropagation();
+
+      const track = trackRef.current;
+      if (track == null) {
+        return;
+      }
+
+      const nextValue = valueFromClientY(event.clientY);
+      dragActiveRef.current = true;
+      onDragChangeRef.current?.(true);
+      setDragValue(nextValue);
+      onChangeRef.current(nextValue);
+
+      track.setPointerCapture(event.pointerId);
+
+      const handlePointerMove = (moveEvent: PointerEvent): void => {
+        if (moveEvent.pointerId !== event.pointerId) {
+          return;
+        }
+        moveEvent.preventDefault();
+        const movedValue = valueFromClientY(moveEvent.clientY);
+        setDragValue(movedValue);
+        onChangeRef.current(movedValue);
+      };
+
+      const handlePointerEnd = (endEvent: PointerEvent): void => {
+        if (endEvent.pointerId !== event.pointerId) {
+          return;
+        }
+        endEvent.preventDefault();
+        track.removeEventListener('pointermove', handlePointerMove);
+        track.removeEventListener('pointerup', handlePointerEnd);
+        track.removeEventListener('pointercancel', handlePointerEnd);
+        if (track.hasPointerCapture(event.pointerId)) {
+          track.releasePointerCapture(event.pointerId);
+        }
+        endDrag();
+      };
+
+      track.addEventListener('pointermove', handlePointerMove, { passive: false });
+      track.addEventListener('pointerup', handlePointerEnd);
+      track.addEventListener('pointercancel', handlePointerEnd);
     },
-    [startDocumentDrag],
+    [endDrag, valueFromClientY],
   );
 
-  useLayoutEffect(() => {
-    const track = trackRef.current;
-    if (track == null) {
-      return undefined;
-    }
-
-    const onNativeTouchStart = (event: TouchEvent): void => {
-      if (event.cancelable) {
-        event.preventDefault();
-      }
-      event.stopPropagation();
-      const touch = event.touches[0];
-      if (touch == null) {
-        return;
-      }
-      startDocumentDrag(touch.clientY);
-    };
-
-    track.addEventListener('touchstart', onNativeTouchStart, { passive: false });
-    return () => {
-      track.removeEventListener('touchstart', onNativeTouchStart);
-    };
-  }, [startDocumentDrag]);
-
-  useLayoutEffect(() => {
-    return () => {
-      endDocumentDrag();
-    };
-  }, [endDocumentDrag]);
-
-  const fillPercent = clampVolumePercent(value);
+  const fillPercent = clampVolumePercent(dragValue ?? value);
 
   return (
     <div
       className="card-desc-audio-podcast__volume-popover-panel"
       onClick={(event) => {
+        event.preventDefault();
         event.stopPropagation();
       }}
     >

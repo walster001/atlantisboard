@@ -8,6 +8,9 @@ export const BORDER_COLOR = '#6C6C6C';
 const OFFSET_CLAMP = 800;
 
 export function isMobile(): boolean {
+  if (typeof document === 'undefined') {
+    return false;
+  }
   return document.documentElement.clientWidth < MOBILE_BREAKPOINT;
 }
 

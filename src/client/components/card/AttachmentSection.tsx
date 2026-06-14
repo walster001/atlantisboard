@@ -5,6 +5,7 @@ import { useAttachmentSection } from '../../hooks/card/useAttachmentSection.js';
 import {
   CARD_DETAIL_SECTION_ICON_COLOR,
   cardDetailEmptyStateProps,
+  cardDetailAttachmentMetaProps,
   cardDetailSectionTitleProps,
   cardDetailSoftButtonStyles,
 } from './cardDetailSectionUi.js';
@@ -116,7 +117,7 @@ export function AttachmentSection({
         </Text>
       )}
 
-      <Text size="xs" c="dimmed">
+      <Text {...cardDetailAttachmentMetaProps}>
         File size limit: {attachmentMaxMb} MB<br />
         Supported: All file types (malware scanning enabled). Use <strong>Set as card cover</strong> on image
         attachments to show them on the board.

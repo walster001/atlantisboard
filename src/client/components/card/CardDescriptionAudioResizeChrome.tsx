@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent, TouchEvent as ReactTouchEvent } from 'react';
-import { CARD_DESCRIPTION_AUDIO_RESIZE_DOT_STYLES } from './cardDescriptionAudioResizeDots.js';
+import { getCardDescriptionAudioResizeDotStyles } from './cardDescriptionAudioResizeDots.js';
 
 export interface CardDescriptionAudioResizeChromeProps {
   readonly onMoveHandlePointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -21,7 +21,7 @@ export function CardDescriptionAudioResizeChrome({
         onPointerDown={onMoveHandlePointerDown}
         onTouchStart={onMoveHandleTouchStart}
       />
-      {CARD_DESCRIPTION_AUDIO_RESIZE_DOT_STYLES.map((dotStyle, index) => (
+      {getCardDescriptionAudioResizeDotStyles().map((dotStyle, index) => (
         <div
           key={index}
           role="presentation"

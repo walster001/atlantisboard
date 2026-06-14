@@ -10878,6 +10878,7 @@ video.card-desc-video-player.card-desc-video-player--modal-fullscreen {
   touch-action: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
   flex: none;
   width: 48px;
   height: 160px;

@@ -24,6 +24,12 @@ function parseDotStyle(index: number): CSSProperties {
   };
 }
 
-export const CARD_DESCRIPTION_AUDIO_RESIZE_DOT_STYLES: readonly CSSProperties[] = [0, 1, 2, 3].map(
-  parseDotStyle,
-);
+let cachedDotStyles: readonly CSSProperties[] | undefined;
+
+/** Lazily built so importing this module in Node tests does not touch `document`. */
+export function getCardDescriptionAudioResizeDotStyles(): readonly CSSProperties[] {
+  if (cachedDotStyles === undefined) {
+    cachedDotStyles = [0, 1, 2, 3].map(parseDotStyle);
+  }
+  return cachedDotStyles;
+}

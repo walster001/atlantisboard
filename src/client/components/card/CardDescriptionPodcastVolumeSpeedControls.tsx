@@ -1,4 +1,4 @@
-import { Audio, useAudioContext } from '@gfazioli/mantine-audio';
+import { Audio } from '@gfazioli/mantine-audio';
 import { ActionIcon, Group, Popover } from '@mantine/core';
 import {
   IconVolume,
@@ -6,7 +6,9 @@ import {
   IconVolume3,
 } from '@tabler/icons-react';
 import { useCallback, useRef, useState, type MouseEvent } from 'react';
+import { CardDescriptionPodcastHorizontalVolumeSlider } from './CardDescriptionPodcastHorizontalVolumeSlider.js';
 import { CardDescriptionPodcastVerticalVolumeSlider } from './CardDescriptionPodcastVerticalVolumeSlider.js';
+import { useCardDescriptionPodcastVolume } from './useCardDescriptionPodcastVolume.js';
 
 export const podcastControlButtonProps = {
   variant: 'subtle' as const,
@@ -25,8 +27,7 @@ function CardDescriptionPodcastCompactVolumeButton({
   const [opened, setOpened] = useState(false);
   const [isVolumeDragging, setIsVolumeDragging] = useState(false);
   const ignoreCloseRef = useRef(false);
-  const ctx = useAudioContext();
-  const value = ctx.muted ? 0 : Math.round(ctx.volume * 100);
+  const { volumePercent, setVolumePercent, isMuted } = useCardDescriptionPodcastVolume();
 
   const iconStyle = {
     width: 'var(--audio-icon-size, 18px)',
@@ -44,9 +45,9 @@ function CardDescriptionPodcastCompactVolumeButton({
 
   const handleVolumeChange = useCallback(
     (next: number) => {
-      ctx.setVolume(next / 100);
+      setVolumePercent(next);
     },
-    [ctx],
+    [setVolumePercent],
   );
 
   const handlePopoverChange = useCallback((next: boolean) => {
@@ -59,12 +60,18 @@ function CardDescriptionPodcastCompactVolumeButton({
   const handleVolumeDragChange = useCallback((dragging: boolean) => {
     ignoreCloseRef.current = dragging;
     setIsVolumeDragging(dragging);
+    if (!dragging) {
+      ignoreCloseRef.current = true;
+      window.setTimeout(() => {
+        ignoreCloseRef.current = false;
+      }, 400);
+    }
   }, []);
 
   const volumeIcon =
-    ctx.muted || ctx.volume === 0 ? (
+    isMuted || volumePercent === 0 ? (
       <IconVolume3 stroke={1.75} style={iconStyle} />
-    ) : ctx.volume < 0.5 ? (
+    ) : volumePercent < 50 ? (
       <IconVolume2 stroke={1.75} style={iconStyle} />
     ) : (
       <IconVolume stroke={1.75} style={iconStyle} />
@@ -89,7 +96,7 @@ function CardDescriptionPodcastCompactVolumeButton({
           aria-label="Volume"
           aria-expanded={opened}
           aria-haspopup="dialog"
-          data-state={ctx.muted || ctx.volume === 0 ? 'muted' : 'unmuted'}
+          data-state={isMuted || volumePercent === 0 ? 'muted' : 'unmuted'}
           onClick={handleVolumeButtonClick}
           {...buttonProps}
         >
@@ -98,7 +105,7 @@ function CardDescriptionPodcastCompactVolumeButton({
       </Popover.Target>
       <Popover.Dropdown className="card-desc-audio-podcast__volume-popover">
         <CardDescriptionPodcastVerticalVolumeSlider
-          value={value}
+          value={volumePercent}
           onChange={handleVolumeChange}
           onDragChange={handleVolumeDragChange}
         />
@@ -146,7 +153,7 @@ export function CardDescriptionPodcastVolumeSpeedControls({
         className="card-desc-audio-podcast__action-button"
         {...buttonProps}
       />
-      <Audio.VolumeSlider className="card-desc-audio-podcast__volume-slider" />
+      <CardDescriptionPodcastHorizontalVolumeSlider className="card-desc-audio-podcast__volume-slider" />
       <Audio.SpeedControl />
     </Group>
   );

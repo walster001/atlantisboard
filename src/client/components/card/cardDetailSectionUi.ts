@@ -1,4 +1,4 @@
-import type { ButtonProps, TextProps } from '@mantine/core';
+import type { ButtonProps, CSSProperties, TextProps } from '@mantine/core';
 
 /** Parse `getComputedStyle(...).color` / `.backgroundColor` into emoji-mart `r, g, b` triplets. */
 export function parseCssColorToRgbTriplet(css: string): string | null {
@@ -78,4 +78,25 @@ export const cardDetailSoftButtonStyles: NonNullable<ButtonProps['styles']> = {
   },
   label: { color: 'var(--board-card-detail-button-text, var(--mantine-color-dark-7))' },
   section: { color: 'var(--board-card-detail-button-text, var(--mantine-color-dark-7))' },
+};
+
+/** Attachment list row shell — uses board card-detail button colour. */
+export const cardDetailAttachmentRowStyle: CSSProperties = {
+  backgroundColor: 'var(--board-card-detail-button-bg, #f0f1f4)',
+  borderRadius: 'var(--mantine-radius-md)',
+};
+
+/** Attachment filenames and primary labels. */
+export const cardDetailAttachmentFilenameStyle: CSSProperties = {
+  display: 'block',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: 'var(--board-card-detail-text, #868e96)',
+};
+
+/** Secondary attachment metadata (size, date, scan hints). */
+export const cardDetailAttachmentMetaProps: Partial<TextProps> = {
+  size: 'xs',
+  style: { color: 'var(--board-card-detail-text, #868e96)', opacity: 0.78 },
 };

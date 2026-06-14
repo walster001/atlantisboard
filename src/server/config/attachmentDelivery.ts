@@ -219,6 +219,11 @@ export function isMinioCdnProxyEnabled(): boolean {
   return resolveAttachmentPublicBaseUrl() != null;
 }
 
+/** When true, Caddy/Nginx terminates {@link getMinioCdnPathPrefix} at MinIO (Node CDN proxy is off). */
+export function isMinioCdnEdgeTerminationEnabled(): boolean {
+  return process.env.MINIO_CDN_EDGE_TERMINATION === 'true';
+}
+
 function isMinioExternalPublicPresignConfigured(): boolean {
   const config = resolveMinioPublicEndpointConfig();
   if (config == null) {

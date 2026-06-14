@@ -116,6 +116,8 @@ services:
     command: server /data --console-address "127.0.0.1:9001"
     volumes:
       - minio-data-full:/data
+    ports:
+      - '127.0.0.1:9000:9000'
     networks:
       - atlantisboard-full
     healthcheck:

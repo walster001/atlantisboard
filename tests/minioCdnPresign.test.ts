@@ -3,6 +3,7 @@ import { rewritePresignedUrlToPublicBase } from '../src/server/utils/rewritePres
 import {
   getMinioCdnPathPrefix,
   getMinioPublicOrigin,
+  isMinioCdnEdgeTerminationEnabled,
   isMinioCdnProxyEnabled,
   isMinioPublicPresignConfigured,
   resolveAttachmentPublicBaseUrl,
@@ -46,5 +47,12 @@ describe('MinIO CDN presign', () => {
     expect(rewritten).toBe(
       'http://localhost:3000/cdn/card-attachments/obj.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=x',
     );
+  });
+
+  test('isMinioCdnEdgeTerminationEnabled reads MINIO_CDN_EDGE_TERMINATION', () => {
+    process.env.MINIO_CDN_EDGE_TERMINATION = 'true';
+    expect(isMinioCdnEdgeTerminationEnabled()).toBe(true);
+    delete process.env.MINIO_CDN_EDGE_TERMINATION;
+    expect(isMinioCdnEdgeTerminationEnabled()).toBe(false);
   });
 });

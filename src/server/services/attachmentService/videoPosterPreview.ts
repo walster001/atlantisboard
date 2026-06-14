@@ -1,16 +1,16 @@
 import { spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
-import { unlink } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
+import { getMinIOClient } from '../../config/minio.js';
 import { logger } from '../../utils/logger.js';
-import { openAttachmentReadStream } from './read.js';
+import { BUCKET_NAME } from './minioPaths.js';
 import type { VideoPosterPreviewPreset } from '../../../shared/videoPosterPreviewPreset.js';
 
 const IMPORT_PLACEHOLDER_WIDTH = 320;
 const IMPORT_PLACEHOLDER_HEIGHT = 192;
+/** Short-lived presigned GET for ffmpeg poster extraction (internal MinIO URL). */
+const POSTER_PRESIGN_TTL_SEC = 60;
+/** Limit decode to the first second of media when extracting a poster frame. */
+const POSTER_DECODE_MAX_SEC = 1;
 
 let cachedImportPlaceholderPreview: Buffer | null = null;
 
@@ -51,43 +51,11 @@ export async function getImportPlaceholderVideoPreviewBuffer(
   return { buffer, contentType: 'image/webp' };
 }
 
-async function writeObjectStreamToTempFile(
-  objectName: string,
-  maxBytes: number,
-): Promise<string | null> {
-  const tempPath = join(tmpdir(), `vid-poster-${randomUUID()}`);
-  const stream = await openAttachmentReadStream(objectName, null);
-  let total = 0;
-  const writeStream = createWriteStream(tempPath);
-  try {
-    for await (const chunk of stream) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
-      total += buf.length;
-      if (total > maxBytes) {
-        writeStream.destroy();
-        stream.destroy();
-        await unlink(tempPath).catch(() => {});
-        return null;
-      }
-      if (!writeStream.write(buf)) {
-        await new Promise<void>((resolve) => writeStream.once('drain', resolve));
-      }
-    }
-    writeStream.end();
-    await new Promise<void>((resolve, reject) => {
-      writeStream.once('finish', () => resolve());
-      writeStream.once('error', reject);
-    });
-    return tempPath;
-  } catch {
-    writeStream.destroy();
-    stream.destroy();
-    await unlink(tempPath).catch(() => {});
-    return null;
-  }
-}
-
-async function extractVideoFrameBuffer(videoPath: string): Promise<Buffer | null> {
+/**
+ * Extract one JPEG frame via ffmpeg from a presigned URL — probes/decodes at most
+ * {@link POSTER_DECODE_MAX_SEC} second(s) of media (no full-object download).
+ */
+async function extractVideoFrameFromPresignedUrl(presignedUrl: string): Promise<Buffer | null> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     const proc = spawn(
@@ -96,10 +64,16 @@ async function extractVideoFrameBuffer(videoPath: string): Promise<Buffer | null
         '-hide_banner',
         '-loglevel',
         'error',
+        '-probesize',
+        '32768',
+        '-analyzeduration',
+        '500000',
         '-ss',
         '0.1',
+        '-t',
+        String(POSTER_DECODE_MAX_SEC),
         '-i',
-        videoPath,
+        presignedUrl,
         '-frames:v',
         '1',
         '-f',
@@ -132,21 +106,20 @@ async function extractVideoFrameBuffer(videoPath: string): Promise<Buffer | null
 export async function getVideoAttachmentPosterPreviewBuffer(args: {
   readonly objectName: string;
   readonly contentType: string;
-  readonly size: number;
   readonly preset: VideoPosterPreviewPreset;
-  readonly maxSourceBytes: number;
 }): Promise<{ readonly buffer: Buffer; readonly contentType: 'image/webp' } | null> {
   if (!isVideoContentType(args.contentType)) {
     return null;
   }
 
-  const tempPath = await writeObjectStreamToTempFile(args.objectName, args.maxSourceBytes);
-  if (tempPath == null) {
-    return null;
-  }
-
   try {
-    const frame = await extractVideoFrameBuffer(tempPath);
+    const client = getMinIOClient();
+    const presignedUrl = await client.presignedGetObject(
+      BUCKET_NAME,
+      args.objectName,
+      POSTER_PRESIGN_TTL_SEC,
+    );
+    const frame = await extractVideoFrameFromPresignedUrl(presignedUrl);
     if (frame == null) {
       logger.warn(
         { objectName: args.objectName, event: 'attachment.video_poster.ffmpeg_unavailable' },
@@ -162,8 +135,6 @@ export async function getVideoAttachmentPosterPreviewBuffer(args: {
       'Failed to generate video poster preview',
     );
     return getImportPlaceholderVideoPreviewBuffer(args.preset);
-  } finally {
-    await unlink(tempPath).catch(() => {});
   }
 }
 

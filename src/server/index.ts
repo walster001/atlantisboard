@@ -25,6 +25,7 @@ import { migrateLegacyCardDescriptionHtmlBatch } from './services/migrateLegacyC
 import {
   getMinioCdnPathPrefix,
   getMinioPublicOrigin,
+  isMinioCdnEdgeTerminationEnabled,
   isMinioCdnProxyEnabled,
   isSignedAttachmentDeliveryEnabled,
 } from './config/attachmentDelivery.js';
@@ -135,7 +136,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 if (isMinioCdnProxyEnabled()) {
   logMinioCdnProxyEnabled();
-  app.use(getMinioCdnPathPrefix(), createMinioCdnProxyRouter());
+  if (!isMinioCdnEdgeTerminationEnabled()) {
+    app.use(getMinioCdnPathPrefix(), createMinioCdnProxyRouter());
+  }
 }
 
 // CSRF tokens are issued only via GET /api/v1/csrf/token and after login (not on every response).

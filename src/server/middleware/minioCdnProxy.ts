@@ -60,6 +60,10 @@ function handleMinioCdnProxy(req: Request, res: Response): void {
   const targetPathWithQuery = original.slice(prefix.length) || '/';
   const { hostname, port, useSSL, path } = internalMinioRequestOptions(targetPathWithQuery);
   const transport = useSSL ? https : http;
+  const presignHost = `${hostname}:${port}`;
+
+  const forwardHeaders = pickForwardRequestHeaders(req.headers);
+  forwardHeaders.host = presignHost;
 
   const proxyReq = transport.request(
     {
@@ -67,7 +71,7 @@ function handleMinioCdnProxy(req: Request, res: Response): void {
       port,
       path,
       method: req.method,
-      headers: pickForwardRequestHeaders(req.headers),
+      headers: forwardHeaders,
     },
     (proxyRes) => {
       const responseHeaders: IncomingHttpHeaders = {};
@@ -119,13 +123,17 @@ export function logMinioCdnProxyEnabled(): void {
   if (base == null) {
     return;
   }
+  const edgeTermination = process.env.MINIO_CDN_EDGE_TERMINATION === 'true';
   logger.info(
     {
       publicBase: base,
       pathPrefix: getMinioCdnPathPrefix(),
+      edgeTermination,
       internalEndpoint: process.env.MINIO_ENDPOINT ?? 'localhost',
       internalPort: process.env.MINIO_PORT ?? '9000',
     },
-    'MinIO CDN proxy enabled for presigned attachment delivery',
+    edgeTermination
+      ? 'MinIO CDN presign enabled; /cdn terminated at reverse proxy (Node proxy disabled)'
+      : 'MinIO CDN proxy enabled for presigned attachment delivery',
   );
 }

@@ -24,6 +24,47 @@ _proxy_resolve_cdn_path() {
   printf '%s' "$raw"
 }
 
+# Loopback upstream for host-installed Caddy/Nginx (MinIO published on 127.0.0.1:9000 in fullstack Compose).
+_proxy_resolve_minio_upstream_host() {
+  local endpoint="${ENV_VALUES[MINIO_ENDPOINT]:-127.0.0.1}"
+  endpoint="${endpoint// /}"
+  case "$endpoint" in
+    minio|kanboard-minio|localhost|127.0.0.1)
+      printf '%s' '127.0.0.1'
+      ;;
+    *)
+      printf '%s' "$endpoint"
+      ;;
+  esac
+}
+
+_proxy_resolve_minio_upstream_port() {
+  local port="${ENV_VALUES[MINIO_PORT]:-9000}"
+  port="${port// /}"
+  if [[ -z "$port" ]]; then
+    port='9000'
+  fi
+  printf '%s' "$port"
+}
+
+# Host header MinIO expects for SigV4 presigned URLs minted by the app (MINIO_ENDPOINT:MINIO_PORT).
+_proxy_resolve_minio_presign_host() {
+  local endpoint="${ENV_VALUES[MINIO_ENDPOINT]:-localhost}"
+  endpoint="${endpoint// /}"
+  local port
+  port="$(_proxy_resolve_minio_upstream_port)"
+  printf '%s:%s' "$endpoint" "$port"
+}
+
+_proxy_enable_cdn_edge_termination_env() {
+  if [[ -n "${ENV_VALUES[MINIO_CDN_PATH_PREFIX]:-}" ]] \
+    || [[ -n "${ENV_VALUES[S3_PUBLIC_URL]:-}" ]] \
+    || [[ -n "${ENV_VALUES[ATTACHMENT_PUBLIC_BASE]:-}" ]]; then
+    ENV_VALUES['MINIO_CDN_EDGE_TERMINATION']='true'
+    atl_write_env_file "$ENV_FILE"
+  fi
+}
+
 _prompt_proxy_field() {
   local key="$1"
   local label="$2"
@@ -162,6 +203,12 @@ _render_nginx_site() {
   local ssl_dhparam="${PROXY_VALUES[NGINX_SSL_DHPARAM]}"
   local cdn_path
   cdn_path="$(_proxy_resolve_cdn_path)"
+  local minio_upstream_host
+  minio_upstream_host="$(_proxy_resolve_minio_upstream_host)"
+  local minio_upstream_port
+  minio_upstream_port="$(_proxy_resolve_minio_upstream_port)"
+  local minio_presign_host
+  minio_presign_host="$(_proxy_resolve_minio_presign_host)"
 
   atl_sudo sed \
     -e "s|@DOMAIN@|$(_proxy_sed_escape "$domain")|g" \
@@ -173,6 +220,9 @@ _render_nginx_site() {
     -e "s|@SSL_OPTIONS@|$(_proxy_sed_escape "$ssl_options")|g" \
     -e "s|@SSL_DHPARAM@|$(_proxy_sed_escape "$ssl_dhparam")|g" \
     -e "s|@CDN_PATH@|$(_proxy_sed_escape "$cdn_path")|g" \
+    -e "s|@MINIO_UPSTREAM_HOST@|$(_proxy_sed_escape "$minio_upstream_host")|g" \
+    -e "s|@MINIO_UPSTREAM_PORT@|$(_proxy_sed_escape "$minio_upstream_port")|g" \
+    -e "s|@MINIO_PRESIGN_HOST@|$(_proxy_sed_escape "$minio_presign_host")|g" \
     "$tpl" | atl_sudo tee "$dest" >/dev/null
 }
 
@@ -219,6 +269,7 @@ EOF
   fi
   atl_sudo systemctl enable nginx
   atl_sudo systemctl reload nginx
+  _proxy_enable_cdn_edge_termination_env
 
   if [[ "$use_https_tpl" == false ]]; then
     local letsencrypt_msg
@@ -304,6 +355,12 @@ _configure_caddy() {
   local log_file="${PROXY_VALUES[CADDY_LOG_FILE]}"
   local cdn_path
   cdn_path="$(_proxy_resolve_cdn_path)"
+  local minio_upstream_host
+  minio_upstream_host="$(_proxy_resolve_minio_upstream_host)"
+  local minio_upstream_port
+  minio_upstream_port="$(_proxy_resolve_minio_upstream_port)"
+  local minio_presign_host
+  minio_presign_host="$(_proxy_resolve_minio_presign_host)"
 
   if ! _install_proxy_packages caddy; then
     return 1
@@ -328,7 +385,12 @@ _configure_caddy() {
     -e "s|@MAX_BODY@|$(_proxy_sed_escape "$max_body")|g" \
     -e "s|@LOG_FILE@|$(_proxy_sed_escape "$log_file")|g" \
     -e "s|@CDN_PATH@|$(_proxy_sed_escape "$cdn_path")|g" \
+    -e "s|@MINIO_UPSTREAM_HOST@|$(_proxy_sed_escape "$minio_upstream_host")|g" \
+    -e "s|@MINIO_UPSTREAM_PORT@|$(_proxy_sed_escape "$minio_upstream_port")|g" \
+    -e "s|@MINIO_PRESIGN_HOST@|$(_proxy_sed_escape "$minio_presign_host")|g" \
     "$tpl" | atl_sudo tee "$site_file" >/dev/null
+
+  _proxy_enable_cdn_edge_termination_env
 
   _atl_write_caddy_mainfile
 

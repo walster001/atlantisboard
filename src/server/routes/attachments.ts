@@ -393,9 +393,7 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
           : await getVideoAttachmentPosterPreviewBuffer({
               objectName: posterResolved.objectMeta.objectName,
               contentType: posterResolved.objectMeta.contentType,
-              size: posterResolved.objectMeta.size,
               preset: previewQuery,
-              maxSourceBytes: MAX_CARD_ATTACHMENT_BYTES,
             });
 
       if (posterPreview != null) {

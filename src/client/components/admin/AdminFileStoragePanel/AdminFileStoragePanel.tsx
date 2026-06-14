@@ -9,6 +9,7 @@ import { FileStoragePreviewPane } from './FileStoragePreviewPane.js';
 import { FileStorageToolbar } from './FileStorageToolbar.js';
 import { OrphanCleanupModal } from './OrphanCleanupModal.js';
 import { useAdminFileStoragePanelState } from './useAdminFileStoragePanelState.js';
+import { useAdminMalwareScanSetting } from './useAdminMalwareScanSetting.js';
 import './adminFileStoragePanel.css';
 
 export const AdminFileStoragePanel = memo(function AdminFileStoragePanel() {
@@ -34,6 +35,13 @@ export const AdminFileStoragePanel = memo(function AdminFileStoragePanel() {
     downloadObject,
     deleteObject,
   } = useAdminFileStoragePanelState();
+
+  const {
+    settings: malwareScanSettings,
+    loading: malwareScanLoading,
+    updating: malwareScanUpdating,
+    requestMalwareScanChange,
+  } = useAdminMalwareScanSetting();
 
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [orphanCleanupOpen, setOrphanCleanupOpen] = useState(false);
@@ -93,6 +101,10 @@ export const AdminFileStoragePanel = memo(function AdminFileStoragePanel() {
             onOpenOrphanCleanup={() => setOrphanCleanupOpen(true)}
             onUpload={(file) => void uploadFile(file)}
             onCreateFolderClick={() => setCreateFolderOpen(true)}
+            malwareScanEnabled={malwareScanSettings?.enabled ?? false}
+            malwareScanLoading={malwareScanLoading}
+            malwareScanUpdating={malwareScanUpdating}
+            onMalwareScanChange={(enabled) => void requestMalwareScanChange(enabled)}
           />
 
           <Box className="admin-file-storage-panel__split">

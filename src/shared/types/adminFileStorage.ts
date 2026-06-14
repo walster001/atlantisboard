@@ -73,3 +73,10 @@ export type AdminFileStorageOrphanScanResponse = {
 export type AdminFileStorageOrphanDeleteResponse = {
   readonly deletedCount: number;
 };
+
+/** JSON from `GET` / `PATCH /api/v1/admin/file-storage/malware-scan`. */
+export type AdminMalwareScanSettings = {
+  readonly enabled: boolean;
+  readonly persistedToEnvFile: boolean;
+  readonly productionEnforced: boolean;
+};

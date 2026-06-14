@@ -9,6 +9,37 @@ export function resolveEnvFilePath(): string {
   return resolve(process.cwd(), '.env');
 }
 
+function parseEnvLineValue(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed
+      .slice(1, -1)
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\');
+  }
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+/** Reads a single KEY from the deployment .env file (not process.env). */
+export function readEnvFileVariable(key: string): string | null {
+  const envPath = resolveEnvFilePath();
+  let contents = '';
+  try {
+    contents = readFileSync(envPath, 'utf8');
+  } catch {
+    return null;
+  }
+  const pattern = new RegExp(`^${key}=(.*)$`, 'm');
+  const match = pattern.exec(contents);
+  if (match == null) {
+    return null;
+  }
+  return parseEnvLineValue(match[1] ?? '');
+}
+
 function formatEnvLine(key: string, value: string): string {
   if (/[\s#"'\\]/.test(value)) {
     const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');

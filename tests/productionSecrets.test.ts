@@ -65,10 +65,10 @@ describe('assertProductionSecrets', () => {
     expect(() => assertProductionSecrets()).not.toThrow();
   });
 
-  it('blocks POMPELMI_SKIP_SCAN in production', () => {
+  it('allows POMPELMI_SKIP_SCAN in production when set by an administrator', () => {
     setSecureProductionSecrets();
     process.env.POMPELMI_SKIP_SCAN = 'true';
-    expect(() => assertProductionSecrets()).toThrow(/POMPELMI_SKIP_SCAN/);
+    expect(() => assertProductionSecrets()).not.toThrow();
   });
 
   it('blocks default MinIO credentials in production', () => {

@@ -130,7 +130,16 @@ let loggedMode: ClamScanMode | null = null;
 
 /** Log once at startup which scan backend is active (clamd vs clamscan). */
 export async function logMalwareScanModeAtStartup(): Promise<void> {
-  if (process.env.NODE_ENV === 'test' || shouldSkipMalwareScan()) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  if (shouldSkipMalwareScan()) {
+    if (process.env.NODE_ENV === 'production') {
+      logger.warn(
+        { event: 'malware_scan.disabled_at_startup' },
+        'Malware scanning is disabled (POMPELMI_SKIP_SCAN=true) — uploads will not be scanned',
+      );
+    }
     return;
   }
 

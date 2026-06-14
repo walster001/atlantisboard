@@ -4,6 +4,7 @@ import {
   Group,
   Select,
   Stack,
+  Switch,
   Text,
 } from '@mantine/core';
 import {
@@ -30,6 +31,10 @@ type FileStorageToolbarProps = {
   readonly onOpenOrphanCleanup: () => void;
   readonly onUpload: (file: File | null) => void;
   readonly onCreateFolderClick: () => void;
+  readonly malwareScanEnabled: boolean;
+  readonly malwareScanLoading: boolean;
+  readonly malwareScanUpdating: boolean;
+  readonly onMalwareScanChange: (enabled: boolean) => void;
 };
 
 export function FileStorageToolbar({
@@ -45,6 +50,10 @@ export function FileStorageToolbar({
   onOpenOrphanCleanup,
   onUpload,
   onCreateFolderClick,
+  malwareScanEnabled,
+  malwareScanLoading,
+  malwareScanUpdating,
+  onMalwareScanChange,
 }: FileStorageToolbarProps) {
   const folderLabel = prefix.trim() === '' ? 'Bucket root' : prefix.replace(/\/$/, '');
 
@@ -62,6 +71,13 @@ export function FileStorageToolbar({
           searchable
         />
       <Group gap="xs">
+        <Switch
+          label="Malware Scanning Enabled"
+          checked={malwareScanEnabled}
+          onChange={(event) => onMalwareScanChange(event.currentTarget.checked)}
+          disabled={malwareScanLoading || malwareScanUpdating}
+          withThumbIndicator={false}
+        />
         <Button
           variant="light"
           color="orange"

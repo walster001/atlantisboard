@@ -355,6 +355,40 @@ rsync_to_remote() {
     "$ARTIFACT_DIR/" "${PROD_REMOTE_SSH}:${PROD_REMOTE_PACKAGE_DIR}/"
 }
 
+
+merge_remote_env_from_example() {
+  local merge_script="$PROJECT_ROOT/scripts/merge-env-from-example.sh"
+  local remote_merge="$PROD_REMOTE_PACKAGE_DIR/scripts/merge-env-from-example.sh"
+  local remote_template="$PROD_REMOTE_PACKAGE_DIR/.env.example"
+  local remote_target="$PROD_REMOTE_INSTALL_DIR/.env"
+
+  [[ -f "$merge_script" ]] || die "Missing $merge_script"
+  if [[ ! -f "$ARTIFACT_DIR/.env.example" ]]; then
+    log "No .env.example in artifact — skipping env merge"
+    return 0
+  fi
+
+  log "Merging new env keys from package .env.example into ${PROD_REMOTE_INSTALL_DIR}/.env"
+  if [[ "$DRY_RUN" == true ]]; then
+    log "[dry-run] rsync merge script and run on remote:"
+    log "[dry-run]   template: $remote_template"
+    log "[dry-run]   target:   $remote_target"
+    log "[dry-run] sudo bash $remote_merge --template ... --target ... --dry-run"
+    return 0
+  fi
+
+  remote_ssh "mkdir -p '$PROD_REMOTE_PACKAGE_DIR/scripts'"
+  local rsync_ssh
+  rsync_ssh="$(remote_rsync_ssh)"
+  rsync -az -e "$rsync_ssh"     "$merge_script" "${PROD_REMOTE_SSH}:${remote_merge}"
+
+  remote_ssh bash -s <<REMOTE
+set -euo pipefail
+chmod +x '$remote_merge'
+sudo bash '$remote_merge' --template '$remote_template' --target '$remote_target'
+REMOTE
+}
+
 run_remote_upgrade() {
   log "Running non-interactive ${PROD_REMOTE_INSTALL_ACTION} on remote..."
   if [[ "$DRY_RUN" == true ]]; then
@@ -472,6 +506,7 @@ main() {
   fi
 
   rsync_to_remote
+  merge_remote_env_from_example
   run_remote_upgrade
   remote_docker_prune_after_deploy
   remote_health_check

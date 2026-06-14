@@ -59,9 +59,14 @@ export function startClamSignatureRefreshScheduler(): void {
   logger.info({ intervalMs }, 'ClamAV signature refresh scheduler started');
 }
 
-export function stopClamSignatureRefreshSchedulerForTests(): void {
+export function stopClamSignatureRefreshScheduler(): void {
   if (schedulerIntervalId !== null) {
     clearInterval(schedulerIntervalId);
     schedulerIntervalId = null;
+    logger.info('ClamAV signature refresh scheduler stopped');
   }
+}
+
+export function stopClamSignatureRefreshSchedulerForTests(): void {
+  stopClamSignatureRefreshScheduler();
 }

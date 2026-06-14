@@ -91,13 +91,6 @@ export function assertProductionSecrets(): void {
     return;
   }
 
-  if (process.env.POMPELMI_SKIP_SCAN === 'true') {
-    throw new Error(
-      'Production startup blocked: POMPELMI_SKIP_SCAN must not be enabled in production. ' +
-        'Run ClamAV (Pompelmi) for upload scanning.'
-    );
-  }
-
   const secretEnvVars = ['JWT_SECRET', 'SESSION_SECRET', 'CSRF_SECRET', 'ENCRYPTION_KEY'] as const;
   const failures: string[] = [];
 

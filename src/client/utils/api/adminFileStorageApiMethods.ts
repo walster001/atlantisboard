@@ -7,6 +7,7 @@ import type {
   AdminFileStorageOrphanObjectRef,
   AdminFileStorageOrphanScanResponse,
   AdminFileStorageUploadResponse,
+  AdminMalwareScanSettings,
 } from '../../../shared/types/adminFileStorage.js';
 import type { MinioBucketName } from '../../../shared/constants/minioBuckets.js';
 import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../../shared/adminDestructiveConfirmation.js';
@@ -39,6 +40,8 @@ export interface AdminFileStorageApiMethods {
   deleteAdminFileStorageOrphans(
     objects: readonly AdminFileStorageOrphanObjectRef[],
   ): Promise<AdminFileStorageOrphanDeleteResponse>;
+  getAdminMalwareScanSettings(): Promise<AdminMalwareScanSettings>;
+  updateAdminMalwareScanSettings(enabled: boolean): Promise<AdminMalwareScanSettings>;
 }
 
 export const adminFileStorageApiMethods: AdminFileStorageApiMethods = {
@@ -123,6 +126,21 @@ export const adminFileStorageApiMethods: AdminFileStorageApiMethods = {
         objects,
         confirmPhrase: ADMIN_DESTRUCTIVE_CONFIRM_PHRASE,
       },
+    );
+    return response.data;
+  },
+
+  async getAdminMalwareScanSettings(this: ApiClient) {
+    const response = await this.client.get<AdminMalwareScanSettings>(
+      '/admin/file-storage/malware-scan',
+    );
+    return response.data;
+  },
+
+  async updateAdminMalwareScanSettings(this: ApiClient, enabled) {
+    const response = await this.client.patch<AdminMalwareScanSettings>(
+      '/admin/file-storage/malware-scan',
+      { enabled },
     );
     return response.data;
   },

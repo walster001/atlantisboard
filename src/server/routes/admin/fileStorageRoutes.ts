@@ -15,6 +15,10 @@ import {
   scanAdminFileStorageOrphans,
   uploadAdminFileStorageObject,
 } from '../../services/adminFileStorageService/index.js';
+import {
+  applyMalwareScanEnabled,
+  getMalwareScanSettings,
+} from '../../services/malwareScanEnv.js';
 import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
 import { parseOrThrow } from '../../utils/zodValidation.js';
 
@@ -58,6 +62,10 @@ const orphanDeleteBodySchema = z.object({
     .min(1)
     .max(200),
   confirmPhrase: z.literal(ADMIN_DESTRUCTIVE_CONFIRM_PHRASE),
+});
+
+const malwareScanBodySchema = z.object({
+  enabled: z.boolean(),
 });
 
 const downloadQuerySchema = z.object({
@@ -212,6 +220,28 @@ export function registerFileStorageRoutes(router: Router): void {
         adminUserId: authReq.user.id,
       });
       res.json(result);
+    } catch (error) {
+      handleApiRouteError(res, error, next);
+    }
+  });
+
+  router.get('/file-storage/malware-scan', async (_req, res, next) => {
+    try {
+      res.json(getMalwareScanSettings());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch('/file-storage/malware-scan', async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const body = parseOrThrow(malwareScanBodySchema, req.body);
+      const settings = await applyMalwareScanEnabled({
+        enabled: body.enabled,
+        adminUserId: authReq.user.id,
+      });
+      res.json(settings);
     } catch (error) {
       handleApiRouteError(res, error, next);
     }

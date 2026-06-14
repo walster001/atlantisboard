@@ -2,9 +2,11 @@ import { describe, it, expect, afterEach } from 'bun:test';
 import {
   clampAttachmentSignedUrlTtlSec,
   getMinioPublicOrigin,
+  isMinioCdnProxyEnabled,
   isMinioPublicPresignConfigured,
   parseAttachmentDeliveryMode,
   resolveAttachmentDeliveryKind,
+  resolveMinioPublicEndpointConfig,
 } from '../src/server/config/attachmentDelivery.js';
 
 describe('attachmentDelivery config', () => {
@@ -42,6 +44,23 @@ describe('attachmentDelivery config', () => {
         mode: 'hybrid',
         contentType: 'application/pdf',
         size: 50_000_000,
+      }),
+    ).toBe('proxy');
+  });
+
+  it('always signs video even when delivery mode is proxy', () => {
+    expect(
+      resolveAttachmentDeliveryKind({
+        mode: 'proxy',
+        contentType: 'video/webm',
+        size: 500,
+      }),
+    ).toBe('signed');
+    expect(
+      resolveAttachmentDeliveryKind({
+        mode: 'proxy',
+        contentType: 'image/png',
+        size: 500,
       }),
     ).toBe('proxy');
   });
@@ -121,10 +140,20 @@ describe('attachmentDelivery config', () => {
     expect(isMinioPublicPresignConfigured()).toBe(false);
   });
 
-  it('parses S3_PUBLIC_URL as public presign endpoint', () => {
+  it('parses S3_PUBLIC_URL without path as external presign endpoint', () => {
     delete process.env.MINIO_PUBLIC_ENDPOINT;
     process.env.S3_PUBLIC_URL = 'https://storage.example.com';
     expect(isMinioPublicPresignConfigured()).toBe(true);
     expect(getMinioPublicOrigin()).toBe('https://storage.example.com');
+  });
+
+  it('treats S3_PUBLIC_URL with path as CDN proxy base, not external host', () => {
+    delete process.env.MINIO_PUBLIC_ENDPOINT;
+    delete process.env.MINIO_CDN_PATH_PREFIX;
+    process.env.S3_PUBLIC_URL = 'http://localhost:3000/cdn';
+    expect(isMinioCdnProxyEnabled()).toBe(true);
+    expect(isMinioPublicPresignConfigured()).toBe(true);
+    expect(getMinioPublicOrigin()).toBeNull();
+    expect(resolveMinioPublicEndpointConfig()).toBeNull();
   });
 });

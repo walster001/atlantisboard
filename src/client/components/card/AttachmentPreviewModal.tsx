@@ -1,6 +1,8 @@
+import { createPortal } from 'react-dom';
 import { Box, Button, Modal, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
 import type { CardDB } from '../../store/database.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import { api } from '../../utils/api.js';
 import { CardDescriptionVideoPlayer } from './CardDescriptionVideoPlayer.js';
 
@@ -18,6 +20,35 @@ interface AttachmentPreviewModalProps {
   readonly onClose: () => void;
 }
 
+function AttachmentVideoMobileFullscreen({
+  attachment,
+  onClose,
+}: {
+  readonly attachment: NonNullable<CardDB['attachments']>[number];
+  readonly onClose: () => void;
+}) {
+  return createPortal(
+    <Box className="attachment-video-mobile-fullscreen" role="dialog" aria-modal="true">
+      <UnstyledButton
+        type="button"
+        className="attachment-preview-close"
+        aria-label="Close preview"
+        onClick={onClose}
+      >
+        <IconX size={16} aria-hidden />
+      </UnstyledButton>
+      <CardDescriptionVideoPlayer
+        key={attachment.id}
+        src={api.getAttachmentFileUrl(attachment.id)}
+        className="card-desc-video-player card-desc-video-player--modal-fullscreen"
+        title={attachment.name}
+        isolateDescriptionClicks={false}
+      />
+    </Box>,
+    document.body,
+  );
+}
+
 export function AttachmentPreviewModal({
   attachment,
   linkPreviewUrl,
@@ -31,6 +62,12 @@ export function AttachmentPreviewModal({
   previewModalProps,
   onClose,
 }: AttachmentPreviewModalProps) {
+  const isMobile = useResponsiveTier() === 'mobile';
+
+  if (attachment != null && isMobile && isLinkPreviewVideo && !linkPreviewScanBlocked) {
+    return <AttachmentVideoMobileFullscreen attachment={attachment} onClose={onClose} />;
+  }
+
   return (
     <Modal opened={attachment != null} onClose={onClose} {...previewModalProps}>
       {attachment == null ? null : (
@@ -100,6 +137,7 @@ export function AttachmentPreviewModal({
                 src={api.getAttachmentFileUrl(attachment.id)}
                 className="card-desc-video-player card-desc-video-player--modal-fullscreen"
                 title={attachment.name}
+                isolateDescriptionClicks={false}
               />
             </Box>
           ) : isLinkPreviewPdf && linkPreviewUrl.trim() !== '' ? (

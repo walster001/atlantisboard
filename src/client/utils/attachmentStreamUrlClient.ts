@@ -136,11 +136,16 @@ export async function resolveCardDescriptionVideoPlaybackUrl(storedSrc: string):
   }
   const attachmentId = extractAttachmentIdFromMediaSrc(trimmed);
   if (attachmentId != null) {
-    const entry = await ensureAttachmentStreamUrl(attachmentId);
-    if (entry.delivery === 'signed' && entry.url.trim() !== '') {
-      return entry.url;
-    }
-    return api.getAttachmentFileUrl(attachmentId);
+    return resolveVideoAttachmentPlaybackUrl(attachmentId);
   }
   return api.resolveAttachmentUrl(trimmed);
+}
+
+/** Prefer presigned MinIO for video attachments; API proxy is only a last-resort fallback. */
+export async function resolveVideoAttachmentPlaybackUrl(attachmentId: string): Promise<string> {
+  const entry = await ensureAttachmentStreamUrl(attachmentId);
+  if (entry.delivery === 'signed' && entry.url.trim() !== '') {
+    return entry.url;
+  }
+  return api.getAttachmentFileUrl(attachmentId);
 }

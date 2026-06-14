@@ -1,6 +1,7 @@
 import {
   getAttachmentDeliveryMode,
   isMinioPublicPresignConfigured,
+  isVideoAttachmentContentType,
   resolveAttachmentDeliveryKind,
 } from '../../config/attachmentDelivery.js';
 import { buildAttachmentStreamUrl } from './urls.js';
@@ -16,6 +17,9 @@ export function shouldPresignRedirectAttachmentStream(args: {
   }
   if (!isMinioPublicPresignConfigured()) {
     return false;
+  }
+  if (isVideoAttachmentContentType(args.contentType)) {
+    return true;
   }
   return (
     resolveAttachmentDeliveryKind({

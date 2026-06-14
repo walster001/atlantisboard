@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { extractAttachmentIdFromMediaSrc } from '../../shared/cardDescriptionAttachmentRefs.js';
 import { api } from '../utils/api.js';
+import { resolveVideoAttachmentPlaybackUrl } from '../utils/attachmentStreamUrlClient.js';
 import { captureVideoPosterBlobFromMediaUrl } from '../utils/captureVideoPoster.js';
 
 function attachmentPosterProxyUrl(attachmentId: string): string {
@@ -70,10 +71,10 @@ function isAppAttachmentUrl(url: string): boolean {
 
 /**
  * Blob/object URL for a video poster — persisted JPEG attachment (fetched with cookies) or
- * a client-generated frame from the proxy playback URL.
+ * a client-generated frame from the presigned / proxy playback URL.
  */
 export function useVideoPosterUrl(
-  proxyPlaybackSrc: string,
+  storedVideoSrc: string,
   storedPoster: string | undefined,
 ): string | undefined {
   const storedPosterPath = resolveStoredPosterPath(storedPoster);
@@ -108,14 +109,28 @@ export function useVideoPosterUrl(
         }
       }
 
-      const playback = proxyPlaybackSrc.trim();
-      if (playback === '') {
+      const trimmedStored = storedVideoSrc.trim();
+      if (trimmedStored === '') {
+        return;
+      }
+
+      let playbackForCapture = initialPlaybackSrc(trimmedStored);
+      const attachmentId = extractAttachmentIdFromMediaSrc(trimmedStored);
+      if (attachmentId != null) {
+        try {
+          playbackForCapture = await resolveVideoAttachmentPlaybackUrl(attachmentId);
+        } catch {
+          /* Keep proxy fallback */
+        }
+      }
+
+      if (playbackForCapture.trim() === '') {
         return;
       }
 
       try {
-        const useCredentials = isAppAttachmentUrl(playback);
-        const blob = await captureVideoPosterBlobFromMediaUrl(playback, { useCredentials });
+        const useCredentials = isAppAttachmentUrl(playbackForCapture);
+        const blob = await captureVideoPosterBlobFromMediaUrl(playbackForCapture, { useCredentials });
         if (cancelled) {
           return;
         }
@@ -132,7 +147,28 @@ export function useVideoPosterUrl(
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [proxyPlaybackSrc, storedPosterPath]);
+  }, [storedVideoSrc, storedPosterPath]);
 
   return posterObjectUrl;
+}
+
+function initialPlaybackSrc(storedSrc: string): string {
+  const trimmed = storedSrc.trim();
+  if (trimmed === '') {
+    return '';
+  }
+  const attachmentId = extractAttachmentIdFromMediaSrc(trimmed);
+  if (attachmentId != null) {
+    return attachmentPosterProxyUrl(attachmentId);
+  }
+  const resolved = api.resolveAttachmentUrl(trimmed);
+  if (resolved.startsWith('/')) {
+    return resolved;
+  }
+  try {
+    const parsed = new URL(resolved);
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return resolved;
+  }
 }

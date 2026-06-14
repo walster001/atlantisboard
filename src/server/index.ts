@@ -23,7 +23,9 @@ import { initializeBoardThemes } from './services/boardThemeService.js';
 import { dropLegacyUnusedCollections } from './services/startupMigrations.js';
 import { migrateLegacyCardDescriptionHtmlBatch } from './services/migrateLegacyCardDescriptionHtmlJob.js';
 import {
+  getMinioCdnPathPrefix,
   getMinioPublicOrigin,
+  isMinioCdnProxyEnabled,
   isSignedAttachmentDeliveryEnabled,
 } from './config/attachmentDelivery.js';
 import {
@@ -35,6 +37,7 @@ import { assertProductionSecrets } from './utils/productionSecrets.js';
 import { isProductionAuthMode } from './utils/authCookie.js';
 import { authCookieMaxAgeMs, getJwtExpiresInFromEnv } from './utils/jwtExpiry.js';
 import { attachCspNonce, getCspNonceFromResponse } from './middleware/cspNonce.js';
+import { createMinioCdnProxyRouter, logMinioCdnProxyEnabled } from './middleware/minioCdnProxy.js';
 import { renderSpaIndexHtml } from './utils/spaIndex.js';
 // Background jobs can run in separate worker process or in main process
 // Set ENABLE_CRON_JOBS_IN_MAIN=true to run in main process (default: false, use separate worker)
@@ -129,6 +132,11 @@ app.use(passport.session());
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+if (isMinioCdnProxyEnabled()) {
+  logMinioCdnProxyEnabled();
+  app.use(getMinioCdnPathPrefix(), createMinioCdnProxyRouter());
+}
 
 // CSRF tokens are issued only via GET /api/v1/csrf/token and after login (not on every response).
 

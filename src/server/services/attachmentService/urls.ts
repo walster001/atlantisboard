@@ -1,23 +1,40 @@
 import {
   getAttachmentDeliveryMode,
   getAttachmentSignedUrlTtlSec,
+  isMinioCdnProxyEnabled,
   isMinioPublicPresignConfigured,
   resolveAttachmentDeliveryKind,
+  resolveAttachmentPublicBaseUrl,
 } from '../../config/attachmentDelivery.js';
-import { getMinIOPublicPresignClient } from '../../config/minio.js';
+import { getMinIOClient, getMinIOPublicPresignClient } from '../../config/minio.js';
+import { rewritePresignedUrlToPublicBase } from '../../utils/rewritePresignedMinioUrl.js';
 import { BUCKET_NAME, buildAttachmentProxyUrl } from './minioPaths.js';
 import type { AttachmentObjectMeta, AttachmentStreamUrlResponse } from './types.js';
 
 /**
- * Mint a short-lived presigned GET URL (browser uses MinIO host from MINIO_PUBLIC_*).
+ * Mint a short-lived presigned GET URL (browser uses MinIO host from MINIO_PUBLIC_* or /cdn proxy).
  */
 export async function mintAttachmentReadUrl(
   objectName: string,
   ttlSec: number,
 ): Promise<{ readonly url: string; readonly expiresAt: string }> {
+  const expiresAt = new Date(Date.now() + ttlSec * 1000).toISOString();
+
+  if (isMinioCdnProxyEnabled()) {
+    const publicBase = resolveAttachmentPublicBaseUrl();
+    if (publicBase == null) {
+      throw new Error('MinIO CDN public base URL is not configured');
+    }
+    const internalClient = getMinIOClient();
+    const internalUrl = await internalClient.presignedGetObject(BUCKET_NAME, objectName, ttlSec);
+    return {
+      url: rewritePresignedUrlToPublicBase(internalUrl, publicBase),
+      expiresAt,
+    };
+  }
+
   const client = getMinIOPublicPresignClient();
   const url = await client.presignedGetObject(BUCKET_NAME, objectName, ttlSec);
-  const expiresAt = new Date(Date.now() + ttlSec * 1000).toISOString();
   return { url, expiresAt };
 }
 

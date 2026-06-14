@@ -10,7 +10,7 @@ import {
   Text,
   UnstyledButton,
 } from '@mantine/core';
-import { IconPlayerPlay, IconTrash } from '@tabler/icons-react';
+import { IconTrash } from '@tabler/icons-react';
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
 import {
   attachmentScanBlockedMessage,
@@ -20,6 +20,7 @@ import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import { isCoverAttachment } from '../../utils/attachmentCoverUtils.js';
 import { formatFileSize, getFileIcon } from '../../utils/fileUtils.js';
+import { AttachmentVideoThumbnail } from './AttachmentVideoThumbnail.js';
 
 interface AttachmentListRowProps {
   readonly attachment: NonNullable<CardDB['attachments']>[number];
@@ -115,47 +116,62 @@ export const AttachmentListRow = memo(function AttachmentListRow({
             )}
           </UnstyledButton>
         ) : attachment.type.startsWith('video/') ? (
-          <UnstyledButton
-            type="button"
-            aria-label={`Preview ${attachment.name}`}
-            disabled={!canPreview}
-            onClick={() => {
-              if (canPreview) {
-                onPreview(attachment.id);
-              }
-            }}
-            style={{
-              width: 160,
-              minWidth: 160,
-              height: 96,
-              borderRadius: 8,
-              overflow: 'hidden',
-              backgroundColor: 'var(--mantine-color-dark-9)',
-              border: '1px solid var(--mantine-color-gray-3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-              cursor: canPreview ? 'pointer' : 'default',
-            }}
-          >
-            {isPh ? (
+          isPh ? (
+            <UnstyledButton
+              type="button"
+              aria-label={`Preview ${attachment.name}`}
+              disabled
+              style={{
+                width: 160,
+                minWidth: 160,
+                height: 96,
+                borderRadius: 8,
+                overflow: 'hidden',
+                backgroundColor: 'var(--mantine-color-dark-9)',
+                border: '1px solid var(--mantine-color-gray-3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                cursor: 'default',
+              }}
+            >
               <Text size="xs" c="dimmed" ta="center" px="xs">
                 No preview — file not in storage
               </Text>
-            ) : scanBlocked ? (
+            </UnstyledButton>
+          ) : scanBlocked ? (
+            <UnstyledButton
+              type="button"
+              aria-label={`Preview ${attachment.name}`}
+              disabled
+              style={{
+                width: 160,
+                minWidth: 160,
+                height: 96,
+                borderRadius: 8,
+                overflow: 'hidden',
+                backgroundColor: 'var(--mantine-color-dark-9)',
+                border: '1px solid var(--mantine-color-gray-3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                cursor: 'default',
+              }}
+            >
               <Text size="xs" c="dimmed" ta="center" px="xs">
                 Scan in progress
               </Text>
-            ) : (
-              <IconPlayerPlay
-                size={36}
-                stroke={1.5}
-                color="var(--mantine-color-gray-4)"
-                aria-hidden
-              />
-            )}
-          </UnstyledButton>
+            </UnstyledButton>
+          ) : (
+            <AttachmentVideoThumbnail
+              attachmentId={attachment.id}
+              name={attachment.name}
+              disabled={!canPreview}
+              onPreview={() => onPreview(attachment.id)}
+            />
+          )
         ) : (
           <Box
             style={{

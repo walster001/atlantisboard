@@ -41,6 +41,11 @@ function getHybridSignedSizeThresholdBytes(): number {
   return DEFAULT_HYBRID_SIGNED_SIZE_BYTES;
 }
 
+export function isVideoAttachmentContentType(contentType: string): boolean {
+  const normalizedType = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
+  return normalizedType.startsWith('video/');
+}
+
 /**
  * Whether this attachment should be delivered via a presigned MinIO URL (vs API proxy).
  */
@@ -50,6 +55,9 @@ export function resolveAttachmentDeliveryKind(args: {
   readonly size: number;
 }): AttachmentDeliveryKind {
   const { mode, contentType, size } = args;
+  if (isVideoAttachmentContentType(contentType)) {
+    return 'signed';
+  }
   if (mode === 'proxy') {
     return 'proxy';
   }
@@ -57,9 +65,6 @@ export function resolveAttachmentDeliveryKind(args: {
     return 'signed';
   }
   const normalizedType = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
-  if (normalizedType.startsWith('video/')) {
-    return 'signed';
-  }
   if (normalizedType === 'application/pdf') {
     return 'proxy';
   }
@@ -120,6 +125,9 @@ function parsePublicUrlToEndpointConfig(raw: string): MinioPublicEndpointConfig 
       ? trimmed
       : `${defaultPublicUrlScheme()}//${trimmed}`;
     const url = new URL(withScheme);
+    if (url.pathname !== '/' && url.pathname !== '') {
+      return null;
+    }
     const useSSL = url.protocol === 'https:';
     const defaultPort = useSSL ? 443 : 80;
     const parsedPort = url.port !== '' ? Number.parseInt(url.port, 10) : defaultPort;
@@ -131,6 +139,98 @@ function parsePublicUrlToEndpointConfig(raw: string): MinioPublicEndpointConfig 
   } catch {
     return null;
   }
+}
+
+function normalizeCdnPathPrefix(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return '/cdn';
+  }
+  const withLeading = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withLeading.replace(/\/+$/, '') || '/cdn';
+}
+
+function parsePublicBaseUrlWithPath(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return null;
+  }
+  try {
+    const withScheme = trimmed.includes('://')
+      ? trimmed
+      : `${defaultPublicUrlScheme()}//${trimmed}`;
+    const url = new URL(withScheme);
+    if (url.pathname === '/' || url.pathname === '') {
+      return null;
+    }
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Browser-facing base for presigned objects via same-origin CDN proxy (e.g. http://localhost:3000/cdn).
+ * Set `S3_PUBLIC_URL` / `ATTACHMENT_PUBLIC_BASE` with a path, or `MINIO_CDN_PATH_PREFIX` + `APP_URL`.
+ */
+export function resolveAttachmentPublicBaseUrl(): string | null {
+  for (const raw of [process.env.S3_PUBLIC_URL, process.env.ATTACHMENT_PUBLIC_BASE]) {
+    const base = parsePublicBaseUrlWithPath(raw ?? '');
+    if (base != null) {
+      return base;
+    }
+  }
+
+  const prefixRaw = (process.env.MINIO_CDN_PATH_PREFIX ?? '').trim();
+  if (prefixRaw === '') {
+    return null;
+  }
+
+  const appUrl = (process.env.APP_URL ?? process.env.CORS_ORIGIN ?? '').trim().replace(/\/$/, '');
+  if (appUrl === '') {
+    return null;
+  }
+
+  try {
+    const url = new URL(appUrl.includes('://') ? appUrl : `${defaultPublicUrlScheme()}//${appUrl}`);
+    url.pathname = normalizeCdnPathPrefix(prefixRaw);
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return null;
+  }
+}
+
+/** Path prefix where the app proxies to MinIO (default `/cdn` when derived from env). */
+export function getMinioCdnPathPrefix(): string {
+  const base = resolveAttachmentPublicBaseUrl();
+  if (base != null) {
+    try {
+      const pathname = new URL(base).pathname.replace(/\/$/, '') || '/cdn';
+      return pathname.startsWith('/') ? pathname : `/${pathname}`;
+    } catch {
+      return '/cdn';
+    }
+  }
+  return normalizeCdnPathPrefix(process.env.MINIO_CDN_PATH_PREFIX ?? '/cdn');
+}
+
+/** Same-origin `/cdn` (or custom path) proxy to internal MinIO for presigned attachment delivery. */
+export function isMinioCdnProxyEnabled(): boolean {
+  return resolveAttachmentPublicBaseUrl() != null;
+}
+
+function isMinioExternalPublicPresignConfigured(): boolean {
+  const config = resolveMinioPublicEndpointConfig();
+  if (config == null) {
+    return false;
+  }
+  if (isUnresolvableMinioPublicHost(config.endPoint)) {
+    return false;
+  }
+  if (isProductionRuntime() && isSameAsInternalMinioEndpoint(config.endPoint)) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -167,28 +267,23 @@ export function resolveMinioPublicEndpointConfig(): MinioPublicEndpointConfig | 
   return null;
 }
 
-/** True when a distinct, browser-reachable public MinIO endpoint is configured for presigning. */
+/** True when presigned MinIO delivery is configured (external host or same-origin CDN proxy). */
 export function isMinioPublicPresignConfigured(): boolean {
-  const config = resolveMinioPublicEndpointConfig();
-  if (config == null) {
-    return false;
+  if (isMinioCdnProxyEnabled()) {
+    return true;
   }
-  if (isUnresolvableMinioPublicHost(config.endPoint)) {
-    return false;
-  }
-  // Production: public host must differ from internal service endpoint (avoid Docker-only hostnames).
-  if (isProductionRuntime() && isSameAsInternalMinioEndpoint(config.endPoint)) {
-    return false;
-  }
-  return true;
+  return isMinioExternalPublicPresignConfigured();
 }
 
 /**
  * Browser-reachable MinIO origin for CSP (`media-src` / `connect-src`).
- * Only set when a public endpoint is configured — never uses internal `MINIO_ENDPOINT`.
+ * Null when using same-origin CDN proxy (covered by `'self'`).
  */
 export function getMinioPublicOrigin(): string | null {
-  if (!isMinioPublicPresignConfigured()) {
+  if (isMinioCdnProxyEnabled()) {
+    return null;
+  }
+  if (!isMinioExternalPublicPresignConfigured()) {
     return null;
   }
   const config = resolveMinioPublicEndpointConfig();

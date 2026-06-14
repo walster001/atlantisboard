@@ -50,6 +50,7 @@ export function buildPreviewModalProps(
             flexDirection: 'column',
             flex: '1 1 100%',
             backgroundColor: 'var(--mantine-color-dark-9)',
+            transform: 'none',
           },
           body: {
             flex: 1,

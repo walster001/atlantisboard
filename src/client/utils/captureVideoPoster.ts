@@ -116,17 +116,9 @@ export async function captureVideoPosterBlobFromMediaUrl(
       : trimmed;
 
   if (options?.useCredentials === true) {
-    const response = await fetch(absolute, { credentials: 'include' });
-    if (!response.ok) {
-      throw new Error(`Video fetch failed (${response.status})`);
-    }
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    try {
-      return await captureVideoPosterBlobFromObjectUrl(objectUrl);
-    } finally {
-      URL.revokeObjectURL(objectUrl);
-    }
+    // Same-origin attachment URLs: load via <video> so the browser can range-read metadata
+    // and a single frame — never download the entire file into memory.
+    return captureVideoPosterBlobFromObjectUrl(absolute);
   }
 
   return new Promise((resolve, reject) => {

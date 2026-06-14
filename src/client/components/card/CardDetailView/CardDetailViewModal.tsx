@@ -254,10 +254,21 @@ export function CardDetailViewModal({
                           minHeight: 'unset',
                           cursor: controller.canEditCard ? 'pointer' : 'default',
                         }}
-                        onClick={() => {
-                          if (controller.canEditCard) {
-                            controller.setIsEditingDescription(true);
+                        onClick={(event) => {
+                          if (!controller.canEditCard) {
+                            return;
                           }
+                          const target = event.target;
+                          if (target instanceof Element) {
+                            if (
+                              target.closest(
+                                'video, .card-desc-video-player-shell, a, button, input, textarea, [contenteditable="true"]',
+                              ) != null
+                            ) {
+                              return;
+                            }
+                          }
+                          controller.setIsEditingDescription(true);
                         }}
                       >
                         {controller.isDescriptionEmpty ? (

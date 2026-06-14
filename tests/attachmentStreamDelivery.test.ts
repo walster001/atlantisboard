@@ -25,6 +25,23 @@ describe('shouldPresignRedirectAttachmentStream', () => {
     ).toBe(true);
   });
 
+  test('redirects video in proxy delivery mode when public MinIO presign is configured', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.ATTACHMENT_DELIVERY_MODE = 'proxy';
+    process.env.MINIO_ENDPOINT = '127.0.0.1';
+    process.env.MINIO_PUBLIC_ENDPOINT = 'localhost';
+    process.env.MINIO_PUBLIC_PORT = '9000';
+    process.env.MINIO_PUBLIC_USE_SSL = 'false';
+
+    expect(
+      shouldPresignRedirectAttachmentStream({
+        contentType: 'video/mp4',
+        size: 1_000,
+        hasImagePreviewQuery: false,
+      }),
+    ).toBe(true);
+  });
+
   test('does not redirect when image preview query is present', () => {
     process.env.NODE_ENV = 'development';
     process.env.ATTACHMENT_DELIVERY_MODE = 'hybrid';
@@ -38,6 +55,23 @@ describe('shouldPresignRedirectAttachmentStream', () => {
         hasImagePreviewQuery: true,
       }),
     ).toBe(false);
+  });
+
+  test('redirects video when same-origin CDN proxy is configured', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.ATTACHMENT_DELIVERY_MODE = 'hybrid';
+    process.env.MINIO_ENDPOINT = 'minio';
+    delete process.env.MINIO_PUBLIC_ENDPOINT;
+    process.env.MINIO_CDN_PATH_PREFIX = '/cdn';
+    process.env.APP_URL = 'http://localhost:3000';
+
+    expect(
+      shouldPresignRedirectAttachmentStream({
+        contentType: 'video/mp4',
+        size: 152_973_971,
+        hasImagePreviewQuery: false,
+      }),
+    ).toBe(true);
   });
 
   test('does not redirect when only internal MinIO endpoint is configured', () => {

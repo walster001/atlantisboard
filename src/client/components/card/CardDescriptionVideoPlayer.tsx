@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type PointerEvent } from 'react';
 import { extractAttachmentIdFromMediaSrc } from '../../../shared/cardDescriptionAttachmentRefs.js';
+import { useVideoPosterUrl } from '../../hooks/useVideoPosterUrl.js';
 import { api } from '../../utils/api.js';
-import { ensureAttachmentStreamUrl } from '../../utils/attachmentStreamUrlClient.js';
+import { resolveCardDescriptionVideoPlaybackUrl } from '../../utils/attachmentStreamUrlClient.js';
 
 export interface CardDescriptionVideoPlayerProps {
   readonly src: string;
+  readonly poster?: string | null;
   readonly className?: string;
   readonly title?: string;
+  /** When true, clicks do not bubble to card-description "tap to edit" handlers. */
+  readonly isolateDescriptionClicks?: boolean;
 }
 
 function attachmentProxyPath(attachmentId: string): string {
@@ -47,42 +51,51 @@ function initialPlaybackSrc(storedSrc: string): string {
 }
 
 /**
- * Embedded card-description / attachment-preview video with stream URL resolution and proxy fallback.
+ * Embedded card-description / attachment-preview video — resolves presigned MinIO URLs for attachments.
  */
 export function CardDescriptionVideoPlayer({
   src,
+  poster,
   className,
   title,
+  isolateDescriptionClicks = true,
 }: CardDescriptionVideoPlayerProps) {
   const attachmentId = useMemo(() => extractAttachmentIdFromMediaSrc(src), [src]);
   const proxySrc = useMemo(() => initialPlaybackSrc(src), [src]);
-  const [playbackSrc, setPlaybackSrc] = useState(proxySrc);
+  const [playbackSrc, setPlaybackSrc] = useState(() =>
+    attachmentId == null ? initialPlaybackSrc(src) : '',
+  );
+  const [posterVisible, setPosterVisible] = useState(true);
+  const posterObjectUrl = useVideoPosterUrl(src, poster ?? undefined);
 
   useEffect(() => {
-    setPlaybackSrc(proxySrc);
-  }, [proxySrc]);
-
-  useEffect(() => {
-    if (attachmentId == null) {
-      return;
-    }
     let cancelled = false;
-    void ensureAttachmentStreamUrl(attachmentId)
-      .then((entry) => {
-        if (cancelled || entry.url.trim() === '') {
-          return;
-        }
-        if (entry.delivery === 'signed') {
-          setPlaybackSrc(entry.url);
+    setPosterVisible(true);
+
+    if (attachmentId == null) {
+      setPlaybackSrc(initialPlaybackSrc(src));
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setPlaybackSrc('');
+    void resolveCardDescriptionVideoPlaybackUrl(src)
+      .then((url) => {
+        if (!cancelled) {
+          setPlaybackSrc(url.trim() !== '' ? url : proxySrc);
         }
       })
       .catch(() => {
-        /* Keep proxy URL */
+        if (!cancelled) {
+          setPlaybackSrc(proxySrc);
+        }
       });
+
     return () => {
       cancelled = true;
     };
-  }, [attachmentId]);
+  }, [attachmentId, proxySrc, src]);
 
   const handleVideoError = (): void => {
     if (proxySrc !== '' && playbackSrc !== proxySrc) {
@@ -90,19 +103,45 @@ export function CardDescriptionVideoPlayer({
     }
   };
 
+  const stopDescriptionEditClick = useCallback(
+    (event: MouseEvent | PointerEvent): void => {
+      if (isolateDescriptionClicks) {
+        event.stopPropagation();
+      }
+    },
+    [isolateDescriptionClicks],
+  );
+
   if (playbackSrc.trim() === '') {
     return null;
   }
 
+  const showPoster = posterObjectUrl != null && posterVisible;
+
   return (
-    <video
-      className={className}
-      controls
-      playsInline
-      preload="metadata"
-      src={playbackSrc}
-      title={title}
-      onError={handleVideoError}
-    />
+    <div
+      className="card-desc-video-player-shell"
+      onClick={stopDescriptionEditClick}
+      onPointerDown={stopDescriptionEditClick}
+    >
+      {showPoster ? (
+        <img
+          className="card-desc-video-poster-overlay"
+          src={posterObjectUrl}
+          alt=""
+          aria-hidden
+        />
+      ) : null}
+      <video
+        className={className}
+        controls
+        playsInline
+        preload="metadata"
+        src={playbackSrc}
+        title={title}
+        onPlay={() => setPosterVisible(false)}
+        onError={handleVideoError}
+      />
+    </div>
   );
 }

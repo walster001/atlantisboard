@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import type { MulterError } from 'multer';
 import {
   DomainError,
   ForbiddenError,
@@ -12,6 +13,8 @@ import {
   ImportJsonUnrecognizedError,
 } from '../../shared/import/detectImportJsonSource.js';
 import { respondZodValidationError } from './zodValidation.js';
+import { getCardAttachmentMaxBytes } from '../constants/uploads.js';
+import { formatCardAttachmentMaxMb } from '../../shared/constants/uploadLimits.js';
 
 export interface ServiceErrorBody {
   readonly error: {
@@ -57,11 +60,40 @@ function mapImportJsonError(error: unknown): ServiceErrorBody | null {
   return null;
 }
 
+function mapMulterError(error: unknown): ServiceErrorBody | null {
+  const multerErr = error as MulterError;
+  if (multerErr?.name !== 'MulterError') {
+    return null;
+  }
+  if (multerErr.code === 'LIMIT_FILE_SIZE') {
+    const maxMb = formatCardAttachmentMaxMb(getCardAttachmentMaxBytes());
+    return {
+      error: {
+        message: `File exceeds the maximum attachment size of ${maxMb} MB`,
+        code: 'PAYLOAD_TOO_LARGE',
+        statusCode: 413,
+      },
+    };
+  }
+  return {
+    error: {
+      message: multerErr.message || 'Invalid upload',
+      code: 'VALIDATION_ERROR',
+      statusCode: 400,
+    },
+  };
+}
+
 /**
  * Writes a JSON error response when `error` is a typed domain error or a known import JSON throw.
  * Returns true when a response was sent.
  */
 export function mapServiceErrorToHttp(res: Response, error: unknown): boolean {
+  const multer = mapMulterError(error);
+  if (multer != null) {
+    res.status(multer.error.statusCode).json(multer);
+    return true;
+  }
   const importJson = mapImportJsonError(error);
   if (importJson != null) {
     res.status(importJson.error.statusCode).json(importJson);

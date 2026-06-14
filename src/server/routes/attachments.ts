@@ -10,7 +10,7 @@ import {
   fileUploadRateLimiter,
 } from '../middleware/rateLimit.js';
 import type { AuthenticatedRequest } from '../types/express.js';
-import { CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES } from '../constants/uploads.js';
+import { CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES, getCardAttachmentMaxBytes } from '../constants/uploads.js';
 import {
   MAX_CARD_ATTACHMENT_BYTES,
   uploadCardAttachment,
@@ -37,9 +37,13 @@ import {
 } from '../services/attachmentService/streamDelivery.js';
 import { pipeReadableToServerResponse } from '../utils/pipeReadableToServerResponse.js';
 import type { Readable } from 'node:stream';
+import { createUploadDiskHeadroomGuard } from '../middleware/uploadDiskHeadroom.js';
+import { parseRequestContentLengthBytes } from '../utils/uploadDiskHeadroom.js';
 import { ValidationError } from '../../shared/errors/domainErrors.js';
 
 const router = Router();
+
+const cardAttachmentDiskHeadroomGuard = createUploadDiskHeadroomGuard(getCardAttachmentMaxBytes);
 
 type ParsedAttachmentRange =
   | { readonly kind: 'full' }
@@ -139,13 +143,8 @@ const uploadDisk = multer({
 
 /** Prefer RAM for small multipart bodies; stream to disk when likely over ~20 MiB or length unknown. */
 function shouldUseInMemoryMultipartBuffer(req: Request): boolean {
-  const raw = req.headers['content-length'];
-  if (raw === undefined) {
-    return false;
-  }
-  const header = Array.isArray(raw) ? raw[0] : raw;
-  const contentLength = Number.parseInt(header, 10);
-  if (!Number.isFinite(contentLength)) {
+  const contentLength = parseRequestContentLengthBytes(req.headers['content-length']);
+  if (contentLength == null) {
     return false;
   }
   return contentLength <= CARD_ATTACHMENT_DISK_UPLOAD_THRESHOLD_BYTES;
@@ -175,7 +174,12 @@ router.use(requireAuth as RequestHandler);
  * Upload attachment to card
  * POST /api/v1/cards/:cardId/attachments
  */
-router.post('/cards/:cardId/attachments', fileUploadRateLimiter, cardAttachmentMulterUpload, async (req, res, next) => {
+router.post(
+  '/cards/:cardId/attachments',
+  fileUploadRateLimiter,
+  cardAttachmentDiskHeadroomGuard,
+  cardAttachmentMulterUpload,
+  async (req, res, next) => {
   const uploaded = req.file;
   const tempPath =
     uploaded !== undefined && typeof uploaded.path === 'string' && uploaded.path.length > 0

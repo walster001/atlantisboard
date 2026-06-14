@@ -9,6 +9,7 @@ import type { Response } from 'express';
 import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../shared/adminDestructiveConfirmation.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 import { getBackupImportMaxBytes } from '../constants/uploads.js';
+import { createUploadDiskHeadroomGuard } from '../middleware/uploadDiskHeadroom.js';
 import { BackupJob } from '../models/BackupJob.js';
 import { fileUploadRateLimiter } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/auditLogger.js';
@@ -33,6 +34,8 @@ import { parseOrThrow } from '../utils/zodValidation.js';
 import { isValidBackupFolderId } from '../../shared/utils/backupFolderNaming.js';
 
 const router = Router();
+
+const backupImportDiskHeadroomGuard = createUploadDiskHeadroomGuard(getBackupImportMaxBytes);
 
 const backupImportUpload = multer({
   storage: multer.diskStorage({
@@ -171,6 +174,7 @@ router.get('/:folderId/download', async (req, res, next) => {
 router.post(
   '/import',
   fileUploadRateLimiter,
+  backupImportDiskHeadroomGuard,
   backupImportUpload.single('file'),
   async (req, res, next) => {
     const uploaded = req.file;

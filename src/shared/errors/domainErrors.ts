@@ -5,7 +5,8 @@ export type DomainErrorCode =
   | 'CONFLICT'
   | 'BAD_REQUEST'
   | 'INVALID_INVITE'
-  | 'INVALID_REORDER';
+  | 'INVALID_REORDER'
+  | 'INSUFFICIENT_STORAGE';
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;
@@ -57,5 +58,12 @@ export class BadRequestError extends DomainError {
   ) {
     super(message, code, 400);
     this.name = 'BadRequestError';
+  }
+}
+
+export class InsufficientStorageError extends DomainError {
+  constructor(message = 'Not enough disk space to accept this upload') {
+    super(message, 'INSUFFICIENT_STORAGE', 507);
+    this.name = 'InsufficientStorageError';
   }
 }

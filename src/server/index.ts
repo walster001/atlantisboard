@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import './config/registerMongoDiskGuard.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';

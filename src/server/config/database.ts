@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { resolveMongoPoolConfig } from './mongoPool.js';
 import { logger } from '../utils/logger.js';
+import { checkMongoDbDiskReserveAtStartup } from '../utils/diskSpaceGuard.js';
 
 function resolveMongoUri(): string {
   return process.env.MONGODB_URI?.trim() || 'mongodb://localhost:27017/kanboard';
@@ -77,6 +78,7 @@ export async function connectDatabase(): Promise<void> {
       { database: mongoose.connection.db?.databaseName ?? databaseName },
       'Database connection established',
     );
+    await checkMongoDbDiskReserveAtStartup();
   } catch (error) {
     logger.error({ error }, 'Failed to connect to database');
     throw error;

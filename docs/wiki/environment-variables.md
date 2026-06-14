@@ -188,6 +188,8 @@ Rate limits are enforced per IP address using Redis-backed counters. Adjust thes
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CARD_ATTACHMENT_MAX_MB` | `50` | Max card attachment size in MB (1–1024) |
+| `DISK_RESERVE_MB` | `500` | Minimum free disk space (MiB) kept for MongoDB writes and uploads; rejects writes/uploads when below |
+| `MONGODB_DISK_CHECK_PATH` | `/` (or `BACKUP_LOCATION` parent) | Filesystem path checked for MongoDB volume free space (override on dedicated data mounts) |
 | `BOARD_IMPORT_MAX_MB` | `35` | Max board import file size in MB (5–250) |
 
 > **Tip:** If you also use a reverse proxy, make sure its upload limit is at least as high as these values. For Nginx, set `client_max_body_size` accordingly.

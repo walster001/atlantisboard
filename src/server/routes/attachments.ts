@@ -38,7 +38,7 @@ import {
 import { pipeReadableToServerResponse } from '../utils/pipeReadableToServerResponse.js';
 import type { Readable } from 'node:stream';
 import { createUploadDiskHeadroomGuard } from '../middleware/uploadDiskHeadroom.js';
-import { parseRequestContentLengthBytes } from '../utils/uploadDiskHeadroom.js';
+import { parseRequestContentLengthBytes } from '../utils/diskSpaceGuard.js';
 import { ValidationError } from '../../shared/errors/domainErrors.js';
 
 const router = Router();

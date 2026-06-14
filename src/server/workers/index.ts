@@ -1,4 +1,5 @@
 import { connectDatabase } from '../config/database.js';
+import { checkMongoDbDiskReserveAtStartup } from '../utils/diskSpaceGuard.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -12,6 +13,7 @@ async function startWorker(): Promise<void> {
   // Connect to database
   try {
     await connectDatabase();
+    await checkMongoDbDiskReserveAtStartup();
     const { dropLegacyUnusedCollections } = await import('../services/startupMigrations.js');
     const { initializeBoardThemes } = await import('../services/boardThemeService.js');
     await dropLegacyUnusedCollections();

@@ -4,7 +4,7 @@ import {
   assertUploadDiskHeadroom,
   parseRequestContentLengthBytes,
   resolveUploadBytesBudget,
-} from '../utils/uploadDiskHeadroom.js';
+} from '../utils/diskSpaceGuard.js';
 import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 
 /**

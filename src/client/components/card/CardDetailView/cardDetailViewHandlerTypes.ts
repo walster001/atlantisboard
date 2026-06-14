@@ -21,8 +21,6 @@ export interface DeleteAttachmentPreflightArgs {
   readonly cardRef: { current: CardDB };
   readonly descriptionEditorRef: { current: Editor | null };
   readonly attachmentId: string;
-  readonly syncCardToBoardAndDexie: (card: CardDB) => void;
-  readonly notifyNormalizeFailure: () => void;
 }
 
 export interface SaveDateFieldArgs extends SharedCardActionArgs {

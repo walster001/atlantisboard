@@ -1,7 +1,7 @@
 // Service Worker for PWA functionality
 // Bump version when fetch/caching strategy changes so old caches are purged on activate.
-const STATIC_CACHE_NAME = 'atlantisboard-static-v9';
-const DYNAMIC_CACHE_NAME = 'atlantisboard-dynamic-v9';
+const STATIC_CACHE_NAME = 'atlantisboard-static-v10';
+const DYNAMIC_CACHE_NAME = 'atlantisboard-dynamic-v10';
 
 // Static assets to cache on install
 const STATIC_ASSETS = [

@@ -28,6 +28,10 @@ rsync -a --delete \
 rsync -a --delete \
   "${PROJECT_ROOT}/scripts/" "${PKG_DIR}/scripts/"
 
+if [[ -d "${PROJECT_ROOT}/assets" ]]; then
+  rsync -a --delete "${PROJECT_ROOT}/assets/" "${PKG_DIR}/assets/"
+fi
+
 cp postcss.config.js tailwind.config.js tsconfig.json \
   tsconfig.typecheck.json "${PKG_DIR}/"
 

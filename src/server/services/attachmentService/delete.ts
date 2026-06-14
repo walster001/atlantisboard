@@ -1,3 +1,4 @@
+import type { Client as MinIOClient } from 'minio';
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
 import {
   cardCoverReferencesAttachment,
@@ -15,6 +16,68 @@ import { BUCKET_NAME, extractObjectNameFromAttachmentUrl } from './minioPaths.js
 import {
   NotFoundError,
 } from '../../../shared/errors/domainErrors.js';
+
+function resolveAttachmentObjectName(
+  cardId: string,
+  attachmentId: string,
+  attachmentUrl: string,
+): string | null {
+  try {
+    return extractObjectNameFromAttachmentUrl(attachmentUrl);
+  } catch (error: unknown) {
+    logger.warn(
+      {
+        error,
+        cardId,
+        attachmentId,
+        attachmentUrl,
+        event: 'attachment.delete.object_key_unresolved',
+      },
+      'Could not resolve MinIO object key for attachment delete; card metadata will still be removed',
+    );
+    return null;
+  }
+}
+
+/**
+ * Remove the blob after the card document is updated so HTTP delete returns promptly.
+ * Failures are logged for orphan cleanup (admin file storage tools).
+ */
+export function scheduleAttachmentObjectRemoval(params: {
+  readonly client: MinIOClient;
+  readonly cardId: string;
+  readonly attachmentId: string;
+  readonly objectName: string;
+}): void {
+  const { client, cardId, attachmentId, objectName } = params;
+  void client
+    .removeObject(BUCKET_NAME, objectName)
+    .then(() => {
+      logger.info(
+        {
+          cardId,
+          attachmentId,
+          objectName,
+          bucket: BUCKET_NAME,
+          event: 'attachment.delete.minio_removed',
+        },
+        'MinIO object removed after attachment delete',
+      );
+    })
+    .catch((error: unknown) => {
+      logger.warn(
+        {
+          error,
+          cardId,
+          attachmentId,
+          objectName,
+          bucket: BUCKET_NAME,
+          event: 'attachment.delete.minio_remove_failed',
+        },
+        'Failed to remove MinIO object after attachment delete (orphan cleanup may be needed)',
+      );
+    });
+}
 
 /**
  * Call before deleting card documents so URLs remain resolvable.
@@ -65,6 +128,10 @@ export async function deleteCardAttachment(
     throw new NotFoundError('Attachment not found');
   }
 
+  const objectName = isPlaceholderCardAttachment(attachment)
+    ? null
+    : resolveAttachmentObjectName(cardId, attachmentId, attachment.url);
+
   try {
     const descriptionRaw = typeof card.description === 'string' ? card.description : '';
     const descriptionAfter = stripAttachmentFromDescriptionJsonString(
@@ -76,21 +143,14 @@ export async function deleteCardAttachment(
       card.description = descriptionAfter;
     }
 
-    if (!isPlaceholderCardAttachment(attachment)) {
-      const objectName = extractObjectNameFromAttachmentUrl(attachment.url);
-      await client.removeObject(BUCKET_NAME, objectName);
-    }
-
-    await invalidateAttachmentLocationCache(attachmentId);
-
-    // Remove from card
     card.attachments = card.attachments.filter((att) => att.id !== attachmentId);
     const coverRaw = typeof card.cover === 'string' ? card.cover : '';
     if (cardCoverReferencesAttachment(coverRaw, attachmentId, attachment.url)) {
       card.cover = '';
     }
-    await card.save();
 
+    await card.save();
+    await invalidateAttachmentLocationCache(attachmentId);
     emitCardUpdatedRealtime(card);
 
     logAuditEvent({
@@ -117,9 +177,35 @@ export async function deleteCardAttachment(
       },
     });
 
-    logger.info({ cardId, attachmentId }, 'Attachment deleted successfully');
+    logger.info(
+      {
+        cardId,
+        attachmentId,
+        fileName: attachment.name,
+        objectName,
+        event: 'attachment.delete.card_saved',
+      },
+      'Attachment removed from card',
+    );
+
+    if (objectName != null) {
+      scheduleAttachmentObjectRemoval({
+        client,
+        cardId,
+        attachmentId,
+        objectName,
+      });
+    }
   } catch (error) {
-    logger.error({ error, cardId, attachmentId }, 'Error deleting attachment');
+    logger.error(
+      {
+        error,
+        cardId,
+        attachmentId,
+        event: 'attachment.delete.failed',
+      },
+      'Error deleting attachment',
+    );
     throw error;
   }
 }

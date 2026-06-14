@@ -14,6 +14,10 @@ echo "==> Building atlantisboard npm package v${VERSION}"
 echo "==> bun install --frozen-lockfile"
 bun install --frozen-lockfile
 
+echo "==> sync + verify emoji spritesheet"
+bun run sync:emoji-sheet
+bun run verify:emoji-sheet
+
 # PostCSS requires nanoid/non-secure; a corrupted Bun install cache can leave zero-byte files.
 NANOID_NON_SECURE="${PROJECT_ROOT}/node_modules/nanoid/non-secure/index.cjs"
 if [[ ! -s "${NANOID_NON_SECURE}" ]]; then

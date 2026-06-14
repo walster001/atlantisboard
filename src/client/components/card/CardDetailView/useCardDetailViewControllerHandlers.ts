@@ -92,11 +92,9 @@ export function useCardDetailViewControllerHandlers({
         cardRef,
         descriptionEditorRef,
         attachmentId,
-        syncCardToBoardAndDexie,
-        notifyNormalizeFailure: notifyCardUpdateNormalizeFailure,
       });
     },
-    [cardRef, descriptionEditorRef, syncCardToBoardAndDexie],
+    [cardRef, descriptionEditorRef],
   );
 
   const handleCancelDescriptionEdit = useCallback(() => {

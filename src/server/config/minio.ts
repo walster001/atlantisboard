@@ -12,6 +12,19 @@ import { logger } from '../utils/logger.js';
 let minioClient: MinIOClient | null = null;
 let minioPublicPresignClient: MinIOClient | null = null;
 
+/** Socket/request timeout for MinIO API calls (ms). Prevents hung deletes when endpoint is unreachable. */
+function getMinioRequestTimeoutMs(): number {
+  const parsed = Number.parseInt(process.env.MINIO_REQUEST_TIMEOUT_MS ?? '30000', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30_000;
+}
+
+function createMinioTransportAgent(useSSL: boolean): http.Agent | https.Agent {
+  const timeout = getMinioRequestTimeoutMs();
+  return useSSL
+    ? new https.Agent({ keepAlive: true, maxSockets: 32, timeout })
+    : new http.Agent({ keepAlive: true, maxSockets: 32, timeout });
+}
+
 /** MinIO multipart part size (SDK default 64 MiB). Larger parts mean fewer sequential PUTs for big objects. Clamped 16–256 MiB. */
 function getMinioUploadPartSizeBytes(): number {
   const parsed = Number.parseInt(process.env.MINIO_UPLOAD_PART_SIZE_MB ?? '128', 10);
@@ -31,9 +44,7 @@ export function getMinIOClient(): MinIOClient {
   const port = Number(process.env.MINIO_PORT) || 9000;
   const useSSL = process.env.MINIO_USE_SSL === 'true';
   const partSize = getMinioUploadPartSizeBytes();
-  const transportAgent = useSSL
-    ? new https.Agent({ keepAlive: true, maxSockets: 32 })
-    : new http.Agent({ keepAlive: true, maxSockets: 32 });
+  const transportAgent = createMinioTransportAgent(useSSL);
 
   minioClient = new MinIOClient({
     endPoint,
@@ -45,7 +56,16 @@ export function getMinIOClient(): MinIOClient {
     transportAgent,
   });
 
-  logger.info('MinIO client initialized');
+  logger.info(
+    {
+      endPoint,
+      port,
+      useSSL,
+      requestTimeoutMs: getMinioRequestTimeoutMs(),
+      event: 'minio.client.initialized',
+    },
+    'MinIO internal client initialized (use Docker service hostname, not public CDN host)',
+  );
   return minioClient;
 }
 
@@ -61,9 +81,7 @@ function buildMinioClientOptions(endPoint: string, port: number, useSSL: boolean
   const accessKey = process.env.MINIO_ACCESS_KEY || 'minioadmin';
   const secretKey = process.env.MINIO_SECRET_KEY || 'minioadmin';
   const partSize = getMinioUploadPartSizeBytes();
-  const transportAgent = useSSL
-    ? new https.Agent({ keepAlive: true, maxSockets: 32 })
-    : new http.Agent({ keepAlive: true, maxSockets: 32 });
+  const transportAgent = createMinioTransportAgent(useSSL);
   return {
     endPoint,
     port,

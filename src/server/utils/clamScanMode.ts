@@ -7,7 +7,7 @@ import { isClamdAvailableForScan } from './clamdReachability.js';
 
 const DEFAULT_CLAMD_HOST = '127.0.0.1';
 const DEFAULT_CLAMD_PORT = 3310;
-const DEFAULT_MIN_RAM_MB = 4096;
+const DEFAULT_MIN_RAM_MB = 6114;
 const BYTES_PER_KB = 1024;
 
 export type ClamScanMode = 'clamd' | 'clamscan';

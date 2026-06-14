@@ -124,9 +124,10 @@ These variables are only used when the authentication method is set to **Google 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MINIO_ENDPOINT` | `localhost` | MinIO server address (use `minio` in Docker Compose) |
+| `MINIO_ENDPOINT` | `localhost` | **Internal** MinIO API hostname for the app (Docker Compose: `minio`). Must be reachable from the server process—not `MINIO_PUBLIC_ENDPOINT` or your CDN URL |
 | `MINIO_PORT` | `9000` | MinIO API port |
 | `MINIO_USE_SSL` | `false` | Use HTTPS for MinIO |
+| `MINIO_REQUEST_TIMEOUT_MS` | `30000` | Socket timeout for MinIO SDK calls (ms); prevents hung attachment operations when the endpoint is misconfigured |
 | `MINIO_ACCESS_KEY` | `minioadmin` | Application S3 access key (also used as MinIO root in dev when `MINIO_ROOT_*` unset) |
 | `MINIO_SECRET_KEY` | `minioadmin` | Application S3 secret key |
 | `MINIO_ROOT_ACCESS_KEY` | _(falls back to `MINIO_ACCESS_KEY`)_ | MinIO **server** root user (production Compose). Set separately from app keys for least privilege |

@@ -4,9 +4,7 @@ import {
   stripAttachmentFromDescriptionJsonString,
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
 import { isValidCardDescriptionJsonString } from '../../../../shared/validation/cardDescriptionDoc.js';
-import { api } from '../../../utils/api.js';
 import { descriptionJsonHasBlobUrls } from '../../../utils/descriptionPendingMedia.js';
-import { normalizeCardFromApi } from '../../../utils/transform.js';
 import { serializeCardDescriptionEditor } from '../cardDescriptionEditorSerialize.js';
 import { isCardDescriptionEmpty, parseCardDescriptionJson } from '../cardDescriptionTiptap.js';
 import type { Editor } from '@tiptap/core';
@@ -46,12 +44,14 @@ function syncDescriptionEditorAfterAttachmentStrip(
   });
 }
 
+/**
+ * Optional UI-only prep before DELETE /attachments — server delete strips description, cover,
+ * and attachments in one request; no separate updateCard preflight.
+ */
 export async function runBeforeDeleteAttachment({
   cardRef,
   descriptionEditorRef,
   attachmentId,
-  syncCardToBoardAndDexie,
-  notifyNormalizeFailure,
 }: DeleteAttachmentPreflightArgs): Promise<void> {
   const currentCard = cardRef.current;
   const attachment = currentCard.attachments.find((item) => item.id === attachmentId);
@@ -80,31 +80,17 @@ export async function runBeforeDeleteAttachment({
     return;
   }
 
-  const savedDescription = currentCard.description ?? '';
-  const rawJsonForStrip = resolveDescriptionJsonForAttachmentStrip(
-    savedDescription,
-    descriptionEditorRef.current,
-  );
+  const editor = descriptionEditorRef.current;
+  if (editor == null || editor.isDestroyed) {
+    return;
+  }
 
+  const rawJsonForStrip = resolveDescriptionJsonForAttachmentStrip(
+    currentCard.description ?? '',
+    editor,
+  );
   const stripped = stripAttachmentFromDescriptionJsonString(rawJsonForStrip, attachmentId, attachment.url);
   const doc = parseCardDescriptionJson(stripped);
   const descriptionPayload = isCardDescriptionEmpty(doc) ? '' : stripped;
-
-  const response = await api.updateCard(currentCard.id, {
-    description: descriptionPayload,
-    ...(isCover ? { cover: '' } : {}),
-  });
-  try {
-    const normalized = normalizeCardFromApi(response.card, currentCard.id, {
-      listId: currentCard.listId,
-      boardId: currentCard.boardId,
-    });
-    const editor = descriptionEditorRef.current;
-    if (editor != null && !editor.isDestroyed) {
-      syncDescriptionEditorAfterAttachmentStrip(editor, descriptionPayload);
-    }
-    syncCardToBoardAndDexie(normalized);
-  } catch {
-    notifyNormalizeFailure();
-  }
+  syncDescriptionEditorAfterAttachmentStrip(editor, descriptionPayload);
 }

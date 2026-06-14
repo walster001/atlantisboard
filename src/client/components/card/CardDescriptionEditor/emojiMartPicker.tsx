@@ -1,5 +1,6 @@
 import { lazy, useEffect, useRef, type CSSProperties } from 'react';
 import { EMOJI_SPRITESHEET_PUBLIC_PATH } from '../../../../shared/twemojiPublic.js';
+import { withExtendedEmojiSheet } from '../../../../shared/twemoji/emojiMartTwitterData.js';
 import {
   CARD_DETAIL_EMOJI_MART_INPUT_FOCUS_RGB,
   CARD_DETAIL_MODAL_BACKGROUND_HEX,
@@ -25,6 +26,7 @@ export const LazyEmojiMartPicker = lazy(async () => {
     import('@emoji-mart/react'),
     import('@emoji-mart/data/sets/15/twitter.json'),
   ]);
+  const twitterSetData = withExtendedEmojiSheet(emojiData);
 
   function EmojiMartPicker({
     onEmojiSelect,
@@ -95,7 +97,7 @@ export const LazyEmojiMartPicker = lazy(async () => {
         }
       >
         <EmojiPicker
-          data={emojiData}
+          data={twitterSetData}
           onEmojiSelect={onEmojiSelect}
           theme="light"
           locale="en"

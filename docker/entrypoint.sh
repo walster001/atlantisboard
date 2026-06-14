@@ -6,7 +6,7 @@ clamav_db_dir="${CLAMAV_DB_DIR:-/var/lib/clamav}"
 clamav_seed_dir="/opt/clamav-seed"
 clamd_conf="/tmp/clamd.conf"
 clamd_pid_file="/tmp/clamd.pid"
-clamd_min_ram_mb="${POMPELMI_CLAMD_MIN_RAM_MB:-4096}"
+clamd_min_ram_mb="${POMPELMI_CLAMD_MIN_RAM_MB:-6114}"
 clamd_port="${POMPELMI_CLAMD_PORT:-3310}"
 freshclam_min_interval_ms="${POMPELMI_SIGNATURE_REFRESH_MS:-86400000}"
 
@@ -117,6 +117,34 @@ wait_for_clamd() {
   return 1
 }
 
+stop_clamd() {
+  if command -v clamdscan >/dev/null 2>&1; then
+    clamdscan --shutdown >/dev/null 2>&1 || true
+  fi
+  if [ -f "$clamd_pid_file" ]; then
+    pid="$(cat "$clamd_pid_file" 2>/dev/null || true)"
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      i=0
+      while [ "$i" -lt 10 ]; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+          break
+        fi
+        i=$((i + 1))
+        sleep 1
+      done
+    fi
+    rm -f "$clamd_pid_file"
+  fi
+}
+
+disable_clamd_fallback() {
+  reason="$1"
+  stop_clamd
+  echo "warning: ${reason}; falling back to on-demand clamscan" >&2
+  export POMPELMI_USE_CLAMD=false
+}
+
 start_clamd_if_allowed() {
   if ! should_start_clamd; then
     export POMPELMI_USE_CLAMD=false
@@ -124,21 +152,18 @@ start_clamd_if_allowed() {
   fi
 
   if ! command -v clamd >/dev/null 2>&1; then
-    echo "warning: clamd not installed; falling back to on-demand clamscan" >&2
-    export POMPELMI_USE_CLAMD=false
+    disable_clamd_fallback "clamd not installed"
     return 0
   fi
 
   write_clamd_config
   if ! clamd --config-file="$clamd_conf"; then
-    echo "warning: clamd failed to start; falling back to on-demand clamscan" >&2
-    export POMPELMI_USE_CLAMD=false
+    disable_clamd_fallback "clamd failed to start"
     return 0
   fi
 
   if ! wait_for_clamd; then
-    echo "warning: clamd did not become ready; falling back to on-demand clamscan" >&2
-    export POMPELMI_USE_CLAMD=false
+    disable_clamd_fallback "clamd did not become ready"
     return 0
   fi
 

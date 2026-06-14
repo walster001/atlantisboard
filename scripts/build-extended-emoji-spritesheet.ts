@@ -4,8 +4,8 @@
  *
  * 1. Keeps the emoji-datasource `sheets-256/64.png` grid (61×61, 66px stride) unchanged.
  * 2. Appends tiles from `img/twitter/64/*.png` that are not listed in `@emoji-mart/data` twitter.json.
- * 3. Writes `public/emoji-datasource/twitter/sheets-256/64.png` and
- *    `src/shared/twemoji/emojiSpriteManifest.json` (extension codepoint → x,y only).
+ * 3. Writes `assets/emoji-datasource/twitter/sheets-256/64.png` (committed source of truth),
+ *    syncs to `public/` for static serving, and updates `emojiSpriteManifest.json`.
  *
  * Run after upgrading `emoji-datasource-twitter` or `@emoji-mart/data`:
  *   bun run build:emoji-sheet
@@ -16,6 +16,7 @@ import { mkdirSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import sharp from 'sharp';
 import twitterData from '@emoji-mart/data/sets/15/twitter.json';
+import { syncEmojiSpritesheetToPublic } from './sync-emoji-spritesheet-to-public.js';
 
 const EMOJI_DATASOURCE_VERSION = '15.0.1';
 const MANIFEST_VERSION = `${EMOJI_DATASOURCE_VERSION}-ext1`;
@@ -27,10 +28,11 @@ const projectRoot = join(import.meta.dir, '..');
 const datasourceRoot = join(projectRoot, 'node_modules/emoji-datasource-twitter');
 const baseSheetPath = join(datasourceRoot, 'img/twitter/sheets-256/64.png');
 const tilesDir = join(datasourceRoot, 'img/twitter/64');
-const publicSheetPath = join(
+const assetSheetPath = join(
   projectRoot,
-  'public/emoji-datasource/twitter/sheets-256/64.png',
+  'assets/emoji-datasource/twitter/sheets-256/64.png',
 );
+const versionPath = join(projectRoot, 'assets/emoji-datasource/.spritesheet-version');
 const manifestPath = join(projectRoot, 'src/shared/twemoji/emojiSpriteManifest.json');
 
 function unifiedOnTwitterSheet(): ReadonlySet<string> {
@@ -126,16 +128,18 @@ async function main(): Promise<void> {
     codepoint,
   };
 
-  mkdirSync(join(publicSheetPath, '..'), { recursive: true });
-  writeFileSync(publicSheetPath, extendedBuffer);
+  mkdirSync(join(assetSheetPath, '..'), { recursive: true });
+  writeFileSync(assetSheetPath, extendedBuffer);
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  writeFileSync(versionPath, `${MANIFEST_VERSION}\n`);
+  syncEmojiSpritesheetToPublic();
 
   const hash = createHash('sha256').update(extendedBuffer).digest('hex').slice(0, 12);
   console.log(
     `✅ Extended spritesheet: ${outWidth}×${outHeight} (${BASE_COLS}×${totalRows}, ${extensions.length} extra tiles), ` +
       `${(extendedBuffer.length / 1024 / 1024).toFixed(2)} MiB, sha256:${hash}`,
   );
-  console.log(`   ${publicSheetPath}`);
+  console.log(`   ${assetSheetPath}`);
   console.log(`   ${manifestPath}`);
 }
 

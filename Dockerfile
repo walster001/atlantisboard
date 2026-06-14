@@ -20,6 +20,7 @@ FROM deps-dev AS build
 ENV NODE_ENV=production
 COPY src ./src
 COPY scripts ./scripts
+COPY assets ./assets
 COPY tsconfig.json tsconfig.typecheck.json postcss.config.js tailwind.config.js ./
 COPY public ./public
 RUN bun run build:client \

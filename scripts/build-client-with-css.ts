@@ -10,6 +10,7 @@ import { copyFileSync, readFileSync, writeFileSync, existsSync, mkdirSync } from
 import { join } from 'path';
 import postcss from 'postcss';
 import autoprefixer from 'autoprefixer';
+import { syncEmojiSpritesheetToPublic } from './sync-emoji-spritesheet-to-public.js';
 
 interface TailwindPostcssOptions {
   readonly base?: string;
@@ -51,6 +52,7 @@ if (!existsSync(tempDir)) {
 if (!existsSync(publicDir)) {
   mkdirSync(publicDir, { recursive: true });
 }
+syncEmojiSpritesheetToPublic();
 if (!existsSync(publicFontsDir)) {
   mkdirSync(publicFontsDir, { recursive: true });
 }

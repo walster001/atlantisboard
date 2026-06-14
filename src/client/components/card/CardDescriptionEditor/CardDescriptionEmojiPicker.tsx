@@ -47,7 +47,7 @@ export function CardDescriptionEmojiPicker({
   if (isMobile) {
     return (
       <>
-        <Tooltip label="Insert emoji (Twemoji)">
+        <Tooltip label="Insert emoji">
           <ActionIcon
             size={TOOLBAR_BUTTON_SIZE}
             color="gray"
@@ -110,7 +110,7 @@ export function CardDescriptionEmojiPicker({
       middlewares={{ flip: true, shift: { padding: 8 } }}
     >
       <Popover.Target>
-        <Tooltip label="Insert emoji (Twemoji)">
+        <Tooltip label="Insert emoji">
           <ActionIcon
             size={TOOLBAR_BUTTON_SIZE}
             color="gray"

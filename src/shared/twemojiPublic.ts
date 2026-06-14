@@ -1,5 +1,5 @@
 /**
- * Same-origin Twitter emoji spritesheet (see `scripts/build-extended-emoji-spritesheet.ts`).
+ * Same-origin Twitter emoji spritesheet (committed under `assets/emoji-datasource/`, synced to `public/` on build).
  * All in-app emoji rendering uses CSS background cells on this sheet — no per-file PNG tiles.
  */
 

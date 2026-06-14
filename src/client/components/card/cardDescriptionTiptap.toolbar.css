@@ -10,7 +10,7 @@
   color: var(--board-card-detail-prose, var(--mantine-color-dark-7));
 }
 
-/* Emoji Mart: `@emoji-mart/data` default is native.json (no sprite x/y). We load twitter.json + set="twitter".
+/* Emoji Mart: `@emoji-mart/data` twitter.json is 61×61; our committed PNG adds rows — see `withExtendedEmojiSheet`.
    Never set `display: block` on `em-emoji-picker`: it overrides shadow `:host { display: flex }`, which breaks
    the column layout (`.scroll` flex-grow + fixed `#nav`).
    Shadow `:host { width: min-content }` + dynamicWidth measures that narrow box — force 100% width so perLine and layout match the popover. */

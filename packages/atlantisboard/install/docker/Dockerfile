@@ -32,9 +32,11 @@ FROM deps-dev AS build-from-source
 ENV NODE_ENV=production
 COPY src ./src
 COPY scripts ./scripts
+COPY assets ./assets
 COPY tsconfig.json tsconfig.typecheck.json postcss.config.js tailwind.config.js ./
 COPY public ./public
-RUN bun run build:client \
+RUN bun run sync:emoji-sheet \
+  && bun run build:client \
   && bun run build
 
 FROM base AS development

@@ -68,6 +68,7 @@
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "1.1.0",
     "@emoji-mart/data": "1.2.1",
     "@emoji-mart/react": "1.1.1",
+    "@gfazioli/mantine-audio": "1.0.2",
     "@mantine/charts": "8.3.0",
     "@mantine/core": "8.3.0",
     "@mantine/dates": "8.3.0",

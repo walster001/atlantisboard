@@ -10,6 +10,22 @@ import { isCardDescriptionEmpty, parseCardDescriptionJson } from '../cardDescrip
 import type { Editor } from '@tiptap/core';
 import type { DeleteAttachmentPreflightArgs } from './cardDetailViewHandlerTypes.js';
 
+/** Prefer live editor JSON while editing so decoration-only uploads stay hidden from the panel. */
+export function resolveAttachmentPanelDescriptionJson(
+  savedDescription: string | undefined,
+  editor: Editor | null,
+  isEditingDescription: boolean,
+): string | undefined {
+  if (!isEditingDescription || editor == null || editor.isDestroyed) {
+    return savedDescription;
+  }
+  const serialized = serializeCardDescriptionEditor(editor);
+  if (!serialized.ok) {
+    return savedDescription;
+  }
+  return serialized.jsonString;
+}
+
 function resolveDescriptionJsonForAttachmentStrip(
   savedDescription: string,
   editor: Editor | null,

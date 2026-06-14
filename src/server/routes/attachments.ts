@@ -226,6 +226,9 @@ router.post(
       return;
     }
 
+    const decorationRaw = req.body?.decoration;
+    const decorationOnly = decorationRaw === 'true' || decorationRaw === true;
+
     const result = await uploadCardAttachment(
       cardId,
       payloadFromMulterFile(uploaded),
@@ -233,7 +236,10 @@ router.post(
       uploaded.mimetype,
       authReq.user.id,
       undefined,
-      tempPath != null ? { localScanPath: tempPath } : undefined,
+      {
+        ...(tempPath != null ? { localScanPath: tempPath } : {}),
+        ...(decorationOnly ? { decorationOnly: true as const } : {}),
+      },
     );
     if (result.releaseLocalUploadTemp === false) {
       releaseTempPath = false;

@@ -1,6 +1,6 @@
 import { Text } from '@mantine/core';
 import { useMemo, type CSSProperties, type ReactElement } from 'react';
-import { api } from '../../utils/api.js';
+import { resolveDescriptionDecorationImageSrc } from '../../utils/descriptionDecorationImageSrc.js';
 import { CardDescriptionPodcastPreviewControls } from './CardDescriptionPodcastPreviewControls.js';
 import { CardDescriptionPodcastPreviewTimeline } from './CardDescriptionPodcastPreviewTimeline.js';
 import { CardDescriptionPodcastPreviewTimeDisplay } from './CardDescriptionPodcastPreviewTimeDisplay.js';
@@ -43,12 +43,10 @@ export function CardDescriptionAudioPodcastSkeleton({
   const trimmedDescription = displayDescription.trim();
   const showMetaText = trimmedTitle !== '' || trimmedDescription !== '';
 
-  const resolvedCoverSrc = useMemo(() => {
-    if (coverSrc == null || coverSrc.trim() === '') {
-      return null;
-    }
-    return api.resolveAttachmentUrl(coverSrc);
-  }, [coverSrc]);
+  const resolvedCoverSrc = useMemo(
+    () => resolveDescriptionDecorationImageSrc(coverSrc),
+    [coverSrc],
+  );
 
   const appearanceStyle = useMemo(
     () => audioPodcastAppearanceStyle(textColor, bgColor, buttonHoverColor),

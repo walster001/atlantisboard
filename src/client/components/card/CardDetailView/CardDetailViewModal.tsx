@@ -324,6 +324,8 @@ export function CardDetailViewModal({
                       setDuePickerOpened={controller.due.setOpened}
                       syncCardToBoardAndDexie={controller.syncCardToBoardAndDexie}
                       onBeforeDeleteAttachment={controller.onBeforeDeleteAttachment}
+                      isEditingDescription={controller.isEditingDescription}
+                      descriptionEditorRef={controller.descriptionEditorRef}
                       onSaveDueDate={controller.handleSaveDueDate}
                       onClearDueDate={controller.handleClearDueDate}
                       endLocal={controller.end.value}

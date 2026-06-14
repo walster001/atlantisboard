@@ -17,6 +17,11 @@ export interface FileUploadResult {
 export interface UploadCardAttachmentOptions {
   /** Multer disk temp path; reused for post-upload scan when pending (avoids MinIO re-download). */
   readonly localScanPath?: string;
+  /**
+   * Description decoration image (inline-button icon, audio cover). Skips malware scan and is
+   * hidden from the card attachments panel while referenced in the description.
+   */
+  readonly decorationOnly?: boolean;
 }
 
 export interface UploadProgress {

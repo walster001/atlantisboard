@@ -56,6 +56,12 @@ export function uploadScanCompletesImmediately(response: AttachmentUploadRespons
 export interface AttachmentApiMethods {
   prewarmMalwareScanner(): Promise<void>;
   uploadCardAttachment(cardId: string, file: File, onProgress?: (progress: number) => void): Promise<AttachmentUploadResponse>;
+  /** Image uploads for description decoration (audio cover, inline-button icon); skips malware scan. */
+  uploadCardDescriptionDecoration(
+    cardId: string,
+    file: File,
+    onProgress?: (progress: number) => void,
+  ): Promise<AttachmentUploadResponse>;
   deleteCardAttachment(cardId: string, attachmentId: string): Promise<void>;
   getAttachmentUrl(attachmentId: string): Promise<AttachmentStreamUrlResponse>;
   getAttachmentFileUrl(attachmentId: string): string;
@@ -72,6 +78,21 @@ export const attachmentApiMethods: AttachmentApiMethods = {
     formData.append('file', file);
     // postForm avoids default `application/json` on the ApiClient (which would stringify FormData).
     // Browser adapter clears Content-Type so the boundary is set correctly for efficient streaming.
+    const response = await this.client.postForm(`/cards/${cardId}/attachments`, formData, {
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onProgress) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(progress);
+        }
+      },
+    });
+    return parseAttachmentUploadResponse(response.data);
+  },
+
+  async uploadCardDescriptionDecoration(this: ApiClient, cardId, file, onProgress) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('decoration', 'true');
     const response = await this.client.postForm(`/cards/${cardId}/attachments`, formData, {
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {

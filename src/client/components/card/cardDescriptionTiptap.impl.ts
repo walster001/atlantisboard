@@ -1,11 +1,7 @@
-import { createRequire } from 'node:module';
-import type { ComponentType } from 'react';
 import { generateText, type Extensions, type JSONContent } from '@tiptap/core';
-import { ReactNodeViewRenderer, type ReactNodeViewProps } from '@tiptap/react';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { Color } from '@tiptap/extension-color';
 import Image from '@tiptap/extension-image';
-import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
 import { FontSize, TextStyle } from '@tiptap/extension-text-style';
 import StarterKit from '@tiptap/starter-kit';
@@ -29,15 +25,6 @@ import {
 } from './cardDescriptionTiptapDoc.js';
 
 const lowlight = createLowlight(common);
-const requireModule = createRequire(import.meta.url);
-
-function loadCardDescriptionVideoNodeView(): ComponentType<ReactNodeViewProps> {
-  return requireModule('./CardDescriptionVideoNodeView.js').CardDescriptionVideoNodeView;
-}
-
-function loadCardDescriptionAudioNodeView(): ComponentType<ReactNodeViewProps> {
-  return requireModule('./CardDescriptionAudioNodeView.js').CardDescriptionAudioNodeView;
-}
 
 export const emptyCardDescriptionJson: JSONContent = {
   type: 'doc',
@@ -45,11 +32,9 @@ export const emptyCardDescriptionJson: JSONContent = {
 };
 
 let cachedExtensionsReadonly: Extensions | undefined;
-let cachedAudioEditorExtension: Extensions[number] | undefined;
-let cachedVideoEditorExtension: Extensions[number] | undefined;
 
-function getTiptapVideoExtension(options: { readonly editorNodeView: boolean }): Extensions[number] {
-  const configured = TiptapVideo.configure({
+function getTiptapVideoExtensionReadonly(): Extensions[number] {
+  return TiptapVideo.configure({
     HTMLAttributes: {
       controls: true,
       playsinline: true,
@@ -57,47 +42,15 @@ function getTiptapVideoExtension(options: { readonly editorNodeView: boolean }):
       class: 'card-desc-video-player',
     },
   });
-  if (!options.editorNodeView) {
-    return configured;
-  }
-  if (cachedVideoEditorExtension) {
-    return cachedVideoEditorExtension;
-  }
-  cachedVideoEditorExtension = configured.extend({
-    addNodeView() {
-      return ReactNodeViewRenderer(loadCardDescriptionVideoNodeView());
-    },
-  });
-  return cachedVideoEditorExtension;
 }
 
-function getTiptapAudioExtension(options: { readonly editorNodeView: boolean }): Extensions[number] {
-  const configured = TiptapAudio.configure({
+function getTiptapAudioExtensionReadonly(): Extensions[number] {
+  return TiptapAudio.configure({
     HTMLAttributes: {
       preload: 'metadata',
       class: 'card-desc-audio-player',
     },
   });
-  if (!options.editorNodeView) {
-    return configured;
-  }
-  if (cachedAudioEditorExtension) {
-    return cachedAudioEditorExtension;
-  }
-  cachedAudioEditorExtension = configured.extend({
-    addNodeView() {
-      return ReactNodeViewRenderer(loadCardDescriptionAudioNodeView(), {
-        stopEvent: ({ event }) => {
-          const target = event.target;
-          if (!(target instanceof HTMLElement)) {
-            return false;
-          }
-          return target.closest('.card-desc-audio-node-view') != null;
-        },
-      });
-    },
-  });
-  return cachedAudioEditorExtension;
 }
 
 /** Extensions for static render, plain-text preview, and validation parity (no placeholder / no limit UI). */
@@ -133,8 +86,8 @@ export function getCardDescriptionExtensions(): Extensions {
       minWidth: 80,
       maxWidth: 1400,
     }),
-    getTiptapVideoExtension({ editorNodeView: false }),
-    getTiptapAudioExtension({ editorNodeView: false }),
+    getTiptapVideoExtensionReadonly(),
+    getTiptapAudioExtensionReadonly(),
     TiptapInlineButton.configure({
       inline: false,
       minWidth: 80,
@@ -144,19 +97,6 @@ export function getCardDescriptionExtensions(): Extensions {
     CodeBlockLowlight.configure({ lowlight }),
   ];
   return cachedExtensionsReadonly;
-}
-
-/** Editor extensions: schema + placeholder. */
-export function getCardDescriptionEditorExtensions(placeholder: string): Extensions {
-  const base = getCardDescriptionExtensions().filter(
-    (ext) => ext.name !== 'video' && ext.name !== 'audio',
-  );
-  return [
-    ...base,
-    getTiptapVideoExtension({ editorNodeView: true }),
-    getTiptapAudioExtension({ editorNodeView: true }),
-    Placeholder.configure({ placeholder }),
-  ];
 }
 
 export function parseCardDescriptionJson(value: string | undefined | null): JSONContent {

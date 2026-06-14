@@ -1,7 +1,10 @@
 import { memo } from 'react';
 import { Box } from '@mantine/core';
 import { IconCalendarEvent, IconClock, IconFlag } from '@tabler/icons-react';
+import type { Editor } from '@tiptap/core';
+import type { MutableRefObject } from 'react';
 import type { CardDB } from '../../store/database.js';
+import { resolveAttachmentPanelDescriptionJson } from './CardDetailView/cardDetailAttachmentHandlers.js';
 import { AttachmentSection } from './AttachmentSection.js';
 import { AssigneeSection } from './AssigneeSection.js';
 import { ChecklistSection } from './ChecklistSection.js';
@@ -56,6 +59,8 @@ export interface CardDetailViewScrollSectionsProps {
   readonly onClearEndDate: () => Promise<void>;
   readonly syncCardToBoardAndDexie: (next: CardDB) => void;
   readonly onBeforeDeleteAttachment?: (attachmentId: string) => Promise<void>;
+  readonly isEditingDescription?: boolean;
+  readonly descriptionEditorRef?: MutableRefObject<Editor | null>;
 }
 
 export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSections({
@@ -97,6 +102,8 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
   onClearEndDate,
   syncCardToBoardAndDexie,
   onBeforeDeleteAttachment,
+  isEditingDescription,
+  descriptionEditorRef,
 }: CardDetailViewScrollSectionsProps) {
   return (
     <>
@@ -217,6 +224,21 @@ export const CardDetailViewScrollSections = memo(function CardDetailViewScrollSe
             card={card}
             canEdit={canEditCard}
             {...(onBeforeDeleteAttachment != null ? { onBeforeDeleteAttachment } : {})}
+            {...(isEditingDescription === true && descriptionEditorRef != null
+              ? (() => {
+                  const liveDescriptionJson = resolveAttachmentPanelDescriptionJson(
+                    card.description,
+                    descriptionEditorRef.current,
+                    true,
+                  );
+                  return {
+                    ...(liveDescriptionJson !== undefined
+                      ? { descriptionJsonOverride: liveDescriptionJson }
+                      : {}),
+                    descriptionEditor: descriptionEditorRef.current,
+                  };
+                })()
+              : {})}
             onCardUpdate={(updatedCard) => {
               syncCardToBoardAndDexie(updatedCard);
             }}

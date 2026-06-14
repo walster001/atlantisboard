@@ -14,9 +14,7 @@ export function useCardDescriptionAudioPlaybackSrc(
 ): CardDescriptionAudioPlaybackSrc {
   const attachmentId = useMemo(() => extractAttachmentIdFromMediaSrc(src), [src]);
   const proxySrc = useMemo(() => initialCardDescriptionMediaSrc(src), [src]);
-  const [playbackSrc, setPlaybackSrc] = useState(() =>
-    attachmentId == null ? initialCardDescriptionMediaSrc(src) : '',
-  );
+  const [playbackSrc, setPlaybackSrc] = useState(() => initialCardDescriptionMediaSrc(src));
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +26,8 @@ export function useCardDescriptionAudioPlaybackSrc(
       };
     }
 
-    setPlaybackSrc('');
+    const proxy = initialCardDescriptionMediaSrc(src);
+    setPlaybackSrc(proxy);
     void resolveCardDescriptionVideoPlaybackUrl(src)
       .then((url) => {
         if (!cancelled) {

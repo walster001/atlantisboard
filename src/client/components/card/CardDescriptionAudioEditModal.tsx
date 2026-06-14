@@ -15,10 +15,9 @@ import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
 import { prewarmMalwareScannerOnUploadIntent } from '../../utils/prewarmMalwareScanner.js';
 import { requireUploadedAttachmentId } from '../../utils/api/attachmentApiMethods.js';
+import { resolveDescriptionDecorationImageSrc } from '../../utils/descriptionDecorationImageSrc.js';
 import { CardDescriptionTextBackgroundColorPickers } from './CardDescriptionTextBackgroundColorPickers.js';
-import { CardDescriptionPodcastPreviewTimeline } from './CardDescriptionPodcastPreviewTimeline.js';
-import { CardDescriptionPodcastPreviewControls } from './CardDescriptionPodcastPreviewControls.js';
-import { CardDescriptionPodcastPreviewTimeDisplay } from './CardDescriptionPodcastPreviewTimeDisplay.js';
+import { CardDescriptionAudioPodcastSkeleton } from './CardDescriptionAudioPodcastSkeleton.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import {
   KB_IOS_MODAL_HEADER_SAFE_CLASS,
@@ -28,13 +27,11 @@ import './cardDescriptionAudioEditModal.css';
 import {
   AUDIO_DISPLAY_DESCRIPTION_MAX_LENGTH,
   AUDIO_DISPLAY_TITLE_MAX_LENGTH,
-  AUDIO_SKELETON_EXAMPLE_TIME,
   DEFAULT_AUDIO_BG_COLOR,
   DEFAULT_AUDIO_BUTTON_HOVER_COLOR,
   DEFAULT_AUDIO_DISPLAY_DESCRIPTION,
   DEFAULT_AUDIO_DISPLAY_TITLE,
   DEFAULT_AUDIO_TEXT_COLOR,
-  audioPodcastAppearanceStyle,
   readAudioDisplayAttrs,
 } from './tiptapAudioDisplay.js';
 
@@ -119,7 +116,7 @@ export function CardDescriptionAudioEditModal({
       }
       setCoverUploadBusy(true);
       try {
-        const response = await api.uploadCardAttachment(cardId, file);
+        const response = await api.uploadCardDescriptionDecoration(cardId, file);
         const attachmentId = requireUploadedAttachmentId(response);
         setCoverSrc(api.getAttachmentFileUrl(attachmentId));
       } catch (error) {
@@ -200,39 +197,14 @@ export function CardDescriptionAudioEditModal({
               border: '1px solid var(--mantine-color-gray-3)',
               backgroundColor: 'var(--mantine-color-gray-0)',
             }}>
-            <div
-              className="card-desc-audio-player card-desc-audio-podcast card-desc-audio-podcast--skeleton card-desc-audio-podcast--modal-preview"
-              style={audioPodcastAppearanceStyle(textColor, bgColor, buttonHoverColor)}
-            >
-              <div className="card-desc-audio-podcast__layout">
-                <div className="card-desc-audio-podcast__body">
-                  <div
-                    className={[
-                      'card-desc-audio-podcast__meta',
-                      displayTitle.trim() === '' && displayDescription.trim() === ''
-                        ? 'card-desc-audio-podcast__meta--time-only'
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                  >
-                    <div className="card-desc-audio-podcast__meta-text">
-                      <Text component="div" className="card-desc-audio-podcast__title">
-                        {displayTitle.trim() !== '' ? displayTitle.trim() : 'Track title'}
-                      </Text>
-                      {displayDescription.trim() !== '' ? (
-                        <Text component="div" className="card-desc-audio-podcast__description">
-                          {displayDescription.trim()}
-                        </Text>
-                      ) : null}
-                    </div>
-                    <CardDescriptionPodcastPreviewTimeDisplay timeLabel={AUDIO_SKELETON_EXAMPLE_TIME} />
-                  </div>
-                  <CardDescriptionPodcastPreviewTimeline />
-                  <CardDescriptionPodcastPreviewControls />
-                </div>
-              </div>
-            </div>
+            <CardDescriptionAudioPodcastSkeleton
+              displayTitle={displayTitle}
+              displayDescription={displayDescription}
+              coverSrc={coverSrc}
+              textColor={textColor}
+              bgColor={bgColor}
+              buttonHoverColor={buttonHoverColor}
+            />
           </Box>
         </div>
         <TextInput
@@ -272,7 +244,7 @@ export function CardDescriptionAudioEditModal({
             >
               {coverSrc != null && coverSrc.trim() !== '' ? (
                 <img
-                  src={api.resolveAttachmentUrl(coverSrc)}
+                  src={resolveDescriptionDecorationImageSrc(coverSrc) ?? ''}
                   alt=""
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />

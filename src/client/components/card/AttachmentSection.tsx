@@ -1,6 +1,8 @@
 import { Alert, Button, Group, Stack, Text } from '@mantine/core';
 import { IconPaperclip, IconUpload } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
 import type { CardDB } from '../../store/database.js';
+import { serializeCardDescriptionEditor } from './cardDescriptionEditorSerialize.js';
 import { useAttachmentSection } from '../../hooks/card/useAttachmentSection.js';
 import {
   CARD_DETAIL_SECTION_ICON_COLOR,
@@ -19,6 +21,10 @@ interface AttachmentSectionProps {
   canEdit?: boolean;
   onCardUpdate: (card: CardDB) => void;
   onBeforeDeleteAttachment?: (attachmentId: string) => Promise<void>;
+  /** Live editor JSON while description edit is open — hides decoration-only attachments. */
+  descriptionJsonOverride?: string;
+  /** Subscribes to editor updates so decoration refs refresh after modal saves. */
+  descriptionEditor?: import('@tiptap/core').Editor | null;
 }
 
 export function AttachmentSection({
@@ -26,7 +32,29 @@ export function AttachmentSection({
   canEdit = true,
   onCardUpdate,
   onBeforeDeleteAttachment,
+  descriptionJsonOverride,
+  descriptionEditor,
 }: AttachmentSectionProps) {
+  const [liveDescriptionJson, setLiveDescriptionJson] = useState<string | undefined>(
+    descriptionJsonOverride,
+  );
+
+  useEffect(() => {
+    if (descriptionEditor == null || descriptionEditor.isDestroyed) {
+      setLiveDescriptionJson(descriptionJsonOverride);
+      return;
+    }
+    const sync = (): void => {
+      const serialized = serializeCardDescriptionEditor(descriptionEditor);
+      setLiveDescriptionJson(serialized.ok ? serialized.jsonString : descriptionJsonOverride);
+    };
+    sync();
+    descriptionEditor.on('update', sync);
+    return () => {
+      descriptionEditor.off('update', sync);
+    };
+  }, [descriptionEditor, descriptionJsonOverride]);
+
   const {
     uploading,
     error,
@@ -55,7 +83,11 @@ export function AttachmentSection({
     card,
     canEdit,
     onCardUpdate,
-    ...(card.description !== undefined ? { descriptionJson: card.description } : {}),
+    ...(liveDescriptionJson !== undefined
+      ? { descriptionJson: liveDescriptionJson }
+      : card.description !== undefined
+        ? { descriptionJson: card.description }
+        : {}),
     ...(onBeforeDeleteAttachment !== undefined ? { onBeforeDeleteAttachment } : {}),
   });
 

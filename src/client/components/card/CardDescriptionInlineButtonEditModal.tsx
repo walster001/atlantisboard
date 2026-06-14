@@ -13,6 +13,7 @@ import {
 import { IconExternalLink, IconTrash, IconUpload } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../utils/api.js';
+import { resolveDescriptionDecorationImageSrc } from '../../utils/descriptionDecorationImageSrc.js';
 import { prewarmMalwareScannerOnUploadIntent } from '../../utils/prewarmMalwareScanner.js';
 import { requireUploadedAttachmentId } from '../../utils/api/attachmentApiMethods.js';
 import { DEFAULT_INLINE_BUTTON_ATTRS } from './tiptapInlineButtonExtension.js';
@@ -132,7 +133,7 @@ export function CardDescriptionInlineButtonEditModal({
       }
       setIconUploadBusy(true);
       try {
-        const response = await api.uploadCardAttachment(cardId, file);
+        const response = await api.uploadCardDescriptionDecoration(cardId, file);
         const attachmentId = requireUploadedAttachmentId(response);
         setIconSrc(api.getAttachmentFileUrl(attachmentId));
       } catch (error) {
@@ -253,7 +254,7 @@ export function CardDescriptionInlineButtonEditModal({
           >
             {iconSrc != null && iconSrc.trim() !== '' ? (
               <img
-                src={iconSrc}
+                src={resolveDescriptionDecorationImageSrc(iconSrc) ?? ''}
                 alt=""
                 width={previewIconSize}
                 height={previewIconSize}
@@ -293,7 +294,11 @@ export function CardDescriptionInlineButtonEditModal({
                 background: 'var(--mantine-color-body)',
               }}
             >
-              <img src={iconSrc} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              <img
+                src={resolveDescriptionDecorationImageSrc(iconSrc) ?? ''}
+                alt=""
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              />
             </Box>
             <ActionIcon
               color="red"

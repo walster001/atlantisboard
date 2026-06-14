@@ -6,8 +6,8 @@ import { CARD_DESCRIPTION_TEXT_MAX_LENGTH } from '../../../shared/constants/card
 import {
   getCardDescriptionTextLength,
   parseCardDescriptionJson,
-  getCardDescriptionEditorExtensions,
 } from './cardDescriptionTiptap.js';
+import { getCardDescriptionEditorExtensions } from './cardDescriptionTiptapEditorExtensions.js';
 import { CardDescriptionInlineButtonEditModal } from './CardDescriptionInlineButtonEditModal.js';
 import { CardDescriptionAudioEditModal } from './CardDescriptionAudioEditModal.js';
 import { DescriptionCharLimitHint } from './CardDescriptionEditor/descriptionCharLimitHint.js';

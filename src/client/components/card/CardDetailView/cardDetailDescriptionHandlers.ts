@@ -5,14 +5,13 @@ import {
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
 import { isValidCardDescriptionJsonString } from '../../../../shared/validation/cardDescriptionDoc.js';
 import { api } from '../../../utils/api.js';
-import { requireUploadedAttachmentId, uploadScanCompletesImmediately } from '../../../utils/api/attachmentApiMethods.js';
+import { requireUploadedAttachmentId } from '../../../utils/api/attachmentApiMethods.js';
 import {
   beginAttachmentUploadNotification,
   completeAttachmentUploadNotification,
   failAttachmentUploadNotification,
   updateAttachmentUploadNotification,
 } from '../../../utils/attachmentUploadNotifications.js';
-import { finalizeAttachmentUploadNotification } from '../../../utils/attachmentUploadFlow.js';
 import {
   descriptionJsonHasBlobUrls,
   discardPendingDescriptionMedia,
@@ -67,15 +66,8 @@ export async function runDescriptionUpdate({
               });
               const attachmentId = requireUploadedAttachmentId(response);
               const attachmentUrl = api.getAttachmentFileUrl(attachmentId);
-              if (uploadScanCompletesImmediately(response)) {
-                await finalizeAttachmentUploadNotification({
-                  cardId: card.id,
-                  label,
-                  uploadResponse: response,
-                });
-              } else {
-                completeAttachmentUploadNotification(label);
-              }
+              // Description save must not wait for malware scan completion.
+              completeAttachmentUploadNotification(label);
               return attachmentUrl;
             } catch (error) {
               failAttachmentUploadNotification(

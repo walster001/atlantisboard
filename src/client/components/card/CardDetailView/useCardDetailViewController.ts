@@ -85,6 +85,7 @@ export interface CardDetailViewController {
   readonly handleDeleteCard: () => void;
   readonly syncCardToBoardAndDexie: (card: CardDB) => void;
   readonly pendingDescriptionMediaRef: MutableRefObject<DescriptionPendingMediaRegistry>;
+  readonly descriptionEditorRef: MutableRefObject<Editor | null>;
 }
 
 export function useCardDetailViewController({
@@ -276,5 +277,6 @@ export function useCardDetailViewController({
     handleDeleteCard,
     syncCardToBoardAndDexie,
     pendingDescriptionMediaRef,
+    descriptionEditorRef,
   };
 }

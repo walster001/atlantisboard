@@ -1,4 +1,5 @@
 import { createReadStream } from 'node:fs';
+import { unlink } from 'node:fs/promises';
 import { getMinIOClient } from '../../config/minio.js';
 import { Card } from '../../models/Card.js';
 import { Types } from 'mongoose';
@@ -68,9 +69,18 @@ export async function uploadCardAttachment(
     throw new ValidationError(`File type not allowed: ${normalizedMime || 'unknown'}`);
   }
 
-  const scanStatus = initialAttachmentScanStatus(shouldSkipMalwareScan());
+  const decorationOnly =
+    options?.decorationOnly === true && normalizedMime.startsWith('image/');
+  if (options?.decorationOnly === true && !decorationOnly) {
+    throw new ValidationError('Decoration uploads are limited to image files');
+  }
+
+  const scanStatus = decorationOnly
+    ? 'skipped'
+    : initialAttachmentScanStatus(shouldSkipMalwareScan());
   const localScanPath = options?.localScanPath?.trim();
   const handoffTempToScan =
+    !decorationOnly &&
     localScanPath != null &&
     localScanPath !== '' &&
     scanStatus === 'pending';
@@ -152,15 +162,19 @@ export async function uploadCardAttachment(
 
     emitCardUpdatedRealtime(card);
 
-    scheduleAttachmentMalwareScan({
-      cardId,
-      attachmentId: fileId,
-      objectName,
-      fileName,
-      mimeType: normalizedMime,
-      uploadedByUserId: userId,
-      ...(handoffTempToScan && localScanPath != null ? { localScanPath } : {}),
-    });
+    if (!decorationOnly) {
+      scheduleAttachmentMalwareScan({
+        cardId,
+        attachmentId: fileId,
+        objectName,
+        fileName,
+        mimeType: normalizedMime,
+        uploadedByUserId: userId,
+        ...(handoffTempToScan && localScanPath != null ? { localScanPath } : {}),
+      });
+    } else if (localScanPath != null && localScanPath !== '') {
+      await unlink(localScanPath).catch(() => undefined);
+    }
 
     logAuditEvent({
       userId,

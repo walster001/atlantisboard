@@ -17,6 +17,10 @@ import {
 import { type PublicLoginBranding } from '../../../shared/types/loginBranding.js';
 import { useIsPwa } from '../../hooks/usePwaDisplayMode.js';
 import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
+import {
+  getLoginPageBackgroundStyle,
+  getLoginSignInButtonStyles,
+} from '../../utils/loginBrandingStyles.js';
 import './brandedLoginCard.css';
 
 export function GoogleMark(): ReactElement {
@@ -82,13 +86,7 @@ export function BrandedLoginCard({
   const isPwa = useIsPwa();
   const responsiveTier = useResponsiveTier();
   const actionButtonSize = responsiveTier === 'mobile' ? 'md' : 'sm';
-  const pageBgStyle: CSSProperties = branding.backgroundEnabled
-    ? branding.backgroundType === 'gradient'
-      ? {
-          background: `linear-gradient(135deg, ${branding.backgroundColor} 0%, ${branding.backgroundGradientEnd} 100%)`,
-        }
-      : { backgroundColor: branding.backgroundColor }
-    : { backgroundColor: 'var(--mantine-color-gray-0)' };
+  const pageBgStyle: CSSProperties = getLoginPageBackgroundStyle(branding);
 
   const isFullscreen = branding.loginBoxStyle === 'fullscreen';
   const cardBg = branding.loginBoxBackgroundColor || undefined;
@@ -96,8 +94,7 @@ export function BrandedLoginCard({
   const showDivider = showBothMethods;
   const inputTitleColor = branding.loginInputTitleColor;
   const linkTitleColor = branding.loginLinkTitleColor;
-  const signInBtnBg = branding.loginSignInButtonColor;
-  const signInBtnText = branding.loginSignInButtonTextColor;
+  const signInButtonStyles = getLoginSignInButtonStyles(branding);
   const inputLabelStyles = {
     label: { color: inputTitleColor },
     wrapper: {
@@ -106,14 +103,6 @@ export function BrandedLoginCard({
     },
     input: {
       borderColor: 'transparent',
-      boxShadow: 'none',
-    },
-  } as const;
-  const signInButtonStyles = {
-    root: {
-      backgroundColor: signInBtnBg,
-      color: signInBtnText,
-      border: 'none',
       boxShadow: 'none',
     },
   } as const;

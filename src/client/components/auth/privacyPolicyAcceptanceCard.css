@@ -1,0 +1,212 @@
+.kb-privacy-acceptance-host {
+  overflow-x: hidden;
+}
+
+.kb-privacy-acceptance-panel {
+  width: 70vw;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-md);
+  min-height: 0;
+}
+
+.kb-privacy-acceptance__stack {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.kb-privacy-acceptance__header {
+  flex-shrink: 0;
+}
+
+.kb-privacy-acceptance__actions {
+  flex-shrink: 0;
+}
+
+.kb-privacy-acceptance__scroll {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  background-color: #ffffff;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+}
+
+.kb-privacy-acceptance__scroll .mantine-ScrollArea-viewport {
+  background-color: #ffffff;
+}
+
+.kb-privacy-acceptance__scroll .kb-privacy-policy-content {
+  background-color: #ffffff;
+  color: var(--mantine-color-dark-9);
+  padding: var(--mantine-spacing-md);
+}
+
+@media (max-width: 767px) {
+  .kb-privacy-acceptance-host--mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 100svh;
+    min-height: 100dvh;
+    height: 100svh;
+    height: 100dvh;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .kb-privacy-acceptance-host--mobile.kb-login-host--pwa {
+    position: fixed;
+    inset: 0;
+    overscroll-behavior: contain;
+    /* Top inset is applied on the title header so the scroll pane stays edge-aligned. */
+    padding-top: 0;
+  }
+
+  .kb-privacy-acceptance-panel--mobile {
+    width: 100%;
+    max-width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  .kb-privacy-acceptance-panel--mobile .kb-privacy-acceptance__stack {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  .kb-privacy-acceptance__header {
+    flex-shrink: 0;
+    padding-top: calc(var(--mantine-spacing-sm) + env(safe-area-inset-top, 0px));
+    padding-inline: var(--mantine-spacing-md);
+    padding-bottom: 0;
+  }
+
+  .kb-privacy-acceptance__status {
+    flex-shrink: 0;
+    margin-inline: var(--mantine-spacing-md);
+  }
+
+  .kb-privacy-acceptance-host--mobile .kb-privacy-acceptance__scroll {
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+  }
+
+  .kb-privacy-acceptance-host--mobile .kb-privacy-acceptance__scroll > .mantine-ScrollArea-root {
+    height: 100%;
+  }
+
+  .kb-privacy-acceptance-host--mobile .kb-privacy-acceptance__status {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .kb-privacy-acceptance-host--mobile .kb-privacy-acceptance__scroll .kb-privacy-policy-content {
+    padding: var(--mantine-spacing-md);
+  }
+
+  .kb-privacy-acceptance__actions {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--mantine-spacing-sm);
+    padding: var(--mantine-spacing-sm) var(--mantine-spacing-md)
+      max(var(--mantine-spacing-sm), env(safe-area-inset-bottom, 0px));
+    background: transparent;
+    border-top: none;
+  }
+}
+
+.kb-privacy-acceptance-host--desktop {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: stretch;
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
+  box-sizing: border-box;
+}
+
+.kb-privacy-acceptance-panel--desktop {
+  width: min(70vw, 100%);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.kb-privacy-acceptance__stack.kb-privacy-acceptance__stack--desktop {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) max-content;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  gap: var(--mantine-spacing-sm);
+  overflow: hidden;
+}
+
+.kb-privacy-acceptance-host--desktop .kb-privacy-acceptance__header {
+  min-height: max-content;
+}
+
+.kb-privacy-acceptance-host--desktop .kb-privacy-acceptance__scroll {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.kb-privacy-acceptance-host--desktop .kb-privacy-acceptance__scroll > .mantine-ScrollArea-root {
+  height: 100%;
+}
+
+.kb-privacy-acceptance-host--desktop .kb-privacy-acceptance__actions {
+  min-height: max-content;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-sm);
+}
+
+.kb-privacy-acceptance-host--desktop .kb-privacy-acceptance__actions .mantine-Checkbox-root {
+  align-items: center;
+}
+
+.kb-privacy-acceptance-host--desktop .kb-privacy-acceptance__actions .mantine-Checkbox-inner {
+  flex-shrink: 0;
+}
+
+.kb-privacy-acceptance-host--desktop .kb-privacy-acceptance__status {
+  min-height: 0;
+  overflow: auto;
+}

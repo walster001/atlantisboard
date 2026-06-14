@@ -49,3 +49,16 @@
   border-left: 3px solid var(--mantine-color-gray-4);
   background: var(--mantine-color-gray-0);
 }
+
+@media (max-width: 767px) {
+  .kb-privacy-acceptance-host--mobile .kb-privacy-policy-content {
+    font-size: var(--mantine-font-size-sm);
+    word-break: break-word;
+  }
+
+  .kb-privacy-acceptance-host--mobile .kb-privacy-policy-content table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

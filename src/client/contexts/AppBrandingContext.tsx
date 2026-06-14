@@ -66,7 +66,7 @@ export function AppBrandingProvider({ children }: { readonly children: ReactNode
         return;
       }
       if (loginRes.status === 'fulfilled') {
-        setBranding(loginRes.value.branding);
+        setBranding(toPublicLoginBranding(loginRes.value.branding));
       }
       if (appRes.status === 'fulfilled') {
         setAppBranding(toPublicAppBranding(appRes.value.appBranding));

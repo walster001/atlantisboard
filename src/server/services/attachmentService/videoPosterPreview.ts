@@ -19,15 +19,10 @@ function isVideoContentType(contentType: string): boolean {
   return normalized.startsWith('video/');
 }
 
-async function optimizeRasterPreview(
-  input: Buffer,
-  preset: VideoPosterPreviewPreset,
-): Promise<Buffer> {
-  return sharp(input)
-    .rotate()
-    .resize({ width: preset.maxWidth, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: preset.quality })
-    .toBuffer();
+/** Map WebP-style quality (0–100) to ffmpeg MJPEG `-q:v` (2 = best, 31 = worst). */
+function ffmpegMjpegQualityFromPreset(quality: number): number {
+  const clamped = Math.max(1, Math.min(100, quality));
+  return Math.max(2, Math.min(31, Math.round(2 + ((100 - clamped) * 29) / 100)));
 }
 
 /** Dark thumbnail for import placeholders (no object in storage). */
@@ -52,10 +47,13 @@ export async function getImportPlaceholderVideoPreviewBuffer(
 }
 
 /**
- * Extract one JPEG frame via ffmpeg from a presigned URL — probes/decodes at most
- * {@link POSTER_DECODE_MAX_SEC} second(s) of media (no full-object download).
+ * Extract one JPEG frame via ffmpeg at the video's native resolution — probes/decodes at most
+ * {@link POSTER_DECODE_MAX_SEC} second(s) of media (no full-object download, no sharp resize).
  */
-async function extractVideoFrameFromPresignedUrl(presignedUrl: string): Promise<Buffer | null> {
+async function extractVideoFrameFromPresignedUrl(
+  presignedUrl: string,
+  jpegQuality: number,
+): Promise<Buffer | null> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     const proc = spawn(
@@ -80,6 +78,8 @@ async function extractVideoFrameFromPresignedUrl(presignedUrl: string): Promise<
         'image2pipe',
         '-vcodec',
         'mjpeg',
+        '-q:v',
+        String(jpegQuality),
         'pipe:1',
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
@@ -107,7 +107,7 @@ export async function getVideoAttachmentPosterPreviewBuffer(args: {
   readonly objectName: string;
   readonly contentType: string;
   readonly preset: VideoPosterPreviewPreset;
-}): Promise<{ readonly buffer: Buffer; readonly contentType: 'image/webp' } | null> {
+}): Promise<{ readonly buffer: Buffer; readonly contentType: 'image/jpeg' | 'image/webp' } | null> {
   if (!isVideoContentType(args.contentType)) {
     return null;
   }
@@ -119,7 +119,8 @@ export async function getVideoAttachmentPosterPreviewBuffer(args: {
       args.objectName,
       POSTER_PRESIGN_TTL_SEC,
     );
-    const frame = await extractVideoFrameFromPresignedUrl(presignedUrl);
+    const jpegQuality = ffmpegMjpegQualityFromPreset(args.preset.quality);
+    const frame = await extractVideoFrameFromPresignedUrl(presignedUrl, jpegQuality);
     if (frame == null) {
       logger.warn(
         { objectName: args.objectName, event: 'attachment.video_poster.ffmpeg_unavailable' },
@@ -127,8 +128,7 @@ export async function getVideoAttachmentPosterPreviewBuffer(args: {
       );
       return getImportPlaceholderVideoPreviewBuffer(args.preset);
     }
-    const buffer = await optimizeRasterPreview(frame, args.preset);
-    return { buffer, contentType: 'image/webp' };
+    return { buffer: frame, contentType: 'image/jpeg' };
   } catch (error: unknown) {
     logger.warn(
       { error, objectName: args.objectName, event: 'attachment.video_poster.failed' },

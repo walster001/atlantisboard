@@ -2,6 +2,7 @@
 export const VIDEO_POSTER_PREVIEW = {
   queryKey: 'preview',
   queryValue: 'poster',
+  /** Used for import-placeholder WebP only; video posters keep native video dimensions via ffmpeg. */
   maxWidth: 320,
   quality: 68,
 } as const;

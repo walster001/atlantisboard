@@ -1,0 +1,37 @@
+.video-play-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.video-play-overlay__circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+
+.video-play-overlay--sm .video-play-overlay__circle {
+  width: 40px;
+  height: 40px;
+}
+
+.video-play-overlay--md .video-play-overlay__circle {
+  width: 48px;
+  height: 48px;
+}
+
+.video-play-overlay--lg .video-play-overlay__circle {
+  width: 56px;
+  height: 56px;
+}
+
+.video-play-overlay__icon {
+  margin-left: 2px;
+}

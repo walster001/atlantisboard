@@ -20,13 +20,17 @@ import {
   openAttachmentReadStream,
   type CardAttachmentUploadPayload,
 } from '../services/attachmentService.js';
-import { resolveAttachmentForUser } from '../services/attachmentAccessService.js';
+import { resolveAttachmentForUser, resolveAttachmentPosterPreview } from '../services/attachmentAccessService.js';
 import { Card } from '../models/Card.js';
 import { hasPermission } from '../utils/permissions.js';
 import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import { logger } from '../utils/logger.js';
-import { parseCardTileImagePreviewPreset } from '../../shared/imagePreviewPreset.js';
+import { parseAttachmentPreviewQuery } from '../../shared/attachmentPreviewQuery.js';
 import { getAttachmentPreviewBuffer } from '../services/attachmentService/preview.js';
+import {
+  getImportPlaceholderVideoPreviewBuffer,
+  getVideoAttachmentPosterPreviewBuffer,
+} from '../services/attachmentService/videoPosterPreview.js';
 import {
   mintPresignedAttachmentRedirectUrl,
   shouldPresignRedirectAttachmentStream,
@@ -372,6 +376,37 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
   try {
     const authReq = req as AuthenticatedRequest;
     const { attachmentId } = req.params;
+    const previewQuery = parseAttachmentPreviewQuery(
+      typeof req.query.preview === 'string' ? req.query.preview : undefined,
+    );
+
+    if (previewQuery?.kind === 'video_poster') {
+      const posterResolved = await resolveAttachmentPosterPreview(attachmentId, authReq.user);
+      if ('status' in posterResolved) {
+        sendAttachmentAccessFailure(res, posterResolved);
+        return;
+      }
+
+      const posterPreview =
+        posterResolved.kind === 'import_placeholder'
+          ? await getImportPlaceholderVideoPreviewBuffer(previewQuery)
+          : await getVideoAttachmentPosterPreviewBuffer({
+              objectName: posterResolved.objectMeta.objectName,
+              contentType: posterResolved.objectMeta.contentType,
+              size: posterResolved.objectMeta.size,
+              preset: previewQuery,
+              maxSourceBytes: MAX_CARD_ATTACHMENT_BYTES,
+            });
+
+      if (posterPreview != null) {
+        res.setHeader('Accept-Ranges', 'none');
+        res.setHeader('Cache-Control', 'private, max-age=86400');
+        res.setHeader('Content-Type', posterPreview.contentType);
+        res.setHeader('Content-Length', String(posterPreview.buffer.length));
+        res.status(200).send(posterPreview.buffer);
+        return;
+      }
+    }
 
     const resolved = await resolveAttachmentForUser(attachmentId, authReq.user);
     if ('status' in resolved) {
@@ -380,14 +415,11 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
     }
 
     const meta = resolved.objectMeta;
-    const previewPreset = parseCardTileImagePreviewPreset(
-      typeof req.query.preview === 'string' ? req.query.preview : undefined,
-    );
     if (
       shouldPresignRedirectAttachmentStream({
         contentType: meta.contentType,
         size: meta.size,
-        hasImagePreviewQuery: previewPreset != null,
+        hasPreviewQuery: previewQuery != null,
       })
     ) {
       const redirectUrl = await mintPresignedAttachmentRedirectUrl(attachmentId, meta);
@@ -397,12 +429,12 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
         return;
       }
     }
-    if (previewPreset != null) {
+    if (previewQuery?.kind === 'card_image') {
       const preview = await getAttachmentPreviewBuffer(
         resolved.attachment.url,
         meta.contentType,
-        previewPreset.maxWidth,
-        previewPreset.quality,
+        previewQuery.maxWidth,
+        previewQuery.quality,
       );
       if (preview != null) {
         res.setHeader('Accept-Ranges', 'none');

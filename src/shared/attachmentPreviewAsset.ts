@@ -1,4 +1,5 @@
 import { appendCardTileImagePreviewQuery } from './imagePreviewPreset.js';
+import { appendVideoPosterPreviewQuery as appendVideoPosterPreviewQueryInner } from './videoPosterPreviewPreset.js';
 
 /** Canonical authenticated attachment file proxy path. */
 export const ATTACHMENT_FILE_PROXY_PATH =
@@ -29,4 +30,12 @@ export function appendAttachmentListCoverPreviewQuery(url: string): string {
     return url.trim();
   }
   return appendCardTileImagePreviewQuery(url);
+}
+
+/** Append optimised video poster preview query for attachment proxy URLs. */
+export function appendVideoPosterPreviewQuery(url: string): string {
+  if (!isAttachmentProxyFileUrl(url)) {
+    return url.trim();
+  }
+  return appendVideoPosterPreviewQueryInner(url);
 }

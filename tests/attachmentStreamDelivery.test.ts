@@ -20,7 +20,7 @@ describe('shouldPresignRedirectAttachmentStream', () => {
       shouldPresignRedirectAttachmentStream({
         contentType: 'video/mp4',
         size: 152_973_971,
-        hasImagePreviewQuery: false,
+        hasPreviewQuery: false,
       }),
     ).toBe(true);
   });
@@ -37,7 +37,7 @@ describe('shouldPresignRedirectAttachmentStream', () => {
       shouldPresignRedirectAttachmentStream({
         contentType: 'video/mp4',
         size: 1_000,
-        hasImagePreviewQuery: false,
+        hasPreviewQuery: false,
       }),
     ).toBe(true);
   });
@@ -52,7 +52,7 @@ describe('shouldPresignRedirectAttachmentStream', () => {
       shouldPresignRedirectAttachmentStream({
         contentType: 'image/jpeg',
         size: 4_000_000,
-        hasImagePreviewQuery: true,
+        hasPreviewQuery: true,
       }),
     ).toBe(false);
   });
@@ -69,7 +69,7 @@ describe('shouldPresignRedirectAttachmentStream', () => {
       shouldPresignRedirectAttachmentStream({
         contentType: 'video/mp4',
         size: 152_973_971,
-        hasImagePreviewQuery: false,
+        hasPreviewQuery: false,
       }),
     ).toBe(true);
   });
@@ -85,7 +85,7 @@ describe('shouldPresignRedirectAttachmentStream', () => {
       shouldPresignRedirectAttachmentStream({
         contentType: 'video/mp4',
         size: 152_973_971,
-        hasImagePreviewQuery: false,
+        hasPreviewQuery: false,
       }),
     ).toBe(false);
   });

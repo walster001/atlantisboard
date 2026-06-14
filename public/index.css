@@ -10151,6 +10151,45 @@ fieldset:disabled .m_38aeed47:where(:not([data-inverted])) {
   margin: 0 .12em;
 }
 
+/* src/client/components/card/videoPlayOverlay.css */
+.video-play-overlay {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  pointer-events: none;
+  justify-content: center;
+  align-items:  center;
+  inset: 0;
+}
+
+.video-play-overlay__circle {
+  display: flex;
+  color: #fff;
+  background-color: #00000080;
+  border-radius: 50%;
+  justify-content: center;
+  align-items:  center;
+}
+
+.video-play-overlay--sm .video-play-overlay__circle {
+  width: 40px;
+  height: 40px;
+}
+
+.video-play-overlay--md .video-play-overlay__circle {
+  width: 48px;
+  height: 48px;
+}
+
+.video-play-overlay--lg .video-play-overlay__circle {
+  width: 56px;
+  height: 56px;
+}
+
+.video-play-overlay__icon {
+  margin-left: 2px;
+}
+
 /* src/client/components/card/cardDescriptionTiptap.editor.css */
 .card-desc-tiptap-editor .ProseMirror {
   padding: 0 var(--mantine-spacing-md) var(--mantine-spacing-sm);

@@ -117,6 +117,93 @@ async function writeAuthCache(userId: string, boardId: string, allowed: boolean)
 
 export { invalidateAttachmentLocationCache } from './attachmentCache.js';
 
+export type AttachmentPosterPreviewTarget =
+  | {
+      readonly kind: 'import_placeholder';
+      readonly attachment: Pick<
+        ICardAttachment,
+        'id' | 'name' | 'url' | 'type' | 'size' | 'isPlaceholder' | 'scanStatus'
+      >;
+    }
+  | (ResolvedAttachmentAccess & { readonly kind: 'stored' });
+
+/** Resolves attachment metadata for `?preview=poster` (import placeholders and stored videos). */
+export async function resolveAttachmentPosterPreview(
+  attachmentId: string,
+  user: AuthUser,
+): Promise<AttachmentPosterPreviewTarget | AttachmentAccessFailure> {
+  const card = await Card.findOne({ 'attachments.id': attachmentId }).select('boardId attachments').lean();
+  if (card == null) {
+    return {
+      status: 404,
+      code: 'NOT_FOUND',
+      message: 'Attachment not found',
+    };
+  }
+
+  const attachment = card.attachments?.find((att) => att.id === attachmentId);
+  if (attachment == null) {
+    return {
+      status: 404,
+      code: 'NOT_FOUND',
+      message: 'Attachment not found',
+    };
+  }
+
+  const boardId = card.boardId.toString();
+  const allowed = await ensureBoardViewPermission(user, boardId);
+  if (!allowed) {
+    return {
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'Access denied',
+    };
+  }
+
+  if (isPlaceholderCardAttachment(attachment)) {
+    const contentType = attachment.type.split(';')[0]?.trim().toLowerCase() ?? '';
+    if (!contentType.startsWith('video/')) {
+      return {
+        status: 404,
+        code: 'NOT_FOUND',
+        message: 'Attachment preview not available',
+      };
+    }
+    return {
+      kind: 'import_placeholder',
+      attachment: {
+        id: attachment.id,
+        name: attachment.name,
+        url: attachment.url,
+        type: attachment.type,
+        size: attachment.size,
+        isPlaceholder: true,
+        ...(attachment.scanStatus !== undefined ? { scanStatus: attachment.scanStatus } : {}),
+      },
+    };
+  }
+
+  const scanFailure = evaluateAttachmentScanAccess(attachment.scanStatus);
+  if (scanFailure != null) {
+    return scanFailure;
+  }
+
+  const objectMeta = await getAttachmentObjectMeta(attachment.url);
+  return {
+    kind: 'stored',
+    boardId,
+    attachment: {
+      id: attachment.id,
+      name: attachment.name,
+      url: attachment.url,
+      type: attachment.type,
+      size: attachment.size,
+      ...(attachment.scanStatus !== undefined ? { scanStatus: attachment.scanStatus } : {}),
+    },
+    objectMeta,
+  };
+}
+
 async function loadAttachmentLocationFromDb(
   attachmentId: string,
 ): Promise<CachedAttachmentLocation | AttachmentAccessFailure> {

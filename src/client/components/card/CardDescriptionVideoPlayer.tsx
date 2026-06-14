@@ -3,6 +3,7 @@ import { extractAttachmentIdFromMediaSrc } from '../../../shared/cardDescription
 import { useVideoPosterUrl } from '../../hooks/useVideoPosterUrl.js';
 import { api } from '../../utils/api.js';
 import { resolveCardDescriptionVideoPlaybackUrl } from '../../utils/attachmentStreamUrlClient.js';
+import { VideoPlayOverlay } from './VideoPlayOverlay.js';
 
 export interface CardDescriptionVideoPlayerProps {
   readonly src: string;
@@ -117,6 +118,7 @@ export function CardDescriptionVideoPlayer({
   }
 
   const showPoster = posterObjectUrl != null && posterVisible;
+  const showPlayAffordance = posterVisible;
 
   return (
     <div
@@ -132,6 +134,7 @@ export function CardDescriptionVideoPlayer({
           aria-hidden
         />
       ) : null}
+      {showPlayAffordance ? <VideoPlayOverlay size="lg" /> : null}
       <video
         className={className}
         controls

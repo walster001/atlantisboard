@@ -1,8 +1,8 @@
 import { memo } from 'react';
-import { IconPlayerPlay } from '@tabler/icons-react';
 import { UnstyledButton } from '@mantine/core';
 import { useVideoPosterUrl } from '../../hooks/useVideoPosterUrl.js';
 import { api } from '../../utils/api.js';
+import { VideoPlayOverlay } from './VideoPlayOverlay.js';
 
 interface AttachmentVideoThumbnailProps {
   readonly attachmentId: string;
@@ -59,13 +59,7 @@ export const AttachmentVideoThumbnail = memo(function AttachmentVideoThumbnail({
           }}
         />
       ) : null}
-      <IconPlayerPlay
-        size={36}
-        stroke={1.5}
-        color="var(--mantine-color-gray-4)"
-        style={{ position: 'relative', zIndex: 1 }}
-        aria-hidden
-      />
+      <VideoPlayOverlay size="md" />
     </UnstyledButton>
   );
 });

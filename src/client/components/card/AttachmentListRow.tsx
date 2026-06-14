@@ -11,6 +11,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { IconTrash } from '@tabler/icons-react';
+import { VideoPlayOverlay } from './VideoPlayOverlay.js';
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
 import {
   attachmentScanBlockedMessage,
@@ -20,6 +21,7 @@ import type { CardDB } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import { isCoverAttachment } from '../../utils/attachmentCoverUtils.js';
 import { formatFileSize, getFileIcon } from '../../utils/fileUtils.js';
+import { appendVideoPosterPreviewQuery } from '../../../shared/attachmentPreviewAsset.js';
 import { AttachmentVideoThumbnail } from './AttachmentVideoThumbnail.js';
 
 interface AttachmentListRowProps {
@@ -134,11 +136,22 @@ export const AttachmentListRow = memo(function AttachmentListRow({
                 justifyContent: 'center',
                 padding: 0,
                 cursor: 'default',
+                position: 'relative',
               }}
             >
-              <Text size="xs" c="dimmed" ta="center" px="xs">
-                No preview — file not in storage
-              </Text>
+              <img
+                src={appendVideoPosterPreviewQuery(api.getAttachmentFileUrl(attachment.id))}
+                alt=""
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+              <VideoPlayOverlay size="md" />
             </UnstyledButton>
           ) : scanBlocked ? (
             <UnstyledButton

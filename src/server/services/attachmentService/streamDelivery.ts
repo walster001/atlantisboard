@@ -10,9 +10,9 @@ import type { AttachmentObjectMeta } from './types.js';
 export function shouldPresignRedirectAttachmentStream(args: {
   readonly contentType: string;
   readonly size: number;
-  readonly hasImagePreviewQuery: boolean;
+  readonly hasPreviewQuery: boolean;
 }): boolean {
-  if (args.hasImagePreviewQuery) {
+  if (args.hasPreviewQuery) {
     return false;
   }
   if (!isMinioPublicPresignConfigured()) {

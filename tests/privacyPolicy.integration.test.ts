@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
 import { beforeAll, expect, it } from 'bun:test';
-import { describeHttpIntegration } from './helpers/integrationEnv.js';
-import { beforeAllEnsureTestServer, INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationHooks.js';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationEnv.js';
 import { apiInject, resetIntegrationHttpSession } from './helpers/integrationHttp.js';
 import { ensureMongooseConnectedForHttpIntegration } from './helpers/testHelpers.js';
+import { ensureTestServer } from './helpers/testServer.js';
 import { User } from '../src/server/models/User.js';
 import { initializeAdminConfig } from '../src/server/models/AdminConfig.js';
 import { hashPassword } from '../src/server/utils/password.js';
@@ -31,8 +31,10 @@ async function createVerifiedUserWithoutPrivacyAcceptance(): Promise<{
   return { email, password };
 }
 
-describeHttpIntegration('Privacy policy API', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true }, 'Privacy policy API', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   beforeAll(async () => {
     await ensureMongooseConnectedForHttpIntegration();

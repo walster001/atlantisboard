@@ -14,8 +14,7 @@ import {
   permissionsForBuiltinRole,
   type BuiltInRoleKey,
 } from '../src/shared/permissions/catalog.js';
-import { describeMongoTest } from './helpers/integrationEnv.js';
-import { INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationHooks.js';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationEnv.js';
 import { connectTestDatabase } from './helpers/testHelpers.js';
 
 const REPO_ROOT = process.cwd();
@@ -121,7 +120,7 @@ describe('role definition init wiring', () => {
   });
 });
 
-describeMongoTest('role definition initialization', () => {
+describeWhenDeps({ mongo: true, mongoTestUriOnly: true }, 'role definition initialization', () => {
   beforeAll(async () => {
     await connectTestDatabase();
   }, INTEGRATION_HOOK_TIMEOUT_MS);

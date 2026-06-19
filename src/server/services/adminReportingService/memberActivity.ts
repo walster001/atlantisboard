@@ -1,5 +1,3 @@
-import { Types } from 'mongoose';
-import { Board } from '../../models/Board.js';
 import {
   ADMIN_REPORTING_MEMBER_ACTIVITY_MAX_PAGE_SIZE,
   ADMIN_REPORTING_MEMBER_ACTIVITY_PAGE_SIZE,
@@ -12,46 +10,7 @@ import type {
   AdminMemberActivityReportResponse,
   AdminMemberActivityReportRow,
 } from '../../../shared/types/adminReporting.js';
-import { queryAdminReportingActivities } from './activityQuery.js';
-
-function resolveLimit(limit: number | undefined): number {
-  const raw = limit ?? ADMIN_REPORTING_MEMBER_ACTIVITY_PAGE_SIZE;
-  return Math.min(
-    Math.max(raw, 1),
-    ADMIN_REPORTING_MEMBER_ACTIVITY_MAX_PAGE_SIZE,
-  );
-}
-
-function serializeActivityRow(
-  doc: {
-    readonly _id: Types.ObjectId;
-    readonly boardId: Types.ObjectId;
-    readonly userId: unknown;
-    readonly type: string;
-    readonly description: string;
-    readonly metadata: Record<string, unknown>;
-    readonly createdAt: Date;
-  },
-  boardName: string,
-): AdminMemberActivityReportRow {
-  return {
-    _id: doc._id.toString(),
-    boardId: doc.boardId.toString(),
-    boardName,
-    type: doc.type,
-    description: doc.description,
-    metadata: doc.metadata ?? {},
-    createdAt: doc.createdAt.toISOString(),
-    userId: doc.userId as AdminMemberActivityReportRow['userId'],
-  };
-}
-
-function parseBoardIdFilter(boardId: string | undefined): Types.ObjectId | undefined {
-  if (boardId == null || boardId.trim() === '' || !Types.ObjectId.isValid(boardId.trim())) {
-    return undefined;
-  }
-  return new Types.ObjectId(boardId.trim());
-}
+import { listAdminActivityReport } from './activityReport.js';
 
 export async function listAdminMemberActivityReport(options?: {
   readonly limit?: number | undefined;
@@ -59,45 +18,15 @@ export async function listAdminMemberActivityReport(options?: {
   readonly days?: number | undefined;
   readonly boardId?: string | undefined;
 }): Promise<AdminMemberActivityReportResponse> {
-  const limit = resolveLimit(options?.limit);
-  const boardObjectId = parseBoardIdFilter(options?.boardId);
-
-  const docs = await queryAdminReportingActivities({
-    activityTypes: [...BOARD_MEMBER_AUDIT_ACTIVITY_TYPES],
+  return await listAdminActivityReport<AdminMemberActivityReportRow>({
+    activityTypes: BOARD_MEMBER_AUDIT_ACTIVITY_TYPES,
     retentionField: 'memberActivityLogRetentionDays',
     defaultBoardDays: BOARD_MEMBER_AUDIT_DEFAULT_RETENTION_DAYS,
-    limit,
+    defaultPageSize: ADMIN_REPORTING_MEMBER_ACTIVITY_PAGE_SIZE,
+    maxPageSize: ADMIN_REPORTING_MEMBER_ACTIVITY_MAX_PAGE_SIZE,
+    ...(options?.limit !== undefined ? { limit: options.limit } : {}),
     ...(options?.cursor !== undefined ? { cursor: options.cursor } : {}),
-    ...(options?.days !== undefined ? { userFilterDays: options.days } : {}),
-    ...(boardObjectId !== undefined ? { boardId: boardObjectId } : {}),
+    ...(options?.days !== undefined ? { days: options.days } : {}),
+    ...(options?.boardId !== undefined ? { boardId: options.boardId } : {}),
   });
-
-  const page = docs.slice(0, limit);
-  const boardIds = [...new Set(page.map((row) => row.boardId.toString()))];
-  const boards = await Board.find({ _id: { $in: boardIds } })
-    .select('name')
-    .lean();
-  const boardNameById = new Map<string, string>(
-    boards.map((board) => [
-      board._id.toString(),
-      typeof board.name === 'string' && board.name.trim() !== '' ? board.name.trim() : 'Untitled board',
-    ]),
-  );
-
-  const activities = page.map((row) =>
-    serializeActivityRow(
-      row,
-      boardNameById.get(row.boardId.toString()) ?? 'Untitled board',
-    ),
-  );
-
-  const nextCursor =
-    docs.length > limit && page.length > 0
-      ? String(page[page.length - 1].createdAt.getTime())
-      : undefined;
-
-  return {
-    activities,
-    ...(nextCursor !== undefined ? { nextCursor } : {}),
-  };
 }

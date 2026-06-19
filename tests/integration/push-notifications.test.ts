@@ -1,13 +1,16 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import { describeDbIntegration } from '../helpers/integrationEnv.js';
-import { beforeAllEnsureTestServer } from '../helpers/integrationHooks.js';
-import { getAuthToken, prepareIntegrationTestDatabase, injectApp } from '../helpers/testHelpers.js';
+import { describe, it, expect, beforeEach, beforeAll } from 'bun:test';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from '../helpers/integrationEnv.js';
+import { getAuthToken, prepareIntegrationTestDatabase } from '../helpers/testHelpers.js';
+import { ensureTestServer } from '../helpers/testServer.js';
+import { apiInject } from '../helpers/integrationHttp.js';
 import { createMockUser } from '../helpers/mockData.js';
 import { User } from '../../src/server/models/User.js';
 import { getVapidPublicKey } from '../../src/server/config/vapid.js';
 
-describeDbIntegration('Push Notifications', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true, mongoTestUriOnly: true }, 'Push Notifications', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
   let authToken: string;
   let userId: string;
 
@@ -38,7 +41,7 @@ describeDbIntegration('Push Notifications', () => {
     };
 
     it('should register push subscription', async () => {
-      const response = await injectApp({
+      const response = await apiInject({
         method: 'POST',
         url: '/api/v1/users/me/push-subscription',
         headers: {
@@ -58,7 +61,7 @@ describeDbIntegration('Push Notifications', () => {
 
     it('should delete push subscription', async () => {
       // First register
-      await injectApp({
+      await apiInject({
         method: 'POST',
         url: '/api/v1/users/me/push-subscription',
         headers: {
@@ -68,7 +71,7 @@ describeDbIntegration('Push Notifications', () => {
       });
 
       // Then delete
-      const response = await injectApp({
+      const response = await apiInject({
         method: 'DELETE',
         url: '/api/v1/users/me/push-subscription',
         headers: {
@@ -86,7 +89,7 @@ describeDbIntegration('Push Notifications', () => {
     });
 
     it('should require authentication for push subscription', async () => {
-      const response = await injectApp({
+      const response = await apiInject({
         method: 'POST',
         url: '/api/v1/users/me/push-subscription',
         payload: { subscription: mockSubscription },
@@ -98,7 +101,7 @@ describeDbIntegration('Push Notifications', () => {
 
   describe('VAPID Public Key Endpoint', () => {
     it('should return VAPID public key', async () => {
-      const response = await injectApp({
+      const response = await apiInject({
         method: 'GET',
         url: '/api/v1/users/vapid-public-key',
       });

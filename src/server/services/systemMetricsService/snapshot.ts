@@ -1,10 +1,6 @@
 import os from 'node:os';
 import type { AdminSystemMetricsSnapshot } from '../../../shared/types/adminSystemMetrics.js';
-import {
-  lastSlowMetricsSample,
-  SLOW_METRICS_REFRESH_MS,
-  setLastSlowMetricsSample,
-} from './state.js';
+import { metricsCache, SLOW_METRICS_REFRESH_MS } from './state.js';
 import { APP_VERSION } from './versionAndEnv.js';
 import {
   getClamAvDbDirForMetrics,
@@ -25,10 +21,13 @@ import {
   readMongoDbVersion,
 } from './externalCollectors.js';
 
-async function getSlowMetricsSample(): Promise<NonNullable<typeof lastSlowMetricsSample>> {
+async function getSlowMetricsSample(): Promise<NonNullable<typeof metricsCache.lastSlowMetricsSample>> {
   const now = Date.now();
-  if (lastSlowMetricsSample != null && now - lastSlowMetricsSample.fetchedAt < SLOW_METRICS_REFRESH_MS) {
-    return lastSlowMetricsSample;
+  if (
+    metricsCache.lastSlowMetricsSample != null &&
+    now - metricsCache.lastSlowMetricsSample.fetchedAt < SLOW_METRICS_REFRESH_MS
+  ) {
+    return metricsCache.lastSlowMetricsSample;
   }
   const clamavDbDir = getClamAvDbDirForMetrics();
   const [mongoVersion, minioVersion, disk, clamavDisk, databaseSizeMb, backupCount, dockerRunningContainers] =
@@ -61,7 +60,7 @@ async function getSlowMetricsSample(): Promise<NonNullable<typeof lastSlowMetric
     dockerTotal,
     ...(dockerRunningContainers !== undefined ? { dockerRunningContainers } : {}),
   } as const;
-  setLastSlowMetricsSample(sample);
+  metricsCache.lastSlowMetricsSample = sample;
   return sample;
 }
 

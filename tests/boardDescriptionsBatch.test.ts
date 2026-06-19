@@ -1,6 +1,6 @@
-import { expect, it } from 'bun:test';
-import { describeHttpIntegration } from './helpers/integrationEnv.js';
-import { beforeAllEnsureTestServer } from './helpers/integrationHooks.js';
+import { expect, it, beforeAll } from 'bun:test';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationEnv.js';
+import { ensureTestServer } from './helpers/testServer.js';
 import { apiInject } from './helpers/integrationHttp.js';
 import {
   createAuthHeaders,
@@ -8,8 +8,10 @@ import {
   readApiEntityId,
 } from './helpers/testHelpers.js';
 
-describeHttpIntegration('Board card descriptions batch', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true }, 'Board card descriptions batch', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   it('returns description fields for board members via GET without CSRF', async () => {
     const nonce = Date.now();

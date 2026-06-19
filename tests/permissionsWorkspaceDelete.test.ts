@@ -3,11 +3,10 @@ import mongoose from 'mongoose';
 import { hasWorkspacePermission } from '../src/server/utils/permissions.js';
 import { connectTestDatabase, clearTestDatabase } from './helpers/testHelpers.js';
 import { createMockUser, createMockWorkspace } from './helpers/mockData.js';
-import { describeMongoTest } from './helpers/integrationEnv.js';
-import { INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationHooks.js';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationEnv.js';
 import { ensureTestServer } from './helpers/testServer.js';
 
-describeMongoTest('hasWorkspacePermission: workspaces.delete owner-only', () => {
+describeWhenDeps({ mongo: true, mongoTestUriOnly: true }, 'hasWorkspacePermission: workspaces.delete owner-only', () => {
   beforeAll(async () => {
     await ensureTestServer();
     if (mongoose.connection.readyState !== 1) {

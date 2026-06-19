@@ -1,7 +1,6 @@
-import { expect, it } from 'bun:test';
-import { describeHttpIntegration } from './helpers/integrationEnv.js';
-import { beforeAllEnsureTestServer } from './helpers/integrationHooks.js';
-import { resolveTestServerBaseUrl } from './helpers/testServer.js';
+import { expect, it, beforeAll } from 'bun:test';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationEnv.js';
+import { resolveTestServerBaseUrl, ensureTestServer } from './helpers/testServer.js';
 import { apiInject } from './helpers/integrationHttp.js';
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
@@ -25,8 +24,10 @@ function cookieHeaderFromResponse(response: Response): string | undefined {
     .join('; ');
 }
 
-describeHttpIntegration('API Health Check', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true }, 'API Health Check', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   it('should return health status', async () => {
     const response = await request('/health', { method: 'GET' });
@@ -37,8 +38,10 @@ describeHttpIntegration('API Health Check', () => {
   });
 });
 
-describeHttpIntegration('Authentication API', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true }, 'Authentication API', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   it('should reject unauthenticated requests', async () => {
     const response = await request('/api/v1/workspaces', { method: 'GET' });
@@ -61,8 +64,10 @@ describeHttpIntegration('Authentication API', () => {
   });
 });
 
-describeHttpIntegration('Workspace API', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true }, 'Workspace API', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   it('should require authentication', async () => {
     const response = await request('/api/v1/workspaces', { method: 'GET' });
@@ -70,8 +75,10 @@ describeHttpIntegration('Workspace API', () => {
   });
 });
 
-describeHttpIntegration('CSRF protection', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true }, 'CSRF protection', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   it('should reject mutating requests without CSRF token', async () => {
     const response = await request('/api/v1/workspaces', {

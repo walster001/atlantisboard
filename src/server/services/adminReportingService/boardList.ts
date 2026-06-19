@@ -9,12 +9,27 @@ import type {
   AdminBoardListReportResponse,
   AdminBoardListReportRow,
 } from '../../../shared/types/adminReporting.js';
+import type { AdminReportingBoardOptionsResponse } from '../../../shared/types/adminReporting.js';
 import {
   buildCreatedAtCursorFilter,
   computeNextCreatedAtCursor,
   normalizeBoardName,
   resolveReportingPageLimit,
 } from './pagination.js';
+
+export async function listAdminReportingBoardOptions(): Promise<AdminReportingBoardOptionsResponse> {
+  const boards = await Board.find({})
+    .select('name')
+    .sort({ name: 1, createdAt: 1 })
+    .lean();
+
+  return {
+    boards: boards.map((board) => ({
+      id: board._id.toString(),
+      name: normalizeBoardName(board.name),
+    })),
+  };
+}
 
 function resolveOwnerId(ownerId: unknown): string {
   if (ownerId != null && typeof ownerId === 'object' && '_id' in ownerId) {

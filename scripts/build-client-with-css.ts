@@ -6,6 +6,7 @@
  */
 
 import { spawn } from 'bun';
+import { spawnSync } from 'node:child_process';
 import { copyFileSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import postcss from 'postcss';
@@ -25,18 +26,10 @@ const tailwindcss = (typeof tailwindcssModule === 'function'
 
 const projectRoot = process.cwd();
 
-/** PostCSS loads `nanoid/non-secure`; a corrupted Bun cache can install zero-byte files. */
-function assertNanoidInstalled(): void {
-  const nanoidNonSecure = join(projectRoot, 'node_modules/nanoid/non-secure/index.cjs');
-  if (!existsSync(nanoidNonSecure) || readFileSync(nanoidNonSecure).length === 0) {
-    console.error(
-      '❌ nanoid is missing or corrupt (empty files). PostCSS needs nanoid/non-secure.\n' +
-        '   Repair: rm -rf node_modules/nanoid ~/.bun/install/cache/nanoid@* && bun install',
-    );
-    process.exit(1);
-  }
+const nanoidCheck = spawnSync('bash', [join(projectRoot, 'scripts/ensure-nanoid.sh'), 'check']);
+if (nanoidCheck.status !== 0) {
+  process.exit(nanoidCheck.status ?? 1);
 }
-assertNanoidInstalled();
 
 const cssInput = join(projectRoot, 'src/client/styles/index.css');
 const cssOutput = join(projectRoot, 'src/client/styles/index.processed.css');

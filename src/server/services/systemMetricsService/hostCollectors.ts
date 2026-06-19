@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import os from 'node:os';
-import { lastCpuSample, lastIoSample, setLastCpuSample, setLastIoSample } from './state.js';
+import { metricsCache } from './state.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -34,9 +34,9 @@ export function readLinuxMeminfoMb(): { memTotalMb: number; memAvailableMb: numb
 
 export function sampleProcessCpu(): { cpuCoresApprox: number; cpuPercentOfSystem: number } {
   const nowWall = Date.now();
-  const wallMs = Math.max(1, nowWall - lastCpuSample.wallMs);
-  const delta = process.cpuUsage(lastCpuSample.cpu);
-  setLastCpuSample({ wallMs: nowWall, cpu: process.cpuUsage() });
+  const wallMs = Math.max(1, nowWall - metricsCache.lastCpuSample.wallMs);
+  const delta = process.cpuUsage(metricsCache.lastCpuSample.cpu);
+  metricsCache.lastCpuSample = { wallMs: nowWall, cpu: process.cpuUsage() };
   const cpuMicros = delta.user + delta.system;
   const cpuSec = cpuMicros / 1e6;
   const wallSec = wallMs / 1000;
@@ -199,8 +199,8 @@ export function sampleLinuxIoRates(): {
     netRxBytes: net?.rxBytes ?? 0,
     netTxBytes: net?.txBytes ?? 0,
   };
-  const prev = lastIoSample;
-  setLastIoSample(sample);
+  const prev = metricsCache.lastIoSample;
+  metricsCache.lastIoSample = sample;
   if (prev == null) {
     return {};
   }

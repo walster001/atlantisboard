@@ -2,7 +2,7 @@ import { readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import MarkdownIt from 'markdown-it';
 import { PRIVACY_POLICY_VERSION } from '../../shared/legal/privacyPolicy.js';
-import { sanitizeHtml } from '../utils/sanitizeHtml.js';
+import { sanitizeHtml } from '../../shared/utils/sanitizeHtml.js';
 
 const markdownRenderer = new MarkdownIt({
   html: false,

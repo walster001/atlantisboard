@@ -2,6 +2,7 @@ import rateLimit, { type Store as RateLimitStore } from 'express-rate-limit';
 import type { Request, Response } from 'express';
 import { redis } from '../config/redis.js';
 import { logger } from '../utils/logger.js';
+import { parsePositiveInt } from '../utils/parseEnvInt.js';
 import type { OptionalAuthRequest } from '../types/express.js';
 
 // Redis store for rate limiting
@@ -94,11 +95,6 @@ function getClientIp(req: Request): string {
   }
 
   return 'unknown';
-}
-
-function parsePositiveInt(raw: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(raw ?? '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function parseWindowMsFromMinutes(raw: string | undefined, fallbackMinutes: number): number {

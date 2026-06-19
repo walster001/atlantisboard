@@ -1,15 +1,9 @@
 import mongoose from 'mongoose';
-import type { Express } from 'express';
 import { User } from '../../src/server/models/User.js';
 import { ACCOUNT_CAPABILITY_WORKSPACES_CREATE } from '../../src/shared/accountCapabilities.js';
 import { initializeAdminConfig } from '../../src/server/models/AdminConfig.js';
 import { createMockUser } from './mockData.js';
-import {
-  apiInject,
-  resetIntegrationHttpSession,
-  type ApiInjectOptions,
-  type ApiInjectResponse,
-} from './integrationHttp.js';
+import { resetIntegrationHttpSession } from './integrationHttp.js';
 import { ensureTestServer } from './testServer.js';
 import { DB_INTEGRATION_ENV_DOCS, assertSafeTestMongoUriForDestructiveOps, DEV_MONGO_DATABASE_NAME, isCiTestRun, resolveTestMongoUri } from './integrationEnv.js';
 
@@ -142,8 +136,6 @@ export function createAuthHeaders(token: string): Record<string, string> {
 
 export type HttpIntegrationAuthPair = { readonly token: string; readonly userId: string };
 
-const HTTP_INTEGRATION_TEST_PASSWORD = 'TestPassword123!';
-
 /** API entities may expose `id` or `_id` depending on serializer settings. */
 export function readApiEntityId(entity: { id?: string; _id?: unknown }): string {
   if (typeof entity.id === 'string' && entity.id.trim() !== '') {
@@ -200,103 +192,4 @@ export async function createHttpIntegrationAuthUser(options: {
     isAppAdmin: saved.isAppAdmin,
   });
   return { token, userId };
-}
-
-async function jwtAuthForExistingOrNewUser(
-  email: string,
-  username: string,
-  password: string,
-): Promise<HttpIntegrationAuthPair> {
-  await ensureMongooseConnectedForHttpIntegration();
-  const emailNorm = email.trim().toLowerCase();
-  const existing = await User.findOne({ email: emailNorm });
-  const user =
-    existing ??
-    (await createMockUser({ email: emailNorm, username, password, displayName: 'Test User' }));
-  if (!user.emailVerified) {
-    user.emailVerified = true;
-    await user.save();
-  }
-  const userId = user._id.toString();
-  const { generateToken } = await import('../../src/server/utils/jwt.js');
-  const token = generateToken({
-    userId,
-    email: user.email,
-    username: user.username,
-    isAppAdmin: user.isAppAdmin,
-  });
-  return { token, userId };
-}
-
-/**
- * Register (or sign in) a user for HTTP integration tests against the running server.
- * Uses POST /auth/register when possible; falls back to direct DB + JWT when register
- * returns 500/202 or login fails (e.g. email verification required, flaky register path).
- */
-export async function registerHttpIntegrationUser(
-  email: string,
-  username: string,
-  password: string = HTTP_INTEGRATION_TEST_PASSWORD,
-): Promise<HttpIntegrationAuthPair> {
-  await ensureMongooseConnectedForHttpIntegration();
-  resetIntegrationHttpSession();
-
-  const res = await apiInject({
-    method: 'POST',
-    url: '/api/v1/auth/register',
-    payload: { email, username, password, displayName: 'Test User' },
-  });
-
-  if (res.statusCode === 200 || res.statusCode === 201) {
-    const body = JSON.parse(res.body) as { token?: string; user?: { id: string } };
-    return { token: body.token ?? '', userId: body.user?.id ?? '' };
-  }
-
-  if (res.statusCode === 403) {
-    return { token: '', userId: '' };
-  }
-
-  if (res.statusCode === 409 || res.statusCode === 500) {
-    resetIntegrationHttpSession();
-    const login = await apiInject({
-      method: 'POST',
-      url: '/api/v1/auth/login',
-      payload: { email, password },
-    });
-    if (login.statusCode === 200) {
-      const body = JSON.parse(login.body) as { token?: string; user?: { id: string } };
-      return { token: body.token ?? '', userId: body.user?.id ?? '' };
-    }
-  }
-
-  if (res.statusCode === 202 || res.statusCode === 409 || res.statusCode === 500) {
-    return jwtAuthForExistingOrNewUser(email, username, password);
-  }
-
-  throw new Error(`Unexpected register HTTP ${res.statusCode}: ${res.body.slice(0, 400)}`);
-}
-
-/** Fastify-style inject for integration tests (HTTP to the running server). */
-export async function injectApp(options: ApiInjectOptions): Promise<ApiInjectResponse> {
-  return apiInject(options);
-}
-
-export async function makeAuthenticatedRequest(
-  _app: Express,
-  method: string,
-  url: string,
-  token: string,
-  payload?: unknown,
-): Promise<{ statusCode: number; body: unknown }> {
-  const response = await apiInject({
-    method,
-    url,
-    payload,
-    headers: createAuthHeaders(token),
-  });
-
-  return {
-    statusCode: response.statusCode,
-    body: JSON.parse(response.body) as unknown,
-  };
 }

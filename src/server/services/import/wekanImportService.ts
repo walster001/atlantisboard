@@ -1,1 +1,1 @@
-export * from './wekanImportService.impl.js';
+export * from './wekanImportService/index.js';

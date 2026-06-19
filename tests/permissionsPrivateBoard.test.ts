@@ -1,6 +1,6 @@
-import { expect, it } from 'bun:test';
-import { describeHttpIntegration } from './helpers/integrationEnv.js';
-import { beforeAllEnsureTestServer } from './helpers/integrationHooks.js';
+import { expect, it, beforeAll } from 'bun:test';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationEnv.js';
+import { ensureTestServer } from './helpers/testServer.js';
 import { apiInject } from './helpers/integrationHttp.js';
 import {
   createAuthHeaders,
@@ -8,8 +8,10 @@ import {
   readApiEntityId,
 } from './helpers/testHelpers.js';
 
-describeHttpIntegration('Permissions: private board isolation', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true }, 'Permissions: private board isolation', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   it('denies non-members from reading lists/cards/labels and modifying card labels', async () => {
     const nonce = Date.now();

@@ -1,4 +1,4 @@
-export type EntityViewMode = 'summary' | 'detail';
+export type ViewMode = 'summary' | 'detail';
 import type { AttachmentScanStatus } from '../attachmentScanStatus.js';
 import type { BoardThemeSettings, BoardThemeSettingsStored } from '../boardTheme.js';
 import type { BoardActivityTrackingSettings } from '../constants/boardContentActivities.js';

@@ -83,7 +83,6 @@ NOTE: All code MUST STRICTLY adhere to OWASP standards, including passport authe
 - **Swagger** / **OpenAPI** (Latest) - API documentation
 
 ### Import/Export Tools (Bun-Compatible)
-- **csv-parser** (Latest) - Streaming CSV parser for CSV/TSV imports (Bun-compatible)
 - **fast-csv** (Latest) - Fast CSV parsing and formatting (Bun-compatible)
 - **papaparse** (Latest) - Powerful CSV parser, works in browser and Bun runtime
 - **zod** (v4.3.5) - Schema validation for import data validation (already in stack)
@@ -425,7 +424,6 @@ User Action ← Client (Dexie.js) ← Socket.io ← Change Streams
 **Import Tools & Libraries (Bun-Compatible)**
 - **JSON Parsing**: Use Bun's built-in JSON.parse() for Trello/Wekan JSON imports
 - **CSV Parsing**: Consider Bun-compatible packages:
-  - `csv-parser` (Latest) - Streaming CSV parser, Bun-compatible
   - `fast-csv` (Latest) - Fast CSV parsing and formatting, Bun-compatible
   - `papaparse` (Latest) - Powerful CSV parser, works in browser and Bun runtime
 - **Batch Processing**: Use Bun's native capabilities:

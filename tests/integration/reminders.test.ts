@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
-import { describeDbIntegration } from '../helpers/integrationEnv.js';
-import { beforeAllEnsureTestServer } from '../helpers/integrationHooks.js';
-import { getAuthToken, prepareIntegrationTestDatabase, injectApp } from '../helpers/testHelpers.js';
+import { describe, it, expect, beforeEach, beforeAll } from 'bun:test';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from '../helpers/integrationEnv.js';
+import { getAuthToken, prepareIntegrationTestDatabase } from '../helpers/testHelpers.js';
+import { ensureTestServer } from '../helpers/testServer.js';
+import { apiInject } from '../helpers/integrationHttp.js';
 import {
   createMockUser,
   createMockBoardForUser,
@@ -17,8 +18,10 @@ function triggerAtBeforeDue(dueDate: Date, daysBefore: number): string {
   return trigger.toISOString();
 }
 
-describeDbIntegration('Reminders', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true, mongoTestUriOnly: true }, 'Reminders', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
   let authToken: string;
   let userId: string;
   let boardId: string;
@@ -47,7 +50,7 @@ describeDbIntegration('Reminders', () => {
 
   describe('Reminder Creation', () => {
     it('should create reminder with custom offset', async () => {
-      const response = await injectApp({
+      const response = await apiInject({
         method: 'POST',
         url: `/api/v1/cards/${cardId}/reminders`,
         headers: {
@@ -68,7 +71,7 @@ describeDbIntegration('Reminders', () => {
 
     it('should enforce max 3 reminders per card', async () => {
       for (let i = 0; i < 3; i++) {
-        await injectApp({
+        await apiInject({
           method: 'POST',
           url: `/api/v1/cards/${cardId}/reminders`,
           headers: {
@@ -80,7 +83,7 @@ describeDbIntegration('Reminders', () => {
         });
       }
 
-      const response = await injectApp({
+      const response = await apiInject({
         method: 'POST',
         url: `/api/v1/cards/${cardId}/reminders`,
         headers: {
@@ -97,7 +100,7 @@ describeDbIntegration('Reminders', () => {
     });
 
     it('should create reminder with repeat frequency', async () => {
-      const response = await injectApp({
+      const response = await apiInject({
         method: 'POST',
         url: `/api/v1/cards/${cardId}/reminders`,
         headers: {
@@ -120,7 +123,7 @@ describeDbIntegration('Reminders', () => {
 
   describe('Reminder Dismissal', () => {
     it('should dismiss reminder', async () => {
-      const createResponse = await injectApp({
+      const createResponse = await apiInject({
         method: 'POST',
         url: `/api/v1/cards/${cardId}/reminders`,
         headers: {
@@ -137,7 +140,7 @@ describeDbIntegration('Reminders', () => {
       const reminderId = createBody.card.reminders[0]?.id;
       expect(reminderId).toBeDefined();
 
-      const dismissResponse = await injectApp({
+      const dismissResponse = await apiInject({
         method: 'PUT',
         url: `/api/v1/cards/${cardId}/reminders/${reminderId}/dismiss`,
         headers: {
@@ -163,7 +166,7 @@ describeDbIntegration('Reminders', () => {
       );
       const cardWithoutDueDate = card._id.toString();
 
-      const response = await injectApp({
+      const response = await apiInject({
         method: 'POST',
         url: `/api/v1/cards/${cardWithoutDueDate}/reminders`,
         headers: {

@@ -12,9 +12,55 @@ export const MONGODB_TEST_ONLY_DOCS =
 const MONGO_PROBE_TIMEOUT_MS = 4_000;
 const REDIS_PROBE_TIMEOUT_MS = 2_000;
 
+export type DescribeWhenDepsOptions = {
+  mongo?: boolean;
+  redis?: boolean;
+  /** When true, require MONGODB_TEST_URI only (not CI MONGODB_URI fallback). */
+  mongoTestUriOnly?: boolean;
+};
+
+function hasRequiredDeps(options: DescribeWhenDepsOptions): boolean {
+  if (options.mongo) {
+    const mongoOk = options.mongoTestUriOnly ? hasMongoTestUri() : hasMongoForTests();
+    if (!mongoOk) {
+      return false;
+    }
+  }
+  if (options.redis && !hasRedisForTests()) {
+    return false;
+  }
+  return true;
+}
+
+function describeWhenDepsSkipLabel(name: string, options: DescribeWhenDepsOptions): string {
+  if (options.mongo && options.redis && !options.mongoTestUriOnly) {
+    return `${name} (skipped: set MONGODB_URI or MONGODB_TEST_URI plus REDIS_HOST or REDIS_URL — see tests/README.md)`;
+  }
+  if (options.mongo && options.redis && options.mongoTestUriOnly) {
+    return `${name} (skipped: ${DB_INTEGRATION_ENV_DOCS})`;
+  }
+  if (options.mongo && options.mongoTestUriOnly) {
+    return `${name} (skipped: ${MONGODB_TEST_ONLY_DOCS})`;
+  }
+  return name;
+}
+
+export function describeWhenDeps(
+  options: DescribeWhenDepsOptions,
+  name: string,
+  fn: () => void,
+): void {
+  const describeFn = hasRequiredDeps(options) ? describe : describe.skip;
+  const label = hasRequiredDeps(options) ? name : describeWhenDepsSkipLabel(name, options);
+  describeFn(label, fn);
+}
+
 export function isCiTestRun(): boolean {
   return process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
 }
+
+/** Bun defaults hook timeout to 5s; server bootstrap needs longer in CI. */
+export const INTEGRATION_HOOK_TIMEOUT_MS = isCiTestRun() ? 120_000 : 60_000;
 
 export function hasRedisForTests(): boolean {
   const redisUrl = process.env.REDIS_URL?.trim();
@@ -39,33 +85,6 @@ export function hasDbIntegrationDeps(): boolean {
 
 export function hasHttpIntegrationDeps(): boolean {
   return hasMongoForTests() && hasRedisForTests();
-}
-
-/**
- * HTTP integration tests (server + Redis + Mongo via MONGODB_URI or MONGODB_TEST_URI).
- */
-export function describeHttpIntegration(name: string, fn: () => void): void {
-  const describeFn = hasHttpIntegrationDeps() ? describe : describe.skip;
-  const label = hasHttpIntegrationDeps()
-    ? name
-    : `${name} (skipped: set MONGODB_URI or MONGODB_TEST_URI plus REDIS_HOST or REDIS_URL — see tests/README.md)`;
-  describeFn(label, fn);
-}
-
-/**
- * Run integration tests when Mongo test URI and Redis are configured; otherwise skip the suite
- * with an explicit label (avoids silent 3s health-check hangs).
- */
-export function describeDbIntegration(name: string, fn: () => void): void {
-  const describeFn = hasDbIntegrationDeps() ? describe : describe.skip;
-  const label = hasDbIntegrationDeps() ? name : `${name} (skipped: ${DB_INTEGRATION_ENV_DOCS})`;
-  describeFn(label, fn);
-}
-
-export function describeMongoTest(name: string, fn: () => void): void {
-  const describeFn = hasMongoTestUri() ? describe : describe.skip;
-  const label = hasMongoTestUri() ? name : `${name} (skipped: ${MONGODB_TEST_ONLY_DOCS})`;
-  describeFn(label, fn);
 }
 
 export function resolveTestMongoUri(): string | undefined {

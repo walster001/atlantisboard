@@ -2,7 +2,7 @@ import type { Router } from 'express';
 import { adminMasterDeleteBoard } from '../../services/boardService/index.js';
 import { listAdminBoardActivityReport } from '../../services/adminReportingService/boardActivity.js';
 import { listAdminBoardListReport } from '../../services/adminReportingService/boardList.js';
-import { listAdminReportingBoardOptions } from '../../services/adminReportingService/boardOptions.js';
+import { listAdminReportingBoardOptions } from '../../services/adminReportingService/boardList.js';
 import { listAdminCardListReport } from '../../services/adminReportingService/cardList.js';
 import { listAdminMemberActivityReport } from '../../services/adminReportingService/memberActivity.js';
 import {

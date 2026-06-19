@@ -1,16 +1,5 @@
 import { cpus } from 'node:os';
-
-function parsePositiveIntEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw == null || raw.trim() === '') {
-    return fallback;
-  }
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 1) {
-    return fallback;
-  }
-  return n;
-}
+import { parsePositiveIntEnv } from '../../utils/parseEnvInt.js';
 
 export function getMongoExportConcurrency(): number {
   const cpuCount = Math.max(1, cpus().length);

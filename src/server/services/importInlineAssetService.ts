@@ -4,7 +4,7 @@ import { MINIO_BUCKET_IMPORT_INLINE } from '../../shared/constants/minioBuckets.
 import { getMinIOClient } from '../config/minio.js';
 import { Card } from '../models/Card.js';
 import { logger } from '../utils/logger.js';
-import { isBlockedSvgUpload } from '../utils/sanitizeHtml.js';
+import { isBlockedSvgUpload } from '../../shared/utils/sanitizeHtml.js';
 import {
   ValidationError,
 } from '../../shared/errors/domainErrors.js';

@@ -1,1 +1,1 @@
-export * from './boardService.impl.js';
+export * from './boardService/index.js';

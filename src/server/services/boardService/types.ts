@@ -1,5 +1,5 @@
 import type { BoardVisibility } from '../../models/Board.js';
-import type { BoardSummaryDTO } from '../../../shared/types/viewModels.js';
+import type { BoardSummaryDTO, ViewMode } from '../../../shared/types/viewModels.js';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
 import type { BoardActivityTrackingSettings } from '../../../shared/constants/boardContentActivities.js';
 
@@ -49,7 +49,7 @@ export interface UpdateBoardInput {
   } | undefined;
 }
 
-export type BoardViewMode = 'summary' | 'detail';
+export type BoardViewMode = ViewMode;
 
 /** Optional pagination for board list endpoints (`skip` defaults to 0 when `limit` is set). */
 export interface BoardListQueryOptions {

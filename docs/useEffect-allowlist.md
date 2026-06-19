@@ -63,7 +63,7 @@
 | `components/workspace/WorkspaceSettingsModal.tsx` | Load workspace permissions on open (abortable API). |
 | `contexts/AppBrandingContext.tsx` | Fetch branding CSS vars/fonts; apply to `document`; listen for admin branding socket/API updates. |
 | `contexts/ThemeContext.tsx` | Apply `data-theme` to `document`; `matchMedia` listener for `auto` theme. |
-| `hooks/activities/useActivityLog.ts` | Activity log API paging; socket activity events; board settings patch bridge. |
+| `hooks/activities/useMemberAuditLog.ts` | Member audit log API paging; socket activity events; board settings patch bridge. |
 | `hooks/board/useBoardMemberManagement.ts` | Board members API; socket board updated; assignable roles API. |
 | `hooks/board/useBoardThemeBackgroundTab.tsx` | Load board theme settings (abortable API) on `boardId` change. |
 | `hooks/card/useAttachmentSection.tsx` | Attachment list API; resumable upload / TUS external progress hooks. |

@@ -11,9 +11,12 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=probe-services.sh
+source "$SCRIPT_DIR/probe-services.sh"
 
 APP_URL=${1:-"http://localhost:3000"}
+
+probe_services_load_env
 
 echo -e "${BLUE}=== Health Check Report ===${NC}"
 echo ""
@@ -36,7 +39,7 @@ echo ""
 
 # Check MongoDB connectivity
 echo -e "${BLUE}MongoDB Connectivity:${NC}"
-if docker exec kanboard-mongodb mongosh --eval "db.adminCommand('ping')" >/dev/null 2>&1; then
+if probe_mongodb; then
   echo -e "${GREEN}✓${NC} MongoDB is accessible"
 else
   echo -e "${RED}✗${NC} MongoDB is not accessible"
@@ -46,37 +49,17 @@ echo ""
 
 # Check Redis connectivity
 echo -e "${BLUE}Redis Connectivity:${NC}"
-# Try to load REDIS_PASSWORD from .env if available
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-if [ -f "$PROJECT_ROOT/.env" ]; then
-  set +u
-  # shellcheck disable=SC1090
-  source "$PROJECT_ROOT/.env" 2>/dev/null || true
-  set -u
-fi
-
-if [ -n "${REDIS_PASSWORD:-}" ]; then
-  if docker exec kanboard-redis redis-cli -a "${REDIS_PASSWORD}" ping >/dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} Redis is accessible"
-  else
-    echo -e "${RED}✗${NC} Redis is not accessible"
-    SERVICES_OK=$((SERVICES_OK + 1))
-  fi
+if probe_redis; then
+  echo -e "${GREEN}✓${NC} Redis is accessible"
 else
-  if docker exec kanboard-redis redis-cli ping >/dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} Redis is accessible"
-  else
-    echo -e "${RED}✗${NC} Redis is not accessible"
-    SERVICES_OK=$((SERVICES_OK + 1))
-  fi
+  echo -e "${RED}✗${NC} Redis is not accessible"
+  SERVICES_OK=$((SERVICES_OK + 1))
 fi
 echo ""
 
 # Check MinIO connectivity
 echo -e "${BLUE}MinIO Connectivity:${NC}"
-if curl -f "${APP_URL/http:\/\/localhost/http://localhost}:9000/minio/health/live" >/dev/null 2>&1 || \
-   docker exec kanboard-minio curl -f http://localhost:9000/minio/health/live >/dev/null 2>&1; then
+if curl -f "${APP_URL/http:\/\/localhost/http://localhost}:9000/minio/health/live" >/dev/null 2>&1 || probe_minio; then
   echo -e "${GREEN}✓${NC} MinIO is accessible"
 else
   echo -e "${RED}✗${NC} MinIO is not accessible"
@@ -113,4 +96,3 @@ else
   echo -e "${RED}Found $SERVICES_OK issue(s)${NC}"
   exit 1
 fi
-

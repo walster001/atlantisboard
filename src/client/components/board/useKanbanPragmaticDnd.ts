@@ -1,4 +1,5 @@
 import { useLayoutEffect, startTransition } from 'react';
+import { flushSync } from 'react-dom';
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { db } from '../../store/database.js';
 import { api } from '../../utils/api.js';
@@ -12,6 +13,7 @@ import {
 import { moveListToHoverSlot } from '../../store/kanbanDragPure.js';
 import {
   fallbackDropForDraggedCard,
+  kanbanInsertIndexForDrop,
   moveCardBetweenListsInMap,
   resolveCardDropTarget,
   resolveListDropListId,
@@ -172,8 +174,6 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const cardDrag = readKanbanCardDragData(data);
         if (cardDrag != null) {
           stopAutoScroll();
-          setDraggingCardId(null);
-          setListDropIndicatorIfChanged(null);
           const indicatorSnapshot = resolveCardDropTarget(
             location.current.input as Record<string, unknown> | null,
             location.current.dropTargets,
@@ -181,52 +181,55 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
             source.element,
             cardDrag.cardId,
           );
-          ctx.flushCardDropIndicatorNow(null);
           const resolvedOnDrop =
             indicatorSnapshot ?? fallbackDropForDraggedCard(ctx.cards, cardDrag.listId, cardDrag.cardId);
+          const activeId = cardDrag.cardId;
+          const activeListId = ctx.cardIdToListIdRef.current.get(activeId);
+          let committedInsertIndex: number | null = null;
+          let committedTargetListId: string | null = null;
+          if (activeListId != null) {
+            committedTargetListId = resolvedOnDrop.listId;
+            const targetListCards = [...(ctx.cards.get(committedTargetListId) ?? [])];
+            committedInsertIndex = kanbanInsertIndexForDrop(
+              targetListCards,
+              activeId,
+              resolvedOnDrop,
+            );
+            flushSync(() => {
+              ctx.setCards((prev) =>
+                moveCardBetweenListsInMap(
+                  prev,
+                  activeId,
+                  activeListId,
+                  committedTargetListId!,
+                  committedInsertIndex!,
+                ),
+              );
+              ctx.flushCardDropIndicatorNow(null);
+              setDraggingCardId(null);
+              setListDropIndicatorIfChanged(null);
+            });
+          } else {
+            ctx.flushCardDropIndicatorNow(null);
+            setDraggingCardId(null);
+            setListDropIndicatorIfChanged(null);
+          }
           void (async () => {
-            const activeId = cardDrag.cardId;
-            const activeListId = ctx.cardIdToListIdRef.current.get(activeId);
-            if (activeListId == null) {
+            if (activeListId == null || committedTargetListId == null || committedInsertIndex == null) {
               return;
             }
-            const targetListId = resolvedOnDrop.listId;
-            const targetListCards = [...(ctx.cards.get(targetListId) ?? [])];
-            const insertIndex = (() => {
-              if (resolvedOnDrop.columnIntent === 'empty-column') {
-                return 0;
-              }
-              if (resolvedOnDrop.columnIntent === 'append-end') {
-                return targetListCards.filter((c) => c.id !== activeId).length;
-              }
-              const withoutActive = targetListCards.filter((c) => c.id !== activeId);
-              const anchorId = resolvedOnDrop.anchorCardId;
-              if (anchorId == null) {
-                return withoutActive.length;
-              }
-              const anchorIdx = withoutActive.findIndex((c) => c.id === anchorId);
-              if (anchorIdx < 0) {
-                return withoutActive.length;
-              }
-              return resolvedOnDrop.columnIntent === 'above' ? anchorIdx : anchorIdx + 1;
-            })();
 
             try {
-              startTransition(() => {
-                ctx.setCards((prev) =>
-                  moveCardBetweenListsInMap(prev, activeId, activeListId, targetListId, insertIndex),
-                );
-              });
               if (!ctx.viewAliveRef.current) {
                 return;
               }
-              if (targetListId === activeListId) {
-                const movePayload = await api.moveCard(activeId, activeListId, insertIndex);
+              if (committedTargetListId === activeListId) {
+                const movePayload = await api.moveCard(activeId, activeListId, committedInsertIndex);
                 const moved = normalizeCardFromApi(movePayload.card, activeId);
                 useBoardRuntimeStore.getState().upsertCard(moved);
                 await persistDexieCardPut(moved);
               } else {
-                const movePayload = await api.moveCard(activeId, targetListId, insertIndex);
+                const movePayload = await api.moveCard(activeId, committedTargetListId, committedInsertIndex);
                 const moved = normalizeCardFromApi(movePayload.card, activeId);
                 useBoardRuntimeStore.getState().upsertCard(moved);
                 await persistDexieCardPut(moved);

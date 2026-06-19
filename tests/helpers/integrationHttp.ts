@@ -44,34 +44,6 @@ export function resetIntegrationHttpSession(): void {
   csrfToken = '';
 }
 
-const HEALTH_FETCH_TIMEOUT_MS = 1_500;
-
-export async function waitForServer(
-  maxAttempts = 24,
-  delayMs = 125,
-  baseUrl?: string,
-): Promise<void> {
-  const resolvedBaseUrl = baseUrl ?? (await resolveTestServerBaseUrl());
-  let lastError: unknown;
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
-      const response = await fetch(`${resolvedBaseUrl}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(HEALTH_FETCH_TIMEOUT_MS),
-      });
-      if (response.ok) {
-        return;
-      }
-    } catch (error) {
-      lastError = error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-  }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error(`Server did not become ready at ${resolvedBaseUrl}`);
-}
-
 async function refreshCsrfToken(baseUrl: string): Promise<void> {
   const init: RequestInit = { method: 'GET' };
   if (sessionCookie) {

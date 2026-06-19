@@ -27,14 +27,7 @@ export function getClamAvDbDir(): string {
   return configured != null && configured !== '' ? configured : DEFAULT_DB_DIR;
 }
 
-function parsePositiveInt(raw: string | undefined, fallback: number): number {
-  if (raw == null || raw.trim() === '') {
-    return fallback;
-  }
-  const parsed = Number.parseInt(raw.trim(), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
+import { parsePositiveInt } from '../utils/parseEnvInt.js';
 function parseNonNegativeInt(raw: string | undefined, fallback: number): number {
   if (raw == null || raw.trim() === '') {
     return fallback;

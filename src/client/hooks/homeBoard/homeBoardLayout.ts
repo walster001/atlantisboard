@@ -1,5 +1,18 @@
 import type { BoardDB, WorkspaceDB } from '../../store/database.js';
-import { arrayMove } from '../../dnd/pragmatic/arrayMove.js';
+
+/** Reorder array by moving one item from `from` to `to` (indices in the pre-move array). */
+export function arrayMove<T>(array: readonly T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= array.length || to >= array.length) {
+    return [...array];
+  }
+  const next = [...array];
+  const [removed] = next.splice(from, 1);
+  if (removed === undefined) {
+    return [...array];
+  }
+  next.splice(to, 0, removed);
+  return next;
+}
 
 /** Safe workspace id for comparisons (handles non-string payloads from older cache/socket edge cases). */
 export function boardWorkspaceKey(b: Pick<BoardDB, 'workspaceId'>): string {
@@ -401,5 +414,3 @@ export function applyHomeWorkspaceGridDropLayout(
   }));
   return sortBoardsFlatHome([...other, ...newSource, ...newTarget]);
 }
-
-export { arrayMove };

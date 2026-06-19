@@ -1,6 +1,6 @@
 import type { MetricsHistoryEntry } from '../../../shared/types/adminSystemMetrics.js';
 import { getSocketIO } from '../../utils/socketIO.js';
-import { lastSlowMetricsSample } from './state.js';
+import { metricsCache } from './state.js';
 import { readLinuxMeminfoMb, sampleProcessCpu } from './hostCollectors.js';
 import { getAdminSystemMetricsSnapshot } from './snapshot.js';
 
@@ -34,7 +34,7 @@ function collectSample(): void {
   let diskUsedPercent = 0;
   let diskUsedMb = 0;
   let diskTotalMb = 0;
-  const disk = lastSlowMetricsSample?.disk;
+  const disk = metricsCache.lastSlowMetricsSample?.disk;
   if (disk != null && disk.totalMb > 0) {
     diskUsedMb = disk.usedMb;
     diskTotalMb = disk.totalMb;

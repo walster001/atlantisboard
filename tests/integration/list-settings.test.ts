@@ -1,11 +1,14 @@
-import { it, expect, beforeEach } from 'bun:test';
-import { describeDbIntegration } from '../helpers/integrationEnv.js';
-import { beforeAllEnsureTestServer } from '../helpers/integrationHooks.js';
-import { getAuthToken, prepareIntegrationTestDatabase, injectApp } from '../helpers/testHelpers.js';
+import { it, expect, beforeEach, beforeAll } from 'bun:test';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from '../helpers/integrationEnv.js';
+import { getAuthToken, prepareIntegrationTestDatabase } from '../helpers/testHelpers.js';
+import { ensureTestServer } from '../helpers/testServer.js';
+import { apiInject } from '../helpers/integrationHttp.js';
 import { createMockUser, createMockBoardForUser, createMockList } from '../helpers/mockData.js';
 
-describeDbIntegration('Board-wide list card limits', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true, mongoTestUriOnly: true }, 'Board-wide list card limits', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   let authToken: string;
   let boardId: string;
@@ -24,7 +27,7 @@ describeDbIntegration('Board-wide list card limits', () => {
   });
 
   it('should set listMaxCards on board via PUT /boards/:id', async () => {
-    const response = await injectApp({
+    const response = await apiInject({
       method: 'PUT',
       url: `/api/v1/boards/${boardId}`,
       headers: {
@@ -43,7 +46,7 @@ describeDbIntegration('Board-wide list card limits', () => {
   });
 
   it('should set listEnforceMaxCards on board', async () => {
-    const response = await injectApp({
+    const response = await apiInject({
       method: 'PUT',
       url: `/api/v1/boards/${boardId}`,
       headers: {
@@ -66,7 +69,7 @@ describeDbIntegration('Board-wide list card limits', () => {
   });
 
   it('should reject PUT /lists/:id/settings (removed route)', async () => {
-    const response = await injectApp({
+    const response = await apiInject({
       method: 'PUT',
       url: `/api/v1/lists/${listId}/settings`,
       headers: {

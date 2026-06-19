@@ -1,12 +1,6 @@
-export const DEFAULT_SIGNATURE_REFRESH_MS = 86_400_000;
+import { parsePositiveInt } from './parseEnvInt.js';
 
-function parsePositiveInt(raw: string | undefined, fallback: number): number {
-  if (raw == null || raw.trim() === '') {
-    return fallback;
-  }
-  const parsed = Number.parseInt(raw.trim(), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
+export const DEFAULT_SIGNATURE_REFRESH_MS = 86_400_000;
 
 /** Minimum interval between `freshclam` runs (also used by the scheduled refresh ticker). */
 export function getSignatureRefreshIntervalMs(): number {

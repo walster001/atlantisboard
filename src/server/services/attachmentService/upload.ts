@@ -10,7 +10,7 @@ import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
 import crypto from 'crypto';
 import { shouldSkipMalwareScan } from '../../utils/clamSignatures.js';
 import { initialAttachmentScanStatus } from '../../../shared/attachmentScanStatus.js';
-import { isBlockedSvgUpload } from '../../utils/sanitizeHtml.js';
+import { isBlockedSvgUpload } from '../../../shared/utils/sanitizeHtml.js';
 import { scheduleAttachmentMalwareScan } from './malwareScan.js';
 import {
   BUCKET_NAME,

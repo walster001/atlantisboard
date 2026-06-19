@@ -7,10 +7,6 @@
 export const EMOJI_SPRITESHEET_PUBLIC_PATH =
   '/emoji-datasource/twitter/sheets-256/64.png';
 
-/** @deprecated Use {@link EMOJI_SPRITESHEET_PUBLIC_PATH}. */
-export const EMOJI_DATASOURCE_TWITTER_SPRITESHEET_64_PUBLIC_PATH =
-  EMOJI_SPRITESHEET_PUBLIC_PATH;
-
 const PNG_CODEPOINT_TAIL = /\/([0-9a-f-]+)\.png(?:\?.*)?$/i;
 
 /** Extract Twemoji-style hyphenated codepoint from a legacy per-tile `src` URL. */

@@ -1,5 +1,7 @@
 import type { CardDB } from '../../store/database.js';
+import { compareCardListOrder } from '../../../shared/utils/cardListPos.js';
 import { readKanbanListBodyDropData, readKanbanListColumnDropData } from '../../dnd/pragmatic/kanbanData.js';
+import { insertIndexAgainstAnchor } from '../../store/kanbanDragPure.js';
 
 export { moveCardBetweenListsInMap } from '../../store/kanbanDragPure.js';
 
@@ -28,10 +30,30 @@ function sortedCardsForList(
   listId: string,
   excludeCardId: string | null,
 ): CardDB[] {
-  const raw = [...(cards.get(listId) ?? [])].sort(
-    (a, b) => a.position - b.position || a.id.localeCompare(b.id),
-  );
+  const raw = [...(cards.get(listId) ?? [])].sort(compareCardListOrder);
   return excludeCardId == null ? raw : raw.filter((c) => c.id !== excludeCardId);
+}
+
+/** Resolve drop insert index in the same order as `moveCardBetweenListsInMap` / `cardIdsByListId`. */
+export function kanbanInsertIndexForDrop(
+  listCards: readonly CardDB[],
+  activeId: string,
+  resolved: Pick<ResolvedCardDrop, 'columnIntent' | 'anchorCardId'>,
+): number {
+  const ordered = [...listCards].sort(compareCardListOrder);
+  const withoutActive = ordered.filter((c) => c.id !== activeId);
+  if (resolved.columnIntent === 'empty-column') {
+    return 0;
+  }
+  if (resolved.columnIntent === 'append-end') {
+    return withoutActive.length;
+  }
+  const anchorId = resolved.anchorCardId;
+  if (anchorId == null) {
+    return withoutActive.length;
+  }
+  const edge = resolved.columnIntent === 'above' ? 'above' : 'below';
+  return insertIndexAgainstAnchor(withoutActive, anchorId, edge);
 }
 
 function resolveListBodyDropFromPointer(

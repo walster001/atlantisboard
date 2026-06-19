@@ -1,1 +1,1 @@
-export * from './trelloImportService.impl.js';
+export * from './trelloImportService/index.js';

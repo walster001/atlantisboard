@@ -6,14 +6,7 @@ import { logger } from './logger.js';
 const ATLBOARD_TMP_PREFIX = 'atlboard-';
 const DEFAULT_MAX_AGE_MS = 60 * 60 * 1000;
 
-function parsePositiveInt(raw: string | undefined, fallback: number): number {
-  if (raw == null || raw.trim() === '') {
-    return fallback;
-  }
-  const parsed = Number.parseInt(raw.trim(), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
+import { parsePositiveInt } from './parseEnvInt.js';
 function getMaxAgeMs(): number {
   return parsePositiveInt(process.env.ATLBOARD_TMP_JANITOR_MAX_AGE_MS, DEFAULT_MAX_AGE_MS);
 }

@@ -5,8 +5,8 @@ import {
   assertDbIntegrationReachable,
   isCiTestRun,
   resolveTestMongoUri,
+  INTEGRATION_HOOK_TIMEOUT_MS,
 } from './helpers/integrationEnv.js';
-import { INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationHooks.js';
 import { connectTestDatabase, clearTestDatabase } from './helpers/testHelpers.js';
 import { ensureTestServer } from './helpers/testServer.js';
 

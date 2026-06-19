@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { MINIO_BUCKET_BRANDING } from '../../shared/constants/minioBuckets.js';
 import { getMinIOClient, initializeMinIOBuckets } from '../config/minio.js';
 import { logger } from '../utils/logger.js';
-import { isBlockedSvgUpload } from '../utils/sanitizeHtml.js';
+import { isBlockedSvgUpload } from '../../shared/utils/sanitizeHtml.js';
 import {
   ValidationError,
 } from '../../shared/errors/domainErrors.js';

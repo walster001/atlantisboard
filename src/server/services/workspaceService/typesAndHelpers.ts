@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import type { Document } from 'mongoose';
 import type { IWorkspace } from '../../models/Workspace.js';
-import type { WorkspaceSummaryDTO } from '../../../shared/types/viewModels.js';
+import type { ViewMode, WorkspaceSummaryDTO } from '../../../shared/types/viewModels.js';
 
 export interface CreateWorkspaceInput {
   name: string;
@@ -20,7 +20,7 @@ export interface AddMemberInput {
   roleKey: string;
 }
 
-export type WorkspaceViewMode = 'summary' | 'detail';
+export type WorkspaceViewMode = ViewMode;
 
 /** Matches `getWorkspaceById` detail view — mutation responses must not return raw ObjectIds for member list UI. */
 export const WORKSPACE_MEMBER_LIST_POPULATE: readonly mongoose.PopulateOptions[] = [

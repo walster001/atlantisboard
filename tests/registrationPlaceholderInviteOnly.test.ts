@@ -8,7 +8,7 @@ import {
   assertNewUserRegistrationAllowed,
   hasImportPlaceholderForRegistrationIdentity,
 } from '../src/server/utils/registrationPolicy.js';
-import { describeMongoTest } from './helpers/integrationEnv.js';
+import { describeWhenDeps } from './helpers/integrationEnv.js';
 import { connectTestDatabase } from './helpers/testHelpers.js';
 
 async function seedRegisteredUser(email: string, username: string): Promise<void> {
@@ -27,7 +27,7 @@ async function seedRegisteredUser(email: string, username: string): Promise<void
   });
 }
 
-describeMongoTest('registration invite-only placeholder bypass', () => {
+describeWhenDeps({ mongo: true, mongoTestUriOnly: true }, 'registration invite-only placeholder bypass', () => {
   test('allows registration when email matches BoardImportPlaceholder', async () => {
     await connectTestDatabase();
     await seedRegisteredUser('existing-for-placeholder@example.com', 'existingph1');

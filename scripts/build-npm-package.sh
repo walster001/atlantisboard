@@ -19,12 +19,7 @@ bun run sync:emoji-sheet
 bun run verify:emoji-sheet
 
 # PostCSS requires nanoid/non-secure; a corrupted Bun install cache can leave zero-byte files.
-NANOID_NON_SECURE="${PROJECT_ROOT}/node_modules/nanoid/non-secure/index.cjs"
-if [[ ! -s "${NANOID_NON_SECURE}" ]]; then
-  echo "==> Repairing corrupt nanoid install (empty files in Bun cache)"
-  rm -rf "${HOME}/.bun/install/cache/nanoid@"* "${PROJECT_ROOT}/node_modules/nanoid"
-  bun install --frozen-lockfile
-fi
+"${SCRIPT_DIR}/ensure-nanoid.sh" repair-if-needed
 
 echo "==> build:client"
 bun run build:client

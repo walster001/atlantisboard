@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import { expect, it } from 'bun:test';
-import { describeHttpIntegration } from './helpers/integrationEnv.js';
-import { beforeAllEnsureTestServer } from './helpers/integrationHooks.js';
+import { expect, it, beforeAll } from 'bun:test';
+import { describeWhenDeps, INTEGRATION_HOOK_TIMEOUT_MS } from './helpers/integrationEnv.js';
+import { ensureTestServer } from './helpers/testServer.js';
 import { apiInject, resetIntegrationHttpSession } from './helpers/integrationHttp.js';
 import { resolveTestServerBaseUrl } from './helpers/testServer.js';
 import { User } from '../src/server/models/User.js';
@@ -27,8 +27,10 @@ async function createUnverifiedUserWithToken(): Promise<{ email: string; token: 
   return { email, token };
 }
 
-describeHttpIntegration('Email verification API', () => {
-  beforeAllEnsureTestServer();
+describeWhenDeps({ mongo: true, redis: true }, 'Email verification API', () => {
+  beforeAll(async () => {
+    await ensureTestServer();
+  }, INTEGRATION_HOOK_TIMEOUT_MS);
 
   it('should reject GET /auth/verify-email (no state change via GET)', async () => {
     resetIntegrationHttpSession();

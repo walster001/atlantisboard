@@ -73,9 +73,3 @@ export function getEmojiSpriteCell(nativeEmoji: string): EmojiSpriteCell | undef
   const cp = twemoji.convert.toCodePoint(trimmed).toLowerCase();
   return codepointToGrid.get(cp);
 }
-
-/** @deprecated Use {@link getEmojiSpriteSheetMeta}. */
-export const getTwitterEmojiSheetMeta = getEmojiSpriteSheetMeta;
-
-/** @deprecated Use {@link getEmojiSpriteCell}. */
-export const getTwitterEmojiSpriteCell = getEmojiSpriteCell;

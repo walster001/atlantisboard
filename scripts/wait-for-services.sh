@@ -10,26 +10,22 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=probe-services.sh
+source "$SCRIPT_DIR/probe-services.sh"
+
 TIMEOUT=${TIMEOUT:-60}
 MAX_RETRIES=12
 RETRY_DELAY=5
 
-# Try to load REDIS_PASSWORD from .env if available
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-if [ -f "$PROJECT_ROOT/.env" ]; then
-  set +u
-  # shellcheck disable=SC1090
-  source "$PROJECT_ROOT/.env" 2>/dev/null || true
-  set -u
-fi
+probe_services_load_env
 
 # Function to wait for MongoDB
 wait_for_mongodb() {
   echo -e "${BLUE}Waiting for MongoDB to be ready...${NC}"
   local count=0
   while [ $count -lt $MAX_RETRIES ]; do
-    if docker exec kanboard-mongodb mongosh --eval "db.adminCommand('ping')" >/dev/null 2>&1; then
+    if probe_mongodb; then
       echo -e "${GREEN}✓${NC} MongoDB is ready"
       return 0
     fi
@@ -47,24 +43,15 @@ wait_for_redis() {
   echo -e "${BLUE}Waiting for Redis to be ready...${NC}"
   local count=0
   while [ $count -lt $MAX_RETRIES ]; do
-    # Check if container is running first
-    if ! docker ps --format '{{.Names}}' | grep -q "^kanboard-redis$"; then
+    if ! probe_redis_container_running; then
       echo -n "."
       sleep $RETRY_DELAY
       count=$((count + 1))
       continue
     fi
-    # Try ping (if password is set and non-empty, use it; otherwise try without)
-    if [ -n "${REDIS_PASSWORD:-}" ]; then
-      if docker exec kanboard-redis redis-cli -a "${REDIS_PASSWORD}" ping >/dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} Redis is ready"
-        return 0
-      fi
-    else
-      if docker exec kanboard-redis redis-cli ping >/dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} Redis is ready"
-        return 0
-      fi
+    if probe_redis; then
+      echo -e "${GREEN}✓${NC} Redis is ready"
+      return 0
     fi
     echo -n "."
     sleep $RETRY_DELAY
@@ -80,8 +67,7 @@ wait_for_minio() {
   echo -e "${BLUE}Waiting for MinIO to be ready...${NC}"
   local count=0
   while [ $count -lt $MAX_RETRIES ]; do
-    if docker exec kanboard-minio curl -f http://localhost:9000/minio/health/live >/dev/null 2>&1 || \
-       curl -f http://localhost:9000/minio/health/live >/dev/null 2>&1; then
+    if probe_minio; then
       echo -e "${GREEN}✓${NC} MinIO is ready"
       return 0
     fi
@@ -145,4 +131,3 @@ else
   echo -e "${RED}Some services failed to become ready${NC}"
   exit 1
 fi
-

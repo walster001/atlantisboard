@@ -7,7 +7,7 @@ import {
 } from '../src/server/services/import/validateImportRoleKeys.js';
 import { validateRoleKeyExists } from '../src/server/services/roleService.js';
 import { ValidationError } from '../src/shared/errors/domainErrors.js';
-import { describeMongoTest } from './helpers/integrationEnv.js';
+import { describeWhenDeps } from './helpers/integrationEnv.js';
 import { connectTestDatabase } from './helpers/testHelpers.js';
 
 describe('validateRoleKeyExists (unit)', () => {
@@ -17,7 +17,7 @@ describe('validateRoleKeyExists (unit)', () => {
   });
 });
 
-describeMongoTest('validateImportRoleKeys', () => {
+describeWhenDeps({ mongo: true, mongoTestUriOnly: true }, 'validateImportRoleKeys', () => {
   beforeAll(async () => {
     await connectTestDatabase();
     await RoleDefinition.deleteMany({ key: 'custom:test-import-role' });

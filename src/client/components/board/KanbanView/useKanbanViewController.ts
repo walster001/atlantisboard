@@ -112,6 +112,7 @@ export function useKanbanViewController({
     flushCardDropIndicatorNow,
     setListDropIndicatorIfChanged,
     cancelPendingCardDropIndicatorRaf,
+    cardDropIndicatorRef,
   } = useKanbanDropIndicators();
   const canAddCardRef = useRef(kanbanCaps.canAddCard);
   canAddCardRef.current = kanbanCaps.canAddCard;
@@ -255,6 +256,7 @@ export function useKanbanViewController({
     reloadAllCardsFromDb,
     queueCardDropIndicator,
     flushCardDropIndicatorNow,
+    cardDropIndicatorRef,
     viewAliveRef,
   });
 

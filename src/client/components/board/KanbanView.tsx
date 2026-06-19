@@ -1,13 +1,9 @@
 import {
-  useCallback,
-  useMemo,
   useRef,
   type MutableRefObject,
 } from 'react';
 import { Box, Button, Group } from '@mantine/core';
 import type { CardDB, BoardDB } from '../../store/database.js';
-import { useShallow } from 'zustand/react/shallow';
-import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
 import { BoardInlineListComposer } from './BoardInlineListComposer.js';
 import type { KanbanBoardEditCaps } from '../../hooks/useBoardPermissions.js';
 import {
@@ -73,36 +69,6 @@ export function KanbanView({
     ...(boardCardPatchRef != null ? { boardCardPatchRef } : {}),
   });
 
-  const cardIdsByListId = useBoardRuntimeStore(useShallow((s) => s.cardIdsByListId));
-
-  const draggingCardIdScopedByListId = useMemo((): ReadonlyMap<string, string | null> | null => {
-    if (draggingCardId == null) {
-      return null;
-    }
-    const m = new Map<string, string | null>();
-    const add = (listId: string | undefined): void => {
-      if (listId == null || listId === '' || m.has(listId)) {
-        return;
-      }
-      const ids = cardIdsByListId[listId] ?? [];
-      m.set(listId, ids.includes(draggingCardId) ? draggingCardId : null);
-    };
-    for (const list of mountedLists) {
-      add(list.id);
-    }
-    return m;
-  }, [draggingCardId, mountedLists, cardIdsByListId]);
-
-  const draggingCardIdPropForListId = useCallback(
-    (listId: string | undefined): string | null => {
-      if (listId == null || listId === '' || draggingCardIdScopedByListId == null) {
-        return null;
-      }
-      return draggingCardIdScopedByListId.get(listId) ?? null;
-    },
-    [draggingCardIdScopedByListId],
-  );
-
   if (isSwipeKanban) {
     return (
       <KanbanMobileCarousel
@@ -130,7 +96,6 @@ export function KanbanView({
         onCardDeletedFromBoard={removeCardFromBoardState}
         onKanbanCardsReload={handleKanbanCardsReload}
         onListCreated={handleListCreated}
-        draggingCardIdPropForListId={draggingCardIdPropForListId}
       />
     );
   }
@@ -153,7 +118,7 @@ export function KanbanView({
           list={list}
           board={board}
           assigneeDirectory={assigneeDirectory}
-          draggingCardId={draggingCardIdPropForListId(list.id)}
+          draggingCardId={draggingCardId}
           draggingListId={draggingListId}
           boardId={board.id}
           cardListMaxBodyPx={cardListMaxBodyPx}

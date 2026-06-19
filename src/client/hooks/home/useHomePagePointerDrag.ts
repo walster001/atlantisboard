@@ -36,6 +36,10 @@ export function useHomePagePointerDrag(
   layoutReady: boolean,
   /** When true, touch drags on board cards require a long-press before reorder arms. */
   touchReorderRequiresLongPress: boolean,
+  workspaceRowDragRef: MutableRefObject<{
+    readonly workspaceId: string | null;
+    readonly insertIndex: number | null;
+  }>,
 ): {
   readonly suppressBoardClickRef: MutableRefObject<boolean>;
   readonly floatPreview: FloatState;
@@ -90,8 +94,10 @@ export function useHomePagePointerDrag(
       setDraggingBoardId,
       setBoardLongPressUi,
       setBoardDropIndicator,
+      boardDropIndicatorRef,
+      workspaceRowDragRef,
     });
-  }, [actionsRef, layoutReady, modelsRef, setBoardDropIndicator, touchReorderRequiresLongPress]);
+  }, [actionsRef, layoutReady, modelsRef, setBoardDropIndicator, touchReorderRequiresLongPress, workspaceRowDragRef]);
 
   return { suppressBoardClickRef, floatPreview, draggingBoardId, boardLongPressUi, boardDropIndicator };
 }

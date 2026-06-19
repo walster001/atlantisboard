@@ -6,45 +6,102 @@ import type { CardDropIndicatorTarget } from './VirtualizedCardList/helpers.js';
 export const KANBAN_DROP_SLOT_ROW_KEY = '__kanban_drop_slot__';
 
 export type KanbanListDisplayRow =
-  | { readonly kind: 'card'; readonly card: CardDB }
+  | {
+      readonly kind: 'card';
+      readonly card: CardDB;
+      /** Collapse layout but keep mounted — Virtuoso unmount kills pragmatic-dnd mid-gesture. */
+      readonly dragLayoutCollapsed?: boolean;
+      readonly pairedDropSlot?: CardDropIndicatorTarget;
+    }
   | { readonly kind: 'drop-slot'; readonly target: CardDropIndicatorTarget };
 
 export function kanbanListDisplayRowKey(row: KanbanListDisplayRow): string {
-  return row.kind === 'card' ? row.card.id : KANBAN_DROP_SLOT_ROW_KEY;
+  if (row.kind === 'card') {
+    return row.card.id;
+  }
+  const { anchorCardId, columnIntent } = row.target;
+  return `${KANBAN_DROP_SLOT_ROW_KEY}:${anchorCardId ?? ''}:${columnIntent}`;
 }
 
-/** Visible list rows during drag: hide source card, insert grey slot at resolved insert index. */
+/**
+ * Hide the dragging card only after a drop slot is active — avoids mobile long-press gaps
+ * where the card vanishes before the grey slot renders.
+ */
+export function shouldHideKanbanDraggingCardInList(
+  listId: string,
+  draggingCardId: string | null,
+  dropIndicator: CardDropIndicatorTarget | null,
+): boolean {
+  if (draggingCardId == null || dropIndicator == null) {
+    return false;
+  }
+  if (dropIndicator.listId === listId) {
+    return true;
+  }
+  return dropIndicator.sourceListId === listId;
+}
+
+/** Visible list rows during drag: collapse source card once slot is shown, insert slot at resolved index. */
 export function buildKanbanListDisplayRows(
   cards: readonly CardDB[],
   listId: string,
   draggingCardId: string | null,
   dropIndicator: CardDropIndicatorTarget | null,
 ): KanbanListDisplayRow[] {
-  const visible =
-    draggingCardId == null ? [...cards] : cards.filter((c) => c.id !== draggingCardId);
-  const sorted = [...visible].sort(compareCardListOrder);
+  const ordered = [...cards].sort(compareCardListOrder);
+  const hideDraggingCard = shouldHideKanbanDraggingCardInList(listId, draggingCardId, dropIndicator);
 
-  if (
-    draggingCardId == null ||
-    dropIndicator == null ||
-    dropIndicator.listId !== listId
-  ) {
-    return sorted.map((card) => ({ kind: 'card', card }));
+  if (dropIndicator == null || dropIndicator.listId !== listId) {
+    if (hideDraggingCard && draggingCardId != null) {
+      return ordered.map((card) => ({
+        kind: 'card' as const,
+        card,
+        ...(card.id === draggingCardId ? { dragLayoutCollapsed: true as const } : {}),
+      }));
+    }
+    return ordered.map((card) => ({ kind: 'card' as const, card }));
   }
 
-  const insertIndex = kanbanInsertIndexForDrop(cards, draggingCardId, {
+  const insertIndex = kanbanInsertIndexForDrop(ordered, draggingCardId ?? '', {
     anchorCardId: dropIndicator.anchorCardId,
     columnIntent: dropIndicator.columnIntent,
   });
 
   const rows: KanbanListDisplayRow[] = [];
-  for (let i = 0; i <= sorted.length; i += 1) {
-    if (i === insertIndex) {
+  let withoutDragCursor = 0;
+
+  for (let i = 0; i < ordered.length; i += 1) {
+    const card = ordered[i]!;
+    const isDragCard = hideDraggingCard && card.id === draggingCardId;
+
+    if (!isDragCard && withoutDragCursor === insertIndex) {
       rows.push({ kind: 'drop-slot', target: dropIndicator });
     }
-    if (i < sorted.length) {
-      rows.push({ kind: 'card', card: sorted[i]! });
+
+    if (isDragCard && withoutDragCursor === insertIndex) {
+      rows.push({
+        kind: 'card',
+        card,
+        dragLayoutCollapsed: true,
+        pairedDropSlot: dropIndicator,
+      });
+      withoutDragCursor += 1;
+      continue;
+    }
+
+    rows.push({
+      kind: 'card',
+      card,
+      ...(isDragCard ? { dragLayoutCollapsed: true } : {}),
+    });
+    if (!isDragCard) {
+      withoutDragCursor += 1;
     }
   }
+
+  if (withoutDragCursor === insertIndex) {
+    rows.push({ kind: 'drop-slot', target: dropIndicator });
+  }
+
   return rows;
 }

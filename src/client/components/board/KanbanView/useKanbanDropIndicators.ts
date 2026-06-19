@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type MutableRefObject } from 'react';
 import type { CardDropIndicatorTarget } from '../VirtualizedCardList.js';
 import { cardDropIndicatorsEqual, listDropIndicatorsEqual, type ListDropIndicatorTarget } from './helpers.js';
 
@@ -9,6 +9,7 @@ interface KanbanDropIndicatorsController {
   readonly flushCardDropIndicatorNow: (next: CardDropIndicatorTarget | null) => void;
   readonly setListDropIndicatorIfChanged: (next: ListDropIndicatorTarget | null) => void;
   readonly cancelPendingCardDropIndicatorRaf: () => void;
+  readonly cardDropIndicatorRef: MutableRefObject<CardDropIndicatorTarget | null>;
 }
 
 export function useKanbanDropIndicators(): KanbanDropIndicatorsController {
@@ -28,11 +29,15 @@ export function useKanbanDropIndicators(): KanbanDropIndicatorsController {
   }, []);
 
   const setCardDropIndicatorIfChanged = useCallback((next: CardDropIndicatorTarget | null) => {
-    if (cardDropIndicatorsEqual(cardDropIndicatorRef.current, next)) {
-      return;
-    }
-    cardDropIndicatorRef.current = next;
-    setCardDropIndicator(next);
+    // Compare React state, not cardDropIndicatorRef: queueCardDropIndicator updates the ref
+    // before RAF so onDrop reads the latest target; comparing ref here would skip setState.
+    setCardDropIndicator((prev) => {
+      if (cardDropIndicatorsEqual(prev, next)) {
+        return prev;
+      }
+      cardDropIndicatorRef.current = next;
+      return next;
+    });
   }, []);
 
   const setListDropIndicatorIfChanged = useCallback((next: ListDropIndicatorTarget | null) => {
@@ -52,6 +57,7 @@ export function useKanbanDropIndicators(): KanbanDropIndicatorsController {
         return;
       }
       pendingCardDropIndicatorRef.current = next;
+      cardDropIndicatorRef.current = next;
       if (cardDropIndicatorRafRef.current != null) {
         return;
       }
@@ -79,5 +85,6 @@ export function useKanbanDropIndicators(): KanbanDropIndicatorsController {
     flushCardDropIndicatorNow,
     setListDropIndicatorIfChanged,
     cancelPendingCardDropIndicatorRaf,
+    cardDropIndicatorRef,
   };
 }

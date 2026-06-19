@@ -58,6 +58,8 @@ export interface HomeBoardMoveInput {
   readonly targetWorkspaceId: string;
   /** `null` = insert at end of target workspace row (same or cross workspace). */
   readonly anchorBoardId: string | null;
+  /** Per-user home board order (display order on the homepage grid). */
+  readonly homeBoardOrderByWorkspace: Readonly<Record<string, readonly string[]>> | undefined;
   readonly hasBoardUpdate: (boardId: string) => boolean;
   readonly hasWorkspaceUpdate: (workspaceId: string) => boolean;
 }
@@ -76,6 +78,7 @@ export async function persistHomeBoardMove(input: HomeBoardMoveInput): Promise<v
     anchorBoardId,
     hasBoardUpdate,
     hasWorkspaceUpdate,
+    homeBoardOrderByWorkspace,
   } = input;
 
   if (uid == null || uid === '') {
@@ -99,17 +102,33 @@ export async function persistHomeBoardMove(input: HomeBoardMoveInput): Promise<v
       return;
     }
     const serverScope = await fetchBoardsForWorkspaceReorder(rowWs);
-    let nextScope = moveHomeBoardOptimistic(serverScope, activeBoardId, rowWs, anchorBoardId);
+    let nextScope = moveHomeBoardOptimistic(
+      serverScope,
+      activeBoardId,
+      rowWs,
+      anchorBoardId,
+      homeBoardOrderByWorkspace,
+    );
     if (nextScope == null) {
       const normalized = boards.map((b) =>
         boardIdKey(b.id) === boardIdKey(activeBoardId) ? { ...b, workspaceId: rowWs } : b,
       );
-      nextScope = moveHomeBoardOptimistic(normalized, activeBoardId, rowWs, anchorBoardId);
+      nextScope = moveHomeBoardOptimistic(
+        normalized,
+        activeBoardId,
+        rowWs,
+        anchorBoardId,
+        homeBoardOrderByWorkspace,
+      );
     }
     if (nextScope == null) {
       return;
     }
-    const clientDesiredIds = getBoardsInWorkspaceSorted(nextScope, rowWs).map((b) => b.id);
+    const clientDesiredIds = getBoardsInWorkspaceSorted(
+      nextScope,
+      rowWs,
+      homeBoardOrderByWorkspace,
+    ).map((b) => b.id);
     const freshScope = await fetchBoardsForWorkspaceReorder(rowWs);
     const finalIds = mergeClientOrderWithServerScope(rowWs, clientDesiredIds, freshScope);
     if (finalIds.length === 0) {
@@ -130,7 +149,7 @@ export async function persistHomeBoardMove(input: HomeBoardMoveInput): Promise<v
   }
 
   const afterBoards =
-    moveHomeBoardOptimistic(boards, activeBoardId, rowWs, anchorBoardId) ??
+    moveHomeBoardOptimistic(boards, activeBoardId, rowWs, anchorBoardId, homeBoardOrderByWorkspace) ??
     boardsAfterCrossWorkspaceAppend(boards, activeBoardId, rowWs);
 
   await api.updateBoard(dragged.id, { workspaceId: rowWs });
@@ -140,12 +159,12 @@ export async function persistHomeBoardMove(input: HomeBoardMoveInput): Promise<v
   ]);
   const targetIds = mergeClientOrderWithServerScope(
     rowWs,
-    getBoardsInWorkspaceSorted(afterBoards, rowWs).map((b) => b.id),
+    getBoardsInWorkspaceSorted(afterBoards, rowWs, homeBoardOrderByWorkspace).map((b) => b.id),
     targetServerBoards,
   );
   const sourceIds = mergeClientOrderWithServerScope(
     sourceRowWs,
-    getBoardsInWorkspaceSorted(afterBoards, sourceRowWs).map((b) => b.id),
+    getBoardsInWorkspaceSorted(afterBoards, sourceRowWs, homeBoardOrderByWorkspace).map((b) => b.id),
     sourceServerBoards,
   );
   if (targetIds.length > 0) {

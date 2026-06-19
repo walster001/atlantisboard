@@ -2,6 +2,7 @@ import type { CardDB } from '../../store/database.js';
 import { compareCardListOrder } from '../../../shared/utils/cardListPos.js';
 import { readKanbanListBodyDropData, readKanbanListColumnDropData } from '../../dnd/pragmatic/kanbanData.js';
 import { insertIndexAgainstAnchor } from '../../store/kanbanDragPure.js';
+import type { CardDropIndicatorTarget } from './VirtualizedCardList/helpers.js';
 
 export { moveCardBetweenListsInMap } from '../../store/kanbanDragPure.js';
 
@@ -9,6 +10,33 @@ export interface ResolvedCardDrop {
   readonly listId: string;
   readonly anchorCardId: string | null;
   readonly columnIntent: 'empty-column' | 'append-end' | 'above' | 'below';
+}
+
+export const DEFAULT_KANBAN_CARD_DROP_METRICS = { width: 248, height: 88 } as const;
+
+/** One measure at drag start — matches lifted drag preview sizing. */
+export function kanbanCardDragMetricsFromElement(
+  el: Element | null,
+): { readonly width: number; readonly height: number } {
+  if (el == null || typeof HTMLElement === 'undefined') {
+    return DEFAULT_KANBAN_CARD_DROP_METRICS;
+  }
+  const cardRoot = el instanceof HTMLElement
+    ? (el.closest<HTMLElement>('[data-kanban-card-id]') ?? el)
+    : null;
+  if (cardRoot == null) {
+    return DEFAULT_KANBAN_CARD_DROP_METRICS;
+  }
+  const rect = cardRoot.getBoundingClientRect();
+  return {
+    width: Math.max(1, Math.round(rect.width)),
+    height: Math.max(1, Math.round(rect.height)),
+  };
+}
+
+/** Drop slot height = measured dragged card height (Virtuoso row estimate uses the same value). */
+export function dropSlotDisplayHeightPx(measuredCardHeightPx: number): number {
+  return Math.max(1, Math.round(measuredCardHeightPx));
 }
 
 export function fallbackDropForDraggedCard(
@@ -25,13 +53,105 @@ export function fallbackDropForDraggedCard(
   };
 }
 
-function sortedCardsForList(
+/** Insert index that preserves the card's current visual position in its list. */
+export function kanbanCurrentInsertIndex(listCards: readonly CardDB[], activeId: string): number {
+  const ordered = [...listCards].sort(compareCardListOrder);
+  const idx = ordered.findIndex((c) => c.id === activeId);
+  return idx >= 0 ? idx : ordered.length;
+}
+
+/** Drop target for drag start / no-move release — keeps the card in place instead of append-end. */
+export function initialCardDropForDraggedCard(
+  cards: ReadonlyMap<string, readonly CardDB[]>,
+  sourceListId: string,
+  draggingCardId: string,
+): ResolvedCardDrop {
+  const ordered = [...(cards.get(sourceListId) ?? [])].sort(compareCardListOrder);
+  const activeIndex = ordered.findIndex((c) => c.id === draggingCardId);
+  if (activeIndex < 0) {
+    return fallbackDropForDraggedCard(cards, sourceListId, draggingCardId);
+  }
+  const withoutActive = ordered.filter((c) => c.id !== draggingCardId);
+  if (withoutActive.length === 0) {
+    return { listId: sourceListId, anchorCardId: null, columnIntent: 'empty-column' };
+  }
+  if (activeIndex === 0) {
+    return {
+      listId: sourceListId,
+      anchorCardId: withoutActive[0]!.id,
+      columnIntent: 'above',
+    };
+  }
+  const cardAbove = withoutActive[activeIndex - 1];
+  if (cardAbove != null) {
+    return {
+      listId: sourceListId,
+      anchorCardId: cardAbove.id,
+      columnIntent: 'below',
+    };
+  }
+  return fallbackDropForDraggedCard(cards, sourceListId, draggingCardId);
+}
+
+export function cardDropIndicatorFromResolved(
+  resolved: ResolvedCardDrop,
+  sourceListId: string,
+  metrics: { readonly width: number; readonly height: number },
+): CardDropIndicatorTarget {
+  return {
+    listId: resolved.listId,
+    sourceListId,
+    anchorCardId: resolved.anchorCardId,
+    columnIntent: resolved.columnIntent,
+    boxWidth: metrics.width,
+    boxHeight: metrics.height,
+  };
+}
+
+function listCardsForDrop(
   cards: ReadonlyMap<string, readonly CardDB[]>,
   listId: string,
   excludeCardId: string | null,
 ): CardDB[] {
   const raw = [...(cards.get(listId) ?? [])].sort(compareCardListOrder);
   return excludeCardId == null ? raw : raw.filter((c) => c.id !== excludeCardId);
+}
+
+const KANBAN_HIT_TEST_SKIP =
+  '.board-page__dnd-card-lift-preview, .board-page__dnd-drag-preview-container, [data-kanban-drop-slot]';
+
+function walkKanbanHitElements(clientX: number, clientY: number, draggingCardId: string | null): Element[] {
+  return document.elementsFromPoint(clientX, clientY).filter((el): el is Element => {
+    if (!(el instanceof Element)) {
+      return false;
+    }
+    if (el.closest(KANBAN_HIT_TEST_SKIP) != null) {
+      return false;
+    }
+    if (draggingCardId != null) {
+      const cardRoot = el.closest<HTMLElement>('[data-kanban-card-id]');
+      if (cardRoot?.dataset.kanbanCardId === draggingCardId) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+/** Commit uses the last hover indicator — drop-time hit tests miss under touch drag previews. */
+export function resolveCardDropForCommit(
+  lastIndicator: CardDropIndicatorTarget | null,
+  onDropResolved: ResolvedCardDrop | null,
+  fallback: ResolvedCardDrop,
+): ResolvedCardDrop {
+  if (lastIndicator != null) {
+    return {
+      listId: lastIndicator.listId,
+      anchorCardId: lastIndicator.anchorCardId,
+      columnIntent: lastIndicator.columnIntent,
+    };
+  }
+  return onDropResolved ?? fallback;
 }
 
 /** Resolve drop insert index in the same order as `moveCardBetweenListsInMap` / `cardIdsByListId`. */
@@ -59,11 +179,11 @@ export function kanbanInsertIndexForDrop(
 function resolveListBodyDropFromPointer(
   listBodyEl: HTMLElement,
   clientY: number,
-  listCardsSorted: readonly CardDB[],
+  listCardsInStoreOrder: readonly CardDB[],
   listId: string,
   draggingCardId: string | null,
 ): ResolvedCardDrop | null {
-  if (listCardsSorted.length === 0) {
+  if (listCardsInStoreOrder.length === 0) {
     return { listId, anchorCardId: null, columnIntent: 'empty-column' };
   }
 
@@ -124,12 +244,12 @@ function resolveListBodyDropFromPointer(
   const rect = scroller.getBoundingClientRect();
   const contentY = clientY - rect.top + scroller.scrollTop;
   const totalH = Math.max(1, scroller.scrollHeight);
-  const slotH = totalH / listCardsSorted.length;
+  const slotH = totalH / listCardsInStoreOrder.length;
   const idx = Math.min(
-    listCardsSorted.length - 1,
+    listCardsInStoreOrder.length - 1,
     Math.max(0, Math.floor(contentY / Math.max(1, slotH))),
   );
-  const anchor = listCardsSorted[idx];
+  const anchor = listCardsInStoreOrder[idx];
   if (anchor == null) {
     return null;
   }
@@ -152,9 +272,11 @@ export function resolveCardDropTarget(
   const clientX = typeof input?.clientX === 'number' ? input.clientX : null;
   const clientY = typeof input?.clientY === 'number' ? input.clientY : null;
   if (clientX != null && clientY != null) {
-    const hovered = document.elementFromPoint(clientX, clientY);
-    if (hovered instanceof HTMLElement) {
-      const cardEl = hovered.closest<HTMLElement>('[data-kanban-list-id][data-kanban-card-id]');
+    for (const el of walkKanbanHitElements(clientX, clientY, draggingCardId)) {
+      if (!(el instanceof HTMLElement)) {
+        continue;
+      }
+      const cardEl = el.closest<HTMLElement>('[data-kanban-list-id][data-kanban-card-id]');
       const listId = cardEl?.dataset.kanbanListId?.trim() ?? '';
       const cardId = cardEl?.dataset.kanbanCardId?.trim() ?? '';
       if (
@@ -172,11 +294,11 @@ export function resolveCardDropTarget(
         };
       }
 
-      const listBodyEl = hovered.closest<HTMLElement>('[data-kanban-list-body]');
+      const listBodyEl = el.closest<HTMLElement>('[data-kanban-list-body]');
       const bodyListId = listBodyEl?.dataset.kanbanListBody?.trim() ?? '';
       if (bodyListId !== '' && listBodyEl != null) {
-        const sorted = sortedCardsForList(cards, bodyListId, draggingCardId);
-        return resolveListBodyDropFromPointer(listBodyEl, clientY, sorted, bodyListId, draggingCardId);
+        const listCards = listCardsForDrop(cards, bodyListId, draggingCardId);
+        return resolveListBodyDropFromPointer(listBodyEl, clientY, listCards, bodyListId, draggingCardId);
       }
     }
   }
@@ -185,8 +307,8 @@ export function resolveCardDropTarget(
     const rec = t.data as Record<string, unknown>;
     const bodyTarget = readKanbanListBodyDropData(rec);
     if (bodyTarget != null) {
-      const sorted = sortedCardsForList(cards, bodyTarget.listId, draggingCardId);
-      if (sorted.length === 0) {
+      const listCards = listCardsForDrop(cards, bodyTarget.listId, draggingCardId);
+      if (listCards.length === 0) {
         return { listId: bodyTarget.listId, anchorCardId: null, columnIntent: 'empty-column' };
       }
       if (clientY != null) {
@@ -197,7 +319,7 @@ export function resolveCardDropTarget(
           return resolveListBodyDropFromPointer(
             bodyEl,
             clientY,
-            sorted,
+            listCards,
             bodyTarget.listId,
             draggingCardId,
           );
@@ -205,7 +327,7 @@ export function resolveCardDropTarget(
       }
       return {
         listId: bodyTarget.listId,
-        anchorCardId: sorted[sorted.length - 1]?.id ?? null,
+        anchorCardId: listCards[listCards.length - 1]?.id ?? null,
         columnIntent: 'append-end',
       };
     }

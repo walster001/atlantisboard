@@ -179,13 +179,13 @@ export function moveBoardToHoverSlot(
   if (ak === ok) {
     return null;
   }
-  const ordered = [...scopeList].sort((a, b) => a.position - b.position);
-  const fromIdx = ordered.findIndex((b) => boardIdKey(b.id) === ak);
-  const overIdx = ordered.findIndex((b) => boardIdKey(b.id) === ok);
+  /** `scopeList` is already in display order (home prefs + position); do not re-sort by `position`. */
+  const fromIdx = scopeList.findIndex((b) => boardIdKey(b.id) === ak);
+  const overIdx = scopeList.findIndex((b) => boardIdKey(b.id) === ok);
   if (fromIdx < 0 || overIdx < 0 || fromIdx === overIdx) {
     return null;
   }
-  const next = [...ordered];
+  const next = [...scopeList];
   const [active] = next.splice(fromIdx, 1);
   if (active == null) {
     return null;
@@ -198,12 +198,11 @@ export function moveBoardToHoverSlot(
 
 function moveBoardToEndOfScope(scopeList: BoardDB[], activeBoardId: string): BoardDB[] | null {
   const ak = boardIdKey(activeBoardId);
-  const ordered = [...scopeList].sort((a, b) => a.position - b.position);
-  const fromIdx = ordered.findIndex((b) => boardIdKey(b.id) === ak);
+  const fromIdx = scopeList.findIndex((b) => boardIdKey(b.id) === ak);
   if (fromIdx < 0) {
     return null;
   }
-  const next = [...ordered];
+  const next = [...scopeList];
   const [active] = next.splice(fromIdx, 1);
   if (active == null) {
     return null;
@@ -228,6 +227,7 @@ export function moveHomeBoardOptimistic(
   activeId: string,
   targetWorkspaceId: string,
   anchorBoardId: string | null,
+  homeBoardOrderByWorkspace?: Readonly<Record<string, readonly string[]>>,
 ): BoardDB[] | null {
   const boards = dedupeBoardsLastWinsById(allBoards);
   const targetW = targetWorkspaceId.trim();
@@ -243,7 +243,7 @@ export function moveHomeBoardOptimistic(
 
   if (sourceWs === targetW) {
     const other = boards.filter((b) => boardWorkspaceKey(b) !== sourceWs);
-    const scopeList = getBoardsInWorkspaceSorted(boards, sourceWs);
+    const scopeList = getBoardsInWorkspaceSorted(boards, sourceWs, homeBoardOrderByWorkspace);
     const reordered =
       anchorBoardId == null
         ? moveBoardToEndOfScope(scopeList, activeId)
@@ -264,20 +264,16 @@ export function moveHomeBoardOptimistic(
     return w !== sourceWs && w !== targetW;
   });
 
-  const sourceOnly = boards
-    .filter((b) => boardWorkspaceKey(b) === sourceWs && boardIdKey(b.id) !== aid)
-    .sort(sortBoardsByPositionThenCreated);
-
-  const targetOnly = boards
-    .filter((b) => boardWorkspaceKey(b) === targetW && boardIdKey(b.id) !== aid)
-    .sort(sortBoardsByPositionThenCreated);
+  const withoutDragged = boards.filter((b) => boardIdKey(b.id) !== aid);
+  const sourceOnly = getBoardsInWorkspaceSorted(withoutDragged, sourceWs, homeBoardOrderByWorkspace);
+  const targetOnly = getBoardsInWorkspaceSorted(withoutDragged, targetW, homeBoardOrderByWorkspace);
 
   const moved: BoardDB = { ...dragged, workspaceId: targetW };
   const overIdx =
     anchorBoardId == null
       ? targetOnly.length
       : targetOnly.findIndex((b) => boardIdKey(b.id) === boardIdKey(anchorBoardId));
-  if (overIdx < 0) {
+  if (anchorBoardId != null && overIdx < 0) {
     return null;
   }
 

@@ -10,7 +10,6 @@ import {
   type SetStateAction,
 } from 'react';
 import type { CardDB } from '../../../store/database.js';
-import { compareCardListOrder } from '../../../../shared/utils/cardListPos.js';
 import { useBoardRuntimeStore } from '../../../store/boardRuntimeStore.js';
 import { useBoardInteractionStore } from '../boardInteractionStore.js';
 import {
@@ -128,7 +127,7 @@ export function useSortableListController(props: SortableListProps): SortableLis
   const cardMenuTarget = useBoardInteractionStore((state) => state.cardMenuTarget);
   const closeCardMenu = useBoardInteractionStore((state) => state.closeCardMenu);
 
-  const sortedCards = useMemo(() => [...cards].sort(compareCardListOrder), [cards]);
+  const sortedCards = cards;
 
   const colourTargetCard =
     colourModalCardId != null ? (sortedCards.find((card) => card.id === colourModalCardId) ?? null) : null;

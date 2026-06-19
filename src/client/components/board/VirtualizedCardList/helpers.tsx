@@ -2,6 +2,7 @@ import { Box } from '@mantine/core';
 import type { MutableRefObject } from 'react';
 import type { CardDB } from '../../../store/database.js';
 import type { BoardMemberUserDisplay } from '../../../utils/loadBoardMemberUsersForDisplay.js';
+import { dropSlotDisplayHeightPx } from '../kanbanPragmaticDndHelpers.js';
 
 export type CardDropColumnIntent = 'empty-column' | 'append-end' | 'above' | 'below';
 
@@ -62,7 +63,7 @@ export function virtualizedCardListPropsEqual(
 }
 
 export function CardDropShadowIndicator({ target }: { readonly target: CardDropIndicatorTarget }) {
-  const h = Math.max(84, Math.min(Math.max(target.boxHeight, 96), 240));
+  const h = dropSlotDisplayHeightPx(target.boxHeight);
   return (
     <div className="board-card-drop-indicator-wrap">
       <div

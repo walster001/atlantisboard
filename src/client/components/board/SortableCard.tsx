@@ -1,5 +1,7 @@
 import {
   memo,
+  useCallback,
+  useLayoutEffect,
   useMemo,
   useRef,
   type MutableRefObject,
@@ -84,7 +86,8 @@ function SortableCardInner({
 }: SortableCardProps) {
   const [deferRef, richReady] = useRichContentWhenNearViewport();
   const cardRootRef = useRef<HTMLDivElement | null>(null);
-  const dragCleanupRef = useRef<(() => void) | null>(null);
+  const isDragSourceRef = useRef(isDragSource);
+  isDragSourceRef.current = isDragSource;
   const touchArmOptions = useMemo(
     () =>
       kanbanCardTouchDragRequiresLongPress
@@ -106,15 +109,17 @@ function SortableCardInner({
   } = useSortableCardDescriptionPreview(card, showDescriptionPreview);
   const hasCardColour = card.color != null && card.color.trim().length > 0;
   const descColor = hasCardColour ? 'white' : 'dimmed';
-  const setCardRootRef = (node: HTMLDivElement | null): void => {
-    dragCleanupRef.current?.();
-    dragCleanupRef.current = null;
+  const setCardRootRef = useCallback((node: HTMLDivElement | null): void => {
     cardRootRef.current = node;
     deferRef.current = node;
-    if (node == null || isDragSource || !kanbanCardBodyDraggable) {
-      return;
+  }, [deferRef]);
+
+  useLayoutEffect(() => {
+    const node = cardRootRef.current;
+    if (node == null || !kanbanCardBodyDraggable || isDragSource) {
+      return undefined;
     }
-    dragCleanupRef.current = draggable({
+    const cleanup = draggable({
       element: node,
       canDrag: touchArm.canDragForNative,
       getInitialData: () =>
@@ -134,7 +139,14 @@ function SortableCardInner({
         });
       },
     });
-  };
+    return () => {
+      // Virtuoso opacity-hide during drag — teardown breaks pragmatic-dnd mid-gesture.
+      if (isDragSourceRef.current) {
+        return;
+      }
+      cleanup();
+    };
+  }, [card, listId, kanbanCardBodyDraggable, isDragSource, touchArm.canDragForNative, touchArm.clearLongPressState]);
 
   const coverRenderUrl = useMemo(
     () => resolveCardCoverRenderUrl(card),

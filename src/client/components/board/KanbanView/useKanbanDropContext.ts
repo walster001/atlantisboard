@@ -13,6 +13,7 @@ interface UseKanbanDropContextArgs {
   readonly reloadAllCardsFromDb: () => Promise<void>;
   readonly queueCardDropIndicator: (next: CardDropIndicatorTarget | null) => void;
   readonly flushCardDropIndicatorNow: (next: CardDropIndicatorTarget | null) => void;
+  readonly cardDropIndicatorRef: MutableRefObject<CardDropIndicatorTarget | null>;
   readonly viewAliveRef: MutableRefObject<boolean>;
 }
 
@@ -25,6 +26,7 @@ export function useKanbanDropContext({
   reloadAllCardsFromDb,
   queueCardDropIndicator,
   flushCardDropIndicatorNow,
+  cardDropIndicatorRef,
   viewAliveRef,
 }: UseKanbanDropContextArgs): MutableRefObject<KanbanPragmaticCtx> {
   const cardsForDragSnapshot = buildKanbanCardsMapFromRuntimeState(useBoardRuntimeStore.getState());
@@ -38,6 +40,7 @@ export function useKanbanDropContext({
     reloadAllCardsFromDb,
     queueCardDropIndicator,
     flushCardDropIndicatorNow,
+    cardDropIndicatorRef,
     viewAliveRef,
   });
   kanbanDropCtxRef.current = {
@@ -50,6 +53,7 @@ export function useKanbanDropContext({
     reloadAllCardsFromDb,
     queueCardDropIndicator,
     flushCardDropIndicatorNow,
+    cardDropIndicatorRef,
     viewAliveRef,
   };
 

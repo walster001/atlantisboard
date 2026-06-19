@@ -1,7 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { CardDB } from '../database.js';
 import {
-  insertCardIdByPosition,
   normalizeListCardPositions,
   rebuildCardIdsForList,
   removeCardIdFromList,
@@ -43,26 +42,14 @@ export const createBoardCardMapSlice: StateCreator<
       const cardsById = { ...s.cardsById, [resolvedCard.id]: resolvedCard };
       const cardIdsByListId = { ...s.cardIdsByListId };
       if (prev != null && prev.listId !== resolvedCard.listId) {
-        const fromIds = removeCardIdFromList(cardIdsByListId[prev.listId] ?? [], resolvedCard.id);
-        cardIdsByListId[prev.listId] = fromIds;
-        const toIds = insertCardIdByPosition(
-          cardIdsByListId[resolvedCard.listId] ?? [],
-          resolvedCard.id,
-          resolvedCard.position,
-        );
-        cardIdsByListId[resolvedCard.listId] = toIds;
-        normalizeListCardPositions(cardsById, prev.listId, fromIds);
-        normalizeListCardPositions(cardsById, resolvedCard.listId, toIds);
+        cardIdsByListId[prev.listId] = rebuildCardIdsForList(prev.listId, cardsById);
+        cardIdsByListId[resolvedCard.listId] = rebuildCardIdsForList(resolvedCard.listId, cardsById);
+        normalizeListCardPositions(cardsById, prev.listId, cardIdsByListId[prev.listId]!);
+        normalizeListCardPositions(cardsById, resolvedCard.listId, cardIdsByListId[resolvedCard.listId]!);
       } else {
         const listId = resolvedCard.listId;
-        const prevIds = cardIdsByListId[listId] ?? [];
-        const currentIndex = prevIds.indexOf(resolvedCard.id);
-        const nextIds =
-          currentIndex >= 0
-            ? [...prevIds]
-            : insertCardIdByPosition(prevIds, resolvedCard.id, resolvedCard.position);
-        cardIdsByListId[listId] = nextIds;
-        normalizeListCardPositions(cardsById, listId, nextIds);
+        cardIdsByListId[listId] = rebuildCardIdsForList(listId, cardsById);
+        normalizeListCardPositions(cardsById, listId, cardIdsByListId[listId] ?? []);
       }
       return { cardsById, cardIdsByListId, cardsVersion: s.cardsVersion + 1 };
     });

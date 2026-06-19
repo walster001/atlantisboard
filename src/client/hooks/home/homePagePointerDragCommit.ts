@@ -1,3 +1,4 @@
+import type { MutableRefObject } from 'react';
 import type { BoardDB } from '../../store/database.js';
 import {
   boardsAfterCrossWorkspaceAppend,
@@ -13,6 +14,7 @@ import {
   pickHomeWorkspaceRowInsertIndex,
 } from './homePointerHitTest.js';
 import type {
+  BoardDropIndicator,
   HomePagePointerDragActions,
   HomePagePointerDragModels,
   Session,
@@ -24,6 +26,11 @@ export interface HomePagePointerDragCommitContext {
   readonly modelsRef: { readonly current: HomePagePointerDragModels };
   readonly actionsRef: { readonly current: HomePagePointerDragActions };
   readonly suppressBoardClickRef: { current: boolean };
+  readonly boardDropIndicatorRef: MutableRefObject<BoardDropIndicator>;
+  readonly workspaceRowDragRef: MutableRefObject<{
+    readonly workspaceId: string | null;
+    readonly insertIndex: number | null;
+  }>;
   readonly disarm: () => void;
 }
 
@@ -49,7 +56,10 @@ export async function commitHomeBoardDrag(
   };
   const m = ctx.modelsRef.current;
   const acts = ctx.actionsRef.current;
-  const targetWs = pickHomeTargetWorkspaceIdUnderPointer(ev.clientX, ev.clientY);
+  const indicator = ctx.boardDropIndicatorRef.current;
+  const targetWs =
+    indicator?.workspaceId ??
+    pickHomeTargetWorkspaceIdUnderPointer(ev.clientX, ev.clientY);
   if (targetWs == null) {
     acts.setAllBoards(snapshot.boardsBefore);
     ctx.disarm();
@@ -63,7 +73,10 @@ export async function commitHomeBoardDrag(
     resetSuppressBoardClick(ctx);
     return;
   }
-  const { anchorBoardId } = pickHomeBoardInsertAnchor(grid, ev.clientX, ev.clientY, snapshot.boardId);
+  const anchorBoardId =
+    indicator != null && indicator.workspaceId === targetWs
+      ? indicator.anchorBoardId
+      : pickHomeBoardInsertAnchor(grid, ev.clientX, ev.clientY, snapshot.boardId).anchorBoardId;
 
   const sameWs = snapshot.sourceWorkspaceId === targetWs;
 
@@ -72,6 +85,7 @@ export async function commitHomeBoardDrag(
     snapshot.boardId,
     targetWs,
     anchorBoardId,
+    m.homeBoardOrderByWorkspace,
   );
   if (applied == null && !sameWs) {
     applied = boardsAfterCrossWorkspaceAppend(m.boards, snapshot.boardId, targetWs);
@@ -95,6 +109,7 @@ export async function commitHomeBoardDrag(
     anchorBoardId,
     hasBoardUpdate: acts.hasBoardUpdate,
     hasWorkspaceUpdate: acts.hasWorkspaceUpdate,
+    homeBoardOrderByWorkspace: m.homeBoardOrderByWorkspace,
   };
 
   /* Release float preview and drag chrome before network I/O (persist can be slow in prod). */
@@ -128,7 +143,11 @@ export async function commitHomeWorkspaceDrag(
     ctx.disarm();
     return;
   }
-  const insert = pickHomeWorkspaceRowInsertIndex(ctx.root, ev.clientY, s.workspaceId);
+  const rowDrag = ctx.workspaceRowDragRef.current;
+  const insert =
+    rowDrag.workspaceId === s.workspaceId && rowDrag.insertIndex != null
+      ? rowDrag.insertIndex
+      : pickHomeWorkspaceRowInsertIndex(ctx.root, ev.clientY, s.workspaceId);
   const ids = [...s.orderedIdsBefore];
   const without = ids.filter((id) => id !== s.workspaceId);
   const next = [...without.slice(0, insert), s.workspaceId, ...without.slice(insert)];

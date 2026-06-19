@@ -53,16 +53,14 @@ describe('withRenumberedPositions', () => {
 });
 
 describe('moveCardBetweenListsInMap', () => {
-  it('reorders within the same list and sets pos on all cards', () => {
+  it('reorders within the same list and sets pos only on the moved card', () => {
     const map = new Map<string, CardDB[]>([
       ['l1', [card('a', 'l1', 0, 1000), card('b', 'l1', 1, 2000), card('c', 'l1', 2, 3000)]],
     ]);
     const next = moveCardBetweenListsInMap(map, 'a', 'l1', 'l1', 2);
     expect(next.get('l1')!.map((c) => c.id)).toEqual(['b', 'c', 'a']);
-    for (const row of next.get('l1')!) {
-      expect(typeof row.pos).toBe('number');
-      expect(row.position).toBe(next.get('l1')!.indexOf(row));
-    }
+    expect(next.get('l1')!.find((c) => c.id === 'a')!.pos).toBe(4000);
+    expect(next.get('l1')!.find((c) => c.id === 'b')!.pos).toBe(2000);
   });
 
   it('moves across lists and renumbers both lists with pos', () => {

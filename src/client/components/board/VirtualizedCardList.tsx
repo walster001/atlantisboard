@@ -18,6 +18,7 @@ import {
   KanbanVirtuosoScroller,
   VIRTUOSO_OVERSCAN,
 } from './virtualizedCardListHelpers.js';
+import { dropSlotDisplayHeightPx } from './kanbanPragmaticDndHelpers.js';
 import {
   CardDropShadowIndicator,
   type VirtualizedCardListProps,
@@ -26,6 +27,7 @@ import {
 import {
   buildKanbanListDisplayRows,
   kanbanListDisplayRowKey,
+  shouldHideKanbanDraggingCardInList,
   type KanbanListDisplayRow,
 } from './kanbanListDisplayRows.js';
 
@@ -81,15 +83,20 @@ function VirtualizedCardListInner({
     [cards, listId, draggingCardId, dropIndicator],
   );
 
+  const hideDraggingCardInList = useMemo(
+    () => shouldHideKanbanDraggingCardInList(listId, draggingCardId, dropIndicator),
+    [listId, draggingCardId, dropIndicator],
+  );
+
   const cardRowsOnly = useMemo(
     () => displayRows.filter((row): row is Extract<KanbanListDisplayRow, { kind: 'card' }> => row.kind === 'card'),
     [displayRows],
   );
 
-  /** When membership/order changes (e.g. bulk import), drop Virtuoso’s last measured height so we don’t size to stale totals (scrollbar glitches / layout thrash). */
-  const cardRunSignature = useMemo(
-    () => displayRows.map((row) => kanbanListDisplayRowKey(row)).join('\u001f'),
-    [displayRows],
+  /** Card membership only — do not remount Virtuoso when the drop slot moves during drag. */
+  const cardMembershipSignature = useMemo(
+    () => cards.map((c) => c.id).join('\u001f'),
+    [cards],
   );
 
   const usePlainScroll =
@@ -113,13 +120,13 @@ function VirtualizedCardListInner({
         measureRafRef.current = null;
       }
     };
-  }, [cardRunSignature, usePlainScroll]);
+  }, [cardMembershipSignature, usePlainScroll]);
 
   const heightEstimates = useMemo(
     () =>
       displayRows.map((row) => {
         if (row.kind === 'drop-slot') {
-          return Math.max(84, Math.min(Math.max(row.target.boxHeight, 96), 240));
+          return dropSlotDisplayHeightPx(row.target.boxHeight);
         }
         return estimateKanbanVirtuosoItemHeightPx(
           row.card,
@@ -196,36 +203,58 @@ function VirtualizedCardListInner({
     (row: KanbanListDisplayRow) => {
       if (row.kind === 'drop-slot') {
         return (
-          <Box pb="xs" px={0} data-kanban-drop-slot="true">
+          <Box pb="xs" px={0} data-kanban-drop-slot="true" style={{ pointerEvents: 'none' }}>
             <CardDropShadowIndicator target={row.target} />
           </Box>
         );
       }
       const card = row.card;
-      return (
-        <Box pb="xs" px={0}>
-          <SortableCard
-            card={card}
-            listId={listId}
-            showDescriptionPreview={showDescriptionPreview}
-            showStartDateOnCards={showStartDateOnCards}
-            showDueDateOnCards={showDueDateOnCards}
-            showEndDateOnCards={showEndDateOnCards}
-            showKanbanCardMenu={showKanbanCardMenu}
-            kanbanCardBodyDraggable={kanbanCardBodyDraggable}
-            {...(kanbanCardTouchDragRequiresLongPress ? { kanbanCardTouchDragRequiresLongPress: true } : {})}
-            {...(assigneeDirectory != null ? { assigneeDirectory } : {})}
-            isDragSource={draggingCardId === card.id}
-            {...(suppressCardOpenClickRef != null ? { suppressCardOpenClickRef } : {})}
-            onOpenCard={onOpenCard}
-            onCardUpdatedOnBoard={onCardUpdatedOnBoard}
-            onCardDeletedFromBoard={onCardDeletedFromBoard}
-          />
-        </Box>
+      const isDragSource = hideDraggingCardInList && draggingCardId === card.id;
+      const sortableCard = (
+        <SortableCard
+          card={card}
+          listId={listId}
+          showDescriptionPreview={showDescriptionPreview}
+          showStartDateOnCards={showStartDateOnCards}
+          showDueDateOnCards={showDueDateOnCards}
+          showEndDateOnCards={showEndDateOnCards}
+          showKanbanCardMenu={showKanbanCardMenu}
+          kanbanCardBodyDraggable={kanbanCardBodyDraggable}
+          {...(kanbanCardTouchDragRequiresLongPress ? { kanbanCardTouchDragRequiresLongPress: true } : {})}
+          {...(assigneeDirectory != null ? { assigneeDirectory } : {})}
+          isDragSource={isDragSource}
+          {...(suppressCardOpenClickRef != null ? { suppressCardOpenClickRef } : {})}
+          onOpenCard={onOpenCard}
+          onCardUpdatedOnBoard={onCardUpdatedOnBoard}
+          onCardDeletedFromBoard={onCardDeletedFromBoard}
+        />
       );
+      if (row.pairedDropSlot != null) {
+        return (
+          <Box pb="xs" px={0} data-kanban-drop-slot="true" style={{ pointerEvents: 'none' }}>
+            <Box style={{ height: 0, overflow: 'hidden', margin: 0, padding: 0 }} aria-hidden>
+              {sortableCard}
+            </Box>
+            <CardDropShadowIndicator target={row.pairedDropSlot} />
+          </Box>
+        );
+      }
+      if (row.dragLayoutCollapsed === true) {
+        return (
+          <Box
+            px={0}
+            style={{ height: 0, overflow: 'hidden', margin: 0, padding: 0 }}
+            aria-hidden
+          >
+            {sortableCard}
+          </Box>
+        );
+      }
+      return <Box pb="xs" px={0}>{sortableCard}</Box>;
     },
     [
       listId,
+      hideDraggingCardInList,
       draggingCardId,
       showDescriptionPreview,
       showStartDateOnCards,
@@ -297,7 +326,7 @@ function VirtualizedCardListInner({
       data-kanban-list-body={listId}
     >
       <Virtuoso
-        key={cardRunSignature}
+        key={cardMembershipSignature}
         style={virtuosoRootStyle}
         data={displayRows}
         computeItemKey={(_index, row) => kanbanListDisplayRowKey(row)}

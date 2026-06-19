@@ -224,10 +224,17 @@ function BoardGridWithDropIndicator({
   const indicator = controller.isMobile ? controller.boardDropIndicator : null;
   const showIndicator = indicator != null && indicator.workspaceId === workspaceId;
   const showAtEnd = showIndicator && indicator.anchorBoardId == null;
+  const hideSourceInRow =
+    controller.draggingBoardId != null &&
+    showIndicator &&
+    workspaceBoards.some((b) => b.id === controller.draggingBoardId);
+  const visibleBoards = hideSourceInRow
+    ? workspaceBoards.filter((b) => b.id !== controller.draggingBoardId)
+    : workspaceBoards;
 
   return (
     <>
-      {workspaceBoards.map((board) => (
+      {visibleBoards.map((board) => (
         <Fragment key={board.id}>
           {showIndicator && indicator.anchorBoardId === board.id ? (
             <div className="home-page__board-drop-indicator" aria-hidden />

@@ -55,7 +55,6 @@ export interface KanbanMobileCarouselProps {
   readonly onCardDeletedFromBoard: (cardId: string) => void;
   readonly onKanbanCardsReload: () => void;
   readonly onListCreated: (response?: { list: unknown }) => void;
-  readonly draggingCardIdPropForListId: (listId: string | undefined) => string | null;
 }
 
 export function KanbanMobileCarousel({
@@ -83,7 +82,6 @@ export function KanbanMobileCarousel({
   onCardDeletedFromBoard,
   onKanbanCardsReload,
   onListCreated,
-  draggingCardIdPropForListId,
 }: KanbanMobileCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const carouselHostRef = useRef<HTMLDivElement | null>(null);
@@ -378,7 +376,7 @@ export function KanbanMobileCarousel({
                 list={list}
                 board={board}
                 assigneeDirectory={assigneeDirectory}
-                draggingCardId={draggingCardIdPropForListId(list.id)}
+                draggingCardId={draggingCardId}
                 draggingListId={draggingListId}
                 cardListMaxBodyPx={cardListMaxBodyPx}
                 suppressCardOpenClickRef={suppressCardOpenClickRef}

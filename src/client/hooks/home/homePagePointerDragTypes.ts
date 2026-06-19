@@ -103,6 +103,7 @@ export interface HomePagePointerDragModels {
   readonly orderedWorkspaceIds: readonly string[];
   readonly workspaces: readonly WorkspaceDB[];
   readonly userId: string | undefined;
+  readonly homeBoardOrderByWorkspace: Readonly<Record<string, readonly string[]>> | undefined;
 }
 
 export interface HomePagePointerDragActions {

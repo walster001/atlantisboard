@@ -197,12 +197,14 @@ export function useHomePageController(): HomePageController {
     orderedWorkspaceIds: [],
     workspaces: [],
     userId: undefined,
+    homeBoardOrderByWorkspace: undefined,
   });
   modelsRef.current = {
     boards: allBoards,
     orderedWorkspaceIds: orderedWorkspaces.map((workspace) => workspace.id),
     workspaces: orderedWorkspaces,
     userId: user?.id,
+    homeBoardOrderByWorkspace: homeBoardOrderByWorkspace,
   };
 
   const persistWorkspaceOrder = useCallback(
@@ -280,6 +282,7 @@ export function useHomePageController(): HomePageController {
     actionsRef,
     !loading && !authLoading && authenticated,
     isMobile,
+    workspaceRowDragRef,
   );
 
   const { refreshData } = useHomePageDataLoader({

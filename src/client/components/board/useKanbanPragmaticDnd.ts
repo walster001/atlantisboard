@@ -12,9 +12,14 @@ import {
 } from '../../dnd/pragmatic/kanbanData.js';
 import { moveListToHoverSlot } from '../../store/kanbanDragPure.js';
 import {
-  fallbackDropForDraggedCard,
+  cardDropIndicatorFromResolved,
+  DEFAULT_KANBAN_CARD_DROP_METRICS,
+  initialCardDropForDraggedCard,
+  kanbanCardDragMetricsFromElement,
+  kanbanCurrentInsertIndex,
   kanbanInsertIndexForDrop,
   moveCardBetweenListsInMap,
+  resolveCardDropForCommit,
   resolveCardDropTarget,
   resolveListDropListId,
 } from './kanbanPragmaticDndHelpers.js';
@@ -31,11 +36,13 @@ function updateCardDropIndicatorForPointer(
   location: { readonly current: { readonly input: unknown; readonly dropTargets: readonly { readonly data: Record<string | symbol, unknown> }[] } },
   ctx: KanbanPragmaticCtx,
   cardDrag: { readonly cardId: string; readonly listId: string },
+  dragMetrics: { readonly width: number; readonly height: number },
   scheduleAutoScroll: (input: Record<string, unknown> | null) => void,
 ): void {
   scheduleAutoScroll(location.current.input as Record<string, unknown> | null);
+  const input = location.current.input as Record<string, unknown> | null;
   const resolved = resolveCardDropTarget(
-    location.current.input as Record<string, unknown> | null,
+    input,
     location.current.dropTargets,
     ctx.cards,
     source.element,
@@ -48,15 +55,21 @@ function updateCardDropIndicatorForPointer(
     ctx.queueCardDropIndicator(null);
     return;
   }
-  const metrics = { width: 248, height: 88 };
-  ctx.queueCardDropIndicator({
-    listId: resolved.listId,
-    sourceListId: cardDrag.listId,
-    anchorCardId: resolved.anchorCardId,
-    columnIntent: resolved.columnIntent,
-    boxWidth: metrics.width,
-    boxHeight: metrics.height,
-  });
+  ctx.queueCardDropIndicator(
+    cardDropIndicatorFromResolved(resolved, cardDrag.listId, dragMetrics),
+  );
+}
+
+function seedInitialCardDropIndicator(
+  ctx: KanbanPragmaticCtx,
+  cardDrag: { readonly cardId: string; readonly listId: string },
+  dragMetrics: { readonly width: number; readonly height: number },
+): void {
+  const initial = initialCardDropForDraggedCard(ctx.cards, cardDrag.listId, cardDrag.cardId);
+  // RAF — avoid sync React churn on drag start; card stays mounted via dragLayoutCollapsed.
+  ctx.queueCardDropIndicator(
+    cardDropIndicatorFromResolved(initial, cardDrag.listId, dragMetrics),
+  );
 }
 
 export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
@@ -69,6 +82,8 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
   } = args;
 
   useLayoutEffect(() => {
+    let activeCardDragMetrics: { readonly width: number; readonly height: number } =
+      DEFAULT_KANBAN_CARD_DROP_METRICS;
     let autoScrollRafId: number | null = null;
     let lastPointer: { x: number; y: number } | null = null;
     const stopAutoScroll = (): void => {
@@ -130,7 +145,9 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const data = source.data as Record<string, unknown>;
         const cardDrag = readKanbanCardDragData(data);
         if (cardDrag != null) {
+          activeCardDragMetrics = kanbanCardDragMetricsFromElement(source.element);
           setDraggingCardId(cardDrag.cardId);
+          seedInitialCardDropIndicator(kanbanDropCtxRef.current, cardDrag, activeCardDragMetrics);
           return;
         }
         const listDrag = readKanbanListDragData(data);
@@ -143,7 +160,14 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const ctx = kanbanDropCtxRef.current;
         const cardDrag = readKanbanCardDragData(source.data as Record<string, unknown>);
         if (cardDrag != null) {
-          updateCardDropIndicatorForPointer(source, location, ctx, cardDrag, scheduleAutoScroll);
+          updateCardDropIndicatorForPointer(
+            source,
+            location,
+            ctx,
+            cardDrag,
+            activeCardDragMetrics,
+            scheduleAutoScroll,
+          );
           const input = location.current.input as Record<string, unknown> | null;
           const clientX = typeof input?.clientX === 'number' ? input.clientX : null;
           if (clientX != null) {
@@ -156,7 +180,14 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const ctx = kanbanDropCtxRef.current;
         const cardDrag = readKanbanCardDragData(data);
         if (cardDrag != null) {
-          updateCardDropIndicatorForPointer(source, location, ctx, cardDrag, scheduleAutoScroll);
+          updateCardDropIndicatorForPointer(
+            source,
+            location,
+            ctx,
+            cardDrag,
+            activeCardDragMetrics,
+            scheduleAutoScroll,
+          );
           return;
         }
 
@@ -174,15 +205,19 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const cardDrag = readKanbanCardDragData(data);
         if (cardDrag != null) {
           stopAutoScroll();
-          const indicatorSnapshot = resolveCardDropTarget(
+          activeCardDragMetrics = DEFAULT_KANBAN_CARD_DROP_METRICS;
+          const onDropTarget = resolveCardDropTarget(
             location.current.input as Record<string, unknown> | null,
             location.current.dropTargets,
             ctx.cards,
             source.element,
             cardDrag.cardId,
           );
-          const resolvedOnDrop =
-            indicatorSnapshot ?? fallbackDropForDraggedCard(ctx.cards, cardDrag.listId, cardDrag.cardId);
+          const resolvedOnDrop = resolveCardDropForCommit(
+            ctx.cardDropIndicatorRef.current,
+            onDropTarget,
+            initialCardDropForDraggedCard(ctx.cards, cardDrag.listId, cardDrag.cardId),
+          );
           const activeId = cardDrag.cardId;
           const activeListId = ctx.cardIdToListIdRef.current.get(activeId);
           let committedInsertIndex: number | null = null;
@@ -195,6 +230,17 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
               activeId,
               resolvedOnDrop,
             );
+            const unchangedPosition =
+              committedTargetListId === activeListId &&
+              committedInsertIndex === kanbanCurrentInsertIndex(targetListCards, activeId);
+            if (unchangedPosition) {
+              flushSync(() => {
+                ctx.flushCardDropIndicatorNow(null);
+                setDraggingCardId(null);
+                setListDropIndicatorIfChanged(null);
+              });
+              return;
+            }
             flushSync(() => {
               ctx.setCards((prev) =>
                 moveCardBetweenListsInMap(

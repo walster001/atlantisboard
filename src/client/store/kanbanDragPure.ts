@@ -1,5 +1,9 @@
 import type { CardDB, ListDB } from './database.js';
-import { spreadPosForIndex } from '../../shared/utils/cardListPos.js';
+import {
+  compareCardListOrder,
+  insertPosBetween,
+  spreadPosForIndex,
+} from '../../shared/utils/cardListPos.js';
 import {
   compareBoardListOrder,
   insertListPosBetween,
@@ -10,7 +14,19 @@ function listNumericPos(row: ListDB): number {
   return typeof row.pos === 'number' && Number.isFinite(row.pos) ? row.pos : spreadListPosForIndex(row.position);
 }
 
-/** Align `position` and optimistic `pos` with array index (until server confirms). */
+function cardNumericPos(row: CardDB): number {
+  return typeof row.pos === 'number' && Number.isFinite(row.pos) ? row.pos : spreadPosForIndex(row.position);
+}
+
+function posSortedCards(cards: readonly CardDB[]): CardDB[] {
+  return [...cards].sort(compareCardListOrder);
+}
+
+function syncPositionIndices(list: readonly CardDB[]): CardDB[] {
+  return list.map((c, i) => (c.position === i ? c : { ...c, position: i }));
+}
+
+/** Bulk reflow: spread fractional pos for every card (import / legacy paths). */
 export function withRenumberedPositions(list: readonly CardDB[]): CardDB[] {
   return list.map((c, i) => ({ ...c, position: i, pos: spreadPosForIndex(i) }));
 }
@@ -34,11 +50,17 @@ export function moveCardBetweenListsInMap(
 
   const next = cloneCardMap(prev);
   const fromWithout = fromList.filter((c) => c.id !== cardId);
-  const toList = fromListId === toListId ? fromWithout : (prev.get(toListId) ?? []);
-  const toWithout = toList.filter((c) => c.id !== cardId);
+  const toSource = fromListId === toListId ? fromList : (prev.get(toListId) ?? []);
+  const toWithout = posSortedCards(toSource).filter((c) => c.id !== cardId);
   const clamped = Math.max(0, Math.min(insertIndex, toWithout.length));
-  const moved: CardDB = fromListId === toListId ? card : { ...card, listId: toListId };
-  const nextTo = withRenumberedPositions([
+  const before = clamped > 0 ? cardNumericPos(toWithout[clamped - 1]!) : null;
+  const after = clamped < toWithout.length ? cardNumericPos(toWithout[clamped]!) : null;
+  const newPos = insertPosBetween(before, after);
+  const moved: CardDB =
+    fromListId === toListId
+      ? { ...card, pos: newPos, position: clamped }
+      : { ...card, listId: toListId, pos: newPos, position: clamped };
+  const nextTo = syncPositionIndices([
     ...toWithout.slice(0, clamped),
     moved,
     ...toWithout.slice(clamped),
@@ -49,7 +71,7 @@ export function moveCardBetweenListsInMap(
     return next;
   }
 
-  next.set(fromListId, withRenumberedPositions(fromWithout));
+  next.set(fromListId, syncPositionIndices(fromWithout));
   next.set(toListId, nextTo);
   return next;
 }

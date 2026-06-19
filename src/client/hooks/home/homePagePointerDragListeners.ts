@@ -26,6 +26,11 @@ export interface AttachHomePagePointerDragListenersArgs {
   readonly setDraggingBoardId: (next: string | null) => void;
   readonly setBoardLongPressUi: (next: HomeBoardLongPressUi | null) => void;
   readonly setBoardDropIndicator: (next: BoardDropIndicator) => void;
+  readonly boardDropIndicatorRef: MutableRefObject<BoardDropIndicator>;
+  readonly workspaceRowDragRef: MutableRefObject<{
+    readonly workspaceId: string | null;
+    readonly insertIndex: number | null;
+  }>;
 }
 
 export function attachHomePagePointerDragListeners(args: AttachHomePagePointerDragListenersArgs): () => void {
@@ -42,6 +47,8 @@ export function attachHomePagePointerDragListeners(args: AttachHomePagePointerDr
     setDraggingBoardId,
     setBoardLongPressUi,
     setBoardDropIndicator,
+    boardDropIndicatorRef,
+    workspaceRowDragRef,
   } = args;
 
   const cancelRaf = (): void => {
@@ -97,6 +104,8 @@ export function attachHomePagePointerDragListeners(args: AttachHomePagePointerDr
     modelsRef,
     actionsRef,
     suppressBoardClickRef,
+    boardDropIndicatorRef,
+    workspaceRowDragRef,
     disarm,
   };
 

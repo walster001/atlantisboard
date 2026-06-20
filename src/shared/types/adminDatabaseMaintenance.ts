@@ -25,6 +25,10 @@ export interface DatabaseCollectionStat {
   readonly name: string;
   readonly documentCount: number;
   readonly knownToApp: boolean;
+  /** Friendly label when the collection is part of the application schema. */
+  readonly label?: string;
+  /** What the collection stores (known collections only). */
+  readonly description?: string;
 }
 
 export interface DatabaseCleanupCategorySnapshot {

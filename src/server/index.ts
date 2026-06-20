@@ -44,7 +44,7 @@ import { renderSpaIndexHtml } from './utils/spaIndex.js';
 // Background jobs can run in separate worker process or in main process
 // Set ENABLE_CRON_JOBS_IN_MAIN=true to run in main process (default: false, use separate worker)
 import { scheduleCronJobs } from './workers/cronJobs.js';
-import { startClamSignatureRefreshScheduler } from './utils/clamSignatureScheduler.js';
+import { startClamSignatureRefreshScheduler, stopClamSignatureRefreshScheduler } from './utils/clamSignatureScheduler.js';
 import { logMalwareScanModeAtStartup } from './utils/clamScanMode.js';
 import { cleanupStaleAtlboardTempFiles } from './utils/tmpJanitor.js';
 import {
@@ -351,6 +351,8 @@ async function shutdown(): Promise<void> {
   }
 
   stopMetricsCollection();
+
+  stopClamSignatureRefreshScheduler();
 
   const { stopRealtimeEmitMaintenance } = await import('./utils/socketIO.js');
   stopRealtimeEmitMaintenance();

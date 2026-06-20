@@ -58,6 +58,12 @@ export function useCardDescriptionAudioNodeViewLayout({
   const [liveWidthPx, setLiveWidthPx] = useState<string | null>(initialLayout.widthPx);
   const [liveHeightPx, setLiveHeightPx] = useState<string | null>(initialLayout.heightPx);
   const pendingLayoutRef = useRef<AudioLayoutPx>(initialLayout);
+  const resizeDragCleanupRef = useRef<(() => void) | null>(null);
+
+  const clearResizeDragListeners = useCallback((): void => {
+    resizeDragCleanupRef.current?.();
+    resizeDragCleanupRef.current = null;
+  }, []);
 
   const editable = editor.isEditable;
   const editorDom = editor.view.dom;
@@ -172,6 +178,12 @@ export function useCardDescriptionAudioNodeViewLayout({
   }, [commitLayout, editable, editor, getPos]);
 
   useEffect(() => {
+    return () => {
+      clearResizeDragListeners();
+    };
+  }, [clearResizeDragListeners]);
+
+  useEffect(() => {
     if (!resizeActive) {
       return undefined;
     }
@@ -228,17 +240,21 @@ export function useCardDescriptionAudioNodeViewLayout({
         };
 
         const onPointerUp = (): void => {
-          document.removeEventListener('pointermove', onPointerMove);
-          document.removeEventListener('pointerup', onPointerUp);
-          document.removeEventListener('pointercancel', onPointerUp);
+          clearResizeDragListeners();
           commitLayout();
         };
 
+        clearResizeDragListeners();
         document.addEventListener('pointermove', onPointerMove);
         document.addEventListener('pointerup', onPointerUp);
         document.addEventListener('pointercancel', onPointerUp);
+        resizeDragCleanupRef.current = (): void => {
+          document.removeEventListener('pointermove', onPointerMove);
+          document.removeEventListener('pointerup', onPointerUp);
+          document.removeEventListener('pointercancel', onPointerUp);
+        };
       },
-    [applyLayoutToContainerDom, commitLayout, dismissMobileKeyboard, setIsPointerDragging],
+    [applyLayoutToContainerDom, clearResizeDragListeners, commitLayout, dismissMobileKeyboard, setIsPointerDragging],
   );
 
   const handleContainerPointerDown = useCallback(

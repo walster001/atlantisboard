@@ -77,6 +77,13 @@ function VirtualizedCardListInner({
     [listId],
   );
 
+  useLayoutEffect(() => {
+    return () => {
+      listBodyDropCleanupRef.current?.();
+      listBodyDropCleanupRef.current = null;
+    };
+  }, [listId]);
+
   const measureRafRef = useRef<number | null>(null);
   const maxBodyPx = cardListMaxBodyPx;
   const [measuredTotalListPx, setMeasuredTotalListPx] = useState(0);

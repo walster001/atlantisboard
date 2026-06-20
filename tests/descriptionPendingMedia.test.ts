@@ -6,6 +6,7 @@ import {
   flushPendingDescriptionMediaInJson,
   registerPendingDescriptionMediaFile,
   revokeDescriptionMediaBlobUrls,
+  rollbackPendingDescriptionMediaFlush,
   sanitizeCardDescriptionJsonForSave,
 } from '../src/client/utils/descriptionPendingMedia.js';
 import { buildAttachmentProxyMediaPath } from '../src/shared/cardDescriptionAttachmentRefs.js';
@@ -43,6 +44,40 @@ describe('descriptionPendingMedia', () => {
     expect(flushedBlobUrls).toEqual([blobUrl]);
     expect(registry.size).toBe(0);
     revokeDescriptionMediaBlobUrls(flushedBlobUrls);
+  });
+
+  test('flushPendingDescriptionMediaInJson keeps registry on partial upload failure', async () => {
+    const registry = new Map<string, File>();
+    const file1 = new File(['image-a'], 'a.png', { type: 'image/png' });
+    const file2 = new File(['image-b'], 'b.png', { type: 'image/png' });
+    const blobUrl1 = registerPendingDescriptionMediaFile(registry, file1);
+    const blobUrl2 = registerPendingDescriptionMediaFile(registry, file2);
+    const jsonString = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'imageResize', attrs: { src: blobUrl1, alt: 'a.png' } },
+        { type: 'imageResize', attrs: { src: blobUrl2, alt: 'b.png' } },
+      ],
+    });
+
+    let uploadCount = 0;
+    await expect(
+      flushPendingDescriptionMediaInJson(jsonString, registry, async (file) => {
+        uploadCount += 1;
+        if (uploadCount === 2) {
+          throw new Error('upload failed');
+        }
+        return `/api/v1/attachments/${file.name}/file`;
+      }),
+    ).rejects.toThrow('upload failed');
+
+    expect(uploadCount).toBe(2);
+    expect(registry.size).toBe(2);
+    expect(registry.has(blobUrl1)).toBe(true);
+    expect(registry.has(blobUrl2)).toBe(true);
+    rollbackPendingDescriptionMediaFlush(registry, [blobUrl1]);
+    expect(registry.size).toBe(2);
+    discardPendingDescriptionMedia(registry);
   });
 
   test('discardPendingDescriptionMedia clears registry without uploading', () => {

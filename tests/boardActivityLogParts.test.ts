@@ -80,6 +80,28 @@ describe('board activity log row parsing', () => {
     });
   });
 
+  it('resolves attachment.deleted labels from filename and card title metadata', () => {
+    const row = parseBoardActivityRow({
+      _id: 'act-attachment-deleted',
+      type: 'attachment.deleted',
+      createdAt: Date.now(),
+      userId: { displayName: 'Matthew Waldhuter' },
+      metadata: {
+        entityId: 'file-2',
+        entityName: '2026-04-27 21-58-13.mp4',
+        cardId: 'card-2',
+        cardTitle: '5 Levels of Conversation',
+      },
+    });
+
+    expect(row?.type).toBe('attachment.deleted');
+    expect(row?.actorName).toBe('Matthew Waldhuter');
+    expect(attachmentUploadActivityLabels(row!.meta)).toEqual({
+      fileName: '2026-04-27 21-58-13.mp4',
+      cardTitle: '5 Levels of Conversation',
+    });
+  });
+
   it('parses card.dates.updated rows', () => {
     const row = parseBoardActivityRow({
       _id: 'act-3',

@@ -1,5 +1,6 @@
 import { getMinIOClient } from '../../config/minio.js';
 import { logger } from '../../utils/logger.js';
+import { parsePositiveInt } from '../../utils/parseEnvInt.js';
 import { VIDEO_POSTER_PREVIEW } from '../../../shared/videoPosterPreviewPreset.js';
 import { BUCKET_NAME } from './minioPaths.js';
 import { mintAttachmentInternalReadUrl } from './urls.js';
@@ -108,12 +109,21 @@ const pendingPosterJobs: VideoPosterCacheJob[] = [];
 let activePosterJobs = 0;
 
 function parsePosterCacheConcurrency(): number {
-  const raw = process.env.VIDEO_POSTER_CACHE_CONCURRENCY?.trim();
-  if (raw == null || raw === '') {
-    return 1;
+  return parsePositiveInt(process.env.VIDEO_POSTER_CACHE_CONCURRENCY, 1);
+}
+
+function parsePosterCacheMaxQueue(): number {
+  return parsePositiveInt(process.env.VIDEO_POSTER_CACHE_MAX_QUEUE, 500);
+}
+
+function dropOverflowPosterJobs(maxQueue: number): void {
+  while (pendingPosterJobs.length >= maxQueue) {
+    const dropped = pendingPosterJobs.shift();
+    if (dropped == null) {
+      break;
+    }
+    queuedPosterKeys.delete(dropped.objectName);
   }
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function drainVideoPosterCacheQueue(): void {
@@ -142,6 +152,7 @@ export function scheduleVideoPosterCache(params: {
   if (queuedPosterKeys.has(params.objectName)) {
     return;
   }
+  dropOverflowPosterJobs(parsePosterCacheMaxQueue());
   queuedPosterKeys.add(params.objectName);
   pendingPosterJobs.push(params);
   setImmediate(drainVideoPosterCacheQueue);
@@ -149,4 +160,15 @@ export function scheduleVideoPosterCache(params: {
 
 export function isVideoPosterCacheJobQueued(objectName: string): boolean {
   return queuedPosterKeys.has(objectName);
+}
+
+/** Test-only queue depth for bounded-queue assertions. */
+export function getVideoPosterCacheQueueDepthForTests(): number {
+  return pendingPosterJobs.length;
+}
+
+export function resetVideoPosterCacheQueueForTests(): void {
+  queuedPosterKeys.clear();
+  pendingPosterJobs.length = 0;
+  activePosterJobs = 0;
 }

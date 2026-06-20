@@ -331,6 +331,16 @@ const EntryBody = memo(function EntryBody({ row }: { row: ParsedBoardActivityRow
     );
   }
 
+  if (row.type === 'attachment.deleted') {
+    const { fileName, cardTitle } = attachmentUploadActivityLabels(row.meta);
+    return (
+      <Text component="div" size="sm">
+        <Actor name={row.actorName} /> <Verb text="deleted" /> attachment <Entity name={fileName} /> from card{' '}
+        <Entity name={cardTitle} />
+      </Text>
+    );
+  }
+
   if (row.type.endsWith('.deleted')) {
     return (
       <Text component="div" size="sm">

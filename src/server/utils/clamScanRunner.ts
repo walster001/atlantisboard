@@ -124,6 +124,12 @@ function getCachedVerdict(sha256: string): VerdictValue | null {
 }
 
 function setCachedVerdict(sha256: string, verdict: VerdictValue): void {
+  const now = Date.now();
+  for (const [key, entry] of scanResultCache) {
+    if (entry.expiresAt <= now) {
+      scanResultCache.delete(key);
+    }
+  }
   const maxSize = getCacheMaxSize();
   if (scanResultCache.has(sha256)) {
     scanResultCache.delete(sha256);
@@ -317,27 +323,50 @@ async function scanFileSinglePassHashAndScan(
       shell: false,
     });
 
+    let settled = false;
     let timedOut = false;
-    const timer =
+    const stream = createReadStream(filePath);
+
+    const finish = (result: { readonly verdict: VerdictValue; readonly sha256: string | null }): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timer != null) {
+        clearTimeout(timer);
+      }
+      stream.removeAllListeners();
+      if (!stream.destroyed) {
+        stream.unpipe(child.stdin);
+        stream.destroy();
+      }
+      child.stdin.removeAllListeners('error');
+      child.removeAllListeners('error');
+      child.removeAllListeners('close');
+      if (child.exitCode == null && child.signalCode == null) {
+        child.kill('SIGKILL');
+      }
+      resolve(result);
+    };
+
+    let timer: ReturnType<typeof setTimeout> | null =
       timeoutMs > 0
         ? setTimeout(() => {
             timedOut = true;
-            child.kill('SIGKILL');
+            finish({
+              verdict: Verdict.ScanError,
+              sha256: hash != null ? hash.digest('hex') : null,
+            });
           }, timeoutMs)
         : null;
 
-    const stream = createReadStream(filePath);
     stream.on('data', (chunk: Buffer | string) => {
       if (hash != null) {
         hash.update(chunk);
       }
     });
     stream.on('error', () => {
-      if (timer != null) {
-        clearTimeout(timer);
-      }
-      stream.destroy();
-      resolve({ verdict: Verdict.ScanError, sha256: null });
+      finish({ verdict: Verdict.ScanError, sha256: null });
     });
 
     stream.pipe(child.stdin);
@@ -346,27 +375,17 @@ async function scanFileSinglePassHashAndScan(
     });
 
     child.on('error', () => {
-      if (timer != null) {
-        clearTimeout(timer);
-      }
-      resolve({
+      finish({
         verdict: Verdict.ScanError,
         sha256: hash != null ? hash.digest('hex') : null,
       });
     });
 
     child.on('close', (code, signal) => {
-      if (timer != null) {
-        clearTimeout(timer);
-      }
       if (timedOut) {
-        resolve({
-          verdict: Verdict.ScanError,
-          sha256: hash != null ? hash.digest('hex') : null,
-        });
         return;
       }
-      resolve({
+      finish({
         verdict: mapExitCodeToVerdict(code, signal),
         sha256: hash != null ? hash.digest('hex') : null,
       });

@@ -1,33 +1,18 @@
 import { type Model, type PipelineStage, type Types } from 'mongoose';
+import {
+  listApplicationMongoCollectionNames,
+} from '../../../shared/constants/applicationMongoCollections.js';
 import type { DatabaseCleanupCategoryId } from '../../../shared/types/adminDatabaseMaintenance.js';
 import { InviteLink } from '../../models/InviteLink.js';
 
 /** Matches scheduled import/backup job cleanup in `cronJobs.ts`. */
 export const STALE_JOB_DAYS = 2;
 
-export const KNOWN_COLLECTIONS = new Set<string>([
-  'users',
-  'workspaces',
-  'boards',
-  'lists',
-  'cards',
-  'activities',
-  'sessions',
-  'invitelinks',
-  'boardlabels',
-  'importjobs',
-  'notifications',
-  'adminconfigs',
-  'backupjobs',
-  'permissionsets',
-  'roledefinitions',
-  'boardimportplaceholders',
-  'themes',
-]);
+export const KNOWN_COLLECTIONS = new Set<string>(listApplicationMongoCollectionNames());
 
 /** Application MongoDB collection names shown as "Known" in Admin → Database. */
 export function listKnownApplicationCollectionNames(): readonly string[] {
-  return [...KNOWN_COLLECTIONS].sort((a, b) => a.localeCompare(b));
+  return listApplicationMongoCollectionNames();
 }
 
 export const ORPHAN_DELETE_BATCH = 2000;

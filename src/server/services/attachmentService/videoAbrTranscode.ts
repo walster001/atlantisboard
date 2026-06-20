@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getMinIOClient } from '../../config/minio.js';
 import { logger } from '../../utils/logger.js';
+import { parsePositiveInt } from '../../utils/parseEnvInt.js';
 import { BUCKET_NAME } from './minioPaths.js';
 import { mintAttachmentInternalReadUrl } from './urls.js';
 import { probeVideoSourceHeight } from './videoProbe.js';
@@ -356,12 +357,21 @@ const pendingJobs: VideoAbrJob[] = [];
 const queuedKeys = new Set<string>();
 
 function parseTranscodeConcurrency(): number {
-  const raw = process.env.VIDEO_ABR_TRANSCODE_CONCURRENCY?.trim();
-  if (raw == null || raw === '') {
-    return 1;
+  return parsePositiveInt(process.env.VIDEO_ABR_TRANSCODE_CONCURRENCY, 1);
+}
+
+function parseTranscodeMaxQueue(): number {
+  return parsePositiveInt(process.env.VIDEO_ABR_MAX_QUEUE, 200);
+}
+
+function dropOverflowAbrJobs(maxQueue: number): void {
+  while (pendingJobs.length >= maxQueue) {
+    const dropped = pendingJobs.shift();
+    if (dropped == null) {
+      break;
+    }
+    queuedKeys.delete(dropped.objectName);
   }
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 async function runVideoAbrJob(job: VideoAbrJob): Promise<void> {
@@ -400,6 +410,7 @@ export function scheduleVideoAbrPackaging(params: {
   if (queuedKeys.has(params.objectName)) {
     return;
   }
+  dropOverflowAbrJobs(parseTranscodeMaxQueue());
   queuedKeys.add(params.objectName);
   pendingJobs.push(params);
   setImmediate(drainVideoAbrQueue);

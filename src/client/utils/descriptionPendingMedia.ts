@@ -96,6 +96,14 @@ export type FlushPendingDescriptionMediaResult = {
   readonly flushedBlobUrls: readonly string[];
 };
 
+/** No-op when flush defers registry removal until all uploads succeed; safe to call on failure. */
+export function rollbackPendingDescriptionMediaFlush(
+  _registry: DescriptionPendingMediaRegistry,
+  _flushedBlobUrls: readonly string[],
+): void {
+  // Blob URLs stay registered for editor retry; caller must not revoke on upload failure.
+}
+
 export async function flushPendingDescriptionMediaInJson(
   jsonString: string,
   registry: DescriptionPendingMediaRegistry,
@@ -107,18 +115,27 @@ export async function flushPendingDescriptionMediaInJson(
 
   let result = jsonString;
   const flushedBlobUrls: string[] = [];
-  for (const [blobUrl, file] of [...registry.entries()]) {
-    if (!result.includes(blobUrl)) {
-      URL.revokeObjectURL(blobUrl);
-      registry.delete(blobUrl);
-      continue;
+  const registryDeletes: string[] = [];
+  try {
+    for (const [blobUrl, file] of [...registry.entries()]) {
+      if (!result.includes(blobUrl)) {
+        URL.revokeObjectURL(blobUrl);
+        registry.delete(blobUrl);
+        continue;
+      }
+      const attachmentUrl = await uploadFile(file);
+      result = result.split(blobUrl).join(attachmentUrl);
+      flushedBlobUrls.push(blobUrl);
+      registryDeletes.push(blobUrl);
     }
-    const attachmentUrl = await uploadFile(file);
-    result = result.split(blobUrl).join(attachmentUrl);
-    flushedBlobUrls.push(blobUrl);
-    registry.delete(blobUrl);
+    for (const blobUrl of registryDeletes) {
+      registry.delete(blobUrl);
+    }
+    return { jsonString: result, flushedBlobUrls };
+  } catch (error) {
+    rollbackPendingDescriptionMediaFlush(registry, flushedBlobUrls);
+    throw error;
   }
-  return { jsonString: result, flushedBlobUrls };
 }
 
 function isDevLoopbackHost(hostname: string): boolean {

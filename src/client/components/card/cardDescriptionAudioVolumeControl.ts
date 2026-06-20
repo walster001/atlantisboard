@@ -99,6 +99,18 @@ export function readCardDescriptionAudioGainVolumePercent(element: HTMLAudioElem
   return Math.round(normalized * 100);
 }
 
+/** Close the Web Audio route when the `<audio>` element unmounts (iOS volume workaround). */
+export function releaseCardDescriptionAudioGainRoute(element: HTMLAudioElement): void {
+  const route = gainRoutes.get(element);
+  if (route == null) {
+    return;
+  }
+  if (route.context.state !== 'closed') {
+    void route.context.close().catch(() => undefined);
+  }
+  gainRoutes.delete(element);
+}
+
 export function applyCardDescriptionAudioGainVolume(
   element: HTMLAudioElement,
   volume: number,

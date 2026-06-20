@@ -1,9 +1,10 @@
 import { useAudioContext } from '@gfazioli/mantine-audio';
-import { useCallback, useMemo, useReducer } from 'react';
+import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import {
   applyCardDescriptionAudioGainVolume,
   isMediaElementVolumeProgrammable,
   readCardDescriptionAudioGainVolumePercent,
+  releaseCardDescriptionAudioGainRoute,
 } from './cardDescriptionAudioVolumeControl.js';
 
 export interface CardDescriptionPodcastVolume {
@@ -24,6 +25,18 @@ export function useCardDescriptionPodcastVolume(): CardDescriptionPodcastVolume 
   const ctx = useAudioContext();
   const usesGainVolume = useMemo(() => !isMediaElementVolumeProgrammable(), []);
   const [, bumpGainDisplay] = useReducer((tick: number) => tick + 1, 0);
+
+  useEffect(() => {
+    if (!usesGainVolume) {
+      return undefined;
+    }
+    return () => {
+      const element = ctx.audioRef.current;
+      if (element != null) {
+        releaseCardDescriptionAudioGainRoute(element);
+      }
+    };
+  }, [ctx, usesGainVolume]);
 
   const setVolumePercent = useCallback(
     (percent: number) => {

@@ -173,18 +173,26 @@ export const AdminDatabasePanel = memo(function AdminDatabasePanel() {
             <Table striped highlightOnHover withTableBorder layout="fixed">
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Collection</Table.Th>
-                  <Table.Th>Documents</Table.Th>
-                  <Table.Th>Status</Table.Th>
+                  <Table.Th w="28%">Collection</Table.Th>
+                  <Table.Th>Description</Table.Th>
+                  <Table.Th w={100}>Documents</Table.Th>
+                  <Table.Th w={100}>Status</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {snapshot.collections.map((row) => (
                   <Table.Tr key={row.name}>
                     <Table.Td>
-                      <Text size="sm" ff="monospace">
-                        {row.name}
-                      </Text>
+                      <Text size="sm">{row.label ?? '—'}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.description != null ? (
+                        <Text size="sm">{row.description}</Text>
+                      ) : (
+                        <Text size="sm" c="dimmed">
+                          —
+                        </Text>
+                      )}
                     </Table.Td>
                     <Table.Td>{formatCount(row.documentCount)}</Table.Td>
                     <Table.Td>

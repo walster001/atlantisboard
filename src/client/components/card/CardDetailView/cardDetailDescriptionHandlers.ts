@@ -19,6 +19,7 @@ import {
   findOrphanedBlobUrlsInDescriptionJson,
   flushPendingDescriptionMediaInJson,
   revokeDescriptionMediaBlobUrls,
+  rollbackPendingDescriptionMediaFlush,
   sanitizeCardDescriptionJsonForSave,
 } from '../../../utils/descriptionPendingMedia.js';
 import { normalizeCardFromApi } from '../../../utils/transform.js';
@@ -125,6 +126,7 @@ export async function runDescriptionUpdate({
         descriptionPayload = flushed.jsonString;
         flushedBlobUrls = flushed.flushedBlobUrls;
       } catch {
+        rollbackPendingDescriptionMediaFlush(pendingDescriptionMedia, flushedBlobUrls);
         return { ok: false, reason: 'Could not upload description media.' };
       }
     }

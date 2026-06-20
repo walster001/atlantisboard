@@ -5,6 +5,7 @@ import type {
   DatabaseCollectionStat,
 } from '../../../shared/types/adminDatabaseMaintenance.js';
 import { logger } from '../../utils/logger.js';
+import { applicationMongoCollectionMeta } from '../../../shared/constants/applicationMongoCollections.js';
 import { CATEGORY_DEFINITIONS } from './categories.js';
 import { KNOWN_COLLECTIONS } from './typesAndHelpers.js';
 
@@ -65,10 +66,13 @@ async function readCollectionStats(): Promise<readonly DatabaseCollectionStat[]>
     }
     try {
       const count = await db.collection(name).countDocuments();
+      const knownToApp = KNOWN_COLLECTIONS.has(name);
+      const meta = knownToApp ? applicationMongoCollectionMeta(name) : undefined;
       stats.push({
         name,
         documentCount: count,
-        knownToApp: KNOWN_COLLECTIONS.has(name),
+        knownToApp,
+        ...(meta != null ? { label: meta.label, description: meta.description } : {}),
       });
     } catch (error) {
       logger.warn({ error, collection: name }, 'Could not count collection documents');

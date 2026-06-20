@@ -78,18 +78,24 @@ export async function startCollectionWatch<T = unknown>(params: StartCollectionW
     }
     if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
       logger.error({ label, streamId, reconnectAttempt }, 'Change stream reconnect attempts exhausted');
+      void closeActiveStream();
       return;
     }
     const delayMs = reconnectDelayMs(reconnectAttempt);
     reconnectAttempt += 1;
     logger.warn({ label, streamId, delayMs, reason }, 'Scheduling change stream reconnect');
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      void openStream().catch((error: unknown) => {
-        logger.error({ error, label, streamId }, 'Change stream reconnect failed');
-        scheduleReconnect('open_failed');
-      });
-    }, delayMs);
+    void closeActiveStream().finally(() => {
+      if (closed || reconnectTimer !== null) {
+        return;
+      }
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        void openStream().catch((error: unknown) => {
+          logger.error({ error, label, streamId }, 'Change stream reconnect failed');
+          scheduleReconnect('open_failed');
+        });
+      }, delayMs);
+    });
   };
 
   const openStream = async (): Promise<void> => {

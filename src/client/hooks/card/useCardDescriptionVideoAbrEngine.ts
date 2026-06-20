@@ -134,8 +134,25 @@ function createEngine(format: VideoAbrFormat, manifestUrl: string): {
     dashPlayer.setRepresentationForTypeByIndex('video', mapped);
   };
 
+  const detachInternal = (): void => {
+    if (hls != null) {
+      hls.destroy();
+      hls = null;
+    }
+    if (dashPlayer != null) {
+      dashPlayer.destroy();
+      dashPlayer = null;
+    }
+    if (videoEl != null) {
+      videoEl.removeAttribute('src');
+      videoEl.load();
+      videoEl = null;
+    }
+  };
+
   return {
     attach(video: HTMLVideoElement): void {
+      detachInternal();
       videoEl = video;
       if (format === 'hls') {
         // ponytail: iOS native HLS ignores manual level selection; upgrade with hls.js overrideNative if needed.
@@ -163,19 +180,7 @@ function createEngine(format: VideoAbrFormat, manifestUrl: string): {
       });
     },
     detach(): void {
-      if (hls != null) {
-        hls.destroy();
-        hls = null;
-      }
-      if (dashPlayer != null) {
-        dashPlayer.destroy();
-        dashPlayer = null;
-      }
-      if (videoEl != null) {
-        videoEl.removeAttribute('src');
-        videoEl.load();
-        videoEl = null;
-      }
+      detachInternal();
     },
     setQuality(preference: VideoQualityPreference, meta: VideoAttachmentQualityMeta | null): void {
       if (format === 'hls') {
@@ -193,6 +198,7 @@ export function useCardDescriptionVideoAbrEngine(args: {
   readonly enabled?: boolean;
 }): CardDescriptionVideoAbrEngine {
   const engineRef = useRef<ReturnType<typeof createEngine> | null>(null);
+  const progressiveVideoRef = useRef<HTMLVideoElement | null>(null);
   const enabled = args.enabled !== false;
 
   const streaming = args.qualityMeta?.streaming;
@@ -231,13 +237,23 @@ export function useCardDescriptionVideoAbrEngine(args: {
       engineRef.current.attach(video);
       return;
     }
+    progressiveVideoRef.current = video;
     if (args.progressiveSrc.trim() !== '') {
       video.src = args.progressiveSrc;
     }
   }, [args.progressiveSrc]);
 
   const detach = useCallback((): void => {
-    engineRef.current?.detach();
+    if (engineRef.current != null) {
+      engineRef.current.detach();
+      return;
+    }
+    const video = progressiveVideoRef.current;
+    if (video != null) {
+      video.removeAttribute('src');
+      video.load();
+      progressiveVideoRef.current = null;
+    }
   }, []);
 
   const applyQuality = useCallback(

@@ -93,6 +93,7 @@ function SortableCardInner({
   const cardRootRef = useRef<HTMLDivElement | null>(null);
   const isDragSourceRef = useRef(isDragSource);
   isDragSourceRef.current = isDragSource;
+  const deferredDndCleanupRef = useRef<(() => void) | null>(null);
   const touchArmOptions = useMemo(
     () =>
       kanbanCardTouchDragRequiresLongPress
@@ -125,6 +126,27 @@ function SortableCardInner({
       setDragPreviewReady(false);
     }
   }, [isDragSource]);
+
+  useLayoutEffect(() => {
+    if (isDragSource) {
+      return undefined;
+    }
+    const pending = deferredDndCleanupRef.current;
+    if (pending == null) {
+      return undefined;
+    }
+    deferredDndCleanupRef.current = null;
+    pending();
+    return undefined;
+  }, [isDragSource]);
+
+  useLayoutEffect(() => {
+    return () => {
+      const pending = deferredDndCleanupRef.current;
+      deferredDndCleanupRef.current = null;
+      pending?.();
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (!isDragSource || dragPreviewReady) {
@@ -190,6 +212,7 @@ function SortableCardInner({
     return () => {
       // Virtuoso opacity-hide during drag — teardown breaks pragmatic-dnd mid-gesture.
       if (isDragSourceRef.current) {
+        deferredDndCleanupRef.current = cleanup;
         return;
       }
       cleanup();

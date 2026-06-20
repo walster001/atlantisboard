@@ -5,19 +5,14 @@ bun.lockb
 # Build outputs
 dist/
 build/
-public/
-!public/emoji-datasource/
-!public/emoji-datasource/**
+/public/
+!/public/emoji-datasource/
+!/public/emoji-datasource/**
 release/
 *.tsbuildinfo
 
-# npm package artifacts (scripts/build-npm-package.sh — do not commit)
-packages/atlantisboard/dist/
-packages/atlantisboard/public/
-packages/atlantisboard/bun.lock
-packages/atlantisboard/.env.example
-packages/atlantisboard/DEPLOYMENT.md
-packages/atlantisboard/README.md
+# npm package output (scripts/build-npm-package.sh — do not commit)
+/packages/
 
 # Environment variables
 .env
@@ -78,22 +73,18 @@ redis-data/
 Buglist-New.txt
 
 docs/security/PRODUCTION-AUDIT.md
-public/index.js
 specifications-windowsdep.md
 code-review-output.md
 code-review-output-310526.md
 code-review-gaps.md
 code-review-1626.md
 src/server/utils/atlboard-new-staging.code-workspace
-public/index.js
 docs/DOCKER-DEV-DATA.md
 DEPLOYMENT.md
 docs/DOCKER-DEV-DATA.md
 ports-api-audit.md
 docs/DOCKER-DEV-DATA.md
-public/index.js
 snap-migration.md
 useeffect-report.md
 scripts/prod-remote-deploy.env copy.example
-public/index.js
 docs/security-audit-tests-sockets.md

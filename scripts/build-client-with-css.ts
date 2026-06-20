@@ -26,7 +26,7 @@ const tailwindcss = (typeof tailwindcssModule === 'function'
 
 const projectRoot = process.cwd();
 
-const nanoidCheck = spawnSync('bash', [join(projectRoot, 'scripts/ensure-nanoid.sh'), 'check']);
+const nanoidCheck = spawnSync('sh', [join(projectRoot, 'scripts/ensure-nanoid.sh'), 'check']);
 if (nanoidCheck.status !== 0) {
   process.exit(nanoidCheck.status ?? 1);
 }

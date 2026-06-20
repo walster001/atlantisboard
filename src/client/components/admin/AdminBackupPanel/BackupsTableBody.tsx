@@ -2,8 +2,9 @@ import { memo } from 'react';
 import { Badge, Button, Group, Progress, Stack, Table, Text, ActionIcon, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
-import { IconDownload, IconTrash } from '@tabler/icons-react';
+import { IconDownload, IconPencil, IconTrash } from '@tabler/icons-react';
 import type { AdminBackupListItem } from '../../../../shared/types/adminBackup.js';
+import { formatBackupScheduleLabel } from '../../../../shared/constants/backupScheduleInterval.js';
 import { formatBackupFolderDisplayLabel } from '../../../../shared/utils/backupFolderNaming.js';
 import { api } from '../../../utils/api.js';
 import { formatBackupBytes } from '../../../utils/adminBackupJobPoll.js';
@@ -12,6 +13,7 @@ interface BackupsTableBodyProps {
   readonly backups: readonly AdminBackupListItem[];
   readonly refreshBackupList: () => Promise<void>;
   readonly onOpenRestoreModal: (target: AdminBackupListItem) => void;
+  readonly onEditSchedule: (target: AdminBackupListItem) => void;
   readonly onDownloadBackup: (folderId: string) => void;
   readonly downloadingBackupId: string | null;
   /** Admin configuration on narrow viewports: omit created/size cells. */
@@ -22,6 +24,7 @@ export const BackupsTableBody = memo(function BackupsTableBody({
   backups,
   refreshBackupList,
   onOpenRestoreModal,
+  onEditSchedule,
   onDownloadBackup,
   downloadingBackupId,
   hideMetaColumns = false,
@@ -29,22 +32,81 @@ export const BackupsTableBody = memo(function BackupsTableBody({
   return (
     <>
       {backups.map((backup) => {
-        const displayLabel = formatBackupFolderDisplayLabel(backup.folderId);
+        const isSchedule = backup.entryKind === 'schedule';
+        const displayLabel = isSchedule
+          ? (backup.scheduleLabel ?? formatBackupFolderDisplayLabel(backup.folderId))
+          : formatBackupFolderDisplayLabel(backup.folderId);
+        const scheduleSizeLabel =
+          isSchedule &&
+          typeof backup.scheduleIntervalAmount === 'number' &&
+          (backup.scheduleIntervalUnit === 'hours' ||
+            backup.scheduleIntervalUnit === 'days' ||
+            backup.scheduleIntervalUnit === 'weeks' ||
+            backup.scheduleIntervalUnit === 'months')
+            ? `Every ${formatBackupScheduleLabel(backup.scheduleIntervalAmount, backup.scheduleIntervalUnit)}`
+            : null;
         return (
         <Table.Tr key={backup.folderId}>
           <Table.Td>
-            <Text size="sm" ff="monospace">
-              {displayLabel}
-            </Text>
+            <Group gap="xs" wrap="nowrap">
+              {isSchedule ? (
+                <Badge color="teal" variant="light" size="sm">
+                  Scheduled
+                </Badge>
+              ) : null}
+              <Text size="sm" {...(isSchedule ? {} : { ff: 'monospace' })}>
+                {displayLabel}
+              </Text>
+            </Group>
           </Table.Td>
           {!hideMetaColumns ? (
             <>
               <Table.Td>{new Date(backup.lastModified).toLocaleString()}</Table.Td>
-              <Table.Td>{formatBackupBytes(backup.sizeBytes)}</Table.Td>
+              <Table.Td>{isSchedule ? (scheduleSizeLabel ?? '—') : formatBackupBytes(backup.sizeBytes)}</Table.Td>
             </>
           ) : null}
           <Table.Td>
-            {backup.status === 'processing' || backup.status === 'pending' ? (
+            {isSchedule ? (
+              <Group gap="xs" wrap="nowrap">
+                <Button size="xs" variant="light" leftSection={<IconPencil size={14} />} onClick={() => onEditSchedule(backup)}>
+                  {hideMetaColumns ? 'Edit' : 'Edit schedule'}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={() => {
+                    modals.openConfirmModal({
+                      title: 'Delete scheduled backup?',
+                      children: (
+                        <Text size="sm">
+                          Remove scheduled backup <Text span fw={500}>{displayLabel}</Text>. Existing
+                          backup archives from this schedule are kept.
+                        </Text>
+                      ),
+                      labels: { confirm: 'Delete', cancel: 'Cancel' },
+                      confirmProps: { color: 'red' },
+                      onConfirm: async () => {
+                        try {
+                          await api.deleteAdminBackup(backup.folderId);
+                          notifications.show({ title: 'Schedule deleted', message: displayLabel });
+                          await refreshBackupList();
+                        } catch (error: unknown) {
+                          notifications.show({
+                            title: 'Delete failed',
+                            message: error instanceof Error ? error.message : 'Unknown error',
+                            color: 'red',
+                          });
+                        }
+                      },
+                    });
+                  }}
+                >
+                  {hideMetaColumns ? 'Delete' : 'Delete schedule'}
+                </Button>
+              </Group>
+            ) : backup.status === 'processing' || backup.status === 'pending' ? (
               <Stack gap={6}>
                 <Group gap="xs">
                   <Badge color="blue" variant="light">

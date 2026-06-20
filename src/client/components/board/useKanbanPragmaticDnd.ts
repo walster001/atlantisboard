@@ -1,6 +1,7 @@
 import { useLayoutEffect, startTransition } from 'react';
 import { flushSync } from 'react-dom';
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { preventUnhandled } from '@atlaskit/pragmatic-drag-and-drop/prevent-unhandled';
 import { db } from '../../store/database.js';
 import { api } from '../../utils/api.js';
 import { normalizeCardFromApi, transformList } from '../../utils/transform.js';
@@ -159,6 +160,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
       stopAutoScroll();
       pendingCardDragSeed = null;
       activeCardDragMetrics = DEFAULT_KANBAN_CARD_DROP_METRICS;
+      preventUnhandled.stop();
       ctx.cancelPendingCardDropIndicatorRaf();
       flushSync(() => {
         ctx.flushCardDropIndicatorNow(null);
@@ -173,6 +175,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const data = source.data as Record<string, unknown>;
         const cardDrag = readKanbanCardDragData(data);
         if (cardDrag != null) {
+          preventUnhandled.start();
           activeCardDragMetrics = kanbanCardDragMetricsFromElement(source.element);
           markKanbanCardDragStarted();
           pendingCardDragSeed = { cardDrag, metrics: activeCardDragMetrics };
@@ -181,6 +184,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         }
         const listDrag = readKanbanListDragData(data);
         if (listDrag != null) {
+          preventUnhandled.start();
           setDraggingListId(listDrag.listId);
         }
       },
@@ -302,6 +306,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
               setListDropIndicatorIfChanged(null);
             });
             resetKanbanMobileDragChromeState();
+            preventUnhandled.stop();
           } else {
             cancelKanbanCardDrag(ctx);
           }
@@ -330,6 +335,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
         const listDrag = readKanbanListDragData(data);
         if (listDrag != null) {
           stopAutoScroll();
+          preventUnhandled.stop();
           setDraggingListId(null);
           const overListId = resolveListDropListId(listDrag.listId, location.current.dropTargets);
           setListDropIndicatorIfChanged(null);
@@ -355,6 +361,7 @@ export function useKanbanPragmaticDnd(args: UseKanbanPragmaticDndArgs): void {
     });
     return () => {
       stopAutoScroll();
+      preventUnhandled.stop();
       cleanupMonitor();
     };
   }, [carouselEdgeBumpRef, kanbanDropCtxRef, setDraggingCardId, setDraggingListId, setListDropIndicatorIfChanged]);

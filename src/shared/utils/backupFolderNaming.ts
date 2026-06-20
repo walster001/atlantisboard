@@ -3,9 +3,19 @@
 const DISPLAY_FOLDER_ID_RE =
   /^([0-9]{2})-([0-9]{2})-([0-9]{2})_([0-9]{2})([0-9]{2})(AM|PM)(?:-([0-9]+))?$/;
 
-/** Matches legacy ids (`{epochMs}_{iso}`) and display ids (`DD-MM-YY_HHMMAM|PM`). */
+/** Matches legacy ids, display ids, and scheduled-backup definition ids (`sched-{objectId}`). */
 export const BACKUP_FOLDER_ID_PATTERN =
-  /^(?:[0-9]+_[0-9A-Za-z.-]+|[0-9]{2}-[0-9]{2}-[0-9]{2}_[0-9]{4}(?:AM|PM)(?:-[0-9]+)?)$/;
+  /^(?:[0-9]+_[0-9A-Za-z.-]+|[0-9]{2}-[0-9]{2}-[0-9]{2}_[0-9]{4}(?:AM|PM)(?:-[0-9]+)?|sched-[a-f0-9]{24})$/;
+
+const SCHEDULE_FOLDER_ID_RE = /^sched-[a-f0-9]{24}$/;
+
+export function isScheduledBackupFolderId(folderId: string): boolean {
+  return SCHEDULE_FOLDER_ID_RE.test(folderId);
+}
+
+export function buildScheduleFolderId(objectId: string): string {
+  return `sched-${objectId}`;
+}
 
 function pad2(value: number): string {
   return String(value).padStart(2, '0');
@@ -91,6 +101,9 @@ export function formatBackupFolderDisplayLabel(folderId: string): string {
   const pendingSuffix = folderId.indexOf('_pending-');
   if (pendingSuffix > 0) {
     return formatBackupFolderDisplayLabel(folderId.slice(0, pendingSuffix));
+  }
+  if (isScheduledBackupFolderId(folderId)) {
+    return folderId;
   }
   if (DISPLAY_FOLDER_ID_RE.test(folderId)) {
     return folderId;

@@ -16,12 +16,15 @@ import { logAuditEvent } from '../utils/auditLogger.js';
 import {
   cancelBackupJob,
   cleanupImportedBackupTempFile,
+  createBackupSchedule,
   deleteBackupFolder,
   importBackupArchive,
   listBackups,
+  migrateLegacyGlobalScheduleIfNeeded,
   resolveBackupDownloadTarget,
   startBackupJob,
   startRestoreJob,
+  updateBackupSchedule,
 } from '../services/backupService.js';
 import {
   applyBackupLocation,
@@ -32,6 +35,10 @@ import {
 import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import { parseOrThrow } from '../utils/zodValidation.js';
 import { isValidBackupFolderId } from '../../shared/utils/backupFolderNaming.js';
+import {
+  clampBackupScheduleAmount,
+  isBackupScheduleUnit,
+} from '../../shared/constants/backupScheduleInterval.js';
 
 const router = Router();
 
@@ -62,8 +69,10 @@ const backupFolderIdSchema = z
   .max(240)
   .refine(isValidBackupFolderId, 'Invalid backup folder id');
 
-router.get('/list', async (_req, res, next) => {
+router.get('/list', async (req, res, next) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    await migrateLegacyGlobalScheduleIfNeeded(authReq.user.id);
     const backups = await listBackups();
     res.json({ backups });
   } catch (error) {
@@ -236,6 +245,96 @@ router.post('/run', async (req, res, next) => {
       jobId,
       reusedExisting,
     });
+  } catch (error) {
+    handleApiRouteError(res, error, next);
+  }
+});
+
+const backupScheduleBodySchema = z.object({
+  filename: z.string().trim().min(1).max(240),
+  scheduleIntervalAmount: z.coerce.number().int().min(1),
+  scheduleIntervalUnit: z.string().trim().refine(isBackupScheduleUnit, 'Invalid schedule interval unit'),
+});
+
+router.post('/schedules', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const body = parseOrThrow(backupScheduleBodySchema, req.body);
+    const unit = body.scheduleIntervalUnit;
+    if (!isBackupScheduleUnit(unit)) {
+      res.status(400).json({
+        error: { message: 'Invalid schedule interval unit', code: 'VALIDATION_ERROR', statusCode: 400 },
+      });
+      return;
+    }
+    const amount = clampBackupScheduleAmount(body.scheduleIntervalAmount, unit);
+    const result = await createBackupSchedule({
+      userId: authReq.user.id,
+      filename: body.filename,
+      intervalAmount: amount,
+      intervalUnit: unit,
+    });
+    logAuditEvent({
+      userId: authReq.user.id,
+      action: 'admin_backup_schedule_created',
+      resourceType: 'backup',
+      resourceId: result.folderId,
+      ipAddress: req.ip || undefined,
+      timestamp: new Date(),
+    });
+    res.status(201).json({
+      message: 'Scheduled backup created',
+      folderId: result.folderId,
+      jobId: result.jobId,
+    });
+  } catch (error) {
+    handleApiRouteError(res, error, next);
+  }
+});
+
+const backupScheduleUpdateBodySchema = z.object({
+  filename: z.string().trim().min(1).max(240).optional(),
+  scheduleIntervalAmount: z.coerce.number().int().min(1).optional(),
+  scheduleIntervalUnit: z.string().trim().refine(isBackupScheduleUnit, 'Invalid schedule interval unit').optional(),
+});
+
+router.patch('/schedules/:folderId', async (req, res, next) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const folderId = parseOrThrow(backupFolderIdSchema, req.params.folderId);
+    const body = parseOrThrow(backupScheduleUpdateBodySchema, req.body);
+    const unit = body.scheduleIntervalUnit;
+    if (body.scheduleIntervalAmount != null && unit == null) {
+      res.status(400).json({
+        error: { message: 'scheduleIntervalUnit is required when updating amount', code: 'VALIDATION_ERROR', statusCode: 400 },
+      });
+      return;
+    }
+    if (unit != null && !isBackupScheduleUnit(unit)) {
+      res.status(400).json({
+        error: { message: 'Invalid schedule interval unit', code: 'VALIDATION_ERROR', statusCode: 400 },
+      });
+      return;
+    }
+    await updateBackupSchedule({
+      folderId,
+      ...(body.filename != null ? { filename: body.filename } : {}),
+      ...(body.scheduleIntervalAmount != null && unit != null
+        ? {
+            intervalAmount: clampBackupScheduleAmount(body.scheduleIntervalAmount, unit),
+            intervalUnit: unit,
+          }
+        : {}),
+    });
+    logAuditEvent({
+      userId: authReq.user.id,
+      action: 'admin_backup_schedule_updated',
+      resourceType: 'backup',
+      resourceId: folderId,
+      ipAddress: req.ip || undefined,
+      timestamp: new Date(),
+    });
+    res.json({ message: 'Scheduled backup updated', folderId });
   } catch (error) {
     handleApiRouteError(res, error, next);
   }

@@ -35,6 +35,8 @@ export const RESTORE_PHASE_TOTAL = 4;
 
 export type BackupSource = 'manual' | 'scheduled' | 'imported';
 
+export type BackupEntryKind = 'backup' | 'schedule';
+
 export interface BackupListEntry {
   readonly folderId: string;
   readonly filePath: string;
@@ -44,6 +46,10 @@ export interface BackupListEntry {
   readonly progress?: number;
   readonly jobId?: string;
   readonly backupSource?: BackupSource;
+  readonly entryKind?: BackupEntryKind;
+  readonly scheduleLabel?: string;
+  readonly scheduleIntervalAmount?: number;
+  readonly scheduleIntervalUnit?: 'hours' | 'days' | 'weeks' | 'months';
 }
 
 export interface BackupProgressReporter {

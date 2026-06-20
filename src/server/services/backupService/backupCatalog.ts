@@ -2,6 +2,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { BackupJob } from '../../models/BackupJob.js';
 import { logger } from '../../utils/logger.js';
+import { isScheduledBackupFolderId } from '../../../shared/utils/backupFolderNaming.js';
 import { backupFolderMillis, type BackupListEntry, normalizeLocationPath } from './backupShared.js';
 import { formatBackupFolderTimestamp } from '../../../shared/utils/backupFolderNaming.js';
 
@@ -34,14 +35,42 @@ export async function purgeMalformedActiveBackupJobs(): Promise<void> {
 export async function listBackupsCatalog(): Promise<BackupListEntry[]> {
   await purgeMalformedActiveBackupJobs();
   const jobs = await BackupJob.find({
-    $or: [{ jobKind: 'backup' }, { jobKind: { $exists: false } }],
+    $or: [
+      { jobKind: 'backup' },
+      { jobKind: 'schedule' },
+      { jobKind: { $exists: false } },
+    ],
     status: { $in: ['completed', 'processing', 'pending', 'failed', 'cancelled'] },
   })
     .sort({ createdAt: -1 })
     .lean();
   return jobs
-    .filter((job) => job.result?.folderId != null || job.status === 'processing' || job.status === 'pending')
+    .filter((job) => {
+      if (job.jobKind === 'schedule') {
+        return job.result?.folderId != null;
+      }
+      return job.result?.folderId != null || job.status === 'processing' || job.status === 'pending';
+    })
     .map((job) => {
+      if (job.jobKind === 'schedule') {
+        const folderId = job.result?.folderId ?? '';
+        const unit = job.scheduleIntervalUnit;
+        return {
+          folderId,
+          filePath: '',
+          sizeBytes: 0,
+          lastModified: job.createdAt.toISOString(),
+          status: 'completed' as const,
+          jobId: String(job._id),
+          backupSource: 'scheduled' as const,
+          entryKind: 'schedule' as const,
+          scheduleLabel: job.filename,
+          ...(typeof job.scheduleIntervalAmount === 'number' ? { scheduleIntervalAmount: job.scheduleIntervalAmount } : {}),
+          ...(unit === 'hours' || unit === 'days' || unit === 'weeks' || unit === 'months'
+            ? { scheduleIntervalUnit: unit }
+            : {}),
+        };
+      }
       const result = job.result;
       const fallbackFolderId = `${formatBackupFolderTimestamp(job.createdAt)}_pending-${String(job._id)}`;
       const fallbackLocation = typeof job.location === 'string' && job.location.trim() !== '' ? job.location : '/unknown-location';
@@ -64,6 +93,10 @@ export async function listBackupsCatalog(): Promise<BackupListEntry[]> {
 }
 
 export async function deleteBackupFolderCatalog(folderId: string): Promise<void> {
+  if (isScheduledBackupFolderId(folderId)) {
+    await BackupJob.deleteOne({ jobKind: 'schedule', 'result.folderId': folderId });
+    return;
+  }
   const docs = await BackupJob.find({
     'result.folderId': folderId,
     $or: [{ jobKind: 'backup' }, { jobKind: { $exists: false } }],
@@ -95,6 +128,9 @@ export async function pruneOldBackups(retentionDays: number): Promise<number> {
   const entries = await listBackupsCatalog();
   let removed = 0;
   for (const e of entries) {
+    if (e.entryKind === 'schedule') {
+      continue;
+    }
     const ms = backupFolderMillis(e.folderId);
     if (ms !== null && ms < cutoff) {
       await deleteBackupFolderCatalog(e.folderId);

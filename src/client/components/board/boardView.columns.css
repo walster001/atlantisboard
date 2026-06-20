@@ -115,16 +115,6 @@
   content-visibility: visible;
 }
 
-/* Native drag still hit-tests elements under the pointer — lock cursor for the whole drag. */
-.board-page--kanban-dragging {
-  cursor: grabbing;
-}
-
-.board-page--kanban-dragging .board-card__kanban-body,
-.board-page--kanban-dragging .board-column__title-row {
-  cursor: grabbing !important;
-}
-
 .board-column__cards,
 .board-column__cards--virtual {
   content-visibility: visible;

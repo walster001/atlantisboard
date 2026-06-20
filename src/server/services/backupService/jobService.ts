@@ -18,8 +18,10 @@ import {
 } from './backupJobProcess.js';
 import { restoreFullBackupImpl } from './restoreExecutor.js';
 import {
+  BadRequestError,
   NotFoundError,
 } from '../../../shared/errors/domainErrors.js';
+import { isScheduledBackupFolderId } from '../../../shared/utils/backupFolderNaming.js';
 
 function dispatchBackupJob(
   jobId: string,
@@ -110,6 +112,7 @@ export async function startBackupJobImpl(params: {
   readonly ipAddress?: string | undefined;
   readonly filename: string;
   readonly backupSource?: 'manual' | 'scheduled';
+  readonly scheduleParentFolderId?: string | undefined;
 }): Promise<{ jobId: string; reusedExisting: boolean }> {
   await purgeMalformedActiveBackupJobs();
   const location = requireBackupLocationFromEnv();
@@ -131,6 +134,9 @@ export async function startBackupJobImpl(params: {
     userId: userOid,
     jobKind: 'backup',
     backupSource: params.backupSource ?? 'manual',
+    ...(params.scheduleParentFolderId != null
+      ? { sourceFolderId: params.scheduleParentFolderId }
+      : {}),
     status: 'pending',
     progress: 0,
     totalItems: BACKUP_PHASE_TOTAL,
@@ -184,6 +190,9 @@ export async function startRestoreJobImpl(params: {
   readonly ipAddress?: string | undefined;
   readonly folderId: string;
 }): Promise<{ jobId: string; reusedExisting: boolean }> {
+  if (isScheduledBackupFolderId(params.folderId)) {
+    throw new BadRequestError('Cannot restore a scheduled backup definition');
+  }
   const userOid = new mongoose.Types.ObjectId(params.userId);
   const existing = await BackupJob.findOne({
     userId: userOid,

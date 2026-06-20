@@ -53,7 +53,6 @@ interface UseAdminBackupPanelStateResult {
   readonly setScheduleAmount: Dispatch<SetStateAction<number>>;
   readonly scheduleUnit: BackupScheduleUnit;
   readonly setScheduleUnit: Dispatch<SetStateAction<BackupScheduleUnit>>;
-  readonly scheduleEnabled: boolean;
   readonly createOpen: boolean;
   readonly setCreateOpen: Dispatch<SetStateAction<boolean>>;
   readonly createFilename: string;
@@ -62,6 +61,11 @@ interface UseAdminBackupPanelStateResult {
   readonly scheduleOpen: boolean;
   readonly setScheduleOpen: Dispatch<SetStateAction<boolean>>;
   readonly savingSchedule: boolean;
+  readonly scheduleFilename: string;
+  readonly setScheduleFilename: Dispatch<SetStateAction<string>>;
+  readonly editScheduleTarget: AdminBackupListItem | null;
+  readonly openCreateScheduleModal: () => void;
+  readonly openEditScheduleModal: (target: AdminBackupListItem) => void;
   readonly restoreOpen: boolean;
   readonly setRestoreOpen: Dispatch<SetStateAction<boolean>>;
   readonly restoreTarget: AdminBackupListItem | null;
@@ -104,12 +108,13 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
   const [suggestedBackupPath, setSuggestedBackupPath] = useState<string | null>(null);
   const [scheduleAmount, setScheduleAmount] = useState(14);
   const [scheduleUnit, setScheduleUnit] = useState<BackupScheduleUnit>('days');
-  const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createFilename, setCreateFilename] = useState(() => buildDefaultBackupFilename());
   const [creating, setCreating] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [scheduleFilename, setScheduleFilename] = useState('scheduled-backup.zip');
+  const [editScheduleTarget, setEditScheduleTarget] = useState<AdminBackupListItem | null>(null);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<AdminBackupListItem | null>(null);
   const [restoreConfirm, setRestoreConfirm] = useState('');
@@ -183,7 +188,6 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
       const schedule = resolveBackupScheduleInterval(cfg.backupSettings ?? {});
       setScheduleAmount(schedule.amount);
       setScheduleUnit(schedule.unit);
-      setScheduleEnabled(cfg.backupSettings?.scheduleEnabled === true);
     } catch (error: unknown) {
       notifications.show({
         title: 'Could not load backups',
@@ -294,22 +298,36 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
       });
       return;
     }
+    const filename = scheduleFilename.trim();
+    if (filename === '') {
+      notifications.show({ title: 'Missing filename', message: 'Enter a backup file name.', color: 'red' });
+      return;
+    }
     setSavingSchedule(true);
     try {
-      await api.updateAdminConfig({
-        backupSettings: {
-          retentionDays: retention,
-          scheduleEnabled: true,
+      if (editScheduleTarget != null) {
+        await api.updateAdminBackupSchedule(editScheduleTarget.folderId, {
+          filename,
           scheduleIntervalAmount: scheduleAmount,
           scheduleIntervalUnit: scheduleUnit,
-        },
-      });
-      setScheduleEnabled(true);
-      notifications.show({
-        title: 'Scheduled backup enabled',
-        message: `Every ${formatBackupScheduleLabel(scheduleAmount, scheduleUnit)}`,
-      });
+        });
+        notifications.show({
+          title: 'Schedule updated',
+          message: `Every ${formatBackupScheduleLabel(scheduleAmount, scheduleUnit)}`,
+        });
+      } else {
+        await api.createAdminBackupSchedule({
+          filename,
+          scheduleIntervalAmount: scheduleAmount,
+          scheduleIntervalUnit: scheduleUnit,
+        });
+        notifications.show({
+          title: 'Scheduled backup created',
+          message: `Every ${formatBackupScheduleLabel(scheduleAmount, scheduleUnit)}`,
+        });
+      }
       setScheduleOpen(false);
+      setEditScheduleTarget(null);
       await refreshBackupList();
     } catch (error: unknown) {
       notifications.show({
@@ -320,6 +338,27 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     } finally {
       setSavingSchedule(false);
     }
+  };
+
+  const openCreateScheduleModal = (): void => {
+    setEditScheduleTarget(null);
+    setScheduleFilename('scheduled-backup.zip');
+    setScheduleAmount(14);
+    setScheduleUnit('days');
+    setScheduleOpen(true);
+  };
+
+  const openEditScheduleModal = (target: AdminBackupListItem): void => {
+    setEditScheduleTarget(target);
+    setScheduleFilename(target.scheduleLabel ?? 'scheduled-backup.zip');
+    if (typeof target.scheduleIntervalAmount === 'number') {
+      setScheduleAmount(target.scheduleIntervalAmount);
+    }
+    const unit = target.scheduleIntervalUnit;
+    if (unit === 'hours' || unit === 'days' || unit === 'weeks' || unit === 'months') {
+      setScheduleUnit(unit);
+    }
+    setScheduleOpen(true);
   };
 
   const doRestore = async (): Promise<void> => {
@@ -561,7 +600,6 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     setScheduleAmount,
     scheduleUnit,
     setScheduleUnit,
-    scheduleEnabled,
     createOpen,
     setCreateOpen,
     createFilename,
@@ -570,6 +608,11 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     scheduleOpen,
     setScheduleOpen,
     savingSchedule,
+    scheduleFilename,
+    setScheduleFilename,
+    editScheduleTarget,
+    openCreateScheduleModal,
+    openEditScheduleModal,
     restoreOpen,
     setRestoreOpen,
     restoreTarget,

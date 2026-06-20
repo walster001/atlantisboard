@@ -1,7 +1,7 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
 export type BackupJobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-export type BackupJobKind = 'backup' | 'restore';
+export type BackupJobKind = 'backup' | 'restore' | 'schedule';
 export type BackupJobSource = 'manual' | 'scheduled' | 'imported';
 
 export interface IBackupJobResult {
@@ -30,6 +30,10 @@ export interface IBackupJob extends Document {
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
+  /** Last successful run for `jobKind: 'schedule'` rows. */
+  lastScheduledRunAt?: Date;
+  scheduleIntervalAmount?: number;
+  scheduleIntervalUnit?: 'hours' | 'days' | 'weeks' | 'months';
   expiresAt: Date;
 }
 
@@ -53,7 +57,7 @@ const BackupJobSchema = new Schema<IBackupJob>(
     },
     jobKind: {
       type: String,
-      enum: ['backup', 'restore'],
+      enum: ['backup', 'restore', 'schedule'],
       default: 'backup',
       index: true,
     },
@@ -80,6 +84,12 @@ const BackupJobSchema = new Schema<IBackupJob>(
     cancelRequestedAt: Date,
     startedAt: Date,
     completedAt: Date,
+    lastScheduledRunAt: Date,
+    scheduleIntervalAmount: { type: Number, min: 1, max: 87600 },
+    scheduleIntervalUnit: {
+      type: String,
+      enum: ['hours', 'days', 'weeks', 'months'],
+    },
     expiresAt: {
       type: Date,
       required: true,

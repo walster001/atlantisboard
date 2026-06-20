@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { Badge, Button, FileButton, Group, Loader, NativeSelect, Progress, Stack, Table, Text, Title } from '@mantine/core';
 import { IconDatabase, IconUpload } from '@tabler/icons-react';
 import { BACKUP_RETENTION_OPTIONS, parseBackupRetentionSelectValue } from '../../../shared/constants/backupRetention.js';
-import { formatBackupScheduleLabel } from '../../../shared/constants/backupScheduleInterval.js';
 import { buildDefaultBackupFilename } from '../../../shared/utils/backupFolderNaming.js';
 import { backupPhaseDisplayLabel } from '../../utils/adminBackupJobPoll.js';
 import { BackupsTableBody } from './AdminBackupPanel/BackupsTableBody.js';
@@ -29,7 +28,6 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     setScheduleAmount,
     scheduleUnit,
     setScheduleUnit,
-    scheduleEnabled,
     createOpen,
     setCreateOpen,
     createFilename,
@@ -38,6 +36,11 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     scheduleOpen,
     setScheduleOpen,
     savingSchedule,
+    scheduleFilename,
+    setScheduleFilename,
+    editScheduleTarget,
+    openCreateScheduleModal,
+    openEditScheduleModal,
     restoreOpen,
     setRestoreOpen,
     restoreTarget,
@@ -120,7 +123,7 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         >
           Create Backup
         </Button>
-        <Button variant="default" onClick={() => setScheduleOpen(true)}>
+        <Button variant="default" onClick={openCreateScheduleModal}>
           Create Scheduled Backup
         </Button>
         <FileButton
@@ -173,6 +176,7 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
                 setRestoreConfirm('');
                 setRestoreOpen(true);
               }}
+              onEditSchedule={openEditScheduleModal}
             />
           </Table.Tbody>
         </Table>
@@ -189,6 +193,9 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         scheduleOpen={scheduleOpen}
         setScheduleOpen={setScheduleOpen}
         savingSchedule={savingSchedule}
+        scheduleFilename={scheduleFilename}
+        setScheduleFilename={setScheduleFilename}
+        editScheduleTarget={editScheduleTarget}
         scheduleAmount={scheduleAmount}
         setScheduleAmount={setScheduleAmount}
         scheduleUnit={scheduleUnit}
@@ -208,13 +215,6 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         restoreFailure={restoreFailure}
         doRestore={doRestore}
       />
-
-      <Text size="xs" c="dimmed">
-        Scheduled:{' '}
-        {scheduleEnabled
-          ? `Every ${formatBackupScheduleLabel(scheduleAmount, scheduleUnit)}`
-          : 'Disabled'}
-      </Text>
 
       {(restoreStatus === 'pending' || restoreStatus === 'processing') && (
         <Stack gap={6}>

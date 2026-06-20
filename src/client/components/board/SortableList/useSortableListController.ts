@@ -193,6 +193,7 @@ export function useSortableListController(props: SortableListProps): SortableLis
     listDndCleanupRef.current = combine(
       dropTargetForElements({
         element: columnEl,
+        getDropEffect: () => 'move',
         getData: ({ element, input }) =>
           attachClosestEdge(
             {

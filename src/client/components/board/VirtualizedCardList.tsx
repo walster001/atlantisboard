@@ -64,6 +64,7 @@ function VirtualizedCardListInner({
       }
       listBodyDropCleanupRef.current = dropTargetForElements({
         element: node,
+        getDropEffect: () => 'move',
         getData: () =>
           ({
             pdnd: PDND_KANBAN_LIST_BODY,

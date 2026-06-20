@@ -216,6 +216,7 @@ export async function cleanupBackupJobs(): Promise<void> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 2);
     const result = await BackupJob.deleteMany({
+      jobKind: { $ne: 'schedule' },
       status: { $in: ['completed', 'failed'] },
       createdAt: { $lt: cutoffDate },
     });

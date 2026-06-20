@@ -31,6 +31,19 @@ export interface AdminBackupApiMethods {
   getAdminBackupJob(jobId: string): Promise<AdminBackupJobResponse>;
   cancelAdminBackupJob(jobId: string): Promise<{ message: string }>;
   deleteAdminBackup(folderId: string): Promise<void>;
+  createAdminBackupSchedule(input: {
+    filename: string;
+    scheduleIntervalAmount: number;
+    scheduleIntervalUnit: 'hours' | 'days' | 'weeks' | 'months';
+  }): Promise<{ message: string; folderId: string; jobId: string }>;
+  updateAdminBackupSchedule(
+    folderId: string,
+    input: {
+      filename?: string;
+      scheduleIntervalAmount?: number;
+      scheduleIntervalUnit?: 'hours' | 'days' | 'weeks' | 'months';
+    },
+  ): Promise<{ message: string; folderId: string }>;
   restoreAdminBackup(
     folderId: string,
     confirmFolder: string
@@ -106,6 +119,22 @@ export const adminBackupApiMethods: AdminBackupApiMethods = {
     await this.client.delete(`/admin/backup/${encodeURIComponent(folderId)}`, {
       data: { confirmPhrase: ADMIN_DESTRUCTIVE_CONFIRM_PHRASE },
     });
+  },
+
+  async createAdminBackupSchedule(this: ApiClient, input) {
+    const response = await this.client.post<{ message: string; folderId: string; jobId: string }>(
+      '/admin/backup/schedules',
+      input,
+    );
+    return response.data;
+  },
+
+  async updateAdminBackupSchedule(this: ApiClient, folderId, input) {
+    const response = await this.client.patch<{ message: string; folderId: string }>(
+      `/admin/backup/schedules/${encodeURIComponent(folderId)}`,
+      input,
+    );
+    return response.data;
   },
 
   async restoreAdminBackup(this: ApiClient, folderId, confirmFolder) {

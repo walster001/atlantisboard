@@ -24,6 +24,9 @@ interface BackupDialogsProps {
   readonly scheduleOpen: boolean;
   readonly setScheduleOpen: (next: boolean) => void;
   readonly savingSchedule: boolean;
+  readonly scheduleFilename: string;
+  readonly setScheduleFilename: (next: string) => void;
+  readonly editScheduleTarget: AdminBackupListItem | null;
   readonly scheduleAmount: number;
   readonly setScheduleAmount: (next: number | ((current: number) => number)) => void;
   readonly scheduleUnit: BackupScheduleUnit;
@@ -56,6 +59,9 @@ export const BackupDialogs = memo(function BackupDialogs({
   scheduleOpen,
   setScheduleOpen,
   savingSchedule,
+  scheduleFilename,
+  setScheduleFilename,
+  editScheduleTarget,
   scheduleAmount,
   setScheduleAmount,
   scheduleUnit,
@@ -120,7 +126,7 @@ export const BackupDialogs = memo(function BackupDialogs({
         onClose={() => {
           if (!savingSchedule) setScheduleOpen(false);
         }}
-        title="Create Scheduled Backup"
+        title={editScheduleTarget != null ? 'Edit Scheduled Backup' : 'Create Scheduled Backup'}
         centered
         size="sm"
       >
@@ -135,6 +141,14 @@ export const BackupDialogs = memo(function BackupDialogs({
               <> (set BACKUP_LOCATION on the server; see .env.example).</>
             )}
           </Text>
+          <TextInput
+            label="Filename template"
+            value={scheduleFilename}
+            onChange={(event) => setScheduleFilename(event.currentTarget.value)}
+            placeholder="scheduled-backup.zip"
+            disabled={savingSchedule}
+            description="Each run appends a timestamp to this name."
+          />
           <Stack gap={4}>
             <Text size="sm" fw={500}>
               Frequency
@@ -183,7 +197,7 @@ export const BackupDialogs = memo(function BackupDialogs({
               Close
             </Button>
             <Button loading={savingSchedule} onClick={() => void saveSchedule()}>
-              Save schedule
+              {editScheduleTarget != null ? 'Save changes' : 'Create schedule'}
             </Button>
           </Group>
         </Stack>

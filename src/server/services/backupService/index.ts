@@ -1,11 +1,9 @@
-import { resolveBackupScheduleIntervalMs } from '../../../shared/constants/backupScheduleInterval.js';
-import { getAdminConfig } from '../adminService.js';
-import { getResolvedBackupLocationFromEnv } from '../backupLocationEnv.js';
 import {
   deleteBackupFolderCatalog,
   ensureBackupPathInCatalog,
   listBackupsCatalog,
 } from './backupCatalog.js';
+import { runScheduledBackupsIfDue, createBackupScheduleImpl, updateBackupScheduleImpl } from './backupSchedule.js';
 import { executeFullBackupWithProgressImpl } from './backupExecutor.js';
 import { cancelBackupJobImpl, startBackupJobImpl, startRestoreJobImpl } from './jobService.js';
 import { restoreFullBackupImpl } from './restoreExecutor.js';
@@ -28,29 +26,11 @@ export { startRestoreJobImpl as startRestoreJob };
 export { resolveBackupDownloadTarget } from './backupDownload.js';
 export { importBackupArchive, cleanupImportedBackupTempFile } from './importBackup.js';
 
+export { createBackupScheduleImpl as createBackupSchedule };
+export { updateBackupScheduleImpl as updateBackupSchedule };
+export { runScheduledBackupsIfDue };
+export { migrateLegacyGlobalScheduleIfNeeded } from './backupSchedule.js';
+
 export async function runScheduledBackupIfDue(): Promise<void> {
-  const cfg = await getAdminConfig();
-  const settings = cfg.backupSettings;
-  const envLocation = getResolvedBackupLocationFromEnv();
-  const dueAfterMs = settings != null ? resolveBackupScheduleIntervalMs(settings) : null;
-  if (!settings?.scheduleEnabled || dueAfterMs == null || envLocation == null) {
-    return;
-  }
-  const last = settings.lastScheduledRunAt?.getTime() ?? 0;
-  if (Date.now() - last < dueAfterMs) {
-    return;
-  }
-  const userId = String(cfg.updatedBy);
-  const { reusedExisting } = await startBackupJobImpl({
-    userId,
-    filename: `scheduled-backup-${new Date().toISOString().slice(0, 10)}.zip`,
-    backupSource: 'scheduled',
-  });
-  if (!reusedExisting) {
-    if (cfg.backupSettings) {
-      cfg.backupSettings.lastScheduledRunAt = new Date();
-      cfg.markModified('backupSettings');
-      await cfg.save();
-    }
-  }
+  await runScheduledBackupsIfDue();
 }

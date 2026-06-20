@@ -2,7 +2,7 @@ import pino from 'pino';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-function resolveLogLevel(): string {
+export function resolveLogLevel(): string {
   const fromEnv = process.env.LOG_LEVEL?.trim();
   if (fromEnv !== undefined && fromEnv !== '') {
     return fromEnv;

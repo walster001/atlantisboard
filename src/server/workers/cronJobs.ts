@@ -21,7 +21,7 @@ export { sendBoardActivityWeeklyRoundup };
 
 /**
  * Activity log cleanup job
- * Runs weekly, respects per-workspace retention periods
+ * Runs daily, respects per-workspace retention periods
  */
 export async function cleanupActivityLogs(): Promise<void> {
   logger.info('Starting activity log cleanup job');
@@ -345,9 +345,27 @@ function parseRepeatFrequency(frequency: string): number {
  * Schedule all cron jobs
  * This should be called on server startup
  */
+/** Local calendar day YYYY-MM-DD for once-per-day cron dedup. */
+function localCalendarDayKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** True during local hour `targetHour` if the job has not run yet today. */
+export function shouldRunDailyInHour(
+  now: Date,
+  targetHour: number,
+  lastRunDayKey: string,
+): { due: boolean; dayKey: string } {
+  const dayKey = localCalendarDayKey(now);
+  return { due: now.getHours() === targetHour && dayKey !== lastRunDayKey, dayKey };
+}
+
 // Store interval IDs for cleanup
 const intervalIds: NodeJS.Timeout[] = [];
-let lastActivityLogRun = 0;
+let lastActivityLogDayKey = '';
 let lastImportJobRun = 0;
 let lastAttachmentRun = 0;
 let lastMemberAuditRetentionRun = 0;
@@ -359,23 +377,18 @@ export function scheduleCronJobs(): void {
     logger.warn('Cron jobs already scheduled; skipping duplicate scheduleCronJobs() call');
     return;
   }
-  // Activity log cleanup - weekly (every Monday at 2 AM)
-  // Check every 5 minutes instead of every minute to reduce CPU usage
+  // Activity log cleanup — daily during local hour 02, once per calendar day.
+  // Tick every minute so a worker started e.g. at 02:03 still runs that day.
   const activityLogInterval = setInterval(() => {
     const now = new Date();
-    const dayOfWeek = now.getDay();
-    const hour = now.getHours();
-    const minutes = now.getMinutes();
-    const timeKey = now.getTime();
-    
-    // Only run once per minute window to prevent duplicate executions
-    if (dayOfWeek === 1 && hour === 2 && minutes === 0 && timeKey - lastActivityLogRun > 60000) {
-      lastActivityLogRun = timeKey;
+    const { due, dayKey } = shouldRunDailyInHour(now, 2, lastActivityLogDayKey);
+    if (due) {
+      lastActivityLogDayKey = dayKey;
       cleanupActivityLogs().catch((error) => {
         logger.error({ error }, 'Scheduled activity log cleanup failed');
       });
     }
-  }, 5 * 60 * 1000); // Check every 5 minutes
+  }, 60 * 1000);
   intervalIds.push(activityLogInterval);
 
   // Import job cleanup - daily at 3 AM
@@ -492,5 +505,6 @@ export function scheduleCronJobs(): void {
 export function cleanupCronJobs(): void {
   intervalIds.forEach((id) => clearInterval(id));
   intervalIds.length = 0;
+  lastActivityLogDayKey = '';
   logger.info('Cron jobs cleaned up');
 }

@@ -202,23 +202,20 @@ sudo systemctl start atlantisboard atlantisboard-worker
 
 Atlantisboard includes built-in database maintenance tools accessible from Admin → Database Maintenance. You can clean up orphaned records, expired sessions, and stale jobs either individually or in bulk.
 
-### Log Rotation
+### Log retention
 
-If using the manual installation path, configure log rotation for Pino's structured JSON output. For systemd-managed services, logs go to journald by default and are rotated automatically.
+Atlantisboard minimizes production log volume and rotates what must stay on disk:
 
-For Docker, use Docker's built-in log rotation:
+| Log path | Policy |
+|----------|--------|
+| **App (Docker)** | `logging: driver: none` — stdout discarded; set `LOG_LEVEL=error` (Compose default). Use host monitoring or temporarily raise `LOG_LEVEL` for debugging. |
+| **MongoDB / Redis / MinIO (Docker)** | `json-file` driver: `max-size: 50m`, `max-file: 3` (~150 MB cap per service; Docker rotates when size exceeded). |
+| **Caddy access log** | Installer writes `/etc/logrotate.d/atlantisboard-caddy`: **daily** rotation, **14** days retained, gzip compression. |
+| **Deploy scripts** | `scripts/prod-deploy.sh` and `scripts/dev-deploy.sh` delete `logs/deploy-*.log` files older than **7** days on each run. |
+| **Activity logs (MongoDB)** | Cron job runs **daily** at 02:00; respects per-workspace/board retention settings. |
+| **systemd / journald** | Bare-metal installs log to journald (distro defaults, often ~7 days or size-capped). Tune `/etc/systemd/journald.conf` (`SystemMaxUse`, `MaxRetentionSec`) if needed. |
 
-```json
-{
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  }
-}
-```
-
-Add this to `/etc/docker/daemon.json` and restart Docker.
+Do **not** enable global Docker `json-file` logging for the app in production — production Compose already discards app container logs and relies on `LOG_LEVEL=error`.
 
 ### Checking for Updates
 

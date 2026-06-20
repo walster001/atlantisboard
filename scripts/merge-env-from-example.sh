@@ -100,6 +100,38 @@ run_dedupe() {
   fi
 }
 
+# ponytail: one-shot migration — LOG_LEVEL=info in production .env overrides compose
+# LOG_LEVEL=error and floods logs; safe to delete this after the fleet is migrated.
+migrate_known_bad_env_values() {
+  [[ -f "$TARGET" ]] || return 0
+  if ! grep -qE \
+    '^([[:space:]]*export[[:space:]]+)?[[:space:]]*LOG_LEVEL[[:space:]]*=[[:space:]]*info[[:space:]]*$' \
+    "$TARGET" 2>/dev/null; then
+    return 0
+  fi
+  if [[ "$DRY_RUN" == true ]]; then
+    printf 'Would migrate LOG_LEVEL=info → LOG_LEVEL=error in %s\n' "$TARGET"
+    return 0
+  fi
+  local tmp changed=false
+  tmp="$(mktemp)"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^([[:space:]]*export[[:space:]]+)?[[:space:]]*LOG_LEVEL[[:space:]]*=[[:space:]]*info[[:space:]]*$ ]]; then
+      printf '%s\n' 'LOG_LEVEL=error' >>"$tmp"
+      changed=true
+    else
+      printf '%s\n' "$line" >>"$tmp"
+    fi
+  done <"$TARGET"
+  if [[ "$changed" != true ]]; then
+    rm -f "$tmp"
+    return 0
+  fi
+  install -m 600 "$tmp" "$TARGET"
+  rm -f "$tmp"
+  printf 'Migrated LOG_LEVEL=info → LOG_LEVEL=error (production logging remediation)\n'
+}
+
 main() {
   parse_args "$@"
 
@@ -132,6 +164,7 @@ main() {
 
   if [[ "${#add_keys[@]}" -eq 0 ]]; then
     run_dedupe
+    migrate_known_bad_env_values
     printf 'no new variables\n'
     exit 0
   fi
@@ -162,6 +195,7 @@ main() {
   done
 
   run_dedupe
+  migrate_known_bad_env_values
 }
 
 main "$@"

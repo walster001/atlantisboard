@@ -88,4 +88,18 @@ grep -q '^JWT_SECRET=keep_first$' "$TARGET" || fail "first JWT kept"
 grep -q '^SESSION_SECRET=session_keep$' "$TARGET" || fail "first SESSION kept"
 ! grep -q 'placeholder_from_merge' "$TARGET" || fail "duplicate placeholders should be removed"
 
+# LOG_LEVEL=info → error (production logging remediation)
+cat > "$TEMPLATE" <<'EOF'
+LOG_LEVEL=info
+OTHER=ok
+EOF
+cat > "$TARGET" <<'EOF'
+LOG_LEVEL=info
+OTHER=ok
+EOF
+output_mig="$("$MERGE_SCRIPT" --template "$TEMPLATE" --target "$TARGET" 2>&1)"
+[[ "$output_mig" == *"Migrated LOG_LEVEL=info"* ]] || fail "expected migration message: $output_mig"
+grep -q '^LOG_LEVEL=error$' "$TARGET" || fail "LOG_LEVEL not migrated to error"
+grep -q '^OTHER=ok$' "$TARGET" || fail "unrelated key changed during migration"
+
 echo "merge-env-from-example.test: all checks passed"

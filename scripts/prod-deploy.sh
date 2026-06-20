@@ -17,6 +17,9 @@ LOG_FILE="$LOG_DIR/deploy-prod-$(date +%Y%m%d-%H%M%S).log"
 
 # Create logs directory
 mkdir -p "$LOG_DIR"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/cleanup-old-logs.sh"
+cleanup_old_logs "$LOG_DIR" 'deploy-prod-*.log' 7
 
 # Function to log messages
 log() {

@@ -569,7 +569,7 @@ User Action ← Client (Dexie.js) ← Socket.io ← Change Streams
 - **Different retention per type**: No, same retention for all activity types
 - **Archive**: No archiving of old activities
 - **Cleanup method**: Both automatic (cron job) and manual
-- **Cleanup frequency**: Weekly (respects per-workspace retention periods)
+- **Cleanup frequency**: Daily at 02:00 local time (respects per-workspace retention periods)
 - **Cleanup logging**: Cleanup operations logged in audit trail
 - **Export before cleanup**: No export functionality before cleanup
 
@@ -1568,7 +1568,7 @@ All API endpoints use version `/api/v1/` prefix for future compatibility.
 ### Background Jobs & Worker Process
 - **Separate Bun worker process** for background jobs
 - **Cron job configuration** for scheduled tasks:
-  - Activity log cleanup: Weekly (respects per-workspace retention periods)
+  - Activity log cleanup: Daily at 02:00 local time (respects per-workspace retention periods)
   - Import job cleanup: Daily (auto-delete after 2 days)
   - Reminder delivery check: Every 15 minutes
   - Notification cleanup: Weekly (auto-delete after 10 days)

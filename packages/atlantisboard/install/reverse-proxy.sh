@@ -344,6 +344,35 @@ import ${conf_d}/*.caddy
 EOF
 }
 
+_install_caddy_logrotate() {
+  local log_file="$1"
+  local tpl="${PKG_ROOT}/install/caddy/atlantisboard-logrotate.conf"
+  local dest="/etc/logrotate.d/atlantisboard-caddy"
+  [[ -f "$tpl" ]] || return 0
+  atl_sudo sed \
+    -e "s|@LOG_FILE@|$(_proxy_sed_escape "$log_file")|g" \
+    "$tpl" | atl_sudo tee "$dest" >/dev/null
+  atl_sudo chmod 0644 "$dest"
+}
+
+# Update/repair path: install logrotate when Caddy site already exists (no wizard).
+atl_ensure_caddy_logrotate() {
+  local site_file="/etc/caddy/conf.d/atlantisboard.caddy"
+  local log_file="/var/log/caddy/atlantisboard.log"
+  local parsed
+  atl_sudo test -f "$site_file" 2>/dev/null || return 0
+  parsed="$(
+    atl_sudo grep -E 'output[[:space:]]+file[[:space:]]+' "$site_file" 2>/dev/null \
+      | head -1 \
+      | sed -E 's/.*output[[:space:]]+file[[:space:]]+([^[:space:]]+).*/\1/' \
+      || true
+  )"
+  if [[ -n "$parsed" ]]; then
+    log_file="$parsed"
+  fi
+  _install_caddy_logrotate "$log_file"
+}
+
 _configure_caddy() {
   local tpl="${PKG_ROOT}/install/caddy/atlantisboard.caddy.template"
   local conf_d="/etc/caddy/conf.d"
@@ -369,6 +398,8 @@ _configure_caddy() {
   atl_sudo mkdir -p "$conf_d" /var/log/caddy
   atl_sudo chown -R caddy:caddy /var/log/caddy 2>/dev/null \
     || atl_sudo chown -R root:root /var/log/caddy
+
+  _install_caddy_logrotate "$log_file"
 
   if [[ -n "${PROXY_VALUES[PROXY_ACME_EMAIL]:-}" ]]; then
     printf '%s\n' \

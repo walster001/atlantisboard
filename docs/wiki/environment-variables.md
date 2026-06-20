@@ -22,7 +22,7 @@ This page documents every environment variable recognised by Atlantisboard. Vari
 | `NODE_ENV` | `development` | Set to `production` for production deployments |
 | `PORT` | `3000` | HTTP listen port |
 | `HOST` | `0.0.0.0` | Bind address |
-| `LOG_LEVEL` | `info` | Pino log level (`debug`, `info`, `warn`, `error`) |
+| `LOG_LEVEL` | `info` (development) / `error` (production) | Pino log level (`debug`, `info`, `warn`, `error`). When unset: `info` in development, `error` when `NODE_ENV=production`. Production Docker Compose sets `LOG_LEVEL=error` and uses `logging: driver: none` on the app container (no Docker log files). **Do not** set `LOG_LEVEL=info` in production `.env` — Compose reads `.env` and would override the error default. |
 
 ---
 
@@ -277,6 +277,7 @@ By default, scheduled background jobs (backups, cleanup tasks) run in a separate
 For a minimal production deployment, make sure you have set:
 
 - [ ] `NODE_ENV=production`
+- [ ] `LOG_LEVEL=error` (or leave unset — never `info` in production `.env`)
 - [ ] `JWT_SECRET`, `SESSION_SECRET`, `CSRF_SECRET`, `ENCRYPTION_KEY`, `MEDIA_SIGN_SECRET` (five unique secrets)
 - [ ] `APP_URL` and `CORS_ORIGIN` (your public domain)
 - [ ] `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` (changed from defaults; scoped user recommended)

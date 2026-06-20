@@ -10,6 +10,7 @@ x-logging: &default-logging
   options:
     max-size: "50m"
     max-file: "3"
+    # ponytail: size-based rotation (~150MB cap); Docker rotates when max-size exceeded
 
 services:
   mongodb:

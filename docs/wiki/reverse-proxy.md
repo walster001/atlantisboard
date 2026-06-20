@@ -195,6 +195,8 @@ boards.example.com {
 }
 ```
 
+> **Log rotation:** `atlantisboard-setup` installs `/etc/logrotate.d/atlantisboard-caddy` (daily rotation, 14 days retained) when Caddy is configured.
+
 ### Start / Reload Caddy
 
 ```bash

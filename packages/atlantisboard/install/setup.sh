@@ -199,6 +199,12 @@ EOF
     atl_docker_compose_or_continue \
       "${INSTALL_DIR}/install/docker" \
       docker-compose.fullstack.yml "${compose_args[@]}"
+    if [[ "$INSTALL_ACTION" == "update" ]]; then
+      # ponytail: recreate deps so json-file logging opts from compose apply (volumes preserved).
+      atl_docker_compose_or_continue \
+        "${INSTALL_DIR}/install/docker" \
+        docker-compose.fullstack.yml up -d mongodb redis minio
+    fi
     atl_wait_for_docker_deps_or_continue "$MODE"
   fi
 }
@@ -529,10 +535,12 @@ EOF
     fi
   fi
 
+  # shellcheck source=reverse-proxy.sh
+  source "${PKG_ROOT}/install/reverse-proxy.sh"
   if [[ "$INSTALL_ACTION" != "repair" && "$INSTALL_ACTION" != "update" ]]; then
-    # shellcheck source=reverse-proxy.sh
-    source "${PKG_ROOT}/install/reverse-proxy.sh"
     run_reverse_proxy_wizard
+  else
+    atl_ensure_caddy_logrotate || true
   fi
 
   ENV_VALUES["ATLANTISBOARD_INSTALL_MODE"]="$MODE"

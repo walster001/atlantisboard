@@ -394,9 +394,11 @@ atl_docker_prune_after_deploy() {
 }
 
 
-## atl_docker_compose_cleanup_log
-# Remove temporary compose log file and reset path variable.
-atl_docker_compose_cleanup_log() {
+## atl_docker_compose_cleanup_temp_log
+# Remove temporary compose install log (mktemp) and reset path variable.
+# Runtime log retention: deploy scripts (scripts/lib/cleanup-old-logs.sh), Caddy logrotate
+# (install/caddy/atlantisboard-logrotate.conf), Docker json-file opts on dependency services.
+atl_docker_compose_cleanup_temp_log() {
   if [[ -n "${ATL_DOCKER_COMPOSE_LOG:-}" \
     && -f "${ATL_DOCKER_COMPOSE_LOG}" ]]; then
     rm -f "${ATL_DOCKER_COMPOSE_LOG}"
@@ -413,7 +415,7 @@ atl_docker_compose() {
   local compose_dir="$1" compose_file="$2"
   shift 2
   local env_file="${ENV_FILE:-}"
-  atl_docker_compose_cleanup_log
+  atl_docker_compose_cleanup_temp_log
   if [[ -z "$env_file" ]]; then
     err "internal error: ENV_FILE is not set before docker compose"
     return 1
@@ -428,7 +430,7 @@ atl_docker_compose() {
   while [[ "$attempt" -le "$max_attempts" ]]; do
     if atl_docker_compose_run "$compose_dir" "$compose_file" "$@"; then
       atl_docker_prune_after_deploy
-      atl_docker_compose_cleanup_log
+      atl_docker_compose_cleanup_temp_log
       return 0
     fi
     if [[ "$attempt" -lt "$max_attempts" ]]; then
@@ -484,11 +486,11 @@ atl_docker_compose_or_continue() {
   if atl_whiptail_yesno --title "Docker Compose failed" \
     --yesno "$msg" 22 78; then
     ATL_DOCKER_COMPOSE_DEFERRED=true
-    atl_docker_compose_cleanup_log
+    atl_docker_compose_cleanup_temp_log
     return 0
   fi
 
-  atl_docker_compose_cleanup_log
+  atl_docker_compose_cleanup_temp_log
   exit 1
 }
 

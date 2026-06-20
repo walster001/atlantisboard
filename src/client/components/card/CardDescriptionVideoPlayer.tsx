@@ -3,7 +3,7 @@ import { extractAttachmentIdFromMediaSrc } from '../../../shared/cardDescription
 import { useCardDescriptionVideoPlayback } from '../../hooks/card/useCardDescriptionVideoPlayback.js';
 import { useVideoPosterUrl } from '../../hooks/useVideoPosterUrl.js';
 import { isPendingDescriptionMediaSrc } from '../../utils/descriptionPendingMedia.js';
-import { safeVideoPlay } from '../../utils/safeVideoPlay.js';
+import { requestVideoPlayWhenReady } from '../../utils/safeVideoPlay.js';
 import { CardDescriptionVideoMediaToolbar } from './CardDescriptionVideoMediaToolbar.js';
 import { VideoPlayOverlay } from './VideoPlayOverlay.js';
 import './cardDescriptionVideoQuality.css';
@@ -48,6 +48,14 @@ export function CardDescriptionVideoPlayer({
   const posterObjectUrl = useVideoPosterUrl(src, poster ?? undefined);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const pendingPlayCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      pendingPlayCleanupRef.current?.();
+      pendingPlayCleanupRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -59,6 +67,19 @@ export function CardDescriptionVideoPlayer({
       detachPlaybackFromVideo();
     };
   }, [attachPlaybackToVideo, detachPlaybackFromVideo, playbackReady, playbackSrc, usesAdaptiveStreaming]);
+
+  const beginPlayback = useCallback((): void => {
+    const video = videoRef.current;
+    if (video == null || !playbackReady) {
+      return;
+    }
+    attachPlaybackToVideo(video);
+    setPosterVisible(false);
+    pendingPlayCleanupRef.current?.();
+    pendingPlayCleanupRef.current = requestVideoPlayWhenReady(video, () => {
+      pendingPlayCleanupRef.current = null;
+    });
+  }, [attachPlaybackToVideo, playbackReady]);
 
   const stopDescriptionEditClick = useCallback(
     (event: MouseEvent | PointerEvent): void => {
@@ -81,12 +102,9 @@ export function CardDescriptionVideoPlayer({
     (event: MouseEvent<HTMLButtonElement>): void => {
       stopDescriptionEditClick(event);
       event.stopPropagation();
-      if (!playbackReady) {
-        return;
-      }
-      safeVideoPlay(videoRef.current);
+      beginPlayback();
     },
-    [playbackReady, stopDescriptionEditClick],
+    [beginPlayback, stopDescriptionEditClick],
   );
 
   if (blobSrcUnavailable) {

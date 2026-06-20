@@ -8,6 +8,7 @@ import {
 } from '../../../shared/videoStreaming.js';
 import type { VideoAttachmentQualityMeta, VideoQualityPreference } from '../../../shared/videoQuality.js';
 import { API_BASE_URL } from '../../utils/api/shared.js';
+import { CARD_DESC_VIDEO_STREAM_READY } from '../../utils/safeVideoPlay.js';
 
 export interface CardDescriptionVideoAbrEngine {
   readonly usesAdaptiveStreaming: boolean;
@@ -66,6 +67,10 @@ function setDashAutoQuality(player: dashjs.MediaPlayerClass, enabled: boolean): 
       },
     },
   });
+}
+
+function notifyStreamReady(video: HTMLVideoElement): void {
+  video.dispatchEvent(new Event(CARD_DESC_VIDEO_STREAM_READY));
 }
 
 function createEngine(format: VideoAbrFormat, manifestUrl: string): {
@@ -158,15 +163,18 @@ function createEngine(format: VideoAbrFormat, manifestUrl: string): {
         // ponytail: iOS native HLS ignores manual level selection; upgrade with hls.js overrideNative if needed.
         if (video.canPlayType('application/vnd.apple.mpegurl') !== '') {
           video.src = url;
+          notifyStreamReady(video);
           return;
         }
         if (!Hls.isSupported()) {
           video.src = url;
+          notifyStreamReady(video);
           return;
         }
         hls = new Hls({ enableWorker: true });
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           applyHlsQuality(pendingQuality, pendingMeta);
+          notifyStreamReady(video);
         });
         hls.loadSource(url);
         hls.attachMedia(video);
@@ -177,6 +185,7 @@ function createEngine(format: VideoAbrFormat, manifestUrl: string): {
       dashPlayer.initialize(video, url, false);
       dashPlayer.on('streamInitialized' as dashjs.MediaPlayerEvents['STREAM_INITIALIZED'], () => {
         applyDashQuality(pendingQuality, pendingMeta);
+        notifyStreamReady(video);
       });
     },
     detach(): void {
@@ -240,6 +249,7 @@ export function useCardDescriptionVideoAbrEngine(args: {
     progressiveVideoRef.current = video;
     if (args.progressiveSrc.trim() !== '') {
       video.src = args.progressiveSrc;
+      notifyStreamReady(video);
     }
   }, [args.progressiveSrc]);
 

@@ -5,6 +5,7 @@ import {
   DEFAULT_KANBAN_CARD_DROP_METRICS,
   dropSlotDisplayHeightPx,
   initialCardDropForDraggedCard,
+  isKanbanCardDropUnchanged,
   kanbanCardDragMetricsFromElement,
   kanbanCurrentInsertIndex,
   kanbanInsertIndexForDrop,
@@ -69,5 +70,19 @@ describe('kanban card drop helpers', () => {
     const initial = initialCardDropForDraggedCard(cards, 'l1', 'drag');
     const insertIndex = kanbanInsertIndexForDrop(listCards, 'drag', initial);
     expect(insertIndex).toBe(kanbanCurrentInsertIndex(listCards, 'drag'));
+  });
+
+  it('isKanbanCardDropUnchanged detects same-list no-op drops', () => {
+    const listCards = [card('a', 'l1', 0, 3000), card('drag', 'l1', 1, 2000), card('b', 'l1', 2, 1000)];
+    const cards = new Map<string, readonly CardDB[]>([['l1', listCards]]);
+    const initial = initialCardDropForDraggedCard(cards, 'l1', 'drag');
+    expect(isKanbanCardDropUnchanged(cards, 'drag', 'l1', initial)).toBe(true);
+    expect(
+      isKanbanCardDropUnchanged(cards, 'drag', 'l1', {
+        listId: 'l1',
+        anchorCardId: 'b',
+        columnIntent: 'above',
+      }),
+    ).toBe(false);
   });
 });

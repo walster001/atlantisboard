@@ -4,6 +4,7 @@ import {
   buildKanbanListDisplayRows,
   kanbanListDisplayRowKey,
   KANBAN_DROP_SLOT_ROW_KEY,
+  type KanbanListDisplayRow,
 } from '../src/client/components/board/kanbanListDisplayRows.js';
 import type { CardDropIndicatorTarget } from '../src/client/components/board/VirtualizedCardList/helpers.js';
 
@@ -67,7 +68,11 @@ describe('buildKanbanListDisplayRows', () => {
       },
     );
     expect(rows.map((row) => (row.kind === 'card' ? row.card.id : ''))).toEqual(['drag', 'a']);
-    expect(rows.find((row) => row.kind === 'card' && row.card.id === 'drag')?.dragLayoutCollapsed).toBe(true);
+    const dragRow = rows.find(
+      (row): row is Extract<KanbanListDisplayRow, { kind: 'card' }> =>
+        row.kind === 'card' && row.card.id === 'drag',
+    );
+    expect(dragRow?.dragLayoutCollapsed).toBe(true);
   });
 
   it('collapses drag card and inserts separate slot when hover index differs', () => {
@@ -88,11 +93,10 @@ describe('buildKanbanListDisplayRows', () => {
     expect(dragRow?.kind).toBe('card');
     if (dragRow?.kind === 'card') {
       expect(dragRow.dragLayoutCollapsed).toBe(true);
-      expect(dragRow.pairedDropSlot).toBeUndefined();
     }
   });
 
-  it('pairs drop-slot with collapsed drag card at the same index', () => {
+  it('places slot after collapsed drag when insert index matches drag position', () => {
     const cards = [card('b', 'l1', 1, 1000), card('a', 'l1', 0, 3000), card('drag', 'l1', 2, 2000)];
     const rows = buildKanbanListDisplayRows(
       cards,
@@ -103,27 +107,29 @@ describe('buildKanbanListDisplayRows', () => {
     expect(rows.map((row) => (row.kind === 'card' ? row.card.id : KANBAN_DROP_SLOT_ROW_KEY))).toEqual([
       'b',
       'drag',
+      KANBAN_DROP_SLOT_ROW_KEY,
       'a',
     ]);
     const dragRow = rows[1];
     expect(dragRow?.kind).toBe('card');
     if (dragRow?.kind === 'card') {
       expect(dragRow.dragLayoutCollapsed).toBe(true);
-      expect(dragRow.pairedDropSlot).toBeDefined();
     }
+    expect(rows[2]?.kind).toBe('drop-slot');
   });
 
-  it('places drop-slot first for empty-column intent', () => {
+  it('places drop-slot after collapsed drag for empty-column intent', () => {
     const rows = buildKanbanListDisplayRows(
       [card('drag', 'l1', 0, 1000)],
       'l1',
       'drag',
       dropTarget('l1', null, 'empty-column'),
     );
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(2);
     expect(rows[0]?.kind).toBe('card');
-    if (rows[0]?.kind === 'card') {
-      expect(rows[0].pairedDropSlot?.columnIntent).toBe('empty-column');
+    expect(rows[1]?.kind).toBe('drop-slot');
+    if (rows[1]?.kind === 'drop-slot') {
+      expect(rows[1].target.columnIntent).toBe('empty-column');
     }
   });
 

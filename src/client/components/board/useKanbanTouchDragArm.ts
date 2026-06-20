@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import type { ElementGetFeedbackArgs } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { kanbanNativeCardDragActiveRef } from './kanbanMobileDragState.js';
 
 interface TouchStartPoint {
   readonly x: number;
@@ -110,6 +111,20 @@ export function useKanbanTouchDragArm(
     return touchArmedRef.current;
   }, []);
 
+  const onPointerUp = useCallback((): void => {
+    if (kanbanNativeCardDragActiveRef.current) {
+      return;
+    }
+    clearLongPressState();
+  }, [clearLongPressState]);
+
+  const onPointerCancel = useCallback((): void => {
+    if (kanbanNativeCardDragActiveRef.current) {
+      return;
+    }
+    clearLongPressState();
+  }, [clearLongPressState]);
+
   return useMemo(
     () => ({
       touchArmedForDrag,
@@ -117,8 +132,8 @@ export function useKanbanTouchDragArm(
       canDragForNative,
       onPointerDown,
       onPointerMove,
-      onPointerUp: clearLongPressState,
-      onPointerCancel: clearLongPressState,
+      onPointerUp,
+      onPointerCancel,
     }),
     [
       touchArmedForDrag,
@@ -126,7 +141,8 @@ export function useKanbanTouchDragArm(
       canDragForNative,
       onPointerDown,
       onPointerMove,
+      onPointerUp,
+      onPointerCancel,
     ],
   );
 }
-

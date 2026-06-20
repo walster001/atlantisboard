@@ -7,7 +7,13 @@ function resolveLogLevel(): string {
   if (fromEnv !== undefined && fromEnv !== '') {
     return fromEnv;
   }
-  return process.env.NODE_ENV === 'test' ? 'warn' : 'info';
+  if (process.env.NODE_ENV === 'test') {
+    return 'warn';
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return 'error';
+  }
+  return 'info';
 }
 
 const logLevel = resolveLogLevel();

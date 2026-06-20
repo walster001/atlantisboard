@@ -480,11 +480,7 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
       size: meta.size,
       userId: authReq.user.id,
     };
-    if (parsed.kind === 'partial') {
-      logger.debug(logPayload, 'Attachment proxy stream');
-    } else {
-      logger.info(logPayload, 'Attachment proxy stream');
-    }
+    logger.debug(logPayload, 'Attachment proxy stream');
 
     const pipeSource = (stream: NodeJS.ReadableStream): void => {
       pipeReadableToServerResponse(req, res, stream as Readable, {

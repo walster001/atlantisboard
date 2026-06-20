@@ -18,10 +18,6 @@ function cardNumericPos(row: CardDB): number {
   return typeof row.pos === 'number' && Number.isFinite(row.pos) ? row.pos : spreadPosForIndex(row.position);
 }
 
-function posSortedCards(cards: readonly CardDB[]): CardDB[] {
-  return [...cards].sort(compareCardListOrder);
-}
-
 function syncPositionIndices(list: readonly CardDB[]): CardDB[] {
   return list.map((c, i) => (c.position === i ? c : { ...c, position: i }));
 }
@@ -51,7 +47,7 @@ export function moveCardBetweenListsInMap(
   const next = cloneCardMap(prev);
   const fromWithout = fromList.filter((c) => c.id !== cardId);
   const toSource = fromListId === toListId ? fromList : (prev.get(toListId) ?? []);
-  const toWithout = posSortedCards(toSource).filter((c) => c.id !== cardId);
+  const toWithout = [...toSource].sort(compareCardListOrder).filter((c) => c.id !== cardId);
   const clamped = Math.max(0, Math.min(insertIndex, toWithout.length));
   const before = clamped > 0 ? cardNumericPos(toWithout[clamped - 1]!) : null;
   const after = clamped < toWithout.length ? cardNumericPos(toWithout[clamped]!) : null;
@@ -111,10 +107,6 @@ export function moveListToHoverSlot(
   return next.map((l, i) =>
     l.id === activeListId ? { ...l, position: i, pos: newPos } : { ...l, position: i },
   );
-}
-
-export function listOrderIdSignature(listsOrdered: readonly ListDB[]): string {
-  return listsOrdered.map((l) => l.id).join(',');
 }
 
 export function insertIndexAgainstAnchor(

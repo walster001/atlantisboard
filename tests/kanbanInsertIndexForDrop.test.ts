@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import type { CardDB } from '../src/client/store/database.js';
-import { kanbanInsertIndexForDrop, resolveCardDropForCommit } from '../src/client/components/board/kanbanPragmaticDndHelpers.js';
+import { kanbanInsertIndexForDrop, resolveCardDropForCommit, resolveCardDropOnRelease, isPointInClientRect } from '../src/client/components/board/kanbanPragmaticDndHelpers.js';
 
 function card(id: string, listId: string, position: number, pos: number): CardDB {
   const t = new Date();
@@ -83,5 +83,44 @@ describe('resolveCardDropForCommit', () => {
         columnIntent: 'append-end',
       }),
     ).toEqual({ listId: 'l1', anchorCardId: 'x', columnIntent: 'append-end' });
+  });
+});
+
+describe('resolveCardDropOnRelease', () => {
+  const cards = new Map<string, readonly CardDB[]>([
+    ['l1', [card('a', 'l1', 0, 3000), card('drag', 'l1', 1, 2000), card('b', 'l1', 2, 1000)]],
+  ]);
+
+  it('ignores stale hover indicator when pointer is outside drop zone', () => {
+    const lastIndicator = {
+      listId: 'l1',
+      sourceListId: 'l1',
+      anchorCardId: 'b',
+      columnIntent: 'below' as const,
+      boxWidth: 248,
+      boxHeight: 88,
+    };
+    const resolved = resolveCardDropOnRelease({
+      lastIndicator,
+      onDropTarget: null,
+      sourceListId: 'l1',
+      draggingCardId: 'drag',
+      cards,
+      pointerInDropZone: false,
+    });
+    expect(resolved.columnIntent).toBe('below');
+    expect(resolved.anchorCardId).toBe('b');
+    expect(
+      kanbanInsertIndexForDrop(cards.get('l1') ?? [], 'drag', resolved),
+    ).toBe(1);
+  });
+});
+
+describe('isPointInClientRect', () => {
+  it('returns true only when point is inside rect', () => {
+    const rect = { left: 10, right: 110, top: 20, bottom: 220 };
+    expect(isPointInClientRect(50, 100, rect)).toBe(true);
+    expect(isPointInClientRect(9, 100, rect)).toBe(false);
+    expect(isPointInClientRect(50, 221, rect)).toBe(false);
   });
 });

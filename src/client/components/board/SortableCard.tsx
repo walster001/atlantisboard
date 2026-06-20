@@ -4,6 +4,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type MutableRefObject,
 } from 'react';
 import { Box, Text, Group, Card } from '@mantine/core';
@@ -11,6 +12,9 @@ import { IconAlignLeft, IconDots } from '@tabler/icons-react';
 import type { CardDB } from '../../store/database.js';
 import type { BoardMemberUserDisplay } from '../../utils/loadBoardMemberUsersForDisplay.js';
 import { bindKanbanCardDragPreview } from './sortableCardDragPreview.js';
+import {
+  markKanbanCardDragPreviewReady,
+} from './kanbanMobileDragState.js';
 import {
   resolveCardCoverRenderUrl,
   useRichContentWhenNearViewport,
@@ -101,6 +105,7 @@ function SortableCardInner({
     [kanbanCardTouchDragRequiresLongPress],
   );
   const touchArm = useKanbanTouchDragArm(kanbanCardBodyDraggable, touchArmOptions);
+  const [dragPreviewReady, setDragPreviewReady] = useState(false);
   const {
     hasDescription,
     showRichDescPreview,
@@ -113,6 +118,29 @@ function SortableCardInner({
     cardRootRef.current = node;
     deferRef.current = node;
   }, [deferRef]);
+
+  useLayoutEffect(() => {
+    if (!isDragSource) {
+      setDragPreviewReady(false);
+    }
+  }, [isDragSource]);
+
+  useLayoutEffect(() => {
+    if (!isDragSource || dragPreviewReady) {
+      return undefined;
+    }
+    const fallbackTimer = window.setTimeout(() => {
+      markKanbanCardDragPreviewReady();
+      setDragPreviewReady(true);
+    }, 320);
+    return () => {
+      window.clearTimeout(fallbackTimer);
+    };
+  }, [dragPreviewReady, isDragSource]);
+
+  const hideDragSourceVisual =
+    isDragSource &&
+    (!kanbanCardTouchDragRequiresLongPress || dragPreviewReady);
 
   useLayoutEffect(() => {
     const node = cardRootRef.current;
@@ -131,6 +159,8 @@ function SortableCardInner({
         }) as const,
       onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
         touchArm.clearLongPressState();
+        markKanbanCardDragPreviewReady();
+        setDragPreviewReady(true);
         bindKanbanCardDragPreview({
           nativeSetDragImage,
           cardRoot: node,
@@ -176,8 +206,8 @@ function SortableCardInner({
       radius={12}
       styles={{ root: { padding: hasCover ? 0 : '14px' } }}
       style={{
-        opacity: isDragSource ? 0 : 1,
-        transition: 'opacity 0.12s ease',
+        opacity: hideDragSourceVisual ? 0 : 1,
+        transition: hideDragSourceVisual ? 'opacity 0.12s ease' : 'none',
         position: 'relative',
         overflow: 'hidden',
         ...(hasCardColour

@@ -11,7 +11,6 @@ export type KanbanListDisplayRow =
       readonly card: CardDB;
       /** Collapse layout but keep mounted — Virtuoso unmount kills pragmatic-dnd mid-gesture. */
       readonly dragLayoutCollapsed?: boolean;
-      readonly pairedDropSlot?: CardDropIndicatorTarget;
     }
   | { readonly kind: 'drop-slot'; readonly target: CardDropIndicatorTarget };
 
@@ -74,29 +73,21 @@ export function buildKanbanListDisplayRows(
     const card = ordered[i]!;
     const isDragCard = hideDraggingCard && card.id === draggingCardId;
 
-    if (!isDragCard && withoutDragCursor === insertIndex) {
-      rows.push({ kind: 'drop-slot', target: dropIndicator });
-    }
-
-    if (isDragCard && withoutDragCursor === insertIndex) {
-      rows.push({
-        kind: 'card',
-        card,
-        dragLayoutCollapsed: true,
-        pairedDropSlot: dropIndicator,
-      });
-      withoutDragCursor += 1;
+    if (isDragCard) {
+      rows.push({ kind: 'card', card, dragLayoutCollapsed: true });
+      if (withoutDragCursor === insertIndex) {
+        rows.push({ kind: 'drop-slot', target: dropIndicator });
+        withoutDragCursor += 1;
+      }
       continue;
     }
 
-    rows.push({
-      kind: 'card',
-      card,
-      ...(isDragCard ? { dragLayoutCollapsed: true } : {}),
-    });
-    if (!isDragCard) {
-      withoutDragCursor += 1;
+    if (withoutDragCursor === insertIndex) {
+      rows.push({ kind: 'drop-slot', target: dropIndicator });
     }
+
+    rows.push({ kind: 'card', card });
+    withoutDragCursor += 1;
   }
 
   if (withoutDragCursor === insertIndex) {

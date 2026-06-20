@@ -3,7 +3,7 @@ import type { ListProps, ScrollerProps } from 'react-virtuoso';
 import type { CardDB } from '../../store/database.js';
 
 /** Mantine `pb="xs"` between Virtuoso rows (~10px). */
-const KANBAN_VIRTUOSO_ROW_GAP_PX = 10;
+export const KANBAN_VIRTUOSO_ROW_GAP_PX = 10;
 
 export const VIRTUOSO_OVERSCAN = { main: 2, reverse: 2 } as const;
 
@@ -76,12 +76,18 @@ export function estimateKanbanVirtuosoItemHeightPx(
 }
 
 /** Native scroller only — Virtuoso depends on this `div` for scroll metrics; wrapping it breaks virtualization. */
+export const KANBAN_VIRTUOSO_SCROLLER_CLASS = 'board-column__virtuoso-scroller';
+
+export function kanbanListBodyScroller(listBody: HTMLElement): HTMLElement {
+  return listBody.querySelector<HTMLElement>(`.${KANBAN_VIRTUOSO_SCROLLER_CLASS}`) ?? listBody;
+}
+
 export const KanbanVirtuosoScroller = forwardRef<HTMLDivElement, ScrollerProps>(
   function KanbanVirtuosoScroller({ style, ...props }, ref) {
     const domProps = { ...props } as Record<string, unknown>;
     delete domProps.containerStyle;
     delete domProps.wrapperStyle;
-    return <div ref={ref} {...domProps} style={style} className="board-column__virtuoso-scroller" />;
+    return <div ref={ref} {...domProps} style={style} className={KANBAN_VIRTUOSO_SCROLLER_CLASS} />;
   },
 );
 KanbanVirtuosoScroller.displayName = 'KanbanVirtuosoScroller';

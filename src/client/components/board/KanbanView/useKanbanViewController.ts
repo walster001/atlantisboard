@@ -256,6 +256,7 @@ export function useKanbanViewController({
     reloadAllCardsFromDb,
     queueCardDropIndicator,
     flushCardDropIndicatorNow,
+    cancelPendingCardDropIndicatorRaf,
     cardDropIndicatorRef,
     viewAliveRef,
   });

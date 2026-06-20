@@ -42,7 +42,18 @@ function snapshotAuditEntry(entry: AuditLogEntry): AuditLogEntry {
  * TODO(AC-003): Persist audit events to a MongoDB collection with TTL/retention instead of
  * log-only emission; add a background job for archival and compliance export.
  */
+function auditStdoutEnabled(): boolean {
+  if (process.env.NODE_ENV !== 'production') {
+    return true;
+  }
+  const flag = process.env.AUDIT_LOG_STDOUT?.trim().toLowerCase();
+  return flag === '1' || flag === 'true' || flag === 'yes';
+}
+
 export function logAuditEvent(entry: AuditLogEntry): void {
+  if (!auditStdoutEnabled()) {
+    return;
+  }
   const snap = snapshotAuditEntry(entry);
   setImmediate(() => {
     try {

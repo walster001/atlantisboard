@@ -14,6 +14,7 @@ import { PDND_KANBAN_LIST_BODY } from '../../dnd/pragmatic/kanbanData.js';
 import {
   estimateKanbanVirtuosoItemHeightPx,
   KANBAN_CARD_COUNT_VIRTUALIZE_THRESHOLD,
+  KANBAN_VIRTUOSO_ROW_GAP_PX,
   KanbanVirtuosoList,
   KanbanVirtuosoScroller,
   VIRTUOSO_OVERSCAN,
@@ -30,6 +31,7 @@ import {
   shouldHideKanbanDraggingCardInList,
   type KanbanListDisplayRow,
 } from './kanbanListDisplayRows.js';
+import { KANBAN_DRAG_LAYOUT_COLLAPSED_HEIGHT_PX } from './kanbanMobileDragState.js';
 
 export type { CardDropColumnIntent, CardDropIndicatorTarget } from './VirtualizedCardList/helpers.js';
 
@@ -100,7 +102,8 @@ function VirtualizedCardListInner({
   );
 
   const usePlainScroll =
-    cardRowsOnly.length > 0 && cardRowsOnly.length <= KANBAN_CARD_COUNT_VIRTUALIZE_THRESHOLD;
+    kanbanCardTouchDragRequiresLongPress ||
+    (cardRowsOnly.length > 0 && cardRowsOnly.length <= KANBAN_CARD_COUNT_VIRTUALIZE_THRESHOLD);
 
   /**
    * Swiper’s `swiper-no-swiping` blocks *all* carousel gestures starting on the list — including
@@ -126,7 +129,10 @@ function VirtualizedCardListInner({
     () =>
       displayRows.map((row) => {
         if (row.kind === 'drop-slot') {
-          return dropSlotDisplayHeightPx(row.target.boxHeight);
+          return dropSlotDisplayHeightPx(row.target.boxHeight) + KANBAN_VIRTUOSO_ROW_GAP_PX;
+        }
+        if (row.dragLayoutCollapsed === true) {
+          return KANBAN_DRAG_LAYOUT_COLLAPSED_HEIGHT_PX;
         }
         return estimateKanbanVirtuosoItemHeightPx(
           row.card,
@@ -229,21 +235,17 @@ function VirtualizedCardListInner({
           onCardDeletedFromBoard={onCardDeletedFromBoard}
         />
       );
-      if (row.pairedDropSlot != null) {
-        return (
-          <Box pb="xs" px={0} data-kanban-drop-slot="true" style={{ pointerEvents: 'none' }}>
-            <Box style={{ height: 0, overflow: 'hidden', margin: 0, padding: 0 }} aria-hidden>
-              {sortableCard}
-            </Box>
-            <CardDropShadowIndicator target={row.pairedDropSlot} />
-          </Box>
-        );
-      }
       if (row.dragLayoutCollapsed === true) {
         return (
           <Box
             px={0}
-            style={{ height: 0, overflow: 'hidden', margin: 0, padding: 0 }}
+            style={{
+              height: KANBAN_DRAG_LAYOUT_COLLAPSED_HEIGHT_PX,
+              minHeight: KANBAN_DRAG_LAYOUT_COLLAPSED_HEIGHT_PX,
+              overflow: 'hidden',
+              margin: 0,
+              padding: 0,
+            }}
             aria-hidden
           >
             {sortableCard}

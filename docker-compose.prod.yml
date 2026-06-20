@@ -4,11 +4,9 @@
 # Malware scanning: clamd when MemAvailable ≥ 2GB, else on-demand clamscan (see entrypoint.sh).
 # Signatures live in clamav-sigs-prod; first upload or container start may run freshclam.
 
+# ponytail: no container log files on disk — use LOG_LEVEL=error + host monitoring if needed
 x-logging: &default-logging
-  driver: json-file
-  options:
-    max-size: "50m"
-    max-file: "3"
+  driver: "none"
 
 services:
   mongodb:
@@ -140,6 +138,7 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-error}
       PORT: ${PORT:-3000}
       HOST: ${HOST:-0.0.0.0}
       MONGODB_URI: ${MONGODB_URI:?Set MONGODB_URI with credentials and replicaSet= in .env}

@@ -15,11 +15,9 @@
 #   cd install/docker && docker compose --env-file image-defaults.env --env-file ../../.env -f docker-compose.fullstack.yml down -v
 # Or run: install/docker/reset-docker-data.sh fullstack
 
+# ponytail: no container log files on disk — app uses LOG_LEVEL=error in production
 x-logging: &default-logging
-  driver: json-file
-  options:
-    max-size: "50m"
-    max-file: "3"
+  driver: "none"
 
 services:
   mongodb:
@@ -162,6 +160,7 @@ services:
       - ../../.env
     environment:
       NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-error}
       HOST: 0.0.0.0
       MONGODB_URI: ${MONGODB_URI:?Set MONGODB_URI in .env}
       REDIS_HOST: redis

@@ -16,6 +16,7 @@ export interface KanbanPragmaticCtx {
   readonly reloadAllCardsFromDb: () => Promise<void>;
   readonly queueCardDropIndicator: (next: CardDropIndicatorTarget | null) => void;
   readonly flushCardDropIndicatorNow: (next: CardDropIndicatorTarget | null) => void;
+  readonly cancelPendingCardDropIndicatorRaf: () => void;
   readonly cardDropIndicatorRef: MutableRefObject<CardDropIndicatorTarget | null>;
   readonly viewAliveRef: MutableRefObject<boolean>;
 }

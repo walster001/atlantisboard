@@ -195,10 +195,14 @@ export async function isBoardMember(
   boardId: string
 ): Promise<boolean> {
   try {
-    const board = await Board.findById(boardId);
+    const board = await Board.findById(boardId)
+      .select('workspaceId ownerId members.userId')
+      .lean();
     if (!board) return false;
 
-    const workspace = await Workspace.findById(board.workspaceId);
+    const workspace = await Workspace.findById(board.workspaceId)
+      .select('ownerId members.userId')
+      .lean();
     if (!workspace) return false;
 
     // Check workspace membership
@@ -206,12 +210,18 @@ export async function isBoardMember(
       return true;
     }
 
-    if (workspace.members.some((m) => normalizeWorkspaceUserRef(m.userId) === userId)) {
+    if (
+      (workspace.members as Array<{ userId: unknown }>).some(
+        (m) => normalizeWorkspaceUserRef(m.userId) === userId,
+      )
+    ) {
       return true;
     }
 
     // Check board-specific membership
-    return board.members.some((m) => normalizeWorkspaceUserRef(m.userId) === userId);
+    return (board.members as Array<{ userId: unknown }>).some(
+      (m) => normalizeWorkspaceUserRef(m.userId) === userId,
+    );
   } catch (error) {
     logger.error({ err: error, userId, boardId }, 'Error checking board membership');
     return false;

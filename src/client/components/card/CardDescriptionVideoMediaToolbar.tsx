@@ -17,6 +17,12 @@ import {
   type RefObject,
 } from 'react';
 import { safeVideoPlay } from '../../utils/safeVideoPlay.js';
+import {
+  exitVideoNativeFullscreen,
+  isVideoNativeFullscreenActive,
+  requestVideoNativeFullscreen,
+} from '../../utils/videoNativeFullscreen.js';
+import { useResponsiveTier } from '../../hooks/useResponsiveTier.js';
 import type { VideoAttachmentQualityMeta, VideoQualityPreference } from '../../../shared/videoQuality.js';
 import { CardDescriptionVideoQualityControl } from './CardDescriptionVideoQualityControl.js';
 
@@ -121,6 +127,7 @@ export function CardDescriptionVideoMediaToolbar({
 }: CardDescriptionVideoMediaToolbarProps) {
   const { isPlaying, currentTime, duration, volumePercent, isMuted } =
     useCardDescriptionVideoMediaState(videoRef, mediaKey);
+  const isMobile = useResponsiveTier() === 'mobile';
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [toolbarPeek, setToolbarPeek] = useState(false);
@@ -180,18 +187,28 @@ export function CardDescriptionVideoMediaToolbar({
   useEffect(() => {
     const sync = (): void => {
       const shell = shellRef.current;
+      const video = videoRef.current;
+      if (isMobile) {
+        setIsFullscreen(video != null && isVideoNativeFullscreenActive(video));
+        return;
+      }
       const fullscreenElement = document.fullscreenElement;
       const inPlayerFullscreen =
         shell != null &&
-        (fullscreenElement === shell || fullscreenElement === videoRef.current);
+        (fullscreenElement === shell || fullscreenElement === video);
       setIsFullscreen(inPlayerFullscreen);
     };
     sync();
     document.addEventListener('fullscreenchange', sync);
+    const video = videoRef.current;
+    video?.addEventListener('webkitbeginfullscreen', sync);
+    video?.addEventListener('webkitendfullscreen', sync);
     return () => {
       document.removeEventListener('fullscreenchange', sync);
+      video?.removeEventListener('webkitbeginfullscreen', sync);
+      video?.removeEventListener('webkitendfullscreen', sync);
     };
-  }, [shellRef, videoRef]);
+  }, [isMobile, mediaKey, shellRef, videoRef]);
 
   const iconStyle = {
     width: 'var(--card-desc-video-icon-size, 18px)',
@@ -269,6 +286,18 @@ export function CardDescriptionVideoMediaToolbar({
     (event: MouseEvent<HTMLButtonElement>) => {
       onDescriptionClickCapture?.(event);
       event.stopPropagation();
+      if (isMobile) {
+        const video = videoRef.current;
+        if (video == null) {
+          return;
+        }
+        if (isVideoNativeFullscreenActive(video)) {
+          exitVideoNativeFullscreen(video);
+        } else {
+          requestVideoNativeFullscreen(video);
+        }
+        return;
+      }
       const target = shellRef.current ?? videoRef.current;
       if (target == null) {
         return;
@@ -279,7 +308,7 @@ export function CardDescriptionVideoMediaToolbar({
       }
       void target.requestFullscreen();
     },
-    [onDescriptionClickCapture, shellRef, videoRef],
+    [isMobile, onDescriptionClickCapture, shellRef, videoRef],
   );
 
   const seekPercent =

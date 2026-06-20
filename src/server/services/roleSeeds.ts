@@ -8,26 +8,29 @@ export { BUILTIN_ROLE_SEEDS } from '../../shared/permissions/catalog.js';
 
 /** Force built-in role rows to match `BUILTIN_ROLE_SEEDS` (catalog is canonical). */
 export async function syncBuiltinRolePermissionsFromCatalog(): Promise<void> {
-  for (const seed of BUILTIN_ROLE_SEEDS) {
-    await RoleDefinition.updateOne(
-      { key: seed.key, isBuiltIn: true },
-      {
+  const bulkOps = BUILTIN_ROLE_SEEDS.map((seed) => ({
+    updateOne: {
+      filter: { key: seed.key, isBuiltIn: true },
+      update: {
         $set: {
           displayName: seed.displayName,
           permissions: [...seed.permissions],
           hierarchyLevel: seed.hierarchyLevel,
         },
       },
-    );
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await RoleDefinition.bulkWrite(bulkOps, { ordered: false });
   }
 }
 
 /** Upsert built-in role definitions and remove legacy "member" role. */
 export async function seedBuiltinRoleDefinitions(): Promise<void> {
-  for (const seed of BUILTIN_ROLE_SEEDS) {
-    await RoleDefinition.updateOne(
-      { key: seed.key },
-      {
+  const bulkOps = BUILTIN_ROLE_SEEDS.map((seed) => ({
+    updateOne: {
+      filter: { key: seed.key },
+      update: {
         $setOnInsert: {
           key: seed.key,
           displayName: seed.displayName,
@@ -36,8 +39,11 @@ export async function seedBuiltinRoleDefinitions(): Promise<void> {
           isBuiltIn: true,
         },
       },
-      { upsert: true },
-    );
+      upsert: true,
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await RoleDefinition.bulkWrite(bulkOps, { ordered: false });
   }
 
   await RoleDefinition.deleteOne({ key: 'member', isBuiltIn: true }).catch(() => undefined);

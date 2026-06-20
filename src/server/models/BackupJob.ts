@@ -101,6 +101,10 @@ const BackupJobSchema = new Schema<IBackupJob>(
 
 BackupJobSchema.index({ userId: 1, status: 1 });
 BackupJobSchema.index({ userId: 1, jobKind: 1, status: 1 });
+BackupJobSchema.index({ jobKind: 1, status: 1 });
+BackupJobSchema.index({ jobKind: 1, 'result.folderId': 1 });
+BackupJobSchema.index({ 'result.folderId': 1, completedAt: -1 });
+BackupJobSchema.index({ status: 1, createdAt: 1 });
 
 BackupJobSchema.pre('save', async function () {
   if (this.isNew && !this.expiresAt) {

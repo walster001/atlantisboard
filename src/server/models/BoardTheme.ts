@@ -62,5 +62,6 @@ BoardThemeSchema.index(
   { scope: 1, ownerUserId: 1, slug: 1 },
   { unique: true, partialFilterExpression: { scope: 'user' } },
 );
+BoardThemeSchema.index({ scope: 1, sortOrder: 1, slug: 1 });
 
 export const BoardTheme: Model<IBoardTheme> = mongoose.model<IBoardTheme>('BoardTheme', BoardThemeSchema);

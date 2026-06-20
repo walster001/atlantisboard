@@ -279,5 +279,16 @@ UserSchema.index(
   }
 );
 
+UserSchema.index({ verificationToken: 1 }, { sparse: true });
+UserSchema.index({ passwordResetTokenHash: 1 }, { sparse: true });
+UserSchema.index(
+  { placeholderEmail: 1 },
+  { partialFilterExpression: { isPlaceholder: true } },
+);
+UserSchema.index(
+  { isPlaceholder: 1 },
+  { partialFilterExpression: { isPlaceholder: true }, name: 'user_placeholder' },
+);
+
 export const User: Model<IUser> = mongoose.model<IUser>('User', UserSchema);
 

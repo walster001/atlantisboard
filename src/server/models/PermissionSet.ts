@@ -38,7 +38,7 @@ const PermissionSetSchema = new Schema<IPermissionSet>(
   }
 );
 
-PermissionSetSchema.index({ createdBy: 1 });
+PermissionSetSchema.index({ createdBy: 1, createdAt: -1 });
 PermissionSetSchema.index({ name: 1 });
 
 export const PermissionSet: Model<IPermissionSet> = mongoose.model<IPermissionSet>(

@@ -173,6 +173,7 @@ export async function queryAdminReportingActivities(params: {
         localField: 'boardId',
         foreignField: '_id',
         as: 'boardDoc',
+        pipeline: [{ $project: { [`settings.${params.retentionField}`]: 1 } }],
       },
     },
     { $unwind: { path: '$boardDoc', preserveNullAndEmptyArrays: false } },
@@ -189,6 +190,7 @@ export async function queryAdminReportingActivities(params: {
         localField: 'userId',
         foreignField: '_id',
         as: 'userDoc',
+        pipeline: [{ $project: { displayName: 1, email: 1, profilePicture: 1 } }],
       },
     },
     {

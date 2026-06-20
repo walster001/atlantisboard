@@ -71,6 +71,8 @@ const WorkspaceSchema = new Schema<IWorkspace>(
   }
 );
 
+WorkspaceSchema.index({ 'members.userId': 1 });
+
 function stripLegacyWorkspacePublicFields(ret: object): void {
   Reflect.deleteProperty(ret, 'visibility');
   Reflect.deleteProperty(ret, 'logo');

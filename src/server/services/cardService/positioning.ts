@@ -29,9 +29,15 @@ export async function ensureCardsHavePosForList(
     return;
   }
   const cards = await Card.find({ listId: lid }).sort({ position: 1, _id: 1 }).lean();
-  await Promise.all(
-    cards.map((c, i) => Card.findByIdAndUpdate(c._id, { pos: spreadPosForIndex(i), position: i })),
-  );
+  const bulkOps = cards.map((c, i) => ({
+    updateOne: {
+      filter: { _id: c._id },
+      update: { $set: { pos: spreadPosForIndex(i), position: i } },
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await Card.bulkWrite(bulkOps, { ordered: false });
+  }
 }
 
 export async function syncListPositionsFromPosOrder(
@@ -41,7 +47,15 @@ export async function syncListPositionsFromPosOrder(
   const rows = sortCardRowsByPos(
     await Card.find({ listId: lid }).select('pos position').lean<CardPosLeanRow[]>(),
   );
-  await Promise.all(rows.map((row, i) => Card.findByIdAndUpdate(row._id, { position: i })));
+  const bulkOps = rows.map((row, i) => ({
+    updateOne: {
+      filter: { _id: row._id },
+      update: { $set: { position: i } },
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await Card.bulkWrite(bulkOps, { ordered: false });
+  }
 }
 
 export async function normalizeListPosSpread(
@@ -53,6 +67,14 @@ export async function normalizeListPosSpread(
   );
   const orderedIds = rows.map((r) => r._id.toString());
   const orderedPos = rows.map((_, i) => spreadPosForIndex(i));
-  await Promise.all(rows.map((r, i) => Card.findByIdAndUpdate(r._id, { pos: orderedPos[i], position: i })));
+  const bulkOps = rows.map((r, i) => ({
+    updateOne: {
+      filter: { _id: r._id },
+      update: { $set: { pos: orderedPos[i], position: i } },
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await Card.bulkWrite(bulkOps, { ordered: false });
+  }
   return { orderedIds, orderedPos };
 }

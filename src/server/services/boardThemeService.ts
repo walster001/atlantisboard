@@ -43,23 +43,25 @@ export function boardThemeDocToDefinition(doc: Pick<IBoardTheme, 'slug' | 'name'
 }
 
 export async function seedSystemBoardThemes(): Promise<number> {
-  let upserted = 0;
-  for (const [index, theme] of SYSTEM_BOARD_THEME_SEEDS.entries()) {
-    await BoardTheme.updateOne(
-      { scope: 'system', slug: theme.id },
-      {
+  const bulkOps: Parameters<typeof BoardTheme.bulkWrite>[0] = SYSTEM_BOARD_THEME_SEEDS.map((theme, index) => ({
+    updateOne: {
+      filter: { scope: 'system' as const, slug: theme.id },
+      update: {
         $set: {
           name: theme.name,
           palette: theme.palette,
           sortOrder: index,
           prefersNavbarLightForeground: BOARD_NAVBAR_LIGHT_FG_THEME_SLUGS.includes(theme.id),
         },
-        $setOnInsert: { scope: 'system', slug: theme.id },
+        $setOnInsert: { scope: 'system' as const, slug: theme.id },
       },
-      { upsert: true },
-    );
-    upserted += 1;
+      upsert: true,
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await BoardTheme.bulkWrite(bulkOps, { ordered: false });
   }
+  const upserted = bulkOps.length;
   invalidateSharedThemeCatalogCache();
   logger.info({ count: upserted }, 'System board themes seeded');
   return upserted;

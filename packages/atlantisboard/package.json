@@ -154,6 +154,7 @@
   "overrides": {
     "ajv": "6.14.0",
     "bn.js": "4.12.3",
+    "bson": "7.1.1",
     "brace-expansion": "1.1.13",
     "fast-xml-parser": "5.8.0",
     "flatted": "3.4.2",

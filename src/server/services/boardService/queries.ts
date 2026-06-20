@@ -101,14 +101,18 @@ export async function getBoardsByWorkspace(
 ): Promise<Array<(Document & IBoard) | BoardSummaryDTO>> {
   await ensureLegacyBoardPositions();
 
-  const workspace = await Workspace.findById(workspaceId);
+  const workspace = await Workspace.findById(workspaceId)
+    .select('ownerId members.userId')
+    .lean();
   if (!workspace) {
     return [];
   }
 
   const isWorkspaceMember =
     workspace.ownerId.toString() === userId ||
-    workspace.members.some((m) => m.userId.toString() === userId);
+    (workspace.members as Array<{ userId: unknown }>).some(
+      (m) => m.userId != null && m.userId.toString() === userId,
+    );
 
   const userHasBoardInWorkspace = !!(await Board.exists({
     workspaceId: workspace._id,

@@ -38,6 +38,10 @@ export interface CardDescriptionFieldRow {
   readonly descriptionHtml?: string | undefined;
 }
 
+/** Fields required by `toCardSummary`; omits heavy description bodies and reminders. */
+export const CARD_SUMMARY_READ_SELECT =
+  'listId boardId title position pos color cover labels dueDate startDate endDate completed completedAt createdBy assignees descriptionPreview descriptionCharCount attachments comments checklists createdAt updatedAt';
+
 export function getBoardListCardLimits(board: Document & IBoard): { max: number; enforce: boolean } {
   const s = board.settings;
   const max =

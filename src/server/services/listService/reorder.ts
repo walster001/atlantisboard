@@ -34,11 +34,15 @@ export async function reorderLists(boardId: string, listIds: string[], userId: s
 
   await ensureListsHavePosForBoard(boardId);
   const orderedPos = listIds.map((_, index) => spreadListPosForIndex(index));
-  await Promise.all(
-    listIds.map((listId, index) =>
-      List.findByIdAndUpdate(listId, { position: index, pos: orderedPos[index] }),
-    )
-  );
+  const bulkOps = listIds.map((listId, index) => ({
+    updateOne: {
+      filter: { _id: listId },
+      update: { $set: { position: index, pos: orderedPos[index] } },
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await List.bulkWrite(bulkOps, { ordered: false });
+  }
 
   emitToBoard(boardId, 'lists:reordered', {
     boardId,
@@ -121,9 +125,7 @@ export async function moveList(
     newPos = insertListPosBetween(before, after);
   }
 
-  list.set('pos', newPos);
-  list.markModified('pos');
-  await list.save();
+  await List.findByIdAndUpdate(listId, { $set: { pos: newPos } });
   await syncBoardListPositionsFromPosOrder(boardId);
 
   const maybeRenormalize = async (): Promise<void> => {

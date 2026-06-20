@@ -12,7 +12,7 @@ import {
 import type { CardDetailDTO, CardSummaryDTO } from '../../../shared/types/viewModels.js';
 import { compareCardListOrder } from '../../../shared/utils/cardListPos.js';
 import { compareBoardListOrder } from '../../../shared/utils/listPos.js';
-import type { CardDescriptionFieldRow } from './types.js';
+import { CARD_SUMMARY_READ_SELECT, type CardDescriptionFieldRow } from './types.js';
 
 function pickCardSummaryFields(
   summary: CardSummaryDTO,
@@ -58,7 +58,11 @@ export async function getCardsByList(
   if (!allowed) {
     throw new ForbiddenError('Insufficient permissions to view cards');
   }
-  const cardsLean = await Card.find({ listId }).lean<ICard[]>();
+  const cardsQuery = Card.find({ listId });
+  if (options?.view === 'summary') {
+    cardsQuery.select(CARD_SUMMARY_READ_SELECT);
+  }
+  const cardsLean = await cardsQuery.lean<ICard[]>();
   cardsLean.sort((a, b) =>
     compareCardListOrder(
       {
@@ -86,8 +90,8 @@ export async function getCardsByList(
 export async function getBoardKanbanSnapshot(
   boardId: string,
   options?: { listLimit?: number },
-): Promise<{ lists: Array<Document & IList>; cardsByList: Record<string, CardSummaryDTO[]> }> {
-  const lists = await List.find({ boardId });
+): Promise<{ lists: IList[]; cardsByList: Record<string, CardSummaryDTO[]> }> {
+  const lists = await List.find({ boardId }).lean<IList[]>();
   lists.sort((a, b) =>
     compareBoardListOrder(
       {
@@ -104,11 +108,13 @@ export async function getBoardKanbanSnapshot(
   );
   const cardsByList: Record<string, CardSummaryDTO[]> = {};
   for (const list of lists) {
-    const query = Card.find({ listId: list._id }).sort({ pos: 1, position: 1, _id: 1 });
+    const query = Card.find({ listId: list._id })
+      .select(CARD_SUMMARY_READ_SELECT)
+      .sort({ pos: 1, position: 1, _id: 1 });
     if (typeof options?.listLimit === 'number' && options.listLimit > 0) {
       query.limit(options.listLimit);
     }
-    const cards = await query;
+    const cards = await query.lean<ICard[]>();
     cardsByList[list._id.toString()] = cards.map((card) => toCardSummary(card));
   }
   return { lists, cardsByList };
@@ -121,7 +127,7 @@ export async function getCardDescriptionFieldsBatchForBoard(
   userId: string,
   cardIds: readonly string[],
 ): Promise<CardDescriptionFieldRow[]> {
-  const board = await Board.findById(boardId);
+  const board = await Board.findById(boardId).select('ownerId visibility').lean();
   if (!board) {
     throw new NotFoundError('Board not found');
   }
@@ -145,7 +151,9 @@ export async function getCardDescriptionFieldsBatchForBoard(
   const docs = await Card.find({
     boardId,
     _id: { $in: oids },
-  }).select('_id description descriptionHtml');
+  })
+    .select('_id description descriptionHtml')
+    .lean();
 
   return docs.map((c) => {
     const id = c._id.toString();

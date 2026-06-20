@@ -194,6 +194,17 @@ const BoardSchema = new Schema<IBoard>(
 
 BoardSchema.index({ workspaceId: 1, position: 1 });
 BoardSchema.index({ ownerId: 1, position: 1 });
+BoardSchema.index({ 'members.userId': 1 });
+BoardSchema.index(
+  { 'settings.activityLogEmailRoundupEnabled': 1 },
+  {
+    partialFilterExpression: {
+      'settings.activityLogEmailRoundupEnabled': true,
+      'settings.activityLogEmailRoundupUserIds.0': { $exists: true },
+    },
+    name: 'board_activity_roundup_enabled',
+  },
+);
 
 export const Board: Model<IBoard> = mongoose.model<IBoard>('Board', BoardSchema);
 

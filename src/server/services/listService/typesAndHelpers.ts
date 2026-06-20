@@ -46,11 +46,15 @@ export async function ensureListsHavePosForBoard(boardId: string | mongoose.Type
     return;
   }
   const lists = await List.find({ boardId: bid }).sort({ position: 1, _id: 1 }).lean();
-  await Promise.all(
-    lists.map((l, i) =>
-      List.findByIdAndUpdate(l._id, { pos: spreadListPosForIndex(i), position: i }),
-    ),
-  );
+  const bulkOps = lists.map((l, i) => ({
+    updateOne: {
+      filter: { _id: l._id },
+      update: { $set: { pos: spreadListPosForIndex(i), position: i } },
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await List.bulkWrite(bulkOps, { ordered: false });
+  }
 }
 
 export async function syncBoardListPositionsFromPosOrder(boardId: string | mongoose.Types.ObjectId): Promise<void> {
@@ -64,7 +68,15 @@ export async function syncBoardListPositionsFromPosOrder(boardId: string | mongo
   if (updates.length === 0) {
     return;
   }
-  await Promise.all(updates.map(({ row, i }) => List.findByIdAndUpdate(row._id, { position: i })));
+  const bulkOps = updates.map(({ row, i }) => ({
+    updateOne: {
+      filter: { _id: row._id },
+      update: { $set: { position: i } },
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await List.bulkWrite(bulkOps, { ordered: false });
+  }
 }
 
 export async function normalizeBoardListPosSpread(boardId: string | mongoose.Types.ObjectId): Promise<{
@@ -83,9 +95,13 @@ export async function normalizeBoardListPosSpread(boardId: string | mongoose.Typ
     .map((r, i) => ({ r, i, nextPos: orderedPos[i]! }))
     .filter(({ r, i: idx, nextPos }) => r.position !== idx || rowNumericPos(r) !== nextPos);
   if (updates.length > 0) {
-    await Promise.all(
-      updates.map(({ r, i, nextPos }) => List.findByIdAndUpdate(r._id, { pos: nextPos, position: i })),
-    );
+    const bulkOps = updates.map(({ r, i, nextPos }) => ({
+      updateOne: {
+        filter: { _id: r._id },
+        update: { $set: { pos: nextPos, position: i } },
+      },
+    }));
+    await List.bulkWrite(bulkOps, { ordered: false });
   }
   return { orderedListIds, orderedPos };
 }

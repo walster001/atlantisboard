@@ -69,7 +69,8 @@ export async function getBoardActivities(
     .sort({ createdAt: -1 })
     .limit(limit)
     .skip(skip)
-    .populate('userId', 'username displayName profilePicture');
+    .populate('userId', 'username displayName profilePicture')
+    .lean();
 }
 
 export async function getCardActivities(
@@ -81,7 +82,8 @@ export async function getCardActivities(
     .sort({ createdAt: -1 })
     .limit(limit)
     .skip(skip)
-    .populate('userId', 'username displayName profilePicture');
+    .populate('userId', 'username displayName profilePicture')
+    .lean();
 }
 
 export async function getUserActivityFeed(
@@ -94,5 +96,6 @@ export async function getUserActivityFeed(
     .limit(limit)
     .skip(skip)
     .populate('boardId', 'name')
-    .populate('cardId', 'title');
+    .populate('cardId', 'title')
+    .lean();
 }

@@ -110,10 +110,9 @@ export async function moveCard(
     newPos = insertPosBetween(before, after);
   }
 
-  card.listId = new Types.ObjectId(targetListId);
-  card.set('pos', newPos);
-  card.markModified('pos');
-  await card.save();
+  await Card.findByIdAndUpdate(cardId, {
+    $set: { listId: new Types.ObjectId(targetListId), pos: newPos },
+  });
 
   await syncListPositionsFromPosOrder(targetListId);
   if (originalListId !== targetListId) {
@@ -252,9 +251,16 @@ export async function reorderCards(
 
   await ensureCardsHavePosForList(listId);
   const orderedPos = cardIds.map((_, index) => spreadPosForIndex(index));
-  await Promise.all(
-    cardIds.map((cid, index) => Card.findByIdAndUpdate(cid, { position: index, listId, pos: orderedPos[index] })),
-  );
+  const listObjectId = new Types.ObjectId(listId);
+  const bulkOps: Parameters<typeof Card.bulkWrite>[0] = cardIds.map((cid, index) => ({
+    updateOne: {
+      filter: { _id: new Types.ObjectId(cid) },
+      update: { $set: { position: index, listId: listObjectId, pos: orderedPos[index] } },
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await Card.bulkWrite(bulkOps, { ordered: false });
+  }
 
   emitToBoard(list.boardId.toString(), 'cards:positions-batch-updated', {
     boardId: list.boardId.toString(),

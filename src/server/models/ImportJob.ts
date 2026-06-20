@@ -111,6 +111,7 @@ const ImportJobSchema = new Schema<IImportJob>(
 );
 
 ImportJobSchema.index({ userId: 1, status: 1 });
+ImportJobSchema.index({ status: 1, createdAt: 1 });
 
 // Set expiresAt to 2 days from creation
 ImportJobSchema.pre('save', async function () {

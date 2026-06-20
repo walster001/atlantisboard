@@ -37,6 +37,8 @@ export async function migrateLegacyCardDescriptionHtmlBatch(): Promise<number> {
       break;
     }
 
+    const bulkOps: Parameters<typeof Card.bulkWrite>[0] = [];
+
     for (const card of batch) {
       lastId = card._id.toString();
       const description = typeof card.description === 'string' ? card.description : undefined;
@@ -46,7 +48,12 @@ export async function migrateLegacyCardDescriptionHtmlBatch(): Promise<number> {
       if (description != null && description !== '' && hasLegacyWekanInlineButtonHtml(description)) {
         const repaired = repairLegacyWekanHtmlInCardDescriptionJson(description);
         if (repaired != null) {
-          await Card.updateOne({ _id: card._id }, { $set: { description: repaired } });
+          bulkOps.push({
+            updateOne: {
+              filter: { _id: card._id },
+              update: { $set: { description: repaired } },
+            },
+          });
           migrated += 1;
           continue;
         }
@@ -65,14 +72,20 @@ export async function migrateLegacyCardDescriptionHtmlBatch(): Promise<number> {
         continue;
       }
 
-      await Card.updateOne(
-        { _id: card._id },
-        {
-          $set: { description: migratedJson },
-          $unset: { descriptionHtml: '' },
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: card._id },
+          update: {
+            $set: { description: migratedJson },
+            $unset: { descriptionHtml: '' },
+          },
         },
-      );
+      });
       migrated += 1;
+    }
+
+    if (bulkOps.length > 0) {
+      await Card.bulkWrite(bulkOps, { ordered: false });
     }
 
     if (batch.length < BATCH_SIZE) {

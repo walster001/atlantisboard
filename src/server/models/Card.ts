@@ -275,8 +275,27 @@ const CardSchema = new Schema<ICard>(
 CardSchema.index({ listId: 1, position: 1 });
 CardSchema.index({ listId: 1, pos: 1 });
 CardSchema.index({ boardId: 1, dueDate: 1 });
+CardSchema.index({ boardId: 1, listId: 1, pos: 1, position: 1 });
+CardSchema.index({ boardId: 1, assignees: 1 });
 CardSchema.index({ createdBy: 1 });
 CardSchema.index({ assignees: 1 });
+CardSchema.index({ createdAt: -1, _id: -1 });
+CardSchema.index({ 'attachments.id': 1 });
+CardSchema.index({ 'labels.id': 1 });
+CardSchema.index(
+  { 'attachments.scanStatus': 1 },
+  { partialFilterExpression: { 'attachments.scanStatus': 'pending' } },
+);
+CardSchema.index(
+  { completed: 1 },
+  {
+    partialFilterExpression: {
+      completed: false,
+      'reminders.0': { $exists: true },
+    },
+    name: 'card_active_reminders',
+  },
+);
 
 export const Card: Model<ICard> = mongoose.model<ICard>('Card', CardSchema);
 

@@ -127,7 +127,8 @@ router.get('/boards/:boardId', async (req, res, next) => {
         Activity.find(filter)
           .sort({ createdAt: -1 })
           .limit(dayFetchLimit)
-          .populate('userId', 'displayName email profilePicture'),
+          .populate('userId', 'displayName email profilePicture')
+          .lean(),
       ]);
 
       res.json({
@@ -168,7 +169,8 @@ router.get('/boards/:boardId', async (req, res, next) => {
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .populate('userId', 'displayName email profilePicture')
-      .populate('cardId', 'title');
+      .populate('cardId', 'title')
+      .lean();
     const page = activities.slice(0, limit);
     const nextCursor =
       activities.length > limit && page.length > 0
@@ -188,7 +190,7 @@ router.get('/cards/:cardId', async (req, res, next) => {
 
     // Get card to find board
     const { Card } = await import('../models/Card.js');
-    const card = await Card.findById(cardId);
+    const card = await Card.findById(cardId).select('boardId').lean();
     if (!card) {
       res.status(404).json({
         error: {
@@ -235,7 +237,8 @@ router.get('/cards/:cardId', async (req, res, next) => {
     const activities = await Activity.find(query)
       .sort({ createdAt: -1 })
       .limit(limit + 1)
-      .populate('userId', 'displayName email profilePicture');
+      .populate('userId', 'displayName email profilePicture')
+      .lean();
     const page = activities.slice(0, limit);
     const nextCursor =
       activities.length > limit && page.length > 0

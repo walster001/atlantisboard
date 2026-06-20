@@ -16,7 +16,7 @@ export async function addCardAssignee(
   assigneeId: string,
   userId: string,
 ): Promise<(Document & ICard) | null> {
-  const card = await Card.findById(cardId);
+  let card = await Card.findById(cardId);
   if (!card) {
     return null;
   }
@@ -36,9 +36,15 @@ export async function addCardAssignee(
 
   const assigneeObjectId = new Types.ObjectId(assigneeId);
   if (!card.assignees.some((id) => id.equals(assigneeObjectId))) {
-    card.assignees.push(assigneeObjectId);
-    await card.save();
-    emitCardUpdatedRealtime(card);
+    const updated = await Card.findOneAndUpdate(
+      { _id: cardId, assignees: { $ne: assigneeObjectId } },
+      { $addToSet: { assignees: assigneeObjectId } },
+      { new: true },
+    );
+    if (updated != null) {
+      card = updated;
+      emitCardUpdatedRealtime(card);
+    }
   }
 
   logAuditEvent({
@@ -78,7 +84,7 @@ export async function removeCardAssignee(
   assigneeId: string,
   userId: string,
 ): Promise<(Document & ICard) | null> {
-  const card = await Card.findById(cardId);
+  let card = await Card.findById(cardId);
   if (!card) {
     return null;
   }
@@ -96,8 +102,17 @@ export async function removeCardAssignee(
     }
   }
 
-  card.assignees = card.assignees.filter((id) => id.toString() !== assigneeId);
-  await card.save();
+  const updated = await Card.findOneAndUpdate(
+    { _id: cardId },
+    {
+      $pull: { assignees: new Types.ObjectId(assigneeId) },
+      $set: { updatedAt: new Date() },
+    },
+    { new: true },
+  );
+  if (updated != null) {
+    card = updated;
+  }
 
   emitCardUpdatedRealtime(card);
 

@@ -63,7 +63,9 @@ export async function hasWorkspacePermission(
   permissionKey: string,
 ): Promise<boolean> {
   try {
-    const workspace = await Workspace.findById(workspaceId);
+    const workspace = await Workspace.findById(workspaceId)
+      .select('ownerId members.userId members.roleKey')
+      .lean();
     if (!workspace) {
       return false;
     }
@@ -76,7 +78,9 @@ export async function hasWorkspacePermission(
     if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
       return true;
     }
-    const member = workspace.members.find((m) => normalizeWorkspaceUserRef(m.userId) === userId);
+    const member = (workspace.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
+      (m) => normalizeWorkspaceUserRef(m.userId) === userId,
+    );
     if (!member) {
       return false;
     }
@@ -136,14 +140,18 @@ export async function getUserWorkspaceRole(
   workspaceId: string
 ): Promise<UserRole | null> {
   try {
-    const workspace = await Workspace.findById(workspaceId);
+    const workspace = await Workspace.findById(workspaceId)
+      .select('ownerId members.userId members.roleKey')
+      .lean();
     if (!workspace) return null;
 
     if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
       return 'admin';
     }
 
-    const member = workspace.members.find((m) => normalizeWorkspaceUserRef(m.userId) === userId);
+    const member = (workspace.members as Array<{ userId: unknown; roleKey?: unknown }>).find(
+      (m) => normalizeWorkspaceUserRef(m.userId) === userId,
+    );
     if (!member) return null;
     const rk = member.roleKey;
     return (rk === 'member' ? 'viewer' : rk) as UserRole;
@@ -161,14 +169,18 @@ export async function isWorkspaceMember(
   workspaceId: string
 ): Promise<boolean> {
   try {
-    const workspace = await Workspace.findById(workspaceId);
+    const workspace = await Workspace.findById(workspaceId)
+      .select('ownerId members.userId')
+      .lean();
     if (!workspace) return false;
 
     if (normalizeWorkspaceUserRef(workspace.ownerId) === userId) {
       return true;
     }
 
-    return workspace.members.some((m) => normalizeWorkspaceUserRef(m.userId) === userId);
+    return (workspace.members as Array<{ userId: unknown }>).some(
+      (m) => normalizeWorkspaceUserRef(m.userId) === userId,
+    );
   } catch (error) {
     logger.error({ err: error, userId, workspaceId }, 'Error checking workspace membership');
     return false;

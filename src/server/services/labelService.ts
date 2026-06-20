@@ -86,7 +86,7 @@ export async function getBoardLabels(
   if (!allowed) {
     throw new ForbiddenError('Insufficient permissions to view labels');
   }
-  return await BoardLabel.find({ boardId }).sort({ createdAt: -1 });
+  return await BoardLabel.find({ boardId }).sort({ createdAt: -1 }).lean();
 }
 
 export async function updateLabel(
@@ -226,39 +226,48 @@ export async function assignLabelToCard(cardId: string, labelId: string, userId:
     return card;
   }
 
-  card.labels.push({
-    id: labelId,
-    name: label.name,
-    color: label.color,
-  });
-
-  await card.save();
-
-  emitCardUpdatedRealtime(card);
-
-  logAuditEvent({
-    userId,
-    action: 'card.label.assign',
-    resourceType: 'card',
-    resourceId: cardId,
-    metadata: { labelId, boardId: card.boardId.toString() },
-    timestamp: new Date(),
-  });
-
-  recordBoardActivityDeferred({
-    boardId: card.boardId.toString(),
-    cardId,
-    userId,
-    category: 'labels',
-    type: 'label.assigned',
-    description: `Label "${label.name}" assigned to "${card.title}"`,
-    metadata: {
-      entityId: labelId,
-      entityName: label.name,
-      cardId,
-      cardTitle: card.title,
+  const updated = await Card.findOneAndUpdate(
+    { _id: cardId, 'labels.id': { $ne: labelId } },
+    {
+      $push: {
+        labels: {
+          id: labelId,
+          name: label.name,
+          color: label.color,
+        },
+      },
     },
-  });
+    { new: true },
+  );
+  if (updated != null) {
+    emitCardUpdatedRealtime(updated);
+
+    logAuditEvent({
+      userId,
+      action: 'card.label.assign',
+      resourceType: 'card',
+      resourceId: cardId,
+      metadata: { labelId, boardId: card.boardId.toString() },
+      timestamp: new Date(),
+    });
+
+    recordBoardActivityDeferred({
+      boardId: card.boardId.toString(),
+      cardId,
+      userId,
+      category: 'labels',
+      type: 'label.assigned',
+      description: `Label "${label.name}" assigned to "${card.title}"`,
+      metadata: {
+        entityId: labelId,
+        entityName: label.name,
+        cardId,
+        cardTitle: card.title,
+      },
+    });
+
+    return updated;
+  }
 
   return card;
 }
@@ -276,10 +285,19 @@ export async function removeLabelFromCard(cardId: string, labelId: string, userI
     throw new ForbiddenError('Insufficient permissions to update card');
   }
 
-  card.labels = card.labels.filter((l) => l.id.toString() !== labelId);
-  await card.save();
+  const updated = await Card.findOneAndUpdate(
+    { _id: cardId },
+    {
+      $pull: { labels: { id: labelId } },
+      $set: { updatedAt: new Date() },
+    },
+    { new: true },
+  );
+  if (updated == null) {
+    return null;
+  }
 
-  emitCardUpdatedRealtime(card);
+  emitCardUpdatedRealtime(updated);
 
   logAuditEvent({
     userId,
@@ -300,6 +318,6 @@ export async function removeLabelFromCard(cardId: string, labelId: string, userI
     metadata: { entityId: labelId, cardId, cardTitle: card.title },
   });
 
-  return card;
+  return updated;
 }
 

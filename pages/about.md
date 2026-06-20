@@ -12,7 +12,8 @@ permalink: /about/
   </p>
   <p>
     The product pairs a React client with a Bun and Express API, MongoDB for persistence,
-    Redis for sessions, Socket.io for collaboration, and MinIO-compatible storage for attachments.
+    Redis for sessions, Socket.io for collaboration, and MinIO-compatible storage for attachments
+    (including inline video streaming with optional adaptive quality on larger servers).
   </p>
   <p>
     Documentation and deep dives live in the repository

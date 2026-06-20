@@ -27,9 +27,27 @@ This page lists everything you need to run Atlantisboard. There are two deployme
 
 | Resource | Recommended |
 |----------|-------------|
-| **CPU** | 2–4 vCPUs / cores |
+| **CPU** | 2–4 vCPUs / cores (see video note below) |
 | **RAM** | 4–8 GB |
 | **Disk** | 20–50 GB SSD (scales with attachment storage) |
+
+### Video attachments (card uploads)
+
+Video files in card descriptions and attachments use **progressive streaming** on every deployment: the browser plays the uploaded file directly with **HTTP range requests** (seek/scrub works on mobile and desktop). No extra setup is required.
+
+**Adaptive bitrate (ABR)** — optional HLS/DASH renditions and the in-player **quality selector** — runs only when the server reports **4 or more vCPUs** (`os.cpus().length`). Below that threshold:
+
+- Videos still upload, scan, and play from the original file.
+- No ffmpeg ABR packaging on upload (avoids CPU starvation on small VMs).
+- The quality gear is hidden in the UI.
+
+| Host profile | Video playback | ABR / quality selector |
+|--------------|----------------|-------------------------|
+| **1–2 vCPU**, 2 GB RAM | Progressive stream of original file | Off |
+| **2 vCPU**, 4 GB RAM + `clamd` | Progressive stream | Off |
+| **≥ 4 vCPU**, 4 GB+ RAM | Progressive stream; ABR packaging when eligible | On (1080/720/480/360 ladder when source allows) |
+
+> **Sizing tip:** Staging or small VMs (2 vCPU) are fine for boards and occasional video clips. If teams upload video regularly or you want manual quality selection, plan **≥ 4 vCPUs** and enough RAM for the full stack plus malware scanning (~4 GB+ total). Override with `VIDEO_ABR_ENABLED=true` or `VIDEO_ABR_MIN_VCPU` — see [Environment Variables — Video streaming](/wiki/environment-variables/#video-streaming).
 
 > **Malware scanning and RAM:** Docker production images include ClamAV for attachment scanning. When **available memory is at least 2 GB** (`MemAvailable`, configurable via `POMPELMI_CLAMD_MIN_RAM_MB`), the app container starts **`clamd`** and keeps virus signatures in daemon RAM (~200–400 MB on top of the normal stack). Below that threshold it uses **`clamscan`** per upload instead — lower RAM, no extra daemon. **Allocating more than 2 GB of available RAM therefore increases memory use** for scanning. For a single VM running the full Docker stack with `clamd`, plan **4 GB+ total RAM**. See [Environment Variables — Malware scanning](/wiki/environment-variables/#malware-scanning-clamav--pompelmi).
 

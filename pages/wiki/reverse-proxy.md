@@ -23,6 +23,7 @@ A reverse proxy sits in front of Atlantisboard to provide TLS (HTTPS) terminatio
 - **WebSocket upgrade** — Atlantisboard uses Socket.io for real-time collaboration. The proxy must forward WebSocket upgrade requests.
 - **Security headers** — centralise security headers at the proxy layer.
 - **Upload size control** — enforce maximum request body sizes for file uploads.
+- **Video streaming** — attachment video uses HTTP `Range` requests; the proxy must forward range headers and avoid buffering entire responses.
 
 ---
 
@@ -107,6 +108,13 @@ server {
     # Main application
     location / {
         proxy_pass http://127.0.0.1:3000;
+    }
+
+    # Attachment video — disable buffering so Range requests stream correctly
+    location /api/v1/attachments/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_buffering off;
+        proxy_request_buffering off;
     }
 
     # Socket.io path — explicit location for clarity
@@ -194,6 +202,8 @@ boards.example.com {
     }
 }
 ```
+
+> **Log rotation:** `atlantisboard-setup` installs `/etc/logrotate.d/atlantisboard-caddy` (daily rotation, 14 days retained) when Caddy is configured.
 
 ### Start / Reload Caddy
 

@@ -6,7 +6,7 @@ title: Home
   <div class="hero__content">
     <h1 id="hero-title">Self-hosted Kanban, built for your team</h1>
     <p class="hero__lead">
-      Atlantisboard combines the best of open-source kanban. Workspaces, Boards, Fine-Grained Permissions, Themeing/Customisation and more.
+      Atlantisboard combines the best of open-source kanban. Workspaces, boards, fine-grained permissions, theming, inline video attachments, and more — self-hosted on your hardware.
     </p>
     <div class="hero__actions">
       <a class="btn btn--primary" href="{{ '/download/' | relative_url }}">Download</a>

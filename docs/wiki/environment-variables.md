@@ -242,6 +242,35 @@ Startup logs show which mode is active, for example *Malware scanning via clamd*
 
 ---
 
+## Video Streaming
+
+Card and description videos are served through `/api/v1/attachments/:id/file` (or presigned MinIO URLs in hybrid mode). The API honours **single `Range: bytes=…` requests** so `<video>` elements can seek on mobile and desktop.
+
+### Progressive vs adaptive (ABR)
+
+| Mode | When | User experience |
+|------|------|-----------------|
+| **Progressive** | Always (default on all hosts) | Plays the uploaded file; no extra transcoding. |
+| **ABR (HLS/DASH)** | Host has **≥ 4 vCPUs** by default | Server packages 1080/720/480/360 renditions after upload; quality selector appears in the player. |
+
+Eligibility is evaluated once at process start from `os.cpus().length` unless overridden.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VIDEO_ABR_ENABLED` | _(auto)_ | `true` / `false` force ABR on or off. Unset = auto from vCPU count. |
+| `VIDEO_ABR_MIN_VCPU` | `4` | Minimum reported vCPUs before auto mode enables ABR packaging and the quality UI. |
+| `VIDEO_ABR_TRANSCODE_CONCURRENCY` | `1` | Max concurrent ffmpeg ABR jobs in the app process. |
+| `VIDEO_ABR_MAX_QUEUE` | `200` | Max queued ABR packaging jobs. |
+| `VIDEO_POSTER_CACHE_CONCURRENCY` | `1` | Max concurrent ffmpeg jobs for video poster thumbnails. |
+| `VIDEO_POSTER_CACHE_MAX_QUEUE` | `500` | Max queued poster-generation jobs. |
+| `VIDEO_POSTER_FFMPEG_TIMEOUT_MS` | `120000` | Timeout per poster ffmpeg invocation (ms). |
+
+> **Small VMs:** On 1–2 vCPU staging or dev boxes, leave defaults — video still works via progressive streaming without ABR. Forcing `VIDEO_ABR_ENABLED=true` on an undersized host can saturate CPU and slow boards.
+
+> **Reverse proxy:** Ensure your proxy forwards `Range` headers to the app and does not buffer entire video responses. See [Reverse Proxy Setup](reverse-proxy.md).
+
+---
+
 ## Push Notifications (Optional)
 
 | Variable | Default | Description |

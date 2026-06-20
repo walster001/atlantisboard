@@ -194,6 +194,7 @@ The main application container:
 - Serves both the React frontend and the Express API on port 3000.
 - Connects to MongoDB, Redis, and MinIO using the environment variables in your `.env` file.
 - **Malware scanning:** includes ClamAV. On start, if **`MemAvailable` ≥ 2 GB** (default), the entrypoint starts **`clamd`** inside this container (~200–400 MB extra RAM for signatures). With less available memory it uses on-demand **`clamscan`** instead. Signatures persist in the `clamav-sigs-prod` volume. See [Malware scanning](environment-variables.md#malware-scanning-clamav--pompelmi).
+- **Video streaming:** serves attachment video with HTTP range requests. **ABR packaging** (ffmpeg, optional quality selector) runs only when the container sees **≥ 4 vCPUs** unless `VIDEO_ABR_ENABLED` overrides. Smaller VMs still play videos progressively. See [Video streaming](environment-variables.md#video-streaming) and [System Requirements — Video attachments](system-requirements.md#video-attachments-card-uploads).
 
 ---
 

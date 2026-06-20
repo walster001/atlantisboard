@@ -153,6 +153,15 @@ Upload and manage files attached to a card.
 | **Download** | Click the download icon to save an attachment to your device. |
 | **Delete** | Remove an attachment from the card (requires appropriate permission). |
 | **Import placeholders** | Attachments from board imports may appear as placeholders until the original files are re-uploaded. |
+| **Video playback** | Video attachments stream inline in the card detail. The server serves the original file with **byte-range support** so users can seek and scrub. Works on all server sizes. |
+| **Video quality (ABR)** | On hosts with **≥ 4 vCPUs**, the server may package adaptive HLS/DASH renditions after upload and show a **quality selector** (Auto, 1080p, 720p, etc.). On smaller VMs the selector is hidden and only progressive playback is used — see [System Requirements](system-requirements.md#video-attachments-card-uploads). |
+| **Video poster** | A thumbnail preview is generated for video attachments (lightweight ffmpeg job) so cards show a preview frame before playback. |
+
+---
+
+## Video in card descriptions
+
+Videos embedded in the rich-text description use the same streaming stack as file attachments: progressive playback everywhere, optional ABR and quality controls only when the server meets the vCPU threshold.
 
 ---
 

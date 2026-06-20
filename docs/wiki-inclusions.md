@@ -139,6 +139,7 @@ Home (index)
 
 **Content**:
 - Minimum hardware (CPU, RAM, disk) for a small team vs. larger deployment.
+- **Video attachments:** progressive streaming on all hosts; ABR/quality selector only when **≥ 4 vCPUs** (or env override). Sizing table for 1–2 vCPU vs 4+ vCPU.
 - Required software:
   - Docker & Docker Compose (recommended path), OR
   - Bun >= 1.3.5, MongoDB 8.x (replica set required), Redis 7.x, MinIO.
@@ -167,7 +168,7 @@ Home (index)
   - `redis` — Redis 7 Alpine for session store and rate-limit counters.
   - `minio` — S3-compatible object storage for attachments, branding assets, user avatars, custom fonts, and backups.
   - `minio-setup` — one-shot init container that creates the 7 required buckets (`import-inline`, `card-attachments`, `branding`, `fonts`, `user-avatars`, `backgrounds`, `backups`).
-  - `app` — the Atlantisboard application (Bun runtime, multi-stage build, non-root user, serves frontend + API on port 3000).
+  - `app` — the Atlantisboard application (Bun runtime, multi-stage build, non-root user, serves frontend + API on port 3000). Includes ffmpeg for video poster/ABR when eligible (≥ 4 vCPUs by default).
 - Data persistence: named Docker volumes for each service.
 - Stopping / restarting / removing containers.
 
@@ -1012,6 +1013,7 @@ The card detail modal with all sections:
   - File size limit (configurable via `CARD_ATTACHMENT_MAX_MB`, default 50 MB).
   - Attachment list with download links.
   - Image attachment previews.
+  - **Video attachments:** inline playback with HTTP range seek; poster thumbnail; optional ABR quality selector when server has ≥ 4 vCPUs.
   - Delete attachments.
   - Import placeholder attachments (from board imports).
 - **Activity feed**: chronological log of all changes made to this card.

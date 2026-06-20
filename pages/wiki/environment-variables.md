@@ -124,9 +124,10 @@ These variables are only used when the authentication method is set to **Google 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MINIO_ENDPOINT` | `localhost` | MinIO server address (use `minio` in Docker Compose) |
+| `MINIO_ENDPOINT` | `localhost` | **Internal** MinIO API hostname for the app (Docker Compose: `minio`). Must be reachable from the server process—not `MINIO_PUBLIC_ENDPOINT` or your CDN URL |
 | `MINIO_PORT` | `9000` | MinIO API port |
 | `MINIO_USE_SSL` | `false` | Use HTTPS for MinIO |
+| `MINIO_REQUEST_TIMEOUT_MS` | `30000` | Socket timeout for MinIO SDK calls (ms); prevents hung attachment operations when the endpoint is misconfigured |
 | `MINIO_ACCESS_KEY` | `minioadmin` | Application S3 access key (also used as MinIO root in dev when `MINIO_ROOT_*` unset) |
 | `MINIO_SECRET_KEY` | `minioadmin` | Application S3 secret key |
 | `MINIO_ROOT_ACCESS_KEY` | _(falls back to `MINIO_ACCESS_KEY`)_ | MinIO **server** root user (production Compose). Set separately from app keys for least privilege |
@@ -187,6 +188,8 @@ Rate limits are enforced per IP address using Redis-backed counters. Adjust thes
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CARD_ATTACHMENT_MAX_MB` | `50` | Max card attachment size in MB (1–1024) |
+| `DISK_RESERVE_MB` | `500` | Minimum free disk space (MiB) kept for MongoDB writes and uploads; rejects writes/uploads when below |
+| `MONGODB_DISK_CHECK_PATH` | `/` (or `BACKUP_LOCATION` parent) | Filesystem path checked for MongoDB volume free space (override on dedicated data mounts) |
 | `BOARD_IMPORT_MAX_MB` | `35` | Max board import file size in MB (5–250) |
 
 > **Tip:** If you also use a reverse proxy, make sure its upload limit is at least as high as these values. For Nginx, set `client_max_body_size` accordingly.
@@ -236,6 +239,35 @@ On container start, the entrypoint reads Linux **`MemAvailable`** and sets the s
 | `POMPELMI_SIGNATURE_REFRESH` | `true` | Scheduled `freshclam` + re-warm (default every 24 h). |
 
 Startup logs show which mode is active, for example *Malware scanning via clamd* or *via on-demand clamscan*.
+
+---
+
+## Video Streaming
+
+Card and description videos are served through `/api/v1/attachments/:id/file` (or presigned MinIO URLs in hybrid mode). The API honours **single `Range: bytes=…` requests** so `<video>` elements can seek on mobile and desktop.
+
+### Progressive vs adaptive (ABR)
+
+| Mode | When | User experience |
+|------|------|-----------------|
+| **Progressive** | Always (default on all hosts) | Plays the uploaded file; no extra transcoding. |
+| **ABR (HLS/DASH)** | Host has **≥ 4 vCPUs** by default | Server packages 1080/720/480/360 renditions after upload; quality selector appears in the player. |
+
+Eligibility is evaluated once at process start from `os.cpus().length` unless overridden.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VIDEO_ABR_ENABLED` | _(auto)_ | `true` / `false` force ABR on or off. Unset = auto from vCPU count. |
+| `VIDEO_ABR_MIN_VCPU` | `4` | Minimum reported vCPUs before auto mode enables ABR packaging and the quality UI. |
+| `VIDEO_ABR_TRANSCODE_CONCURRENCY` | `1` | Max concurrent ffmpeg ABR jobs in the app process. |
+| `VIDEO_ABR_MAX_QUEUE` | `200` | Max queued ABR packaging jobs. |
+| `VIDEO_POSTER_CACHE_CONCURRENCY` | `1` | Max concurrent ffmpeg jobs for video poster thumbnails. |
+| `VIDEO_POSTER_CACHE_MAX_QUEUE` | `500` | Max queued poster-generation jobs. |
+| `VIDEO_POSTER_FFMPEG_TIMEOUT_MS` | `120000` | Timeout per poster ffmpeg invocation (ms). |
+
+> **Small VMs:** On 1–2 vCPU staging or dev boxes, leave defaults — video still works via progressive streaming without ABR. Forcing `VIDEO_ABR_ENABLED=true` on an undersized host can saturate CPU and slow boards.
+
+> **Reverse proxy:** Ensure your proxy forwards `Range` headers to the app and does not buffer entire video responses. See [Reverse Proxy Setup](/wiki/reverse-proxy/).
 
 ---
 

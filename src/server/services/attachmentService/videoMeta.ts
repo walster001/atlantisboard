@@ -1,8 +1,10 @@
 import {
   buildVideoAttachmentQualityMeta,
   type VideoAttachmentQualityMeta,
+  type VideoRenditionHeight,
 } from '../../../shared/videoQuality.js';
 import { buildVideoAbrStreamingMeta } from './videoAbrTranscode.js';
+import { isVideoAbrEligible } from './videoAbrEligibility.js';
 import { probeVideoSourceHeight } from './videoProbe.js';
 
 export async function resolveVideoQualityMeta(args: {
@@ -11,14 +13,23 @@ export async function resolveVideoQualityMeta(args: {
   readonly objectName: string;
   readonly sourceHeight: number | null;
 }): Promise<VideoAttachmentQualityMeta> {
-  const streaming = await buildVideoAbrStreamingMeta({
-    attachmentId: args.attachmentId,
-    sourceObjectName: args.objectName,
-    sourceHeight: args.sourceHeight,
-  });
+  const abrEnabled = isVideoAbrEligible();
+  const streaming = abrEnabled
+    ? await buildVideoAbrStreamingMeta({
+        attachmentId: args.attachmentId,
+        sourceObjectName: args.objectName,
+        sourceHeight: args.sourceHeight,
+      })
+    : {
+        ready: false,
+        hlsManifestUrl: null,
+        dashManifestUrl: null,
+        renditionHeights: [] as readonly VideoRenditionHeight[],
+      };
   return buildVideoAttachmentQualityMeta({
     sourceHeight: args.sourceHeight ?? args.attachment.videoSourceHeight,
     streaming,
+    abrEnabled,
   });
 }
 

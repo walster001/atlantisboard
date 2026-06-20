@@ -67,6 +67,7 @@ describe('videoQuality', () => {
       sourceHeight: 1080,
       sourceTier: 1080,
       availableHeights: [1080, 720, 480, 360],
+      abrEnabled: false,
       streaming: {
         ready: false,
         hlsManifestUrl: null,

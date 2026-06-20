@@ -12,6 +12,8 @@ export interface VideoAttachmentQualityMeta {
   readonly sourceTier: VideoRenditionHeight | null;
   /** Tiers at or below the source — used to label manual quality options. */
   readonly availableHeights: readonly VideoRenditionHeight[];
+  /** False when the server is below the ABR vCPU threshold (progressive stream only). */
+  readonly abrEnabled: boolean;
   readonly streaming: VideoAbrStreamingMeta;
 }
 
@@ -85,6 +87,7 @@ export function videoQualityPreferenceLabel(preference: VideoQualityPreference):
 export function buildVideoAttachmentQualityMeta(args: {
   readonly sourceHeight: number | null | undefined;
   readonly streaming?: VideoAbrStreamingMeta;
+  readonly abrEnabled?: boolean;
 }): VideoAttachmentQualityMeta {
   const sourceHeight = args.sourceHeight ?? null;
   const sourceTier =
@@ -99,6 +102,7 @@ export function buildVideoAttachmentQualityMeta(args: {
     sourceHeight,
     sourceTier,
     availableHeights: buildAvailableVideoHeights(sourceTier),
+    abrEnabled: args.abrEnabled === true,
     streaming,
   };
 }

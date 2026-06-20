@@ -74,6 +74,7 @@ const videoAttachmentQualityMetaSchema = z.object({
   sourceHeight: z.number().nullable(),
   sourceTier: videoRenditionHeightSchema.nullable(),
   availableHeights: z.array(videoRenditionHeightSchema),
+  abrEnabled: z.boolean(),
   streaming: videoAbrStreamingMetaSchema,
 });
 

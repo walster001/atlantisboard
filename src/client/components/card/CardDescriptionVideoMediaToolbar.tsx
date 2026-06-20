@@ -383,16 +383,18 @@ export function CardDescriptionVideoMediaToolbar({
             showLabelOnHover
             styles={videoSliderStyles}
           />
-          <CardDescriptionVideoQualityControl
-            quality={quality}
-            qualityMeta={qualityMeta}
-            onQualityChange={onQualityChange}
-            isFullscreen={isFullscreen}
-            onMenuOpenChange={setQualityMenuOpen}
-            {...(onDescriptionClickCapture != null
-              ? { onDescriptionClickCapture }
-              : {})}
-          />
+          {qualityMeta?.abrEnabled === true ? (
+            <CardDescriptionVideoQualityControl
+              quality={quality}
+              qualityMeta={qualityMeta}
+              onQualityChange={onQualityChange}
+              isFullscreen={isFullscreen}
+              onMenuOpenChange={setQualityMenuOpen}
+              {...(onDescriptionClickCapture != null
+                ? { onDescriptionClickCapture }
+                : {})}
+            />
+          ) : null}
           <ActionIcon
             className="card-desc-video-media-toolbar__button"
             variant="subtle"

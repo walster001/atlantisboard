@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { getMinIOClient } from '../../config/minio.js';
 import { logger } from '../../utils/logger.js';
 import { parsePositiveInt } from '../../utils/parseEnvInt.js';
+import { isVideoAbrEligible } from './videoAbrEligibility.js';
 import { BUCKET_NAME } from './minioPaths.js';
 import { mintAttachmentInternalReadUrl } from './urls.js';
 import { probeVideoSourceHasAudio, probeVideoSourceHeight } from './videoProbe.js';
@@ -422,6 +423,9 @@ export function scheduleVideoAbrPackaging(params: {
   readonly attachmentId: string;
   readonly objectName: string;
 }): void {
+  if (!isVideoAbrEligible()) {
+    return;
+  }
   if (queuedKeys.has(params.objectName)) {
     return;
   }

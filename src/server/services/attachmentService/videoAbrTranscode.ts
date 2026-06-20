@@ -8,7 +8,7 @@ import { logger } from '../../utils/logger.js';
 import { parsePositiveInt } from '../../utils/parseEnvInt.js';
 import { BUCKET_NAME } from './minioPaths.js';
 import { mintAttachmentInternalReadUrl } from './urls.js';
-import { probeVideoSourceHeight } from './videoProbe.js';
+import { probeVideoSourceHasAudio, probeVideoSourceHeight } from './videoProbe.js';
 import {
   selectVideoAbrRenditionHeights,
   videoAbrDashManifestObjectKey,
@@ -62,9 +62,11 @@ async function objectExists(objectKey: string): Promise<boolean> {
 }
 
 export async function isVideoAbrPackagingReady(sourceObjectName: string): Promise<boolean> {
-  const hls = await objectExists(videoAbrHlsMasterObjectKey(sourceObjectName));
-  const dash = await objectExists(videoAbrDashManifestObjectKey(sourceObjectName));
-  return hls && dash;
+  return objectExists(videoAbrHlsMasterObjectKey(sourceObjectName));
+}
+
+export async function isVideoAbrDashPackagingReady(sourceObjectName: string): Promise<boolean> {
+  return objectExists(videoAbrDashManifestObjectKey(sourceObjectName));
 }
 
 async function listPackagedRenditionHeights(sourceObjectName: string): Promise<readonly VideoRenditionHeight[]> {
@@ -94,6 +96,7 @@ export async function buildVideoAbrStreamingMeta(args: {
   readonly sourceHeight: number | null;
 }): Promise<VideoAbrStreamingMeta> {
   const ready = await isVideoAbrPackagingReady(args.sourceObjectName);
+  const dashReady = await isVideoAbrDashPackagingReady(args.sourceObjectName);
   const urls = buildVideoAbrManifestUrls(args.attachmentId);
   const renditionHeights = ready
     ? await listPackagedRenditionHeights(args.sourceObjectName)
@@ -101,7 +104,7 @@ export async function buildVideoAbrStreamingMeta(args: {
   return {
     ready,
     hlsManifestUrl: ready ? urls.hlsManifestUrl : null,
-    dashManifestUrl: ready ? urls.dashManifestUrl : null,
+    dashManifestUrl: dashReady ? urls.dashManifestUrl : null,
     renditionHeights,
   };
 }
@@ -146,6 +149,7 @@ function runFfmpegHlsPackaging(
   inputUrl: string,
   outputDir: string,
   renditions: readonly RenditionSpec[],
+  hasAudio: boolean,
 ): Promise<boolean> {
   if (renditions.length === 0) {
     return Promise.resolve(false);
@@ -166,11 +170,11 @@ function runFfmpegHlsPackaging(
     if (spec == null) {
       return;
     }
+    args.push('-map', `[v${index}out]`);
+    if (hasAudio) {
+      args.push('-map', '0:a:0?');
+    }
     args.push(
-      '-map',
-      `[v${index}out]`,
-      '-map',
-      '0:a:0?',
       '-c:v',
       'libx264',
       '-preset',
@@ -181,16 +185,15 @@ function runFfmpegHlsPackaging(
       spec.maxrate,
       '-bufsize',
       spec.bufsize,
-      '-c:a',
-      'aac',
-      '-b:a',
-      spec.audioBitrate,
-      '-ac',
-      '2',
     );
+    if (hasAudio) {
+      args.push('-c:a', 'aac', '-b:a', spec.audioBitrate, '-ac', '2');
+    }
   });
 
-  const varStreamMap = renditions.map((_, index) => `v:${index},a:${index}`).join(' ');
+  const varStreamMap = hasAudio
+    ? renditions.map((_, index) => `v:${index},a:${index}`).join(' ')
+    : renditions.map((_, index) => `v:${index}`).join(' ');
   args.push(
     '-f',
     'hls',
@@ -200,12 +203,16 @@ function runFfmpegHlsPackaging(
     'vod',
     '-hls_flags',
     'independent_segments',
+    '-hls_segment_type',
+    'fmp4',
+    '-hls_fmp4_init_filename',
+    'init.mp4',
     '-master_pl_name',
     'master.m3u8',
     '-var_stream_map',
     varStreamMap,
     '-hls_segment_filename',
-    join(outputDir, 'hls', '%v', 'seg_%03d.ts').replace(/\\/g, '/'),
+    join(outputDir, 'hls', '%v', 'seg_%03d.m4s').replace(/\\/g, '/'),
     join(outputDir, 'hls', '%v', 'index.m3u8').replace(/\\/g, '/'),
   );
 
@@ -230,9 +237,9 @@ function runFfmpegDashRemux(outputDir: string): Promise<boolean> {
     '-use_timeline',
     '1',
     '-init_seg_name',
-    join(outputDir, 'dash', 'init-$RepresentationID$.m4s').replace(/\\/g, '/'),
+    'init-$RepresentationID$.m4s',
     '-media_seg_name',
-    join(outputDir, 'dash', 'chunk-$RepresentationID$-$Number%05d$.m4s').replace(/\\/g, '/'),
+    'chunk-$RepresentationID$-$Number%05d$.m4s',
     join(outputDir, 'dash', 'manifest.mpd').replace(/\\/g, '/'),
   ];
   return runFfmpegCommand(args);
@@ -266,22 +273,26 @@ async function renameHlsVariantPlaylists(
   outputDir: string,
   renditions: readonly RenditionSpec[],
 ): Promise<void> {
-  const { mkdir, rename, readFile, writeFile } = await import('node:fs/promises');
+  const { rename, readFile, writeFile } = await import('node:fs/promises');
   for (let index = 0; index < renditions.length; index += 1) {
     const spec = renditions[index];
     if (spec == null) {
       continue;
     }
-    const from = join(outputDir, 'hls', String(index), 'index.m3u8');
-    const toDir = join(outputDir, 'hls', `${spec.height}p`);
-    const to = join(toDir, 'index.m3u8');
-    await mkdir(toDir, { recursive: true });
-    await rename(from, to);
-    const masterPath = join(outputDir, 'hls', 'master.m3u8');
-    const master = await readFile(masterPath, 'utf8');
-    const updated = master.replaceAll(`hls/${index}/index.m3u8`, `hls/${spec.height}p/index.m3u8`);
-    await writeFile(masterPath, updated, 'utf8');
+    await rename(join(outputDir, 'hls', String(index)), join(outputDir, 'hls', `${spec.height}p`));
   }
+  const masterPath = join(outputDir, 'hls', 'master.m3u8');
+  let master = await readFile(masterPath, 'utf8');
+  for (let index = 0; index < renditions.length; index += 1) {
+    const spec = renditions[index];
+    if (spec == null) {
+      continue;
+    }
+    master = master
+      .replaceAll(`${index}/index.m3u8`, `${spec.height}p/index.m3u8`)
+      .replaceAll(`hls/${index}/index.m3u8`, `hls/${spec.height}p/index.m3u8`);
+  }
+  await writeFile(masterPath, master, 'utf8');
 }
 
 export async function packageVideoAbrRenditions(sourceObjectName: string): Promise<boolean> {
@@ -290,6 +301,7 @@ export async function packageVideoAbrRenditions(sourceObjectName: string): Promi
   }
 
   const sourceHeight = await probeVideoSourceHeight(sourceObjectName);
+  const hasAudio = await probeVideoSourceHasAudio(sourceObjectName);
   const heights = selectVideoAbrRenditionHeights(sourceHeight);
   const renditions = RENDITION_SPECS.filter((spec) => heights.includes(spec.height));
   if (renditions.length === 0) {
@@ -302,17 +314,20 @@ export async function packageVideoAbrRenditions(sourceObjectName: string): Promi
     const { mkdir } = await import('node:fs/promises');
     await mkdir(join(workDir, 'hls'), { recursive: true });
     await mkdir(join(workDir, 'dash'), { recursive: true });
-    const hlsOk = await runFfmpegHlsPackaging(presigned.url, workDir, renditions);
+    const hlsOk = await runFfmpegHlsPackaging(presigned.url, workDir, renditions, hasAudio);
     if (!hlsOk) {
       return false;
     }
     await renameHlsVariantPlaylists(workDir, renditions);
     const dashOk = await runFfmpegDashRemux(workDir);
     if (!dashOk) {
-      return false;
+      logger.warn(
+        { sourceObjectName, event: 'attachment.video_abr.dash_skipped' },
+        'DASH remux failed; uploading HLS ladder only',
+      );
     }
     await uploadOutputTree(workDir, videoAbrStoragePrefix(sourceObjectName));
-    return true;
+    return isVideoAbrPackagingReady(sourceObjectName);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.warn(

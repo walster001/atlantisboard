@@ -75,3 +75,55 @@ export async function probeVideoSourceHeight(objectName: string): Promise<number
     return null;
   }
 }
+
+async function probeVideoHasAudioFromUrl(inputUrl: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const proc = spawn(
+      'ffprobe',
+      [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-select_streams',
+        'a:0',
+        '-show_entries',
+        'stream=codec_type',
+        '-of',
+        'csv=p=0',
+        inputUrl,
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+
+    const chunks: Buffer[] = [];
+    proc.stdout.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+
+    proc.on('error', () => {
+      resolve(false);
+    });
+
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        resolve(false);
+        return;
+      }
+      const raw = Buffer.concat(chunks).toString('utf8').trim().toLowerCase();
+      resolve(raw === 'audio');
+    });
+  });
+}
+
+export async function probeVideoSourceHasAudio(objectName: string): Promise<boolean> {
+  try {
+    const presigned = await mintAttachmentInternalReadUrl(objectName, PROBE_PRESIGN_TTL_SEC);
+    return await probeVideoHasAudioFromUrl(presigned.url);
+  } catch (error: unknown) {
+    logger.warn(
+      { error: probeErrorMessage(error), objectName, event: 'attachment.video_probe.audio_failed' },
+      'ffprobe audio probe failed',
+    );
+    return false;
+  }
+}

@@ -4,6 +4,7 @@ import {
   normalizeListCardPositions,
   rebuildCardIdsForList,
   removeCardIdFromList,
+  resolveCardPlacementForUpsert,
   spreadPosForIndex,
   type BoardRuntimeStore,
 } from './types.js';
@@ -31,7 +32,7 @@ export const createBoardCardMapSlice: StateCreator<
     }
     set((s) => {
       const prev = s.cardsById[card.id];
-      const resolvedCard =
+      const withIds =
         prev != null
           ? {
               ...card,
@@ -39,6 +40,7 @@ export const createBoardCardMapSlice: StateCreator<
               ...(card.boardId.trim() === '' && prev.boardId.trim() !== '' ? { boardId: prev.boardId } : {}),
             }
           : card;
+      const resolvedCard = prev != null ? resolveCardPlacementForUpsert(prev, withIds) : withIds;
       const cardsById = { ...s.cardsById, [resolvedCard.id]: resolvedCard };
       const cardIdsByListId = { ...s.cardIdsByListId };
       if (prev != null && prev.listId !== resolvedCard.listId) {

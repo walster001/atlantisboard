@@ -1,4 +1,4 @@
-import mongoose, { type Document, type Types } from 'mongoose';
+import { type Document } from 'mongoose';
 import type { BoardThemeDefinition, BoardThemeSettings, BoardThemeSettingsStored } from '../../shared/boardTheme.js';
 import type { BoardSummaryDTO } from '../../shared/types/viewModels.js';
 import type { IBoard } from '../models/Board.js';
@@ -20,9 +20,19 @@ import { BoardTheme, type IBoardTheme } from '../models/BoardTheme.js';
 import { User } from '../models/User.js';
 import { logger } from '../utils/logger.js';
 
-let systemCatalogCache: BoardThemeCatalog | null = null;
-let systemCatalogLoadedAt = 0;
-const SYSTEM_CATALOG_TTL_MS = 60_000;
+let sharedCatalogCache: BoardThemeCatalog | null = null;
+let sharedCatalogLoadedAt = 0;
+const SHARED_CATALOG_TTL_MS = 60_000;
+
+const SYSTEM_THEME_SEED_SLUGS = new Set(SYSTEM_BOARD_THEME_SEEDS.map((theme) => theme.id));
+
+function invalidateSharedThemeCatalogCache(): void {
+  sharedCatalogCache = null;
+}
+
+function isSystemSeedThemeSlug(slug: string): boolean {
+  return SYSTEM_THEME_SEED_SLUGS.has(slug.trim());
+}
 
 export function boardThemeDocToDefinition(doc: Pick<IBoardTheme, 'slug' | 'name' | 'palette'>): BoardThemeDefinition {
   return {
@@ -50,33 +60,34 @@ export async function seedSystemBoardThemes(): Promise<number> {
     );
     upserted += 1;
   }
-  systemCatalogCache = null;
+  invalidateSharedThemeCatalogCache();
   logger.info({ count: upserted }, 'System board themes seeded');
   return upserted;
 }
 
-async function upsertCustomTheme(params: {
+/** Shared custom themes live in the system catalog (`scope: 'system'`, non-seed slug). */
+async function upsertSharedCustomTheme(params: {
   readonly slug: string;
   readonly name: string;
   readonly palette: BoardThemeDefinition['palette'];
-  readonly ownerUserId: Types.ObjectId;
 }): Promise<void> {
+  const slug = params.slug.trim();
+  if (slug === '' || isSystemSeedThemeSlug(slug)) {
+    return;
+  }
   await BoardTheme.updateOne(
-    { scope: 'user', ownerUserId: params.ownerUserId, slug: params.slug },
+    { scope: 'system', slug },
     {
       $set: {
         name: params.name,
         palette: params.palette,
         prefersNavbarLightForeground: false,
       },
-      $setOnInsert: {
-        scope: 'user',
-        slug: params.slug,
-        ownerUserId: params.ownerUserId,
-      },
+      $setOnInsert: { scope: 'system', slug, sortOrder: 1000 },
     },
     { upsert: true },
   );
+  invalidateSharedThemeCatalogCache();
 }
 
 export async function migrateEmbeddedBoardThemesToCollection(): Promise<{
@@ -101,11 +112,10 @@ export async function migrateEmbeddedBoardThemesToCollection(): Promise<{
       if (typeof theme.id !== 'string' || theme.id.trim() === '') {
         continue;
       }
-      await upsertCustomTheme({
+      await upsertSharedCustomTheme({
         slug: theme.id.trim(),
         name: theme.name,
         palette: theme.palette,
-        ownerUserId,
       });
       userThemes += 1;
     }
@@ -126,17 +136,15 @@ export async function migrateEmbeddedBoardThemesToCollection(): Promise<{
     if (raw == null) {
       continue;
     }
-    const ownerUserId = board.ownerId;
     const embeddedCustom = Array.isArray(raw.customThemes) ? raw.customThemes : [];
     for (const theme of embeddedCustom) {
       if (typeof theme.id !== 'string' || theme.id.trim() === '') {
         continue;
       }
-      await upsertCustomTheme({
+      await upsertSharedCustomTheme({
         slug: theme.id.trim(),
         name: theme.name,
         palette: theme.palette,
-        ownerUserId,
       });
       boardThemes += 1;
     }
@@ -148,16 +156,15 @@ export async function migrateEmbeddedBoardThemesToCollection(): Promise<{
       !SYSTEM_BOARD_THEME_SEEDS.some((t) => t.id === selected.id) &&
       !embeddedCustom.some((t) => t.id === selected.id)
     ) {
-      await upsertCustomTheme({
+      await upsertSharedCustomTheme({
         slug: selected.id.trim(),
         name: selected.name,
         palette: selected.palette,
-        ownerUserId,
       });
       boardThemes += 1;
     }
 
-    const catalog = await loadThemeCatalogForContext(ownerUserId.toString());
+    const catalog = await loadSharedThemeCatalog();
     const hydrated = normalizeBoardThemeSettings(raw, undefined, catalog);
     const dehydrated = dehydrateBoardThemeSettings(hydrated);
     await Board.updateOne({ _id: board._id }, { $set: { themeSettings: dehydrated } });
@@ -171,96 +178,116 @@ export async function migrateEmbeddedBoardThemesToCollection(): Promise<{
 }
 
 /**
- * Converts any legacy `scope: 'board'` theme records to `scope: 'user'`
- * so they become globally accessible to the owning user across all boards.
+ * Converts legacy `scope: 'board'` theme records into the shared system catalog.
  */
-async function migrateBoardScopedThemesToUser(): Promise<number> {
-  const boardScoped = await BoardTheme.collection
-    .find({ scope: 'board' })
-    .toArray();
+async function migrateBoardScopedThemesToShared(): Promise<number> {
+  const boardScoped = await BoardTheme.collection.find({ scope: 'board' }).toArray();
   if (boardScoped.length === 0) {
     return 0;
   }
   let converted = 0;
   for (const theme of boardScoped) {
-    if (theme.ownerUserId == null) {
+    const slug = typeof theme.slug === 'string' ? theme.slug.trim() : '';
+    if (slug === '' || isSystemSeedThemeSlug(slug)) {
       await BoardTheme.collection.deleteOne({ _id: theme._id });
       converted += 1;
       continue;
     }
-    await BoardTheme.updateOne(
-      { scope: 'user', ownerUserId: theme.ownerUserId, slug: theme.slug },
-      {
-        $setOnInsert: {
-          scope: 'user',
-          slug: theme.slug,
-          name: theme.name,
-          palette: theme.palette,
-          ownerUserId: theme.ownerUserId,
-          prefersNavbarLightForeground: theme.prefersNavbarLightForeground ?? false,
-        },
-      },
-      { upsert: true },
-    );
+    await upsertSharedCustomTheme({
+      slug,
+      name: typeof theme.name === 'string' ? theme.name : slug,
+      palette: theme.palette as BoardThemeDefinition['palette'],
+    });
     await BoardTheme.collection.deleteOne({ _id: theme._id });
     converted += 1;
   }
-  logger.info({ count: converted }, 'Migrated board-scoped themes to user-scoped');
+  logger.info({ count: converted }, 'Migrated board-scoped themes to shared catalog');
+  return converted;
+}
+
+/** Promotes user-scoped custom themes into the shared system catalog (one-time). */
+async function migrateUserScopedThemesToShared(): Promise<number> {
+  const userScoped = await BoardTheme.find({ scope: 'user' }).lean();
+  if (userScoped.length === 0) {
+    return 0;
+  }
+  let converted = 0;
+  for (const theme of userScoped) {
+    const slug = theme.slug.trim();
+    if (slug === '' || isSystemSeedThemeSlug(slug)) {
+      await BoardTheme.collection.deleteOne({ _id: theme._id });
+      converted += 1;
+      continue;
+    }
+    await upsertSharedCustomTheme({
+      slug,
+      name: theme.name,
+      palette: theme.palette,
+    });
+    await BoardTheme.collection.deleteOne({ _id: theme._id });
+    converted += 1;
+  }
+  logger.info({ count: converted }, 'Migrated user-scoped themes to shared catalog');
   return converted;
 }
 
 export async function initializeBoardThemes(): Promise<void> {
   await seedSystemBoardThemes();
   await migrateEmbeddedBoardThemesToCollection();
-  await migrateBoardScopedThemesToUser();
+  await migrateBoardScopedThemesToShared();
+  await migrateUserScopedThemesToShared();
 }
 
-export async function loadSystemThemeCatalog(): Promise<BoardThemeCatalog> {
-  const now = Date.now();
-  if (systemCatalogCache != null && now - systemCatalogLoadedAt < SYSTEM_CATALOG_TTL_MS) {
-    return systemCatalogCache;
-  }
-  const docs = await BoardTheme.find({ scope: 'system' }).sort({ sortOrder: 1, slug: 1 }).lean();
-  if (docs.length === 0) {
-    await seedSystemBoardThemes();
-    return loadSystemThemeCatalog();
-  }
-  systemCatalogCache = buildBoardThemeCatalog({
-    systemThemes: docs.map(boardThemeDocToDefinition),
-    customThemes: [],
-  });
-  systemCatalogLoadedAt = now;
-  return systemCatalogCache;
-}
-
-export async function loadThemeCatalogForContext(
-  userId: string,
-): Promise<BoardThemeCatalog> {
-  const system = await loadSystemThemeCatalog();
-  const customDocs = await BoardTheme.find({
-    scope: 'user',
-    ownerUserId: new mongoose.Types.ObjectId(userId),
-  })
-    .sort({ name: 1, slug: 1 })
-    .lean();
+function splitSystemCatalogDocs(
+  docs: readonly Pick<IBoardTheme, 'slug' | 'name' | 'palette' | 'sortOrder'>[],
+): BoardThemeCatalog {
+  const seedDocs = docs.filter((doc) => isSystemSeedThemeSlug(doc.slug));
+  const customDocs = docs.filter((doc) => !isSystemSeedThemeSlug(doc.slug));
   return buildBoardThemeCatalog({
-    systemThemes: system.systemThemes,
+    systemThemes: seedDocs.map(boardThemeDocToDefinition),
     customThemes: customDocs.map(boardThemeDocToDefinition),
   });
 }
 
+/** Shared catalog: seeded system themes plus app-wide custom themes (`scope: 'system'`). */
+export async function loadSharedThemeCatalog(): Promise<BoardThemeCatalog> {
+  const now = Date.now();
+  if (sharedCatalogCache != null && now - sharedCatalogLoadedAt < SHARED_CATALOG_TTL_MS) {
+    return sharedCatalogCache;
+  }
+  const docs = await BoardTheme.find({ scope: 'system' }).sort({ sortOrder: 1, slug: 1 }).lean();
+  if (docs.length === 0) {
+    await seedSystemBoardThemes();
+    return loadSharedThemeCatalog();
+  }
+  sharedCatalogCache = splitSystemCatalogDocs(docs);
+  sharedCatalogLoadedAt = now;
+  return sharedCatalogCache;
+}
+
+/** @deprecated Alias for {@link loadSharedThemeCatalog}. */
+export async function loadSystemThemeCatalog(): Promise<BoardThemeCatalog> {
+  return loadSharedThemeCatalog();
+}
+
+export async function loadThemeCatalogForContext(
+  _userId?: string,
+): Promise<BoardThemeCatalog> {
+  return loadSharedThemeCatalog();
+}
+
 export async function listThemesForUser(
-  userId: string,
+  _userId?: string,
 ): Promise<readonly BoardThemeDefinition[]> {
-  const catalog = await loadThemeCatalogForContext(userId);
+  const catalog = await loadSharedThemeCatalog();
   return [...catalog.systemThemes, ...catalog.customThemes];
 }
 
 export async function hydrateBoardThemeSettings(
   stored: unknown,
-  userId: string,
+  _catalogUserId?: string,
 ): Promise<BoardThemeSettings> {
-  const catalog = await loadThemeCatalogForContext(userId);
+  const catalog = await loadSharedThemeCatalog();
   return normalizeBoardThemeSettings(stored, createDefaultBoardThemeSettings(undefined, catalog), catalog);
 }
 
@@ -268,68 +295,83 @@ export async function persistBoardThemeSettings(params: {
   readonly userId: string;
   readonly settings: BoardThemeSettings;
 }): Promise<{ readonly hydrated: BoardThemeSettings; readonly stored: BoardThemeSettingsStored }> {
-  const ownerOid = new mongoose.Types.ObjectId(params.userId);
-  const catalog = await loadThemeCatalogForContext(params.userId);
+  const catalog = await loadSharedThemeCatalog();
   const normalized = normalizeBoardThemeSettings(params.settings, undefined, catalog);
 
   for (const theme of normalized.customThemes) {
-    if (catalog.systemThemes.some((entry) => entry.id === theme.id)) {
+    if (isSystemSeedThemeSlug(theme.id)) {
       continue;
     }
-    await upsertCustomTheme({
+    await upsertSharedCustomTheme({
       slug: theme.id,
       name: theme.name,
       palette: theme.palette,
-      ownerUserId: ownerOid,
     });
   }
 
-  const refreshedCatalog = await loadThemeCatalogForContext(params.userId);
+  const refreshedCatalog = await loadSharedThemeCatalog();
   const hydrated = normalizeBoardThemeSettings(normalized, undefined, refreshedCatalog);
   const stored = dehydrateBoardThemeSettings(hydrated);
   return { hydrated, stored };
 }
 
-export async function replaceUserCustomThemes(
-  userId: string,
+export async function replaceSharedCustomThemes(
   themes: readonly BoardThemeDefinition[],
 ): Promise<void> {
-  const ownerOid = new mongoose.Types.ObjectId(userId);
-  await BoardTheme.deleteMany({ scope: 'user', ownerUserId: ownerOid });
+  const keepSlugs = new Set(
+    themes
+      .map((theme) => theme.id.trim())
+      .filter((slug) => slug !== '' && !isSystemSeedThemeSlug(slug)),
+  );
+  const seedSlugs = [...SYSTEM_THEME_SEED_SLUGS];
+  await BoardTheme.deleteMany({
+    scope: 'system',
+    slug: { $nin: [...seedSlugs, ...keepSlugs] },
+  });
   for (const theme of themes) {
-    await upsertCustomTheme({
+    await upsertSharedCustomTheme({
       slug: theme.id,
       name: theme.name,
       palette: theme.palette,
-      ownerUserId: ownerOid,
     });
   }
+  invalidateSharedThemeCatalogCache();
 }
 
-export async function getUserCustomThemes(userId: string): Promise<readonly BoardThemeDefinition[]> {
-  const docs = await BoardTheme.find({ scope: 'user', ownerUserId: new mongoose.Types.ObjectId(userId) })
-    .sort({ name: 1, slug: 1 })
-    .lean();
-  return docs.map(boardThemeDocToDefinition);
+/** @deprecated Writes to the shared catalog; `userId` is ignored. */
+export async function replaceUserCustomThemes(
+  _userId: string,
+  themes: readonly BoardThemeDefinition[],
+): Promise<void> {
+  await replaceSharedCustomThemes(themes);
 }
 
-export async function attachHydratedThemeSettingsToBoard<T extends { themeSettings?: unknown }>(
+export async function getSharedCustomThemes(): Promise<readonly BoardThemeDefinition[]> {
+  const catalog = await loadSharedThemeCatalog();
+  return catalog.customThemes;
+}
+
+/** @deprecated Returns shared custom themes; `userId` is ignored. */
+export async function getUserCustomThemes(_userId: string): Promise<readonly BoardThemeDefinition[]> {
+  return getSharedCustomThemes();
+}
+
+export async function attachHydratedThemeSettingsToBoard<T extends { themeSettings?: unknown; ownerId: string }>(
   board: T,
-  userId: string,
 ): Promise<T & { themeSettings?: BoardThemeSettings }> {
   if (board.themeSettings == null) {
     return board as T & { themeSettings?: BoardThemeSettings };
   }
-  const themeSettings = await hydrateBoardThemeSettings(board.themeSettings, userId);
+  const themeSettings = await hydrateBoardThemeSettings(board.themeSettings);
   return { ...board, themeSettings };
 }
 
 export async function hydrateBoardDocumentForUser(
   board: Document & IBoard,
-  userId: string,
+  _viewerUserId: string,
 ): Promise<Document & IBoard> {
   if (board.themeSettings != null) {
-    const themeSettings = await hydrateBoardThemeSettings(board.themeSettings, userId);
+    const themeSettings = await hydrateBoardThemeSettings(board.themeSettings);
     board.set('themeSettings', themeSettings);
   }
   return board;
@@ -337,12 +379,12 @@ export async function hydrateBoardDocumentForUser(
 
 export async function hydrateBoardSummaryForUser(
   summary: BoardSummaryDTO,
-  userId: string,
+  _viewerUserId: string,
 ): Promise<BoardSummaryDTO> {
   if (summary.themeSettings == null) {
     return summary;
   }
-  const themeSettings = await hydrateBoardThemeSettings(summary.themeSettings, userId);
+  const themeSettings = await hydrateBoardThemeSettings(summary.themeSettings);
   return { ...summary, themeSettings };
 }
 
@@ -365,10 +407,10 @@ function preferencesToPlainObject<T extends Record<string, unknown>>(preferences
 }
 
 export async function attachCustomBoardThemesToPreferences<T extends Record<string, unknown>>(
-  userId: string,
+  _userId: string,
   preferences: T,
 ): Promise<T & { customBoardThemes: readonly BoardThemeDefinition[] }> {
-  const customBoardThemes = await getUserCustomThemes(userId);
+  const customBoardThemes = await getSharedCustomThemes();
   /**
    * `preferences` can be a Mongoose subdocument. Spreading a subdocument is unreliable (fields may
    * not be enumerable), which can cause preference keys like `homeWorkspaceOrder` to disappear

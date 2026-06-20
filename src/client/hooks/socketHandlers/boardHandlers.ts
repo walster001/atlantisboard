@@ -1,15 +1,65 @@
 import type { Socket } from 'socket.io-client';
+import type { BoardThemeSettingsStored } from '../../../shared/boardTheme.js';
 import { parseBoardApiResponse } from '../../utils/api/boardApiMethods.js';
 import { transformBoard } from '../../utils/transform.js';
 import { api } from '../../utils/api.js';
+import {
+  boardThemeNeedsHydrationMerge,
+  ensureClientBoardThemeCatalogLoaded,
+  getRememberedBoardThemeSettings,
+  normalizeBoardThemeSettingsPatchForClient,
+} from '../../utils/boardThemeClientNormalize.js';
 import {
   emitSocketBoardCreated,
   emitSocketBoardDeleted,
   emitSocketBoardUpdated,
 } from '../../utils/socketRealtimeBridge.js';
-import { db } from '../../store/database.js';
+import { db, type BoardDB } from '../../store/database.js';
 import { useBoardRuntimeStore } from '../../store/boardRuntimeStore.js';
 import { applyFlatFieldPatch, deferSocketWork, runtimeActiveBoardId } from './state.js';
+
+function incomingBoardPayloadThemeSettings(data: unknown): unknown {
+  if (data == null || typeof data !== 'object') {
+    return undefined;
+  }
+  return (data as { themeSettings?: unknown }).themeSettings;
+}
+
+async function ensureCatalogForDehydratedCustomTheme(
+  existing: BoardDB | undefined,
+  incomingThemeSettings: unknown,
+): Promise<void> {
+  if (existing?.themeSettings != null || incomingThemeSettings == null) {
+    return;
+  }
+  if (
+    !boardThemeNeedsHydrationMerge(incomingThemeSettings as BoardThemeSettingsStored)
+  ) {
+    return;
+  }
+  await ensureClientBoardThemeCatalogLoaded();
+}
+
+function applyBoardRowPatch(
+  boardId: string,
+  existing: BoardDB,
+  changedFields: Readonly<Record<string, unknown>>,
+  removedFields: readonly string[],
+): BoardDB {
+  const { themeSettings: incomingThemeSettings, ...restChanged } = changedFields;
+  const patched = applyFlatFieldPatch(existing, restChanged, removedFields);
+  if (incomingThemeSettings === undefined) {
+    return patched;
+  }
+  return {
+    ...patched,
+    themeSettings: normalizeBoardThemeSettingsPatchForClient(
+      boardId,
+      incomingThemeSettings,
+      existing.themeSettings ?? getRememberedBoardThemeSettings(boardId),
+    ),
+  };
+}
 
 export const BOARD_SOCKET_EVENTS = [
   'board:created',
@@ -34,17 +84,27 @@ export function registerBoardHandlers(socket: Socket): void {
 
   socket.on('board:updated', (data: { boardId: string; data: unknown }) => {
     deferSocketWork(() => {
-      try {
-        const board = transformBoard(data.data);
-        if (runtimeActiveBoardId() === data.boardId) {
-          useBoardRuntimeStore.getState().commitBoard(board);
+      void db.boards.get(data.boardId).then(async (existing) => {
+        try {
+          await ensureCatalogForDehydratedCustomTheme(
+            existing,
+            incomingBoardPayloadThemeSettings(data.data),
+          );
+          const board = transformBoard(data.data, {
+            ...(existing?.themeSettings !== undefined
+              ? { prevThemeSettings: existing.themeSettings }
+              : {}),
+          });
+          if (runtimeActiveBoardId() === data.boardId) {
+            useBoardRuntimeStore.getState().commitBoard(board);
+          }
+          void db.boards.put(board).then(() => {
+            emitSocketBoardUpdated({ boardId: data.boardId, board });
+          });
+        } catch {
+          /* invalid payload */
         }
-        void db.boards.put(board).then(() => {
-          emitSocketBoardUpdated({ boardId: data.boardId, board });
-        });
-      } catch {
-        /* invalid payload */
-      }
+      });
     });
   });
 
@@ -73,7 +133,18 @@ export function registerBoardHandlers(socket: Socket): void {
             }
             return;
           }
-          const patched = applyFlatFieldPatch(existing, data.changedFields, data.removedFields);
+          if ('themeSettings' in data.changedFields) {
+            await ensureCatalogForDehydratedCustomTheme(
+              existing,
+              data.changedFields.themeSettings,
+            );
+          }
+          const patched = applyBoardRowPatch(
+            data.boardId,
+            existing,
+            data.changedFields,
+            data.removedFields,
+          );
           if (runtimeActiveBoardId() === data.boardId) {
             useBoardRuntimeStore.getState().commitBoard(patched);
           }

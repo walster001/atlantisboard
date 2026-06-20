@@ -15,8 +15,8 @@ import { sanitizeAndSaveHomeBoardOrderForWorkspace } from '../../services/homeBo
 import { sanitizeAndMergeHomeWorkspaceOrder } from '../../services/workspaceService.js';
 import {
   attachCustomBoardThemesToPreferences,
-  loadSystemThemeCatalog,
-  replaceUserCustomThemes,
+  loadSharedThemeCatalog,
+  replaceSharedCustomThemes,
 } from '../../services/boardThemeService.js';
 import { parseOrThrow } from '../../utils/zodValidation.js';
 import { handleApiRouteError } from '../../utils/mapServiceErrorToHttp.js';
@@ -302,7 +302,7 @@ router.put('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, asy
       }
     }
     if (validated.customBoardThemes !== undefined) {
-      const catalog = await loadSystemThemeCatalog();
+      const catalog = await loadSharedThemeCatalog();
       const normalizedThemes = validated.customBoardThemes.map((theme) => {
         const normalized = normalizeBoardThemeSettings(
           {
@@ -318,7 +318,7 @@ router.put('/me/preferences', apiRateLimiter, requireAuth as RequestHandler, asy
         );
         return normalized.selectedTheme;
       });
-      await replaceUserCustomThemes(authReq.user.id, normalizedThemes);
+      await replaceSharedCustomThemes(normalizedThemes);
     }
 
     user.preferences.theme = 'light';

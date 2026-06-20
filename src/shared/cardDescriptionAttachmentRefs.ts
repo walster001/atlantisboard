@@ -1,4 +1,5 @@
 import { isValidCardDescriptionJsonString } from './validation/cardDescriptionDoc.js';
+import { validateMediaSrc } from './validation/cardDescriptionDoc/primitives.js';
 
 /** Matches API file route: .../attachments/:id/file */
 const ATTACHMENT_FILE_PATH =
@@ -67,8 +68,30 @@ export function normalizeCardDescriptionAttachmentUrls(rawJson: string): string 
       if (type === 'video' && typeof attrs.poster === 'string' && attrs.poster.trim() !== '') {
         attrs.poster = normalizeAttachmentMediaSrcToProxyPath(attrs.poster);
       }
+      if (type === 'video') {
+        const poster = attrs.poster;
+        if (
+          poster !== undefined &&
+          poster !== null &&
+          poster !== '' &&
+          (typeof poster !== 'string' || !validateMediaSrc(poster))
+        ) {
+          delete attrs.poster;
+        }
+      }
       if (type === 'audio' && typeof attrs.coverSrc === 'string' && attrs.coverSrc.trim() !== '') {
         attrs.coverSrc = normalizeAttachmentMediaSrcToProxyPath(attrs.coverSrc);
+      }
+      if (type === 'audio') {
+        const coverSrc = attrs.coverSrc;
+        if (
+          coverSrc !== undefined &&
+          coverSrc !== null &&
+          coverSrc !== '' &&
+          (typeof coverSrc !== 'string' || !validateMediaSrc(coverSrc))
+        ) {
+          delete attrs.coverSrc;
+        }
       }
       return { ...node, attrs };
     }
@@ -377,13 +400,82 @@ export function collectDescriptionAttachmentIdsForLifecycle(
   ]);
 }
 
-function emptyDoc(): unknown {
-  return { type: 'doc', content: [{ type: 'paragraph' }] };
+function walkDescriptionNodes(node: unknown, visit: (node: Record<string, unknown> & { type: string }) => void): void {
+  if (!isRecord(node) || typeof node.type !== 'string') {
+    return;
+  }
+  visit(node as Record<string, unknown> & { type: string });
+  if (Array.isArray(node.content)) {
+    for (const child of node.content) {
+      walkDescriptionNodes(child, visit);
+    }
+  }
+}
+
+/** True when inline media or decoration nodes reference the given attachment id or storage URL. */
+export function descriptionJsonReferencesAttachment(
+  rawJson: string,
+  attachmentId: string,
+  attachmentUrl?: string,
+): boolean {
+  const trimmed = rawJson.trim();
+  if (trimmed === '') {
+    return false;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed) as unknown;
+  } catch {
+    return false;
+  }
+  let referenced = false;
+  walkDescriptionNodes(parsed, (node) => {
+    if (referenced) {
+      return;
+    }
+    const type = node.type;
+    if (type === 'image' || type === 'imageResize' || type === 'video' || type === 'audio') {
+      const attrs = node.attrs;
+      if (!isRecord(attrs)) {
+        return;
+      }
+      const src = typeof attrs.src === 'string' ? attrs.src : '';
+      if (src !== '' && mediaRefMatchesAttachment(src, attachmentId, attachmentUrl)) {
+        referenced = true;
+        return;
+      }
+      if (type === 'video') {
+        const poster = typeof attrs.poster === 'string' ? attrs.poster : '';
+        if (poster !== '' && mediaRefMatchesAttachment(poster, attachmentId, attachmentUrl)) {
+          referenced = true;
+          return;
+        }
+      }
+      if (type === 'audio') {
+        const coverSrc = typeof attrs.coverSrc === 'string' ? attrs.coverSrc : '';
+        if (coverSrc !== '' && mediaRefMatchesAttachment(coverSrc, attachmentId, attachmentUrl)) {
+          referenced = true;
+        }
+      }
+      return;
+    }
+    if (type === 'inlineButton') {
+      const attrs = node.attrs;
+      if (!isRecord(attrs)) {
+        return;
+      }
+      const iconSrc = typeof attrs.iconSrc === 'string' ? attrs.iconSrc : '';
+      if (iconSrc !== '' && mediaRefMatchesAttachment(iconSrc, attachmentId, attachmentUrl)) {
+        referenced = true;
+      }
+    }
+  });
+  return referenced;
 }
 
 /**
  * Removes inline image / imageResize / video / audio nodes that reference the given attachment id.
- * Returns a valid description JSON string (falls back to empty doc if validation fails).
+ * When the attachment is not referenced, returns the input unchanged.
  */
 export function stripAttachmentFromDescriptionJsonString(
   rawJson: string,
@@ -392,6 +484,9 @@ export function stripAttachmentFromDescriptionJsonString(
 ): string {
   const trimmed = rawJson.trim();
   if (trimmed === '') {
+    return rawJson;
+  }
+  if (!descriptionJsonReferencesAttachment(trimmed, attachmentId, attachmentUrl)) {
     return rawJson;
   }
   let parsed: unknown;
@@ -458,12 +553,8 @@ export function stripAttachmentFromDescriptionJsonString(
   })();
   const str = JSON.stringify(stripped);
   if (!isValidCardDescriptionJsonString(str)) {
-    // Keep the prior saved description when stripping would leave server-invalid JSON
-    // (for example live editor state with blob: preview URLs).
-    if (isValidCardDescriptionJsonString(trimmed)) {
-      return trimmed;
-    }
-    return JSON.stringify(emptyDoc());
+    // Never wipe the whole description — keep the prior JSON when stripping would be invalid.
+    return trimmed;
   }
   return str;
 }

@@ -5,6 +5,7 @@ import {
   transformCard,
   mergeDexieCardIfSnapshot,
 } from '../utils/transform.js';
+import { ensureClientBoardThemeCatalogLoaded } from '../utils/boardThemeClientNormalize.js';
 import type { CardDB, ListDB } from './database.js';
 import { db } from './database.js';
 import { useBoardRuntimeStore } from './boardRuntimeStore.js';
@@ -144,6 +145,7 @@ export async function bootstrapBoardRuntimeFromApi(
       endBootstrapPerf();
       return false;
     }
+    await ensureClientBoardThemeCatalogLoaded();
     const rawBoard = (boardResponse as { board: unknown }).board;
     const board = transformBoard(rawBoard);
     const rawLists = snapshotResponse.combinedLists;

@@ -27,7 +27,7 @@ export interface CachedAttachmentLocation {
   readonly scanStatus?: AttachmentScanStatus;
   readonly attachment: Pick<
     ICardAttachment,
-    'id' | 'name' | 'url' | 'type' | 'size' | 'isPlaceholder' | 'scanStatus'
+    'id' | 'name' | 'url' | 'type' | 'size' | 'isPlaceholder' | 'scanStatus' | 'videoSourceHeight'
   >;
 }
 
@@ -35,7 +35,7 @@ export interface ResolvedAttachmentAccess {
   readonly boardId: string;
   readonly attachment: Pick<
     ICardAttachment,
-    'id' | 'name' | 'url' | 'type' | 'size' | 'scanStatus'
+    'id' | 'name' | 'url' | 'type' | 'size' | 'scanStatus' | 'videoSourceHeight'
   >;
   readonly objectMeta: AttachmentObjectMeta;
 }
@@ -199,6 +199,7 @@ export async function resolveAttachmentPosterPreview(
       type: attachment.type,
       size: attachment.size,
       ...(attachment.scanStatus !== undefined ? { scanStatus: attachment.scanStatus } : {}),
+      ...(attachment.videoSourceHeight != null ? { videoSourceHeight: attachment.videoSourceHeight } : {}),
     },
     objectMeta,
   };
@@ -256,6 +257,7 @@ async function loadAttachmentLocationFromDb(
       size: attachment.size,
       ...(attachment.isPlaceholder === true ? { isPlaceholder: true as const } : {}),
       ...(attachment.scanStatus !== undefined ? { scanStatus: attachment.scanStatus } : {}),
+      ...(attachment.videoSourceHeight != null ? { videoSourceHeight: attachment.videoSourceHeight } : {}),
     },
   };
 

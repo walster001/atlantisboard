@@ -4,6 +4,7 @@ import {
   collectDescriptionDecorationAttachmentIdsFromDescriptionJson,
   collectReferencedAttachmentIdsFromDescriptionJson,
   collectReferencedDecorationAttachmentIdsFromDescriptionJson,
+  descriptionJsonReferencesAttachment,
   extractAttachmentIdFromMediaSrc,
   normalizeCardDescriptionAttachmentUrls,
   remapAttachmentRefsInDescriptionHtmlString,
@@ -223,6 +224,28 @@ describe('legacy attachment media paths', () => {
     expect(normalized).toContain(`/api/v1/attachments/${id}/file`);
     expect(normalized).not.toContain('/cards/card-1/attachments/');
   });
+
+  it('drops invalid video poster paths during normalization', () => {
+    const videoId = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeee1111';
+    const raw = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'video',
+          attrs: {
+            src: `/api/v1/attachments/${videoId}/file`,
+            poster: '/api/v1/attachments/poster-id',
+          },
+        },
+      ],
+    });
+    const normalized = normalizeCardDescriptionAttachmentUrls(raw);
+    expect(isValidCardDescriptionJsonString(normalized)).toBe(true);
+    const parsed = JSON.parse(normalized) as {
+      content: Array<{ attrs?: { poster?: string } }>;
+    };
+    expect(parsed.content[0]?.attrs?.poster).toBeUndefined();
+  });
 });
 
 describe('stripAttachmentFromDescriptionJsonString', () => {
@@ -255,5 +278,50 @@ describe('stripAttachmentFromDescriptionJsonString', () => {
     expect(isValidCardDescriptionJsonString(stripped)).toBe(true);
     expect(stripped).toContain('Hello world');
     expect(stripped).not.toContain(attId);
+  });
+
+  it('returns description unchanged when attachment is not referenced inline', () => {
+    const orphanId = 'bbbbbbbb-bbbb-4ccc-dddd-eeeeeeee2222';
+    const raw = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Keep this text' }] },
+        {
+          type: 'imageResize',
+          attrs: { src: `/api/v1/attachments/${attId}/file`, alt: 'img' },
+        },
+      ],
+    });
+    const stripped = stripAttachmentFromDescriptionJsonString(raw, orphanId, 'https://storage.example/other.mp4');
+    expect(stripped).toBe(raw);
+    expect(stripped).toContain('Keep this text');
+    expect(stripped).toContain(attId);
+  });
+
+  it('preserves description when stripping would yield invalid JSON', () => {
+    const raw = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Notes' }] },
+        {
+          type: 'video',
+          attrs: {
+            src: `/api/v1/attachments/${attId}/file`,
+            poster: '/api/v1/attachments/bad-poster-id',
+          },
+        },
+      ],
+    });
+    const stripped = stripAttachmentFromDescriptionJsonString(raw, attId, attUrl);
+    expect(stripped).toContain('Notes');
+    expect(stripped).not.toContain(attId);
+  });
+
+  it('descriptionJsonReferencesAttachment is false for orphan attachments', () => {
+    const raw = JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Only text' }] }],
+    });
+    expect(descriptionJsonReferencesAttachment(raw, attId, attUrl)).toBe(false);
   });
 });

@@ -1,10 +1,17 @@
 .card-desc-audio-edit-modal__preview {
   overflow: hidden;
   width: 100%;
+  min-height: 120px;
   box-sizing: border-box;
 }
 
-.card-desc-audio-edit-modal__preview .card-desc-audio-podcast--modal-preview {
+.card-desc-audio-edit-modal__preview .card-desc-audio-player-shell {
+  height: 120px;
+  min-height: 120px;
+  max-width: 100%;
+}
+
+.card-desc-audio-edit-modal__preview .card-desc-audio-podcast--skeleton {
   width: 100%;
   max-width: 100%;
   overflow: hidden;

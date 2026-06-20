@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import { extractAttachmentIdFromMediaSrc } from '../../../shared/cardDescriptionAttachmentRefs.js';
+import { useCardDescriptionVideoPlayback } from '../../hooks/card/useCardDescriptionVideoPlayback.js';
 import { useVideoPosterUrl } from '../../hooks/useVideoPosterUrl.js';
-import { api } from '../../utils/api.js';
-import { resolveCardDescriptionVideoPlaybackUrl } from '../../utils/attachmentStreamUrlClient.js';
+import { isPendingDescriptionMediaSrc } from '../../utils/descriptionPendingMedia.js';
+import { safeVideoPlay } from '../../utils/safeVideoPlay.js';
+import { CardDescriptionVideoMediaToolbar } from './CardDescriptionVideoMediaToolbar.js';
 import { VideoPlayOverlay } from './VideoPlayOverlay.js';
+import './cardDescriptionVideoQuality.css';
 
 export interface CardDescriptionVideoPlayerProps {
   readonly src: string;
@@ -14,41 +17,8 @@ export interface CardDescriptionVideoPlayerProps {
   readonly isolateDescriptionClicks?: boolean;
 }
 
-function attachmentProxyPath(attachmentId: string): string {
-  const fromApi = api.getAttachmentFileUrl(attachmentId);
-  if (fromApi.startsWith('/')) {
-    return fromApi;
-  }
-  try {
-    const parsed = new URL(fromApi);
-    return `${parsed.pathname}${parsed.search}`;
-  } catch {
-    return fromApi;
-  }
-}
-
-function initialPlaybackSrc(storedSrc: string): string {
-  const trimmed = storedSrc.trim();
-  if (trimmed === '') {
-    return '';
-  }
-  if (trimmed.startsWith('blob:')) {
-    return trimmed;
-  }
-  const attachmentId = extractAttachmentIdFromMediaSrc(trimmed);
-  if (attachmentId != null) {
-    return attachmentProxyPath(attachmentId);
-  }
-  const resolved = api.resolveAttachmentUrl(trimmed);
-  if (resolved.startsWith('/')) {
-    return resolved;
-  }
-  try {
-    const parsed = new URL(resolved);
-    return `${parsed.pathname}${parsed.search}`;
-  } catch {
-    return resolved;
-  }
+function shellAspectRatioStyle(): CSSProperties {
+  return { aspectRatio: '16 / 9' };
 }
 
 /**
@@ -61,48 +31,34 @@ export function CardDescriptionVideoPlayer({
   title,
   isolateDescriptionClicks = true,
 }: CardDescriptionVideoPlayerProps) {
-  const attachmentId = useMemo(() => extractAttachmentIdFromMediaSrc(src), [src]);
-  const proxySrc = useMemo(() => initialPlaybackSrc(src), [src]);
-  const [playbackSrc, setPlaybackSrc] = useState(() =>
-    attachmentId == null ? initialPlaybackSrc(src) : '',
-  );
+  const attachmentId = extractAttachmentIdFromMediaSrc(src);
+  const {
+    playbackSrc,
+    quality,
+    qualityMeta,
+    usesAdaptiveStreaming,
+    playbackReady,
+    setQuality,
+    attachPlaybackToVideo,
+    detachPlaybackFromVideo,
+    fallbackToProxyOnError,
+  } = useCardDescriptionVideoPlayback(src);
   const [posterVisible, setPosterVisible] = useState(true);
+  const [blobSrcUnavailable, setBlobSrcUnavailable] = useState(false);
   const posterObjectUrl = useVideoPosterUrl(src, poster ?? undefined);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    setPosterVisible(true);
-
-    if (attachmentId == null) {
-      setPlaybackSrc(initialPlaybackSrc(src));
-      return () => {
-        cancelled = true;
-      };
+    const video = videoRef.current;
+    if (video == null || !playbackReady) {
+      return;
     }
-
-    setPlaybackSrc('');
-    void resolveCardDescriptionVideoPlaybackUrl(src)
-      .then((url) => {
-        if (!cancelled) {
-          setPlaybackSrc(url.trim() !== '' ? url : proxySrc);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPlaybackSrc(proxySrc);
-        }
-      });
-
+    attachPlaybackToVideo(video);
     return () => {
-      cancelled = true;
+      detachPlaybackFromVideo();
     };
-  }, [attachmentId, proxySrc, src]);
-
-  const handleVideoError = (): void => {
-    if (proxySrc !== '' && playbackSrc !== proxySrc) {
-      setPlaybackSrc(proxySrc);
-    }
-  };
+  }, [attachPlaybackToVideo, detachPlaybackFromVideo, playbackReady, playbackSrc, usesAdaptiveStreaming]);
 
   const stopDescriptionEditClick = useCallback(
     (event: MouseEvent | PointerEvent): void => {
@@ -113,16 +69,48 @@ export function CardDescriptionVideoPlayer({
     [isolateDescriptionClicks],
   );
 
-  if (playbackSrc.trim() === '') {
+  const handleVideoError = useCallback((): void => {
+    if (src.trim().startsWith('blob:')) {
+      setBlobSrcUnavailable(true);
+      return;
+    }
+    fallbackToProxyOnError();
+  }, [fallbackToProxyOnError, src]);
+
+  const handlePlayRequest = useCallback(
+    (event: MouseEvent<HTMLButtonElement>): void => {
+      stopDescriptionEditClick(event);
+      event.stopPropagation();
+      if (!playbackReady) {
+        return;
+      }
+      safeVideoPlay(videoRef.current);
+    },
+    [playbackReady, stopDescriptionEditClick],
+  );
+
+  if (blobSrcUnavailable) {
     return null;
   }
 
   const showPoster = posterObjectUrl != null && posterVisible;
   const showPlayAffordance = posterVisible;
+  const hasCustomToolbar =
+    attachmentId != null && !isPendingDescriptionMediaSrc(playbackSrc !== '' ? playbackSrc : src);
+  const showCustomToolbar = hasCustomToolbar && !posterVisible;
+  const shellStyle = showPoster ? shellAspectRatioStyle() : undefined;
 
   return (
     <div
-      className="card-desc-video-player-shell"
+      ref={shellRef}
+      className={[
+        'card-desc-video-player-shell',
+        showCustomToolbar ? 'card-desc-video-player-shell--custom-toolbar' : null,
+        showPoster ? 'card-desc-video-player-shell--has-poster' : null,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={shellStyle}
       onClick={stopDescriptionEditClick}
       onPointerDown={stopDescriptionEditClick}
     >
@@ -132,19 +120,46 @@ export function CardDescriptionVideoPlayer({
           src={posterObjectUrl}
           alt=""
           aria-hidden
+          decoding="async"
         />
       ) : null}
-      {showPlayAffordance ? <VideoPlayOverlay size="lg" /> : null}
+      {showPlayAffordance ? (
+        hasCustomToolbar ? (
+          <button
+            type="button"
+            className="card-desc-video-play-trigger"
+            aria-label="Play video"
+            disabled={!playbackReady}
+            onClick={handlePlayRequest}
+          >
+            <VideoPlayOverlay size="lg" />
+          </button>
+        ) : (
+          <VideoPlayOverlay size="lg" />
+        )
+      ) : null}
       <video
+        ref={videoRef}
         className={className}
-        controls
+        controls={!hasCustomToolbar}
         playsInline
-        preload="metadata"
-        src={playbackSrc}
+        preload={playbackReady ? 'metadata' : 'none'}
+        {...(usesAdaptiveStreaming || !playbackReady ? {} : { src: playbackSrc })}
         title={title}
         onPlay={() => setPosterVisible(false)}
         onError={handleVideoError}
       />
+      {showCustomToolbar ? (
+        <CardDescriptionVideoMediaToolbar
+          videoRef={videoRef}
+          shellRef={shellRef}
+          mediaKey={usesAdaptiveStreaming ? src : playbackSrc}
+          quality={quality}
+          qualityMeta={qualityMeta}
+          onQualityChange={setQuality}
+          onDescriptionClickCapture={stopDescriptionEditClick}
+        />
+      ) : null}
     </div>
   );
 }

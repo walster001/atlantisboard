@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, it } from 'bun:test';
 import {
+  attachmentUploadActivityLabels,
   humanReadableLabel,
   listLabelFromMeta,
   parseBoardActivityRow,
@@ -55,6 +56,28 @@ describe('board activity log row parsing', () => {
     expect(listLabelFromMeta(legacyMeta, 'previousListName', 'previous')).toBe('Unknown list');
     expect(listLabelFromMeta(legacyMeta, 'nextListName', 'next')).toBe('Unknown list');
     expect(humanReadableLabel('6a183a4f8e328e550a76d285', 'Unknown list')).toBe('Unknown list');
+  });
+
+  it('resolves attachment.uploaded labels from filename and card title metadata', () => {
+    const row = parseBoardActivityRow({
+      _id: 'act-attachment',
+      type: 'attachment.uploaded',
+      createdAt: Date.now(),
+      userId: { displayName: 'John' },
+      metadata: {
+        entityId: 'file-1',
+        entityName: 'screenshot.png',
+        cardId: 'card-1',
+        cardTitle: 'Fix login bug',
+      },
+    });
+
+    expect(row?.type).toBe('attachment.uploaded');
+    expect(row?.actorName).toBe('John');
+    expect(attachmentUploadActivityLabels(row!.meta)).toEqual({
+      fileName: 'screenshot.png',
+      cardTitle: 'Fix login bug',
+    });
   });
 
   it('parses card.dates.updated rows', () => {

@@ -41,17 +41,17 @@ interface CacheEntry extends AttachmentStreamUrlEntry {
 const memoryCache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<AttachmentStreamUrlEntry>>();
 
-function evictAttachmentStreamCacheEntry(attachmentId: string): void {
-  const prior = memoryCache.get(attachmentId);
+function evictAttachmentStreamCacheEntry(key: string): void {
+  const prior = memoryCache.get(key);
   if (prior?.refreshTimerId != null) {
     clearTimeout(prior.refreshTimerId);
   }
-  memoryCache.delete(attachmentId);
+  memoryCache.delete(key);
 }
 
 export function clearAttachmentStreamCache(): void {
-  for (const attachmentId of memoryCache.keys()) {
-    evictAttachmentStreamCacheEntry(attachmentId);
+  for (const key of memoryCache.keys()) {
+    evictAttachmentStreamCacheEntry(key);
   }
   inflight.clear();
 }

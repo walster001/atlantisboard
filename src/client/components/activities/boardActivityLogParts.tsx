@@ -71,6 +71,16 @@ function entityName(meta: Record<string, unknown>, fallback = 'item'): string {
   );
 }
 
+export function attachmentUploadActivityLabels(meta: Record<string, unknown>): {
+  readonly fileName: string;
+  readonly cardTitle: string;
+} {
+  return {
+    fileName: humanReadableLabel(readString(meta, 'entityName'), 'attachment'),
+    cardTitle: humanReadableLabel(readString(meta, 'cardTitle'), 'Untitled card'),
+  };
+}
+
 export function listLabelFromMeta(
   meta: Record<string, unknown>,
   nameKey: 'previousListName' | 'nextListName' | 'listName',
@@ -307,6 +317,16 @@ const EntryBody = memo(function EntryBody({ row }: { row: ParsedBoardActivityRow
         <Actor name={row.actorName} /> <Verb text={action} /> <Entity name={label} />{' '}
         {row.type === 'label.assigned' ? 'to' : 'from'}{' '}
         {card != null ? <Entity name={card} /> : 'a card'}
+      </Text>
+    );
+  }
+
+  if (row.type === 'attachment.uploaded') {
+    const { fileName, cardTitle } = attachmentUploadActivityLabels(row.meta);
+    return (
+      <Text component="div" size="sm">
+        <Actor name={row.actorName} /> <Verb text="uploaded" /> <Entity name={fileName} /> attachment to{' '}
+        <Entity name={cardTitle} />
       </Text>
     );
   }

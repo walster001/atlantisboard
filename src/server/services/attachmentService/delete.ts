@@ -2,8 +2,10 @@ import type { Client as MinIOClient } from 'minio';
 import { isPlaceholderCardAttachment } from '../../../shared/cardAttachmentPlaceholder.js';
 import {
   cardCoverReferencesAttachment,
+  descriptionJsonReferencesAttachment,
   stripAttachmentFromDescriptionJsonString,
 } from '../../../shared/cardDescriptionAttachmentRefs.js';
+import { isValidCardDescriptionJsonString } from '../../../shared/validation/cardDescriptionDoc.js';
 import { getMinIOClient } from '../../config/minio.js';
 import { invalidateAttachmentLocationCache } from '../attachmentCache.js';
 import { Card } from '../../models/Card.js';
@@ -13,10 +15,11 @@ import { logAuditEvent } from '../../utils/auditLogger.js';
 import { recordBoardActivityDeferred } from '../boardActivityTracking.js';
 import { emitCardUpdatedRealtime } from '../../utils/cardSocketEmit.js';
 import { BUCKET_NAME, extractObjectNameFromAttachmentUrl } from './minioPaths.js';
+import { removeVideoAbrObjects } from './videoAbrTranscode.js';
+import { removeVideoPosterCache } from './videoPosterCache.js';
 import {
   NotFoundError,
 } from '../../../shared/errors/domainErrors.js';
-
 function resolveAttachmentObjectName(
   cardId: string,
   attachmentId: string,
@@ -79,6 +82,21 @@ export function scheduleAttachmentObjectRemoval(params: {
     });
 }
 
+function scheduleVideoSidecarObjectRemoval(objectName: string): void {
+  void removeVideoPosterCache(objectName).catch((error: unknown) => {
+    logger.warn(
+      { error, objectName, event: 'attachment.delete.poster_remove_failed' },
+      'Failed to remove cached video poster after attachment delete',
+    );
+  });
+  void removeVideoAbrObjects(objectName).catch((error: unknown) => {
+    logger.warn(
+      { error, objectName, event: 'attachment.delete.abr_remove_failed' },
+      'Failed to remove ABR segments after attachment delete',
+    );
+  });
+}
+
 /**
  * Call before deleting card documents so URLs remain resolvable.
  * Per-object failures are logged and skipped so bulk deletion can continue.
@@ -134,13 +152,18 @@ export async function deleteCardAttachment(
 
   try {
     const descriptionRaw = typeof card.description === 'string' ? card.description : '';
-    const descriptionAfter = stripAttachmentFromDescriptionJsonString(
-      descriptionRaw,
-      attachmentId,
-      attachment.url,
-    );
-    if (descriptionAfter !== descriptionRaw) {
-      card.description = descriptionAfter;
+    if (descriptionJsonReferencesAttachment(descriptionRaw, attachmentId, attachment.url)) {
+      const descriptionAfter = stripAttachmentFromDescriptionJsonString(
+        descriptionRaw,
+        attachmentId,
+        attachment.url,
+      );
+      if (
+        descriptionAfter !== descriptionRaw &&
+        isValidCardDescriptionJsonString(descriptionAfter)
+      ) {
+        card.description = descriptionAfter;
+      }
     }
 
     card.attachments = card.attachments.filter((att) => att.id !== attachmentId);
@@ -195,6 +218,7 @@ export async function deleteCardAttachment(
         attachmentId,
         objectName,
       });
+      scheduleVideoSidecarObjectRemoval(objectName);
     }
   } catch (error) {
     logger.error(

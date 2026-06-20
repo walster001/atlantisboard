@@ -1,6 +1,6 @@
 import {
   cardCoverReferencesAttachment,
-  collectDescriptionAttachmentIdsForLifecycle,
+  descriptionJsonReferencesAttachment,
   stripAttachmentFromDescriptionJsonString,
 } from '../../../../shared/cardDescriptionAttachmentRefs.js';
 import { isValidCardDescriptionJsonString } from '../../../../shared/validation/cardDescriptionDoc.js';
@@ -74,10 +74,11 @@ export async function runBeforeDeleteAttachment({
   if (attachment == null) {
     return;
   }
-  const referencedInSavedDescription = collectDescriptionAttachmentIdsForLifecycle(
+  const referencedInSavedDescription = descriptionJsonReferencesAttachment(
     currentCard.description ?? '',
-    currentCard.attachments,
-  ).has(attachmentId);
+    attachmentId,
+    attachment.url,
+  );
   const referencedInLiveEditor = (() => {
     const editor = descriptionEditorRef.current;
     if (editor == null || editor.isDestroyed) {
@@ -87,9 +88,7 @@ export async function runBeforeDeleteAttachment({
     if (!serialized.ok) {
       return false;
     }
-    return collectDescriptionAttachmentIdsForLifecycle(serialized.jsonString, currentCard.attachments).has(
-      attachmentId,
-    );
+    return descriptionJsonReferencesAttachment(serialized.jsonString, attachmentId, attachment.url);
   })();
   const isCover = cardCoverReferencesAttachment(currentCard.cover, attachmentId, attachment.url);
   if (!referencedInSavedDescription && !referencedInLiveEditor && !isCover) {
@@ -106,6 +105,9 @@ export async function runBeforeDeleteAttachment({
     editor,
   );
   const stripped = stripAttachmentFromDescriptionJsonString(rawJsonForStrip, attachmentId, attachment.url);
+  if (stripped === rawJsonForStrip) {
+    return;
+  }
   const doc = parseCardDescriptionJson(stripped);
   const descriptionPayload = isCardDescriptionEmpty(doc) ? '' : stripped;
   syncDescriptionEditorAfterAttachmentStrip(editor, descriptionPayload);

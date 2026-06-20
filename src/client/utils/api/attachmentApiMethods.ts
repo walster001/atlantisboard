@@ -6,6 +6,9 @@ import {
   isAttachmentViewable,
   type AttachmentScanStatus,
 } from '../../../shared/attachmentScanStatus.js';
+import {
+  type VideoAttachmentQualityMeta,
+} from '../../../shared/videoQuality.js';
 
 export type AttachmentDeliveryKind = 'signed' | 'proxy';
 
@@ -53,6 +56,27 @@ export function uploadScanCompletesImmediately(response: AttachmentUploadRespons
   return status == null || isAttachmentViewable(status);
 }
 
+const videoRenditionHeightSchema = z.union([
+  z.literal(1080),
+  z.literal(720),
+  z.literal(480),
+  z.literal(360),
+]);
+
+const videoAbrStreamingMetaSchema = z.object({
+  ready: z.boolean(),
+  hlsManifestUrl: z.string().nullable(),
+  dashManifestUrl: z.string().nullable(),
+  renditionHeights: z.array(videoRenditionHeightSchema),
+});
+
+const videoAttachmentQualityMetaSchema = z.object({
+  sourceHeight: z.number().nullable(),
+  sourceTier: videoRenditionHeightSchema.nullable(),
+  availableHeights: z.array(videoRenditionHeightSchema),
+  streaming: videoAbrStreamingMetaSchema,
+});
+
 export interface AttachmentApiMethods {
   prewarmMalwareScanner(): Promise<void>;
   uploadCardAttachment(cardId: string, file: File, onProgress?: (progress: number) => void): Promise<AttachmentUploadResponse>;
@@ -64,6 +88,7 @@ export interface AttachmentApiMethods {
   ): Promise<AttachmentUploadResponse>;
   deleteCardAttachment(cardId: string, attachmentId: string): Promise<void>;
   getAttachmentUrl(attachmentId: string): Promise<AttachmentStreamUrlResponse>;
+  getAttachmentVideoMeta(attachmentId: string): Promise<VideoAttachmentQualityMeta>;
   getAttachmentFileUrl(attachmentId: string): string;
   resolveAttachmentUrl(rawUrl: string): string;
 }
@@ -109,8 +134,15 @@ export const attachmentApiMethods: AttachmentApiMethods = {
   },
 
   async getAttachmentUrl(this: ApiClient, attachmentId) {
-    const response = await this.client.get(`/attachments/${attachmentId}/url`);
+    const safeId = encodeURIComponent(attachmentId);
+    const response = await this.client.get(`/attachments/${safeId}/url`);
     return response.data as AttachmentStreamUrlResponse;
+  },
+
+  async getAttachmentVideoMeta(this: ApiClient, attachmentId) {
+    const safeId = encodeURIComponent(attachmentId);
+    const response = await this.client.get(`/attachments/${safeId}/video-meta`);
+    return videoAttachmentQualityMetaSchema.parse(response.data) as VideoAttachmentQualityMeta;
   },
 
   getAttachmentFileUrl(this: ApiClient, attachmentId) {

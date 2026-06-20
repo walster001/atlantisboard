@@ -12,6 +12,21 @@ import { BUCKET_NAME, buildAttachmentProxyUrl } from './minioPaths.js';
 import type { AttachmentObjectMeta, AttachmentStreamUrlResponse } from './types.js';
 
 /**
+ * Presigned GET via internal MinIO endpoint — for server-side ffmpeg/ffprobe only.
+ */
+export async function mintAttachmentInternalReadUrl(
+  objectName: string,
+  ttlSec: number,
+): Promise<{ readonly url: string; readonly expiresAt: string }> {
+  const client = getMinIOClient();
+  const url = await client.presignedGetObject(BUCKET_NAME, objectName, ttlSec);
+  return {
+    url,
+    expiresAt: new Date(Date.now() + ttlSec * 1000).toISOString(),
+  };
+}
+
+/**
  * Mint a short-lived presigned GET URL (browser uses MinIO host from MINIO_PUBLIC_* or /cdn proxy).
  */
 export async function mintAttachmentReadUrl(

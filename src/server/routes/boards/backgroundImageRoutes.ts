@@ -58,7 +58,7 @@ export function registerBackgroundImageRoutes(router: Router): void {
 
         const previousThemeSettings = await hydrateBoardThemeSettings(
           boardDoc.themeSettings,
-          authReq.user.id,
+          boardDoc.ownerId.toString(),
         );
         const previousImageUrl =
           previousThemeSettings.backgroundMode === 'image'
@@ -75,7 +75,7 @@ export function registerBackgroundImageRoutes(router: Router): void {
         );
         const nextThemeSettings = await hydrateBoardThemeSettings(
           boardDoc.themeSettings,
-          authReq.user.id,
+          boardDoc.ownerId.toString(),
         );
         const scaleInput = typeof req.body.backgroundImageScale === 'string' ? req.body.backgroundImageScale : '';
         const focalXInput =
@@ -164,7 +164,7 @@ export function registerBackgroundImageRoutes(router: Router): void {
 
       const nextThemeSettings = await hydrateBoardThemeSettings(
         boardDoc.themeSettings,
-        authReq.user.id,
+        boardDoc.ownerId.toString(),
       );
       const existingImageUrl =
         nextThemeSettings.backgroundMode === 'image'

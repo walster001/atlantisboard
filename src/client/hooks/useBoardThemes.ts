@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { BoardThemeDefinition } from '../../shared/boardTheme.js';
 import { buildBoardThemeCatalog, type BoardThemeCatalog } from '../../shared/boardThemeCatalog.js';
 import { SYSTEM_BOARD_THEME_SEEDS } from '../../shared/boardThemeSeedData.js';
+import { setClientCustomBoardThemes } from '../utils/boardThemeClientNormalize.js';
 import { api } from '../utils/api.js';
 
 interface UseBoardThemesResult {
@@ -44,10 +45,12 @@ export function useBoardThemes(): UseBoardThemesResult {
             customThemes: response.customThemes,
           }),
         );
+        setClientCustomBoardThemes(response.customThemes);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load themes');
           setCatalog(fallbackCatalog());
+          setClientCustomBoardThemes([]);
         }
       } finally {
         if (!cancelled) {

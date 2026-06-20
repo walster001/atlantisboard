@@ -19,7 +19,7 @@ import {
   type BoardThemeSettings,
 } from '../../../shared/boardTheme.js';
 import type { UpdateBoardInput } from './types.js';
-import { emitBoardUpdatedRealtime, emitWorkspaceTransitionsOnBoardMove } from './shared.js';
+import { emitBoardPatchedOnly, emitBoardUpdatedRealtime, emitWorkspaceTransitionsOnBoardMove } from './shared.js';
 import {
   ForbiddenError,
   NotFoundError,
@@ -57,7 +57,10 @@ export async function updateBoard(
     }
     if (input.themeSettings !== undefined) {
       const catalog = await loadThemeCatalogForContext(userId);
-      const previousThemeSettings = await hydrateBoardThemeSettings(board.themeSettings, userId);
+      const previousThemeSettings = await hydrateBoardThemeSettings(
+        board.themeSettings,
+        board.ownerId.toString(),
+      );
       const nextNormalized = normalizeBoardThemeSettings(input.themeSettings, previousThemeSettings, catalog);
       const previousCustomIds = new Set(previousThemeSettings.customThemes.map((t) => t.id));
       const nextCustomIds = new Set(nextNormalized.customThemes.map((t) => t.id));
@@ -250,23 +253,28 @@ export async function updateBoard(
 
   const hydratedThemeSettings =
     input.themeSettings !== undefined
-      ? await hydrateBoardThemeSettings(board.themeSettings, userId)
+      ? await hydrateBoardThemeSettings(board.themeSettings, board.ownerId.toString())
       : undefined;
 
-  emitBoardUpdatedRealtime(board, undefined, {
-    changedFields: {
-      ...(input.workspaceId !== undefined
-        ? { workspaceId: board.workspaceId?.toString() ?? null, position: board.position }
-        : {}),
-      ...(input.name !== undefined ? { name: board.name } : {}),
-      ...(input.description !== undefined ? { description: board.description } : {}),
-      ...(input.background !== undefined ? { background: board.background } : {}),
-      ...(hydratedThemeSettings !== undefined ? { themeSettings: hydratedThemeSettings } : {}),
-      ...(input.visibility !== undefined ? { visibility: board.visibility } : {}),
-      ...(input.settings !== undefined ? { settings: board.settings } : {}),
-      updatedAt: board.updatedAt,
-    },
-  });
+  const changedFields: Record<string, unknown> = {
+    ...(input.workspaceId !== undefined
+      ? { workspaceId: board.workspaceId?.toString() ?? null, position: board.position }
+      : {}),
+    ...(input.name !== undefined ? { name: board.name } : {}),
+    ...(input.description !== undefined ? { description: board.description } : {}),
+    ...(input.background !== undefined ? { background: board.background } : {}),
+    ...(hydratedThemeSettings !== undefined ? { themeSettings: hydratedThemeSettings } : {}),
+    ...(input.visibility !== undefined ? { visibility: board.visibility } : {}),
+    ...(input.settings !== undefined ? { settings: board.settings } : {}),
+    updatedAt: board.updatedAt,
+  };
+
+  if (hasThemeMutation) {
+    await hydrateBoardDocumentForUser(board, userId);
+    emitBoardUpdatedRealtime(board, undefined, { changedFields });
+  } else {
+    emitBoardPatchedOnly(board, changedFields);
+  }
 
   return hydrateBoardDocumentForUser(board, userId);
 }

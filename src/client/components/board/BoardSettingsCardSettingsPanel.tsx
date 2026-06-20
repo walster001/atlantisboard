@@ -126,7 +126,9 @@ function BoardSettingsCardSettingsPanelContent({
           showCardDescriptionPreview: settings.showCardDescriptionPreview,
         },
       });
-      const next = transformBoard(response.board);
+      const next = transformBoard(response.board, {
+        ...(board?.themeSettings !== undefined ? { prevThemeSettings: board.themeSettings } : {}),
+      });
       await db.boards.put(next);
       setBoard(next);
       onSettingsLivePatch?.({

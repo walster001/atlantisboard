@@ -35,6 +35,32 @@ import {
   mintPresignedAttachmentRedirectUrl,
   shouldPresignRedirectAttachmentStream,
 } from '../services/attachmentService/streamDelivery.js';
+import {
+  ensureVideoSourceHeightOnAttachment,
+  resolveVideoQualityMeta,
+} from '../services/attachmentService/videoMeta.js';
+import {
+  isVideoAbrJobQueued,
+  scheduleVideoAbrPackaging,
+} from '../services/attachmentService/videoAbrTranscode.js';
+import {
+  isVideoPosterCacheJobQueued,
+  scheduleVideoPosterCache,
+} from '../services/attachmentService/videoPosterCache.js';
+import {
+  defaultVideoAbrManifestPath,
+  videoAbrObjectContentType,
+  type VideoAbrFormat,
+} from '../../shared/videoStreaming.js';
+import {
+  videoAbrObjectKey,
+} from '../services/attachmentService/videoAbrPaths.js';
+import {
+  rewriteDashManifestForProxy,
+  rewriteHlsPlaylistForProxy,
+} from '../services/attachmentService/videoAbrManifest.js';
+import { isVideoAttachmentContentType } from '../config/attachmentDelivery.js';
+import { invalidateAttachmentLocationCache } from '../services/attachmentCache.js';
 import { pipeReadableToServerResponse } from '../utils/pipeReadableToServerResponse.js';
 import type { Readable } from 'node:stream';
 import { createUploadDiskHeadroomGuard } from '../middleware/uploadDiskHeadroom.js';
@@ -320,6 +346,196 @@ function sendAttachmentAccessFailure(
   });
 }
 
+async function persistVideoSourceHeightIfProbed(args: {
+  readonly attachmentId: string;
+  readonly attachment: Pick<import('../models/Card.js').ICardAttachment, 'videoSourceHeight' | 'url'>;
+  readonly objectName: string;
+}): Promise<number | null> {
+  const probed = await ensureVideoSourceHeightOnAttachment({
+    attachment: args.attachment,
+    objectName: args.objectName,
+  });
+  if (
+    probed != null &&
+    (args.attachment.videoSourceHeight == null || args.attachment.videoSourceHeight !== probed)
+  ) {
+    await Card.updateOne(
+      { 'attachments.id': args.attachmentId },
+      { $set: { 'attachments.$.videoSourceHeight': probed } },
+    );
+    await invalidateAttachmentLocationCache(args.attachmentId);
+  }
+  return probed ?? args.attachment.videoSourceHeight ?? null;
+}
+
+/**
+ * Video quality metadata for the card-description player.
+ * GET /api/v1/attachments/:attachmentId/video-meta
+ */
+router.get(
+  '/attachments/:attachmentId/video-meta',
+  attachmentUrlMintRateLimiter,
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const { attachmentId } = req.params;
+
+      const resolved = await resolveAttachmentForUser(attachmentId, authReq.user);
+      if ('status' in resolved) {
+        sendAttachmentAccessFailure(res, resolved);
+        return;
+      }
+
+      if (!isVideoAttachmentContentType(resolved.objectMeta.contentType)) {
+        res.status(404).json({
+          error: {
+            message: 'Attachment is not a video',
+            code: 'NOT_FOUND',
+            statusCode: 404,
+          },
+        });
+        return;
+      }
+
+      const sourceHeight = await persistVideoSourceHeightIfProbed({
+        attachmentId,
+        attachment: resolved.attachment,
+        objectName: resolved.objectMeta.objectName,
+      });
+
+      const effectiveHeight = sourceHeight ?? resolved.attachment.videoSourceHeight ?? null;
+      if (!isVideoPosterCacheJobQueued(resolved.objectMeta.objectName)) {
+        scheduleVideoPosterCache({
+          objectName: resolved.objectMeta.objectName,
+          contentType: resolved.objectMeta.contentType,
+        });
+      }
+      if (!isVideoAbrJobQueued(resolved.objectMeta.objectName)) {
+        scheduleVideoAbrPackaging({
+          attachmentId,
+          objectName: resolved.objectMeta.objectName,
+        });
+      }
+
+      const meta = await resolveVideoQualityMeta({
+        attachmentId,
+        attachment: resolved.attachment,
+        objectName: resolved.objectMeta.objectName,
+        sourceHeight: effectiveHeight,
+      });
+
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      res.json(meta);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * Authenticated ABR manifest/segment proxy (HLS m3u8/ts, DASH mpd/m4s).
+ * GET /api/v1/attachments/:attachmentId/stream/:format?path=hls/master.m3u8
+ */
+router.get(
+  '/attachments/:attachmentId/stream/:format',
+  attachmentStreamRateLimiter,
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const { attachmentId, format: formatRaw } = req.params;
+      const format = formatRaw === 'hls' || formatRaw === 'dash' ? formatRaw : null;
+      if (format == null) {
+        res.status(400).json({
+          error: {
+            message: 'Invalid stream format',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+
+      const pathRaw = typeof req.query.path === 'string' ? req.query.path.trim() : '';
+      const relativePath = pathRaw !== '' ? pathRaw : defaultVideoAbrManifestPath(format as VideoAbrFormat);
+      if (relativePath.includes('..')) {
+        res.status(400).json({
+          error: {
+            message: 'Invalid stream path',
+            code: 'VALIDATION_ERROR',
+            statusCode: 400,
+          },
+        });
+        return;
+      }
+
+      const resolved = await resolveAttachmentForUser(attachmentId, authReq.user);
+      if ('status' in resolved) {
+        sendAttachmentAccessFailure(res, resolved);
+        return;
+      }
+
+      if (!isVideoAttachmentContentType(resolved.objectMeta.contentType)) {
+        res.status(404).json({
+          error: {
+            message: 'Attachment is not a video',
+            code: 'NOT_FOUND',
+            statusCode: 404,
+          },
+        });
+        return;
+      }
+
+      const objectKey = videoAbrObjectKey(resolved.objectMeta.objectName, relativePath);
+      let stream: NodeJS.ReadableStream;
+      try {
+        stream = await openAttachmentReadStream(objectKey, null);
+      } catch (error: unknown) {
+        const code = error != null && typeof error === 'object' ? (error as { code?: string }).code : undefined;
+        if (code === 'NotFound' || code === 'NoSuchKey') {
+          res.status(404).json({
+            error: {
+              message: 'ABR stream object not found',
+              code: 'NOT_FOUND',
+              statusCode: 404,
+            },
+          });
+          return;
+        }
+        throw error;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(
+          Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as unknown as Uint8Array),
+        );
+      }
+      const body = Buffer.concat(chunks);
+      const contentType = videoAbrObjectContentType(relativePath);
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.setHeader('Content-Type', contentType);
+
+      if (format === 'hls' && relativePath.endsWith('.m3u8')) {
+        const rewritten = rewriteHlsPlaylistForProxy(body.toString('utf8'), attachmentId, relativePath);
+        res.setHeader('Content-Length', String(Buffer.byteLength(rewritten, 'utf8')));
+        res.status(200).send(rewritten);
+        return;
+      }
+
+      if (format === 'dash' && relativePath.endsWith('.mpd')) {
+        const rewritten = rewriteDashManifestForProxy(body.toString('utf8'), attachmentId);
+        res.setHeader('Content-Length', String(Buffer.byteLength(rewritten, 'utf8')));
+        res.status(200).send(rewritten);
+        return;
+      }
+
+      res.setHeader('Content-Length', String(body.length));
+      res.status(200).send(body);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 /**
  * Mint stream URL (presigned MinIO or API proxy fallback)
  * GET /api/v1/attachments/:attachmentId/url
@@ -408,7 +624,7 @@ async function streamAttachmentFileHandler(req: import('express').Request, res: 
 
       if (posterPreview != null) {
         res.setHeader('Accept-Ranges', 'none');
-        res.setHeader('Cache-Control', 'private, max-age=86400');
+        res.setHeader('Cache-Control', 'private, max-age=604800, immutable');
         res.setHeader('Content-Type', posterPreview.contentType);
         res.setHeader('Content-Length', String(posterPreview.buffer.length));
         res.status(200).send(posterPreview.buffer);

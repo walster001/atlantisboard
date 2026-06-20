@@ -1,7 +1,6 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
 import type { AttachmentScanStatus } from '../../shared/attachmentScanStatus.js';
 import { CARD_ATTACHMENT_ORIGINAL_NAME_MAX_LENGTH, CARD_TITLE_MAX_LENGTH } from '../../shared/constants/entityTextLimits.js';
-
 export interface ICardLabel {
   id: string;
   name: string;
@@ -28,6 +27,8 @@ export interface ICardAttachment {
   isPlaceholder?: boolean;
   /** Post-upload malware scan state; omitted on legacy rows (treated as clean). */
   scanStatus?: AttachmentScanStatus;
+  /** Native pixel height from ffprobe; used for quality UI caps. */
+  videoSourceHeight?: number;
   type: string;
   size: number;
   uploadedAt: Date;
@@ -139,6 +140,7 @@ const CardAttachmentSchema = new Schema<ICardAttachment>(
       type: String,
       enum: ['pending', 'clean', 'infected', 'failed', 'skipped'],
     },
+    videoSourceHeight: Number,
     type: { type: String, required: true },
     size: { type: Number, required: true },
     uploadedAt: { type: Date, default: Date.now },

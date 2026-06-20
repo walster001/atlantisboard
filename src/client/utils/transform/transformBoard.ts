@@ -1,6 +1,6 @@
 import type { BoardDB } from '../../store/database.js';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
-import { createDefaultBoardThemeSettings, normalizeBoardThemeSettings } from '../../../shared/boardTheme.js';
+import { normalizeBoardThemeSettingsForClient } from '../boardThemeClientNormalize.js';
 import {
   boardShowsDueDateOnCards,
   boardShowsEndDateOnCards,
@@ -8,7 +8,10 @@ import {
   boardShowsStartDateOnCards,
 } from '../../../shared/utils/boardCardDateVisibility.js';
 
-export function transformBoard(board: unknown): BoardDB {
+export function transformBoard(
+  board: unknown,
+  options?: { readonly prevThemeSettings?: BoardThemeSettings },
+): BoardDB {
   const b = board as {
     _id?: string | { toString: () => string };
     id?: string;
@@ -58,7 +61,7 @@ export function transformBoard(board: unknown): BoardDB {
   const position = typeof b.position === 'number' && !Number.isNaN(b.position) ? b.position : 0;
   const normalizedThemeSettings =
     b.themeSettings !== undefined
-      ? normalizeBoardThemeSettings(b.themeSettings, createDefaultBoardThemeSettings())
+      ? normalizeBoardThemeSettingsForClient(id, b.themeSettings, options?.prevThemeSettings)
       : undefined;
 
   let ownerId = '';

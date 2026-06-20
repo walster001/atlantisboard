@@ -4,21 +4,22 @@ import {
   BOARD_SCROLLBAR_TRACK_TRANSPARENT_HEXA,
   boardThemePrefersNavbarLightForeground,
   createDefaultBoardThemeSettings,
-  normalizeBoardThemeSettings,
   resolveBoardBackgroundFromThemeSettings,
   type BoardThemePalette,
   type BoardThemeSettings,
 } from '../../shared/boardTheme.js';
+import {
+  getRememberedBoardThemeSettings,
+  normalizeBoardThemeSettingsForClient,
+} from './boardThemeClientNormalize.js';
 
 const RGB_CACHE = new Map<string, { r: number; g: number; b: number } | null>();
 const LUMINANCE_CACHE = new Map<string, number>();
 const SMART_TEXT_CACHE = new Map<string, string>();
 const BOARD_THEME_STYLE_CACHE = new Map<string, CSSProperties>();
-const LAST_HYDRATED_SETTINGS = new Map<string, BoardThemeSettings>();
 
 const BOARD_THEME_STYLE_CACHE_MAX = 128;
 const COLOR_CACHE_MAX = 512;
-const LAST_HYDRATED_MAX = 64;
 
 const PALETTE_SIGNATURE_KEYS: ReadonlyArray<keyof BoardThemePalette> = [
   'navbarBg',
@@ -167,14 +168,10 @@ function effectiveThemeSettings(board: BoardDB): BoardThemeSettings {
     return createDefaultBoardThemeSettings();
   }
   const boardId = board.id;
-  if (raw.selectedTheme?.palette != null) {
-    if (boardId != null) {
-      setCacheValue(LAST_HYDRATED_SETTINGS, boardId, raw, LAST_HYDRATED_MAX);
-    }
-    return raw;
+  if (boardId != null && boardId.trim() !== '') {
+    return normalizeBoardThemeSettingsForClient(boardId, raw, getRememberedBoardThemeSettings(boardId));
   }
-  const prev = boardId != null ? LAST_HYDRATED_SETTINGS.get(boardId) : undefined;
-  return normalizeBoardThemeSettings(raw, prev);
+  return normalizeBoardThemeSettingsForClient('', raw);
 }
 
 function boardThemeStyleSignature(

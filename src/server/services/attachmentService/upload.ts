@@ -11,7 +11,10 @@ import crypto from 'crypto';
 import { shouldSkipMalwareScan } from '../../utils/clamSignatures.js';
 import { initialAttachmentScanStatus } from '../../../shared/attachmentScanStatus.js';
 import { isBlockedSvgUpload } from '../../../shared/utils/sanitizeHtml.js';
+import { isVideoAttachmentContentType } from '../../config/attachmentDelivery.js';
 import { scheduleAttachmentMalwareScan } from './malwareScan.js';
+import { scheduleVideoAbrPackaging } from './videoAbrTranscode.js';
+import { scheduleVideoPosterCache } from './videoPosterCache.js';
 import {
   BUCKET_NAME,
   buildAttachmentProxyUrl,
@@ -161,6 +164,14 @@ export async function uploadCardAttachment(
     await card.save();
 
     emitCardUpdatedRealtime(card);
+
+    if (
+      isVideoAttachmentContentType(normalizedMime) &&
+      scanStatus === 'skipped'
+    ) {
+      scheduleVideoPosterCache({ objectName, contentType: normalizedMime });
+      scheduleVideoAbrPackaging({ attachmentId: fileId, objectName });
+    }
 
     if (!decorationOnly) {
       scheduleAttachmentMalwareScan({

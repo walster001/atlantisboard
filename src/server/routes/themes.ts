@@ -1,7 +1,6 @@
 import { Router, type RequestHandler } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimiter } from '../middleware/rateLimit.js';
-import type { AuthenticatedRequest } from '../types/express.js';
 import { loadThemeCatalogForContext } from '../services/boardThemeService.js';
 
 const router = Router();
@@ -9,10 +8,9 @@ const router = Router();
 router.use(requireAuth as RequestHandler);
 router.use(apiRateLimiter);
 
-router.get('/', async (req, res, next) => {
+router.get('/', async (_req, res, next) => {
   try {
-    const authReq = req as AuthenticatedRequest;
-    const catalog = await loadThemeCatalogForContext(authReq.user.id);
+    const catalog = await loadThemeCatalogForContext();
     res.json({
       systemThemes: catalog.systemThemes,
       customThemes: catalog.customThemes,

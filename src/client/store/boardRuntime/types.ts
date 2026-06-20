@@ -57,6 +57,34 @@ export function rebuildCardIdsForList(
     .map((c) => c.id);
 }
 
+/**
+ * Content-only card saves and socket payloads often carry stale integer `position` or omit
+ * fractional `pos` (defaulting to spreadPosForIndex(position)). Preserve runtime placement when
+ * the incoming row would reorder within the same list without a list move.
+ */
+export function resolveCardPlacementForUpsert(prev: CardDB, incoming: CardDB): CardDB {
+  if (prev.listId !== incoming.listId) {
+    return incoming;
+  }
+  const prevPos = typeof prev.pos === 'number' && Number.isFinite(prev.pos) ? prev.pos : undefined;
+  if (prevPos == null) {
+    return incoming;
+  }
+  const incomingPos =
+    typeof incoming.pos === 'number' && Number.isFinite(incoming.pos) ? incoming.pos : undefined;
+  if (incomingPos == null) {
+    return { ...incoming, position: prev.position, pos: prevPos };
+  }
+  if (incoming.position === prev.position) {
+    return incoming;
+  }
+  const spreadFromIncomingPosition = spreadPosForIndex(incoming.position);
+  if (incomingPos === spreadFromIncomingPosition && incomingPos !== prevPos) {
+    return { ...incoming, position: prev.position, pos: prevPos };
+  }
+  return incoming;
+}
+
 export function rebuildAllCardIdsByList(
   orderedListIds: readonly string[],
   cardsById: Readonly<Record<string, CardDB>>,

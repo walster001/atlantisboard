@@ -43,6 +43,7 @@ function clonedStorageAttachmentRow(
     ...(typeof att.originalFileName === 'string' && att.originalFileName.trim() !== ''
       ? { originalFileName: att.originalFileName }
       : {}),
+    ...(att.videoSourceHeight != null ? { videoSourceHeight: att.videoSourceHeight } : {}),
     type: att.type,
     size: att.size,
     uploadedAt: new Date(),

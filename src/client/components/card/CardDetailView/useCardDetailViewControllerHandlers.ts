@@ -98,8 +98,12 @@ export function useCardDetailViewControllerHandlers({
   );
 
   const handleCancelDescriptionEdit = useCallback(() => {
-    discardPendingDescriptionMedia(pendingDescriptionMediaRef.current);
+    const pendingMedia = pendingDescriptionMediaRef.current;
     setIsEditingDescription(false);
+    // ponytail: defer revoke until editor unmounts so video/img nodes stop referencing blob URLs first.
+    requestAnimationFrame(() => {
+      discardPendingDescriptionMedia(pendingMedia);
+    });
   }, [pendingDescriptionMediaRef, setIsEditingDescription]);
 
   const handleUpdateDescription = useCallback(async () => {

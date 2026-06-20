@@ -159,6 +159,48 @@ describe('boardRuntimeStore', () => {
     expect(ids.indexOf('c4')).toBe(8);
   });
 
+  it('upsertCard keeps kanban index when socket payload has stale position 0 without pos', () => {
+    const l1 = sampleList('l1', 0);
+    const cards: CardDB[] = [
+      { ...sampleCard('c0', 'l1', 0), pos: 1000 },
+      { ...sampleCard('c1', 'l1', 1), pos: 2000 },
+      { ...sampleCard('c2', 'l1', 2), pos: 3000 },
+      { ...sampleCard('c3', 'l1', 3), pos: 4000 },
+      { ...sampleCard('c4', 'l1', 4), pos: 5000 },
+      { ...sampleCard('c5', 'l1', 5), pos: 6000 },
+      { ...sampleCard('c6', 'l1', 6), pos: 7000 },
+      { ...sampleCard('c7', 'l1', 7), pos: 8000 },
+      { ...sampleCard('c8', 'l1', 8), pos: 9000 },
+    ];
+    useBoardRuntimeStore.getState().hydrateFromSnapshot({
+      boardId: 'b1',
+      board: sampleBoard(),
+      lists: [l1],
+      cardsByList: new Map([['l1', cards]]),
+    });
+    useBoardRuntimeStore.getState().applyCardsReorderedInList('l1', [
+      'c0',
+      'c1',
+      'c2',
+      'c3',
+      'c5',
+      'c6',
+      'c7',
+      'c8',
+      'c4',
+    ]);
+    const runtimeC4 = useBoardRuntimeStore.getState().cardsById.c4!;
+    const socketPayload: CardDB = {
+      ...runtimeC4,
+      description: '{"type":"doc","content":[]}',
+      position: 0,
+    };
+    delete socketPayload.pos;
+    useBoardRuntimeStore.getState().upsertCard(socketPayload);
+    const ids = useBoardRuntimeStore.getState().cardIdsByListId.l1 ?? [];
+    expect(ids.indexOf('c4')).toBe(8);
+  });
+
   it('applyKanbanCardsMapPartial retains moved card when destination list is ordered before source', () => {
     const l1 = sampleList('l1', 0);
     const l2 = sampleList('l2', 1);

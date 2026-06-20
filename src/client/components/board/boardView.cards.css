@@ -66,6 +66,17 @@
   min-width: 0;
 }
 
+/* Drag source stays mounted for pragmatic-dnd — ignore hit tests so dropEffect stays move. */
+.board-card--kanban-drag-source,
+.board-card--kanban-drag-source * {
+  pointer-events: none !important;
+}
+
+/* Let native dropEffect drive the cursor during card drag (not CSS pointer on card bodies). */
+.board-page--kanban-dragging .board-card__kanban-body {
+  cursor: inherit;
+}
+
 .board-card__kanban-body--touch-armed {
   transform: translateY(-2px) scale(1.015);
   transition: transform 0.12s ease;

@@ -246,6 +246,7 @@ function VirtualizedCardListInner({
               overflow: 'hidden',
               margin: 0,
               padding: 0,
+              pointerEvents: 'none',
             }}
             aria-hidden
           >

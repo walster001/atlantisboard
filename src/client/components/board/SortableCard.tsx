@@ -20,8 +20,9 @@ import {
   useRichContentWhenNearViewport,
 } from './sortableCardHelpers.js';
 import { TwemojiPlainText } from '../common/TwemojiPlainText.js';
-import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
-import { PDND_KANBAN_CARD } from '../../dnd/pragmatic/kanbanData.js';
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { PDND_KANBAN_CARD, readKanbanCardDragData } from '../../dnd/pragmatic/kanbanData.js';
 import { KanbanAssigneeRow, KanbanDateBadgesRow, KanbanLabelRow } from './SortableCardMetaRows.js';
 import { useKanbanTouchDragArm } from './useKanbanTouchDragArm.js';
 import { useSortableCardDescriptionPreview } from './sortableCardDescriptionPreview.js';
@@ -147,28 +148,45 @@ function SortableCardInner({
     if (node == null || !kanbanCardBodyDraggable || isDragSource) {
       return undefined;
     }
-    const cleanup = draggable({
-      element: node,
-      canDrag: touchArm.canDragForNative,
-      getInitialData: () =>
-        ({
-          pdnd: PDND_KANBAN_CARD,
-          kind: 'kanban-card',
-          cardId: card.id,
-          listId,
-        }) as const,
-      onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
-        touchArm.clearLongPressState();
-        markKanbanCardDragPreviewReady();
-        setDragPreviewReady(true);
-        bindKanbanCardDragPreview({
-          nativeSetDragImage,
-          cardRoot: node,
-          card,
-          location,
-        });
-      },
-    });
+    const cleanup = combine(
+      draggable({
+        element: node,
+        canDrag: touchArm.canDragForNative,
+        getInitialData: () =>
+          ({
+            pdnd: PDND_KANBAN_CARD,
+            kind: 'kanban-card',
+            cardId: card.id,
+            listId,
+          }) as const,
+        onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
+          touchArm.clearLongPressState();
+          markKanbanCardDragPreviewReady();
+          setDragPreviewReady(true);
+          bindKanbanCardDragPreview({
+            nativeSetDragImage,
+            cardRoot: node,
+            card,
+            location,
+          });
+        },
+      }),
+      // Innermost drop target while hovering card rows — list-body-only targets miss the pointer
+      // over sibling cards and the browser flickers copy vs move dropEffect.
+      dropTargetForElements({
+        element: node,
+        canDrop: ({ source }) => readKanbanCardDragData(source.data as Record<string, unknown>) != null,
+        getDropEffect: () => 'move',
+        getIsSticky: () => true,
+        getData: () =>
+          ({
+            pdnd: PDND_KANBAN_CARD,
+            kind: 'kanban-card-row',
+            cardId: card.id,
+            listId,
+          }) as const,
+      }),
+    );
     return () => {
       // Virtuoso opacity-hide during drag — teardown breaks pragmatic-dnd mid-gesture.
       if (isDragSourceRef.current) {
@@ -199,7 +217,7 @@ function SortableCardInner({
         card.color && card.color.trim().length > 0 ? ' board-card--kanban-colored' : ''
       }${hasCover ? ' board-card--has-cover' : ''}${
         showKanbanCardMenu ? '' : ' board-card--kanban--no-card-menu'
-      }`}
+      }${isDragSource ? ' board-card--kanban-drag-source' : ''}`}
       data-kanban-list-id={listId}
       data-kanban-card-id={card.id}
       padding={0}

@@ -143,7 +143,7 @@ export function useCardDescriptionAudioNodeViewLayout({
     setLiveWidthPx(fromDoc.widthPx);
     setLiveHeightPx(fromDoc.heightPx);
     pendingLayoutRef.current = fromDoc;
-  }, [node.attrs.containerStyle, node.attrs.height, node.attrs.width, node.attrs.src]);
+  }, [node.attrs]);
 
   useEffect(() => {
     const storage = editor.storage.audio;

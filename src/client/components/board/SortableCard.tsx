@@ -107,6 +107,7 @@ function SortableCardInner({
     [kanbanCardTouchDragRequiresLongPress],
   );
   const touchArm = useKanbanTouchDragArm(kanbanCardBodyDraggable, touchArmOptions);
+  const { canDragForNative, clearLongPressState } = touchArm;
   const [dragPreviewReady, setDragPreviewReady] = useState(false);
   const {
     hasDescription,
@@ -173,7 +174,7 @@ function SortableCardInner({
     const cleanup = combine(
       draggable({
         element: node,
-        canDrag: touchArm.canDragForNative,
+        canDrag: canDragForNative,
         getInitialData: () =>
           ({
             pdnd: PDND_KANBAN_CARD,
@@ -182,7 +183,7 @@ function SortableCardInner({
             listId,
           }) as const,
         onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
-          touchArm.clearLongPressState();
+          clearLongPressState();
           markKanbanCardDragPreviewReady();
           setDragPreviewReady(true);
           bindKanbanCardDragPreview({
@@ -217,7 +218,7 @@ function SortableCardInner({
       }
       cleanup();
     };
-  }, [card, listId, kanbanCardBodyDraggable, isDragSource, touchArm.canDragForNative, touchArm.clearLongPressState]);
+  }, [canDragForNative, card, clearLongPressState, isDragSource, kanbanCardBodyDraggable, listId]);
 
   const coverRenderUrl = useMemo(
     () => resolveCardCoverRenderUrl(card),

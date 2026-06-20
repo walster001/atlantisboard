@@ -230,7 +230,7 @@ export function useCardDescriptionVideoAbrEngine(args: {
       engineRef.current?.detach();
       engineRef.current = null;
     };
-  }, [enabled, streaming?.dashManifestUrl, streaming?.hlsManifestUrl, streaming?.ready, usesAdaptiveStreaming]);
+  }, [enabled, streaming, usesAdaptiveStreaming]);
 
   const attach = useCallback((video: HTMLVideoElement): void => {
     if (engineRef.current != null) {

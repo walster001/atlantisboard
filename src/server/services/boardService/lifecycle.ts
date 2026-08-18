@@ -23,9 +23,15 @@ import {
 } from '../../../shared/boardTheme.js';
 import type { CreateBoardInput } from './types.js';
 import {
+  BadRequestError,
   ForbiddenError,
   NotFoundError,
 } from '../../../shared/errors/domainErrors.js';
+import {
+  DEFAULT_BOARD_TYPE,
+  STEP_GUIDE_NOT_IMPLEMENTED_MESSAGE,
+  VISUAL_STORYTELLING_NOT_IMPLEMENTED_MESSAGE,
+} from '../../../shared/constants/boardType.js';
 import {
   emitBoardCreatedRealtime,
   ensureLegacyBoardPositions,
@@ -36,6 +42,13 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
 
   if (!(await hasPermission(input.ownerId, input.workspaceId, 'boards.create', 'workspace'))) {
     throw new ForbiddenError('Insufficient permissions to create a board in this workspace');
+  }
+
+  if (input.boardType === 'visual-storytelling') {
+    throw new BadRequestError(VISUAL_STORYTELLING_NOT_IMPLEMENTED_MESSAGE);
+  }
+  if (input.boardType === 'step-guide') {
+    throw new BadRequestError(STEP_GUIDE_NOT_IMPLEMENTED_MESSAGE);
   }
 
   const workspace = await Workspace.findById(input.workspaceId);
@@ -64,6 +77,7 @@ export async function createBoard(input: CreateBoardInput): Promise<Document & I
     background: undefined,
     themeSettings: undefined,
     visibility: input.visibility || 'private',
+    boardType: input.boardType ?? DEFAULT_BOARD_TYPE,
     ownerId: input.ownerId,
     members: [],
     settings: {

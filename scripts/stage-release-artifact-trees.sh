@@ -26,6 +26,11 @@ mkdir -p "$INSTALLER_STAGE" "$RUNTIME_STAGE"
 
 echo "==> Staging installer tree (Whiptail package contents at artifact root)"
 cp -a "${PKG_DIR}/." "$INSTALLER_STAGE/"
+mkdir -p "$INSTALLER_STAGE/deploy"
+cp -a "${PROJECT_ROOT}/deploy/nginx" "$INSTALLER_STAGE/deploy/nginx"
+mkdir -p "$INSTALLER_STAGE/scripts"
+cp -a "${PROJECT_ROOT}/scripts/apply-nginx-config-update.sh" \
+  "$INSTALLER_STAGE/scripts/apply-nginx-config-update.sh"
 
 echo "==> Staging runtime tree (slim manual install at artifact root)"
 cp -a dist public package.json bun.lock README.md DEPLOYMENT.md "$RUNTIME_STAGE/"

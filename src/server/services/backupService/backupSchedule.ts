@@ -12,10 +12,13 @@ import {
   isScheduledBackupFolderId,
 } from '../../../shared/utils/backupFolderNaming.js';
 import { BadRequestError, NotFoundError } from '../../../shared/errors/domainErrors.js';
+import type { AdminBackupScope } from '../../../shared/constants/backupScope.js';
+import type { MinioBucketName } from '../../../shared/constants/minioBuckets.js';
 import { BackupJob } from '../../models/BackupJob.js';
 import { getAdminConfig } from '../adminService.js';
 import { requireBackupLocationFromEnv } from '../backupLocationEnv.js';
 import { normalizeFilename, normalizeLocationPath } from './backupShared.js';
+import { resolveBackupJobScope } from './backupScope.js';
 import { startBackupJobImpl } from './jobService.js';
 
 /** ponytail: schedule rows use far-future TTL so cron cleanup does not drop definitions. */
@@ -72,12 +75,23 @@ export async function createBackupScheduleImpl(params: {
   readonly intervalAmount: number;
   readonly intervalUnit: BackupScheduleUnit;
   readonly lastScheduledRunAt?: Date | undefined;
+  readonly backupScope?: AdminBackupScope | undefined;
+  readonly minioPrefixes?: readonly MinioBucketName[] | undefined;
 }): Promise<{ folderId: string; jobId: string }> {
   const location = requireBackupLocationFromEnv();
   const userOid = new mongoose.Types.ObjectId(params.userId);
   const jobId = new mongoose.Types.ObjectId();
   const folderId = buildScheduleFolderId(String(jobId));
   const intervalAmount = clampBackupScheduleAmount(params.intervalAmount, params.intervalUnit);
+  const scopeFields =
+    params.backupScope != null
+      ? {
+          backupScope: params.backupScope,
+          ...(params.minioPrefixes != null && params.minioPrefixes.length > 0
+            ? { minioPrefixes: [...params.minioPrefixes] }
+            : {}),
+        }
+      : {};
   const doc = await BackupJob.create({
     _id: jobId,
     userId: userOid,
@@ -101,6 +115,7 @@ export async function createBackupScheduleImpl(params: {
     scheduleIntervalUnit: params.intervalUnit,
     completedAt: new Date(),
     ...(params.lastScheduledRunAt != null ? { lastScheduledRunAt: params.lastScheduledRunAt } : {}),
+    ...scopeFields,
     expiresAt: SCHEDULE_EXPIRES_AT,
   });
   return { folderId, jobId: String(doc._id) };
@@ -111,6 +126,8 @@ export async function updateBackupScheduleImpl(params: {
   readonly filename?: string | undefined;
   readonly intervalAmount?: number | undefined;
   readonly intervalUnit?: BackupScheduleUnit | undefined;
+  readonly backupScope?: AdminBackupScope | undefined;
+  readonly minioPrefixes?: readonly MinioBucketName[] | undefined;
 }): Promise<void> {
   if (!isScheduledBackupFolderId(params.folderId)) {
     throw new BadRequestError('Not a scheduled backup definition');
@@ -128,6 +145,15 @@ export async function updateBackupScheduleImpl(params: {
   if (params.intervalAmount != null && params.intervalUnit != null) {
     job.scheduleIntervalAmount = clampBackupScheduleAmount(params.intervalAmount, params.intervalUnit);
     job.scheduleIntervalUnit = params.intervalUnit;
+  }
+  if (params.backupScope != null) {
+    job.backupScope = params.backupScope;
+    if (params.backupScope === 'database') {
+      job.set('minioPrefixes', undefined);
+    }
+  }
+  if (params.minioPrefixes != null) {
+    job.minioPrefixes = [...params.minioPrefixes];
   }
   await job.save();
 }
@@ -163,11 +189,16 @@ export async function runScheduledBackupsIfDue(): Promise<void> {
     if (!isBackupScheduleDue({ lastRunAtMs, createdAtMs, intervalMs, nowMs })) {
       continue;
     }
+    const resolvedScope = resolveBackupJobScope(schedule);
     const { reusedExisting } = await startBackupJobImpl({
       userId: String(schedule.userId),
       filename: scheduledRunFilename(schedule.filename),
       backupSource: 'scheduled',
       scheduleParentFolderId: folderId,
+      backupScope: resolvedScope.scope,
+      ...(resolvedScope.minioSelections != null
+        ? { minioPrefixes: resolvedScope.minioSelections.map((entry) => entry.bucket) }
+        : {}),
     });
     if (!reusedExisting) {
       await BackupJob.findByIdAndUpdate(schedule._id, { lastScheduledRunAt: new Date() });

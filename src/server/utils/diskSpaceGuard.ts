@@ -1,4 +1,4 @@
-import { statfs } from 'node:fs/promises';
+import { access, constants as fsConstants, statfs } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { InsufficientStorageError } from '../../shared/errors/domainErrors.js';
@@ -31,8 +31,30 @@ export function resolveUploadBytesBudget(args: {
   return Math.min(declaredContentLength, maxUploadBytes);
 }
 
+/**
+ * Walk up from `targetPath` until an existing directory is found (statfs needs a real path).
+ * Falls back to `/` so a stale BACKUP_LOCATION cannot break disk checks.
+ */
+export async function resolveExistingFilesystemPath(targetPath: string): Promise<string> {
+  let current = targetPath.trim() || '/';
+  for (let i = 0; i < 64; i += 1) {
+    try {
+      await access(current, fsConstants.F_OK);
+      return current;
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) {
+        break;
+      }
+      current = parent;
+    }
+  }
+  return '/';
+}
+
 export async function getFilesystemAvailableBytes(targetPath: string): Promise<number> {
-  const stats = await statfs(targetPath);
+  const existing = await resolveExistingFilesystemPath(targetPath);
+  const stats = await statfs(existing);
   return stats.bavail * stats.bsize;
 }
 

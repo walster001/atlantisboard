@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
+import type { BoardType } from '../../../shared/constants/boardType.js';
 import type { ApiClient } from '../api.js';
 
 export const boardApiResponseSchema = z.object({
@@ -84,6 +85,7 @@ export interface BoardApiMethods {
     background?: string;
     themeSettings?: BoardThemeSettings;
     visibility?: 'private' | 'workspace' | 'public';
+    boardType?: BoardType;
   }): Promise<BoardApiResponse>;
   updateBoard(id: string, data: {
     name?: string;

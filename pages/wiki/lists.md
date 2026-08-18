@@ -66,7 +66,7 @@ An optional badge in the list header displays the number of cards currently in t
 
 The default column width for lists is configurable in [Board Settings → List Settings](/wiki/board-settings-list/):
 
-- **Range**: 140 px to 800 px.
+- **Range**: 140 px to 1000 px.
 - All lists on a board share the same width setting.
 - Adjusting the width helps accommodate boards with many short-titled cards (narrow lists) or boards where cards have long descriptions (wider lists).
 

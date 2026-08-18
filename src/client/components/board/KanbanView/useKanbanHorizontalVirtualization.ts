@@ -7,7 +7,10 @@ import {
   type MutableRefObject,
 } from 'react';
 import type { BoardDB, ListDB } from '../../../store/database.js';
-import { getBoardListColumnWidthPx } from '../../../utils/boardListColumnWidth.js';
+import {
+  getBoardListColumnWidthPx,
+  resolveBoardListColumnSlotWidthPx,
+} from '../../../utils/boardListColumnWidth.js';
 import { routeBoardClick } from '../boardInteractionBus.js';
 import { LIST_HORIZONTAL_GAP_PX, LIST_WINDOW_OVERSCAN_COLUMNS } from './helpers.js';
 
@@ -69,9 +72,10 @@ export function useKanbanHorizontalVirtualization({
   }, [commitBoardScrollMetrics]);
 
   const listSlotWidthPx = useMemo(() => {
-    const preferred = getBoardListColumnWidthPx(board);
-    const responsiveMax = Math.max(200, (Math.max(boardScrollMetrics.viewportWidth, 0) - 120) / 5.25);
-    return Math.min(preferred, responsiveMax);
+    return resolveBoardListColumnSlotWidthPx(
+      getBoardListColumnWidthPx(board),
+      boardScrollMetrics.viewportWidth,
+    );
   }, [board, boardScrollMetrics.viewportWidth]);
 
   const listStridePx = listSlotWidthPx + LIST_HORIZONTAL_GAP_PX;

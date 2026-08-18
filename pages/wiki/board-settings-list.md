@@ -30,7 +30,7 @@ Control how wide each list column is on the board canvas.
 
 | Setting | Details |
 |---------|---------|
-| **Range** | 140 px to 800 px |
+| **Range** | 140 px to 1000 px |
 | **Effect** | All lists on the board use the same width. |
 | **When to adjust** | Use narrower widths for boards with many lists so more columns fit on screen. Use wider widths when cards have long titles or when description previews are enabled. |
 

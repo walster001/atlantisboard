@@ -3,8 +3,7 @@ import multer from 'multer';
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { createReadStream, mkdirSync } from 'node:fs';
 import type { Response } from 'express';
 import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../shared/adminDestructiveConfirmation.js';
 import type { AuthenticatedRequest } from '../types/express.js';
@@ -31,23 +30,35 @@ import {
   BackupLocationNotConfiguredError,
   checkBackupLocationPath,
   getBackupLocationStatusAsync,
+  resolveBackupImportStagingDirectory,
 } from '../services/backupLocationEnv.js';
 import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
 import { parseOrThrow } from '../utils/zodValidation.js';
+import { normalizeBackupScopeRequest } from '../services/backupService/backupScope.js';
 import { isValidBackupFolderId } from '../../shared/utils/backupFolderNaming.js';
 import {
   clampBackupScheduleAmount,
   isBackupScheduleUnit,
 } from '../../shared/constants/backupScheduleInterval.js';
+import { adminBackupScopeRequestSchema, ADMIN_BACKUP_SCOPE_VALUES } from '../../shared/constants/backupScope.js';
+import { MINIO_BUCKET_NAMES } from '../../shared/constants/minioBuckets.js';
 
 const router = Router();
 
-const backupImportDiskHeadroomGuard = createUploadDiskHeadroomGuard(getBackupImportMaxBytes);
+const backupImportDiskHeadroomGuard = createUploadDiskHeadroomGuard(getBackupImportMaxBytes, {
+  directory: resolveBackupImportStagingDirectory,
+});
 
 const backupImportUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => {
-      cb(null, tmpdir());
+      try {
+        const dir = resolveBackupImportStagingDirectory();
+        mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      } catch (error: unknown) {
+        cb(error instanceof Error ? error : new Error('Could not open backup import staging directory'), '');
+      }
     },
     filename: (_req, file, cb) => {
       const ext = file.originalname.toLowerCase().endsWith('.zip') ? '.zip' : '';
@@ -231,14 +242,24 @@ router.post(
 router.post('/run', async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const bodySchema = z.object({
-      filename: z.string().trim().min(1).max(240),
-    });
+    const bodySchema = z
+      .object({
+        filename: z.string().trim().min(1).max(240),
+      })
+      .and(adminBackupScopeRequestSchema);
     const body = parseOrThrow(bodySchema, req.body);
+    const normalizedScope = normalizeBackupScopeRequest({
+      scope: body.scope,
+      minioPrefixes: body.minioPrefixes,
+    });
     const { jobId, reusedExisting } = await startBackupJob({
       userId: authReq.user.id,
       ipAddress: req.ip || undefined,
       filename: body.filename,
+      backupScope: normalizedScope.scope,
+      ...(normalizedScope.minioSelections != null
+        ? { minioPrefixes: normalizedScope.minioSelections.map((entry) => entry.bucket) }
+        : {}),
     });
     res.status(202).json({
       message: reusedExisting ? 'Backup already in progress for your account.' : 'Backup started',
@@ -250,11 +271,13 @@ router.post('/run', async (req, res, next) => {
   }
 });
 
-const backupScheduleBodySchema = z.object({
-  filename: z.string().trim().min(1).max(240),
-  scheduleIntervalAmount: z.coerce.number().int().min(1),
-  scheduleIntervalUnit: z.string().trim().refine(isBackupScheduleUnit, 'Invalid schedule interval unit'),
-});
+const backupScheduleBodySchema = z
+  .object({
+    filename: z.string().trim().min(1).max(240),
+    scheduleIntervalAmount: z.coerce.number().int().min(1),
+    scheduleIntervalUnit: z.string().trim().refine(isBackupScheduleUnit, 'Invalid schedule interval unit'),
+  })
+  .and(adminBackupScopeRequestSchema);
 
 router.post('/schedules', async (req, res, next) => {
   try {
@@ -268,11 +291,19 @@ router.post('/schedules', async (req, res, next) => {
       return;
     }
     const amount = clampBackupScheduleAmount(body.scheduleIntervalAmount, unit);
+    const normalizedScope = normalizeBackupScopeRequest({
+      scope: body.scope,
+      minioPrefixes: body.minioPrefixes,
+    });
     const result = await createBackupSchedule({
       userId: authReq.user.id,
       filename: body.filename,
       intervalAmount: amount,
       intervalUnit: unit,
+      backupScope: normalizedScope.scope,
+      ...(normalizedScope.minioSelections != null
+        ? { minioPrefixes: normalizedScope.minioSelections.map((entry) => entry.bucket) }
+        : {}),
     });
     logAuditEvent({
       userId: authReq.user.id,
@@ -292,11 +323,39 @@ router.post('/schedules', async (req, res, next) => {
   }
 });
 
-const backupScheduleUpdateBodySchema = z.object({
-  filename: z.string().trim().min(1).max(240).optional(),
-  scheduleIntervalAmount: z.coerce.number().int().min(1).optional(),
-  scheduleIntervalUnit: z.string().trim().refine(isBackupScheduleUnit, 'Invalid schedule interval unit').optional(),
-});
+const optionalBackupScopeFieldsSchema = z
+  .object({
+    scope: z.enum(ADMIN_BACKUP_SCOPE_VALUES).optional(),
+    minioPrefixes: z.array(z.enum(MINIO_BUCKET_NAMES)).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.scope === 'database' && value.minioPrefixes != null && value.minioPrefixes.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'minioPrefixes is not allowed when scope is database',
+        path: ['minioPrefixes'],
+      });
+    }
+    if (
+      value.scope === 'database_and_attachments' &&
+      value.minioPrefixes != null &&
+      value.minioPrefixes.length === 0
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Select at least one MinIO storage folder.',
+        path: ['minioPrefixes'],
+      });
+    }
+  });
+
+const backupScheduleUpdateBodySchema = z
+  .object({
+    filename: z.string().trim().min(1).max(240).optional(),
+    scheduleIntervalAmount: z.coerce.number().int().min(1).optional(),
+    scheduleIntervalUnit: z.string().trim().refine(isBackupScheduleUnit, 'Invalid schedule interval unit').optional(),
+  })
+  .and(optionalBackupScopeFieldsSchema);
 
 router.patch('/schedules/:folderId', async (req, res, next) => {
   try {
@@ -324,6 +383,20 @@ router.patch('/schedules/:folderId', async (req, res, next) => {
             intervalAmount: clampBackupScheduleAmount(body.scheduleIntervalAmount, unit),
             intervalUnit: unit,
           }
+        : {}),
+      ...(body.scope != null
+        ? (() => {
+            const normalizedScope = normalizeBackupScopeRequest({
+              scope: body.scope,
+              minioPrefixes: body.minioPrefixes,
+            });
+            return {
+              backupScope: normalizedScope.scope,
+              ...(normalizedScope.minioSelections != null
+                ? { minioPrefixes: normalizedScope.minioSelections.map((entry) => entry.bucket) }
+                : {}),
+            };
+          })()
         : {}),
     });
     logAuditEvent({

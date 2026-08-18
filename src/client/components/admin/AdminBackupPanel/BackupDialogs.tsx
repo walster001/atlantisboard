@@ -1,5 +1,7 @@
 import { memo } from 'react';
 import { Button, Group, Modal, NativeSelect, Progress, Stack, Text, TextInput } from '@mantine/core';
+import type { AdminBackupScope } from '../../../../shared/constants/backupScope.js';
+import type { MinioBucketName } from '../../../../shared/constants/minioBuckets.js';
 import { backupPhaseDisplayLabel } from '../../../utils/adminBackupJobPoll.js';
 import type { AdminBackupListItem } from '../../../../shared/types/adminBackup.js';
 import {
@@ -11,6 +13,7 @@ import {
   type BackupScheduleUnit,
 } from '../../../../shared/constants/backupScheduleInterval.js';
 import type { RestoreStatus } from './useAdminBackupPanelState.js';
+import { BackupScopeFields } from './BackupScopeFields.js';
 
 interface BackupDialogsProps {
   readonly createOpen: boolean;
@@ -18,6 +21,10 @@ interface BackupDialogsProps {
   readonly creating: boolean;
   readonly createFilename: string;
   readonly setCreateFilename: (next: string) => void;
+  readonly createScope: AdminBackupScope;
+  readonly setCreateScope: (next: AdminBackupScope) => void;
+  readonly createMinioPrefixes: readonly MinioBucketName[];
+  readonly setCreateMinioPrefixes: (next: readonly MinioBucketName[]) => void;
   readonly runBackup: () => Promise<void>;
   readonly backupLocationConfigured: boolean;
   readonly defaultLocation: string;
@@ -26,6 +33,10 @@ interface BackupDialogsProps {
   readonly savingSchedule: boolean;
   readonly scheduleFilename: string;
   readonly setScheduleFilename: (next: string) => void;
+  readonly scheduleScope: AdminBackupScope;
+  readonly setScheduleScope: (next: AdminBackupScope) => void;
+  readonly scheduleMinioPrefixes: readonly MinioBucketName[];
+  readonly setScheduleMinioPrefixes: (next: readonly MinioBucketName[]) => void;
   readonly editScheduleTarget: AdminBackupListItem | null;
   readonly scheduleAmount: number;
   readonly setScheduleAmount: (next: number | ((current: number) => number)) => void;
@@ -53,6 +64,10 @@ export const BackupDialogs = memo(function BackupDialogs({
   creating,
   createFilename,
   setCreateFilename,
+  createScope,
+  setCreateScope,
+  createMinioPrefixes,
+  setCreateMinioPrefixes,
   runBackup,
   backupLocationConfigured,
   defaultLocation,
@@ -61,6 +76,10 @@ export const BackupDialogs = memo(function BackupDialogs({
   savingSchedule,
   scheduleFilename,
   setScheduleFilename,
+  scheduleScope,
+  setScheduleScope,
+  scheduleMinioPrefixes,
+  setScheduleMinioPrefixes,
   editScheduleTarget,
   scheduleAmount,
   setScheduleAmount,
@@ -90,7 +109,7 @@ export const BackupDialogs = memo(function BackupDialogs({
         }}
         title="Create Backup"
         centered
-        size="sm"
+        size="md"
       >
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
@@ -103,6 +122,13 @@ export const BackupDialogs = memo(function BackupDialogs({
               <> (not set — configure BACKUP_LOCATION on the server; see .env.example).</>
             )}
           </Text>
+          <BackupScopeFields
+            scope={createScope}
+            onScopeChange={setCreateScope}
+            minioPrefixes={createMinioPrefixes}
+            onMinioPrefixesChange={setCreateMinioPrefixes}
+            disabled={creating}
+          />
           <TextInput
             label="Filename"
             value={createFilename}
@@ -128,7 +154,7 @@ export const BackupDialogs = memo(function BackupDialogs({
         }}
         title={editScheduleTarget != null ? 'Edit Scheduled Backup' : 'Create Scheduled Backup'}
         centered
-        size="sm"
+        size="md"
       >
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
@@ -141,6 +167,13 @@ export const BackupDialogs = memo(function BackupDialogs({
               <> (set BACKUP_LOCATION on the server; see .env.example).</>
             )}
           </Text>
+          <BackupScopeFields
+            scope={scheduleScope}
+            onScopeChange={setScheduleScope}
+            minioPrefixes={scheduleMinioPrefixes}
+            onMinioPrefixesChange={setScheduleMinioPrefixes}
+            disabled={savingSchedule}
+          />
           <TextInput
             label="Filename template"
             value={scheduleFilename}

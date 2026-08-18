@@ -93,6 +93,11 @@ describe('assertDiskReserve', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  test('walks up to an existing parent when path is missing', async () => {
+    const available = await getFilesystemAvailableBytes('/tmp/does-not-exist-atl-disk-check/nested');
+    expect(available).toBeGreaterThan(0);
+  });
 });
 
 describe('assertMongoDbDiskReserve', () => {

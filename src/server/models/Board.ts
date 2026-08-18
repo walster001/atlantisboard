@@ -5,6 +5,15 @@ import {
 } from '../../shared/constants/entityTextLimits.js';
 import type { BoardThemeSettings, BoardThemeSettingsStored } from '../../shared/boardTheme.js';
 import type { BoardActivityTrackingSettings } from '../../shared/constants/boardContentActivities.js';
+import {
+  BOARD_TYPES,
+  DEFAULT_BOARD_TYPE,
+  type BoardType,
+} from '../../shared/constants/boardType.js';
+import {
+  BOARD_LIST_COLUMN_WIDTH_MAX_PX,
+  BOARD_LIST_COLUMN_WIDTH_MIN_PX,
+} from '../../shared/constants/boardListColumnWidth.js';
 
 export type BoardVisibility = 'private' | 'workspace' | 'public';
 export type BoardRole = 'admin' | 'manager' | 'viewer';
@@ -66,6 +75,8 @@ export interface IBoard extends Document {
   background?: string;
   themeSettings?: BoardThemeSettings | BoardThemeSettingsStored;
   visibility: BoardVisibility;
+  /** Missing on legacy documents; treat as `normal`. */
+  boardType?: BoardType;
   ownerId: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -114,7 +125,11 @@ const BoardSettingsSchema = new Schema<IBoardSettings>(
     listMaxCards: { type: Number, min: 1 },
     listEnforceMaxCards: { type: Boolean, default: true },
     listColumnWidthAuto: { type: Boolean, default: true },
-    listColumnWidthPx: { type: Number, min: 140, max: 800 },
+    listColumnWidthPx: {
+      type: Number,
+      min: BOARD_LIST_COLUMN_WIDTH_MIN_PX,
+      max: BOARD_LIST_COLUMN_WIDTH_MAX_PX,
+    },
     memberActivityLogRetentionDays: { type: Schema.Types.Mixed, default: undefined },
     activityLogEnabled: { type: Boolean, default: false },
     activityLogRetentionDays: { type: Schema.Types.Mixed, default: undefined },
@@ -174,6 +189,11 @@ const BoardSchema = new Schema<IBoard>(
       enum: ['private', 'workspace', 'public'],
       default: 'private',
       index: true,
+    },
+    boardType: {
+      type: String,
+      enum: BOARD_TYPES,
+      default: DEFAULT_BOARD_TYPE,
     },
     ownerId: {
       type: Schema.Types.ObjectId,

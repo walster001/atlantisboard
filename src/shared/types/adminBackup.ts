@@ -1,3 +1,6 @@
+import type { AdminBackupScope } from '../constants/backupScope.js';
+import type { MinioBucketName } from '../constants/minioBuckets.js';
+
 export type AdminBackupSource = 'manual' | 'scheduled' | 'imported';
 
 export type AdminBackupEntryKind = 'backup' | 'schedule';
@@ -15,4 +18,6 @@ export interface AdminBackupListItem {
   readonly scheduleLabel?: string;
   readonly scheduleIntervalAmount?: number;
   readonly scheduleIntervalUnit?: 'hours' | 'days' | 'weeks' | 'months';
+  readonly backupScope?: AdminBackupScope;
+  readonly minioPrefixes?: readonly MinioBucketName[];
 }

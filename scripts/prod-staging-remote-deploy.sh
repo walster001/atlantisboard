@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build via GitHub CI + Staging (or locally), push installer package to a prod host,
-# and run a non-interactive installer upgrade/repair (Docker rebuild + restart).
+# run a non-interactive installer upgrade/repair (Docker rebuild + restart),
+# and apply host nginx updates from deploy/nginx (or patch installer nginx in place).
 #
 # Setup:
 #   cp scripts/prod-remote-deploy.env.example scripts/prod-remote-deploy.env
@@ -35,6 +36,9 @@ PROD_REMOTE_GIT_REF="main"
 PROD_REMOTE_GITHUB_REPO="walster001/atlantisboard"
 PROD_REMOTE_HEALTH_URL=""
 PROD_REMOTE_SSH_OPTS=""
+PROD_REMOTE_NGINX_SITE=""
+PROD_REMOTE_NGINX_SNIPPET=""
+PROD_REMOTE_SKIP_NGINX="false"
 
 remote_ssh() {
   if [[ -n "$PROD_REMOTE_SSH_OPTS" ]]; then
@@ -355,6 +359,65 @@ rsync_to_remote() {
     "$ARTIFACT_DIR/" "${PROD_REMOTE_SSH}:${PROD_REMOTE_PACKAGE_DIR}/"
 }
 
+apply_remote_nginx_config() {
+  if [[ "${PROD_REMOTE_SKIP_NGINX}" == "true" ]]; then
+    log "Skipping nginx update (PROD_REMOTE_SKIP_NGINX=true)"
+    return 0
+  fi
+
+  local apply_script="$PROJECT_ROOT/scripts/apply-nginx-config-update.sh"
+  local nginx_src="$PROJECT_ROOT/deploy/nginx"
+  if [[ ! -f "$nginx_src/kanboard.conf" \
+    && -n "$ARTIFACT_DIR" \
+    && -f "$ARTIFACT_DIR/deploy/nginx/kanboard.conf" ]]; then
+    nginx_src="$ARTIFACT_DIR/deploy/nginx"
+  fi
+  [[ -f "$apply_script" ]] || die "Missing $apply_script"
+  if [[ ! -f "$nginx_src/kanboard.conf" ]]; then
+    log "No deploy/nginx/kanboard.conf — skipping nginx update"
+    return 0
+  fi
+
+  local remote_apply="$PROD_REMOTE_PACKAGE_DIR/scripts/apply-nginx-config-update.sh"
+  local remote_nginx_src="$PROD_REMOTE_PACKAGE_DIR/deploy/nginx"
+  local rsync_ssh
+  rsync_ssh="$(remote_rsync_ssh)"
+
+  log "Applying nginx config updates on remote..."
+  if [[ "$DRY_RUN" == true ]]; then
+    log "[dry-run] rsync $nginx_src/ -> ${PROD_REMOTE_SSH}:${remote_nginx_src}/"
+    if [[ -n "$PROD_REMOTE_NGINX_SITE" ]]; then
+      log "[dry-run] sudo bash $remote_apply --src $remote_nginx_src --site $PROD_REMOTE_NGINX_SITE"
+    else
+      log "[dry-run] sudo bash $remote_apply --src $remote_nginx_src --detect"
+    fi
+    return 0
+  fi
+
+  remote_ssh "mkdir -p '$PROD_REMOTE_PACKAGE_DIR/scripts' '$remote_nginx_src'"
+  rsync -az -e "$rsync_ssh" "$apply_script" "${PROD_REMOTE_SSH}:${remote_apply}"
+  rsync -az -e "$rsync_ssh" "$nginx_src/" "${PROD_REMOTE_SSH}:${remote_nginx_src}/"
+
+  remote_ssh bash -s <<REMOTE
+set -euo pipefail
+if ! command -v nginx >/dev/null 2>&1 && [[ ! -x /usr/sbin/nginx ]]; then
+  printf '%s\n' "nginx not installed on remote — skipping nginx update"
+  exit 0
+fi
+chmod +x '$remote_apply'
+args=(--src '$remote_nginx_src')
+if [[ -n '$PROD_REMOTE_NGINX_SITE' ]]; then
+  args+=(--site '$PROD_REMOTE_NGINX_SITE')
+else
+  args+=(--detect)
+fi
+if [[ -n '$PROD_REMOTE_NGINX_SNIPPET' ]]; then
+  args+=(--snippet '$PROD_REMOTE_NGINX_SNIPPET')
+fi
+sudo bash '$remote_apply' "\${args[@]}"
+REMOTE
+}
+
 
 merge_remote_env_from_example() {
   local merge_script="$PROJECT_ROOT/scripts/merge-env-from-example.sh"
@@ -513,6 +576,7 @@ main() {
 
   rsync_to_remote
   merge_remote_env_from_example
+  apply_remote_nginx_config
   run_remote_upgrade
   remote_docker_prune_after_deploy
   remote_health_check
@@ -521,6 +585,9 @@ main() {
   echo -e "${GREEN}Remote deploy finished.${NC}"
   if [[ "$PROD_REMOTE_INSTALL_ACTION" == "update" ]]; then
     echo "Full-stack app image was rebuilt and restarted (data volumes preserved)."
+  fi
+  if [[ "${PROD_REMOTE_SKIP_NGINX}" != "true" ]]; then
+    echo "Nginx site/snippet was updated when a kanboard or installer site was found (nginx -t + reload)."
   fi
 }
 

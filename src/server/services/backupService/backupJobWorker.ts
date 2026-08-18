@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger.js';
 import { runBunGarbageCollection } from '../../utils/bunGc.js';
 import { BACKUP_PHASE_TOTAL, activeJobControllers } from './backupShared.js';
 import { executeFullBackupWithProgressImpl } from './backupExecutor.js';
+import { resolveBackupJobScope } from './backupScope.js';
 
 export async function executeBackupJobById(params: {
   readonly jobId: string;
@@ -40,6 +41,7 @@ export async function executeBackupJobById(params: {
     const controller = new AbortController();
     activeJobControllers.set(jobId, controller);
     await report('queued', 2, 0, BACKUP_PHASE_TOTAL);
+    const resolvedScope = resolveBackupJobScope(job);
     const result = await executeFullBackupWithProgressImpl({
       adminUserId: userId,
       ipAddress,
@@ -47,6 +49,8 @@ export async function executeBackupJobById(params: {
       location: job.location,
       signal: controller.signal,
       onProgress: { report },
+      backupScope: resolvedScope.scope,
+      minioSelections: resolvedScope.minioSelections,
     });
     await BackupJob.findByIdAndUpdate(jobId, {
       status: 'completed',

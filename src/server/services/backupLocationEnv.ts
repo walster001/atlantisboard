@@ -1,5 +1,6 @@
+import { tmpdir } from 'node:os';
 import { access, constants as fsConstants, mkdir, stat } from 'node:fs/promises';
-import { isAbsolute, normalize, resolve } from 'node:path';
+import { isAbsolute, join, normalize, resolve } from 'node:path';
 import { BACKUP_LOCATION_ENV_NAME, BACKUP_LOCATION_SETUP_GUIDANCE, DOCKER_FULLSTACK_BACKUP_LOCATION, isDockerFullstackDeployment } from '../../shared/constants/backupLocationEnv.js';
 import type {
   AdminBackupLocationCheckResult,
@@ -89,6 +90,15 @@ export function requireBackupLocationFromEnv(): string {
     return resolved;
   }
   throw new BackupLocationNotConfiguredError(503);
+}
+
+/** Stream incoming backup ZIPs onto BACKUP_LOCATION (not /tmp) so multi-GB imports do not need 2× disk. */
+export function resolveBackupImportStagingDirectory(): string {
+  const location = getResolvedBackupLocationFromEnv();
+  if (location == null) {
+    return tmpdir();
+  }
+  return join(location, '.incoming');
 }
 
 async function inspectPathOnDisk(normalizedPath: string): Promise<{

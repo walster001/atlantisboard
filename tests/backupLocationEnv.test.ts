@@ -7,6 +7,7 @@ import {
   checkBackupLocationPath,
   getResolvedBackupLocationFromEnv,
   normalizeBackupLocationPath,
+  resolveBackupImportStagingDirectory,
 } from '../src/server/services/backupLocationEnv.js';
 import { assertBackupFileUnderLocation } from '../src/server/services/backupService/backupDownload.js';
 import { ForbiddenError } from '../src/shared/errors/domainErrors.js';
@@ -46,12 +47,15 @@ describe('applyBackupLocation', () => {
 
   beforeEach(() => {
     tempRoot = mkdtempSync(join(tmpdir(), 'atl-backup-loc-'));
+    process.env.ATL_ENV_FILE = join(tempRoot, '.env');
+    writeFileSync(process.env.ATL_ENV_FILE, 'NODE_ENV=test\n');
     delete process.env.BACKUP_LOCATION;
   });
 
   afterEach(() => {
     rmSync(tempRoot, { recursive: true, force: true });
     delete process.env.BACKUP_LOCATION;
+    delete process.env.ATL_ENV_FILE;
   });
 
   it('creates missing directories when requested', async () => {
@@ -157,5 +161,22 @@ describe('upsertEnvFileVariable', () => {
     expect(text).not.toContain('/first');
     expect(text).not.toContain('/duplicate');
     expect(text.match(/^BACKUP_LOCATION=/gm)?.length).toBe(1);
+  });
+});
+
+describe('resolveBackupImportStagingDirectory', () => {
+  const previous = process.env.BACKUP_LOCATION;
+
+  afterEach(() => {
+    if (previous == null) {
+      delete process.env.BACKUP_LOCATION;
+    } else {
+      process.env.BACKUP_LOCATION = previous;
+    }
+  });
+
+  it('stages under BACKUP_LOCATION/.incoming when configured', () => {
+    process.env.BACKUP_LOCATION = '/var/backups/atlboard';
+    expect(resolveBackupImportStagingDirectory()).toBe(join('/var/backups/atlboard', '.incoming'));
   });
 });

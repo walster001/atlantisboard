@@ -3,6 +3,10 @@ import { Badge, Button, FileButton, Group, Loader, NativeSelect, Progress, Stack
 import { IconDatabase, IconUpload } from '@tabler/icons-react';
 import { BACKUP_RETENTION_OPTIONS, parseBackupRetentionSelectValue } from '../../../shared/constants/backupRetention.js';
 import { buildDefaultBackupFilename } from '../../../shared/utils/backupFolderNaming.js';
+import {
+  DEFAULT_ADMIN_BACKUP_MINIO_PREFIXES,
+  DEFAULT_ADMIN_BACKUP_SCOPE,
+} from '../../../shared/constants/backupScope.js';
 import { backupPhaseDisplayLabel } from '../../utils/adminBackupJobPoll.js';
 import { BackupsTableBody } from './AdminBackupPanel/BackupsTableBody.js';
 import { BackupDialogs } from './AdminBackupPanel/BackupDialogs.js';
@@ -32,12 +36,20 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
     setCreateOpen,
     createFilename,
     setCreateFilename,
+    createScope,
+    setCreateScope,
+    createMinioPrefixes,
+    setCreateMinioPrefixes,
     creating,
     scheduleOpen,
     setScheduleOpen,
     savingSchedule,
     scheduleFilename,
     setScheduleFilename,
+    scheduleScope,
+    setScheduleScope,
+    scheduleMinioPrefixes,
+    setScheduleMinioPrefixes,
     editScheduleTarget,
     openCreateScheduleModal,
     openEditScheduleModal,
@@ -74,10 +86,6 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
   return (
     <Stack gap="md">
       <Title order={3}>Backup</Title>
-      <Text size="sm" c="dimmed">
-        Full snapshots include MongoDB data (Boards,Cards,Users,Settings,Workspaces) as well as MinIO data (Card Attachments, Inline Button Icons, Filestores). Backups
-        are written under the configured backup path.
-      </Text>
 
       <BackupLocationSection
         locationInput={locationInput}
@@ -118,6 +126,8 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
           loading={running}
           onClick={() => {
             setCreateFilename(buildDefaultBackupFilename());
+            setCreateScope(DEFAULT_ADMIN_BACKUP_SCOPE);
+            setCreateMinioPrefixes([...DEFAULT_ADMIN_BACKUP_MINIO_PREFIXES]);
             setCreateOpen(true);
           }}
         >
@@ -187,6 +197,10 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         creating={creating}
         createFilename={createFilename}
         setCreateFilename={setCreateFilename}
+        createScope={createScope}
+        setCreateScope={setCreateScope}
+        createMinioPrefixes={createMinioPrefixes}
+        setCreateMinioPrefixes={setCreateMinioPrefixes}
         runBackup={runBackup}
         backupLocationConfigured={backupLocationConfigured}
         defaultLocation={defaultLocation}
@@ -195,6 +209,10 @@ export const AdminBackupPanel = memo(function AdminBackupPanel() {
         savingSchedule={savingSchedule}
         scheduleFilename={scheduleFilename}
         setScheduleFilename={setScheduleFilename}
+        scheduleScope={scheduleScope}
+        setScheduleScope={setScheduleScope}
+        scheduleMinioPrefixes={scheduleMinioPrefixes}
+        setScheduleMinioPrefixes={setScheduleMinioPrefixes}
         editScheduleTarget={editScheduleTarget}
         scheduleAmount={scheduleAmount}
         setScheduleAmount={setScheduleAmount}

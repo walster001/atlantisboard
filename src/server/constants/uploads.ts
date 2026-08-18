@@ -33,7 +33,7 @@ export function getBoardImportUploadMaxBytes(): number {
 }
 
 /**
- * External backup ZIP import byte cap from `BACKUP_IMPORT_MAX_MB`. Default 1024 MB; clamp 10–4000 MB.
+ * External backup ZIP import byte cap from `BACKUP_IMPORT_MAX_MB`. Default 32 GiB; clamp 10 MB–100 GiB.
  * Must match multer `limits.fileSize` on admin backup import route.
  */
 export function getBackupImportMaxBytes(): number {

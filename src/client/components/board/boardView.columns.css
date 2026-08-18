@@ -144,11 +144,12 @@
   background-color: var(--board-card-menu-hover-bg, rgba(0, 0, 0, 0.12));
 }
 
-/* Responsive width: target from --board-list-column-prefer (board settings), scales down on narrow viewports. */
+/* Hard clamp 140–1000 (BOARD_LIST_COLUMN_WIDTH_*); also cap to remaining viewport on narrow screens. */
 .board-column.board-column--width-auto {
-  width: min(
+  width: clamp(
+    var(--board-list-column-min, 140px),
     var(--board-list-column-prefer, 272px),
-    max(200px, calc((100vw - 120px) / 5.25))
+    min(var(--board-list-column-max, 1000px), max(200px, calc(100vw - 120px)))
   );
 }
 
@@ -326,9 +327,10 @@
 }
 
 .board-page__column-track--auto {
-  width: min(
+  width: clamp(
+    var(--board-list-column-min, 140px),
     var(--board-list-column-prefer, 272px),
-    max(200px, calc((100vw - 120px) / 5.25))
+    min(var(--board-list-column-max, 1000px), max(200px, calc(100vw - 120px)))
   );
 }
 

@@ -1,4 +1,6 @@
 import { basename, isAbsolute, normalize, resolve } from 'node:path';
+import type { AdminBackupScope } from '../../../shared/constants/backupScope.js';
+import type { MinioBucketName } from '../../../shared/constants/minioBuckets.js';
 import {
   parseBackupFolderMillis,
   newBackupFolderId as createBackupFolderId,
@@ -50,6 +52,8 @@ export interface BackupListEntry {
   readonly scheduleLabel?: string;
   readonly scheduleIntervalAmount?: number;
   readonly scheduleIntervalUnit?: 'hours' | 'days' | 'weeks' | 'months';
+  readonly backupScope?: AdminBackupScope;
+  readonly minioPrefixes?: readonly MinioBucketName[];
 }
 
 export interface BackupProgressReporter {

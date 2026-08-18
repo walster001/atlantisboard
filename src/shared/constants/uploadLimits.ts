@@ -64,14 +64,14 @@ export function resolveBoardImportMaxBytes(env: BoardImportLimitsEnv): number {
   return clamped * 1024 * 1024;
 }
 
-/** Default admin backup import cap when env is unset (MB). Aligns with card attachment default. */
-export const BACKUP_IMPORT_DEFAULT_MB = 1024;
+/** Default admin backup ZIP import cap when env is unset (MB). Disaster-recovery sized. */
+export const BACKUP_IMPORT_DEFAULT_MB = 32_768;
 
 /** Lower bound for `BACKUP_IMPORT_MAX_MB`. */
 export const BACKUP_IMPORT_MIN_MB = 10;
 
-/** Upper bound for `BACKUP_IMPORT_MAX_MB` (same ceiling as card attachments). */
-export const BACKUP_IMPORT_MAX_MB_CEILING = CARD_ATTACHMENT_MAX_MB_CEILING;
+/** Upper bound for `BACKUP_IMPORT_MAX_MB` (100 GiB). Independent of card-attachment caps. */
+export const BACKUP_IMPORT_MAX_MB_CEILING = 102_400;
 
 export type BackupImportLimitsEnv = {
   readonly BACKUP_IMPORT_MAX_MB?: string | undefined;
@@ -79,7 +79,7 @@ export type BackupImportLimitsEnv = {
 
 /**
  * Resolve max external backup ZIP import size in bytes from environment.
- * Clamped to 10–4000 MB; default 1024 MB.
+ * Clamped to 10–102400 MB (100 GiB); default 32768 MB (32 GiB).
  */
 export function resolveBackupImportMaxBytes(env: BackupImportLimitsEnv): number {
   const parsed = Number.parseInt(env.BACKUP_IMPORT_MAX_MB ?? String(BACKUP_IMPORT_DEFAULT_MB), 10);

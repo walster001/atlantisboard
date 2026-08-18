@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { finished, pipeline } from 'node:stream/promises';
 import archiver from 'archiver';
 import { MINIO_BUCKET_NAMES } from '../../../shared/constants/minioBuckets.js';
+import type { AdminBackupScope } from '../../../shared/constants/backupScope.js';
+import type { BackupMinioSelection } from './backupMinioSelection.js';
 import { getAdminConfig } from '../adminService.js';
 import { logAuditEvent } from '../../utils/auditLogger.js';
 import { logger } from '../../utils/logger.js';
@@ -82,50 +84,61 @@ export async function executeFullBackupWithProgressImpl(params: {
   readonly location: string;
   readonly signal: AbortSignal;
   readonly onProgress: BackupProgressReporter;
+  readonly backupScope?: AdminBackupScope | undefined;
+  readonly minioSelections?: readonly BackupMinioSelection[] | null | undefined;
 }): Promise<{ folderId: string; filePath: string; sizeBytes: number; prunedCount: number }> {
   const { onProgress: reporter } = params;
+  const scope = params.backupScope ?? 'database_and_attachments';
+  const includeMinio = scope === 'database_and_attachments';
+  const minioTargets = includeMinio ? (params.minioSelections ?? null) : null;
   const stagingRoot = await resolveBackupStagingRoot(params.location);
   const mongoDir = await mkdtemp(join(stagingRoot, 'atlboard-mongo-'));
-  const minioMirrorDir = await mkdtemp(join(stagingRoot, 'atlboard-minio-mirror-'));
+  const minioMirrorDir = includeMinio ? await mkdtemp(join(stagingRoot, 'atlboard-minio-mirror-')) : null;
   const zipPath = join(stagingRoot, `atlboard-backup-${Date.now()}.zip`);
   let minioArchiveMethod: MinioArchiveMethod = 'mc-mirror-v1';
   try {
     throwIfCancelled(params.signal);
-    await reporter.report('minio_export', 6, 0, BACKUP_PHASE_TOTAL);
-    try {
-      await mirrorMinioBucketsToWorkdir({
-        minioRoot: minioMirrorDir,
-        signal: params.signal,
-        throwIfCancelled,
-        onBucketMirrored: async (completed, total) => {
-          await reporter.report(
-            'minio_export',
-            progressRange(6, 42, completed, total),
-            1,
-            BACKUP_PHASE_TOTAL,
-          );
-        },
-      });
-      minioArchiveMethod = 'mc-mirror-v1';
-    } catch (error) {
-      logger.warn({ error }, 'mc mirror failed; falling back to MinIO SDK mirror');
-      await mirrorMinioBucketsToWorkdirWithSdk({
-        minioRoot: minioMirrorDir,
-        signal: params.signal,
-        throwIfCancelled,
-        onBucketMirrored: async (completed, total) => {
-          await reporter.report(
-            'minio_export',
-            progressRange(6, 42, completed, total),
-            1,
-            BACKUP_PHASE_TOTAL,
-          );
-        },
-      });
-      minioArchiveMethod = 'sdk-stream-v1';
+    if (includeMinio && minioMirrorDir != null && minioTargets != null) {
+      await reporter.report('minio_export', 6, 0, BACKUP_PHASE_TOTAL);
+      try {
+        await mirrorMinioBucketsToWorkdir({
+          minioRoot: minioMirrorDir,
+          signal: params.signal,
+          throwIfCancelled,
+          targets: minioTargets,
+          onBucketMirrored: async (completed, total) => {
+            await reporter.report(
+              'minio_export',
+              progressRange(6, 42, completed, total),
+              1,
+              BACKUP_PHASE_TOTAL,
+            );
+          },
+        });
+        minioArchiveMethod = 'mc-mirror-v1';
+      } catch (error) {
+        logger.warn({ error }, 'mc mirror failed; falling back to MinIO SDK mirror');
+        await mirrorMinioBucketsToWorkdirWithSdk({
+          minioRoot: minioMirrorDir,
+          signal: params.signal,
+          throwIfCancelled,
+          targets: minioTargets,
+          onBucketMirrored: async (completed, total) => {
+            await reporter.report(
+              'minio_export',
+              progressRange(6, 42, completed, total),
+              1,
+              BACKUP_PHASE_TOTAL,
+            );
+          },
+        });
+        minioArchiveMethod = 'sdk-stream-v1';
+      }
+      throwIfCancelled(params.signal);
+      await reporter.report('minio_export', 42, 1, BACKUP_PHASE_TOTAL);
+    } else {
+      await reporter.report('minio_export', 42, 1, BACKUP_PHASE_TOTAL);
     }
-    throwIfCancelled(params.signal);
-    await reporter.report('minio_export', 42, 1, BACKUP_PHASE_TOTAL);
 
     await reporter.report('mongo_export', 43, 1, BACKUP_PHASE_TOTAL);
     const collectionNames = await dumpMongoCollectionsToBsonDir({
@@ -145,13 +158,22 @@ export async function executeFullBackupWithProgressImpl(params: {
     const manifest = {
       format: BACKUP_FORMAT,
       createdAt: new Date().toISOString(),
+      backupScope: scope,
+      ...(includeMinio && minioTargets != null
+        ? {
+            minioPrefixes: [...new Set(minioTargets.map((target) => target.bucket))],
+          }
+        : {}),
       mongoExportFormat: 'bson-v1',
-      minioArchiveMethod,
+      minioArchiveMethod: includeMinio ? minioArchiveMethod : undefined,
       mongoCollections: collectionNames,
-      minioBuckets: [...MINIO_BUCKET_NAMES],
-      minioMetadataFile: 'minio-metadata.json',
+      minioBuckets: includeMinio && minioTargets != null ? [...new Set(minioTargets.map((t) => t.bucket))] : [],
+      minioMetadataFile: includeMinio ? 'minio-metadata.json' : undefined,
     };
-    const minioObjectMetadata = await collectMinioObjectMetadataByBucket([...MINIO_BUCKET_NAMES]);
+    const minioObjectMetadata =
+      includeMinio && minioTargets != null
+        ? await collectMinioObjectMetadataByBucket([...MINIO_BUCKET_NAMES], minioTargets)
+        : {};
 
     const output = createWriteStream(zipPath);
     const archive = archiver('zip', { zlib: { level: 1 } });
@@ -161,9 +183,13 @@ export async function executeFullBackupWithProgressImpl(params: {
     archive.pipe(output);
 
     archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
-    archive.append(JSON.stringify(minioObjectMetadata, null, 2), { name: 'minio-metadata.json' });
+    if (includeMinio) {
+      archive.append(JSON.stringify(minioObjectMetadata, null, 2), { name: 'minio-metadata.json' });
+      if (minioMirrorDir != null) {
+        archive.directory(minioMirrorDir, 'minio');
+      }
+    }
     archive.directory(mongoDir, 'mongo');
-    archive.directory(minioMirrorDir, 'minio');
 
     await reporter.report('zip_finalize', 79, 2, BACKUP_PHASE_TOTAL);
     await archive.finalize();
@@ -210,7 +236,9 @@ export async function executeFullBackupWithProgressImpl(params: {
     return { folderId, filePath, sizeBytes: st.size, prunedCount };
   } finally {
     await rm(mongoDir, { recursive: true, force: true });
-    await rm(minioMirrorDir, { recursive: true, force: true });
+    if (minioMirrorDir != null) {
+      await rm(minioMirrorDir, { recursive: true, force: true });
+    }
     await rm(zipPath, { force: true });
   }
 }

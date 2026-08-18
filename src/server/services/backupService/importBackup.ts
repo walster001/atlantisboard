@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rm, stat } from 'node:fs/promises';
+import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import mongoose from 'mongoose';
 import { getBackupImportMaxBytes } from '../../constants/uploads.js';
@@ -31,6 +31,23 @@ export interface ImportBackupArchiveResult {
   readonly sizeBytes: number;
   readonly jobId: string;
   readonly backupSource: 'imported';
+}
+
+function isCrossDeviceRenameError(error: unknown): boolean {
+  return error != null && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'EXDEV';
+}
+
+/** ponytail: rename on same filesystem; copy only when tmp and BACKUP_LOCATION are different mounts. */
+async function placeImportedBackupFile(tempFilePath: string, filePath: string): Promise<void> {
+  try {
+    await rename(tempFilePath, filePath);
+  } catch (error: unknown) {
+    if (!isCrossDeviceRenameError(error)) {
+      throw error;
+    }
+    await copyFile(tempFilePath, filePath);
+    await rm(tempFilePath, { force: true });
+  }
 }
 
 export async function importBackupArchive(
@@ -73,7 +90,7 @@ export async function importBackupArchive(
   const filePath = buildBackupFilePath(normalizedLocation, folderId, filename);
 
   await mkdir(dirname(filePath), { recursive: true });
-  await copyFile(params.tempFilePath, filePath);
+  await placeImportedBackupFile(params.tempFilePath, filePath);
   const storedStat = await stat(filePath);
 
   const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);

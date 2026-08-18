@@ -12,12 +12,13 @@ import { handleApiRouteError } from '../utils/mapServiceErrorToHttp.js';
  */
 export function createUploadDiskHeadroomGuard(
   resolveMaxUploadBytes: () => number,
-  options?: { readonly directory?: string },
+  options?: { readonly directory?: string | (() => string) },
 ): RequestHandler {
-  const directory = options?.directory ?? tmpdir();
-
   return async (req, res, next): Promise<void> => {
     try {
+      const directoryOption = options?.directory;
+      const directory =
+        typeof directoryOption === 'function' ? directoryOption() : (directoryOption ?? tmpdir());
       const declaredContentLength = parseRequestContentLengthBytes(req.headers['content-length']);
       const requiredBytes = resolveUploadBytesBudget({
         declaredContentLength,

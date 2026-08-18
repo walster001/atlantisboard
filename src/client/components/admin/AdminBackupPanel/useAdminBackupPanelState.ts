@@ -8,6 +8,14 @@ import {
 } from 'react';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
+import {
+  DEFAULT_ADMIN_BACKUP_MINIO_PREFIXES,
+  DEFAULT_ADMIN_BACKUP_SCOPE,
+  normalizeAdminBackupMinioPrefixes,
+  parseAdminBackupScopeRequest,
+  type AdminBackupScope,
+} from '../../../../shared/constants/backupScope.js';
+import type { MinioBucketName } from '../../../../shared/constants/minioBuckets.js';
 import type { AdminBackupListItem } from '../../../../shared/types/adminBackup.js';
 import {
   formatBackupRetentionLabel,
@@ -57,12 +65,20 @@ interface UseAdminBackupPanelStateResult {
   readonly setCreateOpen: Dispatch<SetStateAction<boolean>>;
   readonly createFilename: string;
   readonly setCreateFilename: Dispatch<SetStateAction<string>>;
+  readonly createScope: AdminBackupScope;
+  readonly setCreateScope: Dispatch<SetStateAction<AdminBackupScope>>;
+  readonly createMinioPrefixes: readonly MinioBucketName[];
+  readonly setCreateMinioPrefixes: Dispatch<SetStateAction<readonly MinioBucketName[]>>;
   readonly creating: boolean;
   readonly scheduleOpen: boolean;
   readonly setScheduleOpen: Dispatch<SetStateAction<boolean>>;
   readonly savingSchedule: boolean;
   readonly scheduleFilename: string;
   readonly setScheduleFilename: Dispatch<SetStateAction<string>>;
+  readonly scheduleScope: AdminBackupScope;
+  readonly setScheduleScope: Dispatch<SetStateAction<AdminBackupScope>>;
+  readonly scheduleMinioPrefixes: readonly MinioBucketName[];
+  readonly setScheduleMinioPrefixes: Dispatch<SetStateAction<readonly MinioBucketName[]>>;
   readonly editScheduleTarget: AdminBackupListItem | null;
   readonly openCreateScheduleModal: () => void;
   readonly openEditScheduleModal: (target: AdminBackupListItem) => void;
@@ -96,6 +112,29 @@ interface UseAdminBackupPanelStateResult {
   readonly importBackup: (file: File | null) => Promise<void>;
 }
 
+function resetBackupScopeState(setters: {
+  readonly setScope: Dispatch<SetStateAction<AdminBackupScope>>;
+  readonly setMinioPrefixes: Dispatch<SetStateAction<readonly MinioBucketName[]>>;
+}): void {
+  setters.setScope(DEFAULT_ADMIN_BACKUP_SCOPE);
+  setters.setMinioPrefixes([...DEFAULT_ADMIN_BACKUP_MINIO_PREFIXES]);
+}
+
+function applyBackupScopeFromTarget(
+  target: AdminBackupListItem | null | undefined,
+  setters: {
+    readonly setScope: Dispatch<SetStateAction<AdminBackupScope>>;
+    readonly setMinioPrefixes: Dispatch<SetStateAction<readonly MinioBucketName[]>>;
+  },
+): void {
+  if (target?.backupScope === 'database' || target?.backupScope === 'database_and_attachments') {
+    setters.setScope(target.backupScope);
+    setters.setMinioPrefixes(normalizeAdminBackupMinioPrefixes(target.minioPrefixes));
+    return;
+  }
+  resetBackupScopeState(setters);
+}
+
 export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
   const [backups, setBackups] = useState<readonly AdminBackupListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,10 +149,18 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
   const [scheduleUnit, setScheduleUnit] = useState<BackupScheduleUnit>('days');
   const [createOpen, setCreateOpen] = useState(false);
   const [createFilename, setCreateFilename] = useState(() => buildDefaultBackupFilename());
+  const [createScope, setCreateScope] = useState<AdminBackupScope>(DEFAULT_ADMIN_BACKUP_SCOPE);
+  const [createMinioPrefixes, setCreateMinioPrefixes] = useState<readonly MinioBucketName[]>([
+    ...DEFAULT_ADMIN_BACKUP_MINIO_PREFIXES,
+  ]);
   const [creating, setCreating] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleFilename, setScheduleFilename] = useState('scheduled-backup.zip');
+  const [scheduleScope, setScheduleScope] = useState<AdminBackupScope>(DEFAULT_ADMIN_BACKUP_SCOPE);
+  const [scheduleMinioPrefixes, setScheduleMinioPrefixes] = useState<readonly MinioBucketName[]>([
+    ...DEFAULT_ADMIN_BACKUP_MINIO_PREFIXES,
+  ]);
   const [editScheduleTarget, setEditScheduleTarget] = useState<AdminBackupListItem | null>(null);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<AdminBackupListItem | null>(null);
@@ -259,6 +306,20 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
       notifications.show({ title: 'Missing filename', message: 'Enter a backup file name.', color: 'red' });
       return;
     }
+    let scopePayload;
+    try {
+      scopePayload = parseAdminBackupScopeRequest({
+        scope: createScope,
+        minioPrefixes: createMinioPrefixes,
+      });
+    } catch (error: unknown) {
+      notifications.show({
+        title: 'Invalid backup scope',
+        message: error instanceof Error ? error.message : 'Choose a valid backup scope.',
+        color: 'red',
+      });
+      return;
+    }
     if (!backupLocationConfigured) {
       notifications.show({
         title: 'Backup location not configured',
@@ -270,7 +331,10 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     setCreating(true);
     setRunning(true);
     try {
-      await api.startAdminBackup({ filename });
+      await api.startAdminBackup({
+        filename,
+        ...scopePayload,
+      });
       notifications.show({
         title: 'Backup started',
         message: 'Server backup job is running. Progress is shown in the table.',
@@ -303,13 +367,32 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
       notifications.show({ title: 'Missing filename', message: 'Enter a backup file name.', color: 'red' });
       return;
     }
+    let scopePayload;
+    try {
+      scopePayload = parseAdminBackupScopeRequest({
+        scope: scheduleScope,
+        minioPrefixes: scheduleMinioPrefixes,
+      });
+    } catch (error: unknown) {
+      notifications.show({
+        title: 'Invalid backup scope',
+        message: error instanceof Error ? error.message : 'Choose a valid backup scope.',
+        color: 'red',
+      });
+      return;
+    }
     setSavingSchedule(true);
     try {
+      const scopeFields = {
+        scope: scopePayload.scope,
+        ...(scopePayload.minioPrefixes != null ? { minioPrefixes: scopePayload.minioPrefixes } : {}),
+      };
       if (editScheduleTarget != null) {
         await api.updateAdminBackupSchedule(editScheduleTarget.folderId, {
           filename,
           scheduleIntervalAmount: scheduleAmount,
           scheduleIntervalUnit: scheduleUnit,
+          ...scopeFields,
         });
         notifications.show({
           title: 'Schedule updated',
@@ -320,6 +403,7 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
           filename,
           scheduleIntervalAmount: scheduleAmount,
           scheduleIntervalUnit: scheduleUnit,
+          ...scopeFields,
         });
         notifications.show({
           title: 'Scheduled backup created',
@@ -345,6 +429,10 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     setScheduleFilename('scheduled-backup.zip');
     setScheduleAmount(14);
     setScheduleUnit('days');
+    resetBackupScopeState({
+      setScope: setScheduleScope,
+      setMinioPrefixes: setScheduleMinioPrefixes,
+    });
     setScheduleOpen(true);
   };
 
@@ -358,6 +446,10 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     if (unit === 'hours' || unit === 'days' || unit === 'weeks' || unit === 'months') {
       setScheduleUnit(unit);
     }
+    applyBackupScopeFromTarget(target, {
+      setScope: setScheduleScope,
+      setMinioPrefixes: setScheduleMinioPrefixes,
+    });
     setScheduleOpen(true);
   };
 
@@ -604,12 +696,20 @@ export function useAdminBackupPanelState(): UseAdminBackupPanelStateResult {
     setCreateOpen,
     createFilename,
     setCreateFilename,
+    createScope,
+    setCreateScope,
+    createMinioPrefixes,
+    setCreateMinioPrefixes,
     creating,
     scheduleOpen,
     setScheduleOpen,
     savingSchedule,
     scheduleFilename,
     setScheduleFilename,
+    scheduleScope,
+    setScheduleScope,
+    scheduleMinioPrefixes,
+    setScheduleMinioPrefixes,
     editScheduleTarget,
     openCreateScheduleModal,
     openEditScheduleModal,

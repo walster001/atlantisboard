@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, readdir, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { MINIO_BUCKET_NAMES } from '../../../shared/constants/minioBuckets.js';
+import type { BackupMinioSelection } from './backupMinioSelection.js';
 import { getMinIOClient } from '../../config/minio.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -12,6 +13,27 @@ import { runWithConcurrency } from '../../../shared/utils/runWithConcurrency.js'
 
 export type MinioArchiveMethod = 'sdk-stream-v1' | 'mc-mirror-v1';
 export type MinioObjectMetadataMap = Record<string, Record<string, Record<string, string>>>;
+
+export function allBucketBackupTargets(): readonly BackupMinioSelection[] {
+  return MINIO_BUCKET_NAMES.map((bucket) => ({ bucket, prefix: '' }));
+}
+
+function mcMirrorSourcePath(mirrorAlias: string, target: BackupMinioSelection): string {
+  if (target.prefix === '') {
+    return `${mirrorAlias}/${target.bucket}`;
+  }
+  const trimmed = target.prefix.replace(/\/$/, '');
+  return `${mirrorAlias}/${target.bucket}/${trimmed}`;
+}
+
+function mcMirrorDestPath(minioRoot: string, target: BackupMinioSelection): string {
+  const bucketRoot = join(minioRoot, target.bucket);
+  if (target.prefix === '') {
+    return bucketRoot;
+  }
+  const trimmed = target.prefix.replace(/\/$/, '');
+  return join(bucketRoot, trimmed);
+}
 
 function getMcMirrorConfig(): { readonly mcPath: string; readonly mirrorAlias: string } {
   const mcPath = (process.env.BACKUP_MC_PATH ?? 'mc').trim() || 'mc';
@@ -85,34 +107,38 @@ export async function mirrorMinioBucketsToWorkdir(params: {
   readonly minioRoot: string;
   readonly signal: AbortSignal;
   readonly throwIfCancelled: (signal: AbortSignal) => void;
+  readonly targets?: readonly BackupMinioSelection[];
   readonly onBucketMirrored?: (completed: number, total: number, bucket: string) => Promise<void> | void;
 }): Promise<void> {
   const { minioRoot, signal, onBucketMirrored } = params;
   await ensureMcMirrorAliasConfigured(signal);
   const { mcPath, mirrorAlias } = getMcMirrorConfig();
-  const buckets = [...MINIO_BUCKET_NAMES];
-  if (buckets.length === 0) {
+  const targets = params.targets ?? allBucketBackupTargets();
+  if (targets.length === 0) {
     return;
   }
   const doneRef = { value: 0 };
   const width = getMinioBucketMirrorConcurrency();
-  await runWithConcurrency(buckets, width, async (bucket) => {
+  await runWithConcurrency(targets, width, async (target) => {
     params.throwIfCancelled(signal);
-    const dest = join(minioRoot, bucket);
+    const dest = mcMirrorDestPath(minioRoot, target);
     await mkdir(dest, { recursive: true });
-    const src = `${mirrorAlias}/${bucket}`;
+    const src = mcMirrorSourcePath(mirrorAlias, target);
     await runMcCommand(mcPath, ['mirror', '--overwrite', '--preserve', src, dest], { signal });
     doneRef.value += 1;
-    logger.info({ bucket, index: doneRef.value, total: buckets.length }, 'mc mirror bucket complete');
+    logger.info(
+      { bucket: target.bucket, prefix: target.prefix, index: doneRef.value, total: targets.length },
+      'mc mirror target complete',
+    );
     if (onBucketMirrored != null) {
-      await onBucketMirrored(doneRef.value, buckets.length, bucket);
+      await onBucketMirrored(doneRef.value, targets.length, target.bucket);
     }
   });
 }
 
-async function listBucketObjectKeys(bucket: string): Promise<string[]> {
+async function listBucketObjectKeys(bucket: string, prefix = ''): Promise<string[]> {
   const client = getMinIOClient();
-  const stream = client.listObjectsV2(bucket, '', true);
+  const stream = client.listObjectsV2(bucket, prefix, true);
   return await new Promise<string[]>((resolve, reject) => {
     const keys: string[] = [];
     stream.on('data', (obj: { name?: string }) => {
@@ -142,26 +168,35 @@ function normalizeMinioStatMetadata(meta: Record<string, string> | undefined): R
   return out;
 }
 
-export async function collectMinioObjectMetadataByBucket(buckets: readonly string[]): Promise<MinioObjectMetadataMap> {
+export async function collectMinioObjectMetadataByBucket(
+  buckets: readonly string[],
+  targets?: readonly BackupMinioSelection[],
+): Promise<MinioObjectMetadataMap> {
   const client = getMinIOClient();
   const out: MinioObjectMetadataMap = {};
-  for (const bucket of buckets) {
-    const keys = await listBucketObjectKeys(bucket);
+  const resolvedTargets =
+    targets ??
+    buckets.map((bucket) => ({
+      bucket: bucket as BackupMinioSelection['bucket'],
+      prefix: '',
+    }));
+  for (const target of resolvedTargets) {
+    const keys = await listBucketObjectKeys(target.bucket, target.prefix);
     const bucketMeta: Record<string, Record<string, string>> = {};
     const width = getMinioObjectTransferConcurrency();
     await runWithConcurrency(keys, width, async (key) => {
       try {
-        const st = await client.statObject(bucket, key);
+        const st = await client.statObject(target.bucket, key);
         const normalized = normalizeMinioStatMetadata(st.metaData as Record<string, string> | undefined);
         if (Object.keys(normalized).length > 0) {
           bucketMeta[key] = normalized;
         }
       } catch (error) {
-        logger.warn({ error, bucket, key }, 'Failed to read MinIO object metadata during backup');
+        logger.warn({ error, bucket: target.bucket, key }, 'Failed to read MinIO object metadata during backup');
       }
     });
     if (Object.keys(bucketMeta).length > 0) {
-      out[bucket] = bucketMeta;
+      out[target.bucket] = { ...(out[target.bucket] ?? {}), ...bucketMeta };
     }
   }
   return out;
@@ -189,31 +224,35 @@ export async function mirrorMinioBucketsToWorkdirWithSdk(params: {
   readonly minioRoot: string;
   readonly signal: AbortSignal;
   readonly throwIfCancelled: (signal: AbortSignal) => void;
+  readonly targets?: readonly BackupMinioSelection[];
   readonly onBucketMirrored?: (completed: number, total: number, bucket: string) => Promise<void> | void;
 }): Promise<void> {
   const { minioRoot, signal, onBucketMirrored } = params;
   const client = getMinIOClient();
-  const buckets = [...MINIO_BUCKET_NAMES];
-  if (buckets.length === 0) {
+  const targets = params.targets ?? allBucketBackupTargets();
+  if (targets.length === 0) {
     return;
   }
-  let completedBuckets = 0;
-  for (const bucket of buckets) {
+  let completedTargets = 0;
+  for (const target of targets) {
     params.throwIfCancelled(signal);
-    const bucketDir = join(minioRoot, bucket);
+    const bucketDir = join(minioRoot, target.bucket);
     await mkdir(bucketDir, { recursive: true });
-    const keys = await listBucketObjectKeys(bucket);
+    const keys = await listBucketObjectKeys(target.bucket, target.prefix);
     const objectConcurrency = getMinioObjectTransferConcurrency();
     await runWithConcurrency(keys, objectConcurrency, async (key) => {
       params.throwIfCancelled(signal);
       const outPath = join(bucketDir, key);
       await mkdir(dirname(outPath), { recursive: true });
-      await client.fGetObject(bucket, key, outPath);
+      await client.fGetObject(target.bucket, key, outPath);
     });
-    completedBuckets += 1;
-    logger.info({ bucket, index: completedBuckets, total: buckets.length }, 'sdk mirror bucket complete');
+    completedTargets += 1;
+    logger.info(
+      { bucket: target.bucket, prefix: target.prefix, index: completedTargets, total: targets.length },
+      'sdk mirror target complete',
+    );
     if (onBucketMirrored != null) {
-      await onBucketMirrored(completedBuckets, buckets.length, bucket);
+      await onBucketMirrored(completedTargets, targets.length, target.bucket);
     }
   }
 }

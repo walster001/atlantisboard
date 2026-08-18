@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ADMIN_DESTRUCTIVE_CONFIRM_PHRASE } from '../../../shared/adminDestructiveConfirmation.js';
+import type { AdminBackupScopeRequest } from '../../../shared/constants/backupScope.js';
 import type { AdminBackupListItem } from '../../../shared/types/adminBackup.js';
 import type {
   AdminBackupLocationCheckResult,
@@ -27,22 +28,26 @@ export interface AdminBackupApiMethods {
     createIfMissing: boolean;
   }): Promise<{ status: AdminBackupLocationStatus }>;
   downloadAdminBackup(folderId: string): Promise<void>;
-  startAdminBackup(input: { filename: string }): Promise<{ message: string; jobId: string; reusedExisting: boolean }>;
+  startAdminBackup(
+    input: { filename: string } & AdminBackupScopeRequest,
+  ): Promise<{ message: string; jobId: string; reusedExisting: boolean }>;
   getAdminBackupJob(jobId: string): Promise<AdminBackupJobResponse>;
   cancelAdminBackupJob(jobId: string): Promise<{ message: string }>;
   deleteAdminBackup(folderId: string): Promise<void>;
-  createAdminBackupSchedule(input: {
-    filename: string;
-    scheduleIntervalAmount: number;
-    scheduleIntervalUnit: 'hours' | 'days' | 'weeks' | 'months';
-  }): Promise<{ message: string; folderId: string; jobId: string }>;
+  createAdminBackupSchedule(
+    input: {
+      filename: string;
+      scheduleIntervalAmount: number;
+      scheduleIntervalUnit: 'hours' | 'days' | 'weeks' | 'months';
+    } & AdminBackupScopeRequest,
+  ): Promise<{ message: string; folderId: string; jobId: string }>;
   updateAdminBackupSchedule(
     folderId: string,
     input: {
       filename?: string;
       scheduleIntervalAmount?: number;
       scheduleIntervalUnit?: 'hours' | 'days' | 'weeks' | 'months';
-    },
+    } & Partial<AdminBackupScopeRequest>,
   ): Promise<{ message: string; folderId: string }>;
   restoreAdminBackup(
     folderId: string,
@@ -154,6 +159,8 @@ export const adminBackupApiMethods: AdminBackupApiMethods = {
       formData,
       {
         timeout: 0,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total != null && progressEvent.total > 0 && onProgress != null) {
             const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);

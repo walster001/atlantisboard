@@ -1,4 +1,5 @@
 import type { BoardVisibility } from '../../models/Board.js';
+import type { BoardType } from '../../../shared/constants/boardType.js';
 import type { BoardSummaryDTO, ViewMode } from '../../../shared/types/viewModels.js';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
 import type { BoardActivityTrackingSettings } from '../../../shared/constants/boardContentActivities.js';
@@ -10,6 +11,7 @@ export interface CreateBoardInput {
   background?: string | undefined;
   themeSettings?: BoardThemeSettings | undefined;
   visibility?: BoardVisibility | undefined;
+  boardType?: BoardType | undefined;
   ownerId: string;
 }
 

@@ -6,6 +6,11 @@ import {
 } from '../../../shared/constants/entityTextLimits.js';
 import { BOARD_ACTIVITY_ROUNDUP_MAX_RECIPIENTS } from '../../../shared/constants/boardActivityEmailRoundup.js';
 import { MONGO_OBJECT_ID_HEX } from '../../utils/mongoObjectId.js';
+import { BOARD_TYPES } from '../../../shared/constants/boardType.js';
+import {
+  BOARD_LIST_COLUMN_WIDTH_MAX_PX,
+  BOARD_LIST_COLUMN_WIDTH_MIN_PX,
+} from '../../../shared/constants/boardListColumnWidth.js';
 
 const mongoObjectIdSchema = z.string().trim().regex(MONGO_OBJECT_ID_HEX, 'Invalid user id');
 
@@ -59,6 +64,7 @@ export const createBoardSchema = z.object({
   background: z.string().optional(),
   themeSettings: boardThemeSettingsSchema.optional(),
   visibility: z.enum(['private', 'workspace', 'public']).optional(),
+  boardType: z.enum(BOARD_TYPES).optional(),
 });
 
 export const updateBoardSchema = z.object({
@@ -88,7 +94,11 @@ export const updateBoardSchema = z.object({
       listMaxCards: z.number().min(1).max(100000).optional(),
       listEnforceMaxCards: z.boolean().optional(),
       listColumnWidthAuto: z.boolean().optional(),
-      listColumnWidthPx: z.number().min(140).max(800).optional(),
+      listColumnWidthPx: z
+        .number()
+        .min(BOARD_LIST_COLUMN_WIDTH_MIN_PX)
+        .max(BOARD_LIST_COLUMN_WIDTH_MAX_PX)
+        .optional(),
       memberActivityLogRetentionDays: z.number().int().min(1).max(3650).nullable().optional(),
       activityLogEnabled: z.boolean().optional(),
       activityLogRetentionDays: z.number().int().min(1).max(3650).nullable().optional(),

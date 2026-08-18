@@ -1,9 +1,20 @@
 import type { CSSProperties } from 'react';
 import type { BoardDB } from '../store/database.js';
+import {
+  BOARD_LIST_COLUMN_WIDTH_MAX_PX,
+  BOARD_LIST_COLUMN_WIDTH_MIN_PX,
+  DEFAULT_LIST_COLUMN_WIDTH_PX,
+} from '../../shared/constants/boardListColumnWidth.js';
 
-export const DEFAULT_LIST_COLUMN_WIDTH_PX = 272;
-export const BOARD_LIST_COLUMN_WIDTH_MIN_PX = 140;
-export const BOARD_LIST_COLUMN_WIDTH_MAX_PX = 800;
+export {
+  BOARD_LIST_COLUMN_WIDTH_MAX_PX,
+  BOARD_LIST_COLUMN_WIDTH_MIN_PX,
+  DEFAULT_LIST_COLUMN_WIDTH_PX,
+};
+
+/** Matches `.board-column--width-auto` / `.board-page__column-track--auto` gutter. */
+export const BOARD_LIST_COLUMN_VIEWPORT_GUTTER_PX = 120;
+export const BOARD_LIST_COLUMN_VIEWPORT_FLOOR_PX = 200;
 
 export function getBoardListColumnWidthPx(board: BoardDB): number {
   const w = board.settings.listColumnWidthPx;
@@ -16,6 +27,21 @@ export function getBoardListColumnWidthPx(board: BoardDB): number {
     return Math.round(w);
   }
   return DEFAULT_LIST_COLUMN_WIDTH_PX;
+}
+
+/**
+ * Desktop slot width: preferred px, hard-capped 140–1000, then remaining viewport (not a 5-column fit).
+ * Keep in sync with `.board-column--width-auto` / `.board-page__column-track--auto`.
+ */
+export function resolveBoardListColumnSlotWidthPx(
+  preferredPx: number,
+  viewportWidthPx: number,
+): number {
+  const responsiveMax = Math.max(
+    BOARD_LIST_COLUMN_VIEWPORT_FLOOR_PX,
+    Math.max(viewportWidthPx, 0) - BOARD_LIST_COLUMN_VIEWPORT_GUTTER_PX,
+  );
+  return Math.min(preferredPx, responsiveMax, BOARD_LIST_COLUMN_WIDTH_MAX_PX);
 }
 
 export interface BoardListColumnWidthChrome {
@@ -34,6 +60,8 @@ export function getBoardListColumnWidthChrome(board: BoardDB): BoardListColumnWi
   const px = getBoardListColumnWidthPx(board);
   const preferVar: CSSProperties = {
     ['--board-list-column-prefer' as string]: `${px}px`,
+    ['--board-list-column-min' as string]: `${BOARD_LIST_COLUMN_WIDTH_MIN_PX}px`,
+    ['--board-list-column-max' as string]: `${BOARD_LIST_COLUMN_WIDTH_MAX_PX}px`,
   };
   return {
     columnClassName: 'board-column board-column--width-auto',

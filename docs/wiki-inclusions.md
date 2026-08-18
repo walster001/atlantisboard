@@ -942,7 +942,7 @@ A reference table covering every `.env` variable grouped by category:
   - Set list colour (applies to the list header; option to apply colour to all cards in the list).
   - Rename list.
   - Delete list (confirmation — removes the list and all its cards).
-- **List width** — adjustable via Board Settings → List Settings (140–800 px).
+- **List width** — adjustable via Board Settings → List Settings (140–1000 px).
 - **WIP limits** — work-in-progress card count limits per list (1–100,000), with hard limit (blocks new cards) or soft limit (warning only).
 - **Card counter** — optional card count badge in the list header (toggle in Card Settings).
 
@@ -1127,7 +1127,7 @@ The card detail modal with all sections:
 **Content**:
 - **Board Settings → Board Settings tab → List Settings** sub-panel.
 - Configurable list options:
-  - **Default column width** — pixel value, range 140–800 px.
+  - **Default column width** — pixel value, range 140–1000 px.
   - **Max cards per list** — WIP limit, range 1–100,000 cards.
   - **Hard vs. Soft limit** toggle — hard limit blocks adding cards at the limit; soft limit shows a warning only.
 

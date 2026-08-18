@@ -9,7 +9,9 @@ import {
   Group,
   Text,
   Select,
+  Radio,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_NAME_MAX_LENGTH } from '../../constants/boardFieldLimits.js';
 import { api } from '../../utils/api.js';
 import {
@@ -19,6 +21,14 @@ import {
   resolveBoardBackgroundFromThemeSettings,
   type BoardThemeDefinition,
 } from '../../../shared/boardTheme.js';
+import {
+  DEFAULT_BOARD_TYPE,
+  STEP_GUIDE_NOT_IMPLEMENTED_MESSAGE,
+  VISUAL_STORYTELLING_NOT_IMPLEMENTED_MESSAGE,
+  isBoardType,
+  resolveCreateBoardPath,
+  type BoardType,
+} from '../../../shared/constants/boardType.js';
 import { useBoardThemes } from '../../hooks/useBoardThemes.js';
 
 interface CreateBoardModalProps {
@@ -27,10 +37,41 @@ interface CreateBoardModalProps {
   onSuccess: () => void;
 }
 
+type CreateNormalBoardPayload = {
+  workspaceId: string;
+  name: string;
+  description?: string;
+  background?: string;
+  themeSettings?: ReturnType<typeof createDefaultBoardThemeSettings>;
+};
+
+async function createNormalBoard(boardData: CreateNormalBoardPayload): Promise<void> {
+  await api.createBoard({ ...boardData, boardType: 'normal' });
+}
+
+/** Stub until visual storytelling boards are implemented. Do not fall through to createNormalBoard. */
+export async function createVisualStorytellingBoard(): Promise<void> {
+  notifications.show({
+    title: 'Coming soon',
+    message: VISUAL_STORYTELLING_NOT_IMPLEMENTED_MESSAGE,
+    color: 'blue',
+  });
+}
+
+/** Stub until step guide boards are implemented. Do not fall through to createNormalBoard. */
+export async function createStepGuideBoard(): Promise<void> {
+  notifications.show({
+    title: 'Coming soon',
+    message: STEP_GUIDE_NOT_IMPLEMENTED_MESSAGE,
+    color: 'blue',
+  });
+}
+
 export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoardModalProps) {
   const { catalog, allThemes, systemThemes } = useBoardThemes();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [boardType, setBoardType] = useState<BoardType>(DEFAULT_BOARD_TYPE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const defaultThemeId = systemThemes[0]?.id ?? BOARD_DEFAULT_THEME_ID;
@@ -69,17 +110,21 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
       return;
     }
 
+    const createPath = resolveCreateBoardPath(boardType);
+    if (createPath === 'visual-storytelling-stub') {
+      await createVisualStorytellingBoard();
+      return;
+    }
+    if (createPath === 'step-guide-stub') {
+      await createStepGuideBoard();
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const boardData: {
-        workspaceId: string;
-        name: string;
-        description?: string;
-        background?: string;
-        themeSettings?: ReturnType<typeof createDefaultBoardThemeSettings>;
-      } = {
+      const boardData: CreateNormalBoardPayload = {
         workspaceId,
         name: name.trim(),
       };
@@ -107,7 +152,7 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
           boardData.background = resolvedBackground;
         }
       }
-      await api.createBoard(boardData);
+      await createNormalBoard(boardData);
       onSuccess();
       onClose();
     } catch (err) {
@@ -159,6 +204,37 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
               </Text>
             }
           />
+
+          <Radio.Group
+            label="Board Type"
+            value={boardType}
+            onChange={(value) => {
+              if (isBoardType(value)) {
+                setBoardType(value);
+              }
+            }}
+          >
+            <Stack gap="xs" mt="xs">
+              <Radio
+                value="normal"
+                label="Normal"
+                description="Standard Kanban board"
+                disabled={loading}
+              />
+              <Radio
+                value="visual-storytelling"
+                label="Visual Storytelling"
+                description="Coming soon"
+                disabled={loading}
+              />
+              <Radio
+                value="step-guide"
+                label="Step Guide Board"
+                description="Coming soon"
+                disabled={loading}
+              />
+            </Stack>
+          </Radio.Group>
 
           <Select
             label="Theme"

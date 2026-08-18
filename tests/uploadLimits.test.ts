@@ -88,22 +88,22 @@ describe('resolveBoardImportMaxBytes', () => {
 });
 
 describe('resolveBackupImportMaxBytes', () => {
-  test('defaults to 1024 MB when env is empty', () => {
+  test('defaults to 32 GiB when env is empty', () => {
     expect(resolveBackupImportMaxBytes({})).toBe(mbToBytes(BACKUP_IMPORT_DEFAULT_MB));
-    expect(BACKUP_IMPORT_DEFAULT_MB).toBe(1024);
+    expect(BACKUP_IMPORT_DEFAULT_MB).toBe(32_768);
   });
 
   test('uses BACKUP_IMPORT_MAX_MB when set', () => {
     expect(resolveBackupImportMaxBytes({ BACKUP_IMPORT_MAX_MB: '500' })).toBe(mbToBytes(500));
   });
 
-  test('clamps MB to 10–4000 range', () => {
+  test('clamps MB to 10–102400 range', () => {
     expect(resolveBackupImportMaxBytes({ BACKUP_IMPORT_MAX_MB: '1' })).toBe(mbToBytes(BACKUP_IMPORT_MIN_MB));
     expect(BACKUP_IMPORT_MIN_MB).toBe(10);
-    expect(resolveBackupImportMaxBytes({ BACKUP_IMPORT_MAX_MB: '9999' })).toBe(
+    expect(resolveBackupImportMaxBytes({ BACKUP_IMPORT_MAX_MB: '999999' })).toBe(
       mbToBytes(BACKUP_IMPORT_MAX_MB_CEILING),
     );
-    expect(BACKUP_IMPORT_MAX_MB_CEILING).toBe(CARD_ATTACHMENT_MAX_MB_CEILING);
+    expect(BACKUP_IMPORT_MAX_MB_CEILING).toBe(102_400);
   });
 
   test('falls back to default for invalid env', () => {

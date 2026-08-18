@@ -21,6 +21,8 @@ import {
   BadRequestError,
   NotFoundError,
 } from '../../../shared/errors/domainErrors.js';
+import type { AdminBackupScope } from '../../../shared/constants/backupScope.js';
+import type { MinioBucketName } from '../../../shared/constants/minioBuckets.js';
 import { isScheduledBackupFolderId } from '../../../shared/utils/backupFolderNaming.js';
 
 function dispatchBackupJob(
@@ -113,6 +115,8 @@ export async function startBackupJobImpl(params: {
   readonly filename: string;
   readonly backupSource?: 'manual' | 'scheduled';
   readonly scheduleParentFolderId?: string | undefined;
+  readonly backupScope?: AdminBackupScope | undefined;
+  readonly minioPrefixes?: readonly MinioBucketName[] | undefined;
 }): Promise<{ jobId: string; reusedExisting: boolean }> {
   await purgeMalformedActiveBackupJobs();
   const location = requireBackupLocationFromEnv();
@@ -130,6 +134,15 @@ export async function startBackupJobImpl(params: {
   }
 
   const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+  const scopeFields =
+    params.backupScope != null
+      ? {
+          backupScope: params.backupScope,
+          ...(params.minioPrefixes != null && params.minioPrefixes.length > 0
+            ? { minioPrefixes: [...params.minioPrefixes] }
+            : {}),
+        }
+      : {};
   const doc = await BackupJob.create({
     userId: userOid,
     jobKind: 'backup',
@@ -144,6 +157,7 @@ export async function startBackupJobImpl(params: {
     currentPhase: 'queued',
     filename: normalizeFilename(params.filename),
     location: normalizeLocationPath(location),
+    ...scopeFields,
     expiresAt,
   });
   const jobId = doc._id.toString();

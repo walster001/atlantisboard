@@ -1,4 +1,7 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
+import type { AdminBackupScope } from '../../shared/constants/backupScope.js';
+import { ADMIN_BACKUP_SCOPE_VALUES } from '../../shared/constants/backupScope.js';
+import type { MinioBucketName } from '../../shared/constants/minioBuckets.js';
 
 export type BackupJobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export type BackupJobKind = 'backup' | 'restore' | 'schedule';
@@ -34,6 +37,8 @@ export interface IBackupJob extends Document {
   lastScheduledRunAt?: Date;
   scheduleIntervalAmount?: number;
   scheduleIntervalUnit?: 'hours' | 'days' | 'weeks' | 'months';
+  backupScope?: AdminBackupScope;
+  minioPrefixes?: readonly MinioBucketName[];
   expiresAt: Date;
 }
 
@@ -89,6 +94,14 @@ const BackupJobSchema = new Schema<IBackupJob>(
     scheduleIntervalUnit: {
       type: String,
       enum: ['hours', 'days', 'weeks', 'months'],
+    },
+    backupScope: {
+      type: String,
+      enum: ADMIN_BACKUP_SCOPE_VALUES,
+    },
+    minioPrefixes: {
+      type: [String],
+      default: undefined,
     },
     expiresAt: {
       type: Date,

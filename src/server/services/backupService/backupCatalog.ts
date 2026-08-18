@@ -5,6 +5,33 @@ import { logger } from '../../utils/logger.js';
 import { isScheduledBackupFolderId } from '../../../shared/utils/backupFolderNaming.js';
 import { backupFolderMillis, type BackupListEntry, normalizeLocationPath } from './backupShared.js';
 import { formatBackupFolderTimestamp } from '../../../shared/utils/backupFolderNaming.js';
+import type { AdminBackupScope } from '../../../shared/constants/backupScope.js';
+import { ADMIN_BACKUP_SCOPE_VALUES } from '../../../shared/constants/backupScope.js';
+import type { MinioBucketName } from '../../../shared/constants/minioBuckets.js';
+import type { IBackupJob } from '../../models/BackupJob.js';
+
+function mapScopeListFields(job: Pick<IBackupJob, 'backupScope' | 'minioPrefixes'>): {
+  backupScope?: AdminBackupScope;
+  minioPrefixes?: readonly MinioBucketName[];
+} {
+  const scope = job.backupScope;
+  if (scope == null || !(ADMIN_BACKUP_SCOPE_VALUES as readonly string[]).includes(scope)) {
+    return {};
+  }
+  if (scope === 'database') {
+    return { backupScope: scope };
+  }
+  const prefixes = job.minioPrefixes;
+  if (prefixes == null || prefixes.length === 0) {
+    return { backupScope: scope };
+  }
+  return {
+    backupScope: scope,
+    minioPrefixes: prefixes.filter((value): value is MinioBucketName =>
+      typeof value === 'string' && value.length > 0,
+    ),
+  };
+}
 
 export function buildBackupFilePath(location: string, folderId: string, filename: string): string {
   return join(location, folderId, filename);
@@ -69,6 +96,7 @@ export async function listBackupsCatalog(): Promise<BackupListEntry[]> {
           ...(unit === 'hours' || unit === 'days' || unit === 'weeks' || unit === 'months'
             ? { scheduleIntervalUnit: unit }
             : {}),
+          ...mapScopeListFields(job),
         };
       }
       const result = job.result;
@@ -88,6 +116,7 @@ export async function listBackupsCatalog(): Promise<BackupListEntry[]> {
         progress: job.progress,
         jobId: String(job._id),
         ...(backupSource != null ? { backupSource } : {}),
+        ...mapScopeListFields(job),
       };
     });
 }

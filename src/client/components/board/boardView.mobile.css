@@ -12,7 +12,11 @@
 
   .board-column.board-column--width-auto,
   .board-page__column-track--auto {
-    width: min(var(--board-list-column-prefer, 272px), max(228px, calc((100vw - 72px) / 3)));
+    width: clamp(
+      var(--board-list-column-min, 140px),
+      var(--board-list-column-prefer, 272px),
+      min(var(--board-list-column-max, 1000px), max(228px, calc(100vw - 72px)))
+    );
   }
 
   /* Swiper list carousel (KanbanView): mobile only; tablet/desktop use horizontal columns. */

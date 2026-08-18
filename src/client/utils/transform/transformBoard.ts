@@ -1,5 +1,6 @@
 import type { BoardDB } from '../../store/database.js';
 import type { BoardThemeSettings } from '../../../shared/boardTheme.js';
+import { DEFAULT_BOARD_TYPE, isBoardType } from '../../../shared/constants/boardType.js';
 import { normalizeBoardThemeSettingsForClient } from '../boardThemeClientNormalize.js';
 import {
   boardShowsDueDateOnCards,
@@ -25,6 +26,7 @@ export function transformBoard(
     background?: string;
     themeSettings?: BoardThemeSettings;
     visibility: 'private' | 'workspace' | 'public';
+    boardType?: string;
     members?: Array<{
       userId?: string | { toString: () => string } | { _id?: string | { toString: () => string } };
       role?: string;
@@ -111,6 +113,9 @@ export function transformBoard(
     };
   });
 
+  const rawBoardType = typeof b.boardType === 'string' ? b.boardType : '';
+  const boardType = isBoardType(rawBoardType) ? rawBoardType : DEFAULT_BOARD_TYPE;
+
   return {
     id,
     position,
@@ -120,6 +125,7 @@ export function transformBoard(
     ...(b.background !== undefined && { background: b.background }),
     ...(normalizedThemeSettings !== undefined ? { themeSettings: normalizedThemeSettings } : {}),
     visibility: b.visibility,
+    boardType,
     ownerId,
     members,
     settings: {

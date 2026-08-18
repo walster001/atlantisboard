@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type { AttachmentScanStatus } from '../../shared/attachmentScanStatus.js';
 import type { BoardThemeSettings } from '../../shared/boardTheme.js';
 import type { BoardActivityTrackingSettings } from '../../shared/constants/boardContentActivities.js';
+import type { BoardType } from '../../shared/constants/boardType.js';
 
 // Database interfaces
 export interface WorkspaceDB {
@@ -30,6 +31,7 @@ export interface BoardDB {
   background?: string;
   themeSettings?: BoardThemeSettings;
   visibility: 'private' | 'workspace' | 'public';
+  boardType?: BoardType;
   ownerId: string;
   members: Array<{
     userId: string;

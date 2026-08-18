@@ -13,6 +13,7 @@ import { useBoardPermissions } from '../../hooks/useBoardPermissions.js';
 import { resolveBoardSettingsGate } from '../../utils/boardSettingsPermissions.js';
 import { getBoardPageThemeStyle } from '../../utils/boardThemeStyle.js';
 import type { ScaleMode } from '../../components/board/scaleModePolicy.js';
+import { usesKanbanBoardLayout } from '../../../shared/constants/boardType.js';
 
 interface UseBoardPageControllerParams {
   readonly boardId: string | undefined;
@@ -131,7 +132,12 @@ export function useBoardPageController({
         }
 
         if (isInitial) {
-          await import('../../components/board/KanbanView.js');
+          const loadedType = useBoardRuntimeStore.getState().board?.boardType;
+          if (usesKanbanBoardLayout(loadedType)) {
+            await import('../../components/board/KanbanView.js');
+          } else {
+            await import('../../components/board/visualStorytelling/VisualStorytellingView.js');
+          }
         }
 
         if (!ok) {

@@ -2,6 +2,7 @@ export type ViewMode = 'summary' | 'detail';
 import type { AttachmentScanStatus } from '../attachmentScanStatus.js';
 import type { BoardThemeSettings, BoardThemeSettingsStored } from '../boardTheme.js';
 import type { BoardActivityTrackingSettings } from '../constants/boardContentActivities.js';
+import type { BoardType } from '../constants/boardType.js';
 
 export interface WorkspaceSummaryDTO {
   id: string;
@@ -60,6 +61,8 @@ export interface BoardSummaryDTO {
   background?: string;
   themeSettings?: BoardThemeSettings | BoardThemeSettingsStored;
   visibility: 'private' | 'workspace' | 'public';
+  /** Missing on older API payloads; client treats as `normal`. */
+  boardType?: BoardType;
   ownerId: string;
   members: Array<{
     userId: string;

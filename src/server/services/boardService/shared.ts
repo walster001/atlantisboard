@@ -12,6 +12,7 @@ import {
   type BoardMemberRoleUpdateModeKey,
 } from '../roleService.js';
 import type { BoardSummaryDTO } from '../../../shared/types/viewModels.js';
+import { DEFAULT_BOARD_TYPE } from '../../../shared/constants/boardType.js';
 import {
   boardShowsDueDateOnCards,
   boardShowsEndDateOnCards,
@@ -235,6 +236,7 @@ export function toBoardSummary(board: Document & IBoard): BoardSummaryDTO {
     ...(board.background !== undefined ? { background: board.background } : {}),
     ...(board.themeSettings !== undefined ? { themeSettings: board.themeSettings } : {}),
     visibility: board.visibility,
+    boardType: board.boardType ?? DEFAULT_BOARD_TYPE,
     ownerId: board.ownerId.toString(),
     members: board.members.map((member) => ({
       userId: member.userId.toString(),

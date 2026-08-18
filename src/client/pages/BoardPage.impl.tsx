@@ -13,7 +13,9 @@ import type { ScaleMode } from '../components/board/scaleModePolicy.js';
 import { env } from '../config/env.js';
 import { useResponsiveTier } from '../hooks/useResponsiveTier.js';
 import { useIsPwa } from '../hooks/usePwaDisplayMode.js';
+import { usesKanbanBoardLayout } from '../../shared/constants/boardType.js';
 import { KanbanView, KANBAN_VIEW_SUSPENSE_FALLBACK } from './BoardPage/kanbanViewLoader.js';
+import { VisualStorytellingView, VS_VIEW_SUSPENSE_FALLBACK } from './BoardPage/visualStorytellingLoader.js';
 import { useBoardBodyMobileGestures } from './BoardPage/useBoardBodyMobileGestures.js';
 import { useBoardPageController } from './BoardPage/useBoardPageController.js';
 import '../components/board/boardView.css';
@@ -68,9 +70,10 @@ export default function BoardPage() {
     navigate('/');
   }, [navigate]);
 
-  const boardRootClassName = `board-page${isMobile ? ' board-page--mobile' : isTablet ? ' board-page--tablet' : ''}${
-    isPwa ? ' board-page--pwa' : ''
-  }`;
+  const storyboard = board != null && !usesKanbanBoardLayout(board.boardType);
+  const boardRootClassName = `board-page${storyboard ? ' board-page--visual-storytelling' : ''}${
+    isMobile ? ' board-page--mobile' : isTablet ? ' board-page--tablet' : ''
+  }${isPwa ? ' board-page--pwa' : ''}`;
   const boardRootProps = {
     className: boardRootClassName,
     ...(boardThemeStyle !== undefined ? { style: boardThemeStyle } : {}),
@@ -196,14 +199,23 @@ export default function BoardPage() {
       </Box>
 
       <Box className="board-page__body">
-        <Suspense fallback={KANBAN_VIEW_SUSPENSE_FALLBACK}>
-          <KanbanView
-            board={board}
-            boardCardPatchRef={boardCardPatchRef}
-            kanbanCaps={kanbanCaps}
-            onOpenCard={handleOpenCard}
-            responsiveTier={responsiveTier}
-          />
+        <Suspense fallback={storyboard ? VS_VIEW_SUSPENSE_FALLBACK : KANBAN_VIEW_SUSPENSE_FALLBACK}>
+          {storyboard ? (
+            <VisualStorytellingView
+              board={board}
+              boardCardPatchRef={boardCardPatchRef}
+              kanbanCaps={kanbanCaps}
+              onOpenCard={handleOpenCard}
+            />
+          ) : (
+            <KanbanView
+              board={board}
+              boardCardPatchRef={boardCardPatchRef}
+              kanbanCaps={kanbanCaps}
+              onOpenCard={handleOpenCard}
+              responsiveTier={responsiveTier}
+            />
+          )}
         </Suspense>
       </Box>
 

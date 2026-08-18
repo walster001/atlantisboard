@@ -24,7 +24,6 @@ import {
 import {
   DEFAULT_BOARD_TYPE,
   STEP_GUIDE_NOT_IMPLEMENTED_MESSAGE,
-  VISUAL_STORYTELLING_NOT_IMPLEMENTED_MESSAGE,
   isBoardType,
   resolveCreateBoardPath,
   type BoardType,
@@ -37,7 +36,7 @@ interface CreateBoardModalProps {
   onSuccess: () => void;
 }
 
-type CreateNormalBoardPayload = {
+type CreateBoardFormPayload = {
   workspaceId: string;
   name: string;
   description?: string;
@@ -45,20 +44,7 @@ type CreateNormalBoardPayload = {
   themeSettings?: ReturnType<typeof createDefaultBoardThemeSettings>;
 };
 
-async function createNormalBoard(boardData: CreateNormalBoardPayload): Promise<void> {
-  await api.createBoard({ ...boardData, boardType: 'normal' });
-}
-
-/** Stub until visual storytelling boards are implemented. Do not fall through to createNormalBoard. */
-export async function createVisualStorytellingBoard(): Promise<void> {
-  notifications.show({
-    title: 'Coming soon',
-    message: VISUAL_STORYTELLING_NOT_IMPLEMENTED_MESSAGE,
-    color: 'blue',
-  });
-}
-
-/** Stub until step guide boards are implemented. Do not fall through to createNormalBoard. */
+/** Stub until step guide boards are implemented. Do not fall through to create. */
 export async function createStepGuideBoard(): Promise<void> {
   notifications.show({
     title: 'Coming soon',
@@ -111,10 +97,6 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
     }
 
     const createPath = resolveCreateBoardPath(boardType);
-    if (createPath === 'visual-storytelling-stub') {
-      await createVisualStorytellingBoard();
-      return;
-    }
     if (createPath === 'step-guide-stub') {
       await createStepGuideBoard();
       return;
@@ -124,7 +106,7 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
     setError(null);
 
     try {
-      const boardData: CreateNormalBoardPayload = {
+      const boardData: CreateBoardFormPayload = {
         workspaceId,
         name: name.trim(),
       };
@@ -152,7 +134,10 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
           boardData.background = resolvedBackground;
         }
       }
-      await createNormalBoard(boardData);
+      await api.createBoard({
+        ...boardData,
+        boardType: createPath === 'visual-storytelling' ? 'visual-storytelling' : 'normal',
+      });
       onSuccess();
       onClose();
     } catch (err) {
@@ -224,7 +209,7 @@ export function CreateBoardModal({ workspaceId, onClose, onSuccess }: CreateBoar
               <Radio
                 value="visual-storytelling"
                 label="Visual Storytelling"
-                description="Coming soon"
+                description="Vertical cinematic storyboard"
                 disabled={loading}
               />
               <Radio

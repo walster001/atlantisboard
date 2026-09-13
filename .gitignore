@@ -88,3 +88,6 @@ snap-migration.md
 useeffect-report.md
 scripts/prod-remote-deploy.env copy.example
 docs/security-audit-tests-sockets.md
+
+# Local Cursor chat restore artifacts
+.cursor-history-restore/

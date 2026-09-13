@@ -73,7 +73,7 @@ Local dry run:
 
 ## License
 
-MIT — see `package.json`.
+Proprietary — All Rights Reserved. See `LICENSE` and `EULA.md`. `package.json` declares `"license": "UNLICENSED"` (no open-source grant).
 
 ---
 

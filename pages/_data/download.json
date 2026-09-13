@@ -19,7 +19,7 @@
   "npm": {
     "name": "atlantisboard",
     "version": "1.0.1",
-    "description": "Atlantisboard - Self-hosted Open-source Kanban",
+    "description": "Fully-functional, self-hosted Kanban board application",
     "registry_url": "https://www.npmjs.com/package/atlantisboard",
     "install_command": "npm install -g atlantisboard"
   }

@@ -111,6 +111,10 @@ Atlantisboard is a self-hosted, real-time collaborative Kanban board designed fo
 - [Offline & PWA](offline-pwa.md) — Progressive Web App installation, offline caching, and sync.
 - [Keyboard Shortcuts & Tips](keyboard-shortcuts.md) — Keyboard interactions, mobile gestures, and accessibility notes.
 
+### License
+
+Atlantisboard is **proprietary** software (All Rights Reserved). See `LICENSE` and `EULA.md` in the repository. Ownership: **Matthew Waldhuter / Waldhuter Enterprises**. Commercial or business use requires permission. `package.json` declares `"license": "UNLICENSED"` (no open-source grant).
+
 ---
 
 *This wiki is a living document. If you spot an error or have a suggestion, open an issue on the project repository.*

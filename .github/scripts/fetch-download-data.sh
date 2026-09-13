@@ -73,7 +73,8 @@ payload = {
     "npm": {
         "name": npm_package,
         "version": npm.get("version", ""),
-        "description": npm.get("description", ""),
+        # Prefer repo package.json wording; published npm metadata may still say "open-source".
+        "description": "Fully-functional, self-hosted Kanban board application",
         "registry_url": f"https://www.npmjs.com/package/{npm_package}",
         "install_command": f"npm install -g {npm_package}",
     },

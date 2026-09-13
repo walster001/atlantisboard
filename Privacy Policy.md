@@ -1,7 +1,7 @@
 # Privacy Notice — Atlantisboard
 
 **Last updated:** 31 May 2026  
-**Applies to:** Atlantisboard application (open-source software, MIT License)
+**Applies to:** Atlantisboard application (proprietary software; see `LICENSE` and `EULA.md`)
 
 ---
 
@@ -9,7 +9,7 @@
 
 This Privacy Notice is **bundled with Atlantisboard** and shown in the application so you understand **what data the software collects and processes** when you use it.
 
-Atlantisboard is **self-hosted software**. It runs on a server chosen by your **organisation or instance administrator** (your “**Instance Administrator**”). We—the Atlantisboard open-source project—**do not operate your instance**, **do not receive your data**, and **do not control** how or where it is hosted. We provide this notice to describe the **application’s behaviour** wherever it is installed.
+Atlantisboard is **self-hosted software**. It runs on a server chosen by your **organisation or instance administrator** (your “**Instance Administrator**”). The copyright holder—**Matthew Waldhuter / Waldhuter Enterprises**—**does not operate your instance**, **does not receive your data**, and **does not control** how or where it is hosted, unless that party is also your Instance Administrator. We provide this notice to describe the **application’s behaviour** wherever it is installed.
 
 By selecting **“I agree”** (or equivalent) on first sign-in, you confirm that you have read this notice and understand how the application handles information as described below. If you do not agree, do not create an account or sign in.
 
@@ -23,10 +23,10 @@ By selecting **“I agree”** (or equivalent) on first sign-in, you confirm tha
 | Role                                    | Who                                                                                                                                                                                                                                          |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Instance Administrator**              | The person or organisation that installed and runs Atlantisboard for you. They decide **where** data is stored, **which features** are enabled (e.g. Google Sign-In, email, push notifications), and **how long** backups and logs are kept. |
-| **Atlantisboard project (MIT licence)** | Provides the software and this notice. **Does not** access, collect, or sell personal data from your use of a third-party instance.                                                                                                          |
+| **Copyright holder (proprietary)**      | Provides the software and this notice. **Does not** access, collect, or sell personal data from your use of a third-party instance (unless also acting as Instance Administrator).                                                          |
 
 
-**Privacy requests** (access, deletion, correction, etc.) about data on a specific instance must be directed to your **Instance Administrator**, not to the open-source repository issue tracker.
+**Privacy requests** (access, deletion, correction, etc.) about data on a specific instance must be directed to your **Instance Administrator**, not to the product’s public issue tracker (if any).
 
 **Where to find your administrator:** Ask your employer, IT department, or the person who invited you to the boards you use. The login page may also show branding or contact details they configured.
 
@@ -251,9 +251,9 @@ You may **decline** by not signing in or by closing the prompt; you will not be 
 
 ---
 
-## 15. Open-source software
+## 15. Software license
 
-Atlantisboard is provided under the **MIT License**. The software is supplied **“as is”**, without warranty. Copyright holders and contributors of the open-source project are **not liable** for your Instance Administrator’s hosting choices or for data processed on instances they do not operate.
+Atlantisboard is **proprietary** software. See `LICENSE` and `EULA.md`. The software is supplied **“as is”**, without warranty. The copyright holder is **not liable** for your Instance Administrator’s hosting choices or for data processed on instances they do not operate.
 
 ---
 
